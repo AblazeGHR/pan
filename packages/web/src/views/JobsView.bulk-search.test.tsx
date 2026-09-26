@@ -95,6 +95,52 @@ function selectAllVisible() {
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible jobs' }));
 }
 
+const defaultRetentionRules = () => ({
+  completed: { enabled: false, days: 30 },
+  failed: { enabled: false, days: 30 },
+  timed_out: { enabled: false, days: 30 },
+  cancelled: { enabled: false, days: 30 },
+  logs: { enabled: false, days: 30 },
+});
+
+type MockRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
+type MockRetentionRun = {
+  scannedAt: string;
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  errorCount: number;
+  errors: string[];
+} | null;
+
+const defaultRetentionRuns = (): Record<MockRetentionRule, MockRetentionRun> => ({
+  completed: null,
+  failed: null,
+  timed_out: null,
+  cancelled: null,
+  logs: null,
+});
+
+function retentionResponse(
+  rules = defaultRetentionRules(),
+  lastRuns: Record<MockRetentionRule, MockRetentionRun> = defaultRetentionRuns(),
+) {
+  return {
+    settings: rules.completed,
+    rules,
+    configValid: true,
+    configValidity: {
+      completed: true,
+      failed: true,
+      timed_out: true,
+      cancelled: true,
+      logs: true,
+    },
+    lastRun: lastRuns.completed,
+    lastRuns,
+  };
+}
+
 describe('JobsView search, status filters, and bulk actions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -107,16 +153,10 @@ describe('JobsView search, status filters, and bulk actions', () => {
       { kind: 'scheduled-task', label: '定时任务', hasSchedule: true, hasProcess: false },
     ]);
     api.fetchJobRuns.mockResolvedValue([]);
-    api.fetchCompletedJobRetentionSettings.mockResolvedValue({
-      settings: { enabled: false, days: 30 },
-      configValid: true,
-      lastRun: null,
-    });
-    api.updateCompletedJobRetentionSettings.mockImplementation(async (settings) => ({
-      settings,
-      configValid: true,
-      lastRun: null,
-    }));
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse());
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (rules) =>
+      retentionResponse(rules),
+    );
   });
 
   afterEach(() => {
@@ -162,42 +202,90 @@ describe('JobsView search, status filters, and bulk actions', () => {
   });
 
   it('loads retention settings from the server and saves the edited values', async () => {
-    api.fetchCompletedJobRetentionSettings.mockResolvedValue({
-      settings: { enabled: true, days: 12 },
-      configValid: true,
-      lastRun: {
+    const loadedRules = defaultRetentionRules();
+    loadedRules.completed = { enabled: true, days: 12 };
+    const loadedRuns = defaultRetentionRuns();
+    loadedRuns.completed = {
         scannedAt: '2026-09-27T01:00:00+00:00',
         scanned: 9,
         deleted: 4,
         skipped: 1,
-      },
-    });
-    api.updateCompletedJobRetentionSettings.mockResolvedValue({
-      settings: { enabled: true, days: 14 },
-      configValid: true,
-      lastRun: {
+        errorCount: 0,
+        errors: [],
+      };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(
+      retentionResponse(loadedRules, loadedRuns),
+    );
+    const savedRules = { ...loadedRules, completed: { enabled: true, days: 14 } };
+    const savedRuns = defaultRetentionRuns();
+    savedRuns.completed = {
         scannedAt: '2026-09-27T01:00:00+00:00',
         scanned: 9,
         deleted: 4,
         skipped: 1,
-      },
-    });
+        errorCount: 0,
+        errors: [],
+      };
+    api.updateCompletedJobRetentionSettings.mockResolvedValue(
+      retentionResponse(savedRules, savedRuns),
+    );
     renderView();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
-    const daysInput = await screen.findByRole('spinbutton', { name: 'Keep completed Jobs for days' });
+    const daysInput = await screen.findByRole('spinbutton', { name: 'Keep Completed Jobs for days' });
     expect((daysInput as HTMLInputElement).value).toBe('12');
-    expect((screen.getByRole('checkbox', { name: 'Enable automatic cleanup' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Enable Completed Jobs cleanup' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/deleted 4/).textContent).toContain('deleted 4');
     expect(api.fetchCompletedJobRetentionSettings).toHaveBeenCalledTimes(1);
 
     fireEvent.change(daysInput, { target: { value: '14' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({
-      enabled: true,
-      days: 14,
-    }));
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith(savedRules));
     expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('loads and saves failed, timeout, cancelled, and log retention independently', async () => {
+    const rules = defaultRetentionRules();
+    rules.failed = { enabled: true, days: 11 };
+    rules.timed_out = { enabled: false, days: 12 };
+    rules.cancelled = { enabled: true, days: 13 };
+    rules.logs = { enabled: false, days: 14 };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse(rules));
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    for (const label of ['Failed Jobs', 'Timed out Jobs', 'Cancelled Jobs', 'Job log files']) {
+      expect(await screen.findByRole('spinbutton', { name: `Keep ${label} for days` })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: `Enable ${label} cleanup` })).toBeTruthy();
+    }
+    expect(screen.getByText(/Job record may remain after its expired log is removed/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable Timed out Jobs cleanup' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Keep Job log files for days' }), {
+      target: { value: '21' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    const expected = {
+      ...rules,
+      timed_out: { enabled: true, days: 12 },
+      logs: { enabled: false, days: 21 },
+    };
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith(expected));
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('shows invalid persisted rule feedback and keeps that switch off', async () => {
+    const response = retentionResponse();
+    response.configValid = false;
+    response.configValidity.failed = false;
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(response);
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Failed Jobs');
+    expect((screen.getByRole('checkbox', {
+      name: 'Enable Failed Jobs cleanup',
+    }) as HTMLInputElement).checked).toBe(false);
   });
 
   it('shows settings load and save errors', async () => {
@@ -206,16 +294,12 @@ describe('JobsView search, status filters, and bulk actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect((await screen.findByRole('alert')).textContent).toContain('settings unavailable');
 
-    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce({
-      settings: { enabled: false, days: 30 },
-      configValid: true,
-      lastRun: null,
-    });
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce(retentionResponse());
     api.updateCompletedJobRetentionSettings.mockRejectedValueOnce(new Error('save failed'));
     cleanup();
     renderView();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    await screen.findByRole('spinbutton', { name: 'Keep completed Jobs for days' });
+    await screen.findByRole('spinbutton', { name: 'Keep Completed Jobs for days' });
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     expect((await screen.findByRole('alert')).textContent).toContain('save failed');
   });

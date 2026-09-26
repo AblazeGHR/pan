@@ -31,7 +31,11 @@ import {
   runJobNow,
   updateCompletedJobRetentionSettings,
 } from '@/services/api';
-import type { CompletedJobRetentionRun, CompletedJobRetentionSettings } from '@/services/api';
+import type {
+  CompletedJobRetentionRun,
+  JobRetentionRule,
+  JobRetentionRules,
+} from '@/services/api';
 import type {
   Job,
   JobCreateInput,
@@ -66,6 +70,46 @@ const FALLBACK_KINDS: JobKind[] = [
 ];
 
 const RUNS_PAGE = 20;
+
+const RETENTION_RULE_META: {
+  key: JobRetentionRule;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'completed',
+    label: 'Completed Jobs',
+    description: 'Deletes only Jobs whose top-level status is exactly completed and whose updatedAt is old enough.',
+  },
+  {
+    key: 'failed',
+    label: 'Failed Jobs',
+    description: 'Deletes only Jobs whose top-level status is exactly failed and whose updatedAt is old enough.',
+  },
+  {
+    key: 'timed_out',
+    label: 'Timed out Jobs',
+    description: 'Deletes only Jobs whose top-level status is exactly timed_out and whose updatedAt is old enough.',
+  },
+  {
+    key: 'cancelled',
+    label: 'Cancelled Jobs',
+    description: 'Deletes only Jobs whose top-level status is exactly cancelled and whose updatedAt is old enough.',
+  },
+  {
+    key: 'logs',
+    label: 'Job log files',
+    description: 'Uses each uniquely owned regular log file’s last-modified time inside the Pan Jobs logs directory.',
+  },
+];
+
+const DEFAULT_RETENTION_RULES: JobRetentionRules = {
+  completed: { enabled: false, days: 30 },
+  failed: { enabled: false, days: 30 },
+  timed_out: { enabled: false, days: 30 },
+  cancelled: { enabled: false, days: 30 },
+  logs: { enabled: false, days: 30 },
+};
 
 const selectClass =
   'w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 px-2 text-text-primary outline-none focus:border-accent/50';
@@ -408,10 +452,12 @@ export default function JobsView() {
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retentionSettings, setRetentionSettings] = useState<CompletedJobRetentionSettings | null>(null);
-  const [retentionDaysDraft, setRetentionDaysDraft] = useState('30');
-  const [retentionEnabledDraft, setRetentionEnabledDraft] = useState(false);
-  const [retentionLastRun, setRetentionLastRun] = useState<CompletedJobRetentionRun | null>(null);
+  const [retentionRules, setRetentionRules] = useState<JobRetentionRules | null>(null);
+  const [retentionRulesDraft, setRetentionRulesDraft] = useState<JobRetentionRules>(DEFAULT_RETENTION_RULES);
+  const [retentionLastRuns, setRetentionLastRuns] = useState<Record<
+    JobRetentionRule,
+    CompletedJobRetentionRun | null
+  > | null>(null);
   const [retentionLoading, setRetentionLoading] = useState(true);
   const [retentionSaving, setRetentionSaving] = useState(false);
   const [retentionError, setRetentionError] = useState<string | null>(null);
@@ -463,12 +509,20 @@ export default function JobsView() {
     setRetentionError(null);
     try {
       const result = await fetchCompletedJobRetentionSettings();
-      setRetentionSettings(result.settings);
-      setRetentionEnabledDraft(result.settings.enabled);
-      setRetentionDaysDraft(String(result.settings.days));
-      setRetentionLastRun(result.lastRun);
+      setRetentionRules(result.rules);
+      setRetentionRulesDraft({
+        completed: { ...result.rules.completed },
+        failed: { ...result.rules.failed },
+        timed_out: { ...result.rules.timed_out },
+        cancelled: { ...result.rules.cancelled },
+        logs: { ...result.rules.logs },
+      });
+      setRetentionLastRuns(result.lastRuns);
       if (!result.configValid) {
-        setRetentionError('Stored retention settings are invalid. Automatic deletion remains disabled until valid values are saved.');
+        const invalidRules = RETENTION_RULE_META
+          .filter(({ key }) => !result.configValidity[key])
+          .map(({ label }) => label);
+        setRetentionError(`Invalid saved values for ${invalidRules.join(', ')}. Those rules remain disabled until valid values are saved.`);
       }
     } catch (e) {
       setRetentionError(errMsg(e));
@@ -486,26 +540,30 @@ export default function JobsView() {
   }, [loadRetentionSettings]);
 
   const saveRetentionSettings = useCallback(async () => {
-    const days = Number(retentionDaysDraft);
-    if (!Number.isInteger(days) || days < 1 || days > 36500) {
-      setRetentionError('Keep days must be a whole number from 1 to 36500.');
-      setRetentionFeedback(null);
-      return;
+    for (const { key, label } of RETENTION_RULE_META) {
+      const days = retentionRulesDraft[key].days;
+      if (!Number.isInteger(days) || days < 1 || days > 36500) {
+        setRetentionError(`${label} keep days must be a whole number from 1 to 36500.`);
+        setRetentionFeedback(null);
+        return;
+      }
     }
     setRetentionSaving(true);
     setRetentionError(null);
     setRetentionFeedback(null);
     try {
-      const result = await updateCompletedJobRetentionSettings({
-        enabled: retentionEnabledDraft,
-        days,
+      const result = await updateCompletedJobRetentionSettings(retentionRulesDraft);
+      setRetentionRules(result.rules);
+      setRetentionRulesDraft({
+        completed: { ...result.rules.completed },
+        failed: { ...result.rules.failed },
+        timed_out: { ...result.rules.timed_out },
+        cancelled: { ...result.rules.cancelled },
+        logs: { ...result.rules.logs },
       });
-      setRetentionSettings(result.settings);
-      setRetentionEnabledDraft(result.settings.enabled);
-      setRetentionDaysDraft(String(result.settings.days));
-      setRetentionLastRun(result.lastRun);
+      setRetentionLastRuns(result.lastRuns);
       if (!result.configValid) {
-        setRetentionError('Stored retention settings are invalid. Automatic deletion remains disabled until valid values are saved.');
+        setRetentionError('Some saved retention values are invalid. Automatic cleanup remains disabled for those rules.');
       } else {
         setRetentionFeedback('Settings saved. The server applies changes without a restart.');
       }
@@ -514,7 +572,7 @@ export default function JobsView() {
     } finally {
       setRetentionSaving(false);
     }
-  }, [retentionDaysDraft, retentionEnabledDraft]);
+  }, [retentionRulesDraft]);
 
   useEffect(() => {
     void fetchJobKinds()
@@ -1223,14 +1281,14 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <section className="flex flex-col gap-4 rounded border border-border-muted bg-bg-secondary/40 p-4">
+            <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-sm font-semibold text-text-primary">Completed Job cleanup</h2>
+                <h2 className="text-sm font-semibold text-text-primary">Automatic cleanup settings</h2>
                 <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  The server automatically deletes a Job only when its status is exactly completed
-                  and its updatedAt is at least the selected number of days old. This applies to
-                  every Job kind. Missing or invalid timestamps and every other status are kept.
-                  Deleted Job records do not remove log files or runs history.
+                  Each rule is independent and disabled by default. Enabled rules run on the server
+                  at most once every 24 hours without requiring this page to stay open. Job record
+                  rules use the exact top-level status and updatedAt; missing or invalid timestamps
+                  are kept. Logs and Job records are retained independently.
                 </p>
               </div>
 
@@ -1238,45 +1296,115 @@ export default function JobsView() {
                 <p className="text-xs text-text-tertiary" role="status">Loading settings…</p>
               ) : (
                 <>
-                  <label className="flex items-start gap-2 text-xs text-text-primary">
-                    <input
-                      type="checkbox"
-                      checked={retentionEnabledDraft}
-                      disabled={retentionSaving || retentionSettings === null}
-                      onChange={(event) => {
-                        setRetentionEnabledDraft(event.target.checked);
-                        setRetentionFeedback(null);
-                      }}
-                      className="mt-0.5 accent-accent"
-                    />
-                    <span>Enable automatic cleanup</span>
-                  </label>
+                  {RETENTION_RULE_META.map(({ key, label, description }) => {
+                    const ruleSettings = retentionRulesDraft[key];
+                    const lastRun = retentionLastRuns?.[key] ?? null;
+                    return (
+                      <section
+                        key={key}
+                        aria-labelledby={`job-retention-${key}-title`}
+                        className="flex flex-col gap-3 rounded border border-border-muted bg-bg-secondary/40 p-4"
+                      >
+                        <div>
+                          <h3
+                            id={`job-retention-${key}-title`}
+                            className="text-sm font-semibold text-text-primary"
+                          >
+                            {label}
+                          </h3>
+                          <p className="mt-1 text-xs leading-5 text-text-secondary">{description}</p>
+                          {key === 'logs' ? (
+                            <p className="mt-1 text-xs leading-5 text-text-secondary">
+                              This does not delete Job records or runs history. A Job record may remain
+                              after its expired log is removed, but that log can no longer be viewed.
+                              Files with unknown ownership, links, directories, and logs for active
+                              Jobs or Runners are kept.
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-xs leading-5 text-text-secondary">
+                              Other Job statuses are unaffected; this rule does not infer or group statuses.
+                            </p>
+                          )}
+                        </div>
 
-                  <label className="flex max-w-sm flex-col gap-1 text-xs text-text-secondary">
-                    <span>Keep completed Jobs for at least</span>
-                    <span className="flex items-center gap-2">
-                      <input
-                        aria-label="Keep completed Jobs for days"
-                        type="number"
-                        min={1}
-                        max={36500}
-                        step={1}
-                        value={retentionDaysDraft}
-                        disabled={retentionSaving || retentionSettings === null}
-                        onChange={(event) => {
-                          setRetentionDaysDraft(event.target.value);
-                          setRetentionFeedback(null);
-                        }}
-                        className={`${selectClass} max-w-32`}
-                      />
-                      <span>days</span>
-                    </span>
-                  </label>
+                        <label className="flex items-start gap-2 text-xs text-text-primary">
+                          <input
+                            type="checkbox"
+                            aria-label={`Enable ${label} cleanup`}
+                            checked={ruleSettings.enabled}
+                            disabled={retentionSaving || retentionRules === null}
+                            onChange={(event) => {
+                              setRetentionRulesDraft((current) => ({
+                                ...current,
+                                [key]: { ...current[key], enabled: event.target.checked },
+                              }));
+                              setRetentionFeedback(null);
+                            }}
+                            className="mt-0.5 accent-accent"
+                          />
+                          <span>Enable automatic cleanup</span>
+                        </label>
+
+                        <label className="flex max-w-sm flex-col gap-1 text-xs text-text-secondary">
+                          <span>Keep {label} for at least</span>
+                          <span className="flex items-center gap-2">
+                            <input
+                              aria-label={`Keep ${label} for days`}
+                              type="number"
+                              min={1}
+                              max={36500}
+                              step={1}
+                              value={ruleSettings.days}
+                              disabled={retentionSaving || retentionRules === null}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setRetentionRulesDraft((current) => ({
+                                  ...current,
+                                  [key]: {
+                                    ...current[key],
+                                    days: value === '' ? Number.NaN : Number(value),
+                                  },
+                                }));
+                                setRetentionFeedback(null);
+                              }}
+                              className={`${selectClass} max-w-32`}
+                            />
+                            <span>days</span>
+                          </span>
+                        </label>
+
+                        <div className="border-t border-border-muted pt-2 text-xs text-text-tertiary">
+                          <p className="font-medium text-text-secondary">Last check for this rule</p>
+                          {lastRun ? (
+                            <>
+                              <p className="mt-1">
+                                {new Date(lastRun.scannedAt).toLocaleString()} · scanned {lastRun.scanned}
+                                {' · '}deleted {lastRun.deleted}{' · '}skipped {lastRun.skipped}
+                                {' · '}errors {lastRun.errorCount}
+                              </p>
+                              {lastRun.errors.length > 0 && (
+                                <details className="mt-1">
+                                  <summary className="cursor-pointer">Error details</summary>
+                                  <ul className="mt-1 list-disc pl-4">
+                                    {lastRun.errors.map((message, index) => (
+                                      <li key={`${key}-error-${index}`}>{message}</li>
+                                    ))}
+                                  </ul>
+                                </details>
+                              )}
+                            </>
+                          ) : (
+                            <p className="mt-1">No automatic check has run for this rule yet.</p>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
 
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
-                      disabled={retentionSaving || retentionSettings === null}
+                      disabled={retentionSaving || retentionRules === null}
                       onClick={() => void saveRetentionSettings()}
                       className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -1288,7 +1416,7 @@ export default function JobsView() {
                     {retentionError && (
                       <span className="inline-flex items-center gap-2 text-xs text-danger" role="alert">
                         {retentionError}
-                        {retentionSettings === null && (
+                        {retentionRules === null && (
                           <button
                             type="button"
                             onClick={() => void loadRetentionSettings()}
@@ -1300,21 +1428,9 @@ export default function JobsView() {
                       </span>
                     )}
                   </div>
-
-                  <div className="border-t border-border-muted pt-3 text-xs text-text-tertiary">
-                    <h3 className="font-medium text-text-secondary">Last automatic cleanup</h3>
-                    {retentionLastRun ? (
-                      <p className="mt-1">
-                        {new Date(retentionLastRun.scannedAt).toLocaleString()} · scanned {retentionLastRun.scanned}
-                        {' · '}deleted {retentionLastRun.deleted}{' · '}skipped {retentionLastRun.skipped}
-                      </p>
-                    ) : (
-                      <p className="mt-1">No automatic cleanup pass has run yet.</p>
-                    )}
-                  </div>
                 </>
               )}
-            </section>
+            </div>
           </div>
         </div>
       )}

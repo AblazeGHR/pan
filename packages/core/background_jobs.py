@@ -16,6 +16,7 @@ import math
 import os
 import re
 import secrets
+import stat
 import subprocess
 import threading
 import time
@@ -56,6 +57,10 @@ SERVICE_TERMINAL_PHASES = frozenset({"ready", "offline", "failed", "timed_out"})
 def _root(registry_root: str | Path | None = None) -> Path:
     value = registry_root or os.environ.get("PAN_BACKGROUND_JOBS_DIR")
     root = Path(value).expanduser() if value else DEFAULT_ROOT
+    # Jobs registries are caller-controlled paths. Do not let normal registry
+    # setup (including the log retention path) create or read through a link.
+    if _path_has_reparse_component(root):
+        raise ValueError("Jobs registry path contains a symlink or reparse point")
     (root / "jobs").mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(parents=True, exist_ok=True)
     return root
@@ -1174,41 +1179,79 @@ def _completed_job_is_expired(job: dict, cutoff: float) -> bool:
     return updated_at is not None and updated_at <= cutoff
 
 
-def cleanup_completed_jobs(*, registry_root: str | Path,
-                           retention_days: int,
-                           now: float | None = None) -> dict:
-    """Delete expired completed records after rechecking each under its lock.
+_RETENTION_JOB_STATUSES = frozenset({"completed", "failed", "timed_out", "cancelled"})
+_RETENTION_LOG_SAFE_STATUSES = _RETENTION_JOB_STATUSES | {"pending", "scheduled"}
+_RETENTION_RULES = ("completed", "failed", "timed_out", "cancelled", "logs")
 
-    This helper scans one registry but does not apply the daily scheduling
-    gate. It intentionally leaves logs/runs untouched, matching manual Job
-    deletion, and delegates scheduled-shell safety checks to the same guard.
-    """
+
+def _validate_retention_days(retention_days: int) -> None:
     if (type(retention_days) is not int
             or not (_config.COMPLETED_JOB_RETENTION_MIN_DAYS
                     <= retention_days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS)):
         raise ValueError("retention_days is outside the supported range")
+
+
+def _retention_result(now: float, scanned: int = 0) -> dict:
+    return {
+        "scannedAt": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        "scanned": scanned,
+        "deleted": 0,
+        "skipped": 0,
+        "errorCount": 0,
+        "errors": [],
+    }
+
+
+def _add_retention_error(result: dict, message: str) -> None:
+    result["errorCount"] = int(result.get("errorCount") or 0) + 1
+    errors = result.setdefault("errors", [])
+    if len(errors) < 20:
+        errors.append(str(message)[:500])
+
+
+def _job_is_expired_for_status(job: dict, status: str, cutoff: float) -> bool:
+    if not isinstance(job, dict) or job.get("status") != status:
+        return False
+    updated_at = _valid_updated_at(job.get("updatedAt"))
+    return updated_at is not None and updated_at <= cutoff
+
+
+def cleanup_jobs_by_statuses(*, registry_root: str | Path,
+                             retention_days_by_status: dict[str, int],
+                             now: float | None = None) -> dict[str, dict]:
+    """Clean exact top-level statuses, with one snapshot and locked rechecks."""
+    for status, days in retention_days_by_status.items():
+        if status not in _RETENTION_JOB_STATUSES:
+            raise ValueError(f"unsupported Job retention status: {status}")
+        _validate_retention_days(days)
     now = time.time() if now is None else float(now)
     if not math.isfinite(now):
         raise ValueError("now must be finite")
-    cutoff = now - retention_days * 24 * 60 * 60
     candidates = list_jobs(registry_root)
-    deleted = 0
-    skipped = 0
+    results = {
+        status: _retention_result(now, len(candidates))
+        for status in retention_days_by_status
+    }
     on_deleted = _completed_retention_hooks.get("on_deleted")
 
     for candidate in candidates:
-        if not _completed_job_is_expired(candidate, cutoff):
+        status = candidate.get("status")
+        if status not in retention_days_by_status:
+            continue
+        result = results[status]
+        cutoff = now - retention_days_by_status[status] * 24 * 60 * 60
+        if not _job_is_expired_for_status(candidate, status, cutoff):
             continue
         job_id = candidate.get("jobId")
         if not isinstance(job_id, str):
-            skipped += 1
+            result["skipped"] += 1
             continue
         try:
             with _lock, _job_lock(job_id, registry_root):
                 path = _job_path(job_id, registry_root)
                 current = _load_path(path)
-                if not _completed_job_is_expired(current, cutoff):
-                    skipped += 1
+                if not _job_is_expired_for_status(current, status, cutoff):
+                    result["skipped"] += 1
                     continue
                 action = current.get("action")
                 if (current.get("kind") == SCHEDULED_TASK_KIND
@@ -1218,30 +1261,209 @@ def cleanup_completed_jobs(*, registry_root: str | Path,
                             or any(child.get("scheduledParentJobId") == job_id
                                    and child.get("status") in {"starting", "running"}
                                    for child in list_jobs(registry_root))):
-                        skipped += 1
+                        result["skipped"] += 1
                         continue
                 try:
                     path.unlink()
-                except OSError:
-                    skipped += 1
+                except OSError as exc:
+                    _add_retention_error(result, f"{job_id}: {exc}")
                     continue
-            deleted += 1
+            result["deleted"] += 1
             if callable(on_deleted):
                 try:
                     on_deleted(job_id)
                 except Exception:
                     pass
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
             # Missing/corrupt records and active scheduled shell children are
             # retained; a later daily pass may retry if the state changes.
-            skipped += 1
+            result["skipped"] += 1
+            _add_retention_error(result, f"{job_id}: {exc}")
+    return results
 
-    return {
-        "scannedAt": datetime.fromtimestamp(now, timezone.utc).isoformat(),
-        "scanned": len(candidates),
-        "deleted": deleted,
-        "skipped": skipped,
-    }
+
+def cleanup_completed_jobs(*, registry_root: str | Path,
+                           retention_days: int,
+                           now: float | None = None) -> dict:
+    """Compatibility wrapper for the first-phase completed-only cleaner."""
+    _validate_retention_days(retention_days)
+    return cleanup_jobs_by_statuses(
+        registry_root=registry_root,
+        retention_days_by_status={"completed": retention_days},
+        now=now,
+    )["completed"]
+
+
+def _is_reparse_stat(value: os.stat_result) -> bool:
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return (stat.S_ISLNK(value.st_mode)
+            or bool(getattr(value, "st_file_attributes", 0) & reparse_flag))
+
+
+def _path_has_reparse_component(path: Path) -> bool:
+    """Fail closed if any existing component is a symlink or reparse point."""
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current = current / part
+        try:
+            value = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError:
+            return True
+        if _is_reparse_stat(value):
+            return True
+    return False
+
+
+def _controlled_logs_dir(registry_root: str | Path) -> tuple[Path | None, str | None]:
+    root = Path(os.path.abspath(registry_root))
+    if _path_has_reparse_component(root):
+        return None, "registry root contains a symlink or reparse point"
+    logs_dir = root / "logs"
+    try:
+        value = logs_dir.lstat()
+    except FileNotFoundError:
+        return None, None
+    except OSError as exc:
+        return None, f"cannot inspect logs directory: {exc}"
+    if _is_reparse_stat(value) or not stat.S_ISDIR(value.st_mode):
+        return None, "logs path is not a plain directory"
+    return logs_dir, None
+
+
+def _canonical_log_path(value: Any, job: dict, logs_dir: Path) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    candidate = Path(value)
+    job_id = job.get("jobId")
+    # All Pan Jobs runners use this deterministic direct-child name. Custom,
+    # relative, nested, and external paths are not eligible for cleanup.
+    if (not candidate.is_absolute()
+            or not isinstance(job_id, str)
+            or candidate.name != f"{job_id}.log"
+            or os.path.normcase(os.path.abspath(candidate.parent))
+            != os.path.normcase(os.path.abspath(logs_dir))):
+        return None
+    return os.path.normcase(os.path.abspath(candidate))
+
+
+def _runner_active_or_unknown(job: dict) -> bool:
+    """Keep the log unless every recorded Runner identity is safely inactive."""
+    try:
+        import psutil
+    except Exception:
+        return any(job.get(key) is not None for key in ("pid", "runnerPid"))
+
+    identities = (
+        (job.get("pid"), job.get("processCreatedAt")),
+        (job.get("runnerPid"), job.get("runnerProcessCreatedAt")),
+    )
+    for pid, expected in identities:
+        if pid is None:
+            continue
+        expected_time = _valid_updated_at(expected)
+        if expected_time is None:
+            return True
+        try:
+            process = psutil.Process(int(pid))
+            created_at = process.create_time()
+            if abs(created_at - expected_time) > 1.0:
+                continue  # PID was reused; this is not the recorded Runner.
+            if process.is_running() and process.status() != psutil.STATUS_ZOMBIE:
+                return True
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except Exception:
+            return True
+    return False
+
+
+def cleanup_job_log_files(*, registry_root: str | Path,
+                          retention_days: int,
+                          now: float | None = None) -> dict:
+    """Remove only expired, uniquely owned direct Job log files."""
+    _validate_retention_days(retention_days)
+    now = time.time() if now is None else float(now)
+    if not math.isfinite(now):
+        raise ValueError("now must be finite")
+    cutoff = now - retention_days * 24 * 60 * 60
+    result = _retention_result(now)
+    logs_dir, error = _controlled_logs_dir(registry_root)
+    if error:
+        _add_retention_error(result, error)
+        return result
+    if logs_dir is None:
+        return result
+
+    try:
+        jobs = list_jobs(registry_root)
+        entries = list(logs_dir.iterdir())
+    except (OSError, ValueError) as exc:
+        _add_retention_error(result, f"cannot list Job logs: {exc}")
+        return result
+
+    owners: dict[str, list[str]] = {}
+    for job in jobs:
+        key = _canonical_log_path(job.get("logPath"), job, logs_dir)
+        if key is not None:
+            owners.setdefault(key, []).append(str(job.get("jobId")))
+
+    for path in entries:
+        result["scanned"] += 1
+        try:
+            file_stat = path.lstat()
+        except OSError as exc:
+            result["skipped"] += 1
+            _add_retention_error(result, f"{path.name}: {exc}")
+            continue
+        if (_is_reparse_stat(file_stat) or not stat.S_ISREG(file_stat.st_mode)
+                or getattr(file_stat, "st_nlink", 1) != 1):
+            result["skipped"] += 1
+            continue
+        if file_stat.st_mtime > cutoff:
+            continue
+        key = os.path.normcase(os.path.abspath(path))
+        owner_ids = owners.get(key, [])
+        if len(owner_ids) != 1:
+            result["skipped"] += 1
+            continue
+        job_id = owner_ids[0]
+        try:
+            with _lock, _job_lock(job_id, registry_root):
+                current = _load_path(_job_path(job_id, registry_root))
+                if (not current
+                        or current.get("jobId") != job_id
+                        or _canonical_log_path(current.get("logPath"), current, logs_dir) != key
+                        or current.get("status") not in _RETENTION_LOG_SAFE_STATUSES
+                        or _runner_active_or_unknown(current)):
+                    result["skipped"] += 1
+                    continue
+                # Recheck directory, link type, identity and mtime while the
+                # owning Job lock is held. This protects concurrent runners.
+                latest_logs_dir, latest_error = _controlled_logs_dir(registry_root)
+                if latest_error or latest_logs_dir != logs_dir:
+                    result["skipped"] += 1
+                    if latest_error:
+                        _add_retention_error(result, latest_error)
+                    continue
+                latest_stat = path.lstat()
+                if (_is_reparse_stat(latest_stat) or not stat.S_ISREG(latest_stat.st_mode)
+                        or getattr(latest_stat, "st_nlink", 1) != 1
+                        or latest_stat.st_mtime > cutoff
+                        or (latest_stat.st_dev, latest_stat.st_ino,
+                            latest_stat.st_size, latest_stat.st_mtime_ns)
+                        != (file_stat.st_dev, file_stat.st_ino,
+                            file_stat.st_size, file_stat.st_mtime_ns)):
+                    result["skipped"] += 1
+                    continue
+                path.unlink()
+            result["deleted"] += 1
+        except (OSError, ValueError) as exc:
+            result["skipped"] += 1
+            _add_retention_error(result, f"{path.name}: {exc}")
+    return result
 
 
 def _read_retention_marker(path: Path) -> dict:
@@ -1253,19 +1475,31 @@ def _read_retention_marker(path: Path) -> dict:
 
 
 def completed_job_retention_status() -> dict:
-    """Return the newest persisted automatic-cleanup result, if one exists."""
+    """Return the newest persisted result for each retention rule."""
     roots = {_root()}
     scheduled_root = _scheduled_task_root()
     if scheduled_root is not None:
         roots.add(scheduled_root)
-    results = []
+    last_runs: dict[str, dict | None] = {rule: None for rule in _RETENTION_RULES}
     for root in roots:
         marker = _read_retention_marker(_retention_marker_path(root))
-        last_run = marker.get("lastRun")
-        if isinstance(last_run, dict) and isinstance(last_run.get("scannedAt"), str):
-            results.append(last_run)
-    results.sort(key=lambda value: value["scannedAt"], reverse=True)
-    return {"lastRun": results[0] if results else None}
+        stored_rules = marker.get("rules")
+        if not isinstance(stored_rules, dict):
+            stored_rules = {}
+        for rule in _RETENTION_RULES:
+            state = stored_rules.get(rule)
+            last_run = state.get("lastRun") if isinstance(state, dict) else None
+            if rule == "completed" and last_run is None:
+                last_run = marker.get("lastRun")  # first-phase marker compatibility
+            if not isinstance(last_run, dict) or not isinstance(last_run.get("scannedAt"), str):
+                continue
+            last_run = dict(last_run)
+            last_run.setdefault("errorCount", 0)
+            last_run.setdefault("errors", [])
+            current = last_runs[rule]
+            if current is None or last_run["scannedAt"] > current["scannedAt"]:
+                last_runs[rule] = last_run
+    return {"lastRun": last_runs["completed"], "lastRuns": last_runs}
 
 
 def run_completed_job_retention(*, now: float | None = None) -> dict:
@@ -1281,51 +1515,134 @@ def run_completed_job_retention(*, now: float | None = None) -> dict:
 
 
 def _run_completed_job_retention_locked(now: float) -> dict:
-    """Run at most once per 24 hours per registry root."""
+    """Run enabled retention rules at most once per 24 hours per registry."""
     try:
         config = _config.load_config()
-        settings, valid = _config.completed_job_retention_settings(config)
+        settings, validity = _config.job_retention_settings(config)
     except Exception:
-        settings, valid = dict(_config.COMPLETED_JOB_RETENTION_DEFAULT), False
-    enabled = valid and settings["enabled"] is True
+        settings = {rule: dict(_config.COMPLETED_JOB_RETENTION_DEFAULT)
+                    for rule in _RETENTION_RULES}
+        validity = {rule: False for rule in _RETENTION_RULES}
 
     roots = {_root()}
     scheduled_root = _scheduled_task_root()
     if scheduled_root is not None:
         roots.add(scheduled_root)
 
-    totals = {"scannedAt": None, "scanned": 0, "deleted": 0, "skipped": 0}
+    totals = {"scannedAt": None, "scanned": 0, "deleted": 0, "skipped": 0,
+              "errorCount": 0, "errors": [], "rules": {}}
     for root in roots:
-        marker_path = _retention_marker_path(root)
-        with _registry_lock("completed_retention_daily", root):
-            marker = _read_retention_marker(marker_path)
-            if not enabled:
-                # Remember disable transitions so a later hot enable runs
-                # promptly, without scanning records while disabled.
-                if marker.get("enabled") is not False:
-                    marker["enabled"] = False
-                    _atomic_write(marker_path, marker)
-                continue
+        try:
+            marker_path = _retention_marker_path(root)
+            with _registry_lock("completed_retention_daily", root):
+                marker = _read_retention_marker(marker_path)
+                stored_rules = marker.get("rules")
+                if not isinstance(stored_rules, dict):
+                    stored_rules = {}
+                else:
+                    stored_rules = dict(stored_rules)
+                marker_changed = not isinstance(marker.get("rules"), dict)
+                # Migrate the completed-only marker written in phase one.
+                if ("completed" not in stored_rules
+                        and isinstance(marker.get("lastRunEpoch"), (int, float))):
+                    stored_rules["completed"] = {
+                        "enabled": marker.get("enabled") is True,
+                        "lastRunEpoch": marker.get("lastRunEpoch"),
+                        "lastRun": marker.get("lastRun"),
+                    }
+                    marker_changed = True
 
-            last_epoch = marker.get("lastRunEpoch")
-            if (not isinstance(last_epoch, bool)
-                    and isinstance(last_epoch, (int, float))
-                    and math.isfinite(float(last_epoch))
-                    and now - float(last_epoch) < COMPLETED_RETENTION_SCAN_INTERVAL_SEC):
-                if marker.get("enabled") is not True:
-                    marker["enabled"] = True
-                    _atomic_write(marker_path, marker)
-                continue
+                due: dict[str, int] = {}
+                for rule in _RETENTION_RULES:
+                    state = stored_rules.get(rule)
+                    if not isinstance(state, dict):
+                        state = {}
+                    else:
+                        state = dict(state)
+                    configured = settings[rule]
+                    enabled = validity[rule] and configured["enabled"] is True
+                    if not enabled:
+                        if state.get("enabled") is not False:
+                            state["enabled"] = False
+                            marker_changed = True
+                        stored_rules[rule] = state
+                        continue
 
-            result = cleanup_completed_jobs(
-                registry_root=root, retention_days=settings["days"], now=now)
-            marker.update({"enabled": True, "lastRunEpoch": now,
-                           "lastRun": result})
-            _atomic_write(marker_path, marker)
-            totals["scannedAt"] = result["scannedAt"]
-            totals["scanned"] += result["scanned"]
-            totals["deleted"] += result["deleted"]
-            totals["skipped"] += result["skipped"]
+                    last_epoch = state.get("lastRunEpoch")
+                    if (not isinstance(last_epoch, bool)
+                            and isinstance(last_epoch, (int, float))
+                            and math.isfinite(float(last_epoch))
+                            and now - float(last_epoch) < COMPLETED_RETENTION_SCAN_INTERVAL_SEC):
+                        if state.get("enabled") is not True:
+                            state["enabled"] = True
+                            marker_changed = True
+                        stored_rules[rule] = state
+                        continue
+                    due[rule] = configured["days"]
+                    # Persist the gate before scanning. A failed final marker
+                    # write (or interrupted cleanup) must not cause a full
+                    # registry scan on every recovery tick.
+                    state.update({"enabled": True, "lastRunEpoch": now})
+                    stored_rules[rule] = state
+                    marker_changed = True
+
+                if marker_changed:
+                    marker["rules"] = stored_rules
+                    _atomic_write(marker_path, marker)
+                    marker_changed = False
+
+                due_statuses = {rule: days for rule, days in due.items()
+                                if rule in _RETENTION_JOB_STATUSES}
+                results: dict[str, dict] = {}
+                if due_statuses:
+                    try:
+                        if set(due_statuses) == {"completed"}:
+                            results["completed"] = cleanup_completed_jobs(
+                                registry_root=root,
+                                retention_days=due_statuses["completed"], now=now)
+                        else:
+                            results.update(cleanup_jobs_by_statuses(
+                                registry_root=root,
+                                retention_days_by_status=due_statuses, now=now))
+                    except Exception as exc:
+                        for rule in due_statuses:
+                            result = _retention_result(now)
+                            _add_retention_error(result, f"Job scan failed: {exc}")
+                            results[rule] = result
+
+                if "logs" in due:
+                    try:
+                        results["logs"] = cleanup_job_log_files(
+                            registry_root=root, retention_days=due["logs"], now=now)
+                    except Exception as exc:
+                        result = _retention_result(now)
+                        _add_retention_error(result, f"Log scan failed: {exc}")
+                        results["logs"] = result
+
+                for rule, result in results.items():
+                    state = stored_rules.get(rule)
+                    if not isinstance(state, dict):
+                        state = {}
+                    state.update({"enabled": True, "lastRunEpoch": now,
+                                  "lastRun": result})
+                    stored_rules[rule] = state
+                    totals["scannedAt"] = result["scannedAt"]
+                    totals["scanned"] += result["scanned"]
+                    totals["deleted"] += result["deleted"]
+                    totals["skipped"] += result["skipped"]
+                    totals["errorCount"] += result["errorCount"]
+                    totals["errors"].extend(result["errors"][:max(0, 20 - len(totals["errors"]))])
+                    totals["rules"][rule] = result
+                    marker_changed = True
+
+                if marker_changed:
+                    marker["rules"] = stored_rules
+                    _atomic_write(marker_path, marker)
+        except Exception as exc:
+            # A broken root or marker must not prevent other roots/rules from
+            # being serviced on this recovery cycle.
+            _add_retention_error(totals, f"Registry {root}: {exc}")
+            continue
     return totals
 
 

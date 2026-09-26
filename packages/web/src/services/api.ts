@@ -1458,6 +1458,8 @@ export interface CompletedJobRetentionRun {
   scanned: number;
   deleted: number;
   skipped: number;
+  errorCount: number;
+  errors: string[];
 }
 
 export interface CompletedJobRetentionSettings {
@@ -1465,50 +1467,72 @@ export interface CompletedJobRetentionSettings {
   days: number;
 }
 
+export type JobRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
+export type JobRetentionRules = Record<JobRetentionRule, CompletedJobRetentionSettings>;
+
 interface ApiCompletedJobRetentionResponse {
   ok?: boolean;
   settings?: CompletedJobRetentionSettings;
+  rules?: JobRetentionRules;
   configValid?: boolean;
+  configValidity?: Record<JobRetentionRule, boolean>;
   lastRun?: CompletedJobRetentionRun | null;
+  lastRuns?: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
   error?: SchedulerApiError;
 }
 
 /** GET /api/jobs/settings/completed-retention. */
 export async function fetchCompletedJobRetentionSettings(): Promise<{
   settings: CompletedJobRetentionSettings;
+  rules: JobRetentionRules;
   configValid: boolean;
+  configValidity: Record<JobRetentionRule, boolean>;
   lastRun: CompletedJobRetentionRun | null;
+  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }> {
   const data = await request<ApiCompletedJobRetentionResponse>(
     `${BASE}/jobs/settings/completed-retention`,
   );
   if (data.error) throwSchedulerError(data.error);
-  if (!data.settings) throw new Error('Completed-Job retention settings missing');
+  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
+    throw new Error('Job retention settings missing');
+  }
   return {
     settings: data.settings,
+    rules: data.rules,
     configValid: data.configValid === true,
+    configValidity: data.configValidity,
     lastRun: data.lastRun ?? null,
+    lastRuns: data.lastRuns,
   };
 }
 
 /** PUT /api/jobs/settings/completed-retention. */
 export async function updateCompletedJobRetentionSettings(
-  settings: CompletedJobRetentionSettings,
+  rules: JobRetentionRules,
 ): Promise<{
   settings: CompletedJobRetentionSettings;
+  rules: JobRetentionRules;
   configValid: boolean;
+  configValidity: Record<JobRetentionRule, boolean>;
   lastRun: CompletedJobRetentionRun | null;
+  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }> {
   const data = await request<ApiCompletedJobRetentionResponse>(
     `${BASE}/jobs/settings/completed-retention`,
-    { method: 'PUT', body: JSON.stringify(settings) },
+    { method: 'PUT', body: JSON.stringify({ rules }) },
   );
   if (data.error) throwSchedulerError(data.error);
-  if (!data.settings) throw new Error('Completed-Job retention settings missing');
+  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
+    throw new Error('Job retention settings missing');
+  }
   return {
     settings: data.settings,
+    rules: data.rules,
     configValid: data.configValid === true,
+    configValidity: data.configValidity,
     lastRun: data.lastRun ?? null,
+    lastRuns: data.lastRuns,
   };
 }
 
