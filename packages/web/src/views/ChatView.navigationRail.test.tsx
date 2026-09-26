@@ -100,9 +100,13 @@ describe('ChatView: message navigation rail switch', () => {
   });
 
   it('loads search only through the enabled Suspense branch and constrains its popup to the chat stage', () => {
-    expect(chatViewSource).toContain("lazy(() =>\n  import('@/components/chat/SessionHistorySearch')");
-    expect(chatViewSource).toContain('<Suspense fallback={null}>');
-    expect(chatViewSource).not.toContain("import { SessionHistorySearch } from '@/components/chat/SessionHistorySearch'");
+    expect(chatViewSource).toMatch(
+      /lazy\(\s*\(\s*\)\s*=>\s*import\(\s*['"]@\/components\/chat\/SessionHistorySearch['"]\s*\)\s*\.then\(\s*\(\s*module\s*\)\s*=>\s*\(\s*\{\s*default\s*:\s*module\.SessionHistorySearch\s*,?\s*\}\s*\)\s*\)\s*,?\s*\)/s,
+    );
+    expect(chatViewSource).toMatch(/<Suspense\s+fallback=\{null\}\s*>/);
+    expect(chatViewSource).not.toMatch(
+      /^\s*import\s+(?!\s*\()[\s\S]*?\s+from\s*['"]@\/components\/chat\/SessionHistorySearch['"]/m,
+    );
 
     const searchStyles = chatStylesSource.slice(
       chatStylesSource.indexOf('.session-history-search {'),
