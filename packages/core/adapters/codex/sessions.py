@@ -233,10 +233,20 @@ def _item_to_block(item: dict) -> dict | None:
             _stringify_content(b.get("text")) for b in parts
             if isinstance(b, dict) and b.get("type") == "text"
         )
-        return {"role": "user", "content": text} if text else None
+        if not text:
+            return None
+        block = {"role": "user", "content": text}
+        if item.get("id") is not None:
+            block["nativeItemId"] = str(item["id"])
+        return block
     if itype == "agentmessage":
         text = _stringify_content(item.get("text"))
-        return {"role": "assistant", "content": text} if text else None
+        if not text:
+            return None
+        block = {"role": "assistant", "content": text}
+        if item.get("id") is not None:
+            block["nativeItemId"] = str(item["id"])
+        return block
     if itype == "reasoning":
         text = _stringify_content(item.get("text"))
         if not text:

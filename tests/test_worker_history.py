@@ -109,8 +109,10 @@ def _setup_session(history: list[dict] = None, cli_session_id: str = "cbc-123"):
 
 
 def _no_ts(entries):
-    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
-    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+    """剥掉追加边界字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items()
+             if k not in {"ts", "messageId", "clientMessageId"}}
+            for e in entries]
 
 
 def _setup_worker(session_id: str, replaying: bool = False):
@@ -154,6 +156,7 @@ def test_normal_conversation_appends_history():
 
     assert len(s.history) == 1, f"expected 1 assistant msg, got {s.history}"
     assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
+    assert _sess.is_pan_message_id(s.history[0]["messageId"])
     assert s.last_result["status"] == "done"
     assert s.last_result["result"] == "hello"
     print("PASS: normal conversation appends history")
@@ -276,6 +279,7 @@ def test_user_message_processed_immediately_even_with_replaying_flag():
     # User message appended immediately, history not doubled
     assert s.history[-1]["role"] == "user" and s.history[-1]["content"] == "new q", \
         f"user message not appended: {s.history}"
+    assert _sess.is_pan_message_id(s.history[-1]["messageId"])
     assert _no_ts(s.history[:2]) == original_snapshot, \
         f"original history lost: {s.history[:2]} vs {original_snapshot}"
     print("PASS: user message processed immediately (no replay wait)")
@@ -321,7 +325,30 @@ def test_result_text_appended_when_no_assistant_event():
 
     assert any(h == {"role": "assistant", "content": "only in result"}
                for h in _no_ts(s.history)), f"result text not appended: {s.history}"
+    assert len(s.history) == 1 and _sess.is_pan_message_id(s.history[0]["messageId"])
     print("PASS: result text appended when no assistant event")
+    _cleanup()
+
+
+def test_equal_result_fallbacks_from_distinct_tasks_keep_distinct_ids():
+    """Text equality across tasks does not erase a new fallback message."""
+    _cleanup()
+    s = _setup_session(history=[])
+    for seq in (1, 2):
+        w = _setup_worker(s.id, replaying=False)
+        w._current_seq = seq
+        w._current_task_id = f"task-{seq}"
+        w._current_task_idempotent = True
+        mock_proc = MockProcess([_result_event(result="same answer")])
+        w.process = mock_proc
+        asyncio.run(_drive_stdout(w, mock_proc))
+
+    assert [row["content"] for row in s.history] == [
+        "same answer", "same answer",
+    ]
+    ids = [row["messageId"] for row in s.history]
+    assert len(set(ids)) == 2
+    assert all(_sess.is_pan_message_id(message_id) for message_id in ids)
     _cleanup()
 
 
@@ -343,7 +370,23 @@ def test_thinking_and_tool_use_recorded():
     roles = [h["role"] for h in s.history]
     assert "thinking" in roles, f"thinking not recorded: {s.history}"
     assert "tool" in roles, f"tool_use not recorded: {s.history}"
+    assert all("messageId" not in row for row in s.history if row["role"] in {"thinking", "tool"})
     print("PASS: thinking and tool_use recorded")
+    _cleanup()
+
+
+def test_error_result_fallback_does_not_enter_searchable_history():
+    """A provider error string is not persisted as an assistant body."""
+    _cleanup()
+    s = _setup_session(history=[])
+    w = _setup_worker(s.id, replaying=False)
+    mock_proc = MockProcess([_result_event(result="provider exploded", is_error=True)])
+    w.process = mock_proc
+
+    asyncio.run(_drive_stdout(w, mock_proc))
+
+    assert s.last_result is not None and s.last_result["status"] == "error"
+    assert not any(row.get("content") == "provider exploded" for row in s.history)
     _cleanup()
 
 

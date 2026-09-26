@@ -86,8 +86,10 @@ def _jsonl_lines(sid: str) -> list[dict]:
 
 
 def _no_ts(entries) -> list[dict]:
-    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
-    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+    """剥掉追加边界字段，便于断言 provider/history 消息本体。"""
+    return [{k: v for k, v in e.items()
+             if k not in {"ts", "messageId", "clientMessageId"}}
+            for e in entries]
 
 
 # ══════════════════════════════════════════════════════════════════════════ #
@@ -324,6 +326,7 @@ def test_history_ts_stamped_on_append_only(tmp_path, monkeypatch):
     """ts 在 append_history 打点（本地 ISO-8601）：新追加条目带 ts；迁移/导入
     进来的旧条目不补写；已有 ts 不被 setdefault 覆盖——时间不确定就不显示。"""
     _cleanup()
+
     session_dir = tmp_path / "sessions"
     session_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
@@ -361,6 +364,50 @@ def test_history_ts_stamped_on_append_only(tmp_path, monkeypatch):
     monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
     r = _sess.get(sid)
     assert r.history[0]["ts"] == "2026-01-01T08:00:00"
+    _cleanup()
+
+
+def test_append_history_persists_unique_pan_ids_for_searchable_bodies(tmp_path, monkeypatch):
+    """Only new user/assistant body rows get durable Pan IDs at append time."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="message-ids")
+    rows = [
+        {"role": "user", "content": "same body"},
+        {"role": "assistant", "content": "same body"},
+        {"role": "user", "content": "same body"},
+        {"role": "thinking", "content": "private thought"},
+        {"role": "tool", "content": "Command({})"},
+        {"role": "system", "content": "system context"},
+        {"role": "error", "content": "provider error"},
+        {"role": "user", "content": "initial prompt", "source": "system_prompt"},
+    ]
+    for row in rows:
+        _sess.append_history(s, row)
+    preserved_id = _sess.assign_pan_message_ids([
+        {"role": "assistant", "content": "continued block"},
+    ])[0]["messageId"]
+    continued = {
+        "role": "assistant", "content": "continued block",
+        "messageId": preserved_id,
+    }
+    _sess.append_history(s, continued)
+
+    body_ids = [row.get("messageId") for row in s.history[:3]]
+    assert all(_sess.is_pan_message_id(message_id) for message_id in body_ids)
+    assert len(set(body_ids)) == 3, "equal independent bodies need distinct IDs"
+    assert all("messageId" not in row for row in s.history[3:-1])
+    assert s.history[-1]["messageId"] == preserved_id
+
+    expected_ids = list(body_ids)
+    sid = s.id
+    _sess.save(s)
+    _cleanup()
+    loaded = _sess.get(sid)
+    assert loaded is not None
+    assert [row.get("messageId") for row in loaded.history[:3]] == expected_ids
+    assert all("messageId" not in row for row in loaded.history[3:-1])
+    assert loaded.history[-1]["messageId"] == preserved_id
     _cleanup()
 
 
@@ -410,15 +457,23 @@ def test_history_ts_not_fabricated_for_imported_or_forked_history(tmp_path, monk
     parsed = [{"role": "user", "content": "p0"},
               {"role": "assistant", "content": "p1"}]
 
-    imported = _sess.create(name="imported",
-                            history=[dict(row) for row in parsed])
-    assert [("ts" in row) for row in _jsonl_lines(imported.id)] == [False, False]
+    imported = _sess.create(
+        name="imported",
+        history=_sess.assign_pan_message_ids([dict(row) for row in parsed]),
+    )
+    imported_rows = _jsonl_lines(imported.id)
+    assert [("ts" in row) for row in imported_rows] == [False, False]
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in imported_rows)
 
     # fork 序列：先建空会话（server.api_branch 的新会话），再整体替换 + 落盘
     forked = _sess.create(name="forked")
-    _sess.replace_history(forked, [dict(row) for row in parsed])
+    _sess.replace_history(
+        forked, _sess.assign_pan_message_ids([dict(row) for row in parsed]),
+    )
     asyncio.run(_sess.save_async(forked))
-    assert [("ts" in row) for row in _jsonl_lines(forked.id)] == [False, False]
+    forked_rows = _jsonl_lines(forked.id)
+    assert [("ts" in row) for row in forked_rows] == [False, False]
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in forked_rows)
 
     # fork 之后新产生的消息：带 ts；复制进来的历史保持无 ts
     _sess.append_history(forked, {"role": "assistant", "content": "new"})

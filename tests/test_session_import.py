@@ -350,6 +350,153 @@ def test_reimport_rewrites_jsonl_full(monkeypatch):
     _cleanup()
 
 
+def test_import_assigns_ids_and_reimport_matches_conservatively():
+    """Import IDs survive restart/reimport; ambiguous duplicate rows get new IDs."""
+    _cleanup()
+    _fresh_session_dir()
+    sid = "ids-reimport-0001"
+
+    def cbc_events(texts):
+        return [
+            {"type": "message", "role": role, "sessionId": sid,
+             "content": [{"type": "text", "text": content}],
+             "timestamp": index + 1}
+            for index, (role, content) in enumerate(texts)
+        ]
+
+    source1 = _write_cbc_jsonl(sid, cbc_events([
+        ("user", "unique anchor"),
+        ("assistant", "repeat"),
+        ("assistant", "repeat"),
+    ]))
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=source1):
+        imported = asyncio.run(server.api_cbc_sessions_import({
+            "session_id": sid, "cwd": "D:/tmp/ids-reimport",
+        }))
+    assert "error" not in imported, imported
+    session_id = imported["id"]
+    stored = _sess.get(session_id)
+    assert stored is not None
+    first_ids = [row["messageId"] for row in stored.history]
+    assert all(_sess.is_pan_message_id(value) for value in first_ids)
+    assert len(set(first_ids)) == 3
+
+    # Reimport after a cold load: one unique fingerprint and two equal
+    # occurrences in unchanged order are all uniquely aligned.
+    _cleanup()
+    stored = _sess.get(session_id)
+    assert stored is not None
+    prior_epoch = stored.history_epoch
+    prior_revision = stored.history_revision
+    source2 = _write_cbc_jsonl(sid, cbc_events([
+        ("user", "unique anchor"),
+        ("assistant", "repeat"),
+        ("assistant", "repeat"),
+    ]))
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=source2):
+        reimported = asyncio.run(server.api_cbc_sessions_import({
+            "session_id": sid, "cwd": "D:/tmp/ids-reimport",
+        }))
+    assert reimported.get("reimported") is True
+    stored = _sess.get(session_id)
+    assert stored is not None
+    assert [row["messageId"] for row in stored.history] == first_ids
+    assert stored.history_epoch != prior_epoch
+    assert stored.history_revision == prior_revision + 1
+
+    # Adding one indistinguishable occurrence makes the duplicate alignment
+    # ambiguous, so none of those old duplicate IDs is falsely reused.
+    prior_repeat_ids = {row["messageId"] for row in stored.history[1:]}
+    source3 = _write_cbc_jsonl(sid, cbc_events([
+        ("user", "unique anchor"),
+        ("assistant", "repeat"),
+        ("assistant", "repeat"),
+        ("assistant", "repeat"),
+    ]))
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=source3):
+        reimported = asyncio.run(server.api_cbc_sessions_import({
+            "session_id": sid, "cwd": "D:/tmp/ids-reimport",
+        }))
+    assert reimported.get("reimported") is True
+    stored = _sess.get(session_id)
+    assert stored is not None
+    assert stored.history[0]["messageId"] == first_ids[0]
+    assert len({row["messageId"] for row in stored.history}) == 4
+    assert not prior_repeat_ids.intersection(
+        row["messageId"] for row in stored.history[1:]
+    )
+    assert len(_sess._read_jsonl(_sess._history_path(session_id))) == 4
+    _cleanup()
+
+
+def test_import_native_item_id_is_match_evidence_not_pan_identity():
+    old = _sess.assign_pan_message_ids([
+        {"role": "assistant", "content": "draft", "nativeItemId": "item-a"},
+        {"role": "assistant", "content": "same", "nativeItemId": "item-b"},
+    ])
+    new = _sess.assign_pan_message_ids([
+        {"role": "assistant", "content": "edited draft", "nativeItemId": "item-a"},
+        {"role": "assistant", "content": "same", "nativeItemId": "item-b"},
+    ], previous_history=old)
+
+    assert [row["messageId"] for row in new] == [
+        row["messageId"] for row in old
+    ]
+    assert all(row["messageId"] != row["nativeItemId"] for row in new)
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in new)
+
+
+def test_codex_import_assigns_pan_ids_and_preserves_native_metadata():
+    """The generic Codex import path assigns IDs without replacing native IDs."""
+    _cleanup()
+    _fresh_session_dir()
+
+    class Provider:
+        def parse_history(self, _session_id, _cwd):
+            return [
+                {"role": "user", "content": "question", "nativeItemId": "u-1",
+                 "parts": [{"type": "text", "text": "question"}]},
+                {"role": "assistant", "content": "answer", "nativeItemId": "a-1"},
+                {"role": "thinking", "content": "reasoning", "nativeItemId": "r-1"},
+            ]
+
+        def get_raw_usage(self, _session_id, _cwd):
+            return []
+
+        def session_exists(self, _session_id, _cwd):
+            return True
+
+    with patch.object(server, "broadcast", new=AsyncMock()):
+        response = asyncio.run(server._import_session(
+            Provider(), "codex", {
+                "session_id": "codex-native-ids", "cwd": "D:/tmp/codex",
+                "name": "codex-native-ids",
+            },
+        ))
+
+    assert "error" not in response, response
+    imported = _sess.get(response["id"])
+    assert imported is not None
+    assert [row["role"] for row in imported.history] == [
+        "user", "assistant", "thinking",
+    ]
+    assert all(_sess.is_pan_message_id(row["messageId"])
+               for row in imported.history[:2])
+    assert all(row["messageId"] != row["nativeItemId"]
+               for row in imported.history[:2])
+    assert "messageId" not in imported.history[2]
+    assert imported.history[0]["parts"] == [
+        {"type": "text", "text": "question"},
+    ]
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  MCP: session_import action dispatch                                       #
 # ══════════════════════════════════════════════════════════════════════════ #

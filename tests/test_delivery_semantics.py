@@ -291,6 +291,8 @@ def test_report_and_qq_batch_is_contiguous_and_all_or_back(monkeypatch):
     assert all(value in batches[0] for value in ("r1", "r2", "hello"))
     assert s.queue_pending == [task]
     assert len(s.history) == 1
+    assert s.history[0]["role"] == "user"
+    assert _sess.is_pan_message_id(s.history[0]["messageId"])
     assert len(s.history[0]["delivered_keys"]) == 3
     assert s.history[0]["queueItemIds"] == [report1["id"], report2["id"], qq["id"]]
     _cleanup()

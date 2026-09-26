@@ -251,6 +251,7 @@ class Worker:
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     _current_task_idempotent: bool = False  # formal assign vs inherited send context
+    _current_task_assistant_ids: set[str] = field(default_factory=set)
     _current_source_session_id: str | None = None  # 当前 item 的来源 Session（审计元数据）
     # 当前正在执行的持久 queue item。直到 provider hand-off 成功前，item
     # 仍保留在 Session.queue_pending；这里仅保留运行期引用用于结果配对。
@@ -1057,11 +1058,16 @@ async def _persist_terminal_state(
         "sourceSessionId": source_session_id,
         "terminalKey": terminal_key,
     }
-    if isinstance(result_text, str) and result_text.strip():
+    if status == "done" and isinstance(result_text, str) and result_text.strip():
         last = s.history[-1] if s.history else None
-        if not (last and last.get("role") == "assistant"
-                and last.get("content") == result_text):
+        already_appended_this_turn = (
+            last and last.get("role") == "assistant"
+            and last.get("content") == result_text
+            and last.get("messageId") in w._current_task_assistant_ids
+        )
+        if not already_appended_this_turn:
             _sess.append_history(s, {"role": "assistant", "content": result_text})
+    w._current_task_assistant_ids.clear()
 
     # The result must cover the canonical history revision after the final
     # append, not the revision that happened to exist when the replay record
@@ -1617,6 +1623,9 @@ async def _read_stdout(w: Worker):
             if s:
                 for b in adapter.extract_assistant_blocks(event):
                     _sess.append_history(s, b)
+                    if (b.get("role") == "assistant"
+                            and _sess.is_pan_message_id(b.get("messageId"))):
+                        w._current_task_assistant_ids.add(b["messageId"])
                 # A1 防抖：append 只标记 dirty，由防抖任务批量落盘（不逐块全量 save）
                 _mark_history_dirty(w)
 
@@ -5000,6 +5009,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     # Append extracted blocks (assistant/thinking/tool) — same as stream mode.
     for block in assistant_blocks:
         _sess.append_history(s, block)
+        if (block.get("role") == "assistant"
+                and _sess.is_pan_message_id(block.get("messageId"))):
+            w._current_task_assistant_ids.add(block["messageId"])
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
     if result_event is not None and adapter.is_result_error(result_event):
@@ -6026,7 +6038,9 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
             parsed_history = await asyncio.to_thread(
                 provider.parse_history, new_cli_id, s.workdir or None
             )
-            _sess.replace_history(s, parsed_history)
+            _sess.replace_history(
+                s, _sess.assign_pan_message_ids(parsed_history),
+            )
             raw_usage_entries = await asyncio.to_thread(
                 provider.get_raw_usage, new_cli_id, s.workdir or None
             )

@@ -225,9 +225,21 @@ function messageShapeKey(message: Message): string {
   return `${message.role}\u0000${message.content}\u0000${JSON.stringify(message.parts ?? null)}`;
 }
 
+function clientMessageIdentityAliases(message: Message): string[] {
+  return [
+    ...(message.clientMessageId ? [`client:${message.clientMessageId}`] : []),
+    // Steer keeps this caller token on its optimistic row as messageId. The
+    // durable history row has a Pan messageId and carries the token here.
+    ...(message.messageId?.startsWith('steer:')
+      ? [`client:${message.messageId}`]
+      : []),
+  ];
+}
+
 function explicitMessageIdentity(message: Message): string[] {
   return [
     ...(message.messageId ? [`message:${message.messageId}`] : []),
+    ...clientMessageIdentityAliases(message),
     ...(message.blockId ? [`block:${message.blockId}`] : []),
     ...queueIds(message).map((id) => `queue:${canonicalQueueId(id)}`),
     ...deliveryKeys(message).map((key) => `delivery:${key}`),
@@ -957,6 +969,7 @@ function sessionOf(state: SessionStore, sessionId: string): Session | undefined 
 function explicitIdentityOf(message: Message): string[] {
   return [
     ...(message.messageId ? [`message:${message.messageId}`] : []),
+    ...clientMessageIdentityAliases(message),
     ...(message.blockId ? [`block:${message.blockId}`] : []),
     ...queueIds(message).map((id) => `queue:${canonicalQueueId(id)}`),
     ...deliveryKeys(message).map((key) => `delivery:${key}`),

@@ -45,12 +45,33 @@ it('converges a Steer user row inserted ahead of an unfinished tool by its messa
     role: 'user', content: 'steer now', messageId: 'steer:one',
   });
   store().applyHistoryPage('A', {
-    history: [first, second, { role: 'user', content: 'steer now', messageId: 'steer:one' }],
+    history: [first, second, {
+      role: 'user', content: 'steer now', messageId: 'pan:history-steer',
+      clientMessageId: 'steer:one',
+    }],
     start: 0, total: 3, hasMore: false, historyRevision: 3, historyEpoch: 'h',
   });
   expect(texts()).toEqual(['first', 'second', 'steer now', 'still streaming']);
+  expect(store().currentMessages.find((message) => message.content === 'steer now')?.messageId)
+    .toBe('pan:history-steer');
   store().applyLiveStream('A', [first, second, tool('tool-3', 'still streaming more')], meta);
   expect(texts()).toEqual(['first', 'second', 'steer now', 'still streaming more']);
+});
+
+it('keeps a canonical Pan Steer row when its optimistic alias arrives later', () => {
+  store().applyHistoryPage('A', {
+    history: [{
+      role: 'user', content: 'steer now', messageId: 'pan:history-steer',
+      clientMessageId: 'steer:one',
+    }],
+    start: 0, total: 1, hasMore: false, historyRevision: 1, historyEpoch: 'h',
+  });
+  store().appendLocalMessage('A', {
+    role: 'user', content: 'steer now', messageId: 'steer:one',
+  });
+
+  expect(texts()).toEqual(['steer now']);
+  expect(store().currentMessages[0]?.messageId).toBe('pan:history-steer');
 });
 
 it('converges a legacy id-less Steer row only within its local history boundary', () => {

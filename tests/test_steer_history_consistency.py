@@ -71,12 +71,12 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
         while len(session.history) < 2:
             await asyncio.sleep(0)
         timeline.append("steer-history-append")
-        session.history.append({"role": "assistant", "content": "delta"})
+        _sess.append_history(session, {"role": "assistant", "content": "delta"})
         timeline.append("stream-history-append")
         release.set()
         assert await steer_task is None
         timeline.append("steer-save-returned")
-        session.history.append({"role": "assistant", "content": "final"})
+        _sess.append_history(session, {"role": "assistant", "content": "final"})
         timeline.append("result-history-append")
         await _sess.save_async(session)
         timeline.append("result-save-returned")
@@ -90,12 +90,16 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
         "result-history-append",
         "result-save-returned",
     ]
-    # ts 由 append_history 打点；barrier 测试关注的是条目顺序，投影掉时间字段再比
-    assert [{k: m[k] for k in ("role", "content", "messageId") if k in m}
-            for m in _jsonl(_sess._history_path(session.id))] == [
-        {"role": "user", "content": "question"},
-        {"role": "user", "content": "steer now", "messageId": "steer:one"},
-        {"role": "assistant", "content": "delta"},
-        {"role": "assistant", "content": "final"},
+    rows = _jsonl(_sess._history_path(session.id))
+    assert [(row["role"], row["content"]) for row in rows] == [
+        ("user", "question"),
+        ("user", "steer now"),
+        ("assistant", "delta"),
+        ("assistant", "final"),
     ]
+    assert "messageId" not in rows[0]  # legacy history remains readable as-is
+    assert rows[1]["clientMessageId"] == "steer:one"
+    assert _sess.is_pan_message_id(rows[1]["messageId"])
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in rows[2:])
+    assert len({row["messageId"] for row in rows[1:]}) == 3
     _cleanup()

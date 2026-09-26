@@ -6017,6 +6017,11 @@ async def api_branch_session(session_id: str, data: dict):
     except Exception as e:
         return {"error": f"Failed to parse forked session: {e}"}
 
+    # A branch is a new Pan Session even though its provider transcript was
+    # copied from an existing native thread. Give the newly materialized rows
+    # Pan IDs while leaving provider nativeItemId intact as matching evidence.
+    history = sess.assign_pan_message_ids(history)
+
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
@@ -8169,6 +8174,20 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
     if existing and not history:
         _log(f"[WARN] import {session_id}: history empty for existing session {existing.id}; refusing to overwrite")
         return {"error": f"{adapter} session {session_id} has no parseable history; refusing to overwrite existing session {existing.id}"}
+
+    if existing:
+        # Summary list entries may be shallow. Reimport matching needs the
+        # canonical durable rows, while a loaded cache (including pending
+        # appends from a live Worker) remains the best available baseline.
+        if not getattr(existing, "_history_loaded", True):
+            existing = sess.get(existing.id) or existing
+        history = sess.assign_pan_message_ids(
+            history,
+            previous_history=(existing.history
+                              if getattr(existing, "_history_loaded", True) else []),
+        )
+    else:
+        history = sess.assign_pan_message_ids(history)
 
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)

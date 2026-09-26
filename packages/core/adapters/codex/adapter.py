@@ -535,7 +535,10 @@ class CodexAdapter:
                 if isinstance(b, dict) and b.get("type") == "text"
             )
             if text:
-                blocks.append({"role": "user", "content": text})
+                block = {"role": "user", "content": text}
+                if item.get("id") is not None:
+                    block["nativeItemId"] = str(item["id"])
+                blocks.append(block)
         else:
             # Keep newly introduced native item kinds visible and persisted
             # instead of silently dropping them until Pan learns a dedicated
