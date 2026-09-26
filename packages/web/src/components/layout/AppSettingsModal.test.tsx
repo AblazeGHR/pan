@@ -111,7 +111,7 @@ describe('AppSettingsModal', () => {
     expect(document.body.querySelector('.app-settings-overlay')).toBeNull();
   });
 
-  it('renders the 6 settings items plus Reset', () => {
+  it('renders the appearance settings, including Session history search, plus Reset', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
@@ -119,8 +119,9 @@ describe('AppSettingsModal', () => {
       .toContain('Preferences');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(7);
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(8);
     expect(card.textContent).toContain('Notification');
+    expect(card.textContent).toContain('Enable search in this Session');
   });
 
   it('keeps all settings tabs reachable in a horizontal-only scroller', () => {
@@ -425,13 +426,34 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(7);
+    expect(switches).toHaveLength(8);
     // meta-agent is on by default; toggle it off.
     const metaSwitch = switches.find((element) => element.textContent?.includes('Show meta-agent info'))!;
     expect(metaSwitch.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(metaSwitch);
     expect(useAppSettingsStore.getState().showMetaAgent).toBe(false);
     expect(metaSwitch.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('persists the Session history search setting when its switch changes', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+    const findSearchSwitch = () => Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Enable search in this Session'))!;
+    const searchSwitch = findSearchSwitch();
+
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
+    expect(searchSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(searchSwitch);
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
+    expect(findSearchSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: true });
+
+    fireEvent.click(findSearchSwitch());
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
+    expect(findSearchSwitch().getAttribute('aria-checked')).toBe('false');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: false });
   });
 
   it('changes default group by via the select', () => {

@@ -1,9 +1,8 @@
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMessages';
 import { MessageNavigationDock, MESSAGE_NAVIGATION_PANEL_ID } from '@/components/chat/MessageNavigationDock';
-import { SessionHistorySearch } from '@/components/chat/SessionHistorySearch';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { InputRow } from '@/components/chat/InputRow';
 import { ApprovalBanner } from '@/components/chat/ApprovalBanner';
 import { UserInputBanner } from '@/components/chat/UserInputBanner';
@@ -11,6 +10,12 @@ import { ElicitationBanner } from '@/components/chat/ElicitationBanner';
 import { TerminalInteractionBanner } from '@/components/chat/TerminalInteractionBanner';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+const SessionHistorySearch = lazy(() =>
+  import('@/components/chat/SessionHistorySearch').then((module) => ({
+    default: module.SessionHistorySearch,
+  })),
+);
 
 export default function ChatView() {
   const chatRef = useRef<ChatMessagesHandle>(null);
@@ -83,11 +88,13 @@ export default function ChatView() {
             searchTargetMessageId={showHistorySearch ? searchTargetMessageId : null}
           />
           {showHistorySearch && (
-            <SessionHistorySearch
-              chatRef={chatRef}
-              isMobile={isMobile}
-              onHighlightMessage={setSearchTargetMessageId}
-            />
+            <Suspense fallback={null}>
+              <SessionHistorySearch
+                chatRef={chatRef}
+                isMobile={isMobile}
+                onHighlightMessage={setSearchTargetMessageId}
+              />
+            </Suspense>
           )}
           {showMessageNavigationRail && (
             <MessageNavigationDock

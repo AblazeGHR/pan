@@ -196,6 +196,7 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
       let target = initialHit;
       let total = initialScan.total;
       let scan = initialScan;
+      let activeResultIndex = resultIndex;
       let needsRelocation = versionChanged(scan, readSessionVersion(sessionId));
       let message: Message | null = null;
 
@@ -220,13 +221,15 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
           signal: controller.signal,
         });
         if (!stillCurrent()) return;
-        const relocated = scan.hits.find((hit) => hit.messageId === initialHit.messageId);
-        if (!relocated) {
+        const relocatedIndex = scan.hits.findIndex((hit) => hit.messageId === initialHit.messageId);
+        if (relocatedIndex < 0) {
           setSearch({ status: 'stale', scan: null });
           onHighlightMessage(null);
           return;
         }
+        const relocated = scan.hits[relocatedIndex]!;
         target = relocated;
+        activeResultIndex = relocatedIndex;
         total = scan.total;
         message = await loadTarget(target, total);
         if (!stillCurrent()) return;
@@ -261,7 +264,8 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
         onHighlightMessage(null);
         return;
       }
-      setActiveIndex(resultIndex);
+      if (scan !== initialScan) setSearch({ status: 'ready', scan });
+      setActiveIndex(activeResultIndex);
     } catch (error) {
       if (!stillCurrent() || isAbortError(error)) return;
       if (error instanceof StaleSessionHistoryError) {
@@ -305,7 +309,7 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
       : search.status === 'error'
         ? 'History search failed.'
         : search.status === 'ready' && hits.length === 0
-          ? 'No results'
+          ? 'No results in searchable history'
           : !currentSessionId
             ? 'Select a Session to search.'
             : '';

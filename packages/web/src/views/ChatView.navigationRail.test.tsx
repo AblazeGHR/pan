@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { forwardRef, type ReactNode } from 'react';
 import ChatView from './ChatView';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -44,6 +46,8 @@ vi.mock('@/hooks/useMediaQuery', () => ({
 
 const mockedHistory = vi.mocked(fetchSessionHistory);
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
+const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.tsx'), 'utf8');
+const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
 
 beforeEach(() => {
   viewport.isMobile = false;
@@ -95,18 +99,38 @@ describe('ChatView: message navigation rail switch', () => {
     addListener.mockRestore();
   });
 
-  it('mounts a mobile search control below the Session title and opens it with Ctrl+F', () => {
+  it('loads search only through the enabled Suspense branch and constrains its popup to the chat stage', () => {
+    expect(chatViewSource).toContain("lazy(() =>\n  import('@/components/chat/SessionHistorySearch')");
+    expect(chatViewSource).toContain('<Suspense fallback={null}>');
+    expect(chatViewSource).not.toContain("import { SessionHistorySearch } from '@/components/chat/SessionHistorySearch'");
+
+    const searchStyles = chatStylesSource.slice(
+      chatStylesSource.indexOf('.session-history-search {'),
+      chatStylesSource.indexOf('.message-navigation-dock {'),
+    );
+    expect(chatStylesSource).toContain('.chat-view-stage {\n  position: relative;');
+    expect(searchStyles).toContain('right: 92px;');
+    expect(searchStyles).toContain('width: min(430px, calc(100% - 104px));');
+    expect(searchStyles).toContain('justify-content: flex-end;');
+    expect(searchStyles).toContain('.session-history-search__popup {');
+    expect(searchStyles).toContain('width: 100%;');
+    expect(searchStyles).not.toContain('100vw');
+    expect(chatStylesSource).toContain('right: 58px;\n    width: min(430px, calc(100% - 72px));');
+  });
+
+  it('mounts a mobile search control below the Session title and opens it with Ctrl+F', async () => {
     viewport.isMobile = true;
     useAppSettingsStore.setState({ showHistorySearch: true });
-    const { container, getByTestId } = render(<ChatView />);
+    const { container, findByTestId } = render(<ChatView />);
 
-    expect(getByTestId('session-history-search').getAttribute('data-layout'))
+    const search = await findByTestId('session-history-search');
+    expect(search.getAttribute('data-layout'))
       .toBe('mobile-below-session-title');
     expect(mockedHistory).not.toHaveBeenCalled();
     const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
     fireEvent(window, shortcut);
     expect(shortcut.defaultPrevented).toBe(true);
-    expect(getByTestId('session-history-search-input')).not.toBeNull();
+    expect(await findByTestId('session-history-search-input')).not.toBeNull();
 
     act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
     expect(container.querySelector('[data-testid="session-history-search"]')).toBeNull();
@@ -115,10 +139,11 @@ describe('ChatView: message navigation rail switch', () => {
     expect(afterDisable.defaultPrevented).toBe(false);
   });
 
-  it('mounts the enabled desktop control in the chat top-right contract', () => {
+  it('mounts the enabled desktop control in the chat top-right contract', async () => {
     useAppSettingsStore.setState({ showHistorySearch: true });
-    const { getByTestId } = render(<ChatView />);
-    expect(getByTestId('session-history-search').getAttribute('data-layout'))
+    const { findByTestId } = render(<ChatView />);
+    const search = await findByTestId('session-history-search');
+    expect(search.getAttribute('data-layout'))
       .toBe('desktop-chat-top-right');
   });
 

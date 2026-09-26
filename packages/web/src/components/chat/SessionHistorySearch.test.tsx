@@ -109,7 +109,7 @@ describe('SessionHistorySearch', () => {
 
     fireEvent.change(input, { target: { value: 'absent' } });
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('0 / 0'));
-    expect(getByRole('status').textContent).toBe('No results');
+    expect(getByRole('status').textContent).toBe('No results in searchable history');
   });
 
   it('cancels a scan on Session switch and ignores the old response', async () => {
@@ -218,6 +218,50 @@ describe('SessionHistorySearch', () => {
     ));
     expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(1, 1, 3);
     expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(2, 1, 4);
+  });
+
+  it('replaces the hit order and N/M position after relocating the selected message ID', async () => {
+    const lead: Message = { role: 'user', content: 'needle lead', messageId: 'lead' };
+    const target: Message = { role: 'assistant', content: 'needle target', messageId: 'target' };
+    const oldMatch: Message = { role: 'assistant', content: 'needle old match', messageId: 'old-match' };
+    const newMatch: Message = { role: 'assistant', content: 'needle new match', messageId: 'new-match' };
+    fetchHistory
+      .mockResolvedValueOnce(historyPage([lead, target, oldMatch], 3))
+      .mockResolvedValueOnce(historyPage([target, lead, newMatch], 3));
+    const ensureMessageLoaded = vi.fn()
+      .mockImplementationOnce(async () => {
+        useSessionStore.setState({ currentMessages: [lead] });
+        return lead;
+      })
+      .mockResolvedValueOnce({ role: 'assistant', content: 'wrong row', messageId: 'wrong' })
+      .mockImplementationOnce(async () => {
+        useSessionStore.setState((state) => ({ currentMessages: [...state.currentMessages, target] }));
+        return target;
+      });
+    useSessionStore.setState({
+      currentMessages: [],
+      sessions: [{ id: 's1', historyTotal: 3, historyEpoch: 'epoch-1', historyRevision: 1 } as never],
+      ensureMessageLoaded,
+    });
+
+    const chat = makeChatRef();
+    const { getByRole, getByTestId } = render(
+      <SessionHistorySearch chatRef={chat.ref} isMobile={false} onHighlightMessage={vi.fn()} />,
+    );
+    fireEvent.click(getByRole('button', { name: 'Search Session history' }));
+    const input = getByTestId('session-history-search-input');
+    fireEvent.change(input, { target: { value: 'needle' } });
+    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(lead, 0));
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(target, 0));
+
+    fireEvent.click(getByRole('button', { name: 'Next result' }));
+    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 3'));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(lead, 1));
+    expect(ensureMessageLoaded).toHaveBeenCalledTimes(3);
   });
 
   it('shows an expired result when re-location cannot find the persistent message ID', async () => {
