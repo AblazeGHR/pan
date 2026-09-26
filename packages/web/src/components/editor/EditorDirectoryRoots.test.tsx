@@ -187,7 +187,9 @@ describe('EditorDirectoryRoots', () => {
       currentSessionId: 's1',
     });
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/shared/lib'] }],
+      // The server may retain its Windows form while the editor root uses
+      // forward slashes; removal must still match the actual root.path.
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:\\Shared\\Lib'] }],
       loaded: true,
       loading: false,
       error: null,
@@ -198,11 +200,14 @@ describe('EditorDirectoryRoots', () => {
     vi.mocked(api.updateWorkspaceDirs).mockResolvedValue({
       id: 'ws1', name: 'Team', order: null, dirs: [],
     });
+    const removeWorkspaceDir = vi.spyOn(useWorkspaceStore.getState(), 'removeWorkspaceDir');
 
     render(<EditorDirectoryRoots />);
     fireEvent.click(screen.getByLabelText('从列表移除 D:/shared/lib'));
 
+    expect(removeWorkspaceDir).toHaveBeenCalledWith('ws1', 'D:/shared/lib');
     await waitFor(() => expect(api.updateWorkspaceDirs).toHaveBeenLastCalledWith('ws1', []));
+    expect(api.deleteFs).not.toHaveBeenCalled();
   });
 
   it('shows an empty state when the Session has no roots', () => {

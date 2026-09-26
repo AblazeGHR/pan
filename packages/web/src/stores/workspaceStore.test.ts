@@ -130,6 +130,7 @@ describe('workspace membership', () => {
 describe('workspace shared directories', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.updateWorkspaceDirs).mockReset();
     useWorkspaceStore.getState().reset();
   });
 
@@ -151,13 +152,22 @@ describe('workspace shared directories', () => {
     useWorkspaceStore.setState({
       workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'] }],
     });
-    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
-      id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'],
-    });
-
     await useWorkspaceStore.getState().addWorkspaceDir('ws1', 'D:/a');
 
-    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/a']);
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['D:\\Shared\\Docs', 'd:/shared/docs'],
+    ['d:/Shared/Docs/', 'D:\\shared\\docs'],
+  ])('does not add a Windows path duplicate (%s vs %s)', async (storedPath, addedPath) => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: [storedPath] }],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', addedPath);
+
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
   });
 
   it('removes a directory by PATCHing the filtered list', async () => {
@@ -172,6 +182,42 @@ describe('workspace shared directories', () => {
 
     expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/b']);
     expect(useWorkspaceStore.getState().workspaces[0]?.dirs).toEqual(['D:/b']);
+  });
+
+  it.each([
+    ['D:\\Shared\\Docs', 'd:/shared/docs'],
+    ['d:/Shared/Docs/', 'D:\\shared\\docs'],
+  ])('removes a Windows path across slash and case forms (%s vs %s)', async (storedPath, removedPath) => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: [storedPath, 'D:/keep'] }],
+    });
+    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
+      id: 'ws1', name: 'Team', order: null, dirs: ['D:/keep'],
+    });
+
+    await useWorkspaceStore.getState().removeWorkspaceDir('ws1', removedPath);
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/keep']);
+  });
+
+  it('does not PATCH when no directory matches the removal path', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'] }],
+    });
+
+    await useWorkspaceStore.getState().removeWorkspaceDir('ws1', 'D:/missing');
+
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
+  });
+
+  it('keeps POSIX directory comparisons case-sensitive', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['/srv/Docs'] }],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', '/srv/docs');
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['/srv/Docs', '/srv/docs']);
   });
 
   it('treats a legacy workspace without dirs as an empty list', async () => {
