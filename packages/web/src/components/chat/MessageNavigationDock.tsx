@@ -163,7 +163,7 @@ export function MessageNavigationDock({
       ref={setDockElement}
       className={`message-navigation-dock${expanded ? ' is-open' : ''}${isMobile ? ' is-mobile' : ''}`}
       data-testid="message-navigation-dock"
-      data-placement={isMobile ? 'viewport-end' : 'viewport-start'}
+      data-placement={isMobile ? 'viewport-end' : 'viewport-end-before-scrollbar'}
       data-expanded={expanded}
       onPointerEnter={handlePointerEnter}
       onPointerDown={(event) => {

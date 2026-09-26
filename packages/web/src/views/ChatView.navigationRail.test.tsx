@@ -25,7 +25,11 @@ vi.mock('@/components/layout/ChatLayout', () => ({
   ),
 }));
 vi.mock('@/components/chat/ChatMessages', () => ({
-  ChatMessages: forwardRef(() => <div data-testid="chat-messages" />),
+  ChatMessages: forwardRef(() => (
+    <div data-testid="chat-messages">
+      <div data-testid="chat-scroll-container" className="overflow-auto" />
+    </div>
+  )),
 }));
 vi.mock('@/components/chat/InputRow', () => ({ InputRow: () => <div data-testid="input-row" /> }));
 vi.mock('@/components/chat/ApprovalBanner', () => ({ ApprovalBanner: () => null }));
@@ -83,8 +87,12 @@ describe('ChatView: message navigation rail switch', () => {
     await act(async () => { await Promise.resolve(); });
 
     const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
-    expect(dock.parentElement).toBe(container.querySelector('.chat-view-stage'));
-    expect(dock.getAttribute('data-placement')).toBe('viewport-start');
+    const stage = container.querySelector('.chat-view-stage');
+    const scrollContainer = container.querySelector('[data-testid="chat-scroll-container"]');
+    expect(dock.parentElement).toBe(stage);
+    expect(scrollContainer?.closest('.chat-view-stage')).toBe(stage);
+    expect(scrollContainer?.classList.contains('overflow-auto')).toBe(true);
+    expect(dock.getAttribute('data-placement')).toBe('viewport-end-before-scrollbar');
     expect(dock.getAttribute('data-expanded')).toBe('false');
     expect(container.querySelector('.message-navigation-rail')).toBeNull();
     expect(mockedHistory).not.toHaveBeenCalled();
@@ -130,6 +138,8 @@ describe('ChatView: message navigation rail switch', () => {
     const { container, getByRole } = render(<ChatView />);
 
     const toggle = getByRole('button', { name: 'Open message navigation rail' });
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    expect(dock.getAttribute('data-placement')).toBe('viewport-end');
     expect(container.querySelector('.message-navigation-rail')).toBeNull();
     expect(mockedHistory).not.toHaveBeenCalled();
 
