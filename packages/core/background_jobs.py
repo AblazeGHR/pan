@@ -1156,6 +1156,18 @@ def register_completed_job_retention(*, on_deleted=None) -> None:
         _completed_retention_hooks["on_deleted"] = on_deleted
 
 
+def _emit_retention_deleted(job_ids: list[str]) -> None:
+    """Emit automatic-deletion events on the caller's event loop/thread."""
+    on_deleted = _completed_retention_hooks.get("on_deleted")
+    if not callable(on_deleted):
+        return
+    for job_id in job_ids:
+        try:
+            on_deleted(job_id)
+        except Exception:
+            pass
+
+
 def _retention_marker_path(registry_root: str | Path) -> Path:
     return Path(registry_root) / "jobs" / ".completed-retention.json"
 
@@ -1218,7 +1230,8 @@ def _job_is_expired_for_status(job: dict, status: str, cutoff: float) -> bool:
 
 def cleanup_jobs_by_statuses(*, registry_root: str | Path,
                              retention_days_by_status: dict[str, int],
-                             now: float | None = None) -> dict[str, dict]:
+                             now: float | None = None,
+                             emit_events: bool = True) -> dict[str, dict]:
     """Clean exact top-level statuses, with one snapshot and locked rechecks."""
     for status, days in retention_days_by_status.items():
         if status not in _RETENTION_JOB_STATUSES:
@@ -1227,12 +1240,15 @@ def cleanup_jobs_by_statuses(*, registry_root: str | Path,
     now = time.time() if now is None else float(now)
     if not math.isfinite(now):
         raise ValueError("now must be finite")
-    candidates = list_jobs(registry_root)
+    candidates = [job for job in list_jobs(registry_root)
+                  if not job.get("scheduledParentJobId")]
     results = {
         status: _retention_result(now, len(candidates))
         for status in retention_days_by_status
     }
     on_deleted = _completed_retention_hooks.get("on_deleted")
+    for result in results.values():
+        result["_deletedJobIds"] = []
 
     for candidate in candidates:
         status = candidate.get("status")
@@ -1253,6 +1269,12 @@ def cleanup_jobs_by_statuses(*, registry_root: str | Path,
                 if not _job_is_expired_for_status(current, status, cutoff):
                     result["skipped"] += 1
                     continue
+                if (current.get("kind") == BACKGROUND_PROCESS_KIND
+                        and current.get("status") in _RETENTION_JOB_STATUSES
+                        and current.get("notificationState")
+                        not in {"delivered", "not_applicable"}):
+                    result["skipped"] += 1
+                    continue
                 action = current.get("action")
                 if (current.get("kind") == SCHEDULED_TASK_KIND
                         and isinstance(action, dict)
@@ -1269,7 +1291,8 @@ def cleanup_jobs_by_statuses(*, registry_root: str | Path,
                     _add_retention_error(result, f"{job_id}: {exc}")
                     continue
             result["deleted"] += 1
-            if callable(on_deleted):
+            result["_deletedJobIds"].append(job_id)
+            if emit_events and callable(on_deleted):
                 try:
                     on_deleted(job_id)
                 except Exception:
@@ -1284,13 +1307,15 @@ def cleanup_jobs_by_statuses(*, registry_root: str | Path,
 
 def cleanup_completed_jobs(*, registry_root: str | Path,
                            retention_days: int,
-                           now: float | None = None) -> dict:
+                           now: float | None = None,
+                           emit_events: bool = True) -> dict:
     """Compatibility wrapper for the first-phase completed-only cleaner."""
     _validate_retention_days(retention_days)
     return cleanup_jobs_by_statuses(
         registry_root=registry_root,
         retention_days_by_status={"completed": retention_days},
         now=now,
+        emit_events=emit_events,
     )["completed"]
 
 
@@ -1502,7 +1527,8 @@ def completed_job_retention_status() -> dict:
     return {"lastRun": last_runs["completed"], "lastRuns": last_runs}
 
 
-def run_completed_job_retention(*, now: float | None = None) -> dict:
+def run_completed_job_retention(*, now: float | None = None,
+                                emit_events: bool = False) -> dict:
     """Hot-read settings and serialize cleanup against setting changes."""
     now = time.time() if now is None else float(now)
     if not math.isfinite(now):
@@ -1511,10 +1537,10 @@ def run_completed_job_retention(*, now: float | None = None) -> dict:
     # request therefore cannot finish while a cleanup pass still uses the
     # previous enabled value.
     with _registry_lock("completed_retention_config"):
-        return _run_completed_job_retention_locked(now)
+        return _run_completed_job_retention_locked(now, emit_events=emit_events)
 
 
-def _run_completed_job_retention_locked(now: float) -> dict:
+def _run_completed_job_retention_locked(now: float, *, emit_events: bool = False) -> dict:
     """Run enabled retention rules at most once per 24 hours per registry."""
     try:
         config = _config.load_config()
@@ -1530,7 +1556,7 @@ def _run_completed_job_retention_locked(now: float) -> dict:
         roots.add(scheduled_root)
 
     totals = {"scannedAt": None, "scanned": 0, "deleted": 0, "skipped": 0,
-              "errorCount": 0, "errors": [], "rules": {}}
+              "errorCount": 0, "errors": [], "rules": {}, "deletedJobIds": []}
     for root in roots:
         try:
             marker_path = _retention_marker_path(root)
@@ -1599,11 +1625,13 @@ def _run_completed_job_retention_locked(now: float) -> dict:
                         if set(due_statuses) == {"completed"}:
                             results["completed"] = cleanup_completed_jobs(
                                 registry_root=root,
-                                retention_days=due_statuses["completed"], now=now)
+                                retention_days=due_statuses["completed"], now=now,
+                                emit_events=emit_events)
                         else:
                             results.update(cleanup_jobs_by_statuses(
                                 registry_root=root,
-                                retention_days_by_status=due_statuses, now=now))
+                                retention_days_by_status=due_statuses, now=now,
+                                emit_events=emit_events))
                     except Exception as exc:
                         for rule in due_statuses:
                             result = _retention_result(now)
@@ -1620,6 +1648,7 @@ def _run_completed_job_retention_locked(now: float) -> dict:
                         results["logs"] = result
 
                 for rule, result in results.items():
+                    deleted_job_ids = result.pop("_deletedJobIds", [])
                     state = stored_rules.get(rule)
                     if not isinstance(state, dict):
                         state = {}
@@ -1633,6 +1662,7 @@ def _run_completed_job_retention_locked(now: float) -> dict:
                     totals["errorCount"] += result["errorCount"]
                     totals["errors"].extend(result["errors"][:max(0, 20 - len(totals["errors"]))])
                     totals["rules"][rule] = result
+                    totals["deletedJobIds"].extend(deleted_job_ids)
                     marker_changed = True
 
                 if marker_changed:
@@ -2752,7 +2782,9 @@ async def recover_notifications() -> int:
                     _atomic_write(_job_path(current["jobId"], root), current)
                     delivered += 1
     try:
-        run_completed_job_retention()
+        retention_result = await asyncio.to_thread(
+            run_completed_job_retention, emit_events=False)
+        _emit_retention_deleted(retention_result.get("deletedJobIds", []))
     except Exception:
         # Retention must not stall notification delivery or the scheduler loop.
         pass

@@ -150,6 +150,33 @@ def _retention_response(**extra):
                lastRun=status["lastRun"], lastRuns=status["lastRuns"], **extra)
 
 
+def _persist_retention_patches(validated_patches: dict) -> dict:
+    """Persist settings away from the asyncio event loop while waiting on locks."""
+    with background_jobs._registry_lock("completed_retention_config"):
+        raw = _config.read_config_file()
+        jobs = raw.get("jobs", {})
+        if not isinstance(jobs, dict):
+            return _err("invalid_config", "config.json jobs must be an object")
+        jobs = dict(jobs)
+        for rule, patch in validated_patches.items():
+            section_key = _config.JOB_RETENTION_CONFIG_KEYS[rule]
+            retention = jobs.get(section_key, {})
+            if not isinstance(retention, dict):
+                return _err("invalid_config", f"config.json jobs.{section_key} must be an object")
+            retention = dict(retention)
+            retention.update(patch)
+            _, section_valid = _config.parse_retention_settings(retention)
+            if not section_valid:
+                return _err("invalid_config", f"Existing {rule} settings are invalid; update both fields")
+            jobs[section_key] = retention
+        raw["jobs"] = jobs
+        try:
+            _config.save_config(raw)
+        except OSError as exc:
+            return _err("persistence_failed", str(exc))
+    return _retention_response()
+
+
 @router.get("/settings/completed-retention")
 async def get_completed_retention_settings():
     """Read all independent Job record and Job log retention rules."""
@@ -192,29 +219,7 @@ async def put_completed_retention_settings(data: dict):
                 return _err("invalid_argument", f"{rule}.days must be an integer between 1 and 36500")
         validated_patches[rule] = patch
 
-    with background_jobs._registry_lock("completed_retention_config"):
-        raw = _config.read_config_file()
-        jobs = raw.get("jobs", {})
-        if not isinstance(jobs, dict):
-            return _err("invalid_config", "config.json jobs must be an object")
-        jobs = dict(jobs)
-        for rule, patch in validated_patches.items():
-            section_key = _config.JOB_RETENTION_CONFIG_KEYS[rule]
-            retention = jobs.get(section_key, {})
-            if not isinstance(retention, dict):
-                return _err("invalid_config", f"config.json jobs.{section_key} must be an object")
-            retention = dict(retention)
-            retention.update(patch)
-            _, section_valid = _config.parse_retention_settings(retention)
-            if not section_valid:
-                return _err("invalid_config", f"Existing {rule} settings are invalid; update both fields")
-            jobs[section_key] = retention
-        raw["jobs"] = jobs
-        try:
-            _config.save_config(raw)
-        except OSError as exc:
-            return _err("persistence_failed", str(exc))
-    return _retention_response()
+    return await asyncio.to_thread(_persist_retention_patches, validated_patches)
 
 
 def _session_exists(session_id: str) -> bool:

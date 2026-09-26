@@ -4,6 +4,7 @@ import json
 import math
 import os
 import sys
+import threading
 from contextlib import contextmanager
 
 import pytest
@@ -51,6 +52,7 @@ def _record(root, job_id, *, status="completed", updated_at=0,
         "updatedAt": updated_at,
         "name": job_id,
         "description": "",
+        "notificationState": "not_applicable",
     }
     record.update(extra)
     return jobs._create(record, registry_root=root)
@@ -177,6 +179,65 @@ def test_cleanup_keeps_completed_scheduled_shell_parent_with_live_child(retentio
     assert jobs.get("job_shell_child", root)["status"] == "running"
 
 
+def test_record_retention_ignores_terminal_internal_scheduled_shell_children(retention_env):
+    root, _ = retention_env
+    _record(root, "job_shell_parent_terminal", updated_at=0,
+            kind=jobs.SCHEDULED_TASK_KIND,
+            action={"api": "shell", "args": {"command": "never run"}})
+    _record(root, "job_shell_child_terminal", status="completed", updated_at=0,
+            scheduledParentJobId="job_shell_parent_terminal")
+
+    result = jobs.cleanup_completed_jobs(registry_root=root, retention_days=1, now=1_000_000)
+
+    assert result["deleted"] == 1
+    assert jobs.get("job_shell_parent_terminal", root) is None
+    assert jobs.get("job_shell_child_terminal", root) is not None
+
+
+def test_record_retention_protects_undelivered_background_terminal_notifications(
+        retention_env, monkeypatch):
+    root, _ = retention_env
+    _record(root, "job_notify_pending", updated_at=0, notificationState="pending")
+    _record(root, "job_notify_unknown", updated_at=0, notificationState=None)
+    _record(root, "job_notify_delivered", updated_at=0, notificationState="delivered")
+    _record(root, "job_notify_not_applicable", updated_at=0,
+            notificationState="not_applicable")
+
+    result = jobs.cleanup_completed_jobs(registry_root=root, retention_days=1, now=1_000_000)
+
+    assert result["deleted"] == 2
+    assert jobs.get("job_notify_pending", root) is not None
+    assert jobs.get("job_notify_unknown", root) is not None
+    assert jobs.get("job_notify_delivered", root) is None
+    assert jobs.get("job_notify_not_applicable", root) is None
+
+    race_root = root.parent / "notification-race"
+    original_lock = jobs._job_lock
+    changed = False
+    _record(race_root, "job_notify_race", updated_at=0,
+            notificationState="delivered")
+
+    @contextmanager
+    def make_notification_pending_before_lock(job_id, registry_root=None):
+        nonlocal changed
+        if job_id == "job_notify_race" and not changed:
+            changed = True
+            path = jobs._job_path(job_id, registry_root)
+            current = json.loads(path.read_text(encoding="utf-8"))
+            current["notificationState"] = "pending"
+            path.write_text(json.dumps(current), encoding="utf-8")
+        with original_lock(job_id, registry_root):
+            yield
+
+    monkeypatch.setattr(jobs, "_job_lock", make_notification_pending_before_lock)
+    raced = jobs.cleanup_completed_jobs(registry_root=race_root,
+                                        retention_days=1, now=1_000_000)
+
+    assert raced["deleted"] == 0
+    assert raced["skipped"] == 1
+    assert jobs.get("job_notify_race", race_root)["notificationState"] == "pending"
+
+
 def test_automatic_cleanup_is_disabled_by_default_daily_gated_and_hot_reenabled(
         retention_env, monkeypatch):
     root, path = retention_env
@@ -247,11 +308,60 @@ def test_recovery_cycle_invokes_the_retention_gate(retention_env, monkeypatch):
     monkeypatch.setattr(jobs, "run_due_scheduled_tasks", no_op)
     monkeypatch.setattr(jobs, "reconcile_running", lambda registry_root=None: 0)
     monkeypatch.setattr(jobs, "run_completed_job_retention",
-                        lambda: called.append("retention"))
+                        lambda **kwargs: called.append(("retention", kwargs)))
 
     asyncio.run(jobs.recover_notifications())
 
-    assert called == ["retention"]
+    assert called == [("retention", {"emit_events": False})]
+
+
+def test_recovery_runs_retention_off_loop_and_emits_deleted_event_on_loop(
+        retention_env, monkeypatch):
+    import asyncio
+
+    root, config_path = retention_env
+    _record(root, "job_thread_deleted", updated_at=0)
+    _write_config(config_path, {"jobs": {
+        "completedRetention": {"enabled": True, "days": 1},
+    }})
+
+    async def no_op(*, registry_root=None):
+        return 0
+
+    monkeypatch.setattr(jobs, "run_due_message_jobs", no_op)
+    monkeypatch.setattr(jobs, "run_due_scheduled_tasks", no_op)
+    monkeypatch.setattr(jobs, "reconcile_running", lambda registry_root=None: 0)
+    worker_calls = []
+    original_cleaner = jobs.cleanup_completed_jobs
+
+    def counted_cleaner(**kwargs):
+        worker_calls.append((threading.get_ident(), kwargs["emit_events"]))
+        return original_cleaner(**kwargs)
+
+    monkeypatch.setattr(jobs, "cleanup_completed_jobs", counted_cleaner)
+    broadcasts = []
+
+    async def broadcast(event):
+        broadcasts.append((event, threading.get_ident(), asyncio.get_running_loop()))
+
+    jobs_api.bind(broadcast=broadcast)
+
+    async def exercise():
+        loop = asyncio.get_running_loop()
+        loop_thread = threading.get_ident()
+        await jobs.recover_notifications()
+        await asyncio.sleep(0)
+        assert len(worker_calls) == 1
+        assert worker_calls[0][1] is False
+        assert worker_calls[0][0] != loop_thread
+        assert broadcasts == [(
+            {"type": "job.deleted", "jobId": "job_thread_deleted"},
+            loop_thread,
+            loop,
+        )]
+
+    asyncio.run(exercise())
+    assert jobs.get("job_thread_deleted", root) is None
 
 
 def test_cleanup_deletion_emits_job_deleted_through_jobs_api(client, retention_env):
