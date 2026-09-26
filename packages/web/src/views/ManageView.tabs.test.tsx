@@ -135,11 +135,18 @@ function renderManageView(initialPath = '/manage/session-mobile') {
     renderManageView(`/manage/${child.id}`);
     const managerRelationship = await screen.findByRole('button', { name: 'View Relationship for Mobile manager' });
     const managedByRelationshipGroup = screen.getByTestId('managed-by-relationship-action');
-    const managedByRow = managedByRelationshipGroup.parentElement!;
-    expect(managedByRow.firstElementChild).toBe(managedByRelationshipGroup);
+    const managedByActions = managedByRelationshipGroup.parentElement!;
+    const managedByRow = managedByActions.parentElement!;
+    const managedByTitle = managedByRow.firstElementChild as HTMLElement;
+    expect(managedByTitle).not.toBe(managedByRelationshipGroup);
+    expect(managedByTitle.className).toContain('min-w-0');
+    expect(managedByTitle.querySelector('.truncate')).toBeTruthy();
+    expect(managedByTitle.nextElementSibling).toBe(managedByActions);
+    expect(managedByActions).toBe(screen.getByTestId('managed-by-actions'));
+    expect(managedByActions.firstElementChild).toBe(managedByRelationshipGroup);
     expect(managedByRow.className).toContain('flex-wrap');
     expect(managedByRelationshipGroup.className).toContain('border-r');
-    expect(screen.getByTestId('managed-by-actions').parentElement).toBe(managedByRow);
+    expect(managedByActions.className).toContain('flex-wrap');
     expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${child.id}`);
     expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
 
@@ -151,13 +158,18 @@ function renderManageView(initialPath = '/manage/session-mobile') {
     // The Manages row wraps its controls on narrow layouts and the candidate
     // list does not force a horizontal scroller to fit them.
     const candidateRelationshipGroup = screen.getByTestId(`relationship-action-group-${child.id}`);
-    const candidateRow = candidateRelationshipGroup.parentElement!;
-    expect(candidateRow.firstElementChild).toBe(candidateRelationshipGroup);
+    const candidateActions = candidateRelationshipGroup.parentElement!;
+    const candidateRow = candidateActions.parentElement!;
+    const candidateTitle = candidateRow.firstElementChild as HTMLElement;
+    expect(candidateTitle).not.toBe(candidateRelationshipGroup);
+    expect(candidateTitle.className).toContain('min-w-0');
+    expect(candidateTitle.querySelector('.truncate')).toBeTruthy();
+    expect(candidateActions).toBe(screen.getByTestId(`candidate-actions-${child.id}`));
+    expect(candidateActions.firstElementChild).toBe(candidateRelationshipGroup);
     expect(candidateRow.className).toContain('flex-wrap');
     expect(candidateRow.className).not.toContain('whitespace-nowrap');
     expect(candidateRelationshipGroup.className).toContain('border-r');
-    expect(screen.getByTestId(`candidate-actions-${child.id}`).parentElement).toBe(candidateRow);
-    expect(screen.getByTestId(`candidate-actions-${child.id}`).className).toContain('flex-wrap');
+    expect(candidateActions.className).toContain('flex-wrap');
     expect(screen.getByText('Manages / 管理谁').closest('section')?.querySelector('.overflow-x-auto')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
     expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
