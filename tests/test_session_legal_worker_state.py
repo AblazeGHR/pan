@@ -144,3 +144,134 @@ def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
         }],
     }
     assert candidate_metadata.read_bytes() == persisted_before
+
+
+def test_runtime_sync_helper_persists_observed_offline_state(isolated_sessions):
+    session = sess.create("runtime-sync")
+    session.last_legal_worker_state = "running"
+    sess.save(session)
+
+    result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
+
+    assert result == {
+        "sessionId": session.id,
+        "status": "updated",
+        "legalWorkerState": "offline",
+        "runtimeWorkerStatus": "offline",
+    }
+    assert session.last_legal_worker_state == "offline"
+    metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
+    assert metadata["last_legal_worker_state"] == "offline"
+
+
+def test_runtime_sync_does_not_mark_a_still_running_provider_process_offline(
+    isolated_sessions,
+):
+    session = sess.create("runtime-still-active")
+    session.last_legal_worker_state = "running"
+    sess.save(session)
+
+    class LiveProcess:
+        returncode = None
+
+    runtime = worker.Worker(
+        worker_id="runtime-still-active-worker",
+        session_id=session.id,
+        adapter=CbcAdapter(),
+        status="zombie",
+        process=LiveProcess(),
+    )
+    worker.workers[runtime.worker_id] = runtime
+    worker._register_worker(runtime)
+    try:
+        async def sync_after_consumer_stopped():
+            stopped_consumer = asyncio.create_task(asyncio.sleep(0))
+            await stopped_consumer
+            runtime._consume_task = stopped_consumer
+            return await worker.sync_legal_worker_state_to_runtime(session.id)
+
+        result = asyncio.run(sync_after_consumer_stopped())
+        assert result["status"] == "error"
+        assert "not stopped" in result["error"]
+        assert session.last_legal_worker_state == "running"
+    finally:
+        worker.workers.pop(runtime.worker_id, None)
+        worker._workers_by_session.pop(session.id, None)
+
+
+def test_runtime_sync_uses_live_worker_status(isolated_sessions):
+    session = sess.create("runtime-held")
+    session.last_legal_worker_state = "running"
+    sess.save(session)
+
+    class LiveProcess:
+        returncode = None
+
+    runtime = worker.Worker(
+        worker_id="runtime-held-worker",
+        session_id=session.id,
+        adapter=CbcAdapter(),
+        status="held",
+        process=LiveProcess(),
+    )
+    worker.workers[runtime.worker_id] = runtime
+    worker._register_worker(runtime)
+    try:
+        result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
+        assert result["status"] == "updated"
+        assert result["legalWorkerState"] == "held"
+        assert result["runtimeWorkerStatus"] == "held"
+        assert session.last_legal_worker_state == "held"
+    finally:
+        worker.workers.pop(runtime.worker_id, None)
+        worker._workers_by_session.pop(session.id, None)
+
+
+def test_shutdown_can_preserve_pre_exit_legal_running_without_a_worker(
+    isolated_sessions, monkeypatch,
+):
+    session = sess.create("preserve-on-exit")
+    session.last_legal_worker_state = "running"
+    sess.save(session)
+    worker.workers.clear()
+    worker._workers_by_session.clear()
+    worker._worker_generations.clear()
+    worker._recovery_required.clear()
+
+    async def no_recoveries(**kwargs):
+        return None
+
+    monkeypatch.setattr(worker, "drain_recoveries", no_recoveries)
+    asyncio.run(worker.shutdown_all(
+        mark_legal_offline=True,
+        preserve_legal_running_session_ids=[session.id],
+    ))
+
+    assert session.last_legal_worker_state == "running"
+    metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
+    assert metadata["last_legal_worker_state"] == "running"
+
+
+def test_shutdown_marks_requested_persisted_running_session_offline_without_worker(
+    isolated_sessions, monkeypatch,
+):
+    session = sess.create("offline-on-exit")
+    session.last_legal_worker_state = "running"
+    sess.save(session)
+    worker.workers.clear()
+    worker._workers_by_session.clear()
+    worker._worker_generations.clear()
+    worker._recovery_required.clear()
+
+    async def no_recoveries(**kwargs):
+        return None
+
+    monkeypatch.setattr(worker, "drain_recoveries", no_recoveries)
+    asyncio.run(worker.shutdown_all(
+        mark_legal_offline=True,
+        mark_legal_offline_session_ids=[session.id],
+    ))
+
+    assert session.last_legal_worker_state == "offline"
+    metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
+    assert metadata["last_legal_worker_state"] == "offline"

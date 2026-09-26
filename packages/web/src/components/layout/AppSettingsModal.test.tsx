@@ -507,12 +507,19 @@ describe('AppSettingsModal', () => {
 
     fireEvent.click(exitButton);
     expect(cardEl().textContent).toContain('Confirm exit');
+    const confirmButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+      b.textContent?.includes('Confirm exit'),
+    )!;
+    expect(confirmButton.disabled).toBe(true);
+    const runningStateOptions = Array.from(
+      document.body.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
+    ).slice(-2);
+    fireEvent.click(runningStateOptions[1]!);
     fireEvent.click(
-      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
-        b.textContent?.includes('Confirm exit'),
-      )!,
+      confirmButton,
     );
     await waitFor(() => expect(exitMainServiceMock).toHaveBeenCalledTimes(1));
+    expect(exitMainServiceMock).toHaveBeenCalledWith({ markRunningSessionsOffline: false });
     expect(cardEl().textContent).toContain('No health-recovery check will run');
     expect(fetchHealthMock).not.toHaveBeenCalled();
   });

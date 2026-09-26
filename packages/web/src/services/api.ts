@@ -54,6 +54,9 @@ import type {
   ApiMainRestartResponse,
   ApiMainExitStatusResponse,
   ApiMainExitResponse,
+  ApiStartupRecoveryRecord,
+  ApiStartupRecoveryClaimResponse,
+  ApiStartupRecoveryChoice,
   ApiHealthResponse,
   AttachmentRef,
   MessagePart,
@@ -1049,12 +1052,42 @@ export async function fetchMainExitStatus(): Promise<ApiMainExitStatusResponse> 
   return request<ApiMainExitStatusResponse>(`${BASE}/main/exit/status`);
 }
 
-export async function exitMainService(): Promise<ApiMainExitResponse> {
+export async function exitMainService(
+  options: { markRunningSessionsOffline: boolean },
+): Promise<ApiMainExitResponse> {
   const data = await request<ApiMainExitResponse>(`${BASE}/main/exit`, {
     method: 'POST',
+    body: JSON.stringify({ options }),
   });
   if (!data.ok) throw new Error(data.error || `Pan exit ${data.status}`);
   return data;
+}
+
+export async function fetchStartupRecovery(): Promise<ApiStartupRecoveryRecord> {
+  return request<ApiStartupRecoveryRecord>(`${BASE}/main/startup-recovery`, {
+    cache: 'no-store',
+  });
+}
+
+export async function claimStartupRecovery(
+  generation: string,
+  tabId: string,
+): Promise<ApiStartupRecoveryClaimResponse> {
+  return request<ApiStartupRecoveryClaimResponse>(`${BASE}/main/startup-recovery/claim`, {
+    method: 'POST',
+    body: JSON.stringify({ generation, tabId }),
+  });
+}
+
+export async function decideStartupRecovery(
+  generation: string,
+  tabId: string,
+  choice: ApiStartupRecoveryChoice,
+): Promise<ApiStartupRecoveryRecord> {
+  return request<ApiStartupRecoveryRecord>(`${BASE}/main/startup-recovery/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ generation, tabId, choice }),
+  });
 }
 
 export async function fetchHealth(signal?: AbortSignal): Promise<ApiHealthResponse> {
