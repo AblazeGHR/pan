@@ -385,8 +385,10 @@ def create_task(payload: dict) -> dict:
 
     action = payload.get("action") or {"api": "assign"}
     action_api = action.get("api") if isinstance(action, dict) else None
-    if action_api not in {"assign", "send_session", "shell"}:
-        raise ValueError("action.api must be assign, send_session, or shell")
+    if action_api not in {"assign", "send_session", "shell",
+                          background_jobs.RESUME_LEGAL_RUNNING_ACTION}:
+        raise ValueError(
+            "action.api must be assign, send_session, resume_legal_running, or shell")
     if action_api == "shell":
         from packages.core.background_jobs import validate_shell_action
 
@@ -396,6 +398,13 @@ def create_task(payload: dict) -> dict:
         command, cwd = validate_shell_action(args.get("command"), args.get("cwd"))
         action = {"api": "shell", "args": {
             "command": command, "cwd": str(cwd)}}
+    elif action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
+        if not isinstance(action, dict) or set(action) - {"api"}:
+            raise ValueError("resume_legal_running action only accepts the api field")
+        text = payload.get("text", background_jobs.RESUME_LEGAL_RUNNING_TEXT)
+        if text != background_jobs.RESUME_LEGAL_RUNNING_TEXT:
+            raise ValueError("resume_legal_running always sends the message 继续")
+        action = {"api": background_jobs.RESUME_LEGAL_RUNNING_ACTION}
     else:
         if not isinstance(action, dict) or set(action) - {"api"}:
             raise ValueError("action only accepts the api field for session actions")
@@ -454,6 +463,11 @@ def create_task(payload: dict) -> dict:
     prepared["paused"] = paused
     prepared["action"] = action
     prepared["target_session_id"] = target
+    if action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
+        if target is not None:
+            raise ValueError(
+                "resume_legal_running does not accept a fixed target Session")
+        prepared["text"] = background_jobs.RESUME_LEGAL_RUNNING_TEXT
     job = _job_from_payload(prepared)
     background_jobs._create(job, registry_root=data_root())
     return _task_from_job(job)

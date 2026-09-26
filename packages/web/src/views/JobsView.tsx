@@ -85,6 +85,13 @@ function sourceSummary(job: Job): string {
   return s.type;
 }
 
+function targetSummary(job: Job): string {
+  if (job.action?.api === 'resume_legal_running') {
+    return 'dynamic: legal running Sessions without a live Worker';
+  }
+  return job.target.sessionId ?? 'no target';
+}
+
 function formatDateTime(value?: number | string | null): string {
   if (value === null || value === undefined || value === '') return '—';
   const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
@@ -215,7 +222,9 @@ function JobRow({
   const backlog = job.undeliveredFires?.length ?? 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
-  const canRunNow = job.action?.api === 'shell' || hasTarget;
+  const canRunNow = job.action?.api === 'shell'
+    || job.action?.api === 'resume_legal_running'
+    || hasTarget;
   return (
     <div
       onClick={onOpen}
@@ -337,7 +346,7 @@ function JobRow({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
         <span>
-          {sourceSummary(job)} → {job.target.sessionId ?? 'no target'}
+          {sourceSummary(job)} → {targetSummary(job)}
         </span>
         {next && <span>next {formatDateTime(next)}</span>}
         <span>{lastResultSummary(job)}</span>

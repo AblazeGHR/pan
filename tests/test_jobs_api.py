@@ -4,7 +4,7 @@
 - /api/jobs 列表（全 kind 混合 + 过滤 + active-first 排序）
 - 结构化 source/target 出口（新记录双写 / 旧扁平记录读路径折算）
 - PATCH：name/description/enabled/target 归属切换（含 scheduled-task 积压重投联动）
-- action 模板：assign 默认 / send_session / 未知回落
+- action 模板：assign 默认 / send_session / resume_legal_running / 未知回落
 - schedule 模板 CRUD
 - broadcast partial → job.partial_failed 事件
 
@@ -52,7 +52,8 @@ def fake_worker(monkeypatch):
 
     async def fake_send(session_id, text, source=None, **kw):
         calls.append({"api": "send_session", "session_id": session_id,
-                      "text": text, "source": source})
+                      "text": text, "source": source,
+                      "client_message_id": kw.get("client_message_id")})
         return {"status": "queued", "sessionId": session_id}
 
     monkeypatch.setattr(core_worker, "assign", fake_assign)
@@ -78,6 +79,25 @@ def fake_session_repository(monkeypatch, tmp_path):
         return sessions
 
     return register
+
+
+@pytest.fixture
+def isolated_session_repository(monkeypatch, tmp_path):
+    """Use a temporary durable Session directory without starting Workers."""
+    from packages.core import session as sess
+
+    old_cache = dict(sess._cache)
+    old_loaded = sess._all_loaded
+    old_newline_cache = set(sess._newline_terminated_jsonl)
+    monkeypatch.setattr(sess, "SESSION_DIR", tmp_path / "sessions")
+    sess._cache.clear()
+    sess._all_loaded = False
+    yield sess
+    sess._cache.clear()
+    sess._cache.update(old_cache)
+    sess._all_loaded = old_loaded
+    sess._newline_terminated_jsonl.clear()
+    sess._newline_terminated_jsonl.update(old_newline_cache)
 
 
 @pytest.fixture
@@ -273,6 +293,166 @@ def test_action_template_unknown_falls_back_to_assign(client, fake_worker):
         registry_root=scheduler_store.data_root())
     asyncio.run(jobs.run_due_scheduled_tasks())
     assert any(c["api"] == "assign" for c in fake_worker)  # 未知 api 回落
+
+
+def test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates(
+    client, fake_worker, monkeypatch, isolated_session_repository, tmp_path,
+):
+    _register_unified_hooks()
+    created = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "name": "唤醒合法运行 Session",
+        "action": {"api": "resume_legal_running"},
+        "schedule": [{"kind": "interval", "intervalSec": 3600}],
+    }).json()
+    assert created["ok"] is True
+    job = created["job"]
+    assert job["action"] == {"api": "resume_legal_running"}
+    assert job["text"] == "继续"
+    assert job["target"] == {"sessionId": None}
+
+    # Create persisted Sessions after the Job to prove candidate IDs are not
+    # captured at creation. Force the next scan to reload their legal state
+    # from the temporary Session repository on disk.
+    sessions = {
+        "eligible": isolated_session_repository.create(
+            "resume-eligible", workdir=str(tmp_path)),
+        "live": isolated_session_repository.create(
+            "resume-live", workdir=str(tmp_path)),
+        "idle": isolated_session_repository.create(
+            "resume-idle", workdir=str(tmp_path)),
+        "unknown": isolated_session_repository.create(
+            "resume-unknown", workdir=str(tmp_path)),
+    }
+    sessions["eligible"].last_legal_worker_state = "running"
+    sessions["live"].last_legal_worker_state = "running"
+    sessions["idle"].last_legal_worker_state = "idle"
+    for session in sessions.values():
+        isolated_session_repository.save(session)
+    monkeypatch.setattr(
+        core_worker, "find_alive_worker_by_session",
+        lambda session_id: object() if session_id == sessions["live"].id else None,
+    )
+    isolated_session_repository._cache.clear()
+    isolated_session_repository._all_loaded = False
+
+    run = client.post(f"/api/jobs/{job['jobId']}/run-now").json()
+
+    assert run["ok"] is True
+    assert run["run"]["status"] == "dispatched"
+    assert run["run"]["result"]["matchedCount"] == 1
+    assert [call["session_id"] for call in fake_worker] == [sessions["eligible"].id]
+    assert fake_worker[0]["text"] == "继续"
+    assert fake_worker[0]["source"] == "automation"
+    assert fake_worker[0]["client_message_id"].startswith("job-resume:")
+
+
+def test_resume_legal_running_empty_scan_is_successful_noop(client, fake_worker, monkeypatch):
+    from packages.core import session as sess
+
+    _register_unified_hooks()
+    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [])
+    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
+    created = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "action": {"api": "resume_legal_running"},
+        "schedule": [{"kind": "interval", "intervalSec": 3600}],
+    }).json()
+    assert created["ok"] is True
+
+    run = client.post(f"/api/jobs/{created['job']['jobId']}/run-now").json()
+    assert run["ok"] is True
+    assert run["run"]["status"] == "completed"
+    assert run["run"]["result"]["matchedCount"] == 0
+    assert run["run"]["result"]["results"] == []
+    assert fake_worker == []
+
+
+def test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged(
+    client, fake_worker, monkeypatch,
+):
+    from packages.core import session as sess
+
+    _register_unified_hooks()
+    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [])
+    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
+    created = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "action": {"api": "resume_legal_running"},
+        "schedule": [{"kind": "interval", "intervalSec": 3600}],
+    }).json()
+    assert created["ok"] is True
+    job = scheduler_store._job_for_task(created["job"]["taskId"])
+    due_entry = {
+        **job["schedule"][0],
+        "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat(),
+    }
+    jobs._update(job["jobId"], {"schedule": [due_entry]},
+                 registry_root=scheduler_store.data_root())
+
+    handled = asyncio.run(jobs.run_due_scheduled_tasks())
+    saved = jobs.get(job["jobId"], registry_root=scheduler_store.data_root())
+
+    assert handled == 1
+    assert saved["lastStatus"] == "completed"
+    assert saved["runCount"] == 1
+    assert saved["undeliveredFires"] == []
+    assert saved["lastDelivery"]["matchedCount"] == 0
+    assert fake_worker == []
+
+
+def test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text(client):
+    created = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "action": {"api": "resume_legal_running"},
+        "schedule": [{"kind": "interval", "intervalSec": 3600}],
+    }).json()
+    assert created["ok"] is True
+    job_id = created["job"]["jobId"]
+
+    edited = client.patch(f"/api/jobs/{job_id}", json={
+        "name": "Resume after edit",
+        "action": {"api": "resume_legal_running"},
+        "target": {"sessionId": None},
+        "text": "继续",
+    }).json()
+    assert edited["ok"] is True
+    assert edited["job"]["target"] == {"sessionId": None}
+    assert edited["job"]["text"] == "继续"
+
+    wrong_text = client.patch(f"/api/jobs/{job_id}", json={"text": "other"}).json()
+    fixed_target = client.patch(f"/api/jobs/{job_id}", json={
+        "target": {"sessionId": "ses_fixed"},
+    }).json()
+    assert wrong_text["ok"] is False
+    assert fixed_target["ok"] is False
+
+
+def test_resume_legal_running_keeps_per_fire_client_message_id_stable(
+    fake_worker, monkeypatch,
+):
+    from types import SimpleNamespace
+    from packages.core import session as sess
+
+    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [
+        SimpleNamespace(id="ses_resume_retry", last_legal_worker_state="running"),
+    ])
+    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
+    job = {
+        "jobId": "job_resume",
+        "kind": "scheduled-task",
+        "targetSessionId": None,
+        "text": "继续",
+        "action": {"api": "resume_legal_running"},
+    }
+
+    first = asyncio.run(jobs._run_job_action(job, None, "task:entry:fire-1"))
+    retried = asyncio.run(jobs._run_job_action(job, None, "task:entry:fire-1"))
+
+    assert first["status"] == retried["status"] == "dispatched"
+    assert len(fake_worker) == 2  # the normal sender receives its durable idempotency key
+    assert fake_worker[0]["client_message_id"] == fake_worker[1]["client_message_id"]
+    assert fake_worker[0]["text"] == fake_worker[1]["text"] == "继续"
 
 
 # ── schedule 模板 ──

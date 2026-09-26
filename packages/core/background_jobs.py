@@ -41,6 +41,8 @@ SESSION_MESSAGE_KIND = "session-message"
 SESSION_BROADCAST_KIND = "session-broadcast"
 SERVICE_LIFECYCLE_KIND = "main-lifecycle"
 SCHEDULED_TASK_KIND = "scheduled-task"
+RESUME_LEGAL_RUNNING_ACTION = "resume_legal_running"
+RESUME_LEGAL_RUNNING_TEXT = "继续"
 SERVICE_ACTIVE_PHASES = frozenset({
     "requested", "stopping", "stopping_workers", "stopping_service",
     "stopped", "starting",
@@ -1263,9 +1265,10 @@ async def _run_job_action(job: dict, target: str | None,
                           registry_root: str | Path | None = None) -> dict:
     """执行 job 的 action 模板（PLAN §1/§2：动作 = API 调用模板）。
 
-    首批两个原语：
+    Scheduled-task actions:
     - ``assign``（默认）：task 文本入目标 session 队列，worker 幂等索引兜底；
     - ``send_session``：发人可读消息（走 message 语义，无 task_id 幂等）。
+    - ``resume_legal_running``：fire 时重新筛选并按 Session 收据幂等发送固定消息。
 
     未知 action.api / 兼容层旧记录（无 action 字段）一律回落 assign。
     """
@@ -1296,6 +1299,50 @@ async def _run_job_action(job: dict, target: str | None,
         }
     if api == "send_session":
         return await _worker.send_session(target, text, source="automation")
+    if api == RESUME_LEGAL_RUNNING_ACTION:
+        # Resolve candidates at fire time. Session identity is persistent, while
+        # Worker liveness is a separate, transient runtime fact.
+        candidates = sorted(
+            (
+                session for session in _sessions.list_all(load_history=False)
+                if (getattr(session, "last_legal_worker_state", None) == "running"
+                    and isinstance(getattr(session, "id", None), str)
+                    and _worker.find_alive_worker_by_session(session.id) is None)
+            ),
+            key=lambda session: session.id,
+        )
+        results: list[dict] = []
+        errors: list[str] = []
+        for session in candidates:
+            # A stable per-fire/per-Session client id makes a stale-claim retry
+            # resolve the original durable message receipt instead of enqueueing
+            # the same wake-up twice. A later fire receives a different key.
+            digest = hashlib.sha256(
+                f"{dispatch_key}\0{session.id}".encode("utf-8")
+            ).hexdigest()
+            client_message_id = f"job-resume:{digest}"
+            try:
+                result = await _worker.send_session(
+                    session.id, RESUME_LEGAL_RUNNING_TEXT,
+                    source="automation", client_message_id=client_message_id)
+                if not isinstance(result, dict):
+                    result = {"status": "error",
+                              "result": "send_session returned an invalid result"}
+            except Exception as exc:
+                result = {"status": "error", "result": str(exc)}
+            item = {**result, "sessionId": session.id}
+            results.append(item)
+            if item.get("status") in {"error", "failed", "cancelled"}:
+                errors.append(
+                    f"{session.id}: {item.get('result') or item.get('error') or 'send failed'}"
+                )
+        return {
+            "status": "error" if errors else ("dispatched" if candidates else "completed"),
+            "dispatchKey": dispatch_key,
+            "matchedCount": len(candidates),
+            "results": results,
+            **({"errors": errors, "error": "; ".join(errors)} if errors else {}),
+        }
     # Keep legacy persisted action templates readable. Public create/PATCH
     # endpoints validate action.api strictly, but older records with an
     # unknown API historically fell back to assign.
@@ -1701,7 +1748,10 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                           "dispatchKey": dispatch_key, "status": "dispatched",
                           "error": None})
 
-    if not target and action_api != "shell":
+    target_required = action_api not in {
+        "shell", RESUME_LEGAL_RUNNING_ACTION,
+    }
+    if not target and target_required:
         return _backlog_undelivered_fire(
             job, task_id, entry, entry_id, fire_dt, now_dt, dispatch_key,
             "target session is missing (no target set)", registry_root)
