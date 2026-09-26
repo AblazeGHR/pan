@@ -292,6 +292,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
+    showHistorySearch,
     chatViewStyle,
     notifications,
     setDefaultGroupBy,
@@ -303,6 +304,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setMergeConsecutiveNonBodyBlocks,
     setKeepScrollOnSessionSwitch,
     setShowMessageNavigationRail,
+    setShowHistorySearch,
     setChatViewStyle,
     setCodexWarningToast,
     setConfirmCrossWorkspaceManagement,
@@ -1047,6 +1049,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   Off by default. Turning this on adds the strip, including a background scan of the
                   session history (one request per 200 messages), so enabling it costs more on long
                   sessions.
+                </p>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  History search
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Enable search in this Session"
+                    hint="Search user and assistant messages in the current Session history."
+                    checked={showHistorySearch}
+                    onChange={setShowHistorySearch}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Off by default. History is scanned only when you open search and enter a query.
+                  New persisted message IDs are required for stable results.
                 </p>
               </section>
             </>

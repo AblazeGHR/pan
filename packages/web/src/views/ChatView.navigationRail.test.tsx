@@ -81,6 +81,47 @@ describe('ChatView: message navigation rail switch', () => {
     expect(container.querySelector('[data-testid="chat-messages"]')).not.toBeNull();
   });
 
+  it('leaves Session search UI and its keyboard listener unmounted while disabled', () => {
+    const addListener = vi.spyOn(window, 'addEventListener');
+    const { container } = render(<ChatView />);
+    const keydownListeners = addListener.mock.calls.filter(([type]) => type === 'keydown');
+    const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    fireEvent(window, shortcut);
+
+    expect(container.querySelector('[data-testid="session-history-search"]')).toBeNull();
+    expect(keydownListeners).toHaveLength(0);
+    expect(shortcut.defaultPrevented).toBe(false);
+    expect(mockedHistory).not.toHaveBeenCalled();
+    addListener.mockRestore();
+  });
+
+  it('mounts a mobile search control below the Session title and opens it with Ctrl+F', () => {
+    viewport.isMobile = true;
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { container, getByTestId } = render(<ChatView />);
+
+    expect(getByTestId('session-history-search').getAttribute('data-layout'))
+      .toBe('mobile-below-session-title');
+    expect(mockedHistory).not.toHaveBeenCalled();
+    const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    fireEvent(window, shortcut);
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(getByTestId('session-history-search-input')).not.toBeNull();
+
+    act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
+    expect(container.querySelector('[data-testid="session-history-search"]')).toBeNull();
+    const afterDisable = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    fireEvent(window, afterDisable);
+    expect(afterDisable.defaultPrevented).toBe(false);
+  });
+
+  it('mounts the enabled desktop control in the chat top-right contract', () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { getByTestId } = render(<ChatView />);
+    expect(getByTestId('session-history-search').getAttribute('data-layout'))
+      .toBe('desktop-chat-top-right');
+  });
+
   it('shows a folded desktop handle when enabled and indexes only after hover expansion', async () => {
     useAppSettingsStore.setState({ showMessageNavigationRail: true });
     const { container } = render(<ChatView />);

@@ -1,6 +1,7 @@
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMessages';
 import { MessageNavigationDock, MESSAGE_NAVIGATION_PANEL_ID } from '@/components/chat/MessageNavigationDock';
+import { SessionHistorySearch } from '@/components/chat/SessionHistorySearch';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InputRow } from '@/components/chat/InputRow';
@@ -19,13 +20,19 @@ export default function ChatView() {
   // Unmounting (rather than hiding) the rail is the point of the switch: the
   // dock (including its cached index) is removed when the master switch is off.
   const showMessageNavigationRail = useAppSettingsStore((s) => s.showMessageNavigationRail);
+  const showHistorySearch = useAppSettingsStore((s) => s.showHistorySearch);
   const { isMobile } = useMediaQuery();
   const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [searchTargetMessageId, setSearchTargetMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     // Enabling the master switch and changing viewport modes both start folded.
     setMobileExpanded(false);
   }, [showMessageNavigationRail, isMobile]);
+
+  useEffect(() => {
+    if (!showHistorySearch) setSearchTargetMessageId(null);
+  }, [showHistorySearch]);
 
   const restoreChatFocus = useCallback(() => {
     chatStageRef.current?.focus();
@@ -73,7 +80,15 @@ export default function ChatView() {
           <ChatMessages
             ref={chatRef}
             hideScrollToBottom={showMessageNavigationRail && isMobile && mobileExpanded}
+            searchTargetMessageId={showHistorySearch ? searchTargetMessageId : null}
           />
+          {showHistorySearch && (
+            <SessionHistorySearch
+              chatRef={chatRef}
+              isMobile={isMobile}
+              onHighlightMessage={setSearchTargetMessageId}
+            />
+          )}
           {showMessageNavigationRail && (
             <MessageNavigationDock
               chatRef={chatRef}
