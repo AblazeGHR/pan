@@ -9,7 +9,13 @@ import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore'
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
-import { createDirectory, fetchDirectories, fetchSessionTemplates } from '@/services/api';
+import {
+  createDirectory,
+  fetchDirectories,
+  fetchNewSessionDefaults,
+  fetchSessionTemplates,
+  saveNewSessionDefaults,
+} from '@/services/api';
 import { isMissingDirectoryError, parseDirectoryInput } from '@/utils/directoryInput';
 import type { SessionTemplate } from '@/types';
 import { ArrowLeft } from 'lucide-react';
@@ -38,6 +44,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // Output mode follows the selected adapter's config.
   const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const [defaultsReady, setDefaultsReady] = useState(false);
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [directoryCreationPath, setDirectoryCreationPath] = useState<string | null>(null);
@@ -83,16 +91,40 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setAdapter('');
       setOutputMode('');
       setSessionTemplate('');
+      setSaveAsDefault(false);
+      setDefaultsReady(false);
       setSubmitting(false);
       setDirectoryCreationPath(null);
       directoryCreationWorkspaceIds.current = null;
-      fetchSessionTemplates()
-        .then(setTemplates)
-        .catch(() => setTemplates([]));
+      let cancelled = false;
+      Promise.all([
+        fetchSessionTemplates().catch(() => [] as SessionTemplate[]),
+        fetchNewSessionDefaults().catch((error: unknown) => {
+          if (!cancelled) showToast(
+            `读取 New Session 默认配置失败：${error instanceof Error ? error.message : '未知错误'}`,
+            'error',
+          );
+          return null;
+        }),
+      ]).then(([loadedTemplates, defaults]) => {
+        if (cancelled) return;
+        setTemplates(loadedTemplates);
+        const savedTemplate = defaults?.sessionTemplate ?? '';
+        const templateExists = !savedTemplate || loadedTemplates.some((t) => t.name === savedTemplate);
+        setSessionTemplate(templateExists ? savedTemplate : '');
+        if (savedTemplate && !templateExists) {
+          showToast(`已保存的 Session Template「${savedTemplate}」不可用，已清除该预填项`, 'error');
+        }
+        setAdapter(defaults?.adapter ?? '');
+        setOutputMode(defaults?.outputMode ?? '');
+        setWorkdir(defaults?.workdir ?? '');
+        setDefaultsReady(true);
+      });
       // Focus name input after render
       requestAnimationFrame(() => nameRef.current?.focus());
+      return () => { cancelled = true; };
     }
-  }, [open, loadCliStatus]);
+  }, [open, loadCliStatus, showToast]);
 
   // Full-screen mobile page closes on Escape too (parity with <Modal>).
   useEffect(() => {
@@ -108,7 +140,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // If a template pins an unavailable adapter, leave the selection empty so
   // submission cannot silently send an invalid adapter to the backend.
   useEffect(() => {
-    if (!open || cliStatusLoading || !cliStatus) return;
+    if (!open || !defaultsReady || cliStatusLoading || !cliStatus) return;
     setAdapter((current) => {
       if (lockedAdapter) {
         return availableAdapterNames.has(lockedAdapter) ? lockedAdapter : '';
@@ -120,6 +152,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     });
   }, [
     open,
+    defaultsReady,
     cliStatusLoading,
     cliStatus,
     lockedAdapter,
@@ -142,7 +175,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     // Only pre-select an Output Mode when the adapter exposes multiple modes;
     // single-mode adapters (kimi/opencode) never offer the switch.
     const execModes = config.executionModes || ['stream'];
-    setOutputMode(execModes.length > 1 ? (execModes[0] || 'stream') : '');
+    setOutputMode((current) => execModes.length > 1
+      ? (current && execModes.includes(current) ? current : (execModes[0] || 'stream'))
+      : '');
   }, [config]);
 
   const handleAdapterChange = (next: string) => {
@@ -188,6 +223,22 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       sessionTemplate || undefined,
       { outputMode: outputMode || undefined, workspaceIds },
     );
+    if (saveAsDefault) {
+      try {
+        await saveNewSessionDefaults({
+          adapter,
+          outputMode,
+          sessionTemplate: sessionTemplate || '',
+          workdir: requestedWorkdir || '',
+        });
+        showToast('Session 已创建，默认配置已保存', 'info');
+      } catch (error: unknown) {
+        showToast(
+          `Session 已创建，但默认配置未保存：${error instanceof Error ? error.message : '未知错误'}`,
+          'error',
+        );
+      }
+    }
     onClose();
   };
 
@@ -278,6 +329,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const showOutputMode = execModes.length > 1;
   const createDisabled =
     submitting ||
+    !defaultsReady ||
     cliStatusLoading ||
     !!cliStatusError ||
     !hasAvailableAdapter ||
@@ -300,6 +352,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const formBody = (
     <form id="new-session-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <fieldset disabled={!defaultsReady} className="contents">
         {/* Adapter select — availability comes from /api/cli/status. */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
@@ -425,6 +478,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           />
         </div>
 
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          <input
+            type="checkbox"
+            checked={saveAsDefault}
+            onChange={(e) => setSaveAsDefault(e.target.checked)}
+            className="accent-accent"
+          />
+          将本次配置设为默认（不含 Session Name）
+        </label>
+
         {/* Actions — desktop keeps them inside the dialog. On mobile they
             move to the fixed full-screen footer; the submit button there is
             associated with the form via the HTML `form` attribute. */}
@@ -447,6 +510,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             </Button>
           </div>
         )}
+        </fieldset>
       </form>
   );
 
