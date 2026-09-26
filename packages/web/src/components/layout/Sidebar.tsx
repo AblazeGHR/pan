@@ -1,10 +1,9 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { nextSessionDefaultName } from '@/utils/sessionName';
 import { SessionList } from '@/components/session/SessionList';
@@ -18,7 +17,7 @@ import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
 import { SPECIAL_FILTERS, getSessionListCandidates } from '@/utils/sessionFilters';
-import { FileTree } from '@/components/editor/FileTree';
+import { EditorDirectoryRoots } from '@/components/editor/EditorDirectoryRoots';
 import { SidebarResizer } from './SidebarResizer';
 import { AppSettingsModal } from './AppSettingsModal';
 import { Button } from '@/components/ui/Button';
@@ -32,15 +31,12 @@ import {
   Plus,
   Settings,
   Import,
-  FolderOpen,
-  RefreshCw,
   Search,
   ArrowUpDown,
   Layers,
   ListFilter,
   ChevronUp,
   ChevronDown,
-  ChevronRight,
   Sun,
   Moon,
   ListChecks,
@@ -68,7 +64,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       removeSession: s.removeSession,
       sessions: s.sessions,
     })));
-  const currentSession = useCurrentSession();
 
   // UI store — 同上：toast 队列、审批/输入/终端交互请求等高频字段不应触发侧栏重渲染。
   const {
@@ -90,8 +85,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     collapsedGroups,
     collapseAllGroups,
     expandAllGroups,
-    filesCollapsed,
-    toggleFilesCollapsed,
     theme,
     toggleTheme,
     dragEnabled,
@@ -116,8 +109,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     collapsedGroups: s.collapsedGroups,
     collapseAllGroups: s.collapseAllGroups,
     expandAllGroups: s.expandAllGroups,
-    filesCollapsed: s.filesCollapsed,
-    toggleFilesCollapsed: s.toggleFilesCollapsed,
     theme: s.theme,
     toggleTheme: s.toggleTheme,
     dragEnabled: s.dragEnabled,
@@ -128,10 +119,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
   const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
-
-  // Editor store
-  const treeLoading = useEditorStore((s) => s.treeLoading);
-  const refreshTree = useEditorStore((s) => s.refreshTree);
 
   // Local state
   const [showNewModal, setShowNewModal] = useState(false);
@@ -939,53 +926,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
             </div>
           </div>
 
-          {/* Files section — collapsible */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border-default min-h-[40px] cursor-pointer select-none hover:bg-bg-hover/30 transition-colors" onClick={toggleFilesCollapsed}>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-              <FolderOpen size={13} />
-              Files
-            </div>
-            <div className="flex items-center gap-0.5">
-              {!filesCollapsed && (
-                <button
-                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    refreshTree('');
-                  }}
-                  title="Refresh file tree"
-                >
-                  <RefreshCw size={13} className={treeLoading ? 'animate-spin' : ''} />
-                </button>
-              )}
-              {filesCollapsed ? (
-                <ChevronRight size={14} className="text-text-tertiary" />
-              ) : (
-                <ChevronDown size={14} className="text-text-tertiary" />
-              )}
-            </div>
-          </div>
-
-          {/* File tree (collapsible) */}
-          {!filesCollapsed && (
-            currentSession?.workdir ? (
-              <FileTree workdir={currentSession.workdir} />
-            ) : (
-              <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-tertiary text-center">
-                Select a session to browse files
-              </div>
-            )
-          )}
-
-          {/* Workdir footer */}
-          {currentSession?.workdir && (
-            <div
-              className="px-3 py-1.5 text-[10px] text-text-tertiary border-t border-border-default truncate flex-shrink-0"
-              title={currentSession.workdir}
-            >
-              {currentSession.workdir}
-            </div>
-          )}
+          {/* Directory roots: CWD + workspace dirs + temp dirs, each collapsible */}
+          <EditorDirectoryRoots />
         </>
       )}
 

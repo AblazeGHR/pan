@@ -28,6 +28,8 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
 
   // Markdown links may open a server-absolute file. Do not prepend the
   // current Session workdir to an already absolute operation path.
+  // Editor roots (CWD/Workspace/Temp) contribute absolute paths, so a POSIX
+  // absolute operation path must not be re-parented under the workdir.
   const operationIsUnc = /^(\\\\|\/\/)/.test(operationPath);
   const operationIsDriveAbsolute = /^[A-Za-z]:[\\/]/.test(operationPath);
   if (operationIsUnc) {
@@ -35,6 +37,13 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
   }
   if (operationIsDriveAbsolute) {
     return operationPath.replace(/[\\/]+/g, separator);
+  }
+  if (operationPath.startsWith('/') && workdir.startsWith('/')) {
+    // A POSIX-workdir Session browsing an absolute POSIX root (CWD/Workspace/
+    // Temp): show the absolute path instead of re-parenting it under the
+    // workdir. A bare leading '/' with a Windows workdir stays workdir-relative
+    // (existing Markdown-link behavior).
+    return operationPath.replace(/\\/g, '/');
   }
   let normalizedWorkdir: string;
   if (driveRoot) {

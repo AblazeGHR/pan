@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FileNode } from '@/types';
-import { useEditorStore } from '@/stores/editorStore';
+import { EMPTY_FILE_NODES, expansionKey, useEditorStore } from '@/stores/editorStore';
 import { Download, File, Folder, FolderOpen, Pencil, X } from 'lucide-react';
 
 interface FileTreeProps {
-  workdir: string;
+  /** Editor root whose tree this renders (see EditorRoot.id). */
+  rootId: string;
 }
 
 function FileTreeItem({
+  rootId,
   node,
   depth,
 }: {
+  rootId: string;
   node: FileNode;
   depth: number;
 }) {
@@ -22,7 +25,7 @@ function FileTreeItem({
   const requestDelete = useEditorStore((s) => s.requestDelete);
   const downloadFile = useEditorStore((s) => s.downloadFile);
 
-  const isExpanded = expanded.has(node.path);
+  const isExpanded = expanded.has(expansionKey(rootId, node.path));
   const isSelected = selectedPath === node.path;
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(node.name);
@@ -37,9 +40,9 @@ function FileTreeItem({
 
   const handleClick = () => {
     if (node.type === 'dir') {
-      toggleDir(node.path);
+      void toggleDir(rootId, node.path);
     } else {
-      openFile(node.path);
+      void openFile(node.path);
     }
   };
 
@@ -49,11 +52,16 @@ function FileTreeItem({
       setRenaming(false);
       return;
     }
-    const parentPath = node.path.includes('/')
-      ? node.path.substring(0, node.path.lastIndexOf('/'))
-      : '';
-    const newPath = parentPath ? `${parentPath}/${newName}` : newName;
-    renameFile(node.path, newPath);
+    // Absolute node paths are forward-slash normalized; keep a bare filesystem
+    // root ('/' or 'D:/') as the parent instead of resolving to its drive only.
+    const slash = node.path.lastIndexOf('/');
+    const parentPath = slash < 0 ? '' : slash === 0 ? '/' : node.path.slice(0, slash);
+    const newPath = parentPath
+      ? parentPath.endsWith('/')
+        ? `${parentPath}${newName}`
+        : `${parentPath}/${newName}`
+      : newName;
+    void renameFile(node.path, newPath);
     setRenaming(false);
   };
 
@@ -145,7 +153,7 @@ function FileTreeItem({
       {isExpanded && node.children && node.children.length > 0 && (
         <div>
           {node.children.map((child) => (
-            <FileTreeItem key={child.path} node={child} depth={depth + 1} />
+            <FileTreeItem key={child.path} rootId={rootId} node={child} depth={depth + 1} />
           ))}
         </div>
       )}
@@ -162,9 +170,9 @@ function FileTreeItem({
   );
 }
 
-export function FileTree({ workdir: _workdir }: FileTreeProps) {
-  const tree = useEditorStore((s) => s.tree);
-  const treeLoading = useEditorStore((s) => s.treeLoading);
+export function FileTree({ rootId }: FileTreeProps) {
+  const tree = useEditorStore((s) => s.rootTrees[rootId]?.nodes ?? EMPTY_FILE_NODES);
+  const treeLoading = useEditorStore((s) => s.rootTrees[rootId]?.loading ?? false);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -177,7 +185,7 @@ export function FileTree({ workdir: _workdir }: FileTreeProps) {
         )}
         {!treeLoading &&
           tree.map((node) => (
-            <FileTreeItem key={node.path} node={node} depth={0} />
+            <FileTreeItem key={node.path} rootId={rootId} node={node} depth={0} />
           ))}
       </div>
     </div>

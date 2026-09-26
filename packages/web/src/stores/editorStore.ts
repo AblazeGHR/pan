@@ -10,16 +10,17 @@ export function setMonacoRef(m: Monaco) {
   monacoRef = m;
 }
 
-// File mutations for the same session/root must reach the filesystem in the
-// order in which the store actions were called. This covers save, rename, and
-// delete together: a save of the old path can never finish after a subsequent
-// rename/delete has committed and recreate that old path.
+// File mutations for the same session must reach the filesystem in the order
+// the store actions were called. This covers save, rename, and delete together:
+// a save of the old path can never finish after a subsequent rename/delete has
+// committed and recreate that old path. Paths are absolute (each editor root
+// contributes its own subtree), so a single per-session queue is enough.
 const fileOperationQueues = new Map<string, Promise<void>>();
 
-// A path mutation invalidates saves which are submitted after that mutation,
-// even when those saves are already waiting behind an in-flight operation.
-// This is deliberately separate from the open-read generations: a save must
-// not recreate a source path after rename/delete has committed.
+// A path mutation invalidates saves submitted after that mutation, even when
+// those saves are already waiting behind an in-flight operation. This is
+// deliberately separate from the open-read generations: a save must not
+// recreate a source path after rename/delete has committed.
 const invalidatedFilePaths = new Map<string, Set<string>>();
 
 function enqueueFileOperation(key: string, operation: () => Promise<void>): Promise<void> {
@@ -37,21 +38,21 @@ function enqueueFileOperation(key: string, operation: () => Promise<void>): Prom
   return current;
 }
 
-function invalidateFilePath(root: RootSnapshot, path: string): void {
-  const paths = invalidatedFilePaths.get(rootKey(root)) ?? new Set<string>();
+function invalidateFilePath(sessionId: string, path: string): void {
+  const paths = invalidatedFilePaths.get(sessionId) ?? new Set<string>();
   paths.add(path);
-  invalidatedFilePaths.set(rootKey(root), paths);
+  invalidatedFilePaths.set(sessionId, paths);
 }
 
-function clearFilePathInvalidation(root: RootSnapshot, path: string): void {
-  const paths = invalidatedFilePaths.get(rootKey(root));
+function clearFilePathInvalidation(sessionId: string, path: string): void {
+  const paths = invalidatedFilePaths.get(sessionId);
   if (!paths) return;
   paths.delete(path);
-  if (paths.size === 0) invalidatedFilePaths.delete(rootKey(root));
+  if (paths.size === 0) invalidatedFilePaths.delete(sessionId);
 }
 
-function isFilePathInvalidated(root: RootSnapshot, path: string): boolean {
-  return invalidatedFilePaths.get(rootKey(root))?.has(path) ?? false;
+function isFilePathInvalidated(sessionId: string, path: string): boolean {
+  return invalidatedFilePaths.get(sessionId)?.has(path) ?? false;
 }
 
 function operationErrorMessage(error: unknown): string {
@@ -68,30 +69,26 @@ function openFileErrorMessage(error: unknown): string {
 
 const openInvalidationGenerations = new Map<string, number>();
 
+function openInvalidationKey(sessionId: string, path: string): string {
+  return `${sessionId}\u0000${path}`;
+}
+
+function currentOpenInvalidation(sessionId: string, path: string): number {
+  return openInvalidationGenerations.get(openInvalidationKey(sessionId, path)) ?? 0;
+}
+
+function invalidateOpen(sessionId: string, path: string): void {
+  const key = openInvalidationKey(sessionId, path);
+  openInvalidationGenerations.set(key, currentOpenInvalidation(sessionId, path) + 1);
+}
+
 // Vitest resets the Zustand state between cases, but these module-level
 // guards intentionally outlive that state in the browser. Keep a small reset
-// hook for store tests so one synthetic root cannot affect another case.
+// hook for store tests so one synthetic session cannot affect another case.
 export function resetEditorStoreOperationState(): void {
   fileOperationQueues.clear();
   invalidatedFilePaths.clear();
   openInvalidationGenerations.clear();
-}
-
-function rootKey(root: RootSnapshot): string {
-  return [root.sessionId, root.workdir ?? ''].join('\u0000');
-}
-
-function openInvalidationKey(root: RootSnapshot, path: string): string {
-  return `${rootKey(root)}\u0000${path}`;
-}
-
-function currentOpenInvalidation(root: RootSnapshot, path: string): number {
-  return openInvalidationGenerations.get(openInvalidationKey(root, path)) ?? 0;
-}
-
-function invalidateOpen(root: RootSnapshot, path: string): void {
-  const key = openInvalidationKey(root, path);
-  openInvalidationGenerations.set(key, currentOpenInvalidation(root, path) + 1);
 }
 
 function disposeMonacoModels(paths: string[]) {
@@ -107,18 +104,133 @@ function disposeMonacoModels(paths: string[]) {
   }
 }
 
+/** Root kinds the editor can browse for one Session. */
+export type EditorRootKind = 'cwd' | 'workspace' | 'temp';
+
+/**
+ * One directory root shown in the Editor sidebar. Roots are keyed by
+ * `${kind}:${path}`, so overlapping paths across kinds stay distinct and never
+ * share tree/expansion state.
+ */
+export interface EditorRoot {
+  /** Stable identity: `${kind}:${normalizedPath}`. */
+  id: string;
+  kind: EditorRootKind;
+  /** Absolute server path, forward-slash normalized. */
+  path: string;
+  /** Display name (basename, or the full path when it has none). */
+  label: string;
+  /** Owning Workspace id, for `kind === 'workspace'`. */
+  workspaceId?: string;
+}
+
+interface EditorRootTree {
+  nodes: FileNode[];
+  loading: boolean;
+}
+
+/** Shared empty reference so selectors can avoid new array identities. */
+export const EMPTY_FILE_NODES: FileNode[] = [];
+
+/** Composite expansion key so the same absolute dir in two roots expands apart. */
+export function expansionKey(rootId: string, path: string): string {
+  return `${rootId}\u0000${path}`;
+}
+
+/** Normalize a server path to forward slashes without trimming a bare root. */
+export function normalizeEditorPath(raw: string): string {
+  let path = raw.trim().replace(/\\/g, '/');
+  path = path.replace(/\/+$/, '');
+  if (/^[A-Za-z]:$/.test(path)) path += '/';
+  if (path === '') path = '/';
+  return path;
+}
+
+function pathBasename(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1]! : path;
+}
+
+function joinChildPath(prefix: string, name: string): string {
+  if (!prefix) return name;
+  return prefix.endsWith('/') ? `${prefix}${name}` : `${prefix}/${name}`;
+}
+
+function buildRoots(
+  workdir: string | null,
+  workspaceId: string | null,
+  workspaceDirs: string[],
+  tempDirs: string[],
+): EditorRoot[] {
+  const roots: EditorRoot[] = [];
+  const seen = new Set<string>();
+  const push = (kind: EditorRootKind, raw: string, owner?: string | null) => {
+    const path = normalizeEditorPath(raw);
+    const id = `${kind}:${path}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    roots.push({
+      id,
+      kind,
+      path,
+      label: kind === 'cwd' ? 'CWD' : pathBasename(path),
+      ...(kind === 'workspace' && owner ? { workspaceId: owner } : {}),
+    });
+  };
+  if (workdir) push('cwd', workdir);
+  for (const dir of workspaceDirs) push('workspace', dir, workspaceId);
+  for (const dir of tempDirs) push('temp', dir);
+  return roots;
+}
+
+function reconcileTrees(
+  roots: EditorRoot[],
+  previous: Record<string, EditorRootTree>,
+): Record<string, EditorRootTree> {
+  const next: Record<string, EditorRootTree> = {};
+  for (const root of roots) {
+    next[root.id] = previous[root.id] ?? { nodes: EMPTY_FILE_NODES, loading: false };
+  }
+  return next;
+}
+
+function rootContainsPath(root: EditorRoot, path: string): boolean {
+  if (path === root.path) return true;
+  const base = root.path.endsWith('/') ? root.path : `${root.path}/`;
+  return path.startsWith(base);
+}
+
+/** Absolute directory holding `path` inside `root`. */
+function parentDirWithinRoot(root: EditorRoot, path: string): string {
+  const relative = path === root.path ? '' : path.slice(root.path.length).replace(/^\/+/, '');
+  const parentRelative = relative.includes('/')
+    ? relative.slice(0, relative.lastIndexOf('/'))
+    : '';
+  if (!parentRelative) return root.path;
+  return `${root.path.replace(/\/+$/, '')}/${parentRelative}`;
+}
+
 interface EditorStore {
   // state
   sessionId: string | null;
   workdir: string | null;
   rootGeneration: number;
-  /** Monotonic latest-request-wins sequence for tree/list responses. */
-  treeRequestGeneration: number;
+  /** Directory roots for the current Session (cwd + workspace + temp). */
+  roots: EditorRoot[];
+  /** Per-root tree state, keyed by `EditorRoot.id`. */
+  rootTrees: Record<string, EditorRootTree>;
+  /** Per-root latest-request-wins sequence for tree/list responses. */
+  rootTreeGenerations: Record<string, number>;
+  /** Composite (`rootId\u0000path`) expansion keys. */
+  expanded: Set<string>;
   /** Monotonic latest-open-wins sequence for file content responses. */
   openRequestGeneration: number;
-  tree: FileNode[];
-  treeLoading: boolean;
-  expanded: Set<string>;
+  /** Temp dirs are browser memory only: no persistence, shown for every Session. */
+  tempDirs: string[];
+  /** Effective Workspace of the current Session (null = ungrouped/unknown). */
+  workspaceId: string | null;
+  /** Shared dirs of the current Session's Workspace. */
+  workspaceDirs: string[];
   selectedPath: string | null;
   openPaths: string[];
   activePath: string | null;
@@ -131,9 +243,15 @@ interface EditorStore {
   pendingConfirmation: EditorConfirmationRequest | null;
 
   // actions
-  setRoot: (sessionId: string, workdir: string) => Promise<void>;
-  refreshTree: (dirPath?: string) => Promise<void>;
-  toggleDir: (path: string) => Promise<void>;
+  setRoot: (sessionId: string, workdir: string | null) => Promise<void>;
+  /** Sync the current Session's Workspace shared dirs (persisted elsewhere). */
+  setWorkspaceDirs: (workspaceId: string | null, dirs: string[]) => void;
+  addTempDir: (path: string) => void;
+  removeTempDir: (path: string) => void;
+  /** (Re)load one root's tree; `dirPath` refreshes a subtree instead. */
+  refreshRoot: (rootId: string, dirPath?: string) => Promise<void>;
+  loadRootTree: (rootId: string) => Promise<void>;
+  toggleDir: (rootId: string, path: string) => Promise<void>;
   openFile: (path: string, location?: EditorLocation) => Promise<boolean>;
   openImage: (path: string, preview: EditorImagePreviewSource) => boolean;
   consumePendingLocation: (location: EditorLocation) => void;
@@ -151,17 +269,20 @@ interface EditorStore {
   setMdViewMode: (path: string, mode: 'edit' | 'preview' | 'split') => void;
 }
 
-interface RootSnapshot {
+interface SessionSnapshot {
   sessionId: string;
-  workdir: string | null;
   generation: number;
+}
+
+interface RootRequestSnapshot extends SessionSnapshot {
+  rootId: string;
+  requestGeneration: number;
 }
 
 export interface EditorConfirmationRequest {
   kind: 'save' | 'delete';
   path: string;
   sessionId: string;
-  workdir: string | null;
   rootGeneration: number;
 }
 
@@ -178,60 +299,58 @@ export interface EditorImagePreviewSource {
   downloadHref?: string;
 }
 
+interface OpenFileSnapshot extends SessionSnapshot {
+  requestGeneration: number;
+  path: string;
+  invalidationGeneration: number;
+}
+
 const EDITOR_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif']);
 
 function isEditorImagePath(path: string): boolean {
   return EDITOR_IMAGE_EXTENSIONS.has(path.split('.').pop()?.toLowerCase() ?? '');
 }
 
-interface TreeRequestSnapshot extends RootSnapshot {
-  requestGeneration: number;
-}
-
-interface OpenFileSnapshot extends RootSnapshot {
-  requestGeneration: number;
-  path: string;
-  invalidationGeneration: number;
-}
-
-function captureRoot(
-  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
-): RootSnapshot | null {
+function captureSession(
+  state: Pick<EditorStore, 'sessionId' | 'rootGeneration'>,
+): SessionSnapshot | null {
   if (!state.sessionId) return null;
-  return {
-    sessionId: state.sessionId,
-    workdir: state.workdir,
-    generation: state.rootGeneration,
-  };
+  return { sessionId: state.sessionId, generation: state.rootGeneration };
 }
 
-function isCurrentRoot(
-  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
-  snapshot: RootSnapshot | null,
+function isCurrentSession(
+  state: Pick<EditorStore, 'sessionId' | 'rootGeneration'>,
+  snapshot: SessionSnapshot | null,
 ): boolean {
   return Boolean(
     snapshot &&
     state.sessionId === snapshot.sessionId &&
-    state.workdir === snapshot.workdir &&
     state.rootGeneration === snapshot.generation,
   );
 }
 
-function isCurrentTreeRequest(
-  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration' | 'treeRequestGeneration'>,
-  snapshot: TreeRequestSnapshot,
+function isCurrentRootRequest(
+  state: Pick<EditorStore, 'sessionId' | 'rootGeneration' | 'roots' | 'rootTreeGenerations'>,
+  snapshot: RootRequestSnapshot,
 ): boolean {
-  return isCurrentRoot(state, snapshot) && state.treeRequestGeneration === snapshot.requestGeneration;
+  return (
+    isCurrentSession(state, snapshot) &&
+    (state.rootTreeGenerations[snapshot.rootId] ?? 0) === snapshot.requestGeneration &&
+    state.roots.some((root) => root.id === snapshot.rootId)
+  );
 }
 
 function isCurrentOpenRequest(
-  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration' | 'openRequestGeneration'>,
+  state: Pick<
+    EditorStore,
+    'sessionId' | 'rootGeneration' | 'openRequestGeneration'
+  >,
   snapshot: OpenFileSnapshot,
 ): boolean {
   return (
-    isCurrentRoot(state, snapshot) &&
+    isCurrentSession(state, snapshot) &&
     state.openRequestGeneration === snapshot.requestGeneration &&
-    currentOpenInvalidation(snapshot, snapshot.path) === snapshot.invalidationGeneration
+    currentOpenInvalidation(snapshot.sessionId, snapshot.path) === snapshot.invalidationGeneration
   );
 }
 
@@ -251,7 +370,7 @@ function languageFromPath(path: string): string {
   return map[ext] || 'plaintext';
 }
 
-// Recursively build tree nodes from flat entries
+// Recursively build tree nodes from flat entries.
 async function fetchTree(
   sessionId: string,
   dirPath: string,
@@ -260,7 +379,7 @@ async function fetchTree(
   const entries = await listFiles(sessionId, dirPath);
   const nodes: FileNode[] = [];
   for (const e of entries) {
-    const fullPath = prefix ? `${prefix}/${e.name}` : e.name;
+    const fullPath = joinChildPath(prefix, e.name);
     const node: FileNode = {
       ...e,
       path: fullPath,
@@ -279,11 +398,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   sessionId: null,
   workdir: null,
   rootGeneration: 0,
-  treeRequestGeneration: 0,
-  openRequestGeneration: 0,
-  tree: [],
-  treeLoading: false,
+  roots: [],
+  rootTrees: {},
+  rootTreeGenerations: {},
   expanded: new Set(),
+  openRequestGeneration: 0,
+  tempDirs: [],
+  workspaceId: null,
+  workspaceDirs: [],
   selectedPath: null,
   openPaths: [],
   activePath: null,
@@ -294,17 +416,20 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   pendingLocation: null,
   pendingConfirmation: null,
 
-  setRoot: async (sessionId: string, workdir: string) => {
+  setRoot: async (sessionId: string, workdir: string | null) => {
     const previous = get();
-    const rootChanged = previous.sessionId !== sessionId || previous.workdir !== workdir;
+    const sessionChanged = previous.sessionId !== sessionId;
+    const rootChanged = sessionChanged || previous.workdir !== workdir;
     const rootGeneration = rootChanged ? previous.rootGeneration + 1 : previous.rootGeneration;
-    const requestGeneration = previous.treeRequestGeneration + 1;
-    const snapshot: TreeRequestSnapshot = {
-      sessionId,
-      workdir,
-      generation: rootGeneration,
-      requestGeneration,
-    };
+
+    // Temp roots are browser memory and intentionally survive Session switches;
+    // Workspace dirs are re-supplied by the view for the new Session.
+    const workspaceDirs = sessionChanged ? [] : previous.workspaceDirs;
+    const workspaceId = sessionChanged ? null : previous.workspaceId;
+    const tempDirs = previous.tempDirs;
+    const roots = buildRoots(workdir, workspaceId, workspaceDirs, tempDirs);
+    const rootTrees = reconcileTrees(roots, sessionChanged ? {} : previous.rootTrees);
+    const rootTreeGenerations = sessionChanged ? {} : { ...previous.rootTreeGenerations };
 
     if (rootChanged) disposeMonacoModels(previous.openPaths);
 
@@ -312,14 +437,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       sessionId,
       workdir,
       rootGeneration,
-      treeRequestGeneration: requestGeneration,
+      workspaceId,
+      workspaceDirs,
+      roots,
+      rootTrees,
+      rootTreeGenerations,
       openRequestGeneration: previous.openRequestGeneration + (rootChanged ? 1 : 0),
-      treeLoading: true,
-      tree: [],
-      expanded: new Set(),
-      selectedPath: null,
       ...(rootChanged
         ? {
+            expanded: new Set<string>(),
+            selectedPath: null,
             openPaths: [],
             activePath: null,
             dirty: new Set<string>(),
@@ -331,86 +458,182 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           }
         : {}),
     });
+
+    if (rootChanged) {
+      await Promise.all(roots.map((root) => get().loadRootTree(root.id)));
+    } else {
+      const cwd = roots.find((root) => root.kind === 'cwd');
+      if (cwd) await get().loadRootTree(cwd.id);
+    }
+  },
+
+  setWorkspaceDirs: (workspaceId: string | null, dirs: string[]) => {
+    const previous = get();
+    const workspaceDirs = dirs.map(normalizeEditorPath);
+    const roots = buildRoots(previous.workdir, workspaceId, workspaceDirs, previous.tempDirs);
+    const rootTrees = reconcileTrees(roots, previous.rootTrees);
+    const newRootIds = roots
+      .filter((root) => !previous.roots.some((existing) => existing.id === root.id))
+      .map((root) => root.id);
+    set({ workspaceId, workspaceDirs, roots, rootTrees });
+    for (const rootId of newRootIds) void get().loadRootTree(rootId);
+  },
+
+  addTempDir: (path: string) => {
+    const previous = get();
+    const normalized = normalizeEditorPath(path);
+    if (previous.tempDirs.includes(normalized)) return;
+    const tempDirs = [...previous.tempDirs, normalized];
+    const roots = buildRoots(previous.workdir, previous.workspaceId, previous.workspaceDirs, tempDirs);
+    set({ tempDirs, roots, rootTrees: reconcileTrees(roots, previous.rootTrees) });
+    const added = roots.find((root) => root.kind === 'temp' && root.path === normalized);
+    if (added) void get().loadRootTree(added.id);
+  },
+
+  removeTempDir: (path: string) => {
+    const previous = get();
+    const normalized = normalizeEditorPath(path);
+    if (!previous.tempDirs.includes(normalized)) return;
+    const tempDirs = previous.tempDirs.filter((dir) => dir !== normalized);
+    const roots = buildRoots(previous.workdir, previous.workspaceId, previous.workspaceDirs, tempDirs);
+    set({ tempDirs, roots, rootTrees: reconcileTrees(roots, previous.rootTrees) });
+  },
+
+  loadRootTree: async (rootId: string) => {
+    const state = get();
+    if (!state.sessionId) return;
+    const root = state.roots.find((item) => item.id === rootId);
+    if (!root) return;
+    const requestGeneration = (state.rootTreeGenerations[rootId] ?? 0) + 1;
+    const snapshot: RootRequestSnapshot = {
+      sessionId: state.sessionId,
+      generation: state.rootGeneration,
+      rootId,
+      requestGeneration,
+    };
+    set((s) => ({
+      rootTreeGenerations: { ...s.rootTreeGenerations, [rootId]: requestGeneration },
+      rootTrees: {
+        ...s.rootTrees,
+        [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: true },
+      },
+    }));
     try {
-      const rootNodes = await fetchTree(sessionId, '', '');
-      if (!isCurrentTreeRequest(get(), snapshot)) return;
-      set({ tree: rootNodes, treeLoading: false });
+      const nodes = await fetchTree(snapshot.sessionId, root.path, root.path);
+      if (!isCurrentRootRequest(get(), snapshot)) return;
+      set((s) => {
+        if (!isCurrentRootRequest(s, snapshot)) return {};
+        return { rootTrees: { ...s.rootTrees, [rootId]: { nodes, loading: false } } };
+      });
     } catch {
-      if (isCurrentTreeRequest(get(), snapshot)) {
-        set({ treeLoading: false });
+      if (isCurrentRootRequest(get(), snapshot)) {
+        set((s) => ({
+          rootTrees: {
+            ...s.rootTrees,
+            [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: false },
+          },
+        }));
       }
     }
   },
 
-  refreshTree: async (dirPath?: string) => {
-    const previous = get();
-    const root = captureRoot(previous);
-    if (!root) return;
-    const snapshot: TreeRequestSnapshot = {
-      ...root,
-      requestGeneration: previous.treeRequestGeneration + 1,
+  refreshRoot: async (rootId: string, dirPath?: string) => {
+    const state = get();
+    const root = state.roots.find((item) => item.id === rootId);
+    if (!root || !state.sessionId) return;
+    if (!dirPath || normalizeEditorPath(dirPath) === root.path) {
+      await get().loadRootTree(rootId);
+      return;
+    }
+    const requestGeneration = (state.rootTreeGenerations[rootId] ?? 0) + 1;
+    const snapshot: RootRequestSnapshot = {
+      sessionId: state.sessionId,
+      generation: state.rootGeneration,
+      rootId,
+      requestGeneration,
     };
-    set({ treeRequestGeneration: snapshot.requestGeneration, treeLoading: true });
+    set((s) => ({
+      rootTreeGenerations: { ...s.rootTreeGenerations, [rootId]: requestGeneration },
+      rootTrees: {
+        ...s.rootTrees,
+        [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: true },
+      },
+    }));
     try {
-      const nodes = await fetchTree(snapshot.sessionId, dirPath || '', dirPath || '');
-      if (!isCurrentTreeRequest(get(), snapshot)) return;
+      const nodes = await fetchTree(snapshot.sessionId, dirPath, dirPath);
+      if (!isCurrentRootRequest(get(), snapshot)) return;
       set((s) => {
-        if (!isCurrentTreeRequest(s, snapshot)) return {};
-        if (!dirPath) {
-          return { tree: nodes, treeLoading: false };
-        }
-        // Replace only the subtree under dirPath
-        function replaceInTree(t: FileNode[]): FileNode[] {
-          return t.map((n) => {
-            if (n.path === dirPath) {
-              return { ...n, children: nodes };
-            }
-            if (n.children) {
-              return { ...n, children: replaceInTree(n.children) };
-            }
-            return n;
-          });
-        }
-        return { tree: replaceInTree(s.tree), treeLoading: false };
+        if (!isCurrentRootRequest(s, snapshot)) return {};
+        const tree = s.rootTrees[rootId];
+        if (!tree) return {};
+        return {
+          rootTrees: {
+            ...s.rootTrees,
+            [rootId]: { nodes: replaceNode(tree.nodes, dirPath, { children: nodes }), loading: false },
+          },
+        };
       });
     } catch {
-      if (isCurrentTreeRequest(get(), snapshot)) set({ treeLoading: false });
+      if (isCurrentRootRequest(get(), snapshot)) {
+        set((s) => ({
+          rootTrees: {
+            ...s.rootTrees,
+            [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: false },
+          },
+        }));
+      }
     }
   },
 
-  toggleDir: async (path: string) => {
-    const { expanded, tree } = get();
-
-    const isExpanded = expanded.has(path);
+  toggleDir: async (rootId: string, path: string) => {
+    const key = expansionKey(rootId, path);
+    const isExpanded = get().expanded.has(key);
 
     if (!isExpanded) {
-      // Expand — lazy load children if empty
+      const state = get();
+      const tree = state.rootTrees[rootId]?.nodes ?? EMPTY_FILE_NODES;
       const node = findNode(tree, path);
       if (!node || node.type !== 'dir') return;
-      if (node && node.children && node.children.length === 0) {
-        const previous = get();
-        const root = captureRoot(previous);
-        if (!root) return;
-        const snapshot: TreeRequestSnapshot = {
-          ...root,
-          requestGeneration: previous.treeRequestGeneration + 1,
+      if (node.children && node.children.length === 0) {
+        if (!state.sessionId) return;
+        const requestGeneration = (state.rootTreeGenerations[rootId] ?? 0) + 1;
+        const snapshot: RootRequestSnapshot = {
+          sessionId: state.sessionId,
+          generation: state.rootGeneration,
+          rootId,
+          requestGeneration,
         };
-        set({ treeRequestGeneration: snapshot.requestGeneration, treeLoading: true });
+        set((s) => ({
+          rootTreeGenerations: { ...s.rootTreeGenerations, [rootId]: requestGeneration },
+          rootTrees: {
+            ...s.rootTrees,
+            [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: true },
+          },
+        }));
         try {
           const children = await fetchTree(snapshot.sessionId, path, path);
-          if (!isCurrentTreeRequest(get(), snapshot)) return;
+          if (!isCurrentRootRequest(get(), snapshot)) return;
           set((s) => {
-            if (!isCurrentTreeRequest(s, snapshot)) return {};
+            if (!isCurrentRootRequest(s, snapshot)) return {};
+            const current = s.rootTrees[rootId];
+            if (!current) return {};
             return {
-              tree: replaceNode(s.tree, path, { children }),
-              expanded: new Set([...s.expanded, path]),
-              treeLoading: false,
+              rootTrees: {
+                ...s.rootTrees,
+                [rootId]: { nodes: replaceNode(current.nodes, path, { children }), loading: false },
+              },
+              expanded: new Set([...s.expanded, key]),
             };
           });
           return;
         } catch {
-          if (isCurrentTreeRequest(get(), snapshot)) {
-            set({ treeLoading: false });
+          if (isCurrentRootRequest(get(), snapshot)) {
+            set((s) => ({
+              rootTrees: {
+                ...s.rootTrees,
+                [rootId]: { ...(s.rootTrees[rootId] ?? { nodes: EMPTY_FILE_NODES }), loading: false },
+              },
+            }));
           }
           // Keep the directory collapsed on error.
           return;
@@ -420,10 +643,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     set((s) => {
       const next = new Set(s.expanded);
-      if (isExpanded) {
-        next.delete(path);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(path);
+        next.add(key);
       }
       return { expanded: next };
     });
@@ -431,13 +654,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   openFile: async (path: string, location?: EditorLocation) => {
     const state = get();
-    const root = captureRoot(state);
+    const root = captureSession(state);
     if (!root) return false;
     const snapshot: OpenFileSnapshot = {
       ...root,
       requestGeneration: state.openRequestGeneration + 1,
       path,
-      invalidationGeneration: currentOpenInvalidation(root, path),
+      invalidationGeneration: currentOpenInvalidation(root.sessionId, path),
     };
 
     set({ selectedPath: path, openRequestGeneration: snapshot.requestGeneration });
@@ -464,7 +687,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     try {
       const content = await readFile(snapshot.sessionId, path);
       if (!isCurrentOpenRequest(get(), snapshot)) return false;
-      clearFilePathInvalidation(snapshot, path);
+      clearFilePathInvalidation(snapshot.sessionId, path);
       set((s) => {
         if (!isCurrentOpenRequest(s, snapshot)) return {};
         return {
@@ -486,7 +709,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   openImage: (path, preview) => {
     const state = get();
-    const root = captureRoot(state);
+    const root = captureSession(state);
     if (!root || !preview.src) return false;
     set((s) => ({
       selectedPath: path,
@@ -512,8 +735,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   closeFile: (path: string) => {
-    const root = captureRoot(get());
-    if (root) invalidateOpen(root, path);
+    const root = captureSession(get());
+    if (root) invalidateOpen(root.sessionId, path);
     set((s) => {
       const newOpen = s.openPaths.filter((p) => p !== path);
       const newDirty = new Set(s.dirty);
@@ -561,7 +784,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   requestSave: (repath?: string) => {
     const state = get();
-    const root = captureRoot(state);
+    const root = captureSession(state);
     const path = repath || state.activePath;
     if (!root || !path || state.contents[path] === undefined) return;
     set({
@@ -569,21 +792,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         kind: 'save',
         path,
         sessionId: root.sessionId,
-        workdir: root.workdir,
         rootGeneration: root.generation,
       },
     });
   },
 
   requestDelete: (path: string) => {
-    const root = captureRoot(get());
+    const root = captureSession(get());
     if (!root || !path) return;
     set({
       pendingConfirmation: {
         kind: 'delete',
         path,
         sessionId: root.sessionId,
-        workdir: root.workdir,
         rootGeneration: root.generation,
       },
     });
@@ -594,11 +815,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!pending) return;
     set({ pendingConfirmation: null });
 
-    const current = captureRoot(get());
+    const current = captureSession(get());
     if (
       !current ||
       current.sessionId !== pending.sessionId ||
-      current.workdir !== pending.workdir ||
       current.generation !== pending.rootGeneration
     ) {
       useUIStore.getState().showToast('文件上下文已变化，操作已取消', 'error');
@@ -624,7 +844,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   saveFile: async (repath?: string) => {
-    const snapshot = captureRoot(get());
+    const snapshot = captureSession(get());
     if (!snapshot) return;
     const { activePath, contents } = get();
     const path = repath || activePath;
@@ -634,31 +854,31 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (content === undefined) return;
 
     try {
-      await enqueueFileOperation(rootKey(snapshot), async () => {
+      await enqueueFileOperation(snapshot.sessionId, async () => {
         // A rename/delete requested before this save may still be in flight.
         // Do not write the captured old path after that mutation completes.
-        // Re-check the root at execution time as well, because a queued save
-        // must not write into a root that the user has already left.
-        if (!isCurrentRoot(get(), snapshot) || isFilePathInvalidated(snapshot, path)) return;
+        // Re-check the session at execution time as well, because a queued
+        // save must not write into a session the user has already left.
+        if (!isCurrentSession(get(), snapshot) || isFilePathInvalidated(snapshot.sessionId, path)) return;
         await writeFile(snapshot.sessionId, path, content);
-        if (!isCurrentRoot(get(), snapshot)) return;
+        if (!isCurrentSession(get(), snapshot)) return;
         set((s) => {
           // Do not clear a newer draft created while the write was in flight.
-          if (!isCurrentRoot(s, snapshot) || s.contents[path] !== content) return {};
+          if (!isCurrentSession(s, snapshot) || s.contents[path] !== content) return {};
           const next = new Set(s.dirty);
           next.delete(path);
           return { dirty: next };
         });
       });
     } catch (error) {
-      if (isCurrentRoot(get(), snapshot)) {
+      if (isCurrentSession(get(), snapshot)) {
         useUIStore.getState().showToast(`保存文件失败：${operationErrorMessage(error)}`, 'error');
       }
     }
   },
 
   renameFile: async (from: string, to: string) => {
-    const snapshot = captureRoot(get());
+    const snapshot = captureSession(get());
     if (!snapshot) return;
 
     const current = get();
@@ -681,16 +901,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     // closed and must not be followed by a deferred save that recreates it;
     // a successful existing-source no-op clears this marker before later
     // queued saves run.
-    invalidateFilePath(snapshot, from);
+    invalidateFilePath(snapshot.sessionId, from);
 
     try {
-      await enqueueFileOperation(rootKey(snapshot), async () => {
+      await enqueueFileOperation(snapshot.sessionId, async () => {
         await renameFs(snapshot.sessionId, from, to);
-        if (!isCurrentRoot(get(), snapshot)) return;
-        clearFilePathInvalidation(snapshot, to);
-        invalidateOpen(snapshot, from);
+        if (!isCurrentSession(get(), snapshot)) return;
+        clearFilePathInvalidation(snapshot.sessionId, to);
+        invalidateOpen(snapshot.sessionId, from);
         set((s) => {
-          if (!isCurrentRoot(s, snapshot)) return {};
+          if (!isCurrentSession(s, snapshot)) return {};
 
           // Re-read state after the await so concurrent tabs and drafts survive.
           const openPaths = s.openPaths
@@ -720,9 +940,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             mdViewMode,
           };
         });
-        // Refresh parent dir
-        const parentPath = from.includes('/') ? from.substring(0, from.lastIndexOf('/')) : '';
-        void get().refreshTree(parentPath);
+        refreshRootsForPath(get, from);
       });
     } catch (error) {
       useUIStore.getState().showToast(
@@ -733,24 +951,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   deleteFile: async (path: string) => {
-    const snapshot = captureRoot(get());
+    const snapshot = captureSession(get());
     if (!snapshot) return;
 
-    invalidateFilePath(snapshot, path);
+    invalidateFilePath(snapshot.sessionId, path);
 
     try {
-      await enqueueFileOperation(rootKey(snapshot), async () => {
+      await enqueueFileOperation(snapshot.sessionId, async () => {
         await deleteFs(snapshot.sessionId, path);
-        if (!isCurrentRoot(get(), snapshot)) return;
-        invalidateOpen(snapshot, path);
+        if (!isCurrentSession(get(), snapshot)) return;
+        invalidateOpen(snapshot.sessionId, path);
         // Close if open
         get().closeFile(path);
-        // Refresh parent dir
-        const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-        void get().refreshTree(parentPath);
+        refreshRootsForPath(get, path);
       });
     } catch (error) {
-      if (isCurrentRoot(get(), snapshot)) {
+      if (isCurrentSession(get(), snapshot)) {
         useUIStore.getState().showToast(`删除文件失败：${operationErrorMessage(error)}`, 'error');
       }
     }
@@ -776,6 +992,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }));
   },
 }));
+
+// Refresh every root that contains `path` after a rename/delete, so each
+// affected tree reflects the change without touching unrelated roots.
+function refreshRootsForPath(get: () => EditorStore, path: string): void {
+  const state = get();
+  for (const root of state.roots) {
+    if (!rootContainsPath(root, path)) continue;
+    void get().refreshRoot(root.id, parentDirWithinRoot(root, path));
+  }
+}
 
 // Tree helpers
 

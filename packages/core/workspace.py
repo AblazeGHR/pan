@@ -27,15 +27,39 @@ def _new_id() -> str:
     return "ws_" + secrets.token_hex(8)
 
 
+def _clean_dirs(value) -> list[str]:
+    """Normalize a stored directory list: strings only, de-duplicated, ordered.
+
+    Legacy Workspace JSON has no ``dirs`` key at all, so a missing or malformed
+    value degrades to an empty list instead of rejecting the whole Workspace.
+    """
+    if not isinstance(value, (list, tuple)):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        path = item.strip()
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        cleaned.append(path)
+    return cleaned
+
+
 class Workspace:
     def __init__(self, id: str, name: str, order: int | None = None,
-                 created_at: str = "", updated_at: str = ""):
+                 created_at: str = "", updated_at: str = "", dirs=None):
         self.id = id
         self.name = name
         try:
             self.order = int(order) if order is not None else None
         except (TypeError, ValueError):
             self.order = None
+        # Absolute server directories shared by every Session in this
+        # Workspace. Metadata only: adding/removing never touches the disk.
+        self.dirs = _clean_dirs(dirs)
         self.created_at = created_at or datetime.now().isoformat()
         self.updated_at = updated_at or self.created_at
 
@@ -43,10 +67,11 @@ class Workspace:
     def from_dict(cls, data: dict) -> "Workspace":
         return cls(id=str(data["id"]), name=str(data.get("name") or ""),
                    order=data.get("order"), created_at=data.get("created_at", ""),
-                   updated_at=data.get("updated_at", ""))
+                   updated_at=data.get("updated_at", ""), dirs=data.get("dirs"))
 
     def to_dict(self) -> dict:
         return {"id": self.id, "name": self.name, "order": self.order,
+                "dirs": list(self.dirs),
                 "created_at": self.created_at, "updated_at": self.updated_at}
 
 
@@ -86,9 +111,12 @@ def create(name: str) -> Workspace:
     return workspace
 
 
-def update(workspace: Workspace, *, name: str | None = None) -> Workspace:
+def update(workspace: Workspace, *, name: str | None = None,
+           dirs: list[str] | None = None) -> Workspace:
     if name is not None:
         workspace.name = name
+    if dirs is not None:
+        workspace.dirs = _clean_dirs(dirs)
     _save(workspace)
     return workspace
 

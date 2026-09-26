@@ -146,6 +146,12 @@ export interface Workspace {
   name: string;
   /** Independent display order; null = never explicitly ordered (sorts last). */
   order: number | null;
+  /**
+   * Absolute server directories shared by every Session in this Workspace.
+   * Metadata only; adding/removing never touches the disk. Legacy workspaces
+   * may omit the field entirely.
+   */
+  dirs?: string[];
   createdAt?: string;
   updatedAt?: string;
   /** Server-computed member count (present on workspace endpoints). */

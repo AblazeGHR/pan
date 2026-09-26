@@ -233,7 +233,6 @@ interface UIStore {
    *  Persisted to localStorage so hiding survives refreshes/reloads. */
   hiddenSessionIds: Set<string>;
   collapsedGroups: Set<string>;
-  filesCollapsed: boolean;
   theme: Theme;
   /** Active workspace scope for the session list ('all' | 'ungrouped' | ws id). */
   activeWorkspaceId: string;
@@ -271,8 +270,7 @@ interface UIStore {
   toggleSpecialFilter: (id: SpecialFilterId) => void;
   clearSpecialFilters: () => void;
   /** Mark a session hidden (Select mode eye button) or shown again. */
-  setSessionHidden: (id: string, hidden: boolean) => void;
-  /** Drop hidden ids that no longer correspond to a live session. */
+  setSessionHidden: (id: string, hidden: boolean) => void;  /** Drop hidden ids that no longer correspond to a live session. */
   pruneHiddenSessions: (validIds: Set<string>) => void;
   toggleGroupCollapse: (key: string) => void;
   collapseAllGroups: (keys: string[]) => void;
@@ -283,7 +281,6 @@ interface UIStore {
    *  (e.g. stale `__pending_*` placeholders or deleted sessions), keeping the
    *  set consistent with the current tree. */
   pruneCollapsedGroups: (validKeys: Set<string>) => void;
-  toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
   /** Switch the session-list scope (callers clear the multi-select selection). */
   setActiveWorkspace: (id: string) => void;
@@ -311,7 +308,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
   specialFilters: new Set<SpecialFilterId>(),
   hiddenSessionIds: loadHiddenSessions(),
   collapsedGroups: new Set<string>(),
-  filesCollapsed: false,
   theme: loadTheme(),
   activeWorkspaceId: loadActiveWorkspaceId(),
   railExpanded: loadRailExpanded(),
@@ -584,10 +580,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
       if (!changed) return {};
       return { collapsedGroups: next };
     });
-  },
-
-  toggleFilesCollapsed: () => {
-    set((s) => ({ filesCollapsed: !s.filesCollapsed }));
   },
 
   toggleTheme: () => {

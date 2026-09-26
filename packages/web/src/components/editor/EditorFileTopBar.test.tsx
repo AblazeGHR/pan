@@ -297,6 +297,7 @@ describe('getDisplayPath', () => {
     ['mixed-separator UNC workdir', '\\\\server/share\\team/', '/src\\a.ts', '\\\\server\\share\\team\\src\\a.ts'],
     ['absolute Windows operation path', 'D:\\project', 'C:/outside\\file.ts', 'C:\\outside\\file.ts'],
     ['absolute UNC operation path', 'D:\\project', '\\\\server/share\\file.ts', '\\\\server\\share\\file.ts'],
+    ['absolute POSIX operation path outside a POSIX workdir', '/home/pan', '/srv\\data/file.ts', '/srv/data/file.ts'],
   ])('%s', (_label, workdir, operationPath, expected) => {
     expect(getDisplayPath(workdir, operationPath)).toBe(expected);
   });

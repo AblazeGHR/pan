@@ -1,18 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useCurrentSession, useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSessionWorkspace } from '@/hooks/useSessionWorkspace';
 import { EditorPane } from '@/components/editor/EditorPane';
 
 export default function EditorView() {
   const currentSession = useCurrentSession();
   const sessions = useSessionStore((s) => s.sessions);
   const selectSession = useSessionStore((s) => s.selectSession);
+  const { workspaceId, workspaceDirs } = useSessionWorkspace(currentSession);
+  const workspaceDirsKey = workspaceDirs.join('\n');
+  const workspaceDirsRef = useRef(workspaceDirs);
+  workspaceDirsRef.current = workspaceDirs;
 
   useEffect(() => {
-    if (currentSession?.id && currentSession?.workdir) {
-      useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
+    if (currentSession?.id) {
+      void useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir ?? null);
     }
   }, [currentSession?.id, currentSession?.workdir]);
+
+  // Keep the editor's Workspace roots in sync with the (persisted) Workspace
+  // metadata of the current Session, including membership inherited through a
+  // manager chain.
+  useEffect(() => {
+    if (!currentSession?.id) return;
+    useEditorStore.getState().setWorkspaceDirs(workspaceId, workspaceDirsRef.current);
+  }, [currentSession?.id, workspaceId, workspaceDirsKey]);
 
   if (!currentSession) {
     return (
@@ -38,22 +51,13 @@ export default function EditorView() {
     );
   }
 
-  if (!currentSession.workdir) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-text-tertiary text-sm gap-2">
-        <p>This session has no working directory</p>
-        <p className="text-xs">Only sessions with a working directory can be browsed.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-bg-primary">
       <div className="flex items-center gap-2 pl-10 md:pl-3 pr-3 py-1.5 border-b border-border-default bg-bg-secondary/50">
         <span className="text-xs text-text-secondary truncate">
           {currentSession.name}
         </span>
-        <span className="text-[10px] text-text-tertiary truncate" title={currentSession.workdir}>
+        <span className="text-[10px] text-text-tertiary truncate" title={currentSession.workdir ?? ''}>
           {currentSession.workdir}
         </span>
       </div>

@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useEditorStore } from '@/stores/editorStore';
 
 function RouteProbe() {
   const location = useLocation();
@@ -51,21 +52,31 @@ describe('Sidebar Session search controls', () => {
     expect(screen.getByRole('button', { name: 'Clear session search' })).toBeTruthy();
   });
 
-  it('uses a right chevron when Files is folded and a down chevron when open', () => {
-    useUIStore.setState({ filesCollapsed: true });
+  it('renders the CWD root as a collapsible section labelled CWD', () => {
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project',
+      roots: [{ id: 'cwd:D:/project', kind: 'cwd', path: 'D:/project', label: 'CWD' }],
+      rootTrees: { 'cwd:D:/project': { nodes: [], loading: false } },
+      rootTreeGenerations: {},
+      expanded: new Set(),
+      tempDirs: [],
+      workspaceId: null,
+      workspaceDirs: [],
+    });
     render(
       <MemoryRouter initialEntries={['/editor']}>
         <Sidebar />
       </MemoryRouter>,
     );
 
-    const filesHeader = screen.getByText('Files').parentElement?.parentElement;
-    expect(filesHeader?.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+    expect(screen.getByText('CWD')).toBeTruthy();
+    expect(screen.getByText('D:/project')).toBeTruthy();
+    const cwdHeader = screen.getByTestId('editor-root-header');
+    expect(cwdHeader.querySelector('svg.lucide-chevron-down')).not.toBeNull();
 
-    fireEvent.click(screen.getByText('Files'));
-    expect(useUIStore.getState().filesCollapsed).toBe(false);
-    const expandedHeader = screen.getByText('Files').parentElement?.parentElement;
-    expect(expandedHeader?.querySelector('svg.lucide-chevron-down')).not.toBeNull();
+    fireEvent.click(cwdHeader);
+    expect(cwdHeader.querySelector('svg.lucide-chevron-right')).not.toBeNull();
   });
 
   it('opens the special filters menu to the right of its trigger', () => {

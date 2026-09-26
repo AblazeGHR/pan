@@ -34,6 +34,10 @@ interface WorkspaceStoreState {
   createWorkspaceForSession: (sessionId: string) => Promise<Workspace | null>;
   renameWorkspace: (id: string, name: string) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
+  /** Add a shared directory to a Workspace (metadata only; never the disk). */
+  addWorkspaceDir: (id: string, path: string) => Promise<void>;
+  /** Remove a shared directory from a Workspace (metadata only). */
+  removeWorkspaceDir: (id: string, path: string) => Promise<void>;
   /** Persist a full display order (drag-reorder of the rail tabs). */
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
   /**
@@ -147,6 +151,27 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
 
   renameWorkspace: async (id, name) => {
     const workspace = await api.renameWorkspace(id, name);
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
+    }));
+  },
+
+  addWorkspaceDir: async (id, path) => {
+    const current = get().workspaces.find((w) => w.id === id);
+    if (!current) throw new Error('找不到工作区');
+    const dirs = [...(current.dirs ?? [])];
+    if (!dirs.includes(path)) dirs.push(path);
+    const workspace = await api.updateWorkspaceDirs(id, dirs);
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
+    }));
+  },
+
+  removeWorkspaceDir: async (id, path) => {
+    const current = get().workspaces.find((w) => w.id === id);
+    if (!current) throw new Error('找不到工作区');
+    const dirs = (current.dirs ?? []).filter((dir) => dir !== path);
+    const workspace = await api.updateWorkspaceDirs(id, dirs);
     set((s) => ({
       workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
     }));
