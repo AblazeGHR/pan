@@ -400,6 +400,152 @@ def job_public_view(job: dict | None) -> dict | None:
     return view
 
 
+def _job_target_ids(job: dict) -> tuple[list[str], bool]:
+    """Return every persisted target reference in display/dispatch order.
+
+    The current Jobs kinds persist targets as a scalar and/or an ordered list,
+    with ``targetStruct`` as the structured equivalent.  Combining the
+    representations here also makes a partially migrated record safe: a
+    target found only in a legacy field is not lost when the structured shape
+    is brought back into sync.
+    """
+    target_struct = job.get("targetStruct")
+    flat_ids = job.get("targetSessionIds")
+    structured_ids = (target_struct.get("sessionIds")
+                      if isinstance(target_struct, dict) else None)
+    is_multi = isinstance(flat_ids, list) or isinstance(structured_ids, list)
+    values: list[Any] = []
+    if isinstance(target_struct, dict):
+        values.append(target_struct.get("sessionId"))
+        if isinstance(structured_ids, list):
+            values.extend(structured_ids)
+    values.append(job.get("targetSessionId"))
+    if isinstance(flat_ids, list):
+        values.extend(flat_ids)
+
+    ids: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if isinstance(value, str) and value and value not in seen:
+            seen.add(value)
+            ids.append(value)
+    return ids, is_multi
+
+
+def _retarget_job_record(job: dict, old_session_id: str,
+                         new_session_id: str) -> bool:
+    """Replace target references and keep structured/legacy views in sync."""
+    ids, was_multi = _job_target_ids(job)
+    if old_session_id not in ids:
+        return False
+
+    updated_ids: list[str] = []
+    seen: set[str] = set()
+    for session_id in ids:
+        replacement = new_session_id if session_id == old_session_id else session_id
+        if replacement not in seen:
+            seen.add(replacement)
+            updated_ids.append(replacement)
+    if not updated_ids:
+        return False
+
+    # A list-shaped record remains list-shaped even when de-duplication leaves
+    # one destination.  Both runtime readers and job_public_view then observe
+    # exactly the same ordered set.
+    is_multi = was_multi or len(updated_ids) > 1
+    job["targetSessionId"] = updated_ids[0]
+    if is_multi:
+        job["targetSessionIds"] = updated_ids
+    elif "targetSessionIds" in job:
+        job["targetSessionIds"] = None
+
+    raw_struct = job.get("targetStruct")
+    target_struct = dict(raw_struct) if isinstance(raw_struct, dict) else {}
+    target_struct["sessionId"] = updated_ids[0]
+    if is_multi:
+        target_struct["sessionIds"] = updated_ids
+    elif "sessionIds" in target_struct:
+        target_struct.pop("sessionIds", None)
+    job["targetStruct"] = target_struct
+    return True
+
+
+def retarget_session_jobs(old_session_id: str, new_session_id: str,
+                          registry_root: str | Path | None = None) -> dict:
+    """Retarget every matching record in the active Jobs registry.
+
+    Jobs currently stores background-process (including scheduled-shell child),
+    session-message, session-broadcast, scheduled-task, and targetless
+    main-lifecycle records in the same ``jobs/job_*.json`` directory.  These
+    kinds have no other persisted target paths: scheduled actions carry their
+    target at the Job level, while delivery/run data is historical.  Thus this
+    scan intentionally reads only the active registry root and edits only the
+    four current target fields.  It includes records in every status; completed
+    delivery/run history and already queued messages remain untouched.
+
+    Each record is read and atomically replaced while holding its existing
+    cross-process Job lock.  A failed record is reported by job ID so callers
+    can diagnose it; repeating this operation is safe because replacements are
+    exact and idempotent.
+    """
+    summary = {
+        "oldSessionId": old_session_id,
+        "newSessionId": new_session_id,
+        "scanned": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "errors": [],
+    }
+    if (not isinstance(old_session_id, str) or not old_session_id
+            or not isinstance(new_session_id, str) or not new_session_id):
+        summary["errors"].append({
+            "jobId": None,
+            "error": "old and new Session IDs must be non-empty strings",
+        })
+        return summary
+    if old_session_id == new_session_id:
+        return summary
+
+    try:
+        if registry_root is None:
+            # The Jobs API resolves both scheduler and non-scheduler records
+            # through this precedence; keep direct recovery calls aligned.
+            from packages.scheduler import store as scheduler_store
+
+            registry_root = scheduler_store.data_root()
+        root = _root(registry_root)
+        paths = sorted((root / "jobs").glob("job_*.json"))
+    except Exception as exc:
+        summary["errors"].append({
+            "jobId": None,
+            "error": f"registry scan failed: {type(exc).__name__}: {exc}",
+        })
+        return summary
+
+    for path in paths:
+        job_id = path.stem
+        summary["scanned"] += 1
+        try:
+            with _lock, _job_lock(job_id, root):
+                current = _load_path(path)
+                if current is None:
+                    if path.exists():
+                        raise ValueError("Job record could not be read")
+                    summary["unchanged"] += 1
+                    continue
+                if not _retarget_job_record(current, old_session_id, new_session_id):
+                    summary["unchanged"] += 1
+                    continue
+                _atomic_write(path, current)
+                summary["updated"] += 1
+        except Exception as exc:
+            summary["errors"].append({
+                "jobId": job_id,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+    return summary
+
+
 def update_job_field(job_id: str, changes: dict[str, Any],
                      registry_root: str | Path | None = None) -> dict:
     """跨 kind 的通用字段更新（name/description/enabled/paused/target 切换等）。
@@ -991,15 +1137,22 @@ async def run_due_message_jobs(now: float | None = None,
         latest = get(job["jobId"], registry_root=registry_root)
         if not latest or latest.get("status") != "running":
             continue
-        target_ids = ([job["targetSessionId"]]
-                      if job.get("kind") == SESSION_MESSAGE_KIND
-                      else list(job.get("targetSessionIds") or []))
+        # Claiming an occurrence establishes that it is in flight, but
+        # handoff may retarget it before this send boundary.  Read the target
+        # from the current registry snapshot immediately before send_session;
+        # this read is the send reservation boundary.  A retarget committed
+        # before it is honored.  Once send_session has begun, an already queued
+        # delivery cannot be recalled; later occurrences reload the new target.
+        target_ids = ([latest["targetSessionId"]]
+                      if latest.get("kind") == SESSION_MESSAGE_KIND
+                      else list(latest.get("targetSessionIds") or []))
         target_results: list[dict] = []
         for target_id in target_ids:
             try:
                 result = await _worker.send_session(
-                    target_id, job["text"], source=job.get("source", "agent"),
-                    source_session_id=job.get("sourceSessionId"))
+                    target_id, latest["text"],
+                    source=latest.get("source", "agent"),
+                    source_session_id=latest.get("sourceSessionId"))
                 if not isinstance(result, dict):
                     result = {"status": "error", "result": "send returned an invalid result"}
             except Exception as exc:  # isolate one target and keep the fan-out alive
