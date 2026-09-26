@@ -345,7 +345,10 @@ export interface SessionTranscript {
 // previous run instead of appending a second copy.
 const runtimeKeys = new WeakMap<Message, string>();
 /** Canonical end offset proven to precede a local worker.result marker. */
-const terminalMarkerOffsets = new WeakMap<Message, { epoch: string | null; end: number }>();
+const terminalMarkerCoverage = Symbol('terminalMarkerCoverage');
+type TerminalMarkerMessage = Message & {
+  [terminalMarkerCoverage]?: { epoch: string | null; end: number };
+};
 
 function bindRuntimeKey(message: Message, key: string): Message {
   runtimeKeys.set(message, key);
@@ -823,7 +826,10 @@ function projectTranscript(
               emitted.add(offset);
             }
             const marker = runtime[markerIndex]!;
-            terminalMarkerOffsets.set(marker, { epoch: window.epoch, end: coveredEnd });
+            (marker as TerminalMarkerMessage)[terminalMarkerCoverage] = {
+              epoch: window.epoch,
+              end: coveredEnd,
+            };
             display.push(marker);
             next = coveredEnd;
             index = markerIndex;
@@ -833,7 +839,21 @@ function projectTranscript(
       }
     }
     if (isLocalMarker(row)) {
-      const coverage = terminalMarkerOffsets.get(row);
+      // When the ordinary ordered projection has consumed this task's runtime
+      // rows, the next canonical offset is the marker's durable boundary too.
+      // Record it even when an earlier canonical user row preceded the task:
+      // coveredTerminalRunEnd intentionally rejects crossing that user row,
+      // but the sequential alignment above has already accounted for it.
+      const knownCoverage = (row as TerminalMarkerMessage)[terminalMarkerCoverage];
+      if (aligned && next > anchorOffset
+          && row.nativeItemId?.startsWith('worker.result:')
+          && knownCoverage?.epoch !== window.epoch) {
+        (row as TerminalMarkerMessage)[terminalMarkerCoverage] = {
+          epoch: window.epoch,
+          end: next,
+        };
+      }
+      const coverage = (row as TerminalMarkerMessage)[terminalMarkerCoverage];
       if (aligned && coverage?.epoch === window.epoch && coverage.end >= next) {
         let fullyLoaded = true;
         for (let offset = next; offset < coverage.end; offset += 1) {
