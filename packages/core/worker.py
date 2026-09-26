@@ -547,6 +547,7 @@ _LEGAL_WORKER_STATES = frozenset({
     "queued", "running", "done", "error", "cancelled", "idle",
     "restarting", "held", "offline",
 })
+_legal_state_locks: dict[str, asyncio.Lock] = {}
 
 
 async def _record_legal_worker_state(
@@ -564,20 +565,50 @@ async def _record_legal_worker_state(
     s = _session(w)
     if s is None:
         return False
-    s.last_legal_worker_state = state
     if persist:
-        try:
-            await _sess.save_async(s)
-        except Exception as exc:  # keep lifecycle behavior compatible on I/O failure
+        if not await _persist_session_legal_worker_state(w.session_id, state, source):
             _log.warning(
-                "[Worker %s] failed to persist legal state=%s source=%s: %s",
-                w.worker_id, state, source, exc,
+                "[Worker %s] failed to persist legal state=%s source=%s",
+                w.worker_id, state, source,
             )
             return False
+    else:
+        s.last_legal_worker_state = state
     _log.info(
         "[Worker %s] legal state=%s source=%s session=%s",
         w.worker_id, state, source, w.session_id,
     )
+    return True
+
+
+async def _persist_session_legal_worker_state(
+    session_id: str, state: str, source: str, *, _locked: bool = False,
+) -> bool:
+    """Persist one legal state on Session metadata and roll back on I/O failure."""
+    if state not in _LEGAL_WORKER_STATES:
+        raise ValueError(f"unsupported legal worker state: {state}")
+    if not _locked:
+        lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            return await _persist_session_legal_worker_state(
+                session_id, state, source, _locked=True,
+            )
+    s = _sess.get(session_id)
+    if s is None:
+        return False
+    previous = s.last_legal_worker_state
+    s.last_legal_worker_state = state
+    try:
+        await _sess.save_async(s)
+    except Exception as exc:
+        # The in-memory Session is also a source for API projections. Keep it
+        # aligned with durable metadata when the atomic save did not succeed.
+        s.last_legal_worker_state = previous
+        _log.warning(
+            "[Session %s] failed to persist legal state=%s source=%s: %s",
+            session_id, state, source, exc,
+        )
+        return False
     return True
 
 
@@ -6810,45 +6841,156 @@ def find_alive_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
+async def sync_legal_worker_state_to_runtime(
+    session_id: str, *, source: str = "session-recovery/sync-actual",
+) -> dict:
+    """Copy a Session's observed runtime state into its legal-state ledger.
+
+    The per-Session spawn lock makes this snapshot mutually exclusive with
+    create/restart. The UI and HTTP layer never choose or write a state value.
+    When no Worker or provider process remains, the runtime state is offline.
+    """
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+        async with legal_lock:
+            w = find_alive_worker_by_session(session_id)
+            if w is None:
+                tracked = find_worker_by_session(session_id)
+                if tracked is not None and not _runtime_stopped(tracked):
+                    return {
+                        "sessionId": session_id,
+                        "status": "error",
+                        "error": f"Worker runtime is not stopped (status: {tracked.status})",
+                    }
+                state = "offline"
+                runtime_status = "offline"
+            elif w.status in _LEGAL_WORKER_STATES:
+                state = w.status
+                runtime_status = w.status
+            else:
+                return {
+                    "sessionId": session_id,
+                    "status": "error",
+                    "error": f"unsupported runtime Worker state: {w.status}",
+                }
+            if not await _persist_session_legal_worker_state(
+                    session_id, state, source, _locked=True):
+                return {
+                    "sessionId": session_id,
+                    "status": "error",
+                    "error": "failed to persist Session legal state",
+                }
+            return {
+                "sessionId": session_id,
+                "status": "updated",
+                "legalWorkerState": state,
+                "runtimeWorkerStatus": runtime_status,
+            }
+
+
+async def _sync_legal_state_if_stopped(session_id: str, state: str, source: str) -> bool:
+    """Persist a requested exit state only while the Session has no live Worker."""
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+        async with legal_lock:
+            tracked = find_worker_by_session(session_id)
+            if tracked is not None and not _runtime_stopped(tracked):
+                return False
+            return await _persist_session_legal_worker_state(
+                session_id, state, source, _locked=True,
+            )
+
+
 async def shutdown_all(
     *, recovery_drain_timeout: float = 10.0,
     mark_legal_offline: bool = False,
+    preserve_legal_running_session_ids: list[str] | tuple[str, ...] = (),
+    mark_legal_offline_session_ids: list[str] | tuple[str, ...] = (),
 ):
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
     使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
     """
+    errors: list[str] = []
+    preserve_ids = set(preserve_legal_running_session_ids)
+    offline_ids = set(mark_legal_offline_session_ids)
+
     for task in list(_queue_retry_tasks.values()):
-        await _cancel_worker_task(task)
+        try:
+            await _cancel_worker_task(task)
+        except Exception as exc:
+            errors.append(f"queue retry cancellation failed: {exc}")
     _queue_retry_tasks.clear()
     # Recovery tasks are handled by drain_recoveries' bounded wait (a task
     # cancelled mid real subprocess spawn may never finish on the Windows
     # Proactor loop; awaiting it unboundedly deadlocks the shutdown).  If the
     # caller skipped drain_recoveries, fall back to a best-effort bounded
     # drain here so shutdown can never block indefinitely on them.
-    await drain_recoveries(timeout=recovery_drain_timeout)
+    try:
+        await drain_recoveries(timeout=recovery_drain_timeout)
+    except Exception as exc:
+        errors.append(f"recovery drain failed: {exc}")
     ids = list(workers.keys())
     for wid in ids:
         w = workers.get(wid)
         if not w:
             continue
-        if w._watchdog_task:
-            await _cancel_worker_task(w._watchdog_task)
-        if w._consume_task:
-            await _cancel_worker_task(w._consume_task)
-        if w._stdout_task:
-            await _cancel_worker_task(w._stdout_task)
-        if w._interrupt_guard_task:
-            await _cancel_worker_task(w._interrupt_guard_task)
-        await _stop_worker_tasks(w)
+        stop_steps = (
+            (w._watchdog_task, "watchdog cancellation"),
+            (w._consume_task, "consumer cancellation"),
+            (w._stdout_task, "stdout cancellation"),
+            (w._interrupt_guard_task, "interrupt-guard cancellation"),
+        )
+        for task, label in stop_steps:
+            if task:
+                try:
+                    await _cancel_worker_task(task)
+                except Exception as exc:
+                    errors.append(f"Worker {wid} {label} failed: {exc}")
+        try:
+            await _stop_worker_tasks(w)
+        except Exception as exc:
+            errors.append(f"Worker {wid} task shutdown failed: {exc}")
         # A1 崩溃安全：关闭前 flush 防抖缓冲的流式块
         if w._hist_dirty:
-            await _flush_history_now(w)
-        await _kill_process_tree(w)
-        await _kill_takeover_terminal(w)
-        if mark_legal_offline and _runtime_stopped(w):
-            await _record_legal_worker_state(w, "offline", "pan/main-exit")
+            try:
+                await _flush_history_now(w)
+            except Exception as exc:
+                errors.append(f"Worker {wid} history flush failed: {exc}")
+        try:
+            await _kill_process_tree(w)
+        except Exception as exc:
+            errors.append(f"Worker {wid} process stop failed: {exc}")
+        try:
+            await _kill_takeover_terminal(w)
+        except Exception as exc:
+            errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
+        if (mark_legal_offline and w.session_id not in preserve_ids
+                and _runtime_stopped(w)):
+            if not await _record_legal_worker_state(w, "offline", "pan/main-exit"):
+                errors.append(f"Worker {wid} legal offline state was not persisted")
+
+    for session_id in sorted(offline_ids):
+        # Includes persisted running Sessions that had no Worker at shutdown.
+        # The check under the Session spawn lock prevents marking a concurrent
+        # live Worker offline.
+        if not await _sync_legal_state_if_stopped(
+                session_id, "offline", "pan/main-exit"):
+            errors.append(f"Session {session_id} legal offline state was not persisted")
+
+    for session_id in sorted(preserve_ids):
+        # Worker cancellation/finalization may have recorded a terminal state
+        # while Exit was draining. Restore the pre-exit legal running snapshot
+        # after every Worker has stopped.
+        if not await _persist_session_legal_worker_state(
+                session_id, "running", "pan/main-exit-preserve-running"):
+            errors.append(f"Session {session_id} legal running state was not persisted")
+
     workers.clear()
     _workers_by_session.clear()
     _worker_generations.clear()
     _recovery_required.clear()
+    if errors:
+        raise RuntimeError("; ".join(errors))

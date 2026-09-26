@@ -220,6 +220,41 @@ def test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure(monkeyp
     assert web_server._main_restart_job_view(saved)["errors"] == saved["errors"]
 
 
+@pytest.mark.parametrize(
+    ("mark_offline", "expected_offline", "expected_preserved"),
+    [(True, ["running-session"], ()), (False, (), ["running-session"])],
+)
+def test_exit_shutdown_uses_persisted_user_choice_and_snapshot(
+    monkeypatch, tmp_path, mark_offline, expected_offline, expected_preserved,
+):
+    monkeypatch.setattr(web_server, "_PROJECT_DIR", tmp_path)
+    registry = tmp_path / "data" / "background_jobs"
+    job = jobs.create_service_job(
+        request_id=f"request-exit-{mark_offline}", operation="exit", root=str(tmp_path),
+        port=8765, old_pid=41, old_pid_created_at=12.5, registry_root=registry,
+        options={
+            "markRunningSessionsOffline": mark_offline,
+            "runningSessionIds": ["running-session"],
+        },
+    )
+    monkeypatch.setattr(web_server, "_main_exit_request_id", job["requestId"])
+    calls = []
+
+    async def fake_shutdown(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(web_server.worker, "shutdown_all", fake_shutdown)
+    monkeypatch.setattr(web_server, "_launch_main_exit_supervisor", lambda _request: SimpleNamespace(pid=4242))
+
+    asyncio.run(web_server._perform_main_exit(job["requestId"]))
+
+    assert calls == [{
+        "mark_legal_offline": True,
+        "mark_legal_offline_session_ids": expected_offline,
+        "preserve_legal_running_session_ids": expected_preserved,
+    }]
+
+
 def test_compatibility_supervisors_are_launcher_wrappers():
     root = Path(__file__).resolve().parents[1]
     for name in ("exit_pan.ps1", "restart_pan.ps1"):

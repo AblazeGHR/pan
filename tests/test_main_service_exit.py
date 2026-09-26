@@ -22,11 +22,56 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(srv, "_main_exit_stage", "idle")
     monkeypatch.setattr(srv, "_main_exit_error", None)
     monkeypatch.setattr(worker, "_shutdown_started", False)
+    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
 
 
 def test_exit_status_is_available_from_python_launcher_on_windows():
     status = srv._main_exit_status()
     assert status["available"] is (sys.platform == "win32")
+
+
+def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+    monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+        "available": True, "pending": False, "port": 8765,
+    })
+    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+        SimpleNamespace(id="running-b", last_legal_worker_state="running"),
+        SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+        SimpleNamespace(id="running-a", last_legal_worker_state="running"),
+    ])
+    created_tasks = []
+
+    def capture_task(coro, **kwargs):
+        created_tasks.append(kwargs.get("name"))
+        coro.close()
+
+    monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+    result = asyncio.run(srv.api_main_exit({
+        "options": {"markRunningSessionsOffline": False},
+    }))
+
+    job = background_jobs.find_service_job(
+        result["requestId"], srv._main_restart_registry_root(),
+    )
+    assert result["ok"] is True
+    assert job["options"] == {
+        "markRunningSessionsOffline": False,
+        "runningSessionIds": ["running-a", "running-b"],
+    }
+    assert created_tasks == ["pan-main-exit"]
+    assert worker._shutdown_started is True
+
+
+def test_exit_rejects_non_boolean_running_state_choice():
+    with pytest.raises(srv.HTTPException) as caught:
+        srv._parse_main_lifecycle_options(
+            {"options": {"markRunningSessionsOffline": "no"}}, "exit",
+        )
+    assert caught.value.status_code == 400
+    assert caught.value.detail["code"] == "invalid_lifecycle_options"
 
 
 def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
@@ -50,7 +95,11 @@ def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
     assert result["ok"] is True
     assert result["status"] == "scheduled"
     assert worker._shutdown_started is True
-    assert calls[0] == ("shutdown", {"mark_legal_offline": True})
+    assert calls[0] == ("shutdown", {
+        "mark_legal_offline": True,
+        "mark_legal_offline_session_ids": [],
+        "preserve_legal_running_session_ids": (),
+    })
     command = calls[1][1]
     assert "packages.core.main_lifecycle" in command
     assert "--supervise" in command

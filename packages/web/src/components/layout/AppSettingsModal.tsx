@@ -368,6 +368,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [mainExitStatus, setMainExitStatus] = useState<ApiMainExitStatusResponse | null>(null);
   const [mainExitState, setMainExitState] = useState<MainExitState>('idle');
   const [mainExitError, setMainExitError] = useState<string | null>(null);
+  const [mainExitMarkRunningOffline, setMainExitMarkRunningOffline] = useState<boolean | null>(null);
   const recoveryAbortRef = useRef<AbortController | null>(null);
   const recoveryCancelledRef = useRef(false);
   const showToast = useUIStore((s) => s.showToast);
@@ -579,11 +580,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   };
 
   const handleMainExit = async () => {
+    if (mainExitMarkRunningOffline === null) return;
     setMainExitState('exiting');
     setMainExitError(null);
     setMainExitStatus((previous) => (previous ? { ...previous, pending: true } : previous));
     try {
-      await exitMainService();
+      await exitMainService({ markRunningSessionsOffline: mainExitMarkRunningOffline });
       setMainExitState('exited');
       showToast('Pan exit scheduled; this service will stop', 'info');
     } catch (e) {
@@ -1276,10 +1278,36 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       Stop this Pan service and all live Workers? Pan will not restart and the
                       dashboard will disconnect after the stop is scheduled.
                     </p>
+                    <fieldset className="mt-3 space-y-2">
+                      <legend className="text-[11px] text-text-secondary">
+                        For Sessions whose last legal state is running:
+                      </legend>
+                      <label className="flex items-start gap-2 text-[11px] text-text-primary">
+                        <input
+                          type="radio"
+                          name="main-exit-running-session-state"
+                          checked={mainExitMarkRunningOffline === true}
+                          onChange={() => setMainExitMarkRunningOffline(true)}
+                        />
+                        <span>Yes, mark them offline when their Workers have stopped.</span>
+                      </label>
+                      <label className="flex items-start gap-2 text-[11px] text-text-primary">
+                        <input
+                          type="radio"
+                          name="main-exit-running-session-state"
+                          checked={mainExitMarkRunningOffline === false}
+                          onChange={() => setMainExitMarkRunningOffline(false)}
+                        />
+                        <span>No, stop the Workers but preserve their legal running state.</span>
+                      </label>
+                    </fieldset>
                     <div className="mt-3 flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => setMainExitState('idle')}
+                        onClick={() => {
+                          setMainExitMarkRunningOffline(null);
+                          setMainExitState('idle');
+                        }}
                         className="rounded border border-border-default px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover"
                       >
                         Cancel
@@ -1287,6 +1315,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       <button
                         type="button"
                         onClick={handleMainExit}
+                        disabled={mainExitMarkRunningOffline === null}
                         className="rounded bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90"
                       >
                         Confirm exit
@@ -1304,7 +1333,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       mainRestartState === 'restarting' ||
                       Boolean(mainRestartStatus?.pending)
                     }
-                    onClick={() => setMainExitState('confirming')}
+                    onClick={() => {
+                      setMainExitMarkRunningOffline(null);
+                      setMainExitState('confirming');
+                    }}
                     className="w-full flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-bg-primary px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="min-w-0">

@@ -5,6 +5,7 @@ import { WorkspaceRail } from './components/layout/WorkspaceRail';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { EditorConfirmationModal } from './components/editor/EditorConfirmationModal';
+import { StartupRecoveryPrompt } from './components/layout/StartupRecoveryPrompt';
 import { DetailPanel } from './components/detail/DetailPanel';
 import { CliStatusBanner } from './components/layout/CliStatusBanner';
 import { DemoBadge } from './demo/DemoBadge';
@@ -203,6 +204,7 @@ export function Layout() {
       {/* Resize handle gutter — grid column 4 (0-width) */}
 
       <ToastContainer />
+      <StartupRecoveryPrompt />
       {isMockMode() && <DemoBadge />}
       <DetailPanel />
       <CommandPalette />

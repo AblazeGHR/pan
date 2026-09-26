@@ -759,6 +759,39 @@ export interface ApiMainExitResponse {
   jobId?: string;
 }
 
+export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual';
+
+export interface ApiStartupRecoveryCandidate {
+  id: string;
+  name: string;
+  adapter: string;
+  workdir?: string;
+  updatedAt?: string;
+  lastLegalWorkerState: 'running';
+}
+
+export interface ApiStartupRecoveryRecord {
+  generation: string;
+  state: 'initializing' | 'no_candidates' | 'pending' | 'processing' | 'failed' | 'completed';
+  candidateSnapshot: ApiStartupRecoveryCandidate[];
+  decision: ApiStartupRecoveryChoice | null;
+  decisionId?: string | null;
+  attempts: number;
+  results: Array<Record<string, unknown>>;
+  error?: string | null;
+}
+
+export interface ApiStartupRecoveryClaimResponse {
+  ok: boolean;
+  claimed: boolean;
+  state: ApiStartupRecoveryRecord['state'];
+  decision?: ApiStartupRecoveryChoice | null;
+  attempts?: number;
+  error?: string | null;
+  results?: Array<Record<string, unknown>>;
+  candidates?: ApiStartupRecoveryCandidate[];
+}
+
 export interface ApiHealthResponse {
   status: string;
   version?: string;
