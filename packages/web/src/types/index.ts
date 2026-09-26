@@ -9,6 +9,8 @@ export interface Message {
   content: string;
   /** Stable canonical history identity. Absent on legacy rows. */
   messageId?: string;
+  /** Client receipt identity used to reconcile an optimistic row to Pan history. */
+  clientMessageId?: string;
   /** Stable provider block identity for compound messages. */
   blockId?: string;
   /** Stable provider turn identity when the adapter exposes one. */

@@ -30,7 +30,7 @@ import secrets
 import threading
 import time
 import uuid
-from collections import deque
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
@@ -459,9 +459,231 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
     return True
 
 
+def is_pan_message_id(value: object) -> bool:
+    """Return whether ``value`` is one of Pan's durable message identities."""
+    if not isinstance(value, str) or not value.startswith("pan:"):
+        return False
+    token = value[len("pan:"):]
+    try:
+        parsed = uuid.UUID(token)
+    except (ValueError, AttributeError):
+        return False
+    return token in {parsed.hex, str(parsed)}
+
+
+def _is_searchable_history_body(message: object) -> bool:
+    """Only non-empty user/assistant body text gets a Pan search identity."""
+    if not isinstance(message, dict):
+        return False
+    if message.get("role") not in ("user", "assistant"):
+        return False
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        return False
+    # A fresh stream Session may inject this queue item as a user message.
+    # It is system context, not a user-authored searchable body.
+    return message.get("source") != "system_prompt"
+
+
+def _native_item_identity(message: dict) -> tuple[str, str] | None:
+    value = message.get("nativeItemId")
+    if isinstance(value, str) and value:
+        native_id = value
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        native_id = str(value)
+    else:
+        return None
+    return str(message.get("role") or ""), native_id
+
+
+def _history_body_fingerprint(message: dict) -> tuple[str, str]:
+    # Exact role/content matching preserves text as provider data; order and
+    # neighboring stable rows below decide which duplicate occurrence is safe.
+    return str(message.get("role") or ""), message["content"]
+
+
+def _remember_steer_client_identity(message: dict) -> None:
+    prior_id = message.get("messageId")
+    if (isinstance(prior_id, str) and prior_id.startswith("steer:")
+            and prior_id and not message.get("clientMessageId")):
+        # The browser uses steer:<caller token> only while its optimistic row
+        # is in flight. Keep it as an alias while assigning the durable Pan id.
+        message["clientMessageId"] = prior_id
+
+
+def _new_pan_message_id() -> str:
+    return f"pan:{uuid.uuid4().hex}"
+
+
+def assign_pan_message_ids(
+    history: list[dict], *, previous_history: list[dict] | None = None,
+) -> list[dict]:
+    """Copy an imported/forked history and give body rows durable Pan IDs.
+
+    Existing Pan IDs survive a native reimport. Stable provider item IDs are
+    the first match key; exact role/content is used only when the match is
+    unique or when duplicate occurrences retain the same ordered sequence
+    between unambiguous neighbors. Ambiguous rows get fresh IDs. Provider
+    ``nativeItemId`` remains evidence and is never promoted to ``messageId``.
+
+    This helper is intentionally called only by import/fork boundaries. It
+    does not migrate ordinary legacy history while loading or saving it.
+    """
+    rows = [dict(row) if isinstance(row, dict) else row for row in (history or [])]
+    previous = previous_history or []
+    new_body = [index for index, row in enumerate(rows)
+                if _is_searchable_history_body(row)]
+    old_body = [index for index, row in enumerate(previous)
+                if _is_searchable_history_body(row)]
+    if not new_body:
+        return rows
+
+    old_unmatched = set(old_body)
+    new_unmatched = set(new_body)
+    pairs: list[tuple[int, int]] = []
+
+    def pair_unique_by(key_for):
+        old_keys: dict[object, list[int]] = defaultdict(list)
+        new_keys: dict[object, list[int]] = defaultdict(list)
+        for index in old_unmatched:
+            key = key_for(previous[index])
+            if key is not None:
+                old_keys[key].append(index)
+        for index in new_unmatched:
+            key = key_for(rows[index])
+            if key is not None:
+                new_keys[key].append(index)
+        matches = []
+        for key, old_indexes in old_keys.items():
+            new_indexes = new_keys.get(key, [])
+            if len(old_indexes) == len(new_indexes) == 1:
+                matches.append((old_indexes[0], new_indexes[0]))
+        for old_index, new_index in matches:
+            pairs.append((old_index, new_index))
+            old_unmatched.discard(old_index)
+            new_unmatched.discard(new_index)
+
+    pair_unique_by(_native_item_identity)
+
+    def content_key_compatible(old_index: int, new_index: int) -> bool:
+        old_native = _native_item_identity(previous[old_index])
+        new_native = _native_item_identity(rows[new_index])
+        return not (old_native and new_native and old_native != new_native)
+
+    old_content: dict[object, list[int]] = defaultdict(list)
+    new_content: dict[object, list[int]] = defaultdict(list)
+    for index in old_unmatched:
+        old_content[_history_body_fingerprint(previous[index])].append(index)
+    for index in new_unmatched:
+        new_content[_history_body_fingerprint(rows[index])].append(index)
+    unique_content_pairs = []
+    for key, old_indexes in old_content.items():
+        new_indexes = new_content.get(key, [])
+        if (len(old_indexes) == len(new_indexes) == 1
+                and content_key_compatible(old_indexes[0], new_indexes[0])):
+            unique_content_pairs.append((old_indexes[0], new_indexes[0]))
+    for old_index, new_index in unique_content_pairs:
+        pairs.append((old_index, new_index))
+        old_unmatched.discard(old_index)
+        new_unmatched.discard(new_index)
+
+    # Match repeated text by appearance order only inside stable, monotonic
+    # neighbors. If the unique anchors cross, their surrounding duplicate
+    # occurrences cannot be assigned conservatively.
+    anchors = sorted(pairs, key=lambda pair: pair[1])
+    monotonic = all(
+        anchors[index - 1][0] < anchors[index][0]
+        for index in range(1, len(anchors))
+    )
+    if monotonic:
+        boundaries = [(-1, -1), *anchors, (len(previous), len(rows))]
+        for (old_left, new_left), (old_right, new_right) in zip(
+            boundaries, boundaries[1:],
+        ):
+            old_gap = sorted(index for index in old_unmatched
+                             if old_left < index < old_right)
+            new_gap = sorted(index for index in new_unmatched
+                             if new_left < index < new_right)
+            old_counts = Counter(
+                _history_body_fingerprint(previous[index]) for index in old_gap
+            )
+            new_counts = Counter(
+                _history_body_fingerprint(rows[index]) for index in new_gap
+            )
+            common = {
+                key for key, count in old_counts.items()
+                if count > 0 and new_counts.get(key) == count
+            }
+            old_order = [index for index in old_gap
+                         if _history_body_fingerprint(previous[index]) in common]
+            new_order = [index for index in new_gap
+                         if _history_body_fingerprint(rows[index]) in common]
+            old_keys = [_history_body_fingerprint(previous[index])
+                        for index in old_order]
+            new_keys = [_history_body_fingerprint(rows[index])
+                        for index in new_order]
+            if old_keys != new_keys:
+                continue
+            for old_index, new_index in zip(old_order, new_order):
+                if content_key_compatible(old_index, new_index):
+                    pairs.append((old_index, new_index))
+                    old_unmatched.discard(old_index)
+                    new_unmatched.discard(new_index)
+
+    old_id_counts = Counter()
+    for index in old_body:
+        row = previous[index]
+        if isinstance(row, dict) and is_pan_message_id(row.get("messageId")):
+            old_id_counts[row["messageId"]] += 1
+    new_id_counts = Counter()
+    for index in new_body:
+        row = rows[index]
+        if isinstance(row, dict) and is_pan_message_id(row.get("messageId")):
+            new_id_counts[row["messageId"]] += 1
+    assigned: dict[int, str] = {}
+    used_ids: set[str] = set()
+    for old_index, new_index in pairs:
+        old_row = previous[old_index]
+        if not isinstance(old_row, dict):
+            continue
+        old_id = old_row.get("messageId")
+        if (is_pan_message_id(old_id) and old_id_counts[old_id] == 1
+                and old_id not in used_ids):
+            assigned[new_index] = old_id
+            used_ids.add(old_id)
+
+    # A valid Pan ID already present in the incoming row is also Pan-owned and
+    # may be continued (for example, a previously materialized branch copy).
+    for index in new_body:
+        row = rows[index]
+        if not isinstance(row, dict) or index in assigned:
+            continue
+        incoming_id = row.get("messageId")
+        if (is_pan_message_id(incoming_id) and new_id_counts[incoming_id] == 1
+                and incoming_id not in used_ids):
+            assigned[index] = incoming_id
+            used_ids.add(incoming_id)
+
+    for index in new_body:
+        row = rows[index]
+        if not isinstance(row, dict):
+            continue
+        if index not in assigned:
+            _remember_steer_client_identity(row)
+            message_id = _new_pan_message_id()
+            while message_id in used_ids:
+                message_id = _new_pan_message_id()
+            assigned[index] = message_id
+            used_ids.add(message_id)
+        row["messageId"] = assigned[index]
+    return rows
+
+
 def append_history(s: "Session", message: dict) -> None:
     """Append one history row and advance the summary projection.
 
+    新追加的非空 user/assistant 正文块在此分配 Pan messageId；辅助角色与
+    system_prompt 队列项不分配。steer:<caller> 仅保留为 clientMessageId 对账别名。
     新追加的条目在此处打本地 ISO-8601 ts（setdefault：已有 ts 的行不被改写）。
     打点刻意放在追加边界而不是落盘边界：整体替换 / 导入 / branch 复制进来的
     provider 行（它们没有真实时间，只有 role/content）不带 ts，前端对缺失 ts
@@ -471,6 +693,10 @@ def append_history(s: "Session", message: dict) -> None:
     with s._summary_lock:
         ensure_summary_projection(s)
         if isinstance(message, dict):
+            if (_is_searchable_history_body(message)
+                    and not is_pan_message_id(message.get("messageId"))):
+                _remember_steer_client_identity(message)
+                message["messageId"] = _new_pan_message_id()
             message.setdefault("ts", datetime.now().isoformat())
         s.history.append(message)
         s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1

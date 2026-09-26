@@ -19,13 +19,19 @@ from packages.core.adapters.codex import CodexAdapter
 
 
 def _no_ts(entries):
-    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
-    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+    """剥掉追加边界字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items()
+             if k not in {"ts", "messageId", "clientMessageId"}}
+            for e in entries]
 
 
 class _CodexProcess:
     def __init__(self, result: str):
         self._chunks = [
+            self._line({
+                "type": "content.part", "role": "assistant", "delta": True,
+                "part": {"type": "text", "text": "partial"},
+            }),
             self._line({
                 "type": "assistant",
                 "message": {"content": [{"type": "text", "text": result}]},
@@ -93,6 +99,8 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
             assert session.last_result["status"] == "done"
             assert session.last_result["result"] == result
             assert session.last_result["taskSeq"] == seq
+            assert len(session.history) == index + 1
+            assert _sess.is_pan_message_id(session.history[-1]["messageId"])
             expected_history.append({"role": "assistant", "content": result})
             assert _no_ts(session.history) == expected_history
             assert session.queue_pending == []

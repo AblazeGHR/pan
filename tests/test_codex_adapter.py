@@ -310,7 +310,9 @@ def test_parse_user_message_block():
         "id": "i5", "type": "userMessage",
         "content": [{"type": "text", "text": "hello"}],
     }}
-    assert a.extract_assistant_blocks(event) == [{"role": "user", "content": "hello"}]
+    assert a.extract_assistant_blocks(event) == [{
+        "role": "user", "content": "hello", "nativeItemId": "i5",
+    }]
     print("PASS: parse user_message block")
 
 
@@ -1315,6 +1317,13 @@ def test_app_server_native_items_are_displayable():
 def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "userMessage", "content": [{"type": "text", "text": "u"}]}) == {"role": "user", "content": "u"}
     assert codex_sessions._item_to_block({"type": "agentMessage", "text": "a"}) == {"role": "assistant", "content": "a"}
+    assert codex_sessions._item_to_block({
+        "id": "native-user", "type": "userMessage",
+        "content": [{"type": "text", "text": "u"}],
+    }) == {"role": "user", "content": "u", "nativeItemId": "native-user"}
+    assert codex_sessions._item_to_block({
+        "id": "native-assistant", "type": "agentMessage", "text": "a",
+    }) == {"role": "assistant", "content": "a", "nativeItemId": "native-assistant"}
     assert codex_sessions._item_to_block({"type": "reasoning", "summary": ["r"]}) == {"role": "thinking", "content": "r"}
     assert codex_sessions._item_to_block({"type": "plan", "text": "inspect"}) == {"role": "thinking", "content": "inspect"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregated_output": "out"}) == {"role": "tool", "content": 'Command({"command":"cmd","output":"out"})'}
