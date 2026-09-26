@@ -45,6 +45,7 @@ from packages.core.adapters.validation import (
     validate_effort,
     validate_model,
     validate_permission_mode,
+    validate_output_mode,
     validate_session_settings,
     sanitize_adapter_config,
     supported_settings as _adapter_supported_settings,
@@ -6127,6 +6128,77 @@ async def api_list_adapters():
 
 
 # ── App settings (config.json ui) ──
+
+_NEW_SESSION_DEFAULT_KEYS = {"adapter", "outputMode", "sessionTemplate", "workdir"}
+
+
+@app.get("/api/new-session-defaults")
+async def api_get_new_session_defaults():
+    """Return saved New Session form defaults, if configured."""
+    return {"defaults": load_config().get("new_session_defaults")}
+
+
+@app.put("/api/new-session-defaults")
+async def api_put_new_session_defaults(data: dict):
+    """Strictly validate and atomically persist New Session form defaults."""
+    unknown = set(data) - _NEW_SESSION_DEFAULT_KEYS
+    missing = _NEW_SESSION_DEFAULT_KEYS - set(data)
+    if unknown or missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Expected exactly {sorted(_NEW_SESSION_DEFAULT_KEYS)}; "
+            f"missing={sorted(missing)}, unknown={sorted(unknown)}",
+        )
+
+    adapter_name = data["adapter"]
+    if not isinstance(adapter_name, str) or not adapter_name:
+        raise HTTPException(status_code=400, detail="adapter must be a non-empty string")
+    try:
+        adapter = get_adapter(adapter_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    output_mode = data["outputMode"]
+    if not isinstance(output_mode, str):
+        raise HTTPException(status_code=400, detail="outputMode must be a string")
+    if output_mode:
+        try:
+            validate_output_mode(adapter, output_mode)
+        except AdapterCapabilityError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    template_name = data["sessionTemplate"]
+    if not isinstance(template_name, str):
+        raise HTTPException(status_code=400, detail="sessionTemplate must be a string")
+    if template_name:
+        _ensure_manifest_fresh()
+        template = (
+            _character_manager.get_session_template(template_name)
+            if _character_manager is not None
+            else None
+        )
+        if template is None:
+            raise HTTPException(status_code=400, detail=f"Unknown session template: {template_name}")
+        if template.adapter and template.adapter != adapter_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Template {template_name!r} requires adapter {template.adapter!r}",
+            )
+
+    workdir = data["workdir"]
+    if not isinstance(workdir, str):
+        raise HTTPException(status_code=400, detail="workdir must be a string")
+
+    defaults = {
+        "adapter": adapter_name,
+        "outputMode": output_mode,
+        "sessionTemplate": template_name,
+        "workdir": workdir.strip(),
+    }
+    raw = read_config_file()
+    raw["new_session_defaults"] = defaults
+    save_config(raw)
+    return {"defaults": defaults}
 
 @app.get("/api/settings/ui")
 async def api_get_settings_ui():

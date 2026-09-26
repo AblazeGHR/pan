@@ -330,6 +330,29 @@ export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
   return data.sessionTemplates || [];
 }
 
+export interface NewSessionDefaults {
+  adapter: string;
+  outputMode: string;
+  sessionTemplate: string;
+  workdir: string;
+}
+
+export async function fetchNewSessionDefaults(): Promise<NewSessionDefaults | null> {
+  const data = await request<{ defaults?: NewSessionDefaults | null }>(`${BASE}/new-session-defaults`);
+  return data.defaults ?? null;
+}
+
+export async function saveNewSessionDefaults(
+  defaults: NewSessionDefaults,
+): Promise<NewSessionDefaults> {
+  const data = await request<{ defaults?: NewSessionDefaults; error?: string }>(
+    `${BASE}/new-session-defaults`,
+    { method: 'PUT', body: JSON.stringify(defaults) },
+  );
+  if (data.error || !data.defaults) throw new Error(data.error || 'Failed to save New Session defaults');
+  return data.defaults;
+}
+
 export async function fetchMcpServers(signal?: AbortSignal): Promise<McpServerInfo[]> {
   const data = await request<ApiMcpServersResponse>(`${BASE}/mcp/servers`, { signal });
   // `loaded: false` means the manifest isn't loaded yet — return empty rather

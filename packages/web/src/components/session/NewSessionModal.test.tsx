@@ -13,6 +13,8 @@ const apiMock = vi.hoisted(() => ({
   fetchUiSettings: vi.fn(),
   updateUiSettings: vi.fn(),
   fetchSessionTemplates: vi.fn(),
+  fetchNewSessionDefaults: vi.fn(),
+  saveNewSessionDefaults: vi.fn(),
   fetchDirectories: vi.fn(),
   createDirectory: vi.fn(),
 }));
@@ -47,10 +49,20 @@ function setup() {
   return { createNewSession, showToast };
 }
 
+async function renderReady() {
+  const view = render(<NewSessionModal open onClose={() => {}} />);
+  await waitFor(() => expect(
+    (screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled,
+  ).toBe(false));
+  return view;
+}
+
 describe('New Session directory input', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMock.fetchSessionTemplates.mockResolvedValue([]);
+    apiMock.fetchNewSessionDefaults.mockResolvedValue(null);
+    apiMock.saveNewSessionDefaults.mockImplementation(async (defaults) => defaults);
     apiMock.fetchUiSettings.mockResolvedValue({
       defaultNewSessionToCurrentWorkspace: true,
     });
@@ -67,7 +79,7 @@ describe('New Session directory input', () => {
       { name: 'app', path: 'D:\\workspace\\app' },
       { name: 'archive', path: 'D:\\workspace\\archive' },
     ]));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     const input = screen.getByTestId('new-session-workdir-input');
     fireEvent.change(input, { target: { value: 'D:\\workspace\\app' } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'app' })).toBeTruthy());
@@ -75,6 +87,71 @@ describe('New Session directory input', () => {
     expect(screen.queryByTestId('directory-search')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'app' }));
     await waitFor(() => expect((input as HTMLInputElement).value).toBe('D:\\workspace\\app'));
+  });
+
+  it('prefills persisted New Session defaults and leaves saving opt-in', async () => {
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'cbc', outputMode: '', sessionTemplate: '', workdir: 'D:\\saved\\work',
+    });
+    await renderReady();
+    await waitFor(() => expect(
+      (screen.getByTestId('new-session-workdir-input') as HTMLInputElement).value,
+    ).toBe('D:\\saved\\work'));
+    expect((screen.getByRole('checkbox', {
+      name: '将本次配置设为默认（不含 Session Name）',
+    }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('prefills the adapter, output mode, and template while retaining the template adapter lock', async () => {
+    const kimiStatus = { ...cliStatus(), name: 'kimi', label: 'kimi' };
+    useAdapterStore.setState({
+      cliStatus: { adapters: [cliStatus(), kimiStatus], available: ['cbc', 'kimi'], hasAvailable: true },
+      adapterConfigs: {
+        cbc: { models: [], defaultModel: '', effortValues: [], permissionModes: [], defaultPermissionMode: '', supportedSettings: [], executionModes: ['stream'] },
+        kimi: { models: [], defaultModel: '', effortValues: [], permissionModes: [], defaultPermissionMode: '', supportedSettings: [], executionModes: ['stream', 'oneshot'] },
+      },
+    });
+    apiMock.fetchSessionTemplates.mockResolvedValue([
+      { name: 'kimi-template', adapter: 'kimi', model: 'model-x', mcpServers: [] },
+    ]);
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'kimi', outputMode: 'oneshot', sessionTemplate: 'kimi-template', workdir: '',
+    });
+
+    await renderReady();
+
+    expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).value).toBe('kimi');
+    expect((screen.getByRole('combobox', { name: 'Output Mode' }) as HTMLSelectElement).value).toBe('oneshot');
+    expect((screen.getByRole('combobox', { name: /Session Template/ }) as HTMLSelectElement).value).toBe('kimi-template');
+    expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('saves the non-name form fields only when explicitly checked', async () => {
+    const { createNewSession } = setup();
+    apiMock.fetchNewSessionDefaults.mockResolvedValue(null);
+    await renderReady();
+    fireEvent.change(screen.getByTestId('new-session-workdir-input'), {
+      target: { value: 'D:\\workspace\\app' },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: '将本次配置设为默认（不含 Session Name）' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalled());
+    await waitFor(() => expect(apiMock.saveNewSessionDefaults).toHaveBeenCalledWith({
+      adapter: 'cbc', outputMode: '', sessionTemplate: '', workdir: 'D:\\workspace\\app',
+    }));
+  });
+
+  it('reports that the Session exists when saving opted-in defaults fails', async () => {
+    const { createNewSession, showToast } = setup();
+    apiMock.saveNewSessionDefaults.mockRejectedValue(new Error('disk unavailable'));
+    await renderReady();
+    fireEvent.click(screen.getByRole('checkbox', { name: '将本次配置设为默认（不含 Session Name）' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalled());
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringContaining('Session 已创建，但默认配置未保存：disk unavailable'),
+      'error',
+    ));
   });
 
   it('enters a searched directory on double-click and refreshes the search base', async () => {
@@ -85,7 +162,7 @@ describe('New Session directory input', () => {
       .mockResolvedValueOnce(listing('D:\\workspace\\dir', [
         { name: 'nested', path: 'D:\\workspace\\dir\\nested' },
       ]));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     const input = screen.getByTestId('new-session-workdir-input');
     fireEvent.change(input, { target: { value: 'D:\\workspace\\dir' } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'dir' })).toBeTruthy());
@@ -106,7 +183,7 @@ describe('New Session directory input', () => {
 
   it('shows the exact invalid-directory message for a missing search base', async () => {
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\missing\\app' } });
     await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
   });
@@ -116,7 +193,7 @@ describe('New Session directory input', () => {
     apiMock.fetchDirectories
       .mockResolvedValueOnce(listing('D:\\workspace', []))
       .mockResolvedValueOnce(listing('D:\\workspace\\app', []));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\app' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\app', 'cbc', undefined, { outputMode: undefined, workspaceIds: [] }));
@@ -126,7 +203,7 @@ describe('New Session directory input', () => {
   it('asks before creating a missing directory; cancel never submits', async () => {
     const { createNewSession } = setup();
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
     await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
@@ -140,7 +217,7 @@ describe('New Session directory input', () => {
     const { createNewSession, showToast } = setup();
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
     apiMock.createDirectory.mockRejectedValue(new Error('HTTP 403: Forbidden'));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
     await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
@@ -153,7 +230,7 @@ describe('New Session directory input', () => {
   it('submits only after confirmed directory creation succeeds', async () => {
     const { createNewSession } = setup();
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
     await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
@@ -165,7 +242,7 @@ describe('New Session directory input', () => {
 
   it('assigns a new Session to the selected Workspace at submit time', async () => {
     const { createNewSession } = setup();
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     useWorkspaceStore.setState({
       workspaces: [{ id: 'ws-current', name: 'Current', order: null }],
       loaded: true,
@@ -188,7 +265,7 @@ describe('New Session directory input', () => {
       loaded: true,
       defaultNewSessionToCurrentWorkspace: false,
     });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
@@ -210,7 +287,7 @@ describe('New Session directory input', () => {
       return Promise.resolve(listing('', []));
     });
     useUIStore.setState({ activeWorkspaceId: 'ws-at-submit' });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), {
       target: { value: 'D:\\workspace\\app' },
     });
@@ -235,7 +312,7 @@ describe('New Session directory input', () => {
     }));
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
     useUIStore.setState({ activeWorkspaceId: 'ws-at-submit' });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(apiMock.fetchUiSettings).toHaveBeenCalledTimes(1));
@@ -253,7 +330,7 @@ describe('New Session directory input', () => {
   it.each(['all', 'ungrouped'])('keeps new Sessions ungrouped in the %s scope', async (activeWorkspaceId) => {
     const { createNewSession } = setup();
     useUIStore.setState({ activeWorkspaceId });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
@@ -266,7 +343,7 @@ describe('New Session directory input', () => {
   it('keeps a stale selected Workspace id for authoritative server validation', async () => {
     const { createNewSession } = setup();
     useUIStore.setState({ activeWorkspaceId: 'ws-deleted' });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
@@ -276,22 +353,22 @@ describe('New Session directory input', () => {
     ));
   });
 
-  it('keeps adapter availability and mobile dialog guards intact', () => {
+  it('keeps adapter availability and mobile dialog guards intact', async () => {
     useAdapterStore.setState({
       cliStatus: { adapters: [cliStatus(), { ...cliStatus(), name: 'kimi', label: 'kimi', available: false }], available: ['cbc'], hasAvailable: true },
     });
-    render(<NewSessionModal open onClose={() => {}} />);
+    await renderReady();
     expect(screen.getAllByRole('combobox')[0]!.textContent).toContain('cbc');
     expect(screen.getAllByRole('combobox')[0]!.textContent).not.toContain('kimi');
   });
 
-  it('renders the mobile full-screen form and does not render when closed', () => {
+  it('renders the mobile full-screen form and does not render when closed', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
       matches: query.includes('max-width'), media: query, onchange: null,
       addEventListener: () => {}, removeEventListener: () => {},
       addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
     })));
-    const { rerender } = render(<NewSessionModal open onClose={() => {}} />);
+    const { rerender } = await renderReady();
     expect(screen.getByTestId('new-session-fullscreen')).toBeTruthy();
     expect(document.querySelector('.modal-overlay')).toBeNull();
     rerender(<NewSessionModal open={false} onClose={() => {}} />);
