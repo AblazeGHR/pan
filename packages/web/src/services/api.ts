@@ -605,6 +605,23 @@ export async function renameWorkspace(workspaceId: string, name: string): Promis
   return data.workspace;
 }
 
+/**
+ * Replace a Workspace's shared directory list (absolute server paths).
+ * Adding/removing only edits metadata; the server validates each path is an
+ * existing directory and never creates or deletes anything on disk.
+ */
+export async function updateWorkspaceDirs(
+  workspaceId: string,
+  dirs: string[],
+): Promise<Workspace> {
+  const data = await request<ApiWorkspaceResponse>(`${BASE}/workspaces/${workspaceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ dirs }),
+  });
+  if (data.ok === false || !data.workspace) throw workspaceFailure(data, 'Update workspace dirs failed');
+  return data.workspace;
+}
+
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
   const data = await request<{ ok?: boolean; error?: { code?: string; message?: string } }>(
     `${BASE}/workspaces/${workspaceId}`,

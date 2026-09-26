@@ -477,3 +477,47 @@ def test_fs_rename_same_missing_path_is_an_error(monkeypatch, tmp_path):
 
     assert "error" in result
     assert "missing.txt" in result["error"]
+
+
+def test_fs_relative_paths_stay_confined_to_the_workdir(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    (workdir / "inside.txt").write_text("inside", encoding="utf-8")
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=str(workdir)))
+
+    listing = asyncio.run(server.api_fs_list(session_id="ses_editor", path=""))
+    assert [entry["name"] for entry in listing["entries"]] == ["inside.txt"]
+    assert server._resolve_fs_path("ses_editor", "inside.txt") == (workdir / "inside.txt").resolve()
+
+    # A Session without a workdir cannot address relative paths at all.
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=None))
+    rejected = asyncio.run(server.api_fs_list(session_id="ses_editor", path="inside.txt"))
+    assert "error" in rejected and "workdir" in rejected["error"]
+
+
+def test_fs_absolute_browsing_works_without_a_session_workdir(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    shared = tmp_path / "server-shared"
+    shared.mkdir()
+    (shared / "read.txt").write_text("hello", encoding="utf-8")
+    (shared / "nested").mkdir()
+    # Absolute roots must be reachable even for a workdir-less Session so the
+    # editor can browse Workspace/Temp roots.
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=None))
+
+    listing = asyncio.run(server.api_fs_list(session_id="ses_editor", path=str(shared)))
+    assert [entry["name"] for entry in listing["entries"]] == ["nested", "read.txt"]
+
+    read = asyncio.run(server.api_fs_read(session_id="ses_editor", path=str(shared / "read.txt")))
+    assert read == {"content": "hello", "size": 5}
+
+    written = asyncio.run(server.api_fs_write({
+        "session_id": "ses_editor",
+        "path": str(shared / "new.txt"),
+        "content": "written",
+    }))
+    assert written["size"] == 7
+    assert (shared / "new.txt").read_text(encoding="utf-8") == "written"

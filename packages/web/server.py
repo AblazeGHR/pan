@@ -2149,17 +2149,19 @@ def _create_directory(path: str) -> Path:
 def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     """Resolve a session-relative or absolute path on the Pan server.
 
-    The web editor intentionally permits opening files anywhere on the server
-    for now. A future security policy can add containment checks here without
-    changing the client-side link or editor flow.
+    Absolute paths are honored as-is so the editor can browse any server
+    directory a root points at (CWD, Workspace, or Temp roots may all live
+    outside the Session workdir). Relative paths stay confined to the Session
+    workdir, preserving the existing Markdown-link safety boundary. A Session
+    with no workdir can still address absolute paths.
     """
+    target = Path(rel_path)
+    if target.is_absolute():
+        return target.resolve()
     s = _summary_session_get(session_id)
     if not s or not s.workdir:
         raise ValueError("session has no workdir")
-    target = Path(rel_path)
-    if not target.is_absolute():
-        target = Path(s.workdir) / target
-    return target.resolve()
+    return (Path(s.workdir) / target).resolve()
 
 
 def _resolve_attachment_source_path(session_id: str, raw_path: str) -> Path:
@@ -4576,6 +4578,7 @@ def _workspace_view(workspace: workspaces.Workspace) -> dict:
         "id": workspace.id,
         "name": workspace.name,
         "order": workspace.order,
+        "dirs": list(workspace.dirs),
         "createdAt": workspace.created_at,
         "updatedAt": workspace.updated_at,
         "sessionCount": len(members),
@@ -4589,6 +4592,37 @@ def _workspace_name_error(name) -> str | None:
     if len(name.strip()) > 128:
         return "Workspace name too long (max 128)"
     return None
+
+
+def _workspace_dirs_result(dirs) -> tuple[list[str] | None, str | None]:
+    """Validate a Workspace directory list.
+
+    Every entry must be an absolute path to an existing directory on the Pan
+    server. Paths are canonicalized and de-duplicated; nothing is created or
+    written. Returns ``(normalized, None)`` on success and ``(None, message)``
+    on the first invalid entry.
+    """
+    if not isinstance(dirs, list):
+        return None, "dirs must be an array of absolute paths"
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in dirs:
+        if not isinstance(raw, str) or not raw.strip():
+            return None, "dirs must contain non-empty string paths"
+        candidate = Path(raw.strip())
+        if not candidate.is_absolute():
+            return None, f"Workspace directory must be an absolute path: {raw!r}"
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None, f"Workspace directory does not exist: {raw!r}"
+        if not resolved.is_dir():
+            return None, f"Workspace directory is not a directory: {raw!r}"
+        text = str(resolved)
+        if text not in seen:
+            seen.add(text)
+            normalized.append(text)
+    return normalized, None
 
 
 def _workspace_write_allowed(actor_id: str | None, session: sess.Session) -> bool:
@@ -4637,6 +4671,7 @@ async def api_update_workspace(workspace_id: str, data: dict):
     workspace = workspaces.get(workspace_id)
     if workspace is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    changes: dict = {}
     if "name" in data:
         error = _workspace_name_error(data["name"])
         if error:
@@ -4644,7 +4679,14 @@ async def api_update_workspace(workspace_id: str, data: dict):
         name = data["name"].strip()
         if any(w.id != workspace_id and w.name == name for w in workspaces.list_all()):
             return {"ok": False, "error": {"code": "name_taken", "message": "Workspace name already exists"}}
-        workspaces.update(workspace, name=name)
+        changes["name"] = name
+    if "dirs" in data:
+        dirs, dirs_error = _workspace_dirs_result(data["dirs"])
+        if dirs_error:
+            return {"ok": False, "error": {"code": "invalid_dirs", "message": dirs_error}}
+        changes["dirs"] = dirs
+    if changes:
+        workspaces.update(workspace, **changes)
         await broadcast({"type": "workspace.updated", "workspaceId": workspace_id})
     return {"ok": True, "workspace": _workspace_view(workspace)}
 

@@ -14,6 +14,7 @@ vi.mock('@/services/api', async (importOriginal) => {
       id: 'workspace-new', name, createdAt: '2026-09-24T00:00:00Z', updatedAt: '2026-09-24T00:00:00Z', order: null,
     })),
     deleteWorkspace: vi.fn().mockResolvedValue(undefined),
+    updateWorkspaceDirs: vi.fn(),
     setSessionWorkspaces: vi.fn().mockResolvedValue(undefined),
     unclaimSession: vi.fn().mockResolvedValue(undefined),
   };
@@ -123,5 +124,112 @@ describe('workspace membership', () => {
     expect(workspace.name).toBe('Alpha-2');
     expect(api.setSessionWorkspaces).toHaveBeenCalledWith('session-1', ['workspace-new']);
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-new']);
+  });
+});
+
+describe('workspace shared directories', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.updateWorkspaceDirs).mockReset();
+    useWorkspaceStore.getState().reset();
+  });
+
+  it('adds a directory by PATCHing the merged list and mirrors the server result', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'] }],
+    });
+    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
+      id: 'ws1', name: 'Team', order: null, dirs: ['D:/a', 'D:/b'],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', 'D:/b');
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/a', 'D:/b']);
+    expect(useWorkspaceStore.getState().workspaces[0]?.dirs).toEqual(['D:/a', 'D:/b']);
+  });
+
+  it('does not duplicate a directory already listed', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'] }],
+    });
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', 'D:/a');
+
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['D:\\Shared\\Docs', 'd:/shared/docs'],
+    ['d:/Shared/Docs/', 'D:\\shared\\docs'],
+  ])('does not add a Windows path duplicate (%s vs %s)', async (storedPath, addedPath) => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: [storedPath] }],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', addedPath);
+
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
+  });
+
+  it('removes a directory by PATCHing the filtered list', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a', 'D:/b'] }],
+    });
+    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
+      id: 'ws1', name: 'Team', order: null, dirs: ['D:/b'],
+    });
+
+    await useWorkspaceStore.getState().removeWorkspaceDir('ws1', 'D:/a');
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/b']);
+    expect(useWorkspaceStore.getState().workspaces[0]?.dirs).toEqual(['D:/b']);
+  });
+
+  it.each([
+    ['D:\\Shared\\Docs', 'd:/shared/docs'],
+    ['d:/Shared/Docs/', 'D:\\shared\\docs'],
+  ])('removes a Windows path across slash and case forms (%s vs %s)', async (storedPath, removedPath) => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: [storedPath, 'D:/keep'] }],
+    });
+    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
+      id: 'ws1', name: 'Team', order: null, dirs: ['D:/keep'],
+    });
+
+    await useWorkspaceStore.getState().removeWorkspaceDir('ws1', removedPath);
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/keep']);
+  });
+
+  it('does not PATCH when no directory matches the removal path', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'] }],
+    });
+
+    await useWorkspaceStore.getState().removeWorkspaceDir('ws1', 'D:/missing');
+
+    expect(api.updateWorkspaceDirs).not.toHaveBeenCalled();
+  });
+
+  it('keeps POSIX directory comparisons case-sensitive', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null, dirs: ['/srv/Docs'] }],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', '/srv/docs');
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['/srv/Docs', '/srv/docs']);
+  });
+
+  it('treats a legacy workspace without dirs as an empty list', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws1', name: 'Team', order: null }],
+    });
+    vi.mocked(api.updateWorkspaceDirs).mockResolvedValueOnce({
+      id: 'ws1', name: 'Team', order: null, dirs: ['D:/a'],
+    });
+
+    await useWorkspaceStore.getState().addWorkspaceDir('ws1', 'D:/a');
+
+    expect(api.updateWorkspaceDirs).toHaveBeenCalledWith('ws1', ['D:/a']);
   });
 });

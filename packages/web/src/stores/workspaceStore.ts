@@ -34,6 +34,10 @@ interface WorkspaceStoreState {
   createWorkspaceForSession: (sessionId: string) => Promise<Workspace | null>;
   renameWorkspace: (id: string, name: string) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
+  /** Add a shared directory to a Workspace (metadata only; never the disk). */
+  addWorkspaceDir: (id: string, path: string) => Promise<void>;
+  /** Remove a shared directory from a Workspace (metadata only). */
+  removeWorkspaceDir: (id: string, path: string) => Promise<void>;
   /** Persist a full display order (drag-reorder of the rail tabs). */
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
   /**
@@ -57,6 +61,21 @@ function sortWorkspaces(a: Workspace, b: Workspace): number {
   const created = String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''));
   if (created !== 0) return created;
   return a.id.localeCompare(b.id);
+}
+
+/**
+ * Key for comparing two Workspace directory paths that arrive from different
+ * sources: the server stores its own canonical form (backslashes on Windows,
+ * e.g. `D:\foo`), while editor roots normalize to forward slashes (`D:/foo`).
+ * A raw string comparison would miss the same directory, leaving removal a
+ * no-op. Windows-style paths (drive-letter or UNC) also compare
+ * case-insensitively, matching that filesystem's semantics; POSIX paths stay
+ * case-sensitive.
+ */
+function dirComparisonKey(path: string): string {
+  const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  const isWindowsStyle = /^[A-Za-z]:/.test(normalized) || normalized.startsWith('//');
+  return isWindowsStyle ? normalized.toLowerCase() : normalized;
 }
 
 export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
@@ -147,6 +166,33 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
 
   renameWorkspace: async (id, name) => {
     const workspace = await api.renameWorkspace(id, name);
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
+    }));
+  },
+
+  addWorkspaceDir: async (id, path) => {
+    const current = get().workspaces.find((w) => w.id === id);
+    if (!current) throw new Error('找不到工作区');
+    const dirs = current.dirs ?? [];
+    // Compare through the canonical key so the editor's forward-slash path
+    // does not add a duplicate of the server's backslash form.
+    if (dirs.some((dir) => dirComparisonKey(dir) === dirComparisonKey(path))) return;
+    const workspace = await api.updateWorkspaceDirs(id, [...dirs, path]);
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
+    }));
+  },
+
+  removeWorkspaceDir: async (id, path) => {
+    const current = get().workspaces.find((w) => w.id === id);
+    if (!current) throw new Error('找不到工作区');
+    const currentDirs = current.dirs ?? [];
+    const key = dirComparisonKey(path);
+    const dirs = currentDirs.filter((dir) => dirComparisonKey(dir) !== key);
+    // Nothing matched (already removed): do not PATCH an unchanged list.
+    if (dirs.length === currentDirs.length) return;
+    const workspace = await api.updateWorkspaceDirs(id, dirs);
     set((s) => ({
       workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
     }));

@@ -10,12 +10,12 @@ import { Eye, Pencil, Columns2 } from 'lucide-react';
 export function EditorPane() {
   const currentSession = useCurrentSession();
   const editorSessionId = useEditorStore((s) => s.sessionId);
-  const editorWorkdir = useEditorStore((s) => s.workdir);
   const storedActivePath = useEditorStore((s) => s.activePath);
   // During the session switch render/effect boundary, do not expose the old
-  // session's path to actions before setRoot has reset the editor store.
-  const editorRootMatchesSession =
-    editorSessionId === currentSession?.id && editorWorkdir === currentSession?.workdir;
+  // session's path to actions before setRoot has reset the editor store. Roots
+  // (CWD/Workspace/Temp) are re-derived per session, so the session id alone
+  // gates exposure; a workdir-less session may still have browsable roots.
+  const editorRootMatchesSession = editorSessionId === currentSession?.id;
   const activePath = editorRootMatchesSession ? storedActivePath : null;
   const contents = useEditorStore((s) => s.contents);
   const imagePreviews = useEditorStore((s) => s.imagePreviews);

@@ -1,6 +1,7 @@
 """Backend workspace model and HTTP contract tests (no UI or live service)."""
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -185,3 +186,85 @@ def test_core_session_create_rejects_multiple_workspace_ids():
         assert "at most one" in str(exc)
     else:
         raise AssertionError("core Session creation accepted multiple Workspace ids")
+
+
+def test_workspace_dirs_persist_and_legacy_json_defaults_empty(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    shared = tmp_path / "shared"
+    shared.mkdir()
+
+    # A Workspace JSON written before `dirs` existed must still load.
+    workspace.WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+    (workspace.WORKSPACE_DIR / "ws_legacy.json").write_text(
+        json.dumps({"id": "ws_legacy", "name": "Legacy"}), encoding="utf-8")
+    legacy = workspace.get("ws_legacy")
+    assert legacy is not None
+    assert legacy.dirs == []
+    assert legacy.to_dict()["dirs"] == []
+
+    w = workspace.create("Shared")
+    # Duplicates and blank entries are dropped without rejecting the update.
+    workspace.update(w, dirs=[str(shared), str(shared), "   "])
+    workspace.clear_cache()
+    assert workspace.get(w.id).dirs == [str(shared)]
+    assert workspace.get(w.id).to_dict()["dirs"] == [str(shared)]
+
+
+def test_workspace_dirs_api_validates_and_never_touches_disk(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    kept = shared / "keep.txt"
+    kept.write_text("keep", encoding="utf-8")
+    not_a_dir = tmp_path / "note.txt"
+    not_a_dir.write_text("note", encoding="utf-8")
+
+    created = asyncio.run(server.api_create_workspace({"name": "Inbox"}))
+    wid = created["workspace"]["id"]
+    assert created["workspace"]["dirs"] == []
+
+    added = asyncio.run(server.api_update_workspace(wid, {"dirs": [str(shared)]}))
+    assert added["ok"] and added["workspace"]["dirs"] == [str(shared.resolve())]
+
+    # Canonicalization de-duplicates equal paths.
+    deduped = asyncio.run(server.api_update_workspace(
+        wid, {"dirs": [str(shared), str(shared)]}))
+    assert deduped["workspace"]["dirs"] == [str(shared.resolve())]
+
+    # Nonexistent, file, relative, and empty-list entries fail closed.
+    for bad in ([str(tmp_path / "ghost")], [str(not_a_dir)], ["relative/path"], [""]):
+        rejected = asyncio.run(server.api_update_workspace(wid, {"dirs": bad}))
+        assert rejected["error"]["code"] == "invalid_dirs", bad
+    assert workspace.get(wid).dirs == [str(shared.resolve())]
+
+    # Persisted across a restart-like reload.
+    workspace.clear_cache()
+    assert workspace.get(wid).dirs == [str(shared.resolve())]
+
+    # Removing only edits metadata; the directory and its contents survive.
+    removed = asyncio.run(server.api_update_workspace(wid, {"dirs": []}))
+    assert removed["workspace"]["dirs"] == []
+    assert kept.read_text(encoding="utf-8") == "keep"
+    assert shared.is_dir()
+
+
+def test_workspace_dirs_visible_to_managed_descendants(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    parent = sess.Session(id="ses_dir_parent", name="parent")
+    child = sess.Session(id="ses_dir_child", name="child", managed_by=parent.id)
+    sess._cache.update({parent.id: parent, child.id: child})
+    w = workspace.create("Team")
+    workspace.update(w, dirs=[str(shared)])
+    parent.workspace_ids = [w.id]
+    sess.save(parent)
+
+    # The managed descendant inherits the membership; the Editor then reads the
+    # workspace's shared dirs for it without any per-session copy.
+    assert sess.effective_workspace_ids(child) == [w.id]
+    view = asyncio.run(server.api_get_workspace(w.id))["workspace"]
+    assert view["dirs"] == [str(shared.resolve())]
