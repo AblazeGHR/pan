@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Message } from '@/types';
 import { getMessageIdentity } from '@/utils/messageIdentity';
 import { ThinkingGroup } from './ThinkingGroup';
@@ -55,7 +55,7 @@ export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupPr
         aria-expanded={isOpen}
         className="flex items-center gap-2 w-full px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover/30 transition-colors text-left select-none"
       >
-        {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span>{items.length} non-body blocks</span>
         <span className="text-text-tertiary">{summary}</span>
       </button>

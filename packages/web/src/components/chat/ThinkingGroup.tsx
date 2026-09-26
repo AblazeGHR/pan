@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type TransitionEvent } from 'react';
 import type { Message } from '@/types';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { isLongBlockContent, LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
 import { getMessageIdentity } from '@/utils/messageIdentity';
@@ -66,9 +66,9 @@ export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGrou
         className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
       >
         {isOpen ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
           <ChevronDown className="h-4 w-4" />
+        ) : (
+          <ChevronRight className="h-4 w-4" />
         )}
         <span>{label}</span>
       </button>

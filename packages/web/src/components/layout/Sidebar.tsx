@@ -40,6 +40,7 @@ import {
   ListFilter,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Sun,
   Moon,
   ListChecks,
@@ -958,9 +959,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 </button>
               )}
               {filesCollapsed ? (
-                <ChevronDown size={14} className="text-text-tertiary" />
+                <ChevronRight size={14} className="text-text-tertiary" />
               ) : (
-                <ChevronUp size={14} className="text-text-tertiary" />
+                <ChevronDown size={14} className="text-text-tertiary" />
               )}
             </div>
           </div>

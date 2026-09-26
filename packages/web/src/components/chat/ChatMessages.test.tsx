@@ -92,7 +92,9 @@ vi.mock('@tanstack/react-virtual', async () => {
       measureElement: () => {},
       measure: () => {
         if (m.state.dynamicMeasurements) {
-          m.state.measuredByKey.clear();
+          // TanStack measurements are keyed and may outlive a session's
+          // current render window. Keep off-session keys until that row is
+          // measured again, which exposes stale per-session row geometry.
           m.measureMountedRows(options);
         }
         rerender();
@@ -1654,10 +1656,13 @@ describe('scroll snapshot ownership across a session switch', () => {
 });
 
 describe('non-body disclosure and virtual measurements across a session switch', () => {
-  it('drops B\'s cached expanded height when switching from A to streaming B', () => {
+  it('drops B\'s cached expanded height when restoring its saved snapshot after idle', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
     mockClientHeight = 100;
     m.state.dynamicMeasurements = true;
     useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true });
     const bMessages = [
       { role: 'user' as const, content: 'B before' },
       ...Array.from({ length: 39 }, (_, index) => ({
@@ -1669,7 +1674,7 @@ describe('non-body disclosure and virtual measurements across a session switch',
     ];
     m.setVirtualItems(rowWindow([0, 1, 2]));
     useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: bMessages });
-    const view = render(<ChatMessages />);
+    const firstVisit = render(<ChatMessages />);
 
     // Record the actual prior-visit expanded height under B's virtual item key.
     fireEvent.click(screen.getByRole('button', { name: /39 non-body blocks/ }));
@@ -1677,29 +1682,39 @@ describe('non-body disclosure and virtual measurements across a session switch',
     expect(m.getTotalSize()).toBe(480); // 80 + 320 + 80
     const staleExpandedSize = m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)));
     expect(staleExpandedSize).toBe(320);
+    const bScroller = firstVisit.container.querySelector('.overflow-auto') as HTMLElement;
+    userScroll(bScroller, 100); // persist B's stable message anchor and offset
 
+    // A is active while B's history/disclosures remain untouched for a while.
     act(() => {
       m.setVirtualItems(rowWindow([0, 1]));
       useSessionStore.setState({ currentSessionId: 'switch-a', currentMessages: msgs(2, 'A') });
     });
-
+    // B's history grows while away, but the saved anchor identity remains in
+    // the list and must stay the authority for restoring the reading position.
+    const updatedBMessages = [...bMessages, { role: 'assistant' as const, content: 'B arrived while away' }];
     act(() => {
-      m.setVirtualItems(rowWindow([0, 1, 2]));
-      useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: bMessages });
+      m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+      useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: updatedBMessages });
     });
 
     expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByTestId('non-body-group-window')).toBeNull();
+    // A saved anchor keeps this session on the restore branch. Its stale
+    // expanded estimate must still be replaced with the folded DOM measurement.
     expect(m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)))).toBe(48);
-    expect([...m.state.measuredByKey.values()]).toEqual([80, 48, 80]);
-    expect(m.getTotalSize()).toBe(208);
-    const scroller = view.container.querySelector('.overflow-auto') as HTMLElement;
-    expect(scroller.scrollHeight).toBe(208); // folded: 80 + 48 + 80
-    expect(scroller.scrollHeight - scroller.clientHeight).toBe(108);
+    expect([...m.state.measuredByKey]
+      .filter(([key]) => key.startsWith('switch-b:'))
+      .map(([, size]) => size)).toEqual([80, 48, 80, 80]);
+    expect(m.getTotalSize()).toBe(288);
+    const scroller = firstVisit.container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scroller.scrollTop).toBe(100); // saved message anchor survives history growth
+    expect(scroller.scrollHeight).toBe(288); // folded rows plus one new history row
+    expect(scroller.scrollHeight - scroller.clientHeight).toBe(188);
 
     // The real scroll range reaches both ends and contains no extra 20rem spacer.
     userScroll(scroller, scroller.scrollHeight - scroller.clientHeight);
-    expect(scroller.scrollTop).toBe(108);
+    expect(scroller.scrollTop).toBe(188);
     userScroll(scroller, 0);
     expect(scroller.scrollTop).toBe(0);
 
@@ -1707,6 +1722,21 @@ describe('non-body disclosure and virtual measurements across a session switch',
     fireEvent.click(screen.getByRole('button', { name: /39 non-body blocks/ }));
     expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByTestId('non-body-group-window').className).toContain('max-h-[20rem]');
+    act(() => m.measureMountedRows());
+    expect(m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)))).toBe(320);
+    userScroll(scroller, 100);
+    firstVisit.unmount(); // simulate leaving the route with the group expanded
+
+    m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+    const routeReturn = render(<ChatMessages />);
+    expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)))).toBe(48);
+    const routeScroller = routeReturn.container.querySelector('.overflow-auto') as HTMLElement;
+    expect(routeScroller.scrollTop).toBe(100);
+    expect(routeScroller.scrollHeight).toBe(288);
+    } finally {
+      restoreGeometry();
+    }
   });
 });
 

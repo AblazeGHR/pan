@@ -51,6 +51,23 @@ describe('Sidebar Session search controls', () => {
     expect(screen.getByRole('button', { name: 'Clear session search' })).toBeTruthy();
   });
 
+  it('uses a right chevron when Files is folded and a down chevron when open', () => {
+    useUIStore.setState({ filesCollapsed: true });
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    const filesHeader = screen.getByText('Files').parentElement?.parentElement;
+    expect(filesHeader?.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+
+    fireEvent.click(screen.getByText('Files'));
+    expect(useUIStore.getState().filesCollapsed).toBe(false);
+    const expandedHeader = screen.getByText('Files').parentElement?.parentElement;
+    expect(expandedHeader?.querySelector('svg.lucide-chevron-down')).not.toBeNull();
+  });
+
   it('opens the special filters menu to the right of its trigger', () => {
     renderSidebar();
 
