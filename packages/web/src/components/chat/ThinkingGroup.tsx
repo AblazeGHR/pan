@@ -4,13 +4,27 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { isLongBlockContent, LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
 import { getMessageIdentity } from '@/utils/messageIdentity';
+import { getLatestMessageTs } from '@/utils/messageTimestamp';
+import { MessageTimestamp } from './MessageTimestamp';
 
 interface ThinkingGroupProps {
   items: Message[];
+  latestTs?: string;
+  timestampsComputed?: boolean;
+  flashKey?: string;
+  flashKeys?: string[];
+  onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
 }
 
 /** A stable disclosure row for one or more adjacent thinking blocks. */
-export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGroupProps) {
+export const ThinkingGroup = memo(function ThinkingGroup({
+  items,
+  latestTs,
+  timestampsComputed,
+  flashKey,
+  flashKeys,
+  onTimestampFlashConsumed,
+}: ThinkingGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoadedLongContent, setHasLoadedLongContent] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -57,13 +71,17 @@ export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGrou
   const label = items.length === 1 ? 'thinking' : `${items.length} thinking blocks`;
   const shouldRenderContent = !deferContent || isOpen || hasLoadedLongContent;
   const singleItem = items[0];
+  const consumeTimestampFlash = () => {
+    const keys = flashKeys?.length ? flashKeys : flashKey ? [flashKey] : [];
+    if (keys.length > 0) onTimestampFlashConsumed?.(keys);
+  };
 
   return (
     <div className="thinking">
       <button
         onClick={toggle}
         aria-expanded={isOpen}
-        className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+        className="flex w-full items-center gap-2 text-left text-sm text-text-secondary hover:text-text-primary transition-colors"
       >
         {isOpen ? (
           <ChevronUp className="h-4 w-4" />
@@ -71,6 +89,12 @@ export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGrou
           <ChevronDown className="h-4 w-4" />
         )}
         <span>{label}</span>
+        <MessageTimestamp
+          ts={timestampsComputed ? latestTs : (latestTs ?? getLatestMessageTs(items))}
+          flashKey={flashKey}
+          onFlashConsumed={consumeTimestampFlash}
+          className="ml-auto"
+        />
       </button>
       <div
         data-testid="thinking-content-window"
@@ -91,6 +115,11 @@ export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGrou
                   data-testid="thinking-group-message"
                   className={index > 0 ? 'border-t border-border-default mt-2 pt-2' : undefined}
                 >
+                  {items.length > 1 && (
+                    <div className="mb-1 flex justify-end">
+                      <MessageTimestamp ts={message.ts} />
+                    </div>
+                  )}
                   <MarkdownRenderer content={message.content} />
                 </div>
               ))

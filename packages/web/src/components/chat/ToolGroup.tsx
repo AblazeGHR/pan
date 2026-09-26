@@ -3,10 +3,17 @@ import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'l
 import type { Message } from '@/types';
 import { useDetailStore } from '@/stores/detailStore';
 import { getMessageIdentity } from '@/utils/messageIdentity';
+import { getLatestMessageTs } from '@/utils/messageTimestamp';
 import { isLongBlockContent } from './lazyBlockContent';
+import { MessageTimestamp } from './MessageTimestamp';
 
 interface ToolGroupProps {
   items: Message[];
+  latestTs?: string;
+  timestampsComputed?: boolean;
+  flashKey?: string;
+  flashKeys?: string[];
+  onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
 }
 
 interface ToolInfo {
@@ -138,7 +145,14 @@ function StatusIcon({ status }: { status: ToolInfo['status'] }) {
   }
 }
 
-export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
+export const ToolGroup = memo(function ToolGroup({
+  items,
+  latestTs,
+  timestampsComputed,
+  flashKey,
+  flashKeys,
+  onTimestampFlashConsumed,
+}: ToolGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
@@ -153,6 +167,10 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
         return parseTool(item.content, expandedTools.has(key));
       })
     : [];
+  const consumeTimestampFlash = () => {
+    const keys = flashKeys?.length ? flashKeys : flashKey ? [flashKey] : [];
+    if (keys.length > 0) onTimestampFlashConsumed?.(keys);
+  };
 
   const handleToolClick = (key: string, tool: ToolInfo) => {
     // Open detail panel for this tool
@@ -178,8 +196,13 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
       >
         <Wrench size={14} />
         <span>{items.length} tools</span>
-        <span className="ml-auto text-text-tertiary">
+        <span className="ml-auto inline-flex items-center gap-2 text-text-tertiary">
           {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <MessageTimestamp
+            ts={timestampsComputed ? latestTs : (latestTs ?? getLatestMessageTs(items))}
+            flashKey={flashKey}
+            onFlashConsumed={consumeTimestampFlash}
+          />
         </span>
       </button>
 
@@ -202,8 +225,9 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
                   {tool.argsPreview && (
                     <span className="text-xs text-text-tertiary truncate">{tool.argsPreview}</span>
                   )}
-                  <span className="ml-auto text-text-tertiary flex-shrink-0">
+                  <span className="ml-auto inline-flex flex-shrink-0 items-center gap-2 text-text-tertiary">
                     {expandedTools.has(key) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    <MessageTimestamp ts={items[i]!.ts} />
                   </span>
                 </div>
 

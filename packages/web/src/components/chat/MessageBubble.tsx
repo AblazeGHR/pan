@@ -6,7 +6,11 @@ import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
 import { NonBodyGroup } from './NonBodyGroup';
 import type { GroupDisplayItem } from '@/utils/messageIdentity';
+import { getMessageIdentity } from '@/utils/messageIdentity';
+import { isValidMessageTs } from '@/utils/messageTimestamp';
 import { getQuickJumpKind } from './messageFilter';
+import { MessageTimestamp } from './MessageTimestamp';
+export { formatMessageTs } from '@/utils/messageTimestamp';
 
 export type GroupedItem = Message | GroupDisplayItem;
 type PrevRole = Message['role'] | 'tool' | null;
@@ -40,36 +44,6 @@ function marginTopClass(role: PrevRole, prevRole: PrevRole): string {
 interface MessageBubbleProps {
   message: Message;
   prevRole?: PrevRole;
-}
-
-/** HH:MM；非今天附日期（YYYY-MM-DD）。解析失败返回空（不显示）。 */
-export function formatMessageTs(ts: string): string {
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const now = new Date();
-  if (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  ) {
-    return time;
-  }
-  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return `${date} ${time}`;
-}
-
-/** 消息时间标签：小号次要色；旧历史条目无 ts 时不渲染。 */
-function MessageTimestamp({ ts }: { ts?: string }) {
-  if (!ts) return null;
-  const label = formatMessageTs(ts);
-  if (!label) return null;
-  return (
-    <div className="text-[11px] text-text-secondary mt-0.5 select-none">
-      {label}
-    </div>
-  );
 }
 
 export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
@@ -122,7 +96,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
             className="text-sm"
           />
         </div>
-        <MessageTimestamp ts={message.ts} />
+        <MessageTimestamp ts={message.ts} className="mt-0.5" />
       </div>
     );
   }
@@ -137,7 +111,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           attachmentIds={attachmentIds}
         />
       </div>
-      <MessageTimestamp ts={message.ts} />
+      <MessageTimestamp ts={message.ts} className="mt-0.5" />
     </div>
   );
 });
@@ -149,8 +123,20 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
 export function groupMessages(
   messages: Message[],
   mergeConsecutiveNonBodyBlocks = false,
+  timestampFlashMessages?: ReadonlySet<Message>,
 ): GroupedItem[] {
   const grouped: GroupedItem[] = [];
+
+  const appendToGroup = (group: GroupDisplayItem, message: Message) => {
+    group.items.push(message);
+    const validTs = message.ts && isValidMessageTs(message.ts) ? message.ts : undefined;
+    if (validTs) group.latestTs = validTs;
+    if (timestampFlashMessages?.has(message) && validTs) {
+      const flashKey = getMessageIdentity(message);
+      group.flashKey = flashKey;
+      group.flashKeys = [...(group.flashKeys ?? []), flashKey];
+    }
+  };
 
   if (mergeConsecutiveNonBodyBlocks) {
     let currentNonBodyGroup: Message[] | null = null;
@@ -161,7 +147,7 @@ export function groupMessages(
           currentNonBodyGroup = [];
           grouped.push({ type: 'non_body_group', items: currentNonBodyGroup });
         }
-        currentNonBodyGroup.push(msg);
+        appendToGroup(grouped[grouped.length - 1] as GroupDisplayItem, msg);
       } else {
         currentNonBodyGroup = null;
         grouped.push(msg);
@@ -181,14 +167,14 @@ export function groupMessages(
         currentToolGroup = [];
         grouped.push({ type: 'tool_group', items: currentToolGroup });
       }
-      currentToolGroup.push(msg);
+      appendToGroup(grouped[grouped.length - 1] as GroupDisplayItem, msg);
     } else if (msg.role === 'thinking') {
       currentToolGroup = null;
       if (!currentThinkingGroup) {
         currentThinkingGroup = [];
         grouped.push({ type: 'thinking_group', items: currentThinkingGroup });
       }
-      currentThinkingGroup.push(msg);
+      appendToGroup(grouped[grouped.length - 1] as GroupDisplayItem, msg);
     } else {
       currentToolGroup = null;
       currentThinkingGroup = null;
@@ -202,28 +188,54 @@ export function groupMessages(
 interface MessageDisplayItemProps {
   item: GroupedItem;
   prevRole?: PrevRole;
+  onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
 }
 
-export const MessageDisplayItem = memo(function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
+export const MessageDisplayItem = memo(function MessageDisplayItem({
+  item,
+  prevRole = null,
+  onTimestampFlashConsumed,
+}: MessageDisplayItemProps) {
   if ('type' in item) {
     if (item.type === 'non_body_group') {
       const firstRole = item.items[0]?.role === 'thinking' ? 'thinking' : 'tool';
       return (
         <div className={`${marginTopClass(firstRole, prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
-          <NonBodyGroup items={item.items} />
+          <NonBodyGroup
+            items={item.items}
+            latestTs={item.latestTs}
+            timestampsComputed
+            flashKey={item.flashKey}
+            flashKeys={item.flashKeys}
+            onTimestampFlashConsumed={onTimestampFlashConsumed}
+          />
         </div>
       );
     }
     if (item.type === 'tool_group') {
       return (
         <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
-          <ToolGroup items={item.items} />
+          <ToolGroup
+            items={item.items}
+            latestTs={item.latestTs}
+            timestampsComputed
+            flashKey={item.flashKey}
+            flashKeys={item.flashKeys}
+            onTimestampFlashConsumed={onTimestampFlashConsumed}
+          />
         </div>
       );
     }
     return (
       <div className={`${marginTopClass('thinking', prevRole)} px-3 sm:px-6 lg:px-8`}>
-        <ThinkingGroup items={item.items} />
+        <ThinkingGroup
+          items={item.items}
+          latestTs={item.latestTs}
+          timestampsComputed
+          flashKey={item.flashKey}
+          flashKeys={item.flashKeys}
+          onTimestampFlashConsumed={onTimestampFlashConsumed}
+        />
       </div>
     );
   }

@@ -565,6 +565,38 @@ body {
   min-width: 0;
 }
 
+/* Timestamps sit at the far right of their message row in both TUI and Bubble. */
+.message-row > .message-timestamp {
+  align-self: flex-end;
+}
+
+.message-timestamp {
+  display: inline-block;
+  border-radius: 3px;
+  background-color: transparent;
+}
+
+.message-timestamp-flash {
+  animation: message-timestamp-flash 650ms ease-in-out 3;
+}
+
+@keyframes message-timestamp-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  35%,
+  65% {
+    background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-timestamp-flash {
+    animation: none;
+  }
+}
+
 /* Task-agent completion reports are visually identifiable in the message body
    in both views, without changing ordinary row geometry. */
 .worker-report-label {

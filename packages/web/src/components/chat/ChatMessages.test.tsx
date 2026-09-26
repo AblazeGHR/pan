@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, act, fireEvent, cleanup, screen } from '@testing-library/react';
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
-import { groupMessages, getItemRole } from './MessageBubble';
+import { formatMessageTs, groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
@@ -162,6 +162,7 @@ const chatMessagesSource = readFileSync(
   resolve(process.cwd(), 'src/components/chat/ChatMessages.tsx'),
   'utf8',
 );
+const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
 
 const msgs = (n: number, prefix = 'm') =>
   Array.from({ length: n }, (_, i) => ({
@@ -276,6 +277,223 @@ it('merges each adjacent tool/thinking run only when the preference is enabled',
   ]);
   expect(groupMessages(messages, false).filter((item) => 'type' in item && item.type === 'tool_group')[0])
     .toMatchObject({ items: messages.slice(2, 4) });
+});
+
+describe('block timestamps', () => {
+  const firstTs = '2026-09-26T03:00:00.000Z';
+  const newestTs = '2026-09-26T03:02:00.000Z';
+
+  it('keeps the last valid block time and omits groups without a valid time', () => {
+    const messages: Message[] = [
+      { role: 'tool', content: 'Run({})', messageId: 'tool-1', ts: firstTs },
+      { role: 'tool', content: 'Read({})', messageId: 'tool-2', ts: 'invalid timestamp' },
+      { role: 'tool', content: 'Write({})', messageId: 'tool-3', ts: newestTs },
+      { role: 'tool', content: 'Patch({})', messageId: 'tool-4', ts: '' },
+    ];
+    const [tools] = groupMessages(messages);
+    const [merged] = groupMessages(messages, true);
+
+    expect(tools).toMatchObject({ type: 'tool_group', latestTs: newestTs });
+    expect(merged).toMatchObject({ type: 'non_body_group', latestTs: newestTs });
+    expect(formatMessageTs('invalid timestamp')).toBe('');
+    const untimedGroup = groupMessages([
+      { role: 'thinking', content: 'legacy' },
+      { role: 'thinking', content: 'bad date', ts: 'invalid timestamp' },
+    ])[0];
+    expect(untimedGroup).toMatchObject({ type: 'thinking_group' });
+    expect(untimedGroup && 'type' in untimedGroup ? untimedGroup : {}).not.toHaveProperty('latestTs');
+  });
+
+  it('shows each tool timestamp after opening a multi-tool group', () => {
+    const messages: Message[] = [
+      { role: 'tool', content: 'Run({})', messageId: 'tool-time-1', ts: firstTs },
+      { role: 'tool', content: 'Read({})', messageId: 'tool-time-2', ts: newestTs },
+      { role: 'tool', content: 'Write({})', messageId: 'tool-time-3' },
+    ];
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: messages });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    const header = container.querySelector('.tool-group-header') as HTMLButtonElement;
+    expect(header.querySelector('time')?.getAttribute('datetime')).toBe(newestTs);
+    fireEvent.click(header);
+
+    expect([...container.querySelectorAll('.msg.tool time')].map((time) => time.getAttribute('datetime')))
+      .toEqual([firstTs, newestTs]);
+  });
+
+  it('shows every expanded thinking block time and keeps the group header time', () => {
+    const messages: Message[] = [
+      { role: 'thinking', content: 'first thought', messageId: 'think-time-1', ts: firstTs },
+      { role: 'thinking', content: 'second thought', messageId: 'think-time-2', ts: newestTs },
+    ];
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: messages });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    const header = container.querySelector('.thinking > button') as HTMLButtonElement;
+    expect(header.querySelector('time')?.getAttribute('datetime')).toBe(newestTs);
+    fireEvent.click(header);
+
+    expect([...container.querySelectorAll('[data-testid="thinking-group-message"] time')]
+      .map((time) => time.getAttribute('datetime'))).toEqual([firstTs, newestTs]);
+  });
+
+  it('flashes only after a timestamped tail append to the current group', () => {
+    const first: Message = {
+      role: 'tool', content: 'Run({})', messageId: 'append-tool-1', ts: firstTs,
+    };
+    const appended: Message = {
+      role: 'tool', content: 'Read({})', messageId: 'append-tool-2', ts: newestTs,
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    const header = container.querySelector('.tool-group-header') as HTMLButtonElement;
+    expect(header.querySelector('time')?.className).not.toContain('message-timestamp-flash');
+    act(() => useSessionStore.setState({ currentMessages: [first, appended] }));
+
+    const timestamp = container.querySelector('.tool-group-header time');
+    expect(timestamp?.getAttribute('datetime')).toBe(newestTs);
+    expect(timestamp?.className).toContain('message-timestamp-flash');
+    expect(chatStylesSource).toContain('message-timestamp-flash 650ms ease-in-out 3');
+    expect(chatStylesSource).toContain('prefers-reduced-motion: reduce');
+  });
+
+  it('consumes a batched append as one pulse for its group header', () => {
+    const first: Message = {
+      role: 'tool', content: 'Run({})', messageId: 'batch-tool-1', ts: firstTs,
+    };
+    const appendedOne: Message = {
+      role: 'tool', content: 'Read({})', messageId: 'batch-tool-2', ts: newestTs,
+    };
+    const appendedTwo: Message = {
+      role: 'tool', content: 'Write({})', messageId: 'batch-tool-3', ts: '2026-09-26T03:04:00.000Z',
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    act(() => useSessionStore.setState({ currentMessages: [first, appendedOne, appendedTwo] }));
+    const timestamp = container.querySelector('.tool-group-header time') as HTMLElement;
+    expect(timestamp.getAttribute('datetime')).toBe(appendedTwo.ts);
+    expect(timestamp.className).toContain('message-timestamp-flash');
+
+    fireEvent.animationStart(timestamp);
+    fireEvent.animationEnd(timestamp);
+    expect(container.querySelector('.tool-group-header time')?.className)
+      .not.toContain('message-timestamp-flash');
+  });
+
+  it('does not flash when the initial history fetch replaces a summary tail', () => {
+    const summaryTail: Message = {
+      role: 'tool', content: 'Read({})', messageId: 'initial-summary-tail', ts: firstTs,
+    };
+    const fetchedTail: Message = {
+      role: 'tool', content: 'Write({})', messageId: 'initial-history-tail', ts: newestTs,
+    };
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [summaryTail],
+      initialLoading: true,
+    });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    act(() => useSessionStore.setState({
+      currentMessages: [summaryTail, fetchedTail],
+      initialLoading: false,
+    }));
+
+    expect(container.querySelector('.tool-group-header time')?.getAttribute('datetime')).toBe(newestTs);
+    expect(container.querySelector('.tool-group-header time')?.className).not.toContain('message-timestamp-flash');
+  });
+
+  it('does not flash for missing or invalid appended times or content updates', () => {
+    const first: Message = {
+      role: 'tool', content: 'Run({})', messageId: 'append-invalid-1', ts: firstTs,
+    };
+    const { container } = (() => {
+      useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+      m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+      return render(<ChatMessages />);
+    })();
+
+    act(() => useSessionStore.setState({ currentMessages: [first, {
+      role: 'tool', content: 'Read({})', messageId: 'append-invalid-2', ts: 'not a date',
+    }] }));
+    expect(container.querySelector('.tool-group-header time')?.getAttribute('datetime')).toBe(firstTs);
+    expect(container.querySelector('.tool-group-header time')?.className).not.toContain('message-timestamp-flash');
+
+    act(() => useSessionStore.setState({ currentMessages: [first] }));
+    act(() => useSessionStore.setState({ currentMessages: [first, {
+      role: 'tool', content: 'Read({})', messageId: 'append-invalid-2',
+    }] }));
+    expect(container.querySelector('.tool-group-header time')?.className).not.toContain('message-timestamp-flash');
+
+    act(() => useSessionStore.setState({ currentMessages: [first] }));
+    const updatedFirst = { ...first, content: 'Run({"stream":"updated"})' };
+    act(() => useSessionStore.setState({ currentMessages: [updatedFirst] }));
+    expect(container.querySelector('.tool-group-header time')?.className).not.toContain('message-timestamp-flash');
+  });
+
+  it('flashes only the outer NonBody header for an appended nested block', () => {
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    const first: Message = {
+      role: 'thinking', content: 'first thought', messageId: 'nested-think-1', ts: firstTs,
+    };
+    const appended: Message = {
+      role: 'thinking', content: 'second thought', messageId: 'nested-think-2', ts: newestTs,
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    act(() => useSessionStore.setState({ currentMessages: [first, appended] }));
+    const outer = container.querySelector('.non-body-group > button') as HTMLButtonElement;
+    expect(outer.querySelector('time')?.getAttribute('datetime')).toBe(newestTs);
+    expect(outer.querySelector('time')?.className).toContain('message-timestamp-flash');
+    fireEvent.click(outer);
+
+    const inner = container.querySelector('.non-body-group .thinking > button time');
+    expect(inner?.getAttribute('datetime')).toBe(newestTs);
+    expect(inner?.className).not.toContain('message-timestamp-flash');
+  });
+
+  it('does not flash on initial history, prepend, session switch, or filter/layout changes', () => {
+    const first: Message = {
+      role: 'tool', content: 'Run({})', messageId: 'nonflash-1', ts: firstTs,
+    };
+    const taskReport: Message = {
+      role: 'assistant', content: '@@@@by agent : ses_worker | Worker\nfinished',
+      messageId: 'nonflash-task', ts: newestTs,
+    };
+    useAppSettingsStore.setState({ showTaskAgent: true });
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first, taskReport] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 100 }, { index: 1, start: 100, size: 100 }]);
+    const { container } = render(<ChatMessages />);
+
+    const headerTime = () => container.querySelector('.tool-group-header time');
+    expect(headerTime()?.className).not.toContain('message-timestamp-flash');
+    fireEvent.click(container.querySelector('.tool-group-header')!);
+    fireEvent.click(container.querySelector('.tool-group-header')!);
+    expect(headerTime()?.className).not.toContain('message-timestamp-flash');
+
+    act(() => useAppSettingsStore.setState({ showTaskAgent: false, mergeConsecutiveNonBodyBlocks: true }));
+    expect(container.querySelector('.non-body-group > button time')?.className)
+      .not.toContain('message-timestamp-flash');
+
+    const older: Message = { role: 'tool', content: 'Old({})', messageId: 'nonflash-old', ts: '2026-09-26T02:00:00.000Z' };
+    act(() => useSessionStore.setState({ currentMessages: [older, first] }));
+    expect(container.querySelector('.non-body-group > button time')?.className)
+      .not.toContain('message-timestamp-flash');
+
+    const switched: Message = { role: 'tool', content: 'Other({})', messageId: 'nonflash-s2', ts: newestTs };
+    act(() => useSessionStore.setState({ currentSessionId: 's2', currentMessages: [switched] }));
+    expect(container.querySelector('.non-body-group > button time')?.className)
+      .not.toContain('message-timestamp-flash');
+  });
 });
 
 describe('worker report message treatment', () => {

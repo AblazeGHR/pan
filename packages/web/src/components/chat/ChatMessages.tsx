@@ -5,6 +5,8 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 import { filterVisibleMessages } from './messageFilter';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
+import { isValidMessageTs } from '@/utils/messageTimestamp';
+import type { Message } from '@/types';
 import { ArrowDown, Loader2 } from 'lucide-react';
 
 // Keep the follow zone small enough that scrolling up to read older content
@@ -87,6 +89,80 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // deliberately independent of this flag.
   const keepScrollOnSessionSwitch = useAppSettingsStore((s) => s.keepScrollOnSessionSwitch);
 
+  // A timestamp highlight is only enqueued after a same-session tail append.
+  // The anchor check at the previous tail's index rejects prepended history,
+  // while the session check rejects history loaded during a session switch.
+  const [timestampFlashMessages, setTimestampFlashMessages] = useState<ReadonlySet<Message>>(
+    () => new Set(),
+  );
+  const observedMessagesRef = useRef<{
+    sessionId: string | null;
+    length: number;
+    tailIdentity: string | null;
+    initialLoading: boolean;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const previous = observedMessagesRef.current;
+    if (previous && previous.sessionId !== currentSessionId) {
+      setTimestampFlashMessages(new Set());
+    }
+    if (
+      currentSessionId &&
+      !initialLoading &&
+      previous?.sessionId === currentSessionId &&
+      !previous.initialLoading &&
+      previous.length > 0 &&
+      currentMessages.length > previous.length
+    ) {
+      const oldTailAtSameOffset = currentMessages[previous.length - 1];
+      if (
+        oldTailAtSameOffset &&
+        getMessageIdentity(oldTailAtSameOffset) === previous.tailIdentity
+      ) {
+        const appended = filterVisibleMessages(currentMessages.slice(previous.length), {
+          showMetaAgent,
+          showTaskAgent,
+          showQQ,
+        }).filter((message) => message.ts && isValidMessageTs(message.ts));
+        if (appended.length > 0) {
+          setTimestampFlashMessages((current) => new Set([...current, ...appended]));
+        }
+      }
+    }
+
+    const tail = currentMessages[currentMessages.length - 1];
+    observedMessagesRef.current = {
+      sessionId: currentSessionId,
+      length: currentMessages.length,
+      tailIdentity: tail ? getMessageIdentity(tail) : null,
+      initialLoading,
+    };
+  }, [
+    currentMessages,
+    currentSessionId,
+    initialLoading,
+    showMetaAgent,
+    showTaskAgent,
+    showQQ,
+  ]);
+
+  // CSS owns the pulse. This one-shot timeout is only a fallback for virtual
+  // rows that never mount, or reduced-motion CSS where animationend is absent.
+  useEffect(() => {
+    if (timestampFlashMessages.size === 0) return;
+    const timeout = window.setTimeout(() => setTimestampFlashMessages(new Set()), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [timestampFlashMessages]);
+
+  const clearTimestampFlash = useCallback((flashKeys: readonly string[]) => {
+    const consumed = new Set(flashKeys);
+    setTimestampFlashMessages((current) => {
+      const next = new Set([...current].filter((message) => !consumed.has(getMessageIdentity(message))));
+      return next.size === current.size ? current : next;
+    });
+  }, []);
+
   // Frontend-only display filter — currentMessages in the store is never
   // mutated; hidden messages reappear when their toggle is switched back on.
   const visibleMessages = useMemo(
@@ -102,8 +178,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // Preserve the existing separate tool/thinking rows unless the user opts in
   // to one parent disclosure for each adjacent non-body run.
   const grouped = useMemo(
-    () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks),
-    [visibleMessages, mergeConsecutiveNonBodyBlocks],
+    () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages),
+    [visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages],
   );
 
   const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number } | null>(null);
@@ -1007,10 +1083,18 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
                     className="chat-message-jump-highlight"
                     data-index={highlightedTarget.historyIndex ?? vItem.index}
                   >
-                    <MessageDisplayItem item={item} prevRole={prevRole} />
+                    <MessageDisplayItem
+                      item={item}
+                      prevRole={prevRole}
+                      onTimestampFlashConsumed={clearTimestampFlash}
+                    />
                   </div>
                 ) : (
-                  <MessageDisplayItem item={item} prevRole={prevRole} />
+                  <MessageDisplayItem
+                    item={item}
+                    prevRole={prevRole}
+                    onTimestampFlashConsumed={clearTimestampFlash}
+                  />
                 )}
               </div>
             );

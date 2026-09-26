@@ -49,9 +49,18 @@ export function getMessageIdentity(message: Message): string {
   return messageIdentities.get(message)!;
 }
 
-export type ToolGroupDisplayItem = { type: 'tool_group'; items: Message[] };
-export type ThinkingGroupDisplayItem = { type: 'thinking_group'; items: Message[] };
-export type NonBodyGroupDisplayItem = { type: 'non_body_group'; items: Message[] };
+export type TimestampedGroup = {
+  items: Message[];
+  /** Last valid timestamp in display order, computed during the existing grouping pass. */
+  latestTs?: string;
+  /** Identity of a newly appended, timestamped member; only group headers consume it. */
+  flashKey?: string;
+  /** All pending append identities in this group, consumed by one group pulse. */
+  flashKeys?: string[];
+};
+export type ToolGroupDisplayItem = TimestampedGroup & { type: 'tool_group' };
+export type ThinkingGroupDisplayItem = TimestampedGroup & { type: 'thinking_group' };
+export type NonBodyGroupDisplayItem = TimestampedGroup & { type: 'non_body_group' };
 export type GroupDisplayItem = ToolGroupDisplayItem | ThinkingGroupDisplayItem | NonBodyGroupDisplayItem;
 
 /**

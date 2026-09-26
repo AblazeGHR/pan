@@ -2,16 +2,24 @@ import { memo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { Message } from '@/types';
 import { getMessageIdentity } from '@/utils/messageIdentity';
+import { getLatestMessageTs, isValidMessageTs } from '@/utils/messageTimestamp';
 import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
+import { MessageTimestamp } from './MessageTimestamp';
 
 interface NonBodyGroupProps {
   items: Message[];
+  latestTs?: string;
+  timestampsComputed?: boolean;
+  flashKey?: string;
+  flashKeys?: string[];
+  onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
 }
 
 interface ChildGroup {
   role: 'tool' | 'thinking';
   items: Message[];
+  latestTs?: string;
 }
 
 function groupChildren(items: Message[]): ChildGroup[] {
@@ -25,6 +33,7 @@ function groupChildren(items: Message[]): ChildGroup[] {
       groups.push(current);
     }
     current.items.push(item);
+    if (item.ts && isValidMessageTs(item.ts)) current.latestTs = item.ts;
   }
 
   return groups;
@@ -35,7 +44,14 @@ function pluralize(count: number, singular: string): string {
 }
 
 /** One outer disclosure for a contiguous run, preserving existing child groups. */
-export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupProps) {
+export const NonBodyGroup = memo(function NonBodyGroup({
+  items,
+  latestTs,
+  timestampsComputed,
+  flashKey,
+  flashKeys,
+  onTimestampFlashConsumed,
+}: NonBodyGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   if (items.length === 0) return null;
@@ -46,6 +62,10 @@ export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupPr
     toolCount > 0 ? pluralize(toolCount, 'tool') : null,
     thinkingCount > 0 ? pluralize(thinkingCount, 'thinking block') : null,
   ].filter(Boolean).join(' · ');
+  const consumeTimestampFlash = () => {
+    const keys = flashKeys?.length ? flashKeys : flashKey ? [flashKey] : [];
+    if (keys.length > 0) onTimestampFlashConsumed?.(keys);
+  };
 
   return (
     <div className="non-body-group border border-border-default rounded-lg bg-bg-secondary">
@@ -58,6 +78,12 @@ export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupPr
         {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         <span>{items.length} non-body blocks</span>
         <span className="text-text-tertiary">{summary}</span>
+        <MessageTimestamp
+          ts={timestampsComputed ? latestTs : (latestTs ?? getLatestMessageTs(items))}
+          flashKey={flashKey}
+          onFlashConsumed={consumeTimestampFlash}
+          className="ml-auto"
+        />
       </button>
       {isOpen && (
         <div data-testid="non-body-group-window" className="flex flex-col gap-2 px-2 pb-2 max-h-[20rem] overflow-y-auto">
@@ -65,8 +91,8 @@ export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupPr
             const firstItem = group.items[0]!;
             const key = `${group.role}:${getMessageIdentity(firstItem)}`;
             return group.role === 'tool'
-              ? <ToolGroup key={key} items={group.items} />
-              : <ThinkingGroup key={key} items={group.items} />;
+              ? <ToolGroup key={key} items={group.items} latestTs={group.latestTs} timestampsComputed />
+              : <ThinkingGroup key={key} items={group.items} latestTs={group.latestTs} timestampsComputed />;
           })}
         </div>
       )}
