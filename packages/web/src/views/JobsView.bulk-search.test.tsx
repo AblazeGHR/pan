@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   fetchJob: vi.fn(),
   fetchJobKinds: vi.fn(),
   fetchJobRuns: vi.fn(),
+  fetchCompletedJobRetentionSettings: vi.fn(),
+  updateCompletedJobRetentionSettings: vi.fn(),
   patchJob: vi.fn(),
   deleteJob: vi.fn(),
 }));
@@ -20,6 +22,8 @@ vi.mock('@/services/api', () => ({
   fetchJob: api.fetchJob,
   fetchJobKinds: api.fetchJobKinds,
   fetchJobRuns: api.fetchJobRuns,
+  fetchCompletedJobRetentionSettings: api.fetchCompletedJobRetentionSettings,
+  updateCompletedJobRetentionSettings: api.updateCompletedJobRetentionSettings,
   patchJob: api.patchJob,
   deleteJob: api.deleteJob,
   createJob: vi.fn(),
@@ -103,6 +107,16 @@ describe('JobsView search, status filters, and bulk actions', () => {
       { kind: 'scheduled-task', label: '定时任务', hasSchedule: true, hasProcess: false },
     ]);
     api.fetchJobRuns.mockResolvedValue([]);
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue({
+      settings: { enabled: false, days: 30 },
+      configValid: true,
+      lastRun: null,
+    });
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (settings) => ({
+      settings,
+      configValid: true,
+      lastRun: null,
+    }));
   });
 
   afterEach(() => {
@@ -145,6 +159,65 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(screen.getByText('timed_out').className).toContain('text-danger');
     expect(screen.queryByText('Ordinary failure')).toBeNull();
     expect(screen.queryByText('Completed lifecycle')).toBeNull();
+  });
+
+  it('loads retention settings from the server and saves the edited values', async () => {
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue({
+      settings: { enabled: true, days: 12 },
+      configValid: true,
+      lastRun: {
+        scannedAt: '2026-09-27T01:00:00+00:00',
+        scanned: 9,
+        deleted: 4,
+        skipped: 1,
+      },
+    });
+    api.updateCompletedJobRetentionSettings.mockResolvedValue({
+      settings: { enabled: true, days: 14 },
+      configValid: true,
+      lastRun: {
+        scannedAt: '2026-09-27T01:00:00+00:00',
+        scanned: 9,
+        deleted: 4,
+        skipped: 1,
+      },
+    });
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const daysInput = await screen.findByRole('spinbutton', { name: 'Keep completed Jobs for days' });
+    expect((daysInput as HTMLInputElement).value).toBe('12');
+    expect((screen.getByRole('checkbox', { name: 'Enable automatic cleanup' }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/deleted 4/).textContent).toContain('deleted 4');
+    expect(api.fetchCompletedJobRetentionSettings).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(daysInput, { target: { value: '14' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({
+      enabled: true,
+      days: 14,
+    }));
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('shows settings load and save errors', async () => {
+    api.fetchCompletedJobRetentionSettings.mockRejectedValueOnce(new Error('settings unavailable'));
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('settings unavailable');
+
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce({
+      settings: { enabled: false, days: 30 },
+      configValid: true,
+      lastRun: null,
+    });
+    api.updateCompletedJobRetentionSettings.mockRejectedValueOnce(new Error('save failed'));
+    cleanup();
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByRole('spinbutton', { name: 'Keep completed Jobs for days' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('save failed');
   });
 
   it('combines case-insensitive name, ID, and description search with status and kind filters', async () => {

@@ -25,6 +25,7 @@ from typing import Any
 
 from packages.core import session as _sessions
 from packages.core import worker as _worker
+from packages.core import config as _config
 from packages.jobs import cron as _job_cron
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,8 @@ DEFAULT_ROOT = PROJECT_ROOT / "data" / "background_jobs"
 _lock = threading.RLock()
 _recovery_task: asyncio.Task | None = None
 _stop_recovery = asyncio.Event()
+COMPLETED_RETENTION_SCAN_INTERVAL_SEC = 24 * 60 * 60
+_completed_retention_hooks: dict[str, Any] = {"on_deleted": None}
 
 # The registry is shared by the generic background-process Jobs and the small
 # number of service lifecycle Jobs.  Keep the latter deliberately data-only:
@@ -1142,6 +1145,190 @@ def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
         return True
 
 
+def register_completed_job_retention(*, on_deleted=None) -> None:
+    """Register the Jobs API event callback used by automatic retention."""
+    if callable(on_deleted):
+        _completed_retention_hooks["on_deleted"] = on_deleted
+
+
+def _retention_marker_path(registry_root: str | Path) -> Path:
+    return Path(registry_root) / "jobs" / ".completed-retention.json"
+
+
+def _valid_updated_at(value: Any) -> float | None:
+    # Job records persist updatedAt as Unix seconds. Reject bools, strings,
+    # NaN, infinities, and malformed/missing values so they are retained.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        result = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _completed_job_is_expired(job: dict, cutoff: float) -> bool:
+    if not isinstance(job, dict) or job.get("status") != "completed":
+        return False
+    updated_at = _valid_updated_at(job.get("updatedAt"))
+    return updated_at is not None and updated_at <= cutoff
+
+
+def cleanup_completed_jobs(*, registry_root: str | Path,
+                           retention_days: int,
+                           now: float | None = None) -> dict:
+    """Delete expired completed records after rechecking each under its lock.
+
+    This helper scans one registry but does not apply the daily scheduling
+    gate. It intentionally leaves logs/runs untouched, matching manual Job
+    deletion, and delegates scheduled-shell safety checks to the same guard.
+    """
+    if (type(retention_days) is not int
+            or not (_config.COMPLETED_JOB_RETENTION_MIN_DAYS
+                    <= retention_days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS)):
+        raise ValueError("retention_days is outside the supported range")
+    now = time.time() if now is None else float(now)
+    if not math.isfinite(now):
+        raise ValueError("now must be finite")
+    cutoff = now - retention_days * 24 * 60 * 60
+    candidates = list_jobs(registry_root)
+    deleted = 0
+    skipped = 0
+    on_deleted = _completed_retention_hooks.get("on_deleted")
+
+    for candidate in candidates:
+        if not _completed_job_is_expired(candidate, cutoff):
+            continue
+        job_id = candidate.get("jobId")
+        if not isinstance(job_id, str):
+            skipped += 1
+            continue
+        try:
+            with _lock, _job_lock(job_id, registry_root):
+                path = _job_path(job_id, registry_root)
+                current = _load_path(path)
+                if not _completed_job_is_expired(current, cutoff):
+                    skipped += 1
+                    continue
+                action = current.get("action")
+                if (current.get("kind") == SCHEDULED_TASK_KIND
+                        and isinstance(action, dict)
+                        and action.get("api") == "shell"):
+                    if (current.get("status") == "running"
+                            or any(child.get("scheduledParentJobId") == job_id
+                                   and child.get("status") in {"starting", "running"}
+                                   for child in list_jobs(registry_root))):
+                        skipped += 1
+                        continue
+                try:
+                    path.unlink()
+                except OSError:
+                    skipped += 1
+                    continue
+            deleted += 1
+            if callable(on_deleted):
+                try:
+                    on_deleted(job_id)
+                except Exception:
+                    pass
+        except (OSError, ValueError):
+            # Missing/corrupt records and active scheduled shell children are
+            # retained; a later daily pass may retry if the state changes.
+            skipped += 1
+
+    return {
+        "scannedAt": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        "scanned": len(candidates),
+        "deleted": deleted,
+        "skipped": skipped,
+    }
+
+
+def _read_retention_marker(path: Path) -> dict:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def completed_job_retention_status() -> dict:
+    """Return the newest persisted automatic-cleanup result, if one exists."""
+    roots = {_root()}
+    scheduled_root = _scheduled_task_root()
+    if scheduled_root is not None:
+        roots.add(scheduled_root)
+    results = []
+    for root in roots:
+        marker = _read_retention_marker(_retention_marker_path(root))
+        last_run = marker.get("lastRun")
+        if isinstance(last_run, dict) and isinstance(last_run.get("scannedAt"), str):
+            results.append(last_run)
+    results.sort(key=lambda value: value["scannedAt"], reverse=True)
+    return {"lastRun": results[0] if results else None}
+
+
+def run_completed_job_retention(*, now: float | None = None) -> dict:
+    """Hot-read settings and serialize cleanup against setting changes."""
+    now = time.time() if now is None else float(now)
+    if not math.isfinite(now):
+        raise ValueError("now must be finite")
+    # The PUT handler takes the same cross-process config lock. A disable
+    # request therefore cannot finish while a cleanup pass still uses the
+    # previous enabled value.
+    with _registry_lock("completed_retention_config"):
+        return _run_completed_job_retention_locked(now)
+
+
+def _run_completed_job_retention_locked(now: float) -> dict:
+    """Run at most once per 24 hours per registry root."""
+    try:
+        config = _config.load_config()
+        settings, valid = _config.completed_job_retention_settings(config)
+    except Exception:
+        settings, valid = dict(_config.COMPLETED_JOB_RETENTION_DEFAULT), False
+    enabled = valid and settings["enabled"] is True
+
+    roots = {_root()}
+    scheduled_root = _scheduled_task_root()
+    if scheduled_root is not None:
+        roots.add(scheduled_root)
+
+    totals = {"scannedAt": None, "scanned": 0, "deleted": 0, "skipped": 0}
+    for root in roots:
+        marker_path = _retention_marker_path(root)
+        with _registry_lock("completed_retention_daily", root):
+            marker = _read_retention_marker(marker_path)
+            if not enabled:
+                # Remember disable transitions so a later hot enable runs
+                # promptly, without scanning records while disabled.
+                if marker.get("enabled") is not False:
+                    marker["enabled"] = False
+                    _atomic_write(marker_path, marker)
+                continue
+
+            last_epoch = marker.get("lastRunEpoch")
+            if (not isinstance(last_epoch, bool)
+                    and isinstance(last_epoch, (int, float))
+                    and math.isfinite(float(last_epoch))
+                    and now - float(last_epoch) < COMPLETED_RETENTION_SCAN_INTERVAL_SEC):
+                if marker.get("enabled") is not True:
+                    marker["enabled"] = True
+                    _atomic_write(marker_path, marker)
+                continue
+
+            result = cleanup_completed_jobs(
+                registry_root=root, retention_days=settings["days"], now=now)
+            marker.update({"enabled": True, "lastRunEpoch": now,
+                           "lastRun": result})
+            _atomic_write(marker_path, marker)
+            totals["scannedAt"] = result["scannedAt"]
+            totals["scanned"] += result["scanned"]
+            totals["deleted"] += result["deleted"]
+            totals["skipped"] += result["skipped"]
+    return totals
+
+
 # ── runs.jsonl（泛化执行历史，scheduled-task 首个消费者）──
 
 
@@ -2247,6 +2434,11 @@ async def recover_notifications() -> int:
                     current["updatedAt"] = time.time()
                     _atomic_write(_job_path(current["jobId"], root), current)
                     delivered += 1
+    try:
+        run_completed_job_retention()
+    except Exception:
+        # Retention must not stall notification delivery or the scheduler loop.
+        pass
     return delivered
 
 

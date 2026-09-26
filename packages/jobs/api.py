@@ -30,6 +30,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from packages.core import background_jobs
+from packages.core import config as _config
 from packages.jobs import cron as _job_cron
 from packages.jobs import templates as _job_templates
 
@@ -44,6 +45,8 @@ _state: dict = {"broadcast": None}
 def bind(broadcast=None) -> None:
     """注入 WS 广播函数（server.py 启动时调用）。"""
     _state["broadcast"] = broadcast
+    background_jobs.register_completed_job_retention(
+        on_deleted=lambda job_id: _emit({"type": "job.deleted", "jobId": job_id}))
 
 
 def _ok(**payload):
@@ -128,6 +131,65 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
     jobs.sort(key=lambda j: (_KIND_ORDER.get(str(j.get("status")), 9),
                              str(j.get("updatedAt") or "")), reverse=False)
     return _ok(jobs=jobs)
+
+
+def _completed_retention_settings() -> tuple[dict, bool]:
+    try:
+        return _config.completed_job_retention_settings(_config.load_config())
+    except Exception:
+        return dict(_config.COMPLETED_JOB_RETENTION_DEFAULT), False
+
+
+@router.get("/settings/completed-retention")
+async def get_completed_retention_settings():
+    """Read completed-Job retention settings and the last automatic pass."""
+    settings, config_valid = _completed_retention_settings()
+    return _ok(settings=settings, configValid=config_valid,
+               lastRun=background_jobs.completed_job_retention_status()["lastRun"])
+
+
+@router.put("/settings/completed-retention")
+async def put_completed_retention_settings(data: dict):
+    """Update only the completed-retention config keys, preserving other config."""
+    allowed = {"enabled", "days"}
+    unknown = set(data) - allowed
+    if unknown:
+        return _err("invalid_argument", "Only enabled and days may be updated")
+    if not data:
+        return _err("invalid_argument", "Provide enabled and/or days")
+    if "enabled" in data and type(data["enabled"]) is not bool:
+        return _err("invalid_argument", "enabled must be a boolean")
+    if "days" in data:
+        days = data["days"]
+        if (type(days) is not int
+                or not (_config.COMPLETED_JOB_RETENTION_MIN_DAYS
+                        <= days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS)):
+            return _err("invalid_argument", "days must be an integer between 1 and 36500")
+
+    with background_jobs._registry_lock("completed_retention_config"):
+        raw = _config.read_config_file()
+        jobs = raw.get("jobs", {})
+        if not isinstance(jobs, dict):
+            return _err("invalid_config", "config.json jobs must be an object")
+        jobs = dict(jobs)
+        retention = jobs.get("completedRetention", {})
+        if not isinstance(retention, dict):
+            return _err("invalid_config", "config.json jobs.completedRetention must be an object")
+        retention = dict(retention)
+        retention.update(data)
+        _, section_valid = _config.completed_job_retention_settings(
+            {"jobs": {"completedRetention": retention}})
+        if not section_valid:
+            return _err("invalid_config", "Existing retention settings are invalid; update the invalid field first")
+        jobs["completedRetention"] = retention
+        raw["jobs"] = jobs
+        try:
+            _config.save_config(raw)
+        except OSError as exc:
+            return _err("persistence_failed", str(exc))
+    settings, config_valid = _completed_retention_settings()
+    return _ok(settings=settings, configValid=config_valid,
+               lastRun=background_jobs.completed_job_retention_status()["lastRun"])
 
 
 def _session_exists(session_id: str) -> bool:

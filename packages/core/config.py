@@ -65,6 +65,13 @@ DEFAULT_CONFIG: dict = {
         # cron 求值所用的默认时区（任务 schedule 未指定 timezone 时用）
         "default_timezone": "Asia/Shanghai",
     },
+    # Retention rules for the unified Jobs registry. Disabled by default.
+    "jobs": {
+        "completedRetention": {
+            "enabled": False,
+            "days": 30,
+        },
+    },
     # 本地日志（main.py 启动时配置）：文件大小/天轮转 + console 双输出
     "logging": {
         # 日志级别：DEBUG/INFO/WARNING/ERROR
@@ -174,6 +181,48 @@ DEFAULT_CONFIG: dict = {
         },
     },
 }
+
+COMPLETED_JOB_RETENTION_MIN_DAYS = 1
+COMPLETED_JOB_RETENTION_MAX_DAYS = 36500
+COMPLETED_JOB_RETENTION_DEFAULT = {"enabled": False, "days": 30}
+
+
+def completed_job_retention_settings(config: dict | None = None) -> tuple[dict, bool]:
+    """Return safe retention settings and whether the persisted values are valid.
+
+    Missing keys use the defaults for old config files. Explicitly malformed
+    values are reported as invalid and resolve to safe defaults; in
+    particular, malformed enable flags can never turn automatic deletion on.
+    """
+    if config is None:
+        config = load_config()
+    if not isinstance(config, dict):
+        return dict(COMPLETED_JOB_RETENTION_DEFAULT), False
+    jobs = config.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return dict(COMPLETED_JOB_RETENTION_DEFAULT), False
+    section = jobs.get("completedRetention", {})
+    if not isinstance(section, dict):
+        return dict(COMPLETED_JOB_RETENTION_DEFAULT), False
+
+    settings = dict(COMPLETED_JOB_RETENTION_DEFAULT)
+    valid = True
+    if "enabled" in section:
+        if type(section["enabled"]) is bool:
+            settings["enabled"] = section["enabled"]
+        else:
+            valid = False
+    if "days" in section:
+        days = section["days"]
+        if (type(days) is int
+                and COMPLETED_JOB_RETENTION_MIN_DAYS <= days
+                <= COMPLETED_JOB_RETENTION_MAX_DAYS):
+            settings["days"] = days
+        else:
+            valid = False
+    if not valid:
+        settings["enabled"] = False
+    return settings, valid
 
 
 def _python_argv_from_value(value, source: str) -> tuple[list[str] | None, str | None]:

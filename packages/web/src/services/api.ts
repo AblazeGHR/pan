@@ -1453,6 +1453,65 @@ interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: Sch
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
 interface ApiJobDeleteResponse { ok?: boolean; deleted?: boolean; jobId?: string; error?: SchedulerApiError; }
 
+export interface CompletedJobRetentionRun {
+  scannedAt: string;
+  scanned: number;
+  deleted: number;
+  skipped: number;
+}
+
+export interface CompletedJobRetentionSettings {
+  enabled: boolean;
+  days: number;
+}
+
+interface ApiCompletedJobRetentionResponse {
+  ok?: boolean;
+  settings?: CompletedJobRetentionSettings;
+  configValid?: boolean;
+  lastRun?: CompletedJobRetentionRun | null;
+  error?: SchedulerApiError;
+}
+
+/** GET /api/jobs/settings/completed-retention. */
+export async function fetchCompletedJobRetentionSettings(): Promise<{
+  settings: CompletedJobRetentionSettings;
+  configValid: boolean;
+  lastRun: CompletedJobRetentionRun | null;
+}> {
+  const data = await request<ApiCompletedJobRetentionResponse>(
+    `${BASE}/jobs/settings/completed-retention`,
+  );
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.settings) throw new Error('Completed-Job retention settings missing');
+  return {
+    settings: data.settings,
+    configValid: data.configValid === true,
+    lastRun: data.lastRun ?? null,
+  };
+}
+
+/** PUT /api/jobs/settings/completed-retention. */
+export async function updateCompletedJobRetentionSettings(
+  settings: CompletedJobRetentionSettings,
+): Promise<{
+  settings: CompletedJobRetentionSettings;
+  configValid: boolean;
+  lastRun: CompletedJobRetentionRun | null;
+}> {
+  const data = await request<ApiCompletedJobRetentionResponse>(
+    `${BASE}/jobs/settings/completed-retention`,
+    { method: 'PUT', body: JSON.stringify(settings) },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.settings) throw new Error('Completed-Job retention settings missing');
+  return {
+    settings: data.settings,
+    configValid: data.configValid === true,
+    lastRun: data.lastRun ?? null,
+  };
+}
+
 /** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(): Promise<Job[]> {
   const data = await request<ApiJobsResponse>(`${BASE}/jobs`);
