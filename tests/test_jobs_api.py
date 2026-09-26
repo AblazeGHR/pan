@@ -60,6 +60,26 @@ def fake_worker(monkeypatch):
 
 
 @pytest.fixture
+def fake_session_repository(monkeypatch, tmp_path):
+    """Register lightweight Sessions through the same repository used by APIs."""
+    from packages.core import session as sess
+
+    sessions = {}
+    monkeypatch.setattr(
+        sess, "get",
+        lambda session_id, *args, **kwargs: sessions.get(session_id),
+    )
+
+    def register(*session_ids):
+        for session_id in session_ids:
+            sessions[session_id] = sess.Session(
+                id=session_id, name=session_id, workdir=str(tmp_path))
+        return sessions
+
+    return register
+
+
+@pytest.fixture
 def client():
     app = FastAPI()
     app.include_router(jobs_api.router)
@@ -178,7 +198,9 @@ def test_patch_blank_name_rejected(client):
     assert body["error"]["code"] == "invalid_argument"
 
 
-def test_patch_target_switch_updates_flat_and_struct(client, fake_worker):
+def test_patch_target_switch_updates_flat_and_struct(
+        client, fake_worker, fake_session_repository):
+    fake_session_repository("ses_t1", "ses_t2")
     task = _make_scheduled_task()
     job = scheduler_store._job_for_task(task["id"])
     body = client.patch(f"/api/jobs/{job['jobId']}",
@@ -237,6 +259,12 @@ def test_action_template_unknown_falls_back_to_assign(client, fake_worker):
     _make_scheduled_task()
     job = scheduler_store._job_for_task(
         scheduler_store.list_tasks()[0]["id"])
+    rejected = client.patch(
+        f"/api/jobs/{job['jobId']}",
+        json={"action": {"api": "create_session"}},
+    ).json()
+    assert rejected["ok"] is False
+    assert rejected["error"]["code"] == "invalid_argument"
     jobs._update(job["jobId"], {
         "action": {"api": "create_session", "args": {}},
         "schedule": [{**job["schedule"][0],
@@ -380,18 +408,29 @@ def test_post_creates_scheduled_task_multi_entry(client, monkeypatch):
     assert scheduler_store.get_task(job["taskId"])["target_session_id"] == "ses_new"
 
 
-def test_post_rejects_other_kinds_and_empty_schedule(client, monkeypatch):
-    monkeypatch.setattr(jobs_api, "_session_exists", lambda sid: True)
+def test_post_accepts_session_message_and_rejects_empty_schedule(
+        client, fake_session_repository):
+    fake_session_repository("s")
     body = client.post("/api/jobs", json={
         "kind": "session-message", "target": {"sessionId": "s"},
-        "text": "x", "schedule": {"kind": "interval", "intervalSec": 60}}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "invalid_argument"
+        "text": "x", "schedule": {"type": "interval", "intervalSeconds": 60}}).json()
+    assert body["ok"] is True, body
+    assert body["job"]["kind"] == jobs.SESSION_MESSAGE_KIND
+    assert body["job"]["schedule"] == {"type": "interval", "intervalSeconds": 60}
+
     body = client.post("/api/jobs", json={
         "kind": "scheduled-task", "target": {"sessionId": "s"},
         "text": "x", "schedule": []}).json()
     assert body["ok"] is False
     assert body["error"]["code"] == "invalid_schedule"
+
+    unknown_action = client.post("/api/jobs", json={
+        "kind": "scheduled-task", "action": {"api": "create_session"},
+        "target": {"sessionId": "s"}, "text": "x",
+        "schedule": {"kind": "interval", "intervalSec": 60},
+    }).json()
+    assert unknown_action["ok"] is False
+    assert unknown_action["error"]["code"] == "invalid_argument"
 
 
 def test_post_requires_existing_session(client):

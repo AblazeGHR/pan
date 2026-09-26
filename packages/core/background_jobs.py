@@ -1296,8 +1296,9 @@ async def _run_job_action(job: dict, target: str | None,
         }
     if api == "send_session":
         return await _worker.send_session(target, text, source="automation")
-    if api != "assign":
-        return {"status": "error", "result": f"unsupported action.api: {api}"}
+    # Keep legacy persisted action templates readable. Public create/PATCH
+    # endpoints validate action.api strictly, but older records with an
+    # unknown API historically fell back to assign.
     return await _worker.assign(target, text, source="automation",
                                 task_id=dispatch_key)
 

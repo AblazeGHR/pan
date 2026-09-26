@@ -111,16 +111,16 @@ describe('JobsView schedule payload compatibility', () => {
     expect(await screen.findByText('legacy schedule value')).toBeTruthy();
   });
 
-  it('renders object schedule returned from a REST action without changing its shape', async () => {
+  it('keeps a message Job object schedule read-only without pause controls', async () => {
     const record = job();
     api.fetchJobs.mockResolvedValue([record]);
     api.fetchJob.mockResolvedValue(record);
-    api.patchJob.mockResolvedValue({ ...record, paused: true });
     renderView();
     fireEvent.click(await screen.findByText('Reminder'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Pause' }));
 
-    await waitFor(() => expect(api.patchJob).toHaveBeenCalledWith('job_message', { paused: true }));
+    expect(await screen.findByRole('dialog', { name: 'Job detail' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(api.patchJob).not.toHaveBeenCalled();
     expect(screen.getByText(/weekly/)).toBeTruthy();
   });
 
