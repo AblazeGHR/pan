@@ -802,6 +802,21 @@ def _history_page_from_jsonl(
     return list(page), total
 
 
+def _history_file_signature(path: Path) -> tuple[int, int, int, int, int] | None:
+    """Return a signature that changes when the companion history file does."""
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_size,
+        stat.st_mtime_ns,
+        stat.st_ctime_ns,
+    )
+
+
 def history_page(session_id: str, *, before: int = 0,
                  limit: int = 50) -> dict | None:
     """Return a bounded history page while keeping cold Sessions shallow.
@@ -809,9 +824,11 @@ def history_page(session_id: str, *, before: int = 0,
     A fully hydrated Session is served from its in-memory history so unsaved
     worker appends remain visible.  A shallow/cold Session reads only the
     requested tail window from the companion JSONL and never replaces the
-    cached shallow object with the complete history.  This is the read/page
-    boundary for Manage/session-history callers; explicit ``get()`` remains the
-    compatibility full-history API.
+    cached shallow object with the complete history. Repeated tail requests
+    reuse one bounded page while the file signature is unchanged; appends and
+    replacements invalidate it. This is the read/page boundary for
+    Manage/session-history callers; explicit ``get()`` remains the compatibility
+    full-history API.
     """
     try:
         bounded_limit = max(1, min(int(limit), HISTORY_PAGE_MAX))
@@ -858,12 +875,40 @@ def history_page(session_id: str, *, before: int = 0,
             _projection_value(projection, "history_total")
             if is_complete_summary_projection(projection) else None
         )
-        page, total = _history_page_from_jsonl(
-            history_path, before=requested_before, limit=bounded_limit,
-            known_total=known_total,
+        cacheable_tail = (
+            cached is not None
+            and requested_before <= 0
+            and _is_nonnegative_int(known_total)
         )
-        effective_before = total if requested_before <= 0 else min(requested_before, total)
-        start = max(0, effective_before - min(bounded_limit, len(page)))
+        signature = _history_file_signature(history_path) if cacheable_tail else None
+        cache_key = (signature, known_total, bounded_limit)
+        page_cache = getattr(cached, "_history_tail_page_cache", None)
+        if (signature is not None and isinstance(page_cache, tuple)
+                and page_cache[:3] == cache_key):
+            _, _, _, cached_page_json, total, start = page_cache
+            # Decode a private JSON snapshot for each caller. History rows are
+            # JSON-shaped already, and the C decoder avoids a Python-level
+            # deepcopy walk on every request while preserving nested isolation.
+            page = json.loads(cached_page_json)
+        else:
+            page, total = _history_page_from_jsonl(
+                history_path, before=requested_before, limit=bounded_limit,
+                known_total=known_total,
+            )
+            effective_before = (
+                total if requested_before <= 0 else min(requested_before, total)
+            )
+            start = max(0, effective_before - min(bounded_limit, len(page)))
+            if signature is not None and _history_file_signature(history_path) == signature:
+                # Retain a private serialized snapshot. It prevents downstream
+                # caller mutations from aliasing the cache and makes cache hits
+                # cheaper than repeated Python deepcopy walks.
+                cached._history_tail_page_cache = (
+                    *cache_key,
+                    json.dumps(page, ensure_ascii=False, separators=(",", ":")),
+                    total,
+                    start,
+                )
     else:
         raw_history = data.get("history")
         rows = raw_history if isinstance(raw_history, list) else []

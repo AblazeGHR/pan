@@ -63,8 +63,11 @@ def main() -> None:
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
     args = parser.parse_args()
-    if args.port not in {8767, 8765}:
-        raise SystemExit("isolated E2E server accepts only port 8767 or 8765")
+    allowed_ephemeral_port = (
+        1024 <= args.port <= 65535 and args.port not in {8767, 8768})
+    if args.port not in {8767, 8765} and not allowed_ephemeral_port:
+        raise SystemExit(
+            "isolated E2E server accepts only ports 8765/8767 or an ephemeral port")
 
     data_root = args.data_root.resolve()
     data_root.mkdir(parents=True, exist_ok=True)

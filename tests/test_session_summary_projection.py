@@ -52,6 +52,25 @@ def test_summary_cold_list_does_not_load_history_config_or_attachment_io(
     assert summary["summaryRevision"] >= 1000
 
 
+def test_full_session_list_loads_dynamic_config_once_per_response(monkeypatch):
+    first = _new_session("full list one")
+    second = _new_session("full list two")
+    config = server.load_config()
+    calls = 0
+
+    def load_config_once():
+        nonlocal calls
+        calls += 1
+        return config
+
+    monkeypatch.setattr(server, "load_config", load_config_once)
+
+    response = asyncio.run(server.api_list_sessions(summary=0))
+
+    assert {item["id"] for item in response["sessions"]} == {first.id, second.id}
+    assert calls == 1
+
+
 def test_legacy_disk_session_uses_conservative_tail_fallback_without_migration(
     monkeypatch,
 ):
