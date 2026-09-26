@@ -59,6 +59,22 @@ const job = (overrides: Partial<Job> = {}): Job => ({
   ...overrides,
 });
 
+const scheduledJob = (overrides: Partial<Job> = {}): Job =>
+  job({
+    kind: 'scheduled-task',
+    status: 'scheduled',
+    schedule: [
+      {
+        id: 'entry-1',
+        kind: 'interval',
+        intervalSec: 3600,
+        enabled: true,
+        nextFireAt: '2026-09-27T09:00:00',
+      },
+    ],
+    ...overrides,
+  });
+
 function renderView() {
   return render(
     <MemoryRouter>
@@ -236,9 +252,9 @@ describe('JobsView search, status filters, and bulk actions', () => {
 
   it('pauses unpaused jobs with paused=true, reports partial failure, and retries only failures', async () => {
     const jobs = [
-      job({ jobId: 'pause-ok', name: 'Pause OK', paused: false }),
-      job({ jobId: 'pause-fail', name: 'Pause Fail', paused: false }),
-      job({ jobId: 'already-paused', name: 'Already Paused', paused: true }),
+      scheduledJob({ jobId: 'pause-ok', name: 'Pause OK', paused: false }),
+      scheduledJob({ jobId: 'pause-fail', name: 'Pause Fail', paused: false }),
+      scheduledJob({ jobId: 'already-paused', name: 'Already Paused', paused: true }),
     ];
     api.fetchJobs.mockResolvedValue(jobs);
     api.patchJob.mockImplementation(async (id: string) => {
@@ -254,7 +270,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(await screen.findByText('Pause OK')).toBeTruthy();
     enterSelectionMode();
     selectAllVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Pause selected' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pause scheduled tasks' }));
 
     expect(await screen.findByText(/Pause: 2 succeeded, 1 failed/)).toBeTruthy();
     expect(api.patchJob).toHaveBeenCalledTimes(2);
@@ -270,7 +286,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
   });
 
   it('blocks duplicate bulk submission while per-job pause requests are pending', async () => {
-    const pendingJob = job({ jobId: 'pending-pause', name: 'Pending pause' });
+    const pendingJob = scheduledJob({ jobId: 'pending-pause', name: 'Pending pause' });
     let resolvePatch: ((value: Job) => void) | undefined;
     api.fetchJobs.mockResolvedValue([pendingJob]);
     api.patchJob.mockImplementation(
@@ -283,7 +299,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(await screen.findByText('Pending pause')).toBeTruthy();
     enterSelectionMode();
     selectAllVisible();
-    const pauseButton = screen.getByRole('button', { name: 'Pause selected' });
+    const pauseButton = screen.getByRole('button', { name: 'Pause scheduled tasks' });
     fireEvent.click(pauseButton);
     fireEvent.click(pauseButton);
 

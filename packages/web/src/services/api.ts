@@ -1419,7 +1419,7 @@ export async function fetchJob(jobId: string): Promise<Job> {
   return data.job;
 }
 
-/** POST /api/jobs — 创建（本期仅 scheduled-task）。 */
+/** POST /api/jobs — creates one of the kinds advertised as creatable by /api/jobs/kinds. */
 export async function createJob(input: JobCreateInput): Promise<Job> {
   const data = await request<ApiJobResponse>(`${BASE}/jobs`, {
     method: 'POST',
@@ -1430,7 +1430,7 @@ export async function createJob(input: JobCreateInput): Promise<Job> {
   return data.job;
 }
 
-/** PATCH /api/jobs/{id} — name/description/enabled/paused/target/schedule。 */
+/** PATCH /api/jobs/{id} — kind-specific editable fields; unsupported fields are rejected. */
 export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job> {
   const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
     method: 'PATCH',
@@ -1459,7 +1459,7 @@ export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRec
   return data.runs || [];
 }
 
-/** POST /api/jobs/{id}/run-now — 手动触发（仅 scheduled-task）。 */
+/** POST /api/jobs/{id}/run-now — manually trigger a scheduled-task action. */
 export async function runJobNow(jobId: string): Promise<Job> {
   const data = await request<ApiJobResponse>(
     `${BASE}/jobs/${encodeURIComponent(jobId)}/run-now`,

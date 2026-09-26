@@ -129,13 +129,32 @@ function scheduleKindLabel(kind: string): string {
 }
 
 function RunRow({ run }: { run: JobRunRecord }) {
+  const result = run.result;
+  const hasDetails = result != null || !!run.log_path || run.exit_code != null;
   return (
-    <div className="flex items-center justify-between gap-2 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="font-mono text-text-tertiary">{formatDateTime(run.fire_at ?? null)}</span>
-        {run.error && <span className="truncate text-danger">{run.error}</span>}
+    <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-mono text-text-tertiary">{formatDateTime(run.fire_at ?? null)}</span>
+          {run.error && <span className="truncate text-danger">{run.error}</span>}
+        </div>
+        <StatusBadge status={run.status ?? 'unknown'} />
       </div>
-      <StatusBadge status={run.status ?? 'unknown'} />
+      {hasDetails && (
+        <details className="text-text-tertiary">
+          <summary className="cursor-pointer">Execution details</summary>
+          <div className="mt-1 flex flex-col gap-1">
+            {run.process_job_id && <div>Process Job: <code>{run.process_job_id}</code></div>}
+            {run.exit_code != null && <div>Exit code: {run.exit_code}</div>}
+            {run.log_path && <div className="break-all">Log: <code>{run.log_path}</code></div>}
+            {result != null && (
+              <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-text-secondary">
+                {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+              </pre>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -182,14 +201,24 @@ export function JobDetailDrawer({
   const isUndeliverable = job.lastStatus === 'undeliverable' || backlog.length > 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
+  const canRunNow = job.action?.api === 'shell' || hasTarget;
+  const terminalMessage = (
+    (job.kind === 'session-message' || job.kind === 'session-broadcast')
+    && ['completed', 'failed', 'cancelled'].includes(job.status)
+  );
+  const canChangeTarget = job.kind === 'scheduled-task'
+    || (job.kind === 'session-message' && !terminalMessage)
+    || job.kind === 'background-process';
+  const canEdit = !terminalMessage;
   const schedule = scheduleEntries(job.schedule);
   const legacyScheduleText = !Array.isArray(job.schedule) && job.schedule != null
     ? typeof job.schedule === 'string' ? job.schedule : JSON.stringify(job.schedule)
     : null;
 
+  const logPath = job.logPath ?? job.lastDelivery?.logPath ?? null;
   const copyLogPath = async () => {
     try {
-      await navigator.clipboard.writeText(job.logPath ?? '');
+      await navigator.clipboard.writeText(logPath ?? '');
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -246,30 +275,34 @@ export function JobDetailDrawer({
                 <button
                   type="button"
                   onClick={onRunNow}
-                  disabled={!hasTarget}
-                  title={hasTarget ? undefined : '无 target，无法立即派发'}
+                  disabled={!canRunNow}
+                  title={canRunNow ? undefined : '无 target，无法立即派发'}
                   className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
                 >
                   <Play size={12} />
                   Run now
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onTogglePaused}
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              >
-                {job.paused ? <Play size={12} /> : <Pause size={12} />}
-                {job.paused ? 'Resume' : 'Pause'}
-              </button>
-              <button
-                type="button"
-                onClick={onChangeTarget}
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              >
-                <Target size={12} />
-                Change target
-              </button>
+              {isScheduledTask && (
+                <button
+                  type="button"
+                  onClick={onTogglePaused}
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  {job.paused ? <Play size={12} /> : <Pause size={12} />}
+                  {job.paused ? 'Resume' : 'Pause'}
+                </button>
+              )}
+              {canChangeTarget && (
+                <button
+                  type="button"
+                  onClick={onChangeTarget}
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <Target size={12} />
+                  Change target
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onDelete}
@@ -278,14 +311,16 @@ export function JobDetailDrawer({
                 <Trash2 size={12} />
                 Delete
               </button>
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              >
-                <Pencil size={12} />
-                Edit
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <Pencil size={12} />
+                  Edit
+                </button>
+              )}
             </div>
 
             {/* 1. Overview */}
@@ -297,15 +332,66 @@ export function JobDetailDrawer({
                 <KV label="Kind">{kindLabel}</KV>
                 <KV label="Source">{sourceSummary(job.source)}</KV>
                 <KV label="Target">
-                  <span className="font-mono">{job.target.sessionId ?? 'no target'}</span>
+                  <span className="font-mono">
+                    {job.target.sessionIds?.length
+                      ? job.target.sessionIds.join(', ')
+                      : job.target.sessionId ?? 'no target'}
+                  </span>
                 </KV>
                 <KV label="Run count">{job.runCount}</KV>
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
                 {job.maxRuns != null && <KV label="Max runs">{job.maxRuns}</KV>}
+                {isScheduledTask && job.misfirePolicy && (
+                  <KV label="Default missed-fire policy">{job.misfirePolicy}</KV>
+                )}
               </div>
             </Section>
+
+            {(isScheduledTask || job.kind === 'background-process') && (
+              <Section title="Execution">
+                <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-xs">
+                  {job.action?.api === 'shell' || job.shellCommand ? (
+                    <>
+                      <KV label="Mode">Pan server shell</KV>
+                      <div className="text-[11px] text-text-tertiary">
+                        Runs under the Pan service account. The command is not sent to a Session.
+                      </div>
+                      <div className="text-[11px] text-text-tertiary">Command</div>
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-text-secondary">
+                        {job.action?.api === 'shell' ? job.action.args.command : job.shellCommand}
+                      </pre>
+                      <KV label="Working directory">
+                        <code className="break-all">
+                          {job.action?.api === 'shell' ? job.action.args.cwd : job.cwd ?? '—'}
+                        </code>
+                      </KV>
+                    </>
+                  ) : job.kind === 'background-process' ? (
+                    <>
+                      <KV label="Mode">Immediate argv process (no shell)</KV>
+                      <KV label="Label">{job.label || '—'}</KV>
+                      <div className="text-[11px] text-text-tertiary">argv</div>
+                      <pre className="overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-text-secondary">
+                        {JSON.stringify(job.argv ?? [])}
+                      </pre>
+                      <KV label="Working directory"><code className="break-all">{job.cwd ?? '—'}</code></KV>
+                    </>
+                  ) : (
+                    <>
+                      <KV label="Mode">
+                        {job.action?.api === 'send_session' ? 'Session message' : 'Assign task to Session'}
+                      </KV>
+                      <div className="text-[11px] text-text-tertiary">Text</div>
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 text-text-secondary">
+                        {job.text ?? ''}
+                      </pre>
+                    </>
+                  )}
+                </div>
+              </Section>
+            )}
 
             {/* 2. Schedule entries */}
             <Section title="Schedule">
@@ -356,6 +442,9 @@ export function JobDetailDrawer({
                         {e.kind === 'once' && <span>{formatDateTime(e.at ?? null)}</span>}
                         {e.timezone && <span className="text-text-tertiary">tz {e.timezone}</span>}
                         <span className="text-text-tertiary">misfire {e.misfirePolicy}</span>
+                        {e.graceSec != null && (
+                          <span className="text-text-tertiary">grace {e.graceSec}s</span>
+                        )}
                         <span className="text-text-tertiary">
                           next {formatDateTime(e.nextFireAt ?? null)}
                         </span>
@@ -400,6 +489,23 @@ export function JobDetailDrawer({
                           {JSON.stringify(r)}
                         </pre>
                       ))}
+                    </div>
+                  )}
+                  {delivery.processJobId && (
+                    <KV label="Process Job">{delivery.processJobId}</KV>
+                  )}
+                  {delivery.exitCode != null && <KV label="Exit code">{delivery.exitCode}</KV>}
+                  {delivery.error && (
+                    <div className="rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
+                      {delivery.error}
+                    </div>
+                  )}
+                  {delivery.output && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] text-text-tertiary">Output (tail)</span>
+                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-[11px] text-text-secondary">
+                        {delivery.output}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -465,11 +571,11 @@ export function JobDetailDrawer({
             )}
 
             {/* 6. Log */}
-            {job.logPath && (
+            {logPath && (
               <Section title="Log">
                 <div className="flex items-center gap-2 rounded border border-border-default bg-bg-primary p-2">
                   <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary">
-                    {job.logPath}
+                    {logPath}
                   </code>
                   <button
                     type="button"

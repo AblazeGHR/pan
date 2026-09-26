@@ -5982,7 +5982,8 @@ async def api_background_job_list(targetSessionId: str | None = None):
     jobs = [job for job in background_jobs.list_jobs()
             if job.get("kind") in {background_jobs.BACKGROUND_PROCESS_KIND,
                                     background_jobs.SESSION_MESSAGE_KIND,
-                                    background_jobs.SESSION_BROADCAST_KIND}]
+                                    background_jobs.SESSION_BROADCAST_KIND}
+            and not job.get("scheduledParentJobId")]
     if targetSessionId:
         jobs = [j for j in jobs if (j.get("targetSessionId") == targetSessionId
                                    or targetSessionId in (j.get("targetSessionIds") or []))]

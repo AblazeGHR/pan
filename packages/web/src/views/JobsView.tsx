@@ -215,6 +215,7 @@ function JobRow({
   const backlog = job.undeliveredFires?.length ?? 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
+  const canRunNow = job.action?.api === 'shell' || hasTarget;
   return (
     <div
       onClick={onOpen}
@@ -286,11 +287,11 @@ function JobRow({
                   <button
                     role="menuitem"
                     type="button"
-                    disabled={!hasTarget}
-                    title={hasTarget ? undefined : '无 target，无法立即派发'}
+                    disabled={!canRunNow}
+                    title={canRunNow ? undefined : '无 target，无法立即派发'}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!hasTarget) return;
+                      if (!canRunNow) return;
                       onToggleMenu();
                       onRunNow();
                     }}
@@ -300,19 +301,21 @@ function JobRow({
                     Run now
                   </button>
                 )}
-                <button
-                  role="menuitem"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleMenu();
-                    onTogglePaused();
-                  }}
-                  className={menuItemClass}
-                >
-                  {job.paused ? <Play size={13} /> : <Pause size={13} />}
-                  {job.paused ? 'Resume' : 'Pause'}
-                </button>
+                {isScheduledTask && (
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleMenu();
+                      onTogglePaused();
+                    }}
+                    className={menuItemClass}
+                  >
+                    {job.paused ? <Play size={13} /> : <Pause size={13} />}
+                    {job.paused ? 'Resume' : 'Pause'}
+                  </button>
+                )}
                 <button
                   role="menuitem"
                   type="button"
@@ -627,7 +630,8 @@ export default function JobsView() {
   const runBulkAction = async (action: BulkAction, requestedIds: string[]) => {
     if (bulkActionRef.current) return;
     const requested = new Set(requestedIds);
-    const candidates = visibleJobs.filter((job) => requested.has(job.jobId));
+    const candidates = visibleJobs.filter((job) =>
+      requested.has(job.jobId) && (action !== 'pause' || job.kind === 'scheduled-task'));
     if (candidates.length === 0) {
       setBatchDeleteIds(null);
       return;
@@ -980,7 +984,9 @@ export default function JobsView() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      disabled={bulkAction !== null || selectedVisibleJobs.length === 0}
+                      disabled={bulkAction !== null || !selectedVisibleJobs.some(
+                        (job) => job.kind === 'scheduled-task',
+                      )}
                       onClick={() =>
                         void runBulkAction(
                           'pause',
@@ -988,7 +994,7 @@ export default function JobsView() {
                         )
                       }
                     >
-                      Pause selected
+                      Pause scheduled tasks
                     </Button>
                     <Button
                       variant="danger"
@@ -1106,7 +1112,11 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <NewJobForm submitting={submitting} onCreate={handleCreate} />
+            <NewJobForm
+              kindMetas={kindMetas}
+              submitting={submitting}
+              onCreate={handleCreate}
+            />
           </div>
         </div>
       )}
@@ -1236,6 +1246,7 @@ export default function JobsView() {
             key={editJob.jobId}
             mode="edit"
             initialJob={editJob}
+            kindMetas={kindMetas}
             submitting={submitting}
             onSave={(patch) => void handleUpdate(editJob.jobId, patch)}
           />

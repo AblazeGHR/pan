@@ -148,6 +148,7 @@ export interface ScheduleEntryDraft {
   timezone: string;
   misfirePolicy: MisfirePolicy;
   enabled: boolean;
+  graceSec: number | null;
 }
 
 export function newEntryDraft(): ScheduleEntryDraft {
@@ -163,6 +164,7 @@ export function newEntryDraft(): ScheduleEntryDraft {
     timezone: DEFAULT_TIMEZONE,
     misfirePolicy: 'fire_now',
     enabled: true,
+    graceSec: null,
   };
 }
 
@@ -182,6 +184,7 @@ export function scheduleEntryToDraft(entry: ScheduleEntry): ScheduleEntryDraft {
     timezone: entry.timezone ?? DEFAULT_TIMEZONE,
     misfirePolicy: entry.misfirePolicy,
     enabled: entry.enabled,
+    graceSec: entry.graceSec ?? null,
   };
 }
 
@@ -195,6 +198,7 @@ export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
       timezone,
       misfirePolicy: d.misfirePolicy,
       enabled: d.enabled,
+      ...(d.graceSec != null ? { graceSec: d.graceSec } : {}),
     };
   }
   if (d.kind === 'interval') {
@@ -204,6 +208,7 @@ export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
       timezone,
       misfirePolicy: d.misfirePolicy,
       enabled: d.enabled,
+      ...(d.graceSec != null ? { graceSec: d.graceSec } : {}),
     };
   }
   return {
@@ -212,6 +217,7 @@ export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
     timezone,
     misfirePolicy: d.misfirePolicy,
     enabled: d.enabled,
+    ...(d.graceSec != null ? { graceSec: d.graceSec } : {}),
   };
 }
 
@@ -222,6 +228,7 @@ export function entryToSpec(entry: ScheduleEntry): JobScheduleSpec {
     timezone: entry.timezone ?? undefined,
     misfirePolicy: entry.misfirePolicy,
     enabled: entry.enabled,
+    graceSec: entry.graceSec,
   };
   if (entry.anchor) spec.anchor = entry.anchor;
   if (entry.kind === 'once') spec.at = entry.at ?? null;
@@ -552,6 +559,20 @@ function ScheduleEntryEditor({
             value={entry.timezone}
             onChange={(e) => onChange({ ...entry, timezone: e.target.value })}
             placeholder={DEFAULT_TIMEZONE}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Misfire grace (seconds; blank uses default)">
+          <input
+            aria-label="Misfire grace seconds"
+            type="number"
+            min={0}
+            max={86400}
+            value={entry.graceSec ?? ''}
+            onChange={(e) => onChange({
+              ...entry,
+              graceSec: e.target.value === '' ? null : Number(e.target.value),
+            })}
             className={inputClass}
           />
         </Field>
