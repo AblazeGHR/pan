@@ -120,13 +120,17 @@ describe('SessionDetailsModal', () => {
   it('keeps Usage collapsed by default and shows all session identifiers', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
-    expect(screen.getByRole('button', { name: /Usage/ }).getAttribute('aria-expanded')).toBe('false');
+    const usageButton = screen.getByRole('button', { name: /Usage/ });
+    expect(usageButton.getAttribute('aria-expanded')).toBe('false');
+    expect(usageButton.querySelector('svg.lucide-chevron-right')).not.toBeNull();
     expect(screen.queryByText('Credits（累计）')).toBeNull();
     expect(screen.getByText(baseSession.name)).toBeTruthy();
     expect(screen.getByText(baseSession.workdir!)).toBeTruthy();
     expect(screen.getByText(baseSession.id)).toBeTruthy();
     expect(screen.getByText(baseSession.cliSessionId!)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /System prompt/ }).getAttribute('aria-expanded')).toBe('false');
+    const systemPromptButton = screen.getByRole('button', { name: /System prompt/ });
+    expect(systemPromptButton.getAttribute('aria-expanded')).toBe('false');
+    expect(systemPromptButton.querySelector('svg.lucide-chevron-right')).not.toBeNull();
     expect(screen.queryByRole('region', { name: 'System prompt content' })).toBeNull();
   });
 
@@ -137,6 +141,7 @@ describe('SessionDetailsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
 
     expect(screen.getByRole('region', { name: 'System prompt content' }).textContent).toBe(session.systemPrompt);
+    expect(screen.getByRole('button', { name: /System prompt/ }).querySelector('svg.lucide-chevron-down')).not.toBeNull();
     expect(screen.getByRole('button', { name: /Usage/ })).toBeTruthy();
   });
 

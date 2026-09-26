@@ -60,6 +60,21 @@ function measuredRowKey(
   return `${sessionId ?? 'no-session'}:${getDisplayItemKey(item, index)}`;
 }
 
+/** Disclosure rows remount folded, so their previous expanded heights are stale. */
+function invalidateDisclosureHeights(sessionId: string, items: DisplayItem[]): void {
+  const heights = measuredHeights.get(sessionId);
+  if (!heights) return;
+  items.forEach((item, index) => {
+    if ('type' in item && (
+      item.type === 'thinking_group' ||
+      item.type === 'tool_group' ||
+      item.type === 'non_body_group'
+    )) {
+      heights.delete(measuredRowKey(sessionId, item, index));
+    }
+  });
+}
+
 type DisplayItem = ReturnType<typeof groupMessages>[number];
 
 export interface ChatMessagesHandle {
@@ -925,14 +940,28 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // loads (async) and again after the virtualizer measures the real heights.
   // The rAF re-scroll covers the same-frame layout of the freshly swapped DOM.
   const handledSessionRef = useRef<string | null>(isRestoringRef.current ? currentSessionId : null);
+  const measuredSessionRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     // Same session and no session switch: this run is the mount of a route
     // re-entry, whose restored position must not be reset to the newest message.
-    if (handledSessionRef.current === currentSessionId) return;
+    // Its folded disclosures still need fresh measurements: cached heights
+    // came from the previous visit, when a group may have been expanded.
+    if (handledSessionRef.current === currentSessionId) {
+      if (isRestoringRef.current && measuredSessionRef.current !== currentSessionId) {
+        if (currentSessionId) invalidateDisclosureHeights(currentSessionId, grouped);
+        virtualizer.measure();
+        measuredSessionRef.current = currentSessionId;
+      }
+      return;
+    }
     handledSessionRef.current = currentSessionId;
     // A session selected from the sidebar may have a saved anchor. The layout
-    // restore already handled it; do not let this effect undo that restore.
+    // restore already handled it; remeasure folded rows without clearing its
+    // anchor or resetting scroll position.
     if (isRestoringRef.current) {
+      if (currentSessionId) invalidateDisclosureHeights(currentSessionId, grouped);
+      virtualizer.measure();
+      measuredSessionRef.current = currentSessionId;
       isRestoringRef.current = false;
       return;
     }
@@ -944,6 +973,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     // hold the prior expanded row size under the same session-scoped key.
     // Rebuild the virtual measurements against the committed (folded) DOM.
     virtualizer.measure();
+    measuredSessionRef.current = currentSessionId;
     shouldFollowBottomRef.current = true;
     setIsNearBottom(true);
     initialScrollPendingRef.current = true;

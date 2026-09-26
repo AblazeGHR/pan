@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { fetchCodexQuota, fetchSession, fetchSessionUsage } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
@@ -348,7 +348,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             <span className="font-medium">System prompt</span>
             <span className="flex items-center gap-1 text-xs text-text-tertiary">
               {systemPromptExpanded ? '收起' : '展开'}
-              {systemPromptExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {systemPromptExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </span>
           </button>
           {systemPromptExpanded && (
@@ -372,7 +372,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             <span className="font-medium">Usage</span>
             <span className="flex items-center gap-1 text-xs text-text-tertiary">
               {usageLoading ? '加载中…' : usageRefreshing || quotaLoading ? '更新中…' : usageExpanded ? '收起' : '展开'}
-              {usageExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {usageExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </span>
           </button>
           {usageExpanded && (

@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
 import type { Message } from '@/types';
 import { useDetailStore } from '@/stores/detailStore';
 import { getMessageIdentity } from '@/utils/messageIdentity';
@@ -197,7 +197,7 @@ export const ToolGroup = memo(function ToolGroup({
         <Wrench size={14} />
         <span>{items.length} tools</span>
         <span className="ml-auto inline-flex items-center gap-2 text-text-tertiary">
-          {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <MessageTimestamp
             ts={timestampsComputed ? latestTs : (latestTs ?? getLatestMessageTs(items))}
             flashKey={flashKey}
@@ -226,7 +226,7 @@ export const ToolGroup = memo(function ToolGroup({
                     <span className="text-xs text-text-tertiary truncate">{tool.argsPreview}</span>
                   )}
                   <span className="ml-auto inline-flex flex-shrink-0 items-center gap-2 text-text-tertiary">
-                    {expandedTools.has(key) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {expandedTools.has(key) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     <MessageTimestamp ts={items[i]!.ts} />
                   </span>
                 </div>

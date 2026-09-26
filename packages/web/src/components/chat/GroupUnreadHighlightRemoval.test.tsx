@@ -146,6 +146,31 @@ describe('chat groups render no unread highlight', () => {
 });
 
 describe('normal group behaviour is preserved', () => {
+  it('uses right chevrons while folded and down chevrons while expanded', () => {
+    const groupItems = [thinking('plan', 'arrow-thinking'), tool('Bash', 'true', 'arrow-tool')];
+    render(<NonBodyGroup items={groupItems} />);
+
+    const nonBody = disclosure(/2 non-body blocks/);
+    expect(nonBody.querySelector('svg')?.classList.contains('lucide-chevron-right')).toBe(true);
+    fireEvent.click(nonBody);
+    expect(nonBody.querySelector('svg')?.classList.contains('lucide-chevron-down')).toBe(true);
+
+    const thinkingGroup = disclosure('thinking');
+    expect(thinkingGroup.querySelector('svg')?.classList.contains('lucide-chevron-right')).toBe(true);
+    fireEvent.click(thinkingGroup);
+    expect(thinkingGroup.querySelector('svg')?.classList.contains('lucide-chevron-down')).toBe(true);
+
+    const toolGroup = disclosure('1 tools');
+    expect(toolGroup.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+    fireEvent.click(toolGroup);
+    expect(toolGroup.querySelector('svg.lucide-chevron-down')).not.toBeNull();
+
+    const toolRow = screen.getByText('Bash').closest('.msg');
+    expect(toolRow?.querySelector('svg.lucide-chevron-right')).not.toBeNull();
+    if (toolRow) fireEvent.click(toolRow);
+    expect(toolRow?.querySelector('svg.lucide-chevron-down')).not.toBeNull();
+  });
+
   it('keeps a thinking group collapsed by default and reveals every member on expand', () => {
     render(<ThinkingGroup items={[thinking('first thought', 't1'), thinking('second thought', 't2')]} />);
 
