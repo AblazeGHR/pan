@@ -107,6 +107,7 @@ export function MessageNavigationDock({
     }
     window.setTimeout(() => {
       if (!rootRef.current?.contains(document.activeElement)) {
+        pointerInteractionRef.current = false;
         setFocusWithin(false);
         setKeyboardDismissed(false);
       }

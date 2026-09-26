@@ -130,6 +130,49 @@ describe('message navigation dock', () => {
     expect(document.activeElement).toBe(handle);
   });
 
+  it('restores keyboard expansion after pointer focus leaves and supports Escape', async () => {
+    vi.useFakeTimers();
+    const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
+    const { container } = render(
+      <MessageNavigationDock
+        chatRef={{ current: null }}
+        dockRef={dockRef}
+        isMobile={false}
+        mobileExpanded={false}
+        onMobileClose={() => {}}
+        onRestoreFocus={() => {}}
+      />,
+    );
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    const handle = container.querySelector<HTMLButtonElement>('.message-navigation-dock__handle')!;
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    await act(async () => { await Promise.resolve(); });
+
+    const filter = container.querySelector<HTMLButtonElement>('.message-navigation-filter')!;
+    fireEvent.pointerDown(filter, { pointerType: 'mouse' });
+    act(() => filter.focus());
+    fireEvent.click(filter, { detail: 1 });
+    fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
+    await act(async () => { vi.advanceTimersByTime(90); });
+    expect(dock.getAttribute('data-expanded')).toBe('false');
+    expect(document.activeElement).toBe(handle);
+
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    act(() => outside.focus());
+    await act(async () => { vi.advanceTimersByTime(1); });
+    fireEvent.keyDown(outside, { key: 'Tab' });
+    act(() => handle.focus());
+    expect(dock.getAttribute('data-expanded')).toBe('true');
+
+    const marker = container.querySelector<HTMLButtonElement>('.message-navigation-marker')!;
+    act(() => marker.focus());
+    fireEvent.keyDown(marker, { key: 'Escape' });
+    expect(dock.getAttribute('data-expanded')).toBe('false');
+    expect(document.activeElement).toBe(handle);
+    outside.remove();
+  });
+
   it('does not auto-collapse while keyboard focus is using a marker and supports Escape', async () => {
     const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
     const { container } = render(
