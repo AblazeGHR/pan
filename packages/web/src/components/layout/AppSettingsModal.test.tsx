@@ -16,6 +16,8 @@ const {
   fetchDataCatalogMock,
   fetchDataRetentionMock,
   updateDataRetentionMock,
+  fetchCompletedJobRetentionSettingsMock,
+  updateCompletedJobRetentionSettingsMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
@@ -28,6 +30,8 @@ const {
   fetchDataCatalogMock: vi.fn(),
   fetchDataRetentionMock: vi.fn(),
   updateDataRetentionMock: vi.fn(),
+  fetchCompletedJobRetentionSettingsMock: vi.fn(),
+  updateCompletedJobRetentionSettingsMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -37,6 +41,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     fetchDataCatalog: fetchDataCatalogMock,
     fetchDataRetention: fetchDataRetentionMock,
     updateDataRetention: updateDataRetentionMock,
+    fetchCompletedJobRetentionSettings: fetchCompletedJobRetentionSettingsMock,
+    updateCompletedJobRetentionSettings: updateCompletedJobRetentionSettingsMock,
     fetchRemoteStatus: vi.fn().mockResolvedValue({
       available: false,
       enabled: false,
@@ -64,6 +70,39 @@ function cardEl(): HTMLElement {
   const el = document.body.querySelector<HTMLElement>('.app-settings-card');
   expect(el).toBeTruthy();
   return el!;
+}
+
+const defaultJobRetentionRules = {
+  completed: { enabled: false, days: null },
+  failed: { enabled: false, days: null },
+  timed_out: { enabled: false, days: null },
+  cancelled: { enabled: false, days: null },
+  logs: { enabled: false, days: null },
+};
+
+function jobRetentionResponse(rules = defaultJobRetentionRules) {
+  const configValidity = {
+    completed: true,
+    failed: true,
+    timed_out: true,
+    cancelled: true,
+    logs: true,
+  };
+  const lastRuns = {
+    completed: null,
+    failed: null,
+    timed_out: null,
+    cancelled: null,
+    logs: null,
+  };
+  return {
+    settings: rules.completed,
+    rules,
+    configValid: true,
+    configValidity,
+    lastRun: null,
+    lastRuns,
+  };
 }
 
 afterEach(() => {
@@ -170,7 +209,7 @@ describe('AppSettingsModal', () => {
       jobsRetention: {
         slot: 'jobs-retention-control',
         status: 'reserved',
-        message: 'Jobs 保留规则由 canonical API/config 管理，此处预留可复用组件槽位。',
+        message: 'Data 标签复用 Jobs completed-retention 设置组件；规则经 canonical API 存于 config.jobs。',
       },
     });
     const policies = {
@@ -195,6 +234,10 @@ describe('AppSettingsModal', () => {
       configKey: 'data_retention',
       lastScans,
     });
+    fetchCompletedJobRetentionSettingsMock.mockReset();
+    fetchCompletedJobRetentionSettingsMock.mockResolvedValue(jobRetentionResponse());
+    updateCompletedJobRetentionSettingsMock.mockReset();
+    updateCompletedJobRetentionSettingsMock.mockImplementation(async (rules) => jobRetentionResponse(rules));
   });
 
   it('renders nothing when closed', () => {
@@ -269,8 +312,10 @@ describe('AppSettingsModal', () => {
     expect(panel.textContent).toContain('外部路径');
     expect(panel.textContent).toContain('用户自建目录未登记');
     expect(panel.querySelector('code')?.className).toContain('break-all');
-    expect(panel.textContent).toContain('Jobs 保留设置组件待接入');
     expect(panel.textContent).not.toContain('共享策略');
+    await waitFor(() => expect(panel.querySelector(
+      '[aria-label="Keep Completed Jobs for days"]',
+    )).not.toBeNull());
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(6);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
@@ -351,7 +396,6 @@ describe('AppSettingsModal', () => {
     )?.value).toBe('');
     expect(cardEl().textContent).toContain('扫描 3，删除 1，跳过 2');
     expect(cardEl().textContent).toContain('live_worker: 2');
-    expect(cardEl().textContent).toContain('Jobs 保留设置组件待接入');
     const saveButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.includes('保存清理策略'))!;
     expect(saveButton.disabled).toBe(true);
@@ -384,6 +428,31 @@ describe('AppSettingsModal', () => {
         sessions: { enabled: true, days: null },
       },
     }));
+  });
+
+  it('projects the shared Jobs retention editor in Data and saves via its canonical API', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+
+    const failedDays = await waitFor(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        '[aria-label="Keep Failed Jobs for days"]',
+      );
+      expect(input).not.toBeNull();
+      return input!;
+    });
+    expect(fetchCompletedJobRetentionSettingsMock).toHaveBeenCalledTimes(1);
+    expect(failedDays.value).toBe('');
+
+    fireEvent.change(failedDays, { target: { value: '21' } });
+    fireEvent.click(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === 'Save settings')!);
+
+    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith({
+      ...defaultJobRetentionRules,
+      failed: { enabled: false, days: 21 },
+    }));
+    expect(updateDataRetentionMock).not.toHaveBeenCalled();
   });
 
   it('shows retention settings loading and failure while keeping the Data path panel usable', async () => {

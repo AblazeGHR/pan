@@ -218,6 +218,6 @@ def get_data_catalog() -> dict:
         "jobsRetention": {
             "slot": "jobs-retention-control",
             "status": "reserved",
-            "message": "Jobs 保留规则由 /api/jobs/settings/completed-retention 和 config.jobs 管理；此处预留可复用设置组件槽位。",
+            "message": "Data 标签复用 Jobs completed-retention 设置组件；读写 /api/jobs/settings/completed-retention，规则存于 config.jobs。",
         },
     }

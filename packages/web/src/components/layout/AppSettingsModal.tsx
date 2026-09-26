@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bell, Database, Eye, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
+import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import {
   reloadConfig,
   fetchRemoteStatus,
@@ -1195,11 +1196,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               retentionDirty={dataRetentionDirty}
               onRetentionChange={updateDataRetentionDraft}
               onSaveRetention={() => void saveDataRetentionDraft()}
-              jobsRetentionSlot={
-                <p className="text-[10px] leading-relaxed text-text-tertiary">
-                  Jobs 保留设置组件待接入；规则由 Jobs completed-retention API/config 管理。
-                </p>
-              }
+              jobsRetentionSlot={<JobRetentionSettings />}
             />
           ) : (
             <>

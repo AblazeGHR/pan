@@ -6670,10 +6670,6 @@ async def _delete_session_records(session_id: str, *, cleanup_auxiliary: bool = 
         asyncio.create_task(
             worker.cleanup_worker_background(w.worker_id, w.session_id)
         )
-    sess.delete(session_id)
-    if cleanup_auxiliary:
-        _cleanup_mcp_config(session_id)
-        _cleanup_kimi_home(session_id)
     await broadcast({
         "type": "session.deleted",
         "sessionId": session_id,
