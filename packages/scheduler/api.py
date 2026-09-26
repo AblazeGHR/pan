@@ -379,7 +379,10 @@ async def delete_task(task_id: str):
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
-    scheduler_store.delete_task(task_id)
+    try:
+        scheduler_store.delete_task(task_id)
+    except ValueError as exc:
+        return _err("job_busy", str(exc))
     _emit({"type": "scheduler.task.deleted", "taskId": task_id,
            "sessionId": task.get("target_session_id")})
     return _ok(deleted=True, taskId=task_id)

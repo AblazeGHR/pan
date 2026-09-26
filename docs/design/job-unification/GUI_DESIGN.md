@@ -8,6 +8,45 @@
 
 ---
 
+## 创建契约更新（2026-09-26）
+
+本节覆盖并取代下文旧版话题 2.3、话题 4、话题 7·A 对“自定义”的限制：**“创建定时任务”固定为 scheduled-task 表单；“自定义”是所有用户可创建 Job kind 的入口。** 旧讨论保留作决策历史。
+
+### 可创建 kind 与字段
+
+| Job kind | 创建模式 | 可填写字段 | 不适用 / 编辑范围 |
+|---|---|---|---|
+| scheduled-task | 计划执行 | name、description；action.api=assign/send_session 时填写 target.sessionId 与 text；action.api=shell 时填写 action.args.command、action.args.cwd 与可选通知 target.sessionId；Job 级 schedule[]、maxRuns、misfirePolicy、enabled、paused | shell action 不接受 text；编辑支持上述全部字段 |
+| session-message | 计划发送 | name、description、target.sessionId、text、schedule | schedule 为 once(at 或 delaySeconds)、interval(intervalSeconds) 或 weekly(weekday/time/timezone)；不提供 Job 级 pause、enabled、maxRuns；非终态可编辑上述字段 |
+| session-broadcast | 计划群发 | name、description、target.sessionIds、text、schedule | 同 session-message；非终态可编辑上述字段 |
+| background-process | 立即启动 | name、description、label、target.sessionId、argv、cwd | 以 argv 启动，不经过 shell；运行后只允许编辑 name、description、通知 target |
+| main-lifecycle | 系统专用 | 无 | Jobs 创建入口不提供；既有记录仅允许改 name、description |
+
+scheduled-task.schedule[] 每项的共同字段为 timezone、enabled、misfirePolicy、graceSec；once 使用 at，interval 使用 intervalSec 与可选 anchor，cron 使用 cron。graceSec 范围为 0–86400 秒，留空沿用 scheduler 默认值。Job 级 misfirePolicy 是默认策略；每项显式值保留为 override。
+
+### API 契约
+
+- GET /api/jobs/kinds 返回 creatable、createMode 和 createFields。GUI 只呈现标记为可创建的 kind；main-lifecycle 明确为系统管理。
+- POST /api/jobs 按 kind 严格校验字段。计划任务的 shell 形状为 {kind:"scheduled-task", action:{api:"shell", args:{command,cwd}}, target:{sessionId:null}, schedule:[...]}；它不携带 text。Session action 使用 {api:"assign"|"send_session"}、必填 target.sessionId 与非空 text。其他 kind 使用上表字段。
+- 请求不接受 source、sourceSessionId、creatorSessionId、运行状态、ID 或派生字段；服务端按既有 API 身份规则写入来源。target 必须存在；shell 通知 target 可省略。计划工作目录必须解析到 Pan 项目目录内且为现存目录，命令必须非空。
+- 未知字段、kind 不适用字段、非法 schedule、错误类型及不合法目标返回 invalid_argument / invalid_schedule / session_not_found，不会被静默忽略。
+- PATCH /api/jobs/{id} 按既有 kind 编辑矩阵校验。scheduled-task 可改全部可写字段；message/broadcast 可改 name/description/text/target/schedule；background-process 可改 name/description/target；lifecycle 仅 name/description。shell 命令不能作为 Session text 更新。
+- POST /api/jobs/{id}/run-now 仍只接受 scheduled-task，shell action 通过相同进程 Runner 执行；message/broadcast 没有 run-now。
+
+### 定时 shell 的执行与恢复
+
+Scheduler 先持久化 scheduled-task 的 claim，再为每个 dispatchKey 创建 ID 确定的 background-process 子记录；独立 Runner 以 shell=True、指定 cwd 执行命令并写入 Job log。命令不调用 assign、send_session，不进入 Session 队列；target 只作为可选终态通知对象。父 Job 的 lastDelivery 和 runs 投影进程状态、exit code、log path、最近输出（尾部最多 16 KiB）和错误。
+
+重试同一 schedule claim 会找回相同子 Job，不会再次启动相同 dispatch。Runner 丢失时恢复流程将孤立子 Job 标为失败并投影日志结果；这提供**至多一次**启动和可观察失败，不承诺 exactly-once：若 Pan 在子记录落盘后、Runner 启动前崩溃，该次命令可能未执行，但不会被重启补跑。子 Job 不出现在统一 Jobs 列表和既有 /api/background-jobs 列表中，避免将调度内部进程误当独立用户 Job。
+
+为避免丢失正在执行的子 Job 与输出，删除正在 claim 的定时 shell Job 或仍有 active 子进程的定时 shell Job 会返回 job_busy；待子进程终态后可删除。
+
+安全边界：shell 命令按 Pan 服务账户权限运行，cwd 约束在 Pan 项目目录内；当前没有命令 allowlist、操作系统沙箱或命令超时。background-process 继续走既有 argv（不经 shell）路径。来源身份不可由表单伪造。
+
+旧 scheduled-task 数据和 /api/scheduler/* 兼容入口继续工作：没有 action 的旧记录按 assign 解释；既有 schedule entry 控制字段保持可读，新增的 graceSec 可选，未设置时沿用全局宽限配置。
+
+---
+
 ## 已定决策
 
 **话题 1 · 入口与信息架构**

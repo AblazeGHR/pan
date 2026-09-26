@@ -21,7 +21,6 @@ import uuid
 from datetime import datetime
 
 from packages.core import background_jobs
-from packages.core import worker as _worker
 from packages.jobs import cron
 from . import store
 
@@ -167,20 +166,32 @@ async def run_now(task_id: str) -> dict:
         return {"ok": False, "error": {"code": "not_found",
                                        "message": f"任务不存在：{task_id}"}}
     job = store._job_for_task(task_id)
+    if job is None:
+        return {"ok": False, "error": {"code": "not_found",
+                                       "message": f"任务不存在：{task_id}"}}
     now = datetime.now().replace(microsecond=0)
-    dispatch_key = f"{task_id}:{int(now.timestamp())}"
+    action = job.get("action")
+    action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
+    if action_api != "shell" and not task.get("target_session_id"):
+        return {"ok": False, "error": {"code": "invalid_argument",
+                                       "message": "target session is required"}}
+    dispatch_key = (f"{task_id}:manual:{uuid.uuid4().hex}"
+                    if action_api == "shell" else f"{task_id}:{int(now.timestamp())}")
     try:
-        result = await _worker.assign(task.get("target_session_id"),
-                                      task.get("text") or "",
-                                      source="automation",
-                                      task_id=dispatch_key)
+        result = await background_jobs._run_job_action(
+            job, task.get("target_session_id"), dispatch_key,
+            fire_at=store.iso(now), entry_id="manual",
+            registry_root=store.data_root())
     except Exception as exc:
         result = {"status": "error", "result": str(exc)}
     if not isinstance(result, dict):
-        result = {"status": "error", "result": f"unexpected assign result: {result!r}"}
-    ok = str(result.get("status")) != "error"
-    record_status = "dispatched" if ok else "error"
-    error = None if ok else str(result.get("result") or "派发失败")
+        result = {"status": "error", "result": f"unexpected action result: {result!r}"}
+    result_status = str(result.get("status") or "error")
+    ok = result_status not in {"error", "failed", "cancelled"}
+    record_status = ("running" if result_status == "running" else
+                     "completed" if result_status == "completed" else
+                     "dispatched" if ok else "error")
+    error = None if ok else str(result.get("error") or result.get("result") or "执行失败")
     record = {
         "run_id": uuid.uuid4().hex[:12],
         "task_id": task_id,
@@ -191,11 +202,17 @@ async def run_now(task_id: str) -> dict:
         "session_id": task.get("target_session_id"),
         "worker_id": result.get("workerId"),
         "error": error,
+        "result": result,
     }
-    try:
-        store.append_run(record)
-    except Exception:
-        pass
+    if result.get("processJobId"):
+        background_jobs._append_task_run(
+            job, task_id, now, dispatch_key, record_status, error,
+            store.data_root(), entry_id="manual", result=result)
+    else:
+        try:
+            store.append_run(record)
+        except Exception:
+            pass
 
     run_count = int(task.get("run_count") or 0) + 1
     patch: dict = {
@@ -204,6 +221,8 @@ async def run_now(task_id: str) -> dict:
         "last_error": error,
         "run_count": run_count,
     }
+    background_jobs.update_job_field(
+        job["jobId"], {"lastDelivery": result}, registry_root=store.data_root())
     max_runs = task.get("max_runs")
     if isinstance(max_runs, int) and run_count >= max_runs:
         patch["enabled"] = False
@@ -213,6 +232,10 @@ async def run_now(task_id: str) -> dict:
     _emit({"type": "scheduler.task.fired", "taskId": task_id,
            "fireAt": store.iso(now), "dispatchKey": dispatch_key,
            "status": record_status, "error": error, "terminal": True})
+    updated_job = background_jobs.get(job["jobId"], registry_root=store.data_root())
+    if updated_job:
+        _emit({"type": "job.updated", "jobId": job["jobId"],
+               "job": background_jobs.job_public_view(updated_job)})
     return {
         "ok": True,
         "taskId": task_id,

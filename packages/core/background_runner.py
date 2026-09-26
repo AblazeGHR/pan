@@ -17,7 +17,17 @@ def main() -> int:
         return 0
     try:
         with open(job["logPath"], "ab", buffering=0) as log:
-            proc = subprocess.Popen(job["argv"], cwd=job["cwd"], stdout=log, stderr=subprocess.STDOUT)
+            shell_command = job.get("shellCommand")
+            if isinstance(shell_command, str):
+                proc = subprocess.Popen(
+                    shell_command, cwd=job["cwd"], shell=True,
+                    stdout=log, stderr=subprocess.STDOUT,
+                )
+            else:
+                proc = subprocess.Popen(
+                    job["argv"], cwd=job["cwd"], stdout=log,
+                    stderr=subprocess.STDOUT,
+                )
             jobs.runner_update(args.job_id, status="running", pid=proc.pid, processCreatedAt=jobs._process_create_time(proc.pid))
             return_code = proc.wait()
         current = jobs.get(args.job_id)

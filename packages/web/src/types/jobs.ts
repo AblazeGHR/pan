@@ -56,6 +56,7 @@ export interface ScheduleEntry {
   timezone?: string | null;
   misfirePolicy: MisfirePolicy;
   enabled: boolean;
+  graceSec?: number;
   nextFireAt: string | null;
   lastFireAt?: string | null;
 }
@@ -70,6 +71,7 @@ export interface JobScheduleSpec {
   timezone?: string | null;
   misfirePolicy?: MisfirePolicy;
   enabled?: boolean;
+  graceSec?: number;
 }
 
 /** target 缺失时积压的未投递派发（上限 20）。 */
@@ -86,7 +88,18 @@ export interface JobDelivery {
   status: string;
   results?: unknown[];
   errors?: unknown[];
+  processStatus?: string;
+  processJobId?: string;
+  dispatchKey?: string;
+  exitCode?: number | null;
+  logPath?: string | null;
+  output?: string;
+  error?: string;
 }
+
+export type ScheduledTaskAction =
+  | { api: 'assign' | 'send_session' }
+  | { api: 'shell'; args: { command: string; cwd: string } };
 
 /** epoch 秒（新记录）或本地朴素 ISO（兼容旧读路径）。 */
 export type JobTimestamp = number | string;
@@ -101,6 +114,12 @@ export interface Job {
   source: JobSource;
   target: JobTarget;
   text?: string;
+  action?: ScheduledTaskAction;
+  argv?: string[];
+  cwd?: string;
+  label?: string | null;
+  commandSummary?: string;
+  shellCommand?: string;
   enabled?: boolean;
   paused: boolean;
   /** Legacy Job kinds may expose one schedule object or omit/null this field. */
@@ -134,6 +153,9 @@ export interface JobKindMeta {
   label: string;
   hasSchedule: boolean;
   hasProcess: boolean;
+  creatable: boolean;
+  createMode: 'scheduled' | 'immediate' | 'system';
+  createFields: string[];
 }
 
 /** 一行 runs.jsonl 记录（snake_case，最新在前）。 */
@@ -147,22 +169,73 @@ export interface JobRunRecord {
   session_id?: string | null;
   worker_id?: string | null;
   error?: string | null;
+  result?: unknown;
+  process_job_id?: string | null;
+  exit_code?: number | null;
+  log_path?: string | null;
 }
 
-/** `POST /api/jobs` 请求体（本期仅 scheduled-task）。 */
-export interface JobCreateInput {
+/** POST /api/jobs 的 scheduled-task 请求体（Session action 或 shell action）。 */
+export interface ScheduledTaskCreateInput {
   kind: 'scheduled-task';
+  name?: string;
+  description?: string;
+  target?: { sessionId: string | null };
+  action?: ScheduledTaskAction;
+  text?: string;
+  schedule: JobScheduleSpec[] | JobScheduleSpec;
+  misfirePolicy?: MisfirePolicy;
+  maxRuns?: number | null;
+  enabled?: boolean;
+  paused?: boolean;
+}
+
+/** Session message 与 broadcast 共用的 schedule payload。 */
+export interface SessionMessageSchedule {
+  type: 'once' | 'interval' | 'weekly';
+  at?: string;
+  delaySeconds?: number;
+  intervalSeconds?: number;
+  weekday?: number;
+  time?: string;
+  timezone?: string;
+}
+
+export interface SessionMessageCreateInput {
+  kind: 'session-message';
   name?: string;
   description?: string;
   target: { sessionId: string };
   text: string;
-  schedule: JobScheduleSpec[];
-  misfirePolicy?: MisfirePolicy;
-  maxRuns?: number | null;
-  enabled?: boolean;
+  schedule: SessionMessageSchedule;
 }
 
-/** `PATCH /api/jobs/{id}` 请求体（可显式清空 target；text 非空校验）。 */
+export interface SessionBroadcastCreateInput {
+  kind: 'session-broadcast';
+  name?: string;
+  description?: string;
+  target: { sessionId?: string; sessionIds: string[] };
+  text: string;
+  schedule: SessionMessageSchedule;
+}
+
+export interface BackgroundProcessCreateInput {
+  kind: 'background-process';
+  name?: string;
+  description?: string;
+  label?: string;
+  target: { sessionId: string };
+  argv: string[];
+  cwd: string;
+}
+
+export type JobCreateInput =
+  | ScheduledTaskCreateInput
+  | SessionMessageCreateInput
+  | SessionBroadcastCreateInput
+  | BackgroundProcessCreateInput;
+
+/** PATCH /api/jobs/{id} 按 kind 接受字段，可显式清空适用的 target。 */
 export interface JobPatchInput {
   name?: string;
   description?: string;
@@ -170,6 +243,9 @@ export interface JobPatchInput {
   text?: string;
   enabled?: boolean;
   paused?: boolean;
-  target?: { sessionId: string | null } | null;
-  schedule?: JobScheduleSpec[];
+  target?: { sessionId?: string | null; sessionIds?: string[] } | null;
+  schedule?: JobScheduleSpec[] | SessionMessageSchedule;
+  action?: ScheduledTaskAction;
+  maxRuns?: number | null;
+  misfirePolicy?: MisfirePolicy;
 }

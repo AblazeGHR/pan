@@ -217,6 +217,13 @@ def _spec_to_entry(raw: dict, *, default_misfire: str,
     entry = _entry_from_schedule(clean, misfire_policy=misfire,
                                  next_fire_at=next_fire)
     entry["enabled"] = bool(raw.get("enabled", True))
+    if "graceSec" in raw:
+        grace = raw.get("graceSec")
+        if isinstance(grace, bool) or not isinstance(grace, (int, float)):
+            raise ValueError("graceSec must be a non-negative number")
+        if not 0 <= float(grace) <= 86400:
+            raise ValueError("graceSec must be between 0 and 86400")
+        entry["graceSec"] = float(grace)
     return entry
 
 
@@ -301,6 +308,8 @@ def _job_from_payload(payload: dict) -> dict:
     status = "scheduled" if (enabled and next_fire) else "pending"
     if not enabled:
         status = "completed"
+    target = payload.get("target_session_id")
+    action = payload.get("action") or {"api": "assign"}
     return {
         "jobId": "job_" + secrets.token_hex(6),
         "kind": background_jobs.SCHEDULED_TASK_KIND,
@@ -308,10 +317,11 @@ def _job_from_payload(payload: dict) -> dict:
         "name": (background_jobs.normalize_name(payload.get("name"))
                  or background_jobs.default_job_name(data_root())),
         "description": background_jobs.normalize_description(payload.get("description")),
-        "targetSessionId": payload["target_session_id"],
+        "targetSessionId": target,
         "sourceStruct": background_jobs.normalize_source({"type": "system"}),
-        "targetStruct": background_jobs.normalize_target(payload["target_session_id"]),
-        "text": payload["text"],
+        "targetStruct": background_jobs.normalize_target(target),
+        "text": payload.get("text", ""),
+        "action": action,
         "source": "automation",
         "creatorSessionId": None,
         "enabled": enabled,
@@ -373,12 +383,40 @@ def create_task(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("payload 必须是对象")
 
-    target = str(payload.get("target_session_id") or "").strip()
-    if not target:
-        raise ValueError("target_session_id 不能为空")
-    text = str(payload.get("text") or "").strip()
-    if not text:
-        raise ValueError("text 不能为空")
+    action = payload.get("action") or {"api": "assign"}
+    action_api = action.get("api") if isinstance(action, dict) else None
+    if action_api not in {"assign", "send_session", "shell"}:
+        raise ValueError("action.api must be assign, send_session, or shell")
+    if action_api == "shell":
+        from packages.core.background_jobs import validate_shell_action
+
+        args = action.get("args") if isinstance(action, dict) else None
+        if not isinstance(args, dict):
+            raise ValueError("shell action requires an args object")
+        command, cwd = validate_shell_action(args.get("command"), args.get("cwd"))
+        action = {"api": "shell", "args": {
+            "command": command, "cwd": str(cwd)}}
+    else:
+        if not isinstance(action, dict) or set(action) - {"api"}:
+            raise ValueError("action only accepts the api field for session actions")
+        if isinstance(payload.get("target_session_id"), str):
+            target = payload["target_session_id"].strip()
+        else:
+            target = ""
+        if not target:
+            raise ValueError("target_session_id is required for session actions")
+        text = payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text is required for session actions")
+    if action_api == "shell" and isinstance(action, dict) and set(action) - {"api", "args"}:
+        raise ValueError("shell action only accepts api and args")
+    target = payload.get("target_session_id")
+    if target is not None:
+        if not isinstance(target, str) or not target.strip():
+            raise ValueError("target_session_id must be a non-empty string or null")
+        target = target.strip()
+        if action_api == "shell" and not background_jobs._sessions.get(target):
+            raise ValueError("notification target session does not exist")
 
     misfire = str(payload.get("misfire_policy") or "fire_now")
     if misfire not in MISFIRE_POLICIES:
@@ -386,12 +424,20 @@ def create_task(payload: dict) -> dict:
 
     max_runs = payload.get("max_runs")
     if max_runs is not None and max_runs != "":
+        if isinstance(max_runs, bool):
+            raise ValueError("max_runs must be a positive integer or null")
         try:
             max_runs = int(max_runs)
         except (TypeError, ValueError):
             raise ValueError("max_runs 必须是整数或 null") from None
+        if max_runs <= 0:
+            raise ValueError("max_runs must be a positive integer or null")
     else:
         max_runs = None
+    enabled = payload.get("enabled", True)
+    paused = payload.get("paused", False)
+    if not isinstance(enabled, bool) or not isinstance(paused, bool):
+        raise ValueError("enabled and paused must be booleans")
 
     prepared = dict(payload)
     raw_schedule = payload.get("schedule")
@@ -404,6 +450,10 @@ def create_task(payload: dict) -> dict:
         prepared["_normalized_schedule"] = _normalize_schedule(raw_schedule)
     prepared["_misfire"] = misfire
     prepared["_max_runs"] = max_runs
+    prepared["enabled"] = enabled
+    prepared["paused"] = paused
+    prepared["action"] = action
+    prepared["target_session_id"] = target
     job = _job_from_payload(prepared)
     background_jobs._create(job, registry_root=data_root())
     return _task_from_job(job)
@@ -587,6 +637,28 @@ def replace_task_schedule(task_id: str, specs,
                 and next_fire and current.get("status") in (None, "pending",
                                                            "completed")):
             current["status"] = "scheduled"
+        current["updatedAt"] = time.time()
+        background_jobs._atomic_write(path, current)
+        return current
+
+
+def set_task_misfire_policy(task_id: str, policy: str) -> dict | None:
+    """Set the job-level default without replacing entry-level overrides."""
+    if policy not in MISFIRE_POLICIES:
+        raise ValueError("misfire_policy 必须是 fire_now / skip")
+    job = _job_for_task(task_id)
+    if job is None:
+        return None
+    root = data_root()
+    with background_jobs._lock, background_jobs._job_lock(job["jobId"], root):
+        path = background_jobs._job_path(job["jobId"], root)
+        current = background_jobs._load_path(path)
+        if not current or current.get("kind") != background_jobs.SCHEDULED_TASK_KIND:
+            return None
+        # This is the default used for entries that omit an override. Keep
+        # explicit per-entry policies intact; ScheduleListEditor sends the
+        # entry values separately when the user changes them.
+        current["misfirePolicy"] = policy
         current["updatedAt"] = time.time()
         background_jobs._atomic_write(path, current)
         return current
