@@ -70,7 +70,10 @@ export default function ChatView() {
         <ElicitationBanner />
         <TerminalInteractionBanner />
         <div ref={chatStageRef} className="chat-view-stage flex flex-1 min-h-0 min-w-0" tabIndex={-1}>
-          <ChatMessages ref={chatRef} />
+          <ChatMessages
+            ref={chatRef}
+            hideScrollToBottom={showMessageNavigationRail && isMobile && mobileExpanded}
+          />
           {showMessageNavigationRail && (
             <MessageNavigationDock
               chatRef={chatRef}

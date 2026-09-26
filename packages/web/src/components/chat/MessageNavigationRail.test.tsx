@@ -16,6 +16,12 @@ vi.mock('@/services/api', () => ({
 const mockedHistory = vi.mocked(fetchSessionHistory);
 
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
+const SCRUB_MESSAGES: Message[] = [
+  { role: 'user', content: 'scrub preview one' },
+  { role: 'user', content: 'scrub preview two' },
+  { role: 'user', content: 'scrub preview three' },
+  { role: 'user', content: 'scrub preview four' },
+];
 
 function historyPage(history: Message[], total = history.length, start = 0) {
   return {
@@ -39,6 +45,27 @@ function seedSession(sessionId: string) {
 
 const markers = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLButtonElement>('button.message-navigation-marker')];
+
+function moveTouchPointer(element: HTMLElement, pointerId: number, clientX: number, clientY: number) {
+  const event = new Event('pointermove', { bubbles: true });
+  Object.defineProperties(event, {
+    pointerType: { configurable: true, value: 'touch' },
+    pointerId: { configurable: true, value: pointerId },
+    clientX: { configurable: true, value: clientX },
+    clientY: { configurable: true, value: clientY },
+  });
+  const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => element,
+  });
+  try {
+    return element.dispatchEvent(event);
+  } finally {
+    if (originalHitTest) Object.defineProperty(document, 'elementFromPoint', originalHitTest);
+    else Reflect.deleteProperty(document, 'elementFromPoint');
+  }
+}
 
 beforeEach(() => {
   mockedHistory.mockReset();
@@ -228,6 +255,199 @@ describe('message navigation dock', () => {
     await act(async () => { fireEvent.click(marker); });
     expect(ensureMessageLoaded).toHaveBeenCalledWith(0, 1);
     expect(scrollToMessage).toHaveBeenCalledWith(USER_MESSAGE, 0);
+  });
+});
+
+describe('mobile message navigation scrub', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockedHistory.mockResolvedValue(historyPage(SCRUB_MESSAGES));
+    seedSession('rail-scrub');
+  });
+
+  async function renderOpenMobileRail() {
+    const ensureMessageLoaded = vi.fn().mockResolvedValue(USER_MESSAGE);
+    useSessionStore.setState({ ensureMessageLoaded });
+    const view = render(
+      <MessageNavigationRail
+        chatRef={{ current: null }}
+        isMobile
+        mobileExpanded
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    return { ...view, ensureMessageLoaded };
+  }
+
+  const touchDown = (marker: HTMLButtonElement, pointerId = 7) => {
+    const event = new Event('pointerdown', { bubbles: true });
+    Object.defineProperties(event, {
+      pointerType: { configurable: true, value: 'touch' },
+      pointerId: { configurable: true, value: pointerId },
+      button: { configurable: true, value: 0 },
+      clientX: { configurable: true, value: 20 },
+      clientY: { configurable: true, value: 20 },
+    });
+    marker.dispatchEvent(event);
+  };
+
+  it('keeps a mobile short press as a normal jump', async () => {
+    const scrollToMessage = vi.fn(() => true);
+    const ensureMessageLoaded = vi.fn().mockResolvedValue(USER_MESSAGE);
+    useSessionStore.setState({ ensureMessageLoaded });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(performance.now());
+      return 1;
+    });
+    const { container } = render(
+      <MessageNavigationRail
+        chatRef={{ current: { scrollToMessage } as never }}
+        isMobile
+        mobileExpanded
+      />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    const marker = markers(container)[0]!;
+
+    touchDown(marker);
+    fireEvent.pointerUp(marker, { pointerType: 'touch', pointerId: 7, button: 0 });
+    await act(async () => {
+      fireEvent.click(marker, { detail: 1 });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(ensureMessageLoaded).toHaveBeenCalledWith(SCRUB_MESSAGES.length - 1, SCRUB_MESSAGES.length);
+    expect(scrollToMessage).toHaveBeenCalledWith(USER_MESSAGE, 0);
+  });
+
+  it('previews multiple markers after a long press and suppresses the release click', async () => {
+    const { container, ensureMessageLoaded } = await renderOpenMobileRail();
+    const [first, second, third] = markers(container);
+    touchDown(first!);
+    await act(async () => { vi.advanceTimersByTime(450); });
+
+    const preview = document.querySelector('[role="tooltip"]')!;
+    expect(preview.getAttribute('data-preview-mode')).toBe('scrub');
+    expect(preview.textContent).toContain('scrub preview one');
+
+    await act(async () => { moveTouchPointer(second!, 7, 20, 60); });
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('scrub preview two');
+    const secondPreview = document.querySelector('[role="tooltip"]');
+    await act(async () => { moveTouchPointer(second!, 7, 20, 61); });
+    expect(document.querySelector('[role="tooltip"]')).toBe(secondPreview);
+
+    await act(async () => { moveTouchPointer(third!, 7, 20, 100); });
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain('scrub preview three');
+    fireEvent.pointerUp(third!, { pointerType: 'touch', pointerId: 7, button: 0 });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    fireEvent.click(third!, { detail: 1 });
+
+    expect(ensureMessageLoaded).not.toHaveBeenCalled();
+  });
+
+  it('leaves pre-long-press movement unprevented so the rail can scroll normally', async () => {
+    const { container, ensureMessageLoaded } = await renderOpenMobileRail();
+    const [first, second] = markers(container);
+    touchDown(first!);
+    expect(moveTouchPointer(second!, 7, 24, 36)).toBe(true);
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    fireEvent.pointerUp(second!, { pointerType: 'touch', pointerId: 7, button: 0 });
+    fireEvent.click(second!, { detail: 1 });
+    expect(ensureMessageLoaded).not.toHaveBeenCalled();
+  });
+
+  it('clears the preview on pointer cancellation and suppresses its compatibility click', async () => {
+    const { container, ensureMessageLoaded } = await renderOpenMobileRail();
+    const marker = markers(container)[0]!;
+    touchDown(marker);
+    await act(async () => { vi.advanceTimersByTime(450); });
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+
+    fireEvent.pointerCancel(marker, { pointerType: 'touch', pointerId: 7 });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    fireEvent.click(marker, { detail: 1 });
+    expect(ensureMessageLoaded).not.toHaveBeenCalled();
+  });
+
+  it('ends the preview when the active finger leaves the rail bounds', async () => {
+    const { container } = await renderOpenMobileRail();
+    const marker = markers(container)[0]!;
+    const list = container.querySelector<HTMLElement>('.message-navigation-list')!;
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      left: 200,
+      top: 100,
+      right: 252,
+      bottom: 400,
+      width: 52,
+      height: 300,
+      toJSON: () => ({}),
+    } as DOMRect);
+    touchDown(marker);
+    await act(async () => { vi.advanceTimersByTime(450); });
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+
+    await act(async () => { moveTouchPointer(marker, 7, 270, 180); });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
+  it('clears the gesture on session changes, rail close, and filter changes', async () => {
+    const { container, rerender } = await renderOpenMobileRail();
+    let marker = markers(container)[0]!;
+    touchDown(marker);
+    await act(async () => { vi.advanceTimersByTime(450); });
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+
+    await act(async () => {
+      seedSession('rail-scrub-next');
+      await Promise.resolve();
+    });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    marker = markers(container)[0]!;
+    touchDown(marker, 8);
+    await act(async () => { vi.advanceTimersByTime(450); });
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+    rerender(
+      <MessageNavigationRail
+        chatRef={{ current: null }}
+        isMobile
+        mobileExpanded={false}
+      />,
+    );
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+
+    rerender(
+      <MessageNavigationRail
+        chatRef={{ current: null }}
+        isMobile
+        mobileExpanded
+      />,
+    );
+    marker = markers(container)[0]!;
+    touchDown(marker, 9);
+    await act(async () => { vi.advanceTimersByTime(450); });
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
+    fireEvent.click(container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')!);
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+  });
+
+  it('does not start scrubbing on desktop pointer interactions', async () => {
+    const ensureMessageLoaded = vi.fn().mockResolvedValue(USER_MESSAGE);
+    useSessionStore.setState({ ensureMessageLoaded });
+    const { container } = render(<MessageNavigationRail chatRef={{ current: null }} />);
+    await act(async () => { await Promise.resolve(); });
+    const marker = markers(container)[0]!;
+
+    fireEvent.pointerDown(marker, { pointerType: 'touch', pointerId: 7, button: 0 });
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    fireEvent.click(marker, { detail: 1 });
+    expect(ensureMessageLoaded).toHaveBeenCalledTimes(1);
   });
 });
 

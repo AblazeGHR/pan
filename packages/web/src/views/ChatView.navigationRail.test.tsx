@@ -25,8 +25,8 @@ vi.mock('@/components/layout/ChatLayout', () => ({
   ),
 }));
 vi.mock('@/components/chat/ChatMessages', () => ({
-  ChatMessages: forwardRef(() => (
-    <div data-testid="chat-messages">
+  ChatMessages: forwardRef(({ hideScrollToBottom = false }: { hideScrollToBottom?: boolean }, _ref) => (
+    <div data-testid="chat-messages" data-hide-scroll-to-bottom={hideScrollToBottom}>
       <div data-testid="chat-scroll-container" className="overflow-auto" />
     </div>
   )),
@@ -164,5 +164,32 @@ describe('ChatView: message navigation rail switch', () => {
     fireEvent.keyDown(marker, { key: 'Escape' });
     expect(container.querySelector('#message-navigation-panel')?.getAttribute('aria-hidden')).toBe('true');
     expect(document.activeElement).toBe(toggle);
+  });
+
+  it('hides the bottom button only while the enabled mobile navigation rail is expanded', async () => {
+    viewport.isMobile = true;
+    useAppSettingsStore.setState({ showMessageNavigationRail: true });
+    const { container, getByRole, rerender } = render(<ChatView />);
+    const chatMessages = container.querySelector('[data-testid="chat-messages"]')!;
+    const toggle = getByRole('button', { name: 'Open message navigation rail' });
+
+    expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('false');
+    fireEvent.click(toggle);
+    expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('true');
+    fireEvent.click(getByRole('button', { name: 'Close message navigation rail' }));
+    expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('false');
+
+    await act(async () => {
+      useAppSettingsStore.setState({ showMessageNavigationRail: false });
+      await Promise.resolve();
+    });
+    expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('false');
+
+    viewport.isMobile = false;
+    useAppSettingsStore.setState({ showMessageNavigationRail: true });
+    rerender(<ChatView />);
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('false');
   });
 });

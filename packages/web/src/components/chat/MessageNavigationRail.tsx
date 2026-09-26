@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState, type MouseEvent, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { Bot, Loader2, UserRound } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -13,6 +22,8 @@ import type { ChatMessagesHandle } from './ChatMessages';
 
 interface MessageNavigationRailProps {
   chatRef: RefObject<ChatMessagesHandle | null>;
+  isMobile?: boolean;
+  mobileExpanded?: boolean;
 }
 
 type IndexStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -21,6 +32,20 @@ const USER_LABEL = '\u7528\u6237';
 const RAIL_LABEL = '\u5feb\u901f\u5b9a\u4f4d';
 const PREVIEW_FALLBACK = '\u65e0\u9884\u89c8\u5185\u5bb9';
 const INDEX_PAGE_SIZE = 200;
+const LONG_PRESS_MS = 450;
+const PRE_LONG_PRESS_MOVE_PX = 10;
+
+interface ScrubGesture {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  fromEnd: number;
+  active: boolean;
+  moved: boolean;
+  timer: number | null;
+}
+
+type PreviewMode = 'hover' | 'scrub';
 
 const FILTERS: Array<{ kind: QuickJumpKind; label: string }> = [
   { kind: 'user', label: USER_LABEL },
@@ -35,7 +60,11 @@ function nextPaint(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
-export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
+export function MessageNavigationRail({
+  chatRef,
+  isMobile = false,
+  mobileExpanded = false,
+}: MessageNavigationRailProps) {
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentMessages = useSessionStore((s) => s.currentMessages);
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
@@ -55,13 +84,34 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
   const [activeFromEnd, setActiveFromEnd] = useState<number | null>(null);
   const [jumpingFromEnd, setJumpingFromEnd] = useState<number | null>(null);
   const [jumpError, setJumpError] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<{ target: QuickJumpIndexItem; top: number; left: number } | null>(null);
+  const [hovered, setHovered] = useState<{
+    target: QuickJumpIndexItem;
+    top: number;
+    left: number;
+    mode: PreviewMode;
+  } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrubGestureRef = useRef<ScrubGesture | null>(null);
+  const suppressNextClickRef = useRef(false);
   const [fullIndex, setFullIndex] = useState<QuickJumpIndexItem[]>([]);
   const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle');
   const [indexTotal, setIndexTotal] = useState(0);
   const [indexMetrics, setIndexMetrics] = useState({ requests: 0, durationMs: 0 });
 
+  const clearScrub = useCallback((suppressClick = false) => {
+    const gesture = scrubGestureRef.current;
+    if (gesture?.timer !== null && gesture?.timer !== undefined) {
+      window.clearTimeout(gesture.timer);
+    }
+    scrubGestureRef.current = null;
+    if (suppressClick && gesture && (gesture.active || gesture.moved)) {
+      suppressNextClickRef.current = true;
+    }
+    setHovered(null);
+  }, []);
+
   useEffect(() => {
+    clearScrub(false);
     setHovered(null);
     setJumpError(null);
     setActiveFromEnd(null);
@@ -133,8 +183,9 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
     return () => {
       disposed = true;
       controller.abort();
+      clearScrub(true);
     };
-  }, [currentSessionId, settings]);
+  }, [clearScrub, currentSessionId, settings]);
 
   const loadedWindowTargets = useMemo(
     () => getQuickJumpIndexItems(
@@ -152,6 +203,10 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
   const targets = useMemo(
     () => allTargets.filter((target) => target.kind === activeKind),
     [allTargets, activeKind],
+  );
+  const targetsByFromEnd = useMemo(
+    () => new Map(targets.map((target) => [target.fromEnd, target])),
+    [targets],
   );
   const counts = useMemo(() => ({
     user: allTargets.filter((item) => item.kind === 'user').length,
@@ -192,10 +247,126 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
     }
   };
 
+  const setMarkerPreview = useCallback((element: HTMLElement, target: QuickJumpIndexItem, mode: PreviewMode) => {
+    const marker = element.getBoundingClientRect();
+    setHovered({ target, top: marker.top + marker.height / 2, left: marker.left - 9, mode });
+  }, []);
+
   const showPreview = (event: MouseEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
-    const marker = event.currentTarget.getBoundingClientRect();
-    setHovered({ target, top: marker.top + marker.height / 2, left: marker.left - 9 });
+    setMarkerPreview(event.currentTarget, target, 'hover');
   };
+
+  const updateScrubPreview = useCallback((x: number, y: number, fallback: EventTarget | null) => {
+    const gesture = scrubGestureRef.current;
+    const list = listRef.current;
+    if (!gesture?.active || !list) return;
+
+    const bounds = list.getBoundingClientRect();
+    if (
+      bounds.width > 0 && bounds.height > 0 &&
+      (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom)
+    ) {
+      clearScrub(true);
+      return;
+    }
+
+    const pointTarget = (typeof document.elementFromPoint === 'function'
+      ? document.elementFromPoint(x, y)
+      : null) ?? fallback;
+    const marker = pointTarget instanceof Element
+      ? pointTarget.closest<HTMLButtonElement>('.message-navigation-marker')
+      : null;
+    if (!marker || !list.contains(marker)) return;
+
+    const fromEnd = Number(marker.dataset.fromEnd);
+    if (!Number.isInteger(fromEnd) || fromEnd === gesture.fromEnd) return;
+    const target = targetsByFromEnd.get(fromEnd);
+    if (!target) return;
+    gesture.fromEnd = fromEnd;
+    setMarkerPreview(marker, target, 'scrub');
+  }, [clearScrub, setMarkerPreview, targetsByFromEnd]);
+
+  const beginScrub = (event: ReactPointerEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
+    if (
+      !isMobile || !mobileExpanded ||
+      (event.pointerType && event.pointerType !== 'touch')
+    ) return;
+    clearScrub(false);
+    suppressNextClickRef.current = false;
+    const marker = event.currentTarget;
+    const gesture: ScrubGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      fromEnd: target.fromEnd,
+      active: false,
+      moved: false,
+      timer: null,
+    };
+    gesture.timer = window.setTimeout(() => {
+      if (
+        scrubGestureRef.current !== gesture ||
+        useSessionStore.getState().currentSessionId !== currentSessionId
+      ) return;
+      gesture.active = true;
+      suppressNextClickRef.current = true;
+      setMarkerPreview(marker, target, 'scrub');
+    }, LONG_PRESS_MS);
+    scrubGestureRef.current = gesture;
+  };
+
+  const moveScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = scrubGestureRef.current;
+    if (!gesture || (Number.isFinite(event.pointerId) && gesture.pointerId !== event.pointerId)) return;
+    if (!gesture.active) {
+      if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > PRE_LONG_PRESS_MOVE_PX) {
+        if (gesture.timer !== null) window.clearTimeout(gesture.timer);
+        gesture.timer = null;
+        gesture.moved = true;
+      }
+      return;
+    }
+    updateScrubPreview(event.clientX, event.clientY, event.target);
+  };
+
+  const finishScrub = (event: ReactPointerEvent<HTMLDivElement>, cancelled: boolean) => {
+    const gesture = scrubGestureRef.current;
+    if (!gesture || (Number.isFinite(event.pointerId) && gesture.pointerId !== event.pointerId)) return;
+    clearScrub(!cancelled && (gesture.active || gesture.moved));
+  };
+
+  const handleMarkerClick = (event: MouseEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
+    if (suppressNextClickRef.current && event.detail !== 0) {
+      suppressNextClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    void jumpTo(target);
+  };
+
+  useEffect(() => {
+    if (!isMobile || !mobileExpanded) {
+      clearScrub(true);
+      return;
+    }
+    const list = listRef.current;
+    if (!list) return;
+    const handleTouchMove = (event: globalThis.TouchEvent) => {
+      if (!scrubGestureRef.current?.active) return;
+      const touch = event.changedTouches[0] ?? event.touches[0];
+      if (!touch) return;
+      if (event.cancelable) event.preventDefault();
+      updateScrubPreview(touch.clientX, touch.clientY, event.target);
+    };
+    const handleTouchCancel = () => clearScrub(false);
+    list.addEventListener('touchmove', handleTouchMove, { passive: false });
+    list.addEventListener('touchcancel', handleTouchCancel);
+    return () => {
+      list.removeEventListener('touchmove', handleTouchMove);
+      list.removeEventListener('touchcancel', handleTouchCancel);
+    };
+  }, [clearScrub, isMobile, mobileExpanded, updateScrubPreview]);
 
   return (
     <aside
@@ -215,7 +386,10 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
             role="tab"
             aria-selected={activeKind === kind}
             className={`message-navigation-filter message-navigation-filter-${kind}${activeKind === kind ? ' is-active' : ''}`}
-            onClick={() => setActiveKind(kind)}
+            onClick={() => {
+              clearScrub(false);
+              setActiveKind(kind);
+            }}
             title={`${RAIL_LABEL}: ${label}`}
           >
             <MarkerIcon kind={kind} />
@@ -226,14 +400,32 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
       </div>
 
       {hovered && createPortal(
-        <div className="message-navigation-tooltip message-navigation-tooltip-floating" role="tooltip" style={{ top: hovered.top, left: hovered.left }}>
+        <div
+          className="message-navigation-tooltip message-navigation-tooltip-floating"
+          role="tooltip"
+          data-preview-mode={hovered.mode}
+          data-preview-from-end={hovered.target.fromEnd}
+          style={{
+            top: hovered.mode === 'scrub'
+              ? `clamp(56px, ${hovered.top}px, calc(100dvh - 56px))`
+              : hovered.top,
+            left: hovered.left,
+          }}
+        >
           <strong>{hovered.target.kind === 'user' ? USER_LABEL : 'Worker report'}</strong>
           <span>{hovered.target.preview || PREVIEW_FALLBACK}</span>
         </div>,
         document.body,
       )}
 
-      <div className="message-navigation-list">
+      <div
+        ref={listRef}
+        className="message-navigation-list"
+        onPointerMove={moveScrub}
+        onPointerUp={(event) => finishScrub(event, false)}
+        onPointerCancel={(event) => finishScrub(event, true)}
+        onLostPointerCapture={(event) => finishScrub(event, true)}
+      >
         {targets.map((target) => {
           const label = target.kind === 'user' ? USER_LABEL : 'Worker report';
           return (
@@ -241,9 +433,12 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
               <button
                 type="button"
                 className={`message-navigation-marker message-navigation-marker-${target.kind}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}`}
-                onClick={() => void jumpTo(target)}
+                onClick={(event) => handleMarkerClick(event, target)}
+                onPointerDown={(event) => beginScrub(event, target)}
                 onMouseEnter={(event) => showPreview(event, target)}
-                onMouseLeave={() => setHovered(null)}
+                onMouseLeave={() => {
+                  if (!scrubGestureRef.current?.active) setHovered(null);
+                }}
                 aria-label={`${label}: ${target.preview || PREVIEW_FALLBACK}`}
                 title={target.preview || PREVIEW_FALLBACK}
                 data-from-end={target.fromEnd}

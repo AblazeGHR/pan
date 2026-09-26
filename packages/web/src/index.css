@@ -890,6 +890,8 @@ body {
   gap: 5px;
   overflow-y: auto;
   overflow-x: visible;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
   padding: 8px 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-default) transparent;

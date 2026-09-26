@@ -131,7 +131,10 @@ export interface ChatMessagesHandle {
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
 
-export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages(_, ref) {
+export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?: boolean }>(function ChatMessages(
+  { hideScrollToBottom = false },
+  ref,
+) {
   const parentRef = useRef<HTMLDivElement>(null);
   const currentMessages = useSessionStore((s) => s.currentMessages);
   const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
@@ -1549,7 +1552,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       </div>
 
       {/* Scroll-to-bottom button */}
-      {!isNearBottom && (
+      {!hideScrollToBottom && !isNearBottom && (
         <button
           onClick={recoverToBottom}
           className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"

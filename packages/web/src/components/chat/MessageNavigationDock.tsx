@@ -201,7 +201,13 @@ export function MessageNavigationDock({
         aria-hidden={!expanded}
         inert={!expanded}
       >
-        {hasOpened && <MessageNavigationRail chatRef={chatRef} />}
+        {hasOpened && (
+          <MessageNavigationRail
+            chatRef={chatRef}
+            isMobile={isMobile}
+            mobileExpanded={mobileExpanded}
+          />
+        )}
       </div>
     </div>
   );

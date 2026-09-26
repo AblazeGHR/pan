@@ -944,6 +944,21 @@ describe('ChatMessages scroll positioning', () => {
     expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
   });
 
+  it('temporarily hides the bottom button without changing its near-bottom state', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const view = render(<ChatMessages />);
+    const scrollEl = view.container.querySelector('.overflow-auto') as HTMLElement;
+    userScroll(scrollEl, 2000 - 400 - SCROLL_BOTTOM_THRESHOLD - 1);
+    expect(view.container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
+
+    view.rerender(<ChatMessages hideScrollToBottom />);
+    expect(view.container.querySelector('[title="Scroll to bottom"]')).toBeNull();
+
+    view.rerender(<ChatMessages hideScrollToBottom={false} />);
+    expect(view.container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
+  });
+
   it('does not pull an away-from-bottom user down on measurement changes', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
