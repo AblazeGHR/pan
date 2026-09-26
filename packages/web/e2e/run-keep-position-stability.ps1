@@ -16,7 +16,7 @@ if ($listeners.Count -gt 0) {
 
 $runId = [guid]::NewGuid().ToString('N')
 $runtime = Join-Path $webRoot "test-results\keep-position-runtime-$runId"
-$python = 'D:\project\Pan\.venv\Scripts\python.exe'
+$python = 'D:\project\Pan-main\.venv\Scripts\python.exe'
 $log = Join-Path $runtime 'server.stdout.log'
 $err = Join-Path $runtime 'server.stderr.log'
 $identityPath = Join-Path $runtime 'server-identity.json'
