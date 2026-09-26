@@ -47,7 +47,7 @@ vi.mock('@/hooks/useMediaQuery', () => ({
 const mockedHistory = vi.mocked(fetchSessionHistory);
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
 const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.tsx'), 'utf8');
-const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\r\n/g, '\n');
 
 beforeEach(() => {
   viewport.isMobile = false;
