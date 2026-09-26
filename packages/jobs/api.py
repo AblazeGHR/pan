@@ -165,8 +165,12 @@ def _normalize_scheduled_action(action: object):
     if api in {"assign", "send_session"}:
         error = _unknown_fields(action, {"api"}, "session action")
         return ({"api": api}, None) if not error else (None, error)
+    if api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
+        error = _unknown_fields(action, {"api"}, "resume legal running action")
+        return ({"api": api}, None) if not error else (None, error)
     if api != "shell":
-        return None, "action.api must be assign, send_session, or shell"
+        return None, ("action.api must be assign, send_session, "
+                      "resume_legal_running, or shell")
     error = _unknown_fields(action, {"api", "args"}, "shell action")
     args = action.get("args")
     if not isinstance(args, dict):
@@ -388,6 +392,16 @@ async def create_job(data: dict):
             text = data.get("text")
             if not isinstance(text, str) or not text.strip():
                 return _err("invalid_argument", f"text is required for {action_api}")
+            scheduled_text = text
+        elif action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
+            action_error = _unknown_fields(
+                action, {"api"}, "resume legal running action")
+            required_target = False
+            if data.get("text", background_jobs.RESUME_LEGAL_RUNNING_TEXT) != (
+                    background_jobs.RESUME_LEGAL_RUNNING_TEXT):
+                return _err("invalid_argument",
+                            "resume_legal_running always sends the message 继续")
+            scheduled_text = background_jobs.RESUME_LEGAL_RUNNING_TEXT
         elif action_api == "shell":
             action_error = _unknown_fields(action, {"api", "args"}, "shell action")
             args = action.get("args")
@@ -403,17 +417,22 @@ async def create_job(data: dict):
             action = {"api": "shell", "args": {
                 "command": command, "cwd": str(cwd)}}
             required_target = False
+            scheduled_text = ""
             if "text" in data:
                 return _err("invalid_argument", "text is not applicable to shell actions")
         else:
             return _err("invalid_argument",
-                        "action.api must be assign, send_session, or shell")
+                        "action.api must be assign, send_session, "
+                        "resume_legal_running, or shell")
         if action_error:
             return _err("invalid_argument", action_error)
         target, target_error = _session_target(data, required=required_target)
         if target_error:
             return _err("invalid_argument", target_error)
         sid = target.get("sessionId") if target else None
+        if action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION and sid:
+            return _err("invalid_argument",
+                        "resume_legal_running does not accept a fixed target Session")
         if sid and not _session_exists(sid):
             return _err("session_not_found", f"Session {sid} not found")
         if "schedule" not in data:
@@ -439,9 +458,9 @@ async def create_job(data: dict):
                 "name": data.get("name", ""),
                 "description": data.get("description", ""),
                 "target_session_id": sid,
-                "text": data.get("text", ""),
-            "schedule": (data["schedule"] if isinstance(data["schedule"], list)
-                         else [data["schedule"]]),
+                "text": scheduled_text,
+                "schedule": (data["schedule"] if isinstance(data["schedule"], list)
+                             else [data["schedule"]]),
                 "misfire_policy": misfire,
                 "max_runs": max_runs,
                 "enabled": enabled,
@@ -731,6 +750,13 @@ async def patch_job(job_id: str, data: dict):
             return _err("invalid_argument", "text must be a non-empty string")
         if (kind == background_jobs.SCHEDULED_TASK_KIND
                 and isinstance(job.get("action"), dict)
+                and job["action"].get("api") == background_jobs.RESUME_LEGAL_RUNNING_ACTION
+                and "action" not in data
+                and text != background_jobs.RESUME_LEGAL_RUNNING_TEXT):
+            return _err("invalid_argument",
+                        "resume_legal_running always sends the message 继续")
+        if (kind == background_jobs.SCHEDULED_TASK_KIND
+                and isinstance(job.get("action"), dict)
                 and job["action"].get("api") == "shell"
                 and "action" not in data):
             return _err("invalid_argument", "text is not applicable to shell actions")
@@ -748,6 +774,12 @@ async def patch_job(job_id: str, data: dict):
         if target_error:
             return _err("invalid_argument", target_error)
         sid = target.get("sessionId") if target else None
+        if (kind == background_jobs.SCHEDULED_TASK_KIND
+                and isinstance(job.get("action"), dict)
+                and job["action"].get("api") == background_jobs.RESUME_LEGAL_RUNNING_ACTION
+                and "action" not in data and sid):
+            return _err("invalid_argument",
+                        "resume_legal_running does not accept a fixed target Session")
         if sid:
             if not _session_exists(sid):
                 return _err("session_not_found", f"Session {sid} not found")
@@ -779,12 +811,24 @@ async def patch_job(job_id: str, data: dict):
                             f"target.sessionId is required for {action_api}")
             if not _session_exists(target_sid):
                 return _err("session_not_found", f"Session {target_sid} not found")
-        elif target_sid and not _session_exists(target_sid):
+        elif (action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION
+              and "target" in data and target_sid):
+            return _err("invalid_argument",
+                        "resume_legal_running does not accept a fixed target Session")
+        elif (action_api != background_jobs.RESUME_LEGAL_RUNNING_ACTION
+              and target_sid and not _session_exists(target_sid)):
             return _err("session_not_found", f"Session {target_sid} not found")
         merged_text = data.get("text", job.get("text"))
         if action_api in {"assign", "send_session"}:
             if not isinstance(merged_text, str) or not merged_text.strip():
                 return _err("invalid_argument", f"text is required for {action_api}")
+        elif action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
+            if ("text" in data and merged_text !=
+                    background_jobs.RESUME_LEGAL_RUNNING_TEXT):
+                return _err("invalid_argument",
+                            "resume_legal_running always sends the message 继续")
+            changes["target"] = {"sessionId": None}
+            changes["text"] = background_jobs.RESUME_LEGAL_RUNNING_TEXT
         else:
             if "text" in data:
                 return _err("invalid_argument", "text is not applicable to shell actions")

@@ -28,11 +28,12 @@ import type {
 import { scheduleEntries } from '@/types/jobs';
 
 export type JobFormMode = 'create' | 'edit';
-type TemplateId = 'scheduled' | 'custom';
+type TemplateId = 'scheduled' | 'resume_legal_running' | 'custom';
 type MessageScheduleKind = SessionMessageSchedule['type'];
 
 const TEMPLATES: { id: TemplateId; label: string; hint: string }[] = [
   { id: 'scheduled', label: '创建定时任务', hint: '按计划执行 Session action 或 shell 命令' },
+  { id: 'resume_legal_running', label: '唤醒所有合法 running 的 Session', hint: '每次触发时重新筛选合法状态为 running 且没有活 Worker 的 Session，并发送“继续”' },
   { id: 'custom', label: '自定义', hint: '选择可创建 Job 类型与适用字段' },
 ];
 
@@ -108,7 +109,7 @@ export function NewJobForm({
   const [template, setTemplate] = useState<TemplateId>('scheduled');
   const [kind, setKind] = useState<JobKind>(initialJob?.kind ?? 'scheduled-task');
   const initialAction = initialJob?.action;
-  const [actionApi, setActionApi] = useState<'assign' | 'send_session' | 'shell'>(
+  const [actionApi, setActionApi] = useState<'assign' | 'send_session' | 'shell' | 'resume_legal_running'>(
     initialAction?.api ?? 'assign',
   );
 
@@ -245,6 +246,22 @@ export function NewJobForm({
         onCreate?.(input);
         return;
       }
+      if (actionApi === 'resume_legal_running') {
+        const input: ScheduledTaskCreateInput = {
+          ...common,
+          kind,
+          target: { sessionId: null },
+          action: { api: 'resume_legal_running' },
+          text: '继续',
+          schedule: entries.map(buildScheduleSpec),
+          misfirePolicy,
+          maxRuns: max,
+          enabled,
+          paused,
+        };
+        onCreate?.(input);
+        return;
+      }
       const sid = targetSessionId.trim();
       if (!sid) {
         setTargetError('Target session is required');
@@ -363,7 +380,10 @@ export function NewJobForm({
       patch.action = actionApi === 'shell'
         ? { api: 'shell', args: { command: shellCommand, cwd: cwd.trim() } }
         : { api: actionApi };
-      if (actionApi === 'shell') {
+      if (actionApi === 'resume_legal_running') {
+        patch.text = '继续';
+        patch.target = { sessionId: null };
+      } else if (actionApi === 'shell') {
         if (!shellCommand.trim() || !cwd.trim()) {
           setFormError('Shell command and working directory are required.');
           return;
@@ -592,6 +612,11 @@ export function NewJobForm({
             if (item.id === 'scheduled') {
               setKind('scheduled-task');
               setActionApi('assign');
+            } else if (item.id === 'resume_legal_running') {
+              setKind('scheduled-task');
+              setActionApi('resume_legal_running');
+              setTargetSessionId('');
+              setText('继续');
             }
           }}
           className={'flex-1 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors '
@@ -683,10 +708,16 @@ export function NewJobForm({
             >
               <option value="assign">Assign task to Session</option>
               <option value="send_session">Send Session message</option>
+              <option value="resume_legal_running">唤醒所有合法 running 的 Session</option>
               <option value="shell">Run shell command on Pan server</option>
             </select>
           </Field>
-          {actionApi === 'shell' ? (
+          {actionApi === 'resume_legal_running' ? (
+            <div className="rounded border border-border-default bg-bg-tertiary px-2.5 py-2 text-[11px] text-text-secondary">
+              每次 Job 触发时，服务端都会重新扫描持久合法状态为 running 且当前没有活 Worker 的 Session，
+              再通过正常消息投递发送正文“继续”。创建时不会固定 Session ID，也不会运行 shell 命令。
+            </div>
+          ) : actionApi === 'shell' ? (
             <>
               <Field label="Shell command *">
                 <textarea

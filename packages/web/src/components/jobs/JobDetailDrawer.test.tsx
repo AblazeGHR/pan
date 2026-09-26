@@ -45,4 +45,41 @@ describe('JobDetailDrawer width', () => {
     expect(drawer.className).toContain('md:max-w-[28rem]');
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
   });
+
+  it('shows dynamic targeting and permits run-now for a targetless resume action', () => {
+    const resumeJob: Job = {
+      ...job,
+      jobId: 'job_resume',
+      kind: 'scheduled-task',
+      name: 'Resume legal running Sessions',
+      source: { type: 'system' },
+      target: { sessionId: null },
+      action: { api: 'resume_legal_running' },
+      text: '继续',
+      status: 'scheduled',
+      schedule: [],
+    };
+    render(
+      <JobDetailDrawer
+        job={resumeJob}
+        kindLabel="Scheduled task"
+        runs={[]}
+        runsLoading={false}
+        onLoadMoreRuns={vi.fn()}
+        onClose={vi.fn()}
+        onRunNow={vi.fn()}
+        onTogglePaused={vi.fn()}
+        onDelete={vi.fn()}
+        onChangeTarget={vi.fn()}
+        onEdit={vi.fn()}
+        onToggleEntryEnabled={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Run now' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Change target' })).toBeNull();
+    expect(screen.getAllByText(/dynamic: legal running Sessions without a live Worker/).length)
+      .toBeGreaterThan(0);
+    expect(screen.getByText('继续')).toBeTruthy();
+  });
 });

@@ -99,6 +99,7 @@ export interface JobDelivery {
 
 export type ScheduledTaskAction =
   | { api: 'assign' | 'send_session' }
+  | { api: 'resume_legal_running' }
   | { api: 'shell'; args: { command: string; cwd: string } };
 
 /** epoch 秒（新记录）或本地朴素 ISO（兼容旧读路径）。 */

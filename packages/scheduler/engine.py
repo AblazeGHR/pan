@@ -172,7 +172,8 @@ async def run_now(task_id: str) -> dict:
     now = datetime.now().replace(microsecond=0)
     action = job.get("action")
     action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
-    if action_api != "shell" and not task.get("target_session_id"):
+    if (action_api not in {"shell", background_jobs.RESUME_LEGAL_RUNNING_ACTION}
+            and not task.get("target_session_id")):
         return {"ok": False, "error": {"code": "invalid_argument",
                                        "message": "target session is required"}}
     dispatch_key = (f"{task_id}:manual:{uuid.uuid4().hex}"

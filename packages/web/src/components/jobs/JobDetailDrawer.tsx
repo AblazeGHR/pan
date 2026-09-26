@@ -201,12 +201,15 @@ export function JobDetailDrawer({
   const isUndeliverable = job.lastStatus === 'undeliverable' || backlog.length > 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
-  const canRunNow = job.action?.api === 'shell' || hasTarget;
+  const canRunNow = job.action?.api === 'shell'
+    || job.action?.api === 'resume_legal_running'
+    || hasTarget;
   const terminalMessage = (
     (job.kind === 'session-message' || job.kind === 'session-broadcast')
     && ['completed', 'failed', 'cancelled'].includes(job.status)
   );
-  const canChangeTarget = job.kind === 'scheduled-task'
+  const canChangeTarget = (job.kind === 'scheduled-task'
+    && job.action?.api !== 'resume_legal_running')
     || (job.kind === 'session-message' && !terminalMessage)
     || job.kind === 'background-process';
   const canEdit = !terminalMessage;
@@ -333,7 +336,9 @@ export function JobDetailDrawer({
                 <KV label="Source">{sourceSummary(job.source)}</KV>
                 <KV label="Target">
                   <span className="font-mono">
-                    {job.target.sessionIds?.length
+                    {job.action?.api === 'resume_legal_running'
+                      ? 'dynamic: legal running Sessions without a live Worker'
+                      : job.target.sessionIds?.length
                       ? job.target.sessionIds.join(', ')
                       : job.target.sessionId ?? 'no target'}
                   </span>
@@ -352,7 +357,18 @@ export function JobDetailDrawer({
             {(isScheduledTask || job.kind === 'background-process') && (
               <Section title="Execution">
                 <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-xs">
-                  {job.action?.api === 'shell' || job.shellCommand ? (
+                  {job.action?.api === 'resume_legal_running' ? (
+                    <>
+                      <KV label="Mode">Wake legal running Sessions without a live Worker</KV>
+                      <div className="text-[11px] text-text-tertiary">
+                        The server rescans current Sessions on every fire and uses normal message delivery.
+                      </div>
+                      <div className="text-[11px] text-text-tertiary">Message</div>
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 text-text-secondary">
+                        继续
+                      </pre>
+                    </>
+                  ) : job.action?.api === 'shell' || job.shellCommand ? (
                     <>
                       <KV label="Mode">Pan server shell</KV>
                       <div className="text-[11px] text-text-tertiary">
