@@ -137,7 +137,7 @@ describe('AppSettingsModal', () => {
           id: 'jobs-records',
           name: 'Jobs 记录',
           purpose: '统一 Jobs JSON 记录。',
-          policyStatus: 'jobs_policy_shared',
+          policyStatus: 'jobs_api_managed',
           paths: [
             {
               label: 'jobs 目录',
@@ -170,7 +170,7 @@ describe('AppSettingsModal', () => {
       jobsRetention: {
         slot: 'jobs-retention-control',
         status: 'reserved',
-        message: 'Jobs 保留期控件将在 Jobs API 字段确认后接入。',
+        message: 'Jobs 保留规则由 canonical API/config 管理，此处预留可复用组件槽位。',
       },
     });
     const policies = {
@@ -186,14 +186,12 @@ describe('AppSettingsModal', () => {
     fetchDataRetentionMock.mockReset();
     fetchDataRetentionMock.mockResolvedValue({
       policies,
-      jobsPolicy: {},
       configKey: 'data_retention',
       lastScans,
     });
     updateDataRetentionMock.mockReset();
     updateDataRetentionMock.mockResolvedValue({
       policies,
-      jobsPolicy: {},
       configKey: 'data_retention',
       lastScans,
     });
@@ -264,14 +262,15 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(cardEl().textContent).toContain('D:\\Pan\\data\\sessions'));
     const panel = document.querySelector<HTMLElement>('[data-testid="data-settings-panel"]')!;
     expect(panel.className).toContain('min-w-0');
-    expect(panel.textContent).toContain('Jobs 策略共用槽位');
+    expect(panel.textContent).toContain('由 Jobs API 管理');
     expect(panel.textContent).toContain('每类默认关闭');
     expect(panel.textContent).toContain('不可自动清理');
     expect(panel.textContent).toContain('尚未创建');
     expect(panel.textContent).toContain('外部路径');
     expect(panel.textContent).toContain('用户自建目录未登记');
     expect(panel.querySelector('code')?.className).toContain('break-all');
-    expect(panel.textContent).toContain('Jobs API 字段确认后接入此处');
+    expect(panel.textContent).toContain('Jobs 保留设置组件待接入');
+    expect(panel.textContent).not.toContain('共享策略');
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(6);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
@@ -330,11 +329,10 @@ describe('AppSettingsModal', () => {
       pan_logs: { scanned: 2, deleted: 1, skipped: 1, skipReasons: { active_log_file: 1 }, lastScanAt: null },
     };
     fetchDataRetentionMock.mockResolvedValueOnce({
-      policies, jobsPolicy: { enabled: false }, configKey: 'data_retention', lastScans,
+      policies, configKey: 'data_retention', lastScans,
     });
     updateDataRetentionMock.mockImplementationOnce(async ({ policies: submitted }) => ({
       policies: submitted,
-      jobsPolicy: { enabled: false },
       configKey: 'data_retention',
       lastScans,
     }));
@@ -353,7 +351,7 @@ describe('AppSettingsModal', () => {
     )?.value).toBe('');
     expect(cardEl().textContent).toContain('扫描 3，删除 1，跳过 2');
     expect(cardEl().textContent).toContain('live_worker: 2');
-    expect(cardEl().textContent).toContain('Jobs API 已保存共享策略对象');
+    expect(cardEl().textContent).toContain('Jobs 保留设置组件待接入');
     const saveButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.includes('保存清理策略'))!;
     expect(saveButton.disabled).toBe(true);

@@ -454,7 +454,7 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     const lastScans = Object.fromEntries(Object.keys(policies).map((key) => [key, {
       scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null,
     }]));
-    return { policies, jobsPolicy: {}, configKey: 'data_retention', lastScans };
+    return { policies, configKey: 'data_retention', lastScans };
   }
   if (path === '/api/settings/data-retention' && method === 'PUT') {
     const submitted = body && typeof body === 'object' && !Array.isArray(body)
@@ -468,7 +468,6 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
         qq_media: { enabled: false, days: null },
         pan_logs: { enabled: false, days: null },
       },
-      jobsPolicy: {},
       configKey: 'data_retention',
       lastScans: {
         sessions: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },

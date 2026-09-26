@@ -599,7 +599,7 @@ export interface ApiConfigResponse {
 
 export type DataCatalogPolicyStatus =
   | 'data_retention_policy'
-  | 'jobs_policy_shared'
+  | 'jobs_api_managed'
   | 'session_lifecycle_cleanup'
   | 'not_auto_cleanable';
 
@@ -650,7 +650,6 @@ export interface ApiDataRetentionScanResult {
 
 export interface ApiDataRetentionResponse {
   policies: Record<DataRetentionPolicyId, ApiDataRetentionPolicy>;
-  jobsPolicy: Record<string, unknown>;
   configKey: 'data_retention';
   lastScans: Record<DataRetentionPolicyId, ApiDataRetentionScanResult>;
 }

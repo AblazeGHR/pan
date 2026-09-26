@@ -1326,14 +1326,14 @@ export async function fetchDataCatalog(): Promise<ApiDataCatalogResponse> {
   return request<ApiDataCatalogResponse>(`${BASE}/data/catalog`);
 }
 
-/** Read Data retention settings and the shared Jobs policy slot. */
+/** Read Data-owned retention settings and recent scan results. */
 export async function fetchDataRetention(): Promise<ApiDataRetentionResponse> {
   return request<ApiDataRetentionResponse>(`${BASE}/settings/data-retention`);
 }
 
-/** Persist Data policies through the shared config.json retention namespace. */
+/** Persist only Data-owned policies under config.json's data_retention key. */
 export async function updateDataRetention(
-  value: Pick<ApiDataRetentionResponse, 'policies'> & { jobs?: Record<string, unknown> },
+  value: Pick<ApiDataRetentionResponse, 'policies'>,
 ): Promise<ApiDataRetentionResponse> {
   return request<ApiDataRetentionResponse>(`${BASE}/settings/data-retention`, {
     method: 'PUT',

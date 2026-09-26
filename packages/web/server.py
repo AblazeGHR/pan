@@ -7120,35 +7120,13 @@ async def api_get_data_catalog():
     return get_data_catalog()
 
 
-def _validate_jobs_retention_payload(value: object, depth: int = 0) -> bool:
-    """Validate the reserved Jobs policy object without imposing its schema."""
-    if depth > 4:
-        return False
-    if value is None or isinstance(value, (bool, int, float)):
-        return True
-    if isinstance(value, str):
-        return (len(value) <= 256 and "*" not in value and "?" not in value
-                and not re.match(r"^(?:[A-Za-z]:[\\/]|[/\\]{1,2})", value.strip()))
-    if isinstance(value, list):
-        return len(value) <= 64 and all(_validate_jobs_retention_payload(item, depth + 1) for item in value)
-    if isinstance(value, dict):
-        return len(value) <= 64 and all(
-            isinstance(key, str) and len(key) <= 80
-            and not re.search(r"path|glob|pattern|root|directory", key.lower())
-            and _validate_jobs_retention_payload(item, depth + 1)
-            for key, item in value.items()
-        )
-    return False
-
-
 @app.get("/api/settings/data-retention")
 async def api_get_data_retention():
-    """Read the shared Data/Jobs retention config namespace and recent results."""
+    """Read Data-owned retention policies and recent scan results."""
     config = load_config()
     raw_retention = config.get("data_retention") or {}
     return {
         "policies": normalize_data_retention_policies(raw_retention),
-        "jobsPolicy": raw_retention.get("jobs") if isinstance(raw_retention, dict) else {},
         "configKey": "data_retention",
         "lastScans": _get_data_retention_service().get_status(),
     }
@@ -7156,31 +7134,27 @@ async def api_get_data_retention():
 
 @app.put("/api/settings/data-retention")
 async def api_put_data_retention(data: dict = Body(...)):
-    """Strictly save Data policies and preserve the Jobs-owned shared slot."""
-    if not isinstance(data, dict) or set(data) - {"policies", "jobs"} or "policies" not in data:
-        raise HTTPException(status_code=422, detail="expected policies and optional jobs object")
+    """Strictly save Data-owned policies; Jobs settings have their own API."""
+    if not isinstance(data, dict) or set(data) != {"policies"}:
+        raise HTTPException(status_code=422, detail="expected policies only")
     config = load_config()
     current = normalize_data_retention_policies(config.get("data_retention"))
     try:
         policies = validate_data_retention_update({"policies": data["policies"]}, current)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if "jobs" in data and not _validate_jobs_retention_payload(data["jobs"]):
-        raise HTTPException(status_code=422, detail="jobs must be a bounded JSON object")
     raw = read_config_file()
     retention = raw.get("data_retention")
     if not isinstance(retention, dict):
         retention = {}
+    # Remove the short-lived Data-owned Jobs slot introduced by the earlier
+    # integration draft. Canonical Jobs settings live under config.jobs.
+    retention.pop("jobs", None)
     retention.update(policies)
-    if "jobs" in data:
-        if not isinstance(data["jobs"], dict):
-            raise HTTPException(status_code=422, detail="jobs must be a JSON object")
-        retention["jobs"] = data["jobs"]
     raw["data_retention"] = retention
     save_config(raw)
     return {
         "policies": policies,
-        "jobsPolicy": retention.get("jobs", {}),
         "configKey": "data_retention",
         "lastScans": _get_data_retention_service().get_status(),
     }

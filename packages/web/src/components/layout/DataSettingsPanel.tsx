@@ -19,7 +19,7 @@ interface DataSettingsPanelProps {
   retentionDirty: boolean;
   onRetentionChange: (id: DataRetentionPolicyId, field: 'enabled' | 'days', value: boolean | number | null) => void;
   onSaveRetention: () => void;
-  /** Shared integration point for the existing Jobs retention page/API. */
+  /** Insertion point for the reusable Jobs retention settings component. */
   jobsRetentionSlot?: ReactNode;
 }
 
@@ -69,7 +69,7 @@ function CategoryCard({
       ? 'Data 策略（默认关闭）'
       : category.policyStatus === 'session_lifecycle_cleanup'
         ? '随 Session 生命周期清理'
-        : 'Jobs 策略共用槽位';
+        : '由 Jobs API 管理';
   return (
     <section className="min-w-0 rounded-md border border-border-muted bg-bg-primary">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-3 py-2.5">
@@ -227,19 +227,6 @@ function RetentionControls({
           );
         })}
       </div>
-      <section
-        id="jobs-retention-shared-projection"
-        data-testid="jobs-retention-shared-projection"
-        className="min-w-0 rounded border border-border-muted bg-bg-primary p-3"
-      >
-        <h4 className="text-xs font-medium text-text-primary">Jobs 保留期共用投影</h4>
-        <p className="mt-1 break-words text-[10px] leading-relaxed text-text-tertiary">
-          Data 与 Jobs 共用 /api/settings/data-retention 和 config.json 的 data_retention.jobs；
-          {Object.keys(saved.jobsPolicy || {}).length > 0
-            ? 'Jobs API 已保存共享策略对象。'
-            : 'Jobs TA 字段接入前尚无策略字段。'}
-        </p>
-      </section>
       {saveError && (
         <p role="alert" className="text-[10px] text-danger">保存失败：{saveError}</p>
       )}

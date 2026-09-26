@@ -116,7 +116,7 @@ def test_catalog_lists_registered_categories_without_creating_missing_paths(
     assert categories["mcp-config"]["policyStatus"] == "session_lifecycle_cleanup"
     assert categories["kimi-isolated-home"]["policyStatus"] == "session_lifecycle_cleanup"
     assert categories["workdirs"]["policyStatus"] == "session_lifecycle_cleanup"
-    assert categories["jobs-runs"]["policyStatus"] == "jobs_policy_shared"
+    assert categories["jobs-runs"]["policyStatus"] == "jobs_api_managed"
     assert categories["qq-inbox"]["policyStatus"] == "not_auto_cleanable"
     assert all("path" in entry for item in result["categories"] for entry in item["paths"])
     assert not project.exists()

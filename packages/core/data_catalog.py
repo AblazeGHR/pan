@@ -133,12 +133,12 @@ def get_data_catalog() -> dict:
         _category("attachments", "附件上传与 sidecar", "上传文件及 session-scoped .attachments.json 引用清单。", managed,
                   [_path("上传与 sidecar 根目录", DATA_ROOT / "attachments")],
                   note="独立于 Session/history；只清理登记的普通上传文件，历史链接到期后可能失效。"),
-        _category("jobs-records", "Jobs 记录", "统一 Jobs JSON 记录及 schedule task 数据。", "jobs_policy_shared",
+        _category("jobs-records", "Jobs 记录", "统一 Jobs JSON 记录及 schedule task 数据。", "jobs_api_managed",
                   _job_storage_paths("jobs"),
-                  note="保留规则由 Jobs API/config 单一存储；Data 页仅投影同一策略。"),
-        _category("jobs-logs", "Jobs 日志", "后台 Job 的逐项日志文件。", "jobs_policy_shared",
+                  note="保留规则由 Jobs completed-retention API/config 管理；Data 策略不保存 Jobs 规则。"),
+        _category("jobs-logs", "Jobs 日志", "后台 Job 的逐项日志文件。", "jobs_api_managed",
                   _job_storage_paths("logs")),
-        _category("jobs-runs", "Jobs runs 与模板", "runs.jsonl 执行历史、自定义 schedule 模板和旧 scheduler 迁移目录。", "jobs_policy_shared",
+        _category("jobs-runs", "Jobs runs 与模板", "runs.jsonl 执行历史、自定义 schedule 模板和旧 scheduler 迁移目录。", "jobs_api_managed",
                   _job_storage_paths("runs.jsonl") + _job_storage_paths("schedule_templates.json") +
                   [_path("旧 scheduler 迁移目录", DATA_ROOT / "scheduler")]),
         _category("workspaces", "Workspaces", "Workspace 元数据；其 dirs 字段只是外部目录引用。", protected,
@@ -218,6 +218,6 @@ def get_data_catalog() -> dict:
         "jobsRetention": {
             "slot": "jobs-retention-control",
             "status": "reserved",
-            "message": "Jobs 保留策略使用 Jobs API/config 的同一存储；Data 页面提供共享策略投影槽位。",
+            "message": "Jobs 保留规则由 /api/jobs/settings/completed-retention 和 config.jobs 管理；此处预留可复用设置组件槽位。",
         },
     }

@@ -534,8 +534,12 @@ def test_retention_service_is_daily_idempotent_persists_results_and_isolates_fai
     assert persisted["sessions"]["error"] == "scan_failed:RuntimeError"
 
 
-def test_data_retention_api_persists_shared_key_and_rejects_unknown_targets(tmp_path, monkeypatch):
-    raw = {"other": {"kept": True}, "data_retention": {"jobs": {"enabled": False}}}
+def test_data_retention_api_owns_only_data_policies_and_rejects_jobs_payload(tmp_path, monkeypatch):
+    raw = {
+        "other": {"kept": True},
+        "jobs": {"canonical": "jobs-owned"},
+        "data_retention": {"jobs": {"legacy": True}},
+    }
     saved = []
     monkeypatch.setattr(srv, "read_config_file", lambda: json.loads(json.dumps(saved[-1] if saved else raw)))
     monkeypatch.setattr(srv, "load_config", lambda: (saved[-1] if saved else raw))
@@ -552,20 +556,17 @@ def test_data_retention_api_persists_shared_key_and_rejects_unknown_targets(tmp_
     }}))
     assert response["configKey"] == "data_retention"
     assert saved[-1]["other"] == {"kept": True}
-    assert saved[-1]["data_retention"]["jobs"] == {"enabled": False}
+    assert saved[-1]["jobs"] == {"canonical": "jobs-owned"}
+    assert "jobs" not in saved[-1]["data_retention"]
     assert saved[-1]["data_retention"]["sessions"] == {"enabled": True, "days": 5}
     response = asyncio.run(srv.api_get_data_retention())
     assert response["policies"]["sessions"] == {"enabled": True, "days": 5}
-    assert response["jobsPolicy"] == {"enabled": False}
+    assert "jobsPolicy" not in response
     response = asyncio.run(srv.api_put_data_retention({"policies": {
         "sessions": {"enabled": True, "days": None},
     }}))
     assert response["policies"]["sessions"] == {"enabled": True, "days": None}
     assert saved[-1]["data_retention"]["sessions"]["days"] is None
-    asyncio.run(srv.api_put_data_retention({"policies": {
-        "sessions": {"enabled": True, "days": 5},
-    }, "jobs": {"retentionDays": 14, "activeOnly": True}}))
-    assert saved[-1]["data_retention"]["jobs"] == {"retentionDays": 14, "activeOnly": True}
     with pytest.raises(srv.HTTPException) as error:
         asyncio.run(srv.api_put_data_retention({"policies": {"config": {"enabled": True, "days": 1}}}))
     assert error.value.status_code == 422
@@ -575,7 +576,7 @@ def test_data_retention_api_persists_shared_key_and_rejects_unknown_targets(tmp_
     with pytest.raises(srv.HTTPException) as error:
         asyncio.run(srv.api_put_data_retention({
             "policies": {"sessions": {"enabled": True, "days": 5}},
-            "jobs": {"fileGlob": "C:/data/**"},
+            "jobs": {"completed": {"enabled": False, "days": None}},
         }))
     assert error.value.status_code == 422
 

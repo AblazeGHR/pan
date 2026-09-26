@@ -1197,7 +1197,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               onSaveRetention={() => void saveDataRetentionDraft()}
               jobsRetentionSlot={
                 <p className="text-[10px] leading-relaxed text-text-tertiary">
-                  Jobs 保留期控件将在 Jobs API 字段确认后接入此处。
+                  Jobs 保留设置组件待接入；规则由 Jobs completed-retention API/config 管理。
                 </p>
               }
             />
