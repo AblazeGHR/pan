@@ -123,6 +123,39 @@ describe('AppSettingsModal', () => {
     expect(card.textContent).toContain('Notification');
   });
 
+  it('keeps all settings tabs reachable in a horizontal-only scroller', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+    const tabs = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const panel = document.getElementById('app-settings-tabpanel')!;
+    expect(tabs.map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'General',
+      'Preferences',
+      'Appearance',
+      'Notification',
+      'Adapter',
+    ]);
+    expect(tabList.className).toContain('overflow-x-auto');
+    expect(tabList.className).toContain('overscroll-x-contain');
+    expect(tabList.className).toContain('touch-pan-x');
+    expect(tabs.every((tab) => tab.className.includes('shrink-0'))).toBe(true);
+    expect(tabs.every((tab) => tab.className.includes('whitespace-nowrap'))).toBe(true);
+    expect(cardEl().className).toContain('overflow-hidden');
+    expect(panel.className).toContain('overflow-y-auto');
+    expect(panel.className).not.toContain('overflow-x-auto');
+
+    fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[4]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[4]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 4).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[4]!, { key: 'ArrowLeft' });
+    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(tabs[3]!, { key: 'Home' });
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-general');
+  });
+
   it('shows message visibility on the Appearance tab and keeps its settings and persistence', () => {
     useAppSettingsStore.setState({
       ...DEFAULT_SETTINGS,

@@ -310,6 +310,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   } = useAppSettingsStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const tabListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const tabList = tabListRef.current;
+    const activeTabElement = document.getElementById(`app-settings-tab-${activeTab}`);
+    if (!tabList || !activeTabElement) return;
+
+    const listRect = tabList.getBoundingClientRect();
+    const tabRect = activeTabElement.getBoundingClientRect();
+    if (tabRect.left < listRect.left) {
+      tabList.scrollLeft -= listRect.left - tabRect.left;
+    } else if (tabRect.right > listRect.right) {
+      tabList.scrollLeft += tabRect.right - listRect.right;
+    }
+  }, [activeTab]);
 
   const [reloadScope, setReloadScope] = useState<ReloadScope | null>(null);
   // Keep each reload outcome with the page and controls that own it.
@@ -709,9 +724,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         </div>
 
         <div
+          ref={tabListRef}
           role="tablist"
           aria-label="App settings sections"
-          className="flex shrink-0 border-b border-border-default px-4 md:px-6"
+          className="flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6"
           onKeyDown={(event) => {
             const currentIndex = SETTINGS_TABS.indexOf(activeTab);
             const nextIndex =
@@ -739,7 +755,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             aria-selected={activeTab === 'general'}
             tabIndex={activeTab === 'general' ? 0 : -1}
             onClick={() => setActiveTab('general')}
-            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'general'
                 ? 'border-accent text-text-primary'
                 : 'border-transparent text-text-tertiary hover:text-text-primary'
@@ -756,7 +772,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             aria-selected={activeTab === 'preferences'}
             tabIndex={activeTab === 'preferences' ? 0 : -1}
             onClick={() => setActiveTab('preferences')}
-            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'preferences'
                 ? 'border-accent text-text-primary'
                 : 'border-transparent text-text-tertiary hover:text-text-primary'
@@ -773,7 +789,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             aria-selected={activeTab === 'appearance'}
             tabIndex={activeTab === 'appearance' ? 0 : -1}
             onClick={() => setActiveTab('appearance')}
-            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'appearance'
                 ? 'border-accent text-text-primary'
                 : 'border-transparent text-text-tertiary hover:text-text-primary'
@@ -790,7 +806,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             aria-selected={activeTab === 'notifications'}
             tabIndex={activeTab === 'notifications' ? 0 : -1}
             onClick={() => setActiveTab('notifications')}
-            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'notifications'
                 ? 'border-accent text-text-primary'
                 : 'border-transparent text-text-tertiary hover:text-text-primary'
@@ -807,7 +823,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             aria-selected={activeTab === 'adapter'}
             tabIndex={activeTab === 'adapter' ? 0 : -1}
             onClick={() => setActiveTab('adapter')}
-            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'adapter'
                 ? 'border-accent text-text-primary'
                 : 'border-transparent text-text-tertiary hover:text-text-primary'
