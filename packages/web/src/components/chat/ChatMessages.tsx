@@ -319,6 +319,16 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
   const virtualItems = virtualizer.getVirtualItems();
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
+  const [isUnderfilled, setIsUnderfilled] = useState(false);
+  const refreshUnderfilled = useCallback(() => {
+    const el = parentRef.current;
+    setIsUnderfilled(Boolean(el && el.scrollHeight <= el.clientHeight + 1));
+  }, []);
+
+  // A long adjacent non-body run can collapse into one 48px virtual row.
+  // With no scroll range, scroll events cannot request the older history that
+  // exists above that row. Keep the manual entry in sync with actual geometry.
+  useLayoutEffect(refreshUnderfilled, [refreshUnderfilled, grouped, totalSize, hasMoreMessages]);
 
   // Remember where the reader is, for the route round-trip above. Rows are
   // virtualized, so keep the visible anchor row's offset inside the virtual
@@ -1270,7 +1280,20 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       }
     };
 
-    el.addEventListener('wheel', markUserScrollInput, { passive: true });
+    const handleWheel = (event: WheelEvent) => {
+      markUserScrollInput();
+      if (
+        event.deltaY < 0 &&
+        el.scrollTop <= 0 &&
+        el.scrollHeight <= el.clientHeight + 1 &&
+        hasMoreMessages &&
+        !useSessionStore.getState().historyLoading &&
+        !(event.target instanceof Element && event.target.closest('[data-testid="non-body-group-window"]'))
+      ) {
+        void loadOlderMessages();
+      }
+    };
+    el.addEventListener('wheel', handleWheel, { passive: true });
     el.addEventListener('touchstart', markUserScrollInput, { passive: true });
     el.addEventListener('touchmove', markUserScrollInput, { passive: true });
     el.addEventListener('pointermove', markPointerScrollInput, { passive: true });
@@ -1278,7 +1301,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     el.addEventListener('scroll', handler);
     el.addEventListener('scrollend', handleScrollEnd);
     return () => {
-      el.removeEventListener('wheel', markUserScrollInput);
+      el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('touchstart', markUserScrollInput);
       el.removeEventListener('touchmove', markUserScrollInput);
       el.removeEventListener('pointermove', markPointerScrollInput);
@@ -1314,6 +1337,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     let raf: number | null = null;
     const observer = new ResizeObserver(() => {
       markLayoutChange();
+      refreshUnderfilled();
       if (!shouldFollowBottomRef.current) {
         captureScrollMetrics();
         return;
@@ -1329,7 +1353,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       observer.disconnect();
       if (raf !== null) cancelAnimationFrame(raf);
     };
-  }, [captureScrollMetrics, grouped.length, markLayoutChange, scrollToBottom]);
+  }, [captureScrollMetrics, grouped.length, markLayoutChange, refreshUnderfilled, scrollToBottom]);
 
   // Scroll to bottom when the session changes. Reset the pinned anchor first
   // so the auto-scroll effect above forces us down once this session's history
@@ -1550,6 +1574,17 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
           })}
         </div>
       </div>
+
+      {hasMoreMessages && isUnderfilled && (
+        <button
+          type="button"
+          onClick={() => void loadOlderMessages()}
+          disabled={historyLoading}
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded border border-border-default bg-bg-secondary px-3 py-1.5 text-xs text-text-secondary shadow-sm hover:bg-bg-hover disabled:opacity-50 z-10"
+        >
+          {historyLoading ? 'Loading older messages...' : 'Load older messages'}
+        </button>
+      )}
 
       {/* Scroll-to-bottom button */}
       {!hideScrollToBottom && !isNearBottom && (

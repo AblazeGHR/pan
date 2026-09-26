@@ -2,7 +2,6 @@ import { memo, useEffect, useRef, useState, type TransitionEvent } from 'react';
 import type { Message } from '@/types';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { isLongBlockContent, LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
 import { getMessageIdentity } from '@/utils/messageIdentity';
 import { getLatestMessageTs } from '@/utils/messageTimestamp';
 import { MessageTimestamp } from './MessageTimestamp';
@@ -26,13 +25,18 @@ export const ThinkingGroup = memo(function ThinkingGroup({
   onTimestampFlashConsumed,
 }: ThinkingGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasLoadedLongContent, setHasLoadedLongContent] = useState(false);
+  const [hasMountedContent, setHasMountedContent] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const previousItemsRef = useRef<Message[] | null>(null);
-  const combinedLength = items.reduce((length, message) => length + message.content.length, 0)
-    + Math.max(0, items.length - 1) * 2;
-  const deferContent = items.some((message) => isLongBlockContent(message.content))
-    || (items.length > 1 && combinedLength > LONG_BLOCK_CONTENT_THRESHOLD);
+
+  // A parent non-body disclosure can contain hundreds of folded thinking
+  // groups. Keep their Markdown out of the DOM until each child is opened.
+  // Retain it briefly on close so the height transition can finish.
+  useEffect(() => {
+    if (isOpen || !hasMountedContent) return;
+    const timeout = window.setTimeout(() => setHasMountedContent(false), 150);
+    return () => window.clearTimeout(timeout);
+  }, [isOpen, hasMountedContent]);
 
   // Keep an open group pinned to its latest thinking content while it streams;
   // appending a member keeps the first member's display identity stable.
@@ -54,22 +58,21 @@ export const ThinkingGroup = memo(function ThinkingGroup({
   }, [isOpen, items]);
 
   const toggle = () => {
-    if (!isOpen && deferContent) setHasLoadedLongContent(true);
+    if (!isOpen) setHasMountedContent(true);
     setIsOpen(!isOpen);
   };
 
   const handleContentTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
     if (
-      deferContent &&
       !isOpen &&
       event.target === event.currentTarget
     ) {
-      setHasLoadedLongContent(false);
+      setHasMountedContent(false);
     }
   };
 
   const label = items.length === 1 ? 'thinking' : `${items.length} thinking blocks`;
-  const shouldRenderContent = !deferContent || isOpen || hasLoadedLongContent;
+  const shouldRenderContent = isOpen || hasMountedContent;
   const singleItem = items[0];
   const consumeTimestampFlash = () => {
     const keys = flashKeys?.length ? flashKeys : flashKey ? [flashKey] : [];

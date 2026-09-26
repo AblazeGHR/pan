@@ -24,8 +24,10 @@ beforeEach(() => {
 });
 
 describe('lazy long chat blocks', () => {
-  it('keeps short thinking content eager and defers long Markdown until expanded', () => {
+  it('defers thinking Markdown of any length until expanded', () => {
     const short = render(<ThinkingBlock message={{ role: 'thinking', content: 'short plan' }} />);
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'thinking' }));
     expect(screen.getByTestId('rendered-thinking-content').textContent).toBe('short plan');
     short.unmount();
 
@@ -54,7 +56,7 @@ describe('lazy long chat blocks', () => {
     fireEvent.transitionEnd(window!, { propertyName: 'max-height' });
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
   });
-  it('toggles adjacent short thinking blocks as one group while keeping short Markdown eager', () => {
+  it('renders short thinking Markdown only while its group is open or closing', () => {
     const items: Message[] = [
       { role: 'thinking', content: 'first thought', blockId: 'thought-1' },
       { role: 'thinking', content: 'second thought', blockId: 'thought-2' },
@@ -63,14 +65,17 @@ describe('lazy long chat blocks', () => {
 
     const disclosure = screen.getByRole('button', { name: '2 thinking blocks' });
     expect(disclosure.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getAllByTestId('rendered-thinking-content').map((node) => node.textContent))
-      .toEqual(['first thought', 'second thought']);
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
 
     fireEvent.click(disclosure);
     expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByTestId('rendered-thinking-content').map((node) => node.textContent))
+      .toEqual(['first thought', 'second thought']);
     fireEvent.click(disclosure);
     expect(disclosure.getAttribute('aria-expanded')).toBe('false');
     expect(screen.getAllByTestId('rendered-thinking-content')).toHaveLength(2);
+    fireEvent.transitionEnd(screen.getByTestId('thinking-content-window'), { propertyName: 'max-height' });
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
   });
 
   it('defers long grouped thinking, keeps an open group across streamed appends, then unloads after collapse', () => {
@@ -173,5 +178,21 @@ describe('lazy long chat blocks', () => {
       content: longTool.content,
       title: 'Bash',
     });
+  });
+
+  it('does not render folded short thinking Markdown across a long merged run', () => {
+    const items: Message[] = Array.from({ length: 120 }, (_, index) => ({
+      role: index % 2 === 0 ? 'thinking' : 'tool',
+      content: index % 2 === 0 ? `short thought ${index}` : 'tool result (Bash)',
+      blockId: `long-run-${index}`,
+    }));
+    render(<NonBodyGroup items={items} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /120 non-body blocks/ }));
+    expect(screen.getAllByRole('button', { name: 'thinking' })).toHaveLength(60);
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'thinking' })[0]!);
+    expect(screen.getAllByTestId('rendered-thinking-content')).toHaveLength(1);
   });
 });

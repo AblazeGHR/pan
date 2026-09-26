@@ -1121,6 +1121,52 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(1100);
   });
 
+  it('offers older history when a long folded non-body run leaves no scroll range', () => {
+    const loadOlderMessages = vi.fn(async () => {});
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    useSessionStore.setState({
+      currentSessionId: 'underfilled-run',
+      currentMessages: Array.from({ length: 101 }, (_, index) => ({
+        role: index % 2 === 0 ? 'thinking' : 'tool',
+        content: `block ${index}`,
+        blockId: `underfilled-${index}`,
+      })),
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(48);
+    m.setVirtualItems([{ index: 0, start: 0, size: 48 }]);
+
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollHeight).toBeLessThan(scrollEl.clientHeight);
+    expect(screen.getByRole('button', { name: 'Load older messages' })).toBeTruthy();
+
+    // jsdom does not clamp scrollTop when content is shorter than the viewport.
+    scrollEl.scrollTop = 0;
+    fireEvent.wheel(scrollEl, { deltaY: -100 });
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+  });
+
+  it('loads an underfilled history page from the visible fallback button', () => {
+    const loadOlderMessages = vi.fn(async () => {});
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    useSessionStore.setState({
+      currentSessionId: 'underfilled-button',
+      currentMessages: [{ role: 'thinking', content: 'latest', blockId: 'latest' }],
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(48);
+    m.setVirtualItems([{ index: 0, start: 0, size: 48 }]);
+
+    render(<ChatMessages />);
+    fireEvent.click(screen.getByRole('button', { name: 'Load older messages' }));
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+  });
+
   it('lets a new upward gesture cancel the prior page anchor and load another page', async () => {
     vi.useFakeTimers();
     let page = 0;
