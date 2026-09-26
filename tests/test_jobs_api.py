@@ -14,6 +14,7 @@ worker.assign/send_session 替身；不 spawn 进程、不写真实 data/。
 
 import asyncio
 import json
+import subprocess
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -406,6 +407,43 @@ def test_post_creates_scheduled_task_multi_entry(client, monkeypatch):
     assert job["targetSessionId"] == "ses_new"
     # 旧契约视角兼容（同一注册表）
     assert scheduler_store.get_task(job["taskId"])["target_session_id"] == "ses_new"
+
+
+def test_post_creates_scheduled_shell_action_without_target_or_runner(
+        client, monkeypatch, tmp_path):
+    popen_calls = []
+
+    def forbidden_popen(*args, **kwargs):
+        popen_calls.append((args, kwargs))
+        raise AssertionError("scheduled shell API creation must not start a Runner")
+
+    monkeypatch.setattr(subprocess, "Popen", forbidden_popen)
+    command = "echo contract-test-must-not-run"
+    cwd = str(jobs.PROJECT_ROOT.resolve())
+    body = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "action": {"api": "shell", "args": {"command": command, "cwd": cwd}},
+        "target": None,
+        "schedule": {"kind": "once", "at": "2099-01-01T09:00:00"},
+    }).json()
+
+    assert body["ok"] is True, body
+    created = body["job"]
+    assert created["kind"] == jobs.SCHEDULED_TASK_KIND
+    assert created["action"] == {
+        "api": "shell", "args": {"command": command, "cwd": cwd}}
+    assert created["target"] == {"sessionId": None}
+    assert created["targetSessionId"] is None
+
+    persisted = jobs.get(
+        created["jobId"], registry_root=scheduler_store.data_root())
+    assert persisted is not None
+    assert persisted["kind"] == jobs.SCHEDULED_TASK_KIND
+    assert persisted["action"] == created["action"]
+    assert persisted["action"]["args"]["command"] == command
+    assert persisted["action"]["args"]["cwd"] == cwd
+    assert scheduler_store.data_root().is_relative_to(tmp_path)
+    assert popen_calls == []
 
 
 def test_post_accepts_session_message_and_rejects_empty_schedule(
