@@ -52,6 +52,31 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('keeps the mobile top bar single-line and exposes the full truncated session title', () => {
+    const longTitle = 'A very long session name with an unbreakable identifier abcdefghijklmnopqrstuvwxyz0123456789';
+    useSessionStore.setState({
+      currentSessionId: 'session-123456789',
+      sessions: [{
+        id: 'session-123456789', name: longTitle, model: 'secret-model',
+        workerStatus: 'running', workerId: 'worker-123',
+        alwaysThinkingEnabled: false, effort: '', history: [],
+      }],
+    });
+
+    render(<TopBar rightAction={<button className="message-navigation-mobile-toggle">Navigate</button>} />);
+
+    const topbar = screen.getByTestId('topbar');
+    const title = topbar.querySelector('.font-medium.truncate');
+    expect(topbar.className).toContain('max-md:flex-nowrap');
+    expect(title?.className).toContain('max-w-[120px]');
+    expect(title?.getAttribute('title')).toBe(longTitle);
+    expect(title?.textContent).toBe(longTitle);
+    expect(screen.getByTitle('Restart worker')).toBeTruthy();
+    expect(screen.getByTitle('Interrupt')).toBeTruthy();
+    expect(screen.getByTitle('Kill worker')).toBeTruthy();
+    expect(topbar.querySelector('.message-navigation-mobile-toggle')).toBeTruthy();
+  });
+
   it('keeps its chat style action synchronized with the persistent app setting', () => {
     render(<TopBar />);
     const toggle = screen.getByRole('button', { name: 'Switch to Bubble view' });
