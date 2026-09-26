@@ -6138,10 +6138,10 @@ async def api_session_handoff(session_id: str, data: dict):
     # Retarget immediately after handoff commits.  This per-record pass is
     # intentionally recoverable: Job write failures must not hide or roll back
     # the already-created successor Session.
-    from packages.scheduler import store as scheduler_store
     try:
-        job_retarget = background_jobs.retarget_session_jobs(
-            session_id, b.id, registry_root=scheduler_store.data_root())
+        # Resolve both active API roots (the unified Jobs API and legacy
+        # background-job routes may use distinct directories).
+        job_retarget = background_jobs.retarget_session_jobs(session_id, b.id)
     except Exception as exc:
         job_retarget = {
             "oldSessionId": session_id,

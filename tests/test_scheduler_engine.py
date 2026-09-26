@@ -499,6 +499,82 @@ def test_undelivered_redelivered_when_target_returns(fake_assign, fixed_config,
     assert saved["last_status"] == "dispatched"
 
 
+def test_undelivered_replay_uses_current_job_when_tick_snapshot_is_stale(
+        fixed_config, monkeypatch):
+    fixed_config()
+    task = make_task()
+    job = store._job_for_task(task["id"])
+    now = _now()
+    note = {
+        "entryId": job["schedule"][0]["id"],
+        "fireAt": store.iso(now - timedelta(minutes=2)),
+        "dispatchKey": f"{task['id']}:replay-current-target",
+        "text": "historical note text",
+        "error": "old target unavailable",
+    }
+    stale_snapshot = dict(job)
+    stale_snapshot.update(
+        status="scheduled", enabled=True, paused=False,
+        targetSessionId="ses_old_target", action={"api": "assign"},
+        text="stale job text", undeliveredFires=[note])
+    background_jobs._update(job["jobId"], {
+        "status": "scheduled", "enabled": True, "paused": False,
+        "targetSessionId": "ses_new_target",
+        "targetStruct": background_jobs.normalize_target("ses_new_target"),
+        "action": {"api": "send_session"}, "text": "current job text",
+        "undeliveredFires": [note],
+        "lastDelivery": {"status": "historical", "sessionId": "ses_old_target"},
+    }, registry_root=store.data_root())
+    monkeypatch.setattr(
+        "packages.core.session.get",
+        lambda session_id: object() if session_id == "ses_new_target" else None)
+    calls = []
+
+    async def replay(current, target, dispatch_key, **kwargs):
+        calls.append((current["action"]["api"], current["text"],
+                      current["status"], target, dispatch_key))
+        return {"status": "queued"}
+
+    monkeypatch.setattr(background_jobs, "_run_job_action", replay)
+
+    assert run(background_jobs._redeliver_undelivered(
+        stale_snapshot, store.data_root())) == 1
+    assert calls == [("send_session", "current job text", "scheduled",
+                      "ses_new_target", note["dispatchKey"])]
+    saved = store._job_for_task(task["id"])
+    assert saved["undeliveredFires"] == []
+    assert saved["lastDelivery"] == {
+        "status": "historical", "sessionId": "ses_old_target",
+    }
+
+
+def test_undelivered_replay_honors_current_terminal_status(monkeypatch, fixed_config):
+    fixed_config()
+    task = make_task()
+    job = store._job_for_task(task["id"])
+    note = {"entryId": "entry", "dispatchKey": "stale-status-fire",
+            "fireAt": store.iso(_now()), "text": "replay me"}
+    stale_snapshot = dict(job)
+    stale_snapshot.update(status="scheduled", enabled=True,
+                          undeliveredFires=[note])
+    background_jobs._update(job["jobId"], {
+        "status": "completed", "enabled": False,
+        "undeliveredFires": [note],
+    }, registry_root=store.data_root())
+    calls = []
+
+    async def replay(*args, **kwargs):
+        calls.append(args)
+        return {"status": "queued"}
+
+    monkeypatch.setattr(background_jobs, "_run_job_action", replay)
+
+    assert run(background_jobs._redeliver_undelivered(
+        stale_snapshot, store.data_root())) == 0
+    assert calls == []
+    assert store._job_for_task(task["id"])["undeliveredFires"] == [note]
+
+
 # ── 多 entry（schedule 列表）──
 
 

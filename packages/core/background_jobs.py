@@ -472,21 +472,23 @@ def _retarget_job_record(job: dict, old_session_id: str,
 
 def retarget_session_jobs(old_session_id: str, new_session_id: str,
                           registry_root: str | Path | None = None) -> dict:
-    """Retarget every matching record in the active Jobs registry.
+    """Retarget every matching record in the live Jobs registry roots.
 
     Jobs currently stores background-process (including scheduled-shell child),
     session-message, session-broadcast, scheduled-task, and targetless
     main-lifecycle records in the same ``jobs/job_*.json`` directory.  These
     kinds have no other persisted target paths: scheduled actions carry their
-    target at the Job level, while delivery/run data is historical.  Thus this
-    scan intentionally reads only the active registry root and edits only the
-    four current target fields.  It includes records in every status; completed
+    target at the Job level, while delivery/run data is historical.  The
+    default scan resolves and de-duplicates both roots used by current APIs:
+    ``scheduler_store.data_root()`` and ``background_jobs._root()``.  It reads
+    only each root's live ``jobs/job_*.json`` records and edits only the four
+    current target fields.  It includes records in every status; completed
     delivery/run history and already queued messages remain untouched.
 
     Each record is read and atomically replaced while holding its existing
     cross-process Job lock.  A failed record is reported by job ID so callers
-    can diagnose it; repeating this operation is safe because replacements are
-    exact and idempotent.
+    can diagnose it by root and Job ID; repeating this operation is safe because
+    replacements are exact and idempotent.
     """
     summary = {
         "oldSessionId": old_session_id,
@@ -506,43 +508,86 @@ def retarget_session_jobs(old_session_id: str, new_session_id: str,
     if old_session_id == new_session_id:
         return summary
 
-    try:
-        if registry_root is None:
-            # The Jobs API resolves both scheduler and non-scheduler records
-            # through this precedence; keep direct recovery calls aligned.
+    candidate_roots: list[Path] = []
+    if registry_root is not None:
+        candidate_roots.append(Path(registry_root).expanduser())
+    else:
+        # The unified Jobs API and the legacy background-job routes can
+        # resolve different roots when both environment variables are set.
+        # Inspect both live API roots; migration-only scheduler sources are
+        # deliberately excluded.  Resolve independently so a broken root does
+        # not prevent updating records in the other live root.
+        try:
             from packages.scheduler import store as scheduler_store
 
-            registry_root = scheduler_store.data_root()
-        root = _root(registry_root)
-        paths = sorted((root / "jobs").glob("job_*.json"))
-    except Exception as exc:
-        summary["errors"].append({
-            "jobId": None,
-            "error": f"registry scan failed: {type(exc).__name__}: {exc}",
-        })
-        return summary
-
-    for path in paths:
-        job_id = path.stem
-        summary["scanned"] += 1
-        try:
-            with _lock, _job_lock(job_id, root):
-                current = _load_path(path)
-                if current is None:
-                    if path.exists():
-                        raise ValueError("Job record could not be read")
-                    summary["unchanged"] += 1
-                    continue
-                if not _retarget_job_record(current, old_session_id, new_session_id):
-                    summary["unchanged"] += 1
-                    continue
-                _atomic_write(path, current)
-                summary["updated"] += 1
+            candidate_roots.append(scheduler_store.data_root())
         except Exception as exc:
             summary["errors"].append({
-                "jobId": job_id,
-                "error": f"{type(exc).__name__}: {exc}",
+                "root": None,
+                "jobId": None,
+                "error": f"scheduler registry resolution failed: {type(exc).__name__}: {exc}",
             })
+        background_root_hint = Path(
+            os.environ.get("PAN_BACKGROUND_JOBS_DIR") or DEFAULT_ROOT).expanduser()
+        try:
+            candidate_roots.append(_root())
+        except Exception as exc:
+            summary["errors"].append({
+                "root": str(background_root_hint),
+                "jobId": None,
+                "error": f"background-job registry resolution failed: {type(exc).__name__}: {exc}",
+            })
+
+    roots: list[Path] = []
+    seen_roots: set[str] = set()
+    for candidate in candidate_roots:
+        root = Path(candidate).expanduser()
+        try:
+            key = os.path.normcase(str(root.resolve()))
+        except Exception as exc:
+            summary["errors"].append({
+                "root": str(root),
+                "jobId": None,
+                "error": f"registry resolution failed: {type(exc).__name__}: {exc}",
+            })
+            continue
+        if key not in seen_roots:
+            seen_roots.add(key)
+            roots.append(root)
+
+    for root in roots:
+        try:
+            paths = sorted((_root(root) / "jobs").glob("job_*.json"))
+        except Exception as exc:
+            summary["errors"].append({
+                "root": str(root),
+                "jobId": None,
+                "error": f"registry scan failed: {type(exc).__name__}: {exc}",
+            })
+            continue
+
+        for path in paths:
+            job_id = path.stem
+            summary["scanned"] += 1
+            try:
+                with _lock, _job_lock(job_id, root):
+                    current = _load_path(path)
+                    if current is None:
+                        if path.exists():
+                            raise ValueError("Job record could not be read")
+                        summary["unchanged"] += 1
+                        continue
+                    if not _retarget_job_record(current, old_session_id, new_session_id):
+                        summary["unchanged"] += 1
+                        continue
+                    _atomic_write(path, current)
+                    summary["updated"] += 1
+            except Exception as exc:
+                summary["errors"].append({
+                    "root": str(root),
+                    "jobId": job_id,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
     return summary
 
 
@@ -1733,40 +1778,90 @@ def _reconcile_scheduled_processes(registry_root: str | Path) -> int:
 
 async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) -> int:
     """target session 恢复/切换后，重投积压的未投递派发（PLAN §10）。"""
+    job_id = job.get("jobId")
     notes = list(job.get("undeliveredFires") or [])
-    if not notes:
+    if not isinstance(job_id, str) or not notes:
         return 0
-    action = job.get("action")
-    if isinstance(action, dict) and action.get("api") == "shell":
-        # These notes came from a Session action. Never reinterpret them as a
-        # shell command after an action edit or legacy data migration.
-        return 0
-    target = job.get("targetSessionId")
-    if not target:
-        # target 仍缺失（可能被清空）：便条原样保留，等 target 恢复/切换。
-        return 0
-    remaining: list[dict] = []
-    delivered: list[dict] = []
-    for note in notes:
+
+    def same_note(left: dict, right: dict) -> bool:
+        left_key = left.get("dispatchKey")
+        right_key = right.get("dispatchKey")
+        if isinstance(left_key, str) and left_key:
+            return left_key == right_key
+        return left == right
+
+    delivered: list[tuple[dict, dict]] = []
+    for stale_note in notes:
+        # tick_scheduled_tasks iterates a list snapshot.  A concurrent process
+        # can retarget, edit, pause, disable, or cancel the Job after that
+        # snapshot was captured, so reload separately at each replay's send
+        # reservation boundary.  Once _run_job_action starts, an in-flight
+        # send cannot be recalled.
+        current = get(job_id, registry_root=registry_root)
+        if (not current or current.get("kind") != SCHEDULED_TASK_KIND
+                or current.get("status") not in {"pending", "scheduled"}
+                or not current.get("enabled", True) or current.get("paused")):
+            break
+        action = current.get("action")
+        if isinstance(action, dict) and action.get("api") == "shell":
+            # These notes came from a Session action. Never reinterpret them as
+            # a shell command after a concurrent action edit or migration.
+            break
+
+        current_notes = current.get("undeliveredFires")
+        if not isinstance(current_notes, list):
+            break
+        note = next((candidate for candidate in current_notes
+                     if isinstance(candidate, dict)
+                     and same_note(candidate, stale_note)), None)
+        if note is None:
+            # Another scheduler may already have removed this fire.
+            continue
+
+        target = current.get("targetSessionId")
+        action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
+        target_required = action_api not in {
+            "shell", RESUME_LEGAL_RUNNING_ACTION,
+        }
+        if target_required and not target:
+            # target 仍缺失（可能被清空）：便条原样保留。
+            break
+        if target and _sessions.get(target) is None:
+            break
         try:
-            result = await _run_job_action(job, target, note.get("dispatchKey"))
+            result = await _run_job_action(
+                current, target, note.get("dispatchKey"),
+                fire_at=note.get("fireAt"), entry_id=note.get("entryId"),
+                registry_root=registry_root)
         except Exception as exc:
             result = {"status": "error", "result": str(exc)}
-        if isinstance(result, dict) and str(result.get("status")) != "error":
-            delivered.append(note)
-        else:
-            remaining.append(note)
+        if (isinstance(result, dict)
+                and str(result.get("status")) not in {"error", "failed", "cancelled"}):
+            delivered.append((dict(note), current))
+
     if delivered:
-        try:
-            _update(job["jobId"], {"undeliveredFires": remaining,
-                                   "lastStatus": "dispatched", "lastError": None,
-                                   "updatedAt": time.time()},
-                    registry_root=registry_root)
-        except ValueError:
-            return 0
-        for note in delivered:
+        # Remove only the notes this pass actually delivered from the latest
+        # record; preserve fires concurrently appended by another scheduler.
+        with _lock, _job_lock(job_id, registry_root):
+            path = _job_path(job_id, registry_root)
+            latest = _load_path(path)
+            if not latest:
+                return 0
+            remaining = list(latest.get("undeliveredFires") or [])
+            for delivered_note, _ in delivered:
+                for index, current_note in enumerate(remaining):
+                    if isinstance(current_note, dict) and same_note(
+                            current_note, delivered_note):
+                        remaining.pop(index)
+                        break
+            latest.update(undeliveredFires=remaining,
+                          lastStatus="dispatched", lastError=None,
+                          updatedAt=time.time())
+            _atomic_write(path, latest)
+        for note, delivered_job in delivered:
             fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
-            _append_task_run(job, job.get("taskId") or job["jobId"], fire_dt,
+            _append_task_run(delivered_job,
+                             delivered_job.get("taskId") or job_id, fire_dt,
                              note.get("dispatchKey") or "", "dispatched", None,
                              registry_root, entry_id=note.get("entryId"))
     return len(delivered)

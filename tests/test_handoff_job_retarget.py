@@ -46,6 +46,9 @@ def test_retarget_covers_all_target_kinds_shapes_statuses_and_only_target_fields
     run_history = '{"jobId":"job_done","targetSessionId":"ses_handoff_old"}\n'
     (root / "runs.jsonl").parent.mkdir(parents=True)
     (root / "runs.jsonl").write_text(run_history, encoding="utf-8")
+    legacy_task = root / "tasks" / "legacy-task.json"
+    legacy_task.parent.mkdir(parents=True)
+    legacy_task.write_text(json.dumps({"targetSessionId": OLD}), encoding="utf-8")
 
     _save(root, {
         "jobId": "job_process", "kind": jobs.BACKGROUND_PROCESS_KIND,
@@ -93,13 +96,13 @@ def test_retarget_covers_all_target_kinds_shapes_statuses_and_only_target_fields
         "status": "pending", "targetSessionId": OLD,
     })
 
-    # The direct recovery helper follows the Jobs product's scheduler-root
-    # precedence and never scans the lower-priority root or migration backups.
+    # Both live API roots participate when they are distinct.  Migration-only
+    # scheduler task sources are not roots for executable Job records.
     result = jobs.retarget_session_jobs(OLD, NEW)
 
     assert result == {
-        "oldSessionId": OLD, "newSessionId": NEW, "scanned": 7,
-        "updated": 5, "unchanged": 2, "errors": [],
+        "oldSessionId": OLD, "newSessionId": NEW, "scanned": 8,
+        "updated": 6, "unchanged": 2, "errors": [],
     }
     process = _read(root, "job_process")
     assert process["targetSessionId"] == NEW
@@ -140,7 +143,8 @@ def test_retarget_covers_all_target_kinds_shapes_statuses_and_only_target_fields
     assert _read(root, "job_lifecycle")["requestId"] == "req-1"
     assert _read(root, "job_unmatched")["targetSessionId"] == "ses_other"
     assert (root / "runs.jsonl").read_text(encoding="utf-8") == run_history
-    assert _read(fallback, "job_wrong_root")["targetSessionId"] == OLD
+    assert json.loads(legacy_task.read_text(encoding="utf-8"))["targetSessionId"] == OLD
+    assert _read(fallback, "job_wrong_root")["targetSessionId"] == NEW
 
 
 def test_retarget_is_noop_without_match_and_idempotent_after_update(tmp_path):
@@ -162,29 +166,33 @@ def test_retarget_is_noop_without_match_and_idempotent_after_update(tmp_path):
 
 def test_single_record_write_failure_is_reported_and_safe_to_retry(
         tmp_path, monkeypatch):
-    root = tmp_path / "registry"
+    root, fallback = _active_root(tmp_path, monkeypatch)
     _save(root, {"jobId": "job_write_fail", "targetSessionId": OLD})
     _save(root, {"jobId": "job_write_ok", "targetSessionId": OLD})
+    _save(fallback, {"jobId": "job_fallback_write_fail", "targetSessionId": OLD})
     write = jobs._atomic_write
 
     def fail_one(path, value):
-        if path.name == "job_write_fail.json":
+        if path.name in {"job_write_fail.json", "job_fallback_write_fail.json"}:
             raise OSError("injected atomic replace failure")
         return write(path, value)
 
     monkeypatch.setattr(jobs, "_atomic_write", fail_one)
-    partial = jobs.retarget_session_jobs(OLD, NEW, registry_root=root)
+    partial = jobs.retarget_session_jobs(OLD, NEW)
     assert partial["updated"] == 1
-    assert partial["errors"] == [{
-        "jobId": "job_write_fail",
-        "error": "OSError: injected atomic replace failure",
-    }]
+    assert partial["errors"] == [
+        {"root": str(root), "jobId": "job_write_fail",
+         "error": "OSError: injected atomic replace failure"},
+        {"root": str(fallback), "jobId": "job_fallback_write_fail",
+         "error": "OSError: injected atomic replace failure"},
+    ]
     assert _read(root, "job_write_fail")["targetSessionId"] == OLD
     assert _read(root, "job_write_ok")["targetSessionId"] == NEW
+    assert _read(fallback, "job_fallback_write_fail")["targetSessionId"] == OLD
 
     monkeypatch.setattr(jobs, "_atomic_write", write)
-    retried = jobs.retarget_session_jobs(OLD, NEW, registry_root=root)
-    assert retried["updated"] == 1
+    retried = jobs.retarget_session_jobs(OLD, NEW)
+    assert retried["updated"] == 2
     assert retried["unchanged"] == 1
     assert retried["errors"] == []
 
@@ -300,6 +308,7 @@ def test_successful_handoff_keeps_successor_visible_when_one_job_write_fails(
     assert result["session"]["id"] != OLD
     assert result["jobRetarget"]["updated"] == 0
     assert result["jobRetarget"]["errors"] == [{
+        "root": str(root),
         "jobId": "job_partial_failure", "error": "OSError: injected disk failure",
     }]
     assert _read(root, "job_partial_failure")["targetSessionId"] == OLD
