@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -86,12 +87,15 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
   // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
   // 每个交互请求、任意 session 的 worker 更新都重渲染 TopBar。
-  const { showToast, toggleTuiView, tuiViewEnabled } =
+  const { showToast } =
     useUIStore(useShallow((s) => ({
       showToast: s.showToast,
-      toggleTuiView: s.toggleTuiView,
-      tuiViewEnabled: s.tuiViewEnabled,
     })));
+  const { chatViewStyle, setChatViewStyle } = useAppSettingsStore(useShallow((s) => ({
+    chatViewStyle: s.chatViewStyle,
+    setChatViewStyle: s.setChatViewStyle,
+  })));
+  const tuiViewEnabled = chatViewStyle === 'tui';
   const { restart, killCurrent, interrupt, takeover } =
     useWorkerStore(useShallow((s) => ({
       restart: s.restart,
@@ -167,7 +171,10 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           {/* Toggle between the chat presentations: TUI rows (default) and the
               Bubble view. */}
           <button
-            onClick={toggleTuiView}
+            type="button"
+            onClick={() => setChatViewStyle(tuiViewEnabled ? 'bubble' : 'tui')}
+            aria-label={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}
+            aria-pressed={!tuiViewEnabled}
             className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
             title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}
           >

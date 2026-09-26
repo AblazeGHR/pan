@@ -119,7 +119,7 @@ describe('AppSettingsModal', () => {
       .toContain('Preferences');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(6);
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(7);
     expect(card.textContent).toContain('Notification');
   });
 
@@ -181,6 +181,27 @@ describe('AppSettingsModal', () => {
         (element) => element.textContent?.includes('Show meta-agent info'),
       )?.getAttribute('aria-checked'),
     ).toBe('true');
+  });
+
+  it('switches Bubble view on and off from Appearance and persists the selected style', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+
+    expect(cardEl().textContent).toContain('Chat view');
+    const bubbleSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Use Bubble chat view'))!;
+    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(bubbleSwitch);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ chatViewStyle: 'bubble' });
+    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(bubbleSwitch);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('tui');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ chatViewStyle: 'tui' });
+    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
   it('toggles the default new Session Workspace preference and persists it', () => {
@@ -371,12 +392,13 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(6);
+    expect(switches).toHaveLength(7);
     // meta-agent is on by default; toggle it off.
-    expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(switches[0]!);
+    const metaSwitch = switches.find((element) => element.textContent?.includes('Show meta-agent info'))!;
+    expect(metaSwitch.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(metaSwitch);
     expect(useAppSettingsStore.getState().showMetaAgent).toBe(false);
-    expect(switches[0]!.getAttribute('aria-checked')).toBe('false');
+    expect(metaSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
   it('changes default group by via the select', () => {

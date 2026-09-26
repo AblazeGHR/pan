@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TopBar } from './TopBar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import * as api from '@/services/api';
 
 function mockMatchMedia() {
@@ -31,6 +32,7 @@ beforeEach(() => {
     }],
   });
   useUIStore.setState({ toastQueue: [] });
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useWorkerStore.setState({
     currentWorker: {
       id: 'worker-123', sessionId: 'session-123456789', status: 'running',
@@ -50,6 +52,17 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('keeps its chat style action synchronized with the persistent app setting', () => {
+    render(<TopBar />);
+    const toggle = screen.getByRole('button', { name: 'Switch to Bubble view' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(toggle);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
+    expect(toggle.getAttribute('aria-label')).toBe('Switch to TUI view');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('hides model/status/worker text while retaining the dot and worker actions', () => {
     render(<TopBar />);
 

@@ -3,6 +3,8 @@ import type { GroupMode } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
 export interface AppSettings {
+  /** Chat message presentation. Bubble is opt-in; TUI is the default. */
+  chatViewStyle: 'tui' | 'bubble';
   /** Default session-list grouping (mirrors uiStore GroupMode options). */
   defaultGroupBy: GroupMode;
   /** Put new Sessions in the active Workspace when the active scope is concrete. */
@@ -39,6 +41,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  chatViewStyle: 'tui',
   defaultGroupBy: 'none',
   defaultNewSessionToCurrentWorkspace: true,
   showMetaAgent: true,
@@ -69,6 +72,10 @@ export function sanitizeSettings(
       ? rawNotifications as Record<string, unknown>
       : {};
   return {
+    chatViewStyle:
+      parsed.chatViewStyle === 'bubble' || parsed.chatViewStyle === 'tui'
+        ? parsed.chatViewStyle
+        : DEFAULT_SETTINGS.chatViewStyle,
     defaultGroupBy:
       parsed.defaultGroupBy === 'workdir' || parsed.defaultGroupBy === 'manager'
         ? parsed.defaultGroupBy
@@ -122,6 +129,7 @@ interface AppSettingsStore extends AppSettings {
   /** True once the initial GET finished (success or failure). */
   loaded: boolean;
   setDefaultGroupBy: (mode: GroupMode) => void;
+  setChatViewStyle: (style: AppSettings['chatViewStyle']) => void;
   setDefaultNewSessionToCurrentWorkspace: (v: boolean) => void;
   setShowMetaAgent: (v: boolean) => void;
   setShowTaskAgent: (v: boolean) => void;
@@ -189,6 +197,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setDefaultGroupBy: (mode) => {
       set({ defaultGroupBy: mode });
       persist({ defaultGroupBy: mode });
+    },
+
+    setChatViewStyle: (style) => {
+      set({ chatViewStyle: style });
+      persist({ chatViewStyle: style });
     },
 
     setDefaultNewSessionToCurrentWorkspace: (v) => {

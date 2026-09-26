@@ -1,7 +1,6 @@
 import { forwardRef, useRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 import { filterVisibleMessages } from './messageFilter';
@@ -77,7 +76,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // Two chat presentations share this component. TUI (the default) lays out
   // full-width role-bar rows; Bubble adds `.bubble-mode` on the scroll
   // container, which is what the shrink-to-fit bubble rules are scoped to.
-  const tuiViewEnabled = useUIStore((s) => s.tuiViewEnabled);
+  const tuiViewEnabled = useAppSettingsStore((s) => s.chatViewStyle === 'tui');
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);

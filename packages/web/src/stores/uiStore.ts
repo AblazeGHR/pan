@@ -213,7 +213,6 @@ interface UIStore {
   userInputRequests: UserInputRequest[];
   elicitationRequests: ElicitationRequest[];
   terminalInteractions: TerminalInteraction[];
-  tuiViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   /** Mobile drawer (hamburger) open state — store-backed so route changes /
@@ -257,7 +256,6 @@ interface UIStore {
   addTerminalInteraction: (interaction: TerminalInteraction) => void;
   removeTerminalInteraction: (sessionId: string, itemId: string) => void;
   clearTerminalInteractions: (sessionId: string) => void;
-  toggleTuiView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
   setMobileSidebarOpen: (open: boolean) => void;
@@ -302,11 +300,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
   userInputRequests: [],
   elicitationRequests: [],
   terminalInteractions: [],
-  // Two independent chat presentations. `true` = TUI rows (default): full-width
-  // rows with 3px role color bars and the user ">" prompt. `false` = Bubble
-  // view: shrink-to-fit bubbles with row-level left/right alignment, applied by
-  // the `.bubble-mode` class scoped styles in index.css.
-  tuiViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
   mobileSidebarOpen: false,
@@ -437,10 +430,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => ({
       terminalInteractions: s.terminalInteractions.filter((item) => item.sessionId !== sessionId),
     }));
-  },
-
-  toggleTuiView: () => {
-    set((s) => ({ tuiViewEnabled: !s.tuiViewEnabled }));
   },
 
   setSidebarWidth: (w) => {

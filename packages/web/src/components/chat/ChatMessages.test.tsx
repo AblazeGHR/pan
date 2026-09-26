@@ -6,7 +6,6 @@ import { render, act, fireEvent, cleanup, screen } from '@testing-library/react'
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
 import { groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useUIStore } from '@/stores/uiStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
 
@@ -213,7 +212,6 @@ beforeEach(() => {
     initialLoading: false,
     historyLoadEnd: 0,
   });
-  useUIStore.setState({ tuiViewEnabled: true });
   useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
 });
 
@@ -320,7 +318,7 @@ describe('view mode layering', () => {
   }
 
   it('mounts bubble-mode only in the Bubble view while keeping the shared row classes', () => {
-    useUIStore.setState({ tuiViewEnabled: true });
+    useAppSettingsStore.setState({ chatViewStyle: 'tui' });
     const tui = renderView();
     expect(tui.scroller).not.toBeNull();
     expect(tui.scroller?.className).not.toContain('bubble-mode');
@@ -328,7 +326,7 @@ describe('view mode layering', () => {
     expect(tui.container.querySelector('.message-row.message-row-assistant')).not.toBeNull();
     cleanup();
 
-    useUIStore.setState({ tuiViewEnabled: false });
+    useAppSettingsStore.setState({ chatViewStyle: 'bubble' });
     const bubble = renderView();
     expect(bubble.scroller?.className).toContain('bubble-mode');
     expect(bubble.container.querySelector('.message-row.message-row-user')).not.toBeNull();
@@ -336,8 +334,8 @@ describe('view mode layering', () => {
   });
 
   it('keeps the worker-report label and row marker in both views', () => {
-    for (const tuiViewEnabled of [true, false]) {
-      useUIStore.setState({ tuiViewEnabled });
+    for (const chatViewStyle of ['tui', 'bubble'] as const) {
+      useAppSettingsStore.setState({ chatViewStyle });
       const { container } = renderView();
 
       expect(container.querySelectorAll('.worker-report-label')).toHaveLength(1);
@@ -1724,7 +1722,7 @@ describe('scroll snapshot write retry', () => {
   it('retries once on the next frame when no anchor row is on screen', () => {
     vi.useFakeTimers();
     const restoreGeometry = installRowGeometry();
-    const tuiBefore = useUIStore.getState().tuiViewEnabled;
+    const styleBefore = useAppSettingsStore.getState().chatViewStyle;
     try {
       const messages = msgs(6);
       useSessionStore.setState({
@@ -1744,7 +1742,7 @@ describe('scroll snapshot write retry', () => {
       // The render window catches up before the retry frame fires.
       act(() => {
         m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
-        useUIStore.setState({ tuiViewEnabled: !tuiBefore }); // force a real commit
+        useAppSettingsStore.setState({ chatViewStyle: styleBefore === 'tui' ? 'bubble' : 'tui' }); // force a real commit
       });
       act(() => {
         vi.advanceTimersByTime(32); // the rAF stub is setTimeout(0)
@@ -1760,7 +1758,7 @@ describe('scroll snapshot write retry', () => {
       expect(backEl.scrollTop).toBe(100);
     } finally {
       act(() => {
-        useUIStore.setState({ tuiViewEnabled: tuiBefore });
+        useAppSettingsStore.setState({ chatViewStyle: styleBefore });
       });
       restoreGeometry();
       vi.useRealTimers();

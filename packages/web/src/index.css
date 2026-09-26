@@ -371,7 +371,7 @@ body {
   }
 }
 
-/* ── Bubble view (opt-in: `tuiViewEnabled === false`) ──
+/* ── Bubble view (opt-in: `chatViewStyle === 'bubble'`) ──
    Shrink-to-fit bubbles with row-level left/right alignment. The TUI view is
    the default and keeps the full-width role-bar rows below; every rule in this
    block must stay scoped to `.bubble-mode` so the two views cannot bleed into

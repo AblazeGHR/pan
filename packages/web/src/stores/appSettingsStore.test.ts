@@ -29,6 +29,7 @@ describe('appSettingsStore', () => {
   it('starts with defaults before the backend load completes', () => {
     const s = useAppSettingsStore.getState();
     expect(s.loaded).toBe(false);
+    expect(s.chatViewStyle).toBe('tui');
     expect(s.defaultGroupBy).toBe('none');
     expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
@@ -51,6 +52,7 @@ describe('appSettingsStore', () => {
       mergeConsecutiveNonBodyBlocks: true,
       keepScrollOnSessionSwitch: true,
       showMessageNavigationRail: true,
+      chatViewStyle: 'bubble',
     });
 
     await useAppSettingsStore.getState().loadSettings();
@@ -65,6 +67,7 @@ describe('appSettingsStore', () => {
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
     expect(s.keepScrollOnSessionSwitch).toBe(true);
     expect(s.showMessageNavigationRail).toBe(true);
+    expect(s.chatViewStyle).toBe('bubble');
   });
 
   it('validates server values on load, falling back to defaults', async () => {
@@ -133,6 +136,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setCodexWarningToast(false);
     useAppSettingsStore.getState().setShowCodexTerminalInput(true);
     useAppSettingsStore.getState().setMergeConsecutiveNonBodyBlocks(true);
+    useAppSettingsStore.getState().setChatViewStyle('bubble');
 
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
     expect(mockedUpdate).toHaveBeenNthCalledWith(1, { defaultGroupBy: 'workdir' });
@@ -144,6 +148,8 @@ describe('appSettingsStore', () => {
     });
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
+    expect(mockedUpdate).toHaveBeenNthCalledWith(8, { chatViewStyle: 'bubble' });
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
 
     useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
@@ -237,6 +243,8 @@ describe('appSettingsStore', () => {
       .toBe(false);
     expect(sanitizeSettings({ mergeConsecutiveNonBodyBlocks: true }).mergeConsecutiveNonBodyBlocks)
       .toBe(true);
+    expect(sanitizeSettings({ chatViewStyle: 'bubble' }).chatViewStyle).toBe('bubble');
+    expect(sanitizeSettings({ chatViewStyle: 'invalid' }).chatViewStyle).toBe('tui');
     // Missing / malformed scroll-memory values fall back to "off" (jump to newest).
     expect(sanitizeSettings({ keepScrollOnSessionSwitch: 'yes' }).keepScrollOnSessionSwitch)
       .toBe(false);

@@ -292,6 +292,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
+    chatViewStyle,
     notifications,
     setDefaultGroupBy,
     setDefaultNewSessionToCurrentWorkspace,
@@ -302,6 +303,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setMergeConsecutiveNonBodyBlocks,
     setKeepScrollOnSessionSwitch,
     setShowMessageNavigationRail,
+    setChatViewStyle,
     setCodexWarningToast,
     setConfirmCrossWorkspaceManagement,
     resetSettings,
@@ -942,6 +944,19 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </section>
           ) : activeTab === 'appearance' ? (
             <>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Chat view
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Use Bubble chat view"
+                    hint="Off by default: TUI rows remain the standard chat presentation."
+                    checked={chatViewStyle === 'bubble'}
+                    onChange={(enabled) => setChatViewStyle(enabled ? 'bubble' : 'tui')}
+                  />
+                </div>
+              </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   Message visibility

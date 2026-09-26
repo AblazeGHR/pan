@@ -147,19 +147,19 @@ describe('worker-report treatment is shared by both views', () => {
 describe('the view toggle and its naming', () => {
   it('exposes the TUI/Bubble toggle instead of hiding it', () => {
     const topBar = read('src/components/layout/TopBar.tsx');
-    expect(topBar).toMatch(/<button\s+onClick=\{toggleTuiView\}/);
+    expect(topBar).toContain("setChatViewStyle(tuiViewEnabled ? 'bubble' : 'tui')");
     expect(topBar).toContain("title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}");
     expect(topBar).not.toContain('Deprecated Bubble view');
   });
 
   it('describes the two presentations consistently and defaults to TUI', () => {
-    const uiStore = read('src/stores/uiStore.ts');
-    expect(uiStore).toContain('tuiViewEnabled: true,');
-    expect(uiStore).toContain('Two independent chat presentations');
-    expect(uiStore).not.toContain('old names were reversed');
+    const settingsStore = read('src/stores/appSettingsStore.ts');
+    expect(settingsStore).toContain("chatViewStyle: 'tui'");
+    expect(settingsStore).toContain("parsed.chatViewStyle === 'bubble'");
 
     const chatMessages = read('src/components/chat/ChatMessages.tsx');
     expect(chatMessages).toContain("!tuiViewEnabled ? 'bubble-mode' : ''");
+    expect(chatMessages).toContain("s.chatViewStyle === 'tui'");
     expect(chatMessages).not.toContain('deprecated Bubble branch');
   });
 });
