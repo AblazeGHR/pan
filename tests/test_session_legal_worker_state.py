@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from packages.core import session as sess  # noqa: E402
 from packages.core import worker  # noqa: E402
 from packages.core.adapters import CbcAdapter  # noqa: E402
+from packages.web import server as web_server  # noqa: E402
 
 
 @pytest.fixture
@@ -98,3 +99,48 @@ def test_external_eof_only_changes_live_runtime_and_preserves_legal_state(
     assert w.status == "zombie"
     assert session.last_legal_worker_state == "idle"
     assert sess.get(session.id).last_legal_worker_state == "idle"
+
+
+def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
+    isolated_sessions, monkeypatch,
+):
+    candidate = sess.create("recovery-candidate")
+    candidate.last_legal_worker_state = "running"
+    sess.save(candidate)
+
+    active = sess.create("worker-still-live")
+    active.last_legal_worker_state = "running"
+    sess.save(active)
+
+    not_running = sess.create("not-running")
+    not_running.last_legal_worker_state = "idle"
+    sess.save(not_running)
+
+    candidate_metadata = isolated_sessions / f"{candidate.id}.json"
+    persisted_before = candidate_metadata.read_bytes()
+
+    live_worker = worker.Worker(
+        worker_id="active-worker",
+        session_id=active.id,
+        adapter=CbcAdapter(),
+        status="idle",
+    )
+    monkeypatch.setattr(
+        worker,
+        "find_alive_worker_by_session",
+        lambda session_id: live_worker if session_id == active.id else None,
+    )
+
+    result = asyncio.run(web_server.api_session_recovery_candidates())
+
+    assert result == {
+        "sessions": [{
+            "id": candidate.id,
+            "name": candidate.name,
+            "adapter": candidate.adapter,
+            "workdir": candidate.workdir,
+            "updatedAt": candidate.updated_at,
+            "lastLegalWorkerState": "running",
+        }],
+    }
+    assert candidate_metadata.read_bytes() == persisted_before

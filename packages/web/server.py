@@ -4582,6 +4582,33 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
             for s in sessions]}
 
 
+@app.get("/api/sessions/recovery-candidates")
+async def api_session_recovery_candidates():
+    """List persisted running-state Sessions that have no live Worker.
+
+    This endpoint is a read-only startup scan.  The durable legal state on the
+    Session is the candidate signal; current Worker liveness is only used to
+    avoid offering a Session whose Worker is already active in this process.
+    It deliberately does not spawn, stop, or broadcast anything.
+    """
+    sessions = await _store_read(sess.list_all, load_history=False)
+    candidates = []
+    for s in sessions:
+        if s.last_legal_worker_state != "running":
+            continue
+        if worker.find_alive_worker_by_session(s.id) is not None:
+            continue
+        candidates.append({
+            "id": s.id,
+            "name": s.name,
+            "adapter": s.adapter,
+            "workdir": s.workdir,
+            "updatedAt": s.updated_at,
+            "lastLegalWorkerState": s.last_legal_worker_state,
+        })
+    return {"sessions": candidates}
+
+
 @app.get("/api/sessions/summary-repair")
 async def api_summary_projection_repair_status():
     """Expose cold-start summary repair progress without touching history."""
