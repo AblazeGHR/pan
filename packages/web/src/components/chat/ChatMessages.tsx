@@ -36,7 +36,7 @@ interface ScrollSnapshot {
   fingerprint: string;
   /** Stable key shared with the rendered/virtualized display row. */
   rowKey?: string;
-  /** Stable logical message identity when this row is a single message. */
+  /** Stable logical message identity for a message or the first member of a group. */
   identity?: string;
   /** Row top relative to the scroll container's top (px). */
   anchorOffset: number;
@@ -87,6 +87,44 @@ function invalidateDisclosureHeights(sessionId: string, items: DisplayItem[]): v
 }
 
 type DisplayItem = ReturnType<typeof groupMessages>[number];
+
+function getDisplayItemMessageIdentity(item: DisplayItem | undefined): string | undefined {
+  if (!item) return undefined;
+  if ('type' in item) {
+    const firstMessage = item.items[0];
+    return firstMessage ? getMessageIdentity(firstMessage) : undefined;
+  }
+  return getMessageIdentity(item as Message);
+}
+
+function findDisplayItemIndexByMessageIdentity(items: DisplayItem[], identity: string): number {
+  return items.findIndex((item) => {
+    if ('type' in item) {
+      return item.items.some((message) => getMessageIdentity(message) === identity);
+    }
+    return getMessageIdentity(item as Message) === identity;
+  });
+}
+
+/** Resolve a logical message to its current rendered display row, including a regrouped block. */
+function findRenderedRowByMessageIdentity(
+  element: HTMLElement,
+  items: DisplayItem[],
+  sessionId: string | null,
+  identity: string,
+): HTMLElement | null {
+  const exact = [...element.querySelectorAll<HTMLElement>('[data-message-identity]')].find(
+    (node) => node.dataset.messageIdentity === identity,
+  );
+  if (exact) return exact.closest<HTMLElement>('[data-scroll-anchor-key]') ?? exact;
+
+  const index = findDisplayItemIndexByMessageIdentity(items, identity);
+  if (index < 0) return null;
+  const expectedKey = measuredRowKey(sessionId, items[index], index);
+  return [...element.querySelectorAll<HTMLElement>('[data-index]')].find(
+    (node) => Number(node.dataset.index) === index && node.dataset.scrollAnchorKey === expectedKey,
+  ) ?? null;
+}
 
 export interface ChatMessagesHandle {
   /** Scroll to a currently loaded message and briefly highlight its row. */
@@ -705,24 +743,26 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     }
 
     if (anchor.identity) {
-      const current = [...el.querySelectorAll<HTMLElement>('[data-message-identity]')].find(
-        (node) => node.dataset.messageIdentity === anchor.identity,
+      const current = findRenderedRowByMessageIdentity(
+        el,
+        groupedRef.current,
+        currentSessionIdRef.current,
+        anchor.identity,
       );
-      if (current) {
+      if (current && current.getBoundingClientRect().height > 0) {
         anchor.element = current;
-        anchor.measurable = current.getBoundingClientRect().height > 0;
+        anchor.measurable = true;
       } else {
-        anchor.element = null;
+        anchor.element = current;
         anchor.measurable = false;
-        const anchorIndex = groupedRef.current.findIndex((item) => {
-          if ('type' in item && item.type === 'tool_group') return false;
-          return getMessageIdentity(item as import('@/types').Message) === anchor.identity;
-        });
+        const anchorIndex = findDisplayItemIndexByMessageIdentity(groupedRef.current, anchor.identity);
         if (anchorIndex >= 0) {
           if (!userScrollStateRef.current.active) markProgrammaticChange();
           virtualizerRef.current.scrollToIndex(anchorIndex, { align: 'center', behavior: 'auto' });
           return;
         }
+        // The anchored content was removed, so use the height-delta fallback below.
+        anchor.identity = undefined;
       }
     }
 
@@ -754,9 +794,12 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     ) return false;
 
     let row = anchor.identity
-      ? [...el.querySelectorAll<HTMLElement>('[data-message-identity]')].find(
-          (node) => node.dataset.messageIdentity === anchor.identity,
-        ) ?? null
+      ? findRenderedRowByMessageIdentity(
+          el,
+          groupedRef.current,
+          currentSessionIdRef.current,
+          anchor.identity,
+        )
       : null;
     if (!row && anchor.rowKey) {
       row = [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')].find(
@@ -769,16 +812,15 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       ) ?? row;
     }
     if (!row || row.getBoundingClientRect().height <= 0) {
-      const index = anchor.rowKey
+      const rowKeyIndex = anchor.rowKey
         ? groupedRef.current.findIndex((item, itemIndex) =>
             measuredRowKey(currentSessionIdRef.current, item, itemIndex) === anchor.rowKey,
           )
-        : anchor.identity
-          ? groupedRef.current.findIndex((item) => {
-              if ('type' in item && item.type === 'tool_group') return false;
-              return getMessageIdentity(item as import('@/types').Message) === anchor.identity;
-            })
-          : -1;
+        : -1;
+      const identityIndex = anchor.identity
+        ? findDisplayItemIndexByMessageIdentity(groupedRef.current, anchor.identity)
+        : -1;
+      const index = rowKeyIndex >= 0 ? rowKeyIndex : identityIndex;
       if (index >= 0) {
         if (!userScrollStateRef.current.active) markProgrammaticChange();
         virtualizerRef.current.scrollToIndex(index, { align: 'start', behavior: 'auto' });
@@ -950,9 +992,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
 
     const desiredTop = el.getBoundingClientRect().top + memory.anchorOffset;
     const anchorRow = (memory.identity
-      ? [...el.querySelectorAll<HTMLElement>('[data-message-identity]')].find(
-          (node) => node.dataset.messageIdentity === memory.identity,
-        )
+      ? findRenderedRowByMessageIdentity(el, grouped, currentSessionId, memory.identity)
       : undefined) ?? (memory.rowKey
       ? [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')].find(
           (node) => node.dataset.scrollAnchorKey === memory.rowKey,
@@ -968,14 +1008,13 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       // The virtualizer has not rendered that window yet. Resolve the stable
       // display-row key first (which also covers grouped TUI/Bubble rows), then
       // fall back to the first logical message identity.
-      const anchorIndex = memory.rowKey
+      const rowKeyIndex = memory.rowKey
         ? grouped.findIndex((item, index) => measuredRowKey(currentSessionId, item, index) === memory.rowKey)
-        : memory.identity
-          ? grouped.findIndex((item) => {
-              if ('type' in item && item.type === 'tool_group') return false;
-              return getMessageIdentity(item as import('@/types').Message) === memory.identity;
-            })
-          : -1;
+        : -1;
+      const identityIndex = memory.identity
+        ? findDisplayItemIndexByMessageIdentity(grouped, memory.identity)
+        : -1;
+      const anchorIndex = rowKeyIndex >= 0 ? rowKeyIndex : identityIndex;
       if (anchorIndex >= 0) {
         markProgrammaticChange();
         virtualizer.scrollToIndex(anchorIndex, { align: 'center', behavior: 'auto' });
@@ -1473,11 +1512,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
                 key={vItem.key}
                 data-index={vItem.index}
                 data-scroll-anchor-key={measuredRowKey(currentSessionId, item, vItem.index)}
-                data-message-identity={
-                  'type' in item && item.type === 'tool_group'
-                    ? undefined
-                    : getMessageIdentity(item as import('@/types').Message)
-                }
+                data-message-identity={getDisplayItemMessageIdentity(item)}
                 ref={virtualizer.measureElement}
                 style={{
                   width: '100%',

@@ -1,3 +1,4 @@
+/* global Event, URL, console, process, setTimeout */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 
@@ -336,6 +337,84 @@ try {
   assert.equal(narrowAfter?.identity, narrowPendingAnchor?.identity, `narrow-viewport prepend keeps the visible message: ${JSON.stringify({ narrowPendingAnchor, narrowAfter })}`);
   assert.ok(Math.abs((narrowAfter?.offset ?? Infinity) - (narrowPendingAnchor?.offset ?? -Infinity)) <= 2, `narrow-viewport prepend preserves offset: ${JSON.stringify({ narrowPendingAnchor, narrowAfter, narrowMetricsBefore, metrics: await metrics(scroller) })}`);
   report.scenarios.push({ name: '390px viewport resize and continued page', requestsAfterResize, narrowBefore, narrowPendingAnchor, narrowAfter, narrowAfterPages, narrowMetricsBefore, metrics: await metrics(scroller) });
+
+  // Exercise a page boundary that extends a grouped row. The prior page ends
+  // in a tool block and the loaded window starts with a tool block, so the row
+  // key changes while its original message remains a member of the new group.
+  const groupedContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await groupedContext.route('**://fonts.googleapis.com/**', (route) => route.abort());
+  await groupedContext.route('**://fonts.gstatic.com/**', (route) => route.abort());
+  const groupedPage = await groupedContext.newPage();
+  await groupedPage.route('**/api/sessions/**/history**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('before') && url.searchParams.get('before') !== '0') {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    await route.continue();
+  });
+  await groupedPage.request.put(`${baseURL}/api/settings/ui`, {
+    data: { keepScrollOnSessionSwitch: true, mergeConsecutiveNonBodyBlocks: false },
+  });
+  const groupedHistory = Array.from({ length: 120 }, (_, index) => ({
+    role: index === 39 ? 'user' : index >= 40 && index <= 100 ? 'tool' : index === 119 ? 'assistant' : index % 2 === 0 ? 'user' : 'assistant',
+    content: index >= 40 && index <= 100
+      ? 'Command({"command":"true"})'
+      : index === 119
+        ? 'Grouped history latest marker'
+        : `Grouped history row ${index + 1}`,
+    messageId: `group-page-${index}`,
+  }));
+  const groupedFixture = await groupedPage.request.post(`${baseURL}/__e2e/append-history`, {
+    data: { sessionId: bravoId, messages: groupedHistory },
+  });
+  assert.equal(groupedFixture.status(), 200, 'group-boundary history fixture was persisted');
+  await groupedPage.goto(`${baseURL}/react/`);
+  await groupedPage.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
+  await selectSession(groupedPage, 'Bravo Session', 'Grouped history latest marker');
+  const groupedScroller = groupedPage.locator('.chat-view-stage .overflow-auto').first();
+  await poll(() => metrics(groupedScroller), (value) => value.height > value.viewport && value.distance <= 2, 'grouped fixture starts at its latest message');
+  await groupedScroller.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await groupedScroller.locator('.tool-group button').first().waitFor({ state: 'visible' });
+  await groupedScroller.evaluate((element) => {
+    element.scrollTop = 150;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await groupedPage.waitForTimeout(350);
+  const groupedBeforeRequests = [];
+  groupedPage.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.includes('/history') && url.searchParams.get('before') !== '0') groupedBeforeRequests.push(url.href);
+  });
+  const groupedBox = await groupedScroller.boundingBox();
+  assert.ok(groupedBox, 'grouped fixture has browser scroll geometry');
+  await groupedPage.mouse.move(groupedBox.x + Math.min(groupedBox.width - 4, 100), groupedBox.y + Math.min(groupedBox.height - 4, 100));
+  let groupedPaginationTriggered = false;
+  for (let packet = 0; packet < 30 && !groupedPaginationTriggered; packet += 1) {
+    await groupedPage.mouse.wheel(0, -700);
+    await groupedPage.waitForTimeout(35);
+    groupedPaginationTriggered = groupedBeforeRequests.length > 0;
+  }
+  await poll(() => groupedBeforeRequests.length, (count) => count > 0, 'group-boundary upward scroll loads older history');
+  const groupedPendingAnchor = await poll(
+    () => visibleAnchor(groupedScroller),
+    (anchor) => anchor?.text.includes('tools') && Number(anchor.identity.match(/group-page-(\d+)/)?.[1]) >= 70 && Number(anchor.identity.match(/group-page-(\d+)/)?.[1]) <= 100,
+    'the original tool-group message is the pagination anchor',
+  );
+  await groupedPage.waitForTimeout(1000);
+  assert.equal(groupedBeforeRequests.length, 1, `grouped prepend does not self-chain: ${JSON.stringify(groupedBeforeRequests)}`);
+  const groupedAfterAnchor = await poll(
+    () => visibleAnchor(groupedScroller),
+    (anchor) => anchor?.identity.includes('group-page-40'),
+    'the reformed tool group is restored into view',
+  );
+  assert.notEqual(groupedAfterAnchor.rowKey, groupedPendingAnchor.rowKey, 'prepended group membership gives the display row a new key');
+  assert.match(groupedAfterAnchor.text, /\d+ tools/, 'the older and previously visible tool blocks now share one group');
+  assert.ok(Math.abs(groupedAfterAnchor.offset - groupedPendingAnchor.offset) <= 2, `grouped prepend keeps the reformed row at its prior viewport offset: ${JSON.stringify({ groupedPendingAnchor, groupedAfterAnchor })}`);
+  report.scenarios.push({ name: 'grouped row identity survives a boundary prepend', groupedPendingAnchor, groupedAfterAnchor, groupedBeforeRequests });
+  await groupedContext.close();
 
   await context.close();
 

@@ -1267,6 +1267,70 @@ describe('ChatMessages scroll positioning', () => {
     }
   });
 
+  it('re-resolves a grouped pagination anchor when prepended history changes the group key', async () => {
+    vi.useFakeTimers();
+    const restoreGeometry = installToolGroupRowGeometry();
+    try {
+      useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: false });
+      const initial: Message[] = [
+        { role: 'tool', content: 'older tool one', blockId: 'group-anchor-old-one' },
+        { role: 'tool', content: 'older tool two', blockId: 'group-anchor-old-two' },
+        { role: 'assistant', content: 'middle answer', blockId: 'group-anchor-answer' },
+        { role: 'user', content: 'newer question', blockId: 'group-anchor-question' },
+        { role: 'assistant', content: 'latest answer', blockId: 'group-anchor-latest' },
+      ];
+      const olderPage: Message[] = [
+        { role: 'user', content: 'history boundary', blockId: 'group-anchor-boundary' },
+        { role: 'tool', content: 'tool joining the visible group', blockId: 'group-anchor-prepended-tool' },
+      ];
+      const loadOlderMessages = vi.fn(async () => {
+        m.setTotalSize(800);
+        m.setVirtualItems(rowWindow([0, 1, 2, 3, 4]));
+        useSessionStore.setState({
+          currentMessages: [...olderPage, ...initial],
+          historyLoading: false,
+        });
+      });
+      useSessionStore.setState({
+        currentSessionId: 'group-anchor-prepend',
+        currentMessages: initial,
+        hasMoreMessages: true,
+        historyLoading: false,
+        loadOlderMessages,
+      });
+      m.setTotalSize(700);
+      m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+
+      userScroll(scrollEl, 250);
+      userScroll(scrollEl, 100);
+      const beforeRow = [...container.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')]
+        .find((row) => row.dataset.messageIdentity?.includes('group-anchor-old-one'))!;
+      expect(beforeRow).toBeTruthy();
+      const beforeKey = beforeRow.dataset.scrollAnchorKey;
+      const beforeOffset = beforeRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top;
+
+      await act(async () => {
+        vi.advanceTimersByTime(180);
+        await Promise.resolve();
+      });
+
+      const afterRow = [...container.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')]
+        .find((row) => row.dataset.messageIdentity?.includes('group-anchor-prepended-tool'))!;
+      expect(loadOlderMessages).toHaveBeenCalledOnce();
+      expect(afterRow).toBeTruthy();
+      expect(afterRow.dataset.scrollAnchorKey).not.toBe(beforeKey);
+      expect(afterRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top).toBe(beforeOffset);
+      expect(scrollEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
   it('shows a spinner instead of the empty state while history is loading, then the empty state after', () => {
     // Enter a session whose snapshot has no history: messages empty + the
     // fresh-history fetch in flight (initialLoading=true) → spinner, no empty
@@ -1565,6 +1629,42 @@ function installRowGeometry() {
         return makeRect(index * 100 - (scroller?.scrollTop ?? 0), 100, 800);
       }
       return makeRect(0, 0, 800);
+    },
+  });
+  return () => {
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: original,
+    });
+  };
+}
+
+function installToolGroupRowGeometry() {
+  const makeRect = (top: number, height: number): DOMRect => ({
+    top,
+    bottom: top + height,
+    left: 0,
+    right: 800,
+    width: 800,
+    height,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value(this: HTMLElement) {
+      if (this.classList?.contains('overflow-auto')) {
+        return makeRect(0, this.clientHeight);
+      }
+      const index = Number(this.dataset?.index);
+      if (!Number.isNaN(index)) {
+        const scroller = this.closest('.overflow-auto') as HTMLElement | null;
+        const height = this.querySelector('.tool-group') ? 400 : 100;
+        return makeRect(index * 100 - (scroller?.scrollTop ?? 0), height);
+      }
+      return makeRect(0, 0);
     },
   });
   return () => {
