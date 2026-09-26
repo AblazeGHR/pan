@@ -31,7 +31,7 @@
 
 .PARAMETER CanonicalPython
     Canonical Python interpreter (the single shared Pan venv).
-    Default: D:\project\Pan\.venv\Scripts\python.exe
+    Default: D:\project\Pan-main\.venv\Scripts\python.exe
 
 .PARAMETER PythonModules
     Python modules whose import is verified against the canonical interpreter.
@@ -89,7 +89,7 @@ param(
     [string]$Worktree,
 
     [string]$CanonicalNodeModules = 'D:\project\Pan-main\packages\web\node_modules',
-    [string]$CanonicalPython      = 'D:\project\Pan\.venv\Scripts\python.exe',
+    [string]$CanonicalPython      = 'D:\project\Pan-main\.venv\Scripts\python.exe',
     [string[]]$PythonModules      = @('dotenv', 'mcp', 'pytest', 'fastapi', 'httpx', 'pydantic'),
 
     [switch]$DryRun,
@@ -321,12 +321,12 @@ function Test-Playwright {
     $hasPkg = ($r.ExitCode -eq 0)
 
     if (-not $hasPkg) {
-        Add-Report "Playwright Python package NOT installed in canonical venv." 'WARN'
-        Add-Report "=> Browser runtime is ABSENT. Browser E2E CANNOT run. (This is honest status, not a failure to fix.)" 'WARN'
+        Add-Report 'Playwright Python package NOT installed in canonical venv; Python browser harnesses cannot run.' 'WARN'
+        Add-Report 'Node Playwright and shared browser binaries are not checked by this Python import probe.' 'INFO'
     } else {
         Add-Report "Playwright package present in canonical venv." 'OK'
-        # We do NOT claim browsers are downloaded; only report the package.
-        Add-Report "=> Browser BINARIES may still be absent. Run with -InstallPlaywright (opt-in, network) to fetch them." 'WARN'
+        # The package import alone does not establish a usable browser binary.
+        Add-Report 'Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.' 'INFO'
     }
 
     if ($Install) {

@@ -3,6 +3,13 @@
 > 目标：让多个 worktree **一处安装、处处复用验证依赖**，而不是给每个 worktree 各下载一份。
 > 配套脚本：`tools/prepare_validation_env.ps1`（含 `tools/prepare_validation_env.tests.ps1`）。
 
+## 2026-09-26 验证环境更新
+
+- 前端 Playwright Test `1.63.0` 已在 `D:\project\Pan-main\packages\web\node_modules`；共享浏览器缓存在 `%LOCALAPPDATA%\ms-playwright`。Node harness 已实际启动 Chromium `153.0.8010.12` 并成功加载本地页面。
+- Python Playwright `1.63.0` 已装在 `D:\project\Pan-main\.venv`，并使用同一共享缓存成功启动 Chromium。`pip check` 无依赖冲突；这个验证不代表任何产品 E2E 已通过。
+- 验证脚本现默认检查 main 的 `.venv`，避免将浏览器依赖安装到 practical。该环境已验证导入脚本所需的 dotenv、mcp、pytest、fastapi、httpx、pydantic；Pan 服务运行环境仍应按实例配置独立核对。
+- 下方“基线事实”记录 2026-09-07 的历史状态；浏览器缺失结论已由本节更新。
+
 ## 基线事实（已只读核实）
 
 - 集成分支 `integration/pan-exit-options-20260907` 当前 HEAD = `c617e49`（merge: integrate frontend lint fixes）。
@@ -31,7 +38,7 @@
 | --- | --- | --- |
 | `-Worktree` | （必填） | worktree 根目录 |
 | `-CanonicalNodeModules` | `D:\project\Pan-main\packages\web\node_modules` | 共享前端依赖目录 |
-| `-CanonicalPython` | `D:\project\Pan\.venv\Scripts\python.exe` | 共享 Python 解释器 |
+| `-CanonicalPython` | `D:\project\Pan-main\.venv\Scripts\python.exe` | main 验证 Python 解释器 |
 | `-PythonModules` | dotenv, mcp, pytest, fastapi, httpx, pydantic | 需验证导入的模块 |
 | `-DryRun` | 关 | 只打印将要执行的操作，不改动文件系统 |
 | `-Check` | 关 | 只读审计：不建 junction、不修 Python |
@@ -83,9 +90,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/prepare_validation_env
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/prepare_validation_env.tests.ps1
 ```
 
-## 关于浏览器的诚实说明（未覆盖边界）
+## 关于浏览器的诚实说明（历史基线与未覆盖边界）
 
-- 当前 `playwright` 未安装、无浏览器缓存，因此 **browser E2E 无法运行**，脚本不会声称其通过。
+- 2026-09-07 基线时 `playwright` 未安装、无浏览器缓存；2026-09-26 更新状态见上文。依赖可用不等于产品 browser E2E 通过。
 - `-PlaywrightCache` 仅**报告**建议的共享缓存路径；`-InstallPlaywright` 是显式 opt-in，会**联网下载**并占用本机缓存，且下载后仍需真实浏览器测试才算 E2E 通过。
 - `-Check` 会屏蔽 `-InstallPlaywright` 的联网/写入请求；脚本只报告 Python 包状态，不宣称浏览器二进制已安装，也不宣称 E2E 完成。
 - 未覆盖：Playwright 浏览器下载、真实浏览器 E2E、跨卷 junction 的边界情况（如 worktree 与 canonical 不在同一卷时 junction 行为）。

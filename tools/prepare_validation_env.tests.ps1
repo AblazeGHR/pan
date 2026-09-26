@@ -19,7 +19,7 @@ if (-not (Test-Path -LiteralPath $MainScript)) {
 }
 
 $CanonicalNodeModules = 'D:\project\Pan-main\packages\web\node_modules'
-$CanonicalPython      = 'D:\project\Pan\.venv\Scripts\python.exe'
+$CanonicalPython      = 'D:\project\Pan-main\.venv\Scripts\python.exe'
 
 $Pass = 0
 $Fail = 0
