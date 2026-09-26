@@ -176,11 +176,13 @@ describe('normal group behaviour is preserved', () => {
 
     const group = disclosure('2 thinking blocks');
     expect(group.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByText('first thought')).toBeTruthy();
-    expect(screen.getByText('second thought')).toBeTruthy();
+    expect(screen.queryByText('first thought')).toBeNull();
+    expect(screen.queryByText('second thought')).toBeNull();
 
     fireEvent.click(group);
     expect(group.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('first thought')).toBeTruthy();
+    expect(screen.getByText('second thought')).toBeTruthy();
     fireEvent.click(group);
     expect(group.getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByText('second thought')).toBeTruthy();
@@ -212,6 +214,8 @@ describe('normal group behaviour is preserved', () => {
 
     fireEvent.click(group);
     expect(screen.getByTestId('non-body-group-window')).toBeTruthy();
+    expect(screen.queryByText('plan')).toBeNull();
+    fireEvent.click(disclosure('thinking'));
     expect(screen.getByText('plan')).toBeTruthy();
     expect(disclosure('1 tools')).toBeTruthy();
   });
@@ -219,9 +223,8 @@ describe('normal group behaviour is preserved', () => {
   it('follows an open group while its thinking content streams', () => {
     const first = thinking('plan one', 't1');
     const { container, rerender } = render(<ThinkingGroup items={[first]} />);
-    const window = stubContentWindow(container);
-
     fireEvent.click(disclosure('thinking'));
+    const window = stubContentWindow(container);
     rerender(<ThinkingGroup items={[first, thinking('plan two', 't2')]} />);
     expect(window.scrollTop).toBe(400);
 
@@ -233,12 +236,12 @@ describe('normal group behaviour is preserved', () => {
   it('does not scroll the content window when a finished group is expanded', () => {
     const items = [thinking('plan one', 't1'), thinking('plan two', 't2')];
     const { container, rerender } = render(<ThinkingGroup items={[items[0]!]} />);
-    const window = stubContentWindow(container);
 
     // Appends that land while the group is collapsed must not leave a pending
     // jump for the later expand.
     rerender(<ThinkingGroup items={items} />);
     fireEvent.click(disclosure('2 thinking blocks'));
+    const window = stubContentWindow(container);
 
     expect(window.scrollTop).toBe(0);
     expect(disclosure('2 thinking blocks').getAttribute('aria-expanded')).toBe('true');
