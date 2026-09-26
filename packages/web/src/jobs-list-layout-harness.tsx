@@ -1,7 +1,17 @@
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
+import { wsClient } from './services/ws';
 import JobsView from './views/JobsView';
 import './index.css';
+
+type JobDeletedEvent = { type: 'job.deleted'; jobId: string };
+type TestDispatchClient = { dispatch: (event: JobDeletedEvent) => void };
+
+(
+  window as Window & { __dispatchJobsEvent?: (event: JobDeletedEvent) => void }
+).__dispatchJobsEvent = (event) => {
+  (wsClient as unknown as TestDispatchClient).dispatch(event);
+};
 
 const jobs = Array.from({ length: 48 }, (_, index) => {
   const number = String(index + 1).padStart(2, '0');
