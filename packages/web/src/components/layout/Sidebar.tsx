@@ -365,6 +365,12 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     setMenuSession(id);
   }, []);
 
+  const handleSessionClick = useCallback(() => {
+    if (location.pathname !== '/jobs') return;
+    navigate('/');
+    if (isMobile) setMobileSidebarOpen(false);
+  }, [isMobile, location.pathname, navigate, setMobileSidebarOpen]);
+
   // ── Nav rail (collapsed mode, desktop only) ──
 
   if (sidebarCollapsed && !isMobile) {
@@ -812,7 +818,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
           {/* Session list */}
           <div className="flex-1 overflow-y-auto">
-            <SessionList onSessionMenu={handleSessionMenu} />
+            <SessionList onSessionClick={handleSessionClick} onSessionMenu={handleSessionMenu} />
           </div>
 
           {/* Session context menu */}

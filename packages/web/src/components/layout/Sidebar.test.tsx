@@ -2,10 +2,16 @@
 import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+
+function RouteProbe() {
+  const location = useLocation();
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  return <div data-testid="route-probe">{location.pathname}: {currentSessionId ?? 'none'}</div>;
+}
 
 afterEach(() => {
   cleanup();
@@ -230,6 +236,101 @@ describe('Sidebar Session search controls', () => {
     fireEvent.pointerUp(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
     fireEvent.click(sort);
     expect(useUIStore.getState().sortBy).toBe('name');
+  });
+});
+
+describe('Sidebar session navigation from Jobs', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSessionStore.setState({
+      sessions: [
+        { id: 'jobs-session', name: 'Jobs session', alwaysThinkingEnabled: false, effort: '', history: [] },
+      ],
+      currentSessionId: null,
+      multiSelectMode: false,
+      selectedIds: new Set(),
+    });
+    useUIStore.setState({
+      sidebarCollapsed: false,
+      mobileSidebarOpen: false,
+      searchQuery: '',
+      specialFilters: new Set(),
+      groupBy: 'none',
+      sortBy: 'recent',
+      dragEnabled: false,
+    });
+  });
+
+  function renderJobsSidebar() {
+    return render(
+      <MemoryRouter initialEntries={['/jobs']}>
+        <Sidebar />
+        <Routes>
+          <Route path="/jobs" element={<div>Jobs view</div>} />
+          <Route path="/" element={<div>Chat view</div>} />
+        </Routes>
+        <RouteProbe />
+      </MemoryRouter>,
+    );
+  }
+
+  it('opens the clicked session in Chat from Jobs, including when it is already selected', () => {
+    const { container } = renderJobsSidebar();
+
+    fireEvent.click(container.querySelector('[data-session-card-id="jobs-session"]')!);
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: jobs-session');
+    expect(useSessionStore.getState().currentSessionId).toBe('jobs-session');
+
+    // Repeating the body click while the same session is selected still
+    // navigates from Jobs.
+    fireEvent.click(screen.getByRole('link', { name: /Jobs/ }));
+    expect(screen.getByText('Jobs view')).toBeTruthy();
+    fireEvent.click(container.querySelector('[data-session-card-id="jobs-session"]')!);
+    expect(screen.getByText('Chat view')).toBeTruthy();
+  });
+
+  it('does not navigate when opening the card menu', () => {
+    renderJobsSidebar();
+
+    fireEvent.click(screen.getByTitle('Session actions'));
+
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy();
+    expect(screen.getByText('Jobs view')).toBeTruthy();
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+  });
+
+  it('does not navigate when the multi-select checkbox is clicked', () => {
+    useSessionStore.setState({ multiSelectMode: true });
+    renderJobsSidebar();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Jobs session' }));
+
+    expect(screen.getByText('Jobs view')).toBeTruthy();
+    expect(useSessionStore.getState().selectedIds.has('jobs-session')).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+  });
+
+  it('closes an open mobile Sidebar after navigating from Jobs to Chat', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      matches: true,
+      media: '(max-width: 767px)',
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })));
+    useUIStore.setState({ mobileSidebarOpen: true });
+    const { container } = renderJobsSidebar();
+
+    fireEvent.click(container.querySelector('[data-session-card-id="jobs-session"]')!);
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
+    vi.unstubAllGlobals();
   });
 });
 
