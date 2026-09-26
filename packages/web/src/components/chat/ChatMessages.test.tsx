@@ -254,6 +254,26 @@ it('groups only adjacent thinking blocks and keeps semantic boundaries', () => {
   expect(grouped[0]).toMatchObject({ type: 'thinking_group', items: messages.slice(0, 2) });
 });
 
+it('keeps a search-selected QQ body row visible and block-highlighted until the target clears', () => {
+  const hiddenQqMessage: Message = {
+    role: 'user',
+    content: '@@@@by qq: needle from QQ history',
+    messageId: 'qq-message-1',
+  };
+  const visibleMessage: Message = { role: 'assistant', content: 'other row', messageId: 'assistant-1' };
+  useAppSettingsStore.setState({ showQQ: false });
+  useSessionStore.setState({ currentSessionId: 's1', currentMessages: [hiddenQqMessage, visibleMessage] });
+  m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+
+  const view = render(<ChatMessages searchTargetMessageId="qq-message-1" />);
+  expect(view.container.querySelector('[data-search-target="true"]')?.textContent)
+    .toContain('needle from QQ history');
+
+  view.rerender(<ChatMessages searchTargetMessageId={null} />);
+  expect(view.container.textContent).not.toContain('needle from QQ history');
+  expect(view.container.querySelector('.chat-message-search-target')).toBeNull();
+});
+
 it('merges each adjacent tool/thinking run only when the preference is enabled', () => {
   const messages: Message[] = [
     { role: 'thinking', content: 'thought 1' },

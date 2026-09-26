@@ -32,6 +32,8 @@ export interface AppSettings {
    * open without that cost (one request per 200 messages of the session).
    */
   showMessageNavigationRail: boolean;
+  /** Mount Session-scoped history search UI and keyboard shortcuts. */
+  showHistorySearch: boolean;
   /** Notification preferences for CLI adapter warnings. */
   notifications: {
     /** Show structured Codex warning events through a Toast. */
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
   showMessageNavigationRail: false,
+  showHistorySearch: false,
   notifications: {
     codexWarningToast: true,
     confirmCrossWorkspaceManagement: true,
@@ -112,6 +115,10 @@ export function sanitizeSettings(
       typeof parsed.showMessageNavigationRail === 'boolean'
         ? parsed.showMessageNavigationRail
         : DEFAULT_SETTINGS.showMessageNavigationRail,
+    showHistorySearch:
+      typeof parsed.showHistorySearch === 'boolean'
+        ? parsed.showHistorySearch
+        : DEFAULT_SETTINGS.showHistorySearch,
     notifications: {
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -138,6 +145,7 @@ interface AppSettingsStore extends AppSettings {
   setMergeConsecutiveNonBodyBlocks: (v: boolean) => void;
   setKeepScrollOnSessionSwitch: (v: boolean) => void;
   setShowMessageNavigationRail: (v: boolean) => void;
+  setShowHistorySearch: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -242,6 +250,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setShowMessageNavigationRail: (v) => {
       set({ showMessageNavigationRail: v });
       persist({ showMessageNavigationRail: v });
+    },
+
+    setShowHistorySearch: (v) => {
+      set({ showHistorySearch: v });
+      persist({ showHistorySearch: v });
     },
 
     setCodexWarningToast: (v) => {

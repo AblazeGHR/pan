@@ -39,6 +39,7 @@ describe('appSettingsStore', () => {
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
     expect(s.keepScrollOnSessionSwitch).toBe(false);
     expect(s.showMessageNavigationRail).toBe(false);
+    expect(s.showHistorySearch).toBe(false);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
   });
 
@@ -52,6 +53,7 @@ describe('appSettingsStore', () => {
       mergeConsecutiveNonBodyBlocks: true,
       keepScrollOnSessionSwitch: true,
       showMessageNavigationRail: true,
+      showHistorySearch: true,
       chatViewStyle: 'bubble',
     });
 
@@ -67,6 +69,7 @@ describe('appSettingsStore', () => {
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
     expect(s.keepScrollOnSessionSwitch).toBe(true);
     expect(s.showMessageNavigationRail).toBe(true);
+    expect(s.showHistorySearch).toBe(true);
     expect(s.chatViewStyle).toBe('bubble');
   });
 
@@ -166,6 +169,10 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowMessageNavigationRail(true);
     expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ showMessageNavigationRail: true });
+
+    useAppSettingsStore.getState().setShowHistorySearch(true);
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showHistorySearch: true });
   });
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {

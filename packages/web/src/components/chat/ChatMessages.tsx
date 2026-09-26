@@ -131,8 +131,14 @@ export interface ChatMessagesHandle {
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
 
-export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?: boolean }>(function ChatMessages(
-  { hideScrollToBottom = false },
+export interface ChatMessagesProps {
+  hideScrollToBottom?: boolean;
+  /** Persistent block-level marker for the selected history-search result. */
+  searchTargetMessageId?: string | null;
+}
+
+export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(function ChatMessages(
+  { hideScrollToBottom = false, searchTargetMessageId = null },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -234,15 +240,25 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
 
   // Frontend-only display filter — currentMessages in the store is never
   // mutated; hidden messages reappear when their toggle is switched back on.
-  const visibleMessages = useMemo(
-    () =>
-      filterVisibleMessages(currentMessages, {
-        showMetaAgent,
-        showTaskAgent,
-        showQQ,
-      }),
-    [currentMessages, showMetaAgent, showTaskAgent, showQQ],
-  );
+  const visibleMessages = useMemo(() => {
+    const filtered = filterVisibleMessages(currentMessages, {
+      showMetaAgent,
+      showTaskAgent,
+      showQQ,
+    });
+    if (!searchTargetMessageId) return filtered;
+
+    // Search is intentionally broader than the display-prefix filters. Keep
+    // its selected result mounted long enough to navigate and highlight it,
+    // while preserving the normal visibility preference for every other row.
+    const visible = new Set(filtered);
+    const target = currentMessages.find(
+      (message) => message.messageId === searchTargetMessageId &&
+        (message.role === 'user' || message.role === 'assistant'),
+    );
+    if (!target || visible.has(target)) return filtered;
+    return currentMessages.filter((message) => visible.has(message) || message === target);
+  }, [currentMessages, searchTargetMessageId, showMetaAgent, showTaskAgent, showQQ]);
 
   // Preserve the existing separate tool/thinking rows unless the user opts in
   // to one parent disclosure for each adjacent non-body run.
@@ -1550,11 +1566,18 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
                   display: 'flow-root',
                 }}
               >
-                {!('type' in item && item.type === 'tool_group') &&
-                highlightedTarget?.identity === getMessageIdentity(item as import('@/types').Message) ? (
+                {!('type' in item && item.type === 'tool_group') && (
+                  (item as import('@/types').Message).messageId === searchTargetMessageId ||
+                  highlightedTarget?.identity === getMessageIdentity(item as import('@/types').Message)
+                ) ? (
                   <div
-                    className="chat-message-jump-highlight"
-                    data-index={highlightedTarget.historyIndex ?? vItem.index}
+                    className={(item as import('@/types').Message).messageId === searchTargetMessageId
+                      ? 'chat-message-search-target'
+                      : 'chat-message-jump-highlight'}
+                    data-index={highlightedTarget?.identity === getMessageIdentity(item as import('@/types').Message)
+                      ? highlightedTarget.historyIndex ?? vItem.index
+                      : vItem.index}
+                    data-search-target={(item as import('@/types').Message).messageId === searchTargetMessageId || undefined}
                   >
                     <MessageDisplayItem
                       item={item}
