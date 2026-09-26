@@ -213,10 +213,10 @@ async def put_completed_retention_settings(data: dict):
             return _err("invalid_argument", f"{rule}.enabled must be a boolean")
         if "days" in patch:
             days = patch["days"]
-            if (type(days) is not int
+            if (days is not None and (type(days) is not int
                     or not (_config.COMPLETED_JOB_RETENTION_MIN_DAYS
-                            <= days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS)):
-                return _err("invalid_argument", f"{rule}.days must be an integer between 1 and 36500")
+                            <= days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS))):
+                return _err("invalid_argument", f"{rule}.days must be null or an integer between 1 and 36500")
         validated_patches[rule] = patch
 
     return await asyncio.to_thread(_persist_retention_patches, validated_patches)

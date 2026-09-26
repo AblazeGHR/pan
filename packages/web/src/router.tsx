@@ -4,6 +4,7 @@ import ChatView from './views/ChatView';
 import EditorView from './views/EditorView';
 import ManageView from './views/ManageView';
 import JobsView from './views/JobsView';
+import DataView from './views/DataView';
 
 const isProd = import.meta.env.PROD;
 const basename = isProd ? '/react' : '/';
@@ -29,6 +30,10 @@ export const router = createBrowserRouter(
         {
           path: 'jobs',
           element: <JobsView />,
+        },
+        {
+          path: 'data',
+          element: <DataView />,
         },
         {
           path: 'schedules',

@@ -95,12 +95,12 @@ function selectAllVisible() {
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible jobs' }));
 }
 
-const defaultRetentionRules = () => ({
-  completed: { enabled: false, days: 30 },
-  failed: { enabled: false, days: 30 },
-  timed_out: { enabled: false, days: 30 },
-  cancelled: { enabled: false, days: 30 },
-  logs: { enabled: false, days: 30 },
+const defaultRetentionRules = (): Record<MockRetentionRule, { enabled: boolean; days: number | null }> => ({
+  completed: { enabled: false, days: null },
+  failed: { enabled: false, days: null },
+  timed_out: { enabled: false, days: null },
+  cancelled: { enabled: false, days: null },
+  logs: { enabled: false, days: null },
 });
 
 type MockRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
@@ -244,6 +244,24 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
   });
 
+  it('loads blank retention days from server defaults', async () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    for (const label of [
+      'Completed Jobs',
+      'Failed Jobs',
+      'Timed out Jobs',
+      'Cancelled Jobs',
+      'Job log files',
+    ]) {
+      const input = await screen.findByRole('spinbutton', {
+        name: `Keep ${label} for days`,
+      });
+      expect((input as HTMLInputElement).value).toBe('');
+    }
+  });
+
   it('loads and saves failed, timeout, cancelled, and log retention independently', async () => {
     const rules = defaultRetentionRules();
     rules.failed = { enabled: true, days: 11 };
@@ -271,6 +289,31 @@ describe('JobsView search, status filters, and bulk actions', () => {
       logs: { enabled: false, days: 21 },
     };
     await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith(expected));
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('keeps a cleared day count blank when saving an enabled rule', async () => {
+    const rules = defaultRetentionRules();
+    rules.completed = { enabled: true, days: 14 };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse(rules));
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (savedRules) =>
+      retentionResponse(savedRules),
+    );
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const daysInput = await screen.findByRole('spinbutton', {
+      name: 'Keep Completed Jobs for days',
+    });
+    fireEvent.change(daysInput, { target: { value: '' } });
+    expect((daysInput as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({
+      ...rules,
+      completed: { enabled: true, days: null },
+    }));
+    expect((daysInput as HTMLInputElement).value).toBe('');
     expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
   });
 

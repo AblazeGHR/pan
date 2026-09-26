@@ -69,23 +69,23 @@ DEFAULT_CONFIG: dict = {
     "jobs": {
         "completedRetention": {
             "enabled": False,
-            "days": 30,
+            "days": None,
         },
         "failedRetention": {
             "enabled": False,
-            "days": 30,
+            "days": None,
         },
         "timedOutRetention": {
             "enabled": False,
-            "days": 30,
+            "days": None,
         },
         "cancelledRetention": {
             "enabled": False,
-            "days": 30,
+            "days": None,
         },
         "logFileRetention": {
             "enabled": False,
-            "days": 30,
+            "days": None,
         },
     },
     # 本地日志（main.py 启动时配置）：文件大小/天轮转 + console 双输出
@@ -200,7 +200,7 @@ DEFAULT_CONFIG: dict = {
 
 COMPLETED_JOB_RETENTION_MIN_DAYS = 1
 COMPLETED_JOB_RETENTION_MAX_DAYS = 36500
-COMPLETED_JOB_RETENTION_DEFAULT = {"enabled": False, "days": 30}
+COMPLETED_JOB_RETENTION_DEFAULT = {"enabled": False, "days": None}
 JOB_RETENTION_CONFIG_KEYS = {
     "completed": "completedRetention",
     "failed": "failedRetention",
@@ -222,7 +222,9 @@ def parse_retention_settings(section: object) -> tuple[dict, bool]:
             valid = False
     if "days" in section:
         days = section["days"]
-        if (type(days) is int
+        if days is None:
+            settings["days"] = None
+        elif (type(days) is int
                 and COMPLETED_JOB_RETENTION_MIN_DAYS <= days
                 <= COMPLETED_JOB_RETENTION_MAX_DAYS):
             settings["days"] = days

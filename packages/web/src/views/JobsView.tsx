@@ -104,11 +104,11 @@ const RETENTION_RULE_META: {
 ];
 
 const DEFAULT_RETENTION_RULES: JobRetentionRules = {
-  completed: { enabled: false, days: 30 },
-  failed: { enabled: false, days: 30 },
-  timed_out: { enabled: false, days: 30 },
-  cancelled: { enabled: false, days: 30 },
-  logs: { enabled: false, days: 30 },
+  completed: { enabled: false, days: null },
+  failed: { enabled: false, days: null },
+  timed_out: { enabled: false, days: null },
+  cancelled: { enabled: false, days: null },
+  logs: { enabled: false, days: null },
 };
 
 const selectClass =
@@ -542,8 +542,8 @@ export default function JobsView() {
   const saveRetentionSettings = useCallback(async () => {
     for (const { key, label } of RETENTION_RULE_META) {
       const days = retentionRulesDraft[key].days;
-      if (!Number.isInteger(days) || days < 1 || days > 36500) {
-        setRetentionError(`${label} keep days must be a whole number from 1 to 36500.`);
+      if (days !== null && (!Number.isInteger(days) || days < 1 || days > 36500)) {
+        setRetentionError(`${label} keep days must be blank or a whole number from 1 to 36500.`);
         setRetentionFeedback(null);
         return;
       }
@@ -1285,8 +1285,9 @@ export default function JobsView() {
               <div>
                 <h2 className="text-sm font-semibold text-text-primary">Automatic cleanup settings</h2>
                 <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  Each rule is independent and disabled by default. Enabled rules run on the server
-                  at most once every 24 hours without requiring this page to stay open. Job record
+                  Each rule is independent and disabled by default. Rules with a day count run on the server
+                  at most once every 24 hours without requiring this page to stay open. A blank day count
+                  prevents cleanup even when a switch is on. Job record
                   rules use the exact top-level status and updatedAt; missing or invalid timestamps
                   are kept. Logs and Job records are retained independently.
                 </p>
@@ -1354,7 +1355,7 @@ export default function JobsView() {
                               min={1}
                               max={36500}
                               step={1}
-                              value={ruleSettings.days}
+                              value={ruleSettings.days ?? ''}
                               disabled={retentionSaving || retentionRules === null}
                               onChange={(event) => {
                                 const value = event.target.value;
@@ -1362,7 +1363,7 @@ export default function JobsView() {
                                   ...current,
                                   [key]: {
                                     ...current[key],
-                                    days: value === '' ? Number.NaN : Number(value),
+                                    days: value === '' ? null : Number(value),
                                   },
                                 }));
                                 setRetentionFeedback(null);
@@ -1371,6 +1372,7 @@ export default function JobsView() {
                             />
                             <span>days</span>
                           </span>
+                          <span>Leave blank to prevent this rule from running.</span>
                         </label>
 
                         <div className="border-t border-border-muted pt-2 text-xs text-text-tertiary">

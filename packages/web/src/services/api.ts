@@ -1464,7 +1464,7 @@ export interface CompletedJobRetentionRun {
 
 export interface CompletedJobRetentionSettings {
   enabled: boolean;
-  days: number;
+  days: number | null;
 }
 
 export type JobRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';

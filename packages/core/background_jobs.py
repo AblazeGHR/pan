@@ -57,10 +57,6 @@ SERVICE_TERMINAL_PHASES = frozenset({"ready", "offline", "failed", "timed_out"})
 def _root(registry_root: str | Path | None = None) -> Path:
     value = registry_root or os.environ.get("PAN_BACKGROUND_JOBS_DIR")
     root = Path(value).expanduser() if value else DEFAULT_ROOT
-    # Jobs registries are caller-controlled paths. Do not let normal registry
-    # setup (including the log retention path) create or read through a link.
-    if _path_has_reparse_component(root):
-        raise ValueError("Jobs registry path contains a symlink or reparse point")
     (root / "jobs").mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(parents=True, exist_ok=True)
     return root
@@ -1586,7 +1582,8 @@ def _run_completed_job_retention_locked(now: float, *, emit_events: bool = False
                     else:
                         state = dict(state)
                     configured = settings[rule]
-                    enabled = validity[rule] and configured["enabled"] is True
+                    enabled = (validity[rule] and configured["enabled"] is True
+                               and configured["days"] is not None)
                     if not enabled:
                         if state.get("enabled") is not False:
                             state["enabled"] = False

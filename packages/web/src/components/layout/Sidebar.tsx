@@ -40,6 +40,7 @@ import {
   Sun,
   Moon,
   ListChecks,
+  Database,
   Trash2,
   X,
 } from 'lucide-react';
@@ -415,6 +416,20 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           <ListChecks size={18} />
         </NavLink>
 
+        <NavLink
+          to="/data"
+          title="Data"
+          className={({ isActive }) =>
+            `p-1.5 rounded transition-colors ${
+              isActive
+                ? 'text-accent bg-accent/10'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`
+          }
+        >
+          <Database size={18} />
+        </NavLink>
+
         <div className="flex-1" />
 
         <button
@@ -528,6 +543,19 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
               >
                 <ListChecks size={12} />
                 Jobs
+              </NavLink>
+              <NavLink
+                to="/data"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <Database size={12} />
+                Data
               </NavLink>
             </div>
 
@@ -922,6 +950,19 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
               >
                 <ListChecks size={12} />
                 Jobs
+              </NavLink>
+              <NavLink
+                to="/data"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <Database size={12} />
+                Data
               </NavLink>
             </div>
           </div>

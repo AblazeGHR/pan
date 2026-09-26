@@ -61,9 +61,13 @@ def _record(root, job_id, *, status="completed", updated_at=0,
 def test_retention_settings_get_put_defaults_and_preserve_other_config(client, retention_env):
     root, path = retention_env
     initial = client.get("/api/jobs/settings/completed-retention").json()
-    assert initial["settings"] == {"enabled": False, "days": 30}
+    assert initial["settings"] == {"enabled": False, "days": None}
+    assert all(rule == {"enabled": False, "days": None}
+               for rule in initial["rules"].values())
     assert initial["configValid"] is True
     assert initial["lastRun"] is None
+    assert all(config.DEFAULT_CONFIG["jobs"][key] == {"enabled": False, "days": None}
+               for key in config.JOB_RETENTION_CONFIG_KEYS.values())
 
     original = {
         "port": 9001,
@@ -98,6 +102,7 @@ def test_retention_settings_get_put_defaults_and_preserve_other_config(client, r
     {"days": 36501},
     {"days": 1.5},
     {"days": "30"},
+    {"days": ""},
     {"unknown": 1},
     {},
 ])
@@ -291,7 +296,7 @@ def test_invalid_persisted_retention_config_disables_automatic_deletion(
     result = jobs.run_completed_job_retention(now=1_000_000)
 
     assert settings["configValid"] is False
-    assert settings["settings"] == {"enabled": False, "days": 30}
+    assert settings["settings"] == {"enabled": False, "days": None}
     assert result["deleted"] == 0
     assert jobs.get("job_invalid_config", root) is not None
 
@@ -397,7 +402,7 @@ def test_independent_retention_rules_persist_without_touching_other_config(
     assert response["ok"] is True
     assert response["rules"]["failed"] == {"enabled": True, "days": 6}
     assert response["rules"]["timed_out"] == {"enabled": False, "days": 9}
-    assert response["rules"]["completed"] == {"enabled": False, "days": 30}
+    assert response["rules"]["completed"] == {"enabled": False, "days": None}
     assert response["configValid"] is True
     persisted = json.loads(path.read_text(encoding="utf-8"))
     assert persisted["port"] == original["port"]
@@ -447,11 +452,58 @@ def test_persisted_invalid_rule_is_disabled_independently(client, retention_env)
     result = jobs.run_completed_job_retention(now=1_000_000)
 
     assert response["configValidity"]["failed"] is False
-    assert response["rules"]["failed"] == {"enabled": False, "days": 30}
+    assert response["rules"]["failed"] == {"enabled": False, "days": None}
     assert response["configValidity"]["timed_out"] is True
     assert jobs.get("job_failed_invalid_days", root) is not None
     assert jobs.get("job_timeout_valid", root) is None
     assert result["rules"]["timed_out"]["deleted"] == 1
+
+
+def test_explicitly_cleared_days_persist_as_null_and_never_trigger_cleanup(
+        client, retention_env):
+    root, path = retention_env
+    now = 2_000_000.0
+    logs = root / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    old_log = logs / "job_empty_days.log"
+    old_log.write_text("old log", encoding="utf-8")
+    _set_mtime(old_log, now - 10 * 86400)
+    for status in ("completed", "failed", "timed_out", "cancelled"):
+        extra = {"logPath": str(old_log)} if status == "completed" else {}
+        _record(root, f"job_empty_{status}", status=status, updated_at=0, **extra)
+
+    all_rules = {
+        "completed": {"enabled": True, "days": 8},
+        "failed": {"enabled": True, "days": 8},
+        "timed_out": {"enabled": True, "days": 8},
+        "cancelled": {"enabled": True, "days": 8},
+        "logs": {"enabled": True, "days": 8},
+    }
+    configured = client.put("/api/jobs/settings/completed-retention",
+                            json={"rules": all_rules}).json()
+    assert configured["ok"] is True
+    cleared_rules = {
+        rule: {"enabled": True, "days": None}
+        for rule in all_rules
+    }
+    cleared = client.put("/api/jobs/settings/completed-retention",
+                         json={"rules": cleared_rules}).json()
+
+    assert cleared["ok"] is True
+    assert cleared["rules"] == cleared_rules
+    assert cleared["configValid"] is True
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    assert all(persisted["jobs"][config.JOB_RETENTION_CONFIG_KEYS[rule]]["days"] is None
+               for rule in cleared_rules)
+
+    result = jobs.run_completed_job_retention(now=now)
+
+    assert result["deleted"] == 0
+    assert result["scannedAt"] is None
+    assert result["rules"] == {}
+    for status in ("completed", "failed", "timed_out", "cancelled"):
+        assert jobs.get(f"job_empty_{status}", root) is not None
+    assert old_log.exists()
 
 
 def test_each_rule_has_its_own_daily_gate_and_newly_enabled_rule_runs_hot(
@@ -716,3 +768,16 @@ def test_log_cleaner_rejects_reparse_logs_directory(retention_env):
     assert result["deleted"] == 0
     assert result["errorCount"] == 1
     assert outside_log.read_text(encoding="utf-8") == "outside"
+
+
+def test_public_registry_root_does_not_use_logs_reparse_guard(retention_env, monkeypatch):
+    root, _ = retention_env
+
+    def reject_registry_path(_path):
+        raise AssertionError("log-only reparse guard ran in normal registry access")
+
+    monkeypatch.setattr(jobs, "_path_has_reparse_component", reject_registry_path)
+
+    assert jobs._root(root) == root
+    assert (root / "jobs").is_dir()
+    assert (root / "logs").is_dir()
