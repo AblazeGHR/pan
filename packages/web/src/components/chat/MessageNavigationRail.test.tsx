@@ -95,6 +95,41 @@ describe('message navigation dock', () => {
     expect(mockedHistory).toHaveBeenCalledTimes(1);
   });
 
+  it('stays open within the dock, then collapses after pointer click focus leaves', async () => {
+    vi.useFakeTimers();
+    const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
+    const { container } = render(
+      <MessageNavigationDock
+        chatRef={{ current: null }}
+        dockRef={dockRef}
+        isMobile={false}
+        mobileExpanded={false}
+        onMobileClose={() => {}}
+        onRestoreFocus={() => {}}
+      />,
+    );
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    const handle = container.querySelector<HTMLButtonElement>('.message-navigation-dock__handle')!;
+
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(dock.getAttribute('data-expanded')).toBe('true');
+    fireEvent.pointerOut(dock, { relatedTarget: container.querySelector('#message-navigation-panel') });
+    fireEvent.pointerMove(dock, { pointerType: 'mouse' });
+    expect(dock.getAttribute('data-expanded')).toBe('true');
+
+    fireEvent.pointerDown(handle, { pointerType: 'mouse' });
+    act(() => handle.focus());
+    fireEvent.click(handle, { detail: 1 });
+    // Hover still holds it open while the pointer is over the dock.
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(dock.getAttribute('data-expanded')).toBe('true');
+
+    fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
+    await act(async () => { vi.advanceTimersByTime(90); });
+    expect(dock.getAttribute('data-expanded')).toBe('false');
+    expect(document.activeElement).toBe(handle);
+  });
+
   it('does not auto-collapse while keyboard focus is using a marker and supports Escape', async () => {
     const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
     const { container } = render(

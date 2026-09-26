@@ -83,6 +83,8 @@ describe('ChatView: message navigation rail switch', () => {
     await act(async () => { await Promise.resolve(); });
 
     const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    expect(dock.parentElement).toBe(container.querySelector('.chat-view-stage'));
+    expect(dock.getAttribute('data-placement')).toBe('viewport-start');
     expect(dock.getAttribute('data-expanded')).toBe('false');
     expect(container.querySelector('.message-navigation-rail')).toBeNull();
     expect(mockedHistory).not.toHaveBeenCalled();

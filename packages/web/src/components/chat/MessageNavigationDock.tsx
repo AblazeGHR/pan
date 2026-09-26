@@ -37,6 +37,7 @@ export function MessageNavigationDock({
   const handleRef = useRef<HTMLButtonElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const collapseTimerRef = useRef<number | null>(null);
+  const pointerInteractionRef = useRef(false);
   const setDockElement = useCallback((element: HTMLDivElement | null) => {
     rootRef.current = element;
     dockRef.current = element;
@@ -76,13 +77,25 @@ export function MessageNavigationDock({
     cancelPendingCollapse();
     collapseTimerRef.current = window.setTimeout(() => {
       collapseTimerRef.current = null;
-      if (!rootRef.current?.contains(document.activeElement)) {
-        setPointerWithin(false);
+      if (focusWithin && !keyboardDismissed) return;
+      setPointerWithin(false);
+      const focusedElement = document.activeElement;
+      if (
+        pointerInteractionRef.current &&
+        focusedElement instanceof HTMLElement &&
+        rootRef.current?.contains(focusedElement) &&
+        focusedElement !== handleRef.current
+      ) {
+        handleRef.current?.focus();
       }
     }, COLLAPSE_DELAY_MS);
   };
 
   const handleFocus = () => {
+    if (pointerInteractionRef.current) {
+      setFocusWithin(false);
+      return;
+    }
     setKeyboardDismissed(false);
     setFocusWithin(true);
     setHasOpened(true);
@@ -118,6 +131,7 @@ export function MessageNavigationDock({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    pointerInteractionRef.current = false;
     if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
@@ -131,14 +145,15 @@ export function MessageNavigationDock({
     setFocusWithin(false);
   };
 
-  const handleDesktopToggle = () => {
+  const handleDesktopToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (expanded) {
       setKeyboardDismissed(true);
       setPointerWithin(false);
       setFocusWithin(false);
     } else {
-      setKeyboardDismissed(false);
-      setFocusWithin(true);
+      const keyboardActivation = event.detail === 0;
+      setKeyboardDismissed(!keyboardActivation);
+      setFocusWithin(keyboardActivation);
       setHasOpened(true);
     }
   };
@@ -148,8 +163,15 @@ export function MessageNavigationDock({
       ref={setDockElement}
       className={`message-navigation-dock${expanded ? ' is-open' : ''}${isMobile ? ' is-mobile' : ''}`}
       data-testid="message-navigation-dock"
+      data-placement={isMobile ? 'viewport-end' : 'viewport-start'}
       data-expanded={expanded}
       onPointerEnter={handlePointerEnter}
+      onPointerDown={(event) => {
+        if (!isMobile && (!event.pointerType || event.pointerType === 'mouse' || event.pointerType === 'pen')) {
+          pointerInteractionRef.current = true;
+          setKeyboardDismissed(true);
+        }
+      }}
       onPointerOut={handlePointerOut}
       onPointerLeave={() => {
         if (!isMobile) schedulePointerCollapse();
