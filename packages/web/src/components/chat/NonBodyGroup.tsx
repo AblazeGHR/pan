@@ -1,8 +1,10 @@
-import { memo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Message } from '@/types';
 import { getMessageIdentity } from '@/utils/messageIdentity';
-import { getLatestMessageTs, isValidMessageTs } from '@/utils/messageTimestamp';
+import { getLatestMessageTs } from '@/utils/messageTimestamp';
+import { groupChildren, type ChildGroup } from './nonBodyGroupUtils';
 import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
 import { MessageTimestamp } from './MessageTimestamp';
@@ -16,27 +18,62 @@ interface NonBodyGroupProps {
   onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
 }
 
-interface ChildGroup {
-  role: 'tool' | 'thinking';
-  items: Message[];
-  latestTs?: string;
-}
+const CHILD_GROUP_ESTIMATE = 28;
+const CHILD_GROUP_GAP = 8;
 
-function groupChildren(items: Message[]): ChildGroup[] {
-  const groups: ChildGroup[] = [];
-  let current: ChildGroup | null = null;
+function VirtualizedChildGroups({ groups }: { groups: ChildGroup[] }) {
+  const scrollElementRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => CHILD_GROUP_ESTIMATE,
+    gap: CHILD_GROUP_GAP,
+    overscan: 4,
+    getItemKey: (index) => {
+      const group = groups[index];
+      const firstItem = group?.items[0];
+      return firstItem ? `${group.role}:${getMessageIdentity(firstItem)}` : `missing:${index}`;
+    },
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
 
-  for (const item of items) {
-    if (item.role !== 'tool' && item.role !== 'thinking') continue;
-    if (!current || current.role !== item.role) {
-      current = { role: item.role, items: [] };
-      groups.push(current);
-    }
-    current.items.push(item);
-    if (item.ts && isValidMessageTs(item.ts)) current.latestTs = item.ts;
-  }
+  return (
+    <div
+      ref={scrollElementRef}
+      data-testid="non-body-group-window"
+      data-group-count={groups.length}
+      className="px-2 pb-2 max-h-[20rem] overflow-y-auto"
+    >
+      <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
+        {virtualItems.map((virtualItem) => {
+          const group = groups[virtualItem.index];
+          if (!group) return null;
+          const firstItem = group.items[0]!;
 
-  return groups;
+          return (
+            <div
+              key={virtualItem.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualItem.index}
+              data-child-group={`${group.role}:${getMessageIdentity(firstItem)}`}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              {group.role === 'tool'
+                ? <ToolGroup items={group.items} latestTs={group.latestTs} timestampsComputed />
+                : <ThinkingGroup items={group.items} latestTs={group.latestTs} timestampsComputed />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function pluralize(count: number, singular: string): string {
@@ -53,6 +90,7 @@ export const NonBodyGroup = memo(function NonBodyGroup({
   onTimestampFlashConsumed,
 }: NonBodyGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const childGroups = useMemo(() => isOpen ? groupChildren(items) : [], [isOpen, items]);
 
   if (items.length === 0) return null;
 
@@ -86,15 +124,7 @@ export const NonBodyGroup = memo(function NonBodyGroup({
         />
       </button>
       {isOpen && (
-        <div data-testid="non-body-group-window" className="flex flex-col gap-2 px-2 pb-2 max-h-[20rem] overflow-y-auto">
-          {groupChildren(items).map((group) => {
-            const firstItem = group.items[0]!;
-            const key = `${group.role}:${getMessageIdentity(firstItem)}`;
-            return group.role === 'tool'
-              ? <ToolGroup key={key} items={group.items} latestTs={group.latestTs} timestampsComputed />
-              : <ThinkingGroup key={key} items={group.items} latestTs={group.latestTs} timestampsComputed />;
-          })}
-        </div>
+        <VirtualizedChildGroups groups={childGroups} />
       )}
     </div>
   );

@@ -23,16 +23,24 @@ const m = vi.hoisted(() => {
       getItemKey?: (index: number) => string | number;
       estimateSize?: (index: number) => number;
     } | null;
+    nestedOptions: {
+      count?: number;
+      getItemKey?: (index: number) => string | number;
+      estimateSize?: (index: number) => number;
+      gap?: number;
+    } | null;
     /** Simulated measured row heights, in item order. */
     sizes: number[];
     /** Every scrollToIndex the component asked the virtualizer for. */
     scrollToIndexCalls: Array<{ index: number; align?: string }>;
     dynamicMeasurements: boolean;
     measuredByKey: Map<string, number>;
+    rerender?: () => void;
   } = {
     totalSize: 0,
     virtualItems: [],
     options: null,
+    nestedOptions: null,
     sizes: [],
     scrollToIndexCalls: [],
     dynamicMeasurements: false,
@@ -43,7 +51,7 @@ const m = vi.hoisted(() => {
       element.querySelector('button[aria-expanded]') ? 48 : 80;
   const measureMountedRows = (options = state.options) => {
     if (!options?.getItemKey) return;
-    for (const element of document.querySelectorAll<HTMLElement>('[data-index]')) {
+    for (const element of document.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
       state.measuredByKey.set(String(options.getItemKey(Number(element.dataset.index))), rowHeight(element));
     }
   };
@@ -77,13 +85,28 @@ vi.mock('@tanstack/react-virtual', async () => {
     count?: number;
     getItemKey?: (index: number) => string | number;
     estimateSize?: (index: number) => number;
+    gap?: number;
+    overscan?: number;
+    getScrollElement?: () => HTMLElement | null;
   }) => {
     const [, rerender] = useReducer((value: number) => value + 1, 0);
-    m.state.options = options;
+    const isNested = options.gap === 8;
+    if (isNested) m.state.nestedOptions = options;
+    else {
+      m.state.options = options;
+      m.state.rerender = rerender;
+    }
     return {
-      getTotalSize: () => m.getTotalSize(),
-      getVirtualItems: () =>
-        m.state.virtualItems.map((item) => ({
+      getTotalSize: () => isNested
+        ? (options.count ?? 0) * (options.estimateSize?.(0) ?? 48) + Math.max(0, (options.count ?? 0) - 1) * 8
+        : m.getTotalSize(),
+      getVirtualItems: () => (isNested
+        ? Array.from({ length: options.count ?? 0 }, (_, index) => ({
+          index,
+          start: index * ((options.estimateSize?.(index) ?? 48) + 8),
+          size: options.estimateSize?.(index) ?? 48,
+        }))
+        : m.state.virtualItems).map((item) => ({
           ...item,
           key: options.getItemKey?.(item.index) ?? item.index,
         })),
@@ -213,6 +236,8 @@ beforeEach(() => {
   m.setTotalSize(0);
   m.setVirtualItems([]);
   m.state.options = null;
+  m.state.nestedOptions = null;
+  m.state.rerender = undefined;
   m.state.dynamicMeasurements = false;
   m.state.measuredByKey.clear();
   useSessionStore.setState({
@@ -2327,6 +2352,79 @@ describe('non-body disclosure and virtual measurements across a session switch',
     } finally {
       restoreGeometry();
     }
+  });
+});
+
+describe('non-body child virtualization and top-level group counts', () => {
+  it('counts exposed groups at the top level and virtualizes merged child runs inside the outer row', () => {
+    const messages: Message[] = [
+      { role: 'tool', content: 'Bash({})', blockId: 'count-tool-1' },
+      { role: 'tool', content: 'Read({})', blockId: 'count-tool-2' },
+      { role: 'thinking', content: 'plan one', blockId: 'count-thinking-1' },
+      { role: 'thinking', content: 'plan two', blockId: 'count-thinking-2' },
+      { role: 'user', content: 'body message', blockId: 'count-user' },
+      { role: 'assistant', content: 'body reply', blockId: 'count-assistant' },
+    ];
+    useSessionStore.setState({ currentSessionId: 'display-group-counts', currentMessages: messages });
+    m.setTotalSize(400);
+    m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+    const { container } = render(<ChatMessages />);
+
+    // With merge disabled, Tool and Thinking stay direct top-level groups.
+    // Each existing body row also stays one direct display item.
+    expect(m.state.options?.count).toBe(4);
+    expect(m.state.nestedOptions).toBeNull();
+    expect(container.querySelectorAll('.tool-group, .thinking')).toHaveLength(2);
+
+    act(() => useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true }));
+    expect(m.state.options?.count).toBe(3); // one non-body row plus two body rows
+    expect(container.querySelectorAll('.non-body-group')).toHaveLength(1);
+    expect(container.querySelectorAll('.tool-group, .thinking')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /4 non-body blocks/ }));
+    expect(m.state.nestedOptions?.count).toBe(2);
+    expect(container.querySelector('[data-testid="non-body-group-window"]')?.getAttribute('data-group-count'))
+      .toBe('2');
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(2);
+  });
+
+  it('remeasures the parent row when the nested disclosure opens and closes', () => {
+    mockClientHeight = 100;
+    m.state.dynamicMeasurements = true;
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    const messages: Message[] = Array.from({ length: 24 }, (_, index) => ({
+      role: index % 2 === 0 ? 'thinking' : 'tool',
+      content: `child ${index}`,
+      blockId: `measure-child-${index}`,
+    }));
+    useSessionStore.setState({ currentSessionId: 'nested-parent-measure', currentMessages: messages });
+    m.setVirtualItems([{ index: 0, start: 0, size: 48 }]);
+    const { container } = render(<ChatMessages />);
+    const scrollElement = container.querySelector('.overflow-auto') as HTMLElement;
+    const parentKey = String(m.state.options?.getItemKey?.(0));
+
+    act(() => {
+      m.measureMountedRows();
+      m.state.rerender?.();
+    });
+    expect(m.state.measuredByKey.get(parentKey)).toBe(48);
+    expect(Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /24 non-body blocks/ }));
+    act(() => {
+      m.measureMountedRows();
+      m.state.rerender?.();
+    });
+    expect(m.state.measuredByKey.get(parentKey)).toBe(320);
+    expect(scrollElement.scrollHeight - scrollElement.clientHeight).toBe(220);
+
+    fireEvent.click(screen.getByRole('button', { name: /24 non-body blocks/ }));
+    act(() => {
+      m.measureMountedRows();
+      m.state.rerender?.();
+    });
+    expect(m.state.measuredByKey.get(parentKey)).toBe(48);
+    expect(Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)).toBe(0);
   });
 });
 
