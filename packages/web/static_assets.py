@@ -9,6 +9,7 @@ import stat
 from pathlib import Path
 
 from starlette.datastructures import Headers
+from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, Response
 from starlette.staticfiles import NotModifiedResponse, StaticFiles
 from starlette.types import Scope
@@ -34,7 +35,28 @@ def _encoding_quality(header: str, encoding: str) -> float:
 
 
 class ReactStaticFiles(StaticFiles):
-    """Keep index.html revalidatable and hashed JS/CSS immutable."""
+    """Serve SPA routes and keep hashed JS/CSS immutable."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        # The /react mount owns every nested URL. A FastAPI route declared
+        # after that mount cannot handle /react/jobs on a full browser reload.
+        # Only extensionless navigation paths fall back to index.html; missing
+        # assets and other files must retain their real 404 response.
+        normalized_path = path.replace('\\', '/').strip('/')
+        spa_route = (
+            bool(normalized_path)
+            and normalized_path.split('/', 1)[0] != 'assets'
+            and '.' not in normalized_path.rsplit('/', 1)[-1]
+        )
+        try:
+            response = await super().get_response(path, scope)
+        except HTTPException as exc:
+            if exc.status_code != 404 or not spa_route:
+                raise
+            return await super().get_response('index.html', scope)
+        if response.status_code == 404 and spa_route:
+            return await super().get_response('index.html', scope)
+        return response
 
     def file_response(
         self,

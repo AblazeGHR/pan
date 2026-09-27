@@ -10440,16 +10440,6 @@ if REACT_DIST_EXISTS:
         name=react_name,
     )
 
-    @app.get(f"/{react_name}/{{full_path:path}}")
-    async def react_spa_fallback(full_path: str):
-        """SPA fallback: return index.html for any /react/* path not matching a file."""
-        file_path = REACT_DIST_DIR / full_path
-        if file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(
-            REACT_DIST_DIR / "index.html",
-            headers={"Cache-Control": "no-cache"},
-        )
 else:
 
     @app.get("/react/", response_class=HTMLResponse)

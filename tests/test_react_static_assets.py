@@ -54,3 +54,14 @@ def test_hashed_asset_prefers_brotli_then_gzip_and_revalidates(tmp_path):
         assert index.status_code == 200
         assert "immutable" not in index.headers.get("cache-control", "")
         assert client.head("/react/").headers["cache-control"] == "no-cache"
+
+        for route in ("jobs", "editor", "manage/ses_123", "schedules"):
+            direct = client.get(f"/react/{route}")
+            assert direct.status_code == 200
+            assert direct.text == index.text
+            assert direct.headers["cache-control"] == "no-cache"
+            assert client.head(f"/react/{route}").headers["cache-control"] == "no-cache"
+
+        assert client.get("/react/assets/missing.js").status_code == 404
+        assert client.get("/react/assets/missing").status_code == 404
+        assert client.get("/react/manifest.webmanifest").status_code == 404
