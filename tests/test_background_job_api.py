@@ -168,6 +168,7 @@ def test_http_selected_session_broadcast_reuses_send_session(monkeypatch):
     assert result["ok"] is True
     assert [item[0] for item in calls] == ["ses_a", "ses_b"]
     assert all(item[2] == {"source": "agent", "force": False,
+                           "client_message_id": None,
                            "source_session_id": "ses_caller"} for item in calls)
 
 

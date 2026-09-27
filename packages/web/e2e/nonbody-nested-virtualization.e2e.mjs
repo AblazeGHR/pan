@@ -136,6 +136,11 @@ try {
     const element = document.querySelector('[data-testid="non-body-group-window"]');
     return element.scrollTop >= element.scrollHeight - element.clientHeight - 2;
   });
+  // The native scroll position changes before TanStack commits the new range.
+  await page.waitForFunction(() => {
+    const rows = document.querySelectorAll('[data-testid="non-body-group-window"] [data-child-group]');
+    return Number(rows[rows.length - 1]?.getAttribute('data-index')) > 220;
+  });
   const bottomIndex = Number(await viewport.locator('[data-child-group]').last().getAttribute('data-index'));
   const bottomMountedCount = await childRows.count();
   assert.ok(bottomIndex > 220, `bottom range did not reach the tail: ${bottomIndex}`);

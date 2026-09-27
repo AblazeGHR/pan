@@ -70,6 +70,7 @@ RESULT_REPLAY_MAX_ENTRIES = 64
 _STORE_LOCK = threading.RLock()
 _PIN_LOCK = threading.RLock()
 _PIN_STATE_CACHE: tuple[Path, int, tuple[str, ...]] | None = None
+_PIN_STATE_CACHE_STAMP: tuple[int, int, int] | None = None
 _SAVE_STATES: dict[str, "_SessionSaveState"] = {}
 _MAX_SAVE_DIAGNOSTIC_SESSIONS = 128
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
@@ -2724,11 +2725,17 @@ def _pin_state_path() -> Path:
 
 
 def _read_pin_state_locked() -> tuple[Path, int, tuple[str, ...]]:
-    global _PIN_STATE_CACHE
+    global _PIN_STATE_CACHE, _PIN_STATE_CACHE_STAMP
     path = _pin_state_path()
-    if _PIN_STATE_CACHE is not None and _PIN_STATE_CACHE[0] == path:
+    try:
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+    except FileNotFoundError:
+        stamp = None
+    if (_PIN_STATE_CACHE is not None and _PIN_STATE_CACHE[0] == path
+            and _PIN_STATE_CACHE_STAMP == stamp):
         return _PIN_STATE_CACHE
-    if not path.exists():
+    if stamp is None:
         state = (path, 0, ())
     else:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -2743,11 +2750,12 @@ def _read_pin_state_locked() -> tuple[Path, int, tuple[str, ...]]:
             raise ValueError("Invalid Session pin metadata")
         state = (path, revision, tuple(session_ids))
     _PIN_STATE_CACHE = state
+    _PIN_STATE_CACHE_STAMP = stamp
     return state
 
 
 def _write_pin_state_locked(path: Path, revision: int, session_ids: list[str]) -> None:
-    global _PIN_STATE_CACHE
+    global _PIN_STATE_CACHE, _PIN_STATE_CACHE_STAMP
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f"{path.name}.tmp")
     payload = {
@@ -2761,6 +2769,9 @@ def _write_pin_state_locked(path: Path, revision: int, session_ids: list[str]) -
     )
     os.replace(temporary, path)
     _PIN_STATE_CACHE = (path, revision, tuple(session_ids))
+    # Recheck the file on the next read. An external Pan process may replace
+    # it after this write; a path-only cache would never observe that change.
+    _PIN_STATE_CACHE_STAMP = None
 
 
 def session_pin_state() -> dict:

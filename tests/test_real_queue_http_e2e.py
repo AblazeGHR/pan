@@ -2,9 +2,9 @@
 
 This module is intentionally different from the TestClient and mocked worker
 tests already in the repository.  It starts a separate FastAPI/uvicorn
-process on 8767, uses a persistent temporary data root, talks to it through
-HTTP and WebSocket, and uses a deterministic local stream provider.  No real
-LLM, QQ bridge, Tunnel, or port 8768 is involved.
+process on 8767 by default (or PAN_TEST_HTTP_PORT), uses a persistent temporary
+data root, talks to it through HTTP and WebSocket, and uses a deterministic
+local stream provider. No real LLM, QQ bridge, Tunnel, or port 8768 is involved.
 """
 
 from __future__ import annotations
@@ -28,7 +28,9 @@ from websockets.exceptions import ConnectionClosed
 ROOT = Path(__file__).resolve().parent.parent
 SERVER_LAUNCHER = Path(__file__).resolve().parent / "support" / "isolated_http_server.py"
 FAKE_CLI = Path(__file__).resolve().parent / "support" / "fake_stream_cli.py"
-PORT = 8767
+PORT = int(os.environ.get("PAN_TEST_HTTP_PORT", "8767"))
+if PORT == 8768:
+    raise ValueError("PAN_TEST_HTTP_PORT must not use the practical service port")
 
 
 def _port_is_free(port: int) -> bool:

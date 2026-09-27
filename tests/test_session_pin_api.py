@@ -39,6 +39,34 @@ def test_old_records_default_unpinned_and_projection_is_additive():
     assert srv._session_to_api(session)["pinned"] is False
 
 
+def test_list_uses_one_pin_snapshot_for_all_sessions(monkeypatch):
+    for session_id in ("ses_a", "ses_b", "ses_c"):
+        _sess.save(_setup_session(session_id))
+    assert _sess.set_session_pinned("ses_b", True)[1] is None
+
+    reads = []
+    original = _sess.session_pin_state
+
+    def snapshot():
+        reads.append(True)
+        return original()
+
+    def reject_per_session_lookup(_session_id):
+        raise AssertionError("list should not scan the pin order per Session")
+
+    monkeypatch.setattr(_sess, "session_pin_state", snapshot)
+    monkeypatch.setattr(_sess, "session_pin_projection", reject_per_session_lookup)
+    for summary in (1, 0):
+        response = asyncio.run(srv.api_list_sessions(summary=summary))
+        by_id = {item["id"]: item for item in response["sessions"]}
+        assert set(by_id) == {"ses_a", "ses_b", "ses_c"}
+        assert by_id["ses_b"]["pinned"] is True
+        assert by_id["ses_b"]["pinOrder"] == 0
+        assert by_id["ses_a"]["pinned"] is False
+        assert by_id["ses_c"]["pinRevision"] == 1
+    assert len(reads) == 2
+
+
 def test_pin_state_persists_separately_from_session_order_and_survives_reload(monkeypatch):
     session = _setup_session("ses_pin_a", order=73)
     _sess.save(session)
@@ -72,6 +100,27 @@ def test_pin_state_persists_separately_from_session_order_and_survives_reload(mo
     assert restored.order == 73
     assert srv._session_summary(restored)["pinned"] is True
     assert srv._session_summary(restored)["pinOrder"] == 0
+
+
+def test_pin_cache_observes_external_atomic_replacement():
+    _setup_session("ses_a")
+    _setup_session("ses_b")
+    assert _sess.set_session_pinned("ses_a", True)[1] is None
+    assert _sess.session_pin_state() == {
+        "pinRevision": 1, "sessionIds": ["ses_a"],
+    }
+
+    path = _sess._pin_state_path()
+    external = path.with_name("external-pins.json")
+    external.write_text(json.dumps({
+        "version": 1, "revision": 2, "sessionIds": ["ses_b", "ses_a"],
+    }), encoding="utf-8")
+    external.replace(path)
+
+    assert _sess.session_pin_state() == {
+        "pinRevision": 2, "sessionIds": ["ses_b", "ses_a"],
+    }
+    assert _sess.session_pin_projection("ses_a")["pinOrder"] == 1
 
 
 def test_pin_api_rejects_missing_or_invalid_boolean():

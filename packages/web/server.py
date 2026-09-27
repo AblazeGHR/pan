@@ -1929,6 +1929,7 @@ def _session_to_api(
     include_raw_usage: bool = True,
     include_last_result: bool = True,
     app_config: dict | None = None,
+    pin_projection: dict | None = None,
 ):
     """Convert Session to API response dict."""
     w = worker.find_alive_worker_by_session(s.id)
@@ -1943,7 +1944,8 @@ def _session_to_api(
         }
     mcp_lock_reason = _get_mcp_locked_state(s)
     projection = sess.summary_projection(s)
-    pin_projection = sess.session_pin_projection(s.id)
+    if pin_projection is None:
+        pin_projection = sess.session_pin_projection(s.id)
     return {
         "id": s.id,
         "name": s.name,
@@ -2093,6 +2095,7 @@ def _session_list_api(
     history_limit: int = 50,
     page=_PAGE_UNSET,
     app_config: dict | None = None,
+    pin_projection: dict | None = None,
 ) -> dict:
     """Serialize the list view without hydrating a Session's full history.
 
@@ -2101,7 +2104,10 @@ def _session_list_api(
     the companion JSONL on the event loop.  Omitting it keeps the historical
     inline read for the remaining synchronous callers.
     """
-    api = _session_to_api(s, include_history=False, app_config=app_config)
+    api = _session_to_api(
+        s, include_history=False, app_config=app_config,
+        pin_projection=pin_projection,
+    )
     if page is _PAGE_UNSET:
         page = sess.history_page(s.id, limit=history_limit)
     if page is None:
@@ -2142,7 +2148,10 @@ def _session_import_api(s: sess.Session) -> dict:
     return response
 
 
-def _session_summary(s: sess.Session, active_workers: dict | None = None) -> dict:
+def _session_summary(
+    s: sess.Session, active_workers: dict | None = None,
+    pin_projection: dict | None = None,
+) -> dict:
     """Lean session dict for list summaries (A1: no history / usage).
 
     Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy/
@@ -2180,7 +2189,8 @@ def _session_summary(s: sess.Session, active_workers: dict | None = None) -> dic
     )
     updated_at = projection["updated_at"] or s.updated_at
     ac = s.adapter_config
-    pin_projection = sess.session_pin_projection(s.id)
+    if pin_projection is None:
+        pin_projection = sess.session_pin_projection(s.id)
     return {
         "id": s.id,
         "name": s.name,
@@ -4995,9 +5005,27 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         sessions = [s for s in sessions if not sess.effective_workspace_ids(s)]
     elif workspaceId:
         sessions = [s for s in sessions if workspaceId in sess.effective_workspace_ids(s)]
+    # Resolve the shared pin snapshot once. Looking up every Session through
+    # session_pin_projection repeats a linear search of all pinned IDs and
+    # makes a cold list request quadratic when many Sessions are pinned.
+    pin_state = await _store_read(sess.session_pin_state)
+    pin_order_by_id = {
+        session_id: order
+        for order, session_id in enumerate(pin_state["sessionIds"])
+    }
+    def pin_projection_for(session_id: str) -> dict:
+        order = pin_order_by_id.get(session_id)
+        return {
+            "pinned": order is not None,
+            "pinOrder": order,
+            "pinRevision": pin_state["pinRevision"],
+        }
     if summary:
         active_workers = worker.find_alive_workers_by_session()
-        return {"sessions": [_session_summary(s, active_workers) for s in sessions]}
+        return {"sessions": [
+            _session_summary(s, active_workers, pin_projection_for(s.id))
+            for s in sessions
+        ]}
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     # Resolve dynamic configuration once per response. Reading and deep-merging
@@ -5005,7 +5033,8 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     # read per row while the event loop was also serving dashboard heartbeats.
     app_config = load_config()
     return {"sessions": [_session_list_api(
-                s, page=pages.get(s.id), app_config=app_config)
+                s, page=pages.get(s.id), app_config=app_config,
+                pin_projection=pin_projection_for(s.id))
             for s in sessions]}
 
 
