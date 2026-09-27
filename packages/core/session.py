@@ -2320,7 +2320,7 @@ def effective_workspace_ids(session_or_id: "Session | str") -> list[str]:
     Broken/cyclic chains fail closed to ungrouped. Only a true root's persisted
     value is authoritative; old child workspace_ids are deliberately ignored.
     """
-    current = get(session_or_id) if isinstance(session_or_id, str) else session_or_id
+    current = get(session_or_id, load_history=False) if isinstance(session_or_id, str) else session_or_id
     seen: set[str] = set()
     while current is not None:
         if current.id in seen:
@@ -2328,7 +2328,9 @@ def effective_workspace_ids(session_or_id: "Session | str") -> list[str]:
         seen.add(current.id)
         if not current.managed_by:
             return list(current.workspace_ids[:1])
-        parent = get(current.managed_by)
+        # Membership needs only metadata. A cold summary request must not
+        # hydrate a manager's potentially long JSONL history for every child.
+        parent = get(current.managed_by, load_history=False)
         if parent is None:
             return []
         current = parent

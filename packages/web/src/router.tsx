@@ -1,9 +1,15 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from './App';
 import ChatView from './views/ChatView';
 import EditorView from './views/EditorView';
-import ManageView from './views/ManageView';
-import JobsView from './views/JobsView';
+
+const ManageView = lazy(() => import('./views/ManageView'));
+const JobsView = lazy(() => import('./views/JobsView'));
+
+function deferredRoute(view: React.ReactNode) {
+  return <Suspense fallback={<div className="p-4 text-sm text-text-tertiary">Loading...</div>}>{view}</Suspense>;
+}
 
 const isProd = import.meta.env.PROD;
 const basename = isProd ? '/react' : '/';
@@ -24,11 +30,11 @@ export const router = createBrowserRouter(
         },
         {
           path: 'manage/:sessionId',
-          element: <ManageView />,
+          element: deferredRoute(<ManageView />),
         },
         {
           path: 'jobs',
-          element: <JobsView />,
+          element: deferredRoute(<JobsView />),
         },
         {
           path: 'schedules',

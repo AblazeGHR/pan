@@ -332,6 +332,10 @@ export interface LiveStreamBuffer {
    * a stale index overwrite an unrelated message.
    */
   projectionRefs?: Record<string, Message>;
+  /** Background-only display cache, valid for one canonical window/runtime. */
+  projectionDisplay?: Message[];
+  projectionWindow?: LoadedWindow;
+  projectionRuntime?: Message[];
 }
 
 /**
@@ -1434,9 +1438,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         //    carrying it must not regress a status WS events already settled.
         // Anything else means the snapshot is authoritative for this session —
         // including the settled status of a completion event we never received.
+        const currentById = new Map(s.sessions.map((session) => [session.id, session]));
         const merged = sessions.map((sess) => {
           const sid = sess.id;
-          const cur = s.sessions.find((x) => x.id === sid);
+          const cur = currentById.get(sid);
           if (!cur) return sess;
           const touchedBefore = Object.prototype.hasOwnProperty.call(
             touchedAtStart,
@@ -2369,9 +2374,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // moves rows appended during the turn (Steer/queue delivery) in front of
       // stream blocks that had already appeared. Use the target Session's
       // current projection, then retain that exact interleaving in runtime.
-      const targetDisplay = s.currentSessionId === sessionId
+      const selected = s.currentSessionId === sessionId;
+      const targetDisplay = selected
         ? s.currentMessages
-        : projectTranscript(base, previous);
+        : previous?.projectionDisplay
+          && previous.projectionWindow === base.window
+          && previous.projectionRuntime === base.runtime
+          ? previous.projectionDisplay
+          : projectTranscript(base, previous);
       const projected = projectLiveRows(
         targetDisplay,
         previous,
@@ -2382,16 +2392,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       buffer.projectionIndexes = projected.indexes;
       buffer.projectionRefs = projected.refs;
       const runtime = projected.display.filter((row) => !isDurableRow(row));
+      if (!selected) {
+        buffer.projectionDisplay = projected.display;
+        buffer.projectionWindow = base.window;
+        buffer.projectionRuntime = runtime;
+      }
       const transcript: SessionTranscript = {
         ...base,
         runtime,
       };
-      if (s.currentSessionId === sessionId) {
+      if (selected) {
         return {
           liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
           unscopedReplayPending: replayPending,
           currentMessages: projected.display,
-          sessions: mirrorHistory(s.sessions, sessionId, projected.display),
           ...withTranscript(s, sessionId, transcript),
         };
       }

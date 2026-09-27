@@ -48,6 +48,15 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
     || !!fileLink?.serverAttachmentId
   );
 
+  const prepareEditorRoot = (id: string, directory: string): void => {
+    const editor = useEditorStore.getState();
+    if (editor.sessionId !== id || editor.workdir !== directory) {
+      // setRoot updates the identity synchronously. Let its directory read run
+      // alongside the file read so a large tree cannot delay opening a link.
+      void editor.setRoot(id, directory);
+    }
+  };
+
   const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (draggedRef.current) {
       draggedRef.current = false;
@@ -88,7 +97,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
           window.location.assign(href);
           return;
         }
-        await useEditorStore.getState().setRoot(sessionId, workdir);
+        prepareEditorRoot(sessionId, workdir);
         const displayName = typeof metadata.displayName === 'string' ? metadata.displayName : 'attachment';
         const downloadHref = `/api/attachments/ref/${encodeURIComponent(attachmentId)}`
           + `?session_id=${encodeURIComponent(sourceSessionId)}`;
@@ -134,7 +143,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
 
     // Keep the existing editor root in sync before opening. This also covers
     // links clicked in Chat/DetailPanel before EditorView has mounted.
-    await useEditorStore.getState().setRoot(sessionId, workdir);
+    prepareEditorRoot(sessionId, workdir);
     const location = fileLink.location && editorPath
       ? { ...fileLink.location, path: editorPath }
       : fileLink.location;

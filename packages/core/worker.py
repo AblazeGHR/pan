@@ -6841,6 +6841,22 @@ def find_alive_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
+def find_alive_workers_by_session() -> dict[str, Worker]:
+    """Snapshot live workers for a whole Session list in one registry walk."""
+    candidates: dict[str, Worker] = {}
+    for session_id, indexed in _workers_by_session.items():
+        if workers.get(indexed.worker_id) is indexed:
+            candidates[session_id] = indexed
+    # Legacy embedders may populate the public registry without the index.
+    for item in workers.values():
+        candidates.setdefault(item.session_id, item)
+    return {
+        session_id: item for session_id, item in candidates.items()
+        if (item._consume_task is None or not item._consume_task.done())
+        and _process_alive(item)
+    }
+
+
 async def sync_legal_worker_state_to_runtime(
     session_id: str, *, source: str = "session-recovery/sync-actual",
 ) -> dict:

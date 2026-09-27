@@ -152,4 +152,54 @@ describe('stage 3 consistency fixtures', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([canonical]);
     expect(useSessionStore.getState().liveStreamBuffers.A).toBeUndefined();
   });
+
+  it('reuses a background projection until its durable window changes', () => {
+    const selected = session([message('user', 'selected')]);
+    const background = { ...session([message('user', 'background')]), id: 'B' };
+    useSessionStore.setState({
+      sessions: [selected, background],
+      currentSessionId: 'A',
+      currentMessages: selected.history,
+    });
+    const scope = { workerId: 'worker-b', generation: 0, taskSeq: 1 };
+    const live = (content: string) => [{
+      role: 'assistant', content, nativeItemId: 'item-b',
+    }];
+
+    useSessionStore.getState().applyLiveStream('B', live('first'), scope);
+    const first = useSessionStore.getState();
+    expect(first.liveStreamBuffers.B?.projectionDisplay?.map((row) => row.content))
+      .toEqual(['background', 'first']);
+    expect(first.liveStreamBuffers.B?.projectionWindow)
+      .toBe(first.sessionTranscripts.B?.window);
+
+    useSessionStore.getState().applyLiveStream('B', live('first second'), scope);
+    const second = useSessionStore.getState();
+    expect(second.liveStreamBuffers.B?.projectionDisplay?.map((row) => row.content))
+      .toEqual(['background', 'first second']);
+    expect(second.currentMessages).toBe(selected.history);
+
+    const transcript = second.sessionTranscripts.B!;
+    const window = {
+      ...transcript.window,
+      rows: new Map(transcript.window.rows).set(1, message('user', 'new durable row')),
+      end: 2,
+      total: 2,
+    };
+    useSessionStore.setState({
+      sessions: second.sessions.map((item) => item.id === 'B'
+        ? { ...item, historyTotal: 2, history: [message('user', 'background'), message('user', 'new durable row')] }
+        : item),
+      sessionTranscripts: {
+        ...second.sessionTranscripts,
+        B: { ...transcript, window },
+      },
+    });
+    useSessionStore.getState().applyLiveStream('B', live('first second third'), scope);
+    const third = useSessionStore.getState();
+    expect(third.liveStreamBuffers.B?.projectionWindow).toBe(window);
+    expect(third.liveStreamBuffers.B?.projectionDisplay?.map((row) => row.content))
+      .toContain('new durable row');
+    expect(third.currentMessages).toBe(selected.history);
+  });
 });

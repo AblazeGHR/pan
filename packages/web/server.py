@@ -1652,8 +1652,9 @@ def _resync_snapshot(
         details[sid] = detail
 
     workers = []
+    active_workers = worker.find_alive_workers_by_session()
     for runtime in worker.list_workers():
-        if worker.find_alive_worker_by_session(runtime.session_id) is not runtime:
+        if active_workers.get(runtime.session_id) is not runtime:
             continue
         if requested and runtime.session_id not in requested:
             continue
@@ -1682,7 +1683,7 @@ def _resync_snapshot(
             ] or [0]
         ),
         "boundary": "authoritative",
-        "sessions": [_session_summary(s) for s in visible],
+        "sessions": [_session_summary(s, active_workers) for s in visible],
         "sessionsTruncated": len(all_sessions) > len(visible) and not requested,
         "workers": workers,
         "details": details,
@@ -2034,7 +2035,7 @@ def _session_import_api(s: sess.Session) -> dict:
     return response
 
 
-def _session_summary(s: sess.Session) -> dict:
+def _session_summary(s: sess.Session, active_workers: dict | None = None) -> dict:
     """Lean session dict for list summaries (A1: no history / usage).
 
     Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy/
@@ -2053,7 +2054,8 @@ def _session_summary(s: sess.Session) -> dict:
     sidebar can run the "has subagent" and "is MetaAgent" special filters
     without per-session detail calls (mirrors _session_to_api).
     """
-    w = worker.find_alive_worker_by_session(s.id)
+    w = (active_workers.get(s.id) if active_workers is not None
+         else worker.find_alive_worker_by_session(s.id))
     projection = sess.summary_projection(s)
     worker_state = getattr(s, "_summary_worker_state", None) or {}
     worker_status = w.status if w else worker_state.get("status")
@@ -4744,7 +4746,8 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     elif workspaceId:
         sessions = [s for s in sessions if workspaceId in sess.effective_workspace_ids(s)]
     if summary:
-        return {"sessions": [_session_summary(s) for s in sessions]}
+        active_workers = worker.find_alive_workers_by_session()
+        return {"sessions": [_session_summary(s, active_workers) for s in sessions]}
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     # Resolve dynamic configuration once per response. Reading and deep-merging
@@ -5320,8 +5323,9 @@ async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
     sessions = [s for s in await _store_read(sess.list_all, load_history=False)
                 if workspace_id in sess.effective_workspace_ids(s)]
     if summary:
+        active_workers = worker.find_alive_workers_by_session()
         return {"ok": True, "workspaceId": workspace_id,
-                "sessions": [_session_summary(s) for s in sessions]}
+                "sessions": [_session_summary(s, active_workers) for s in sessions]}
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     app_config = load_config()
