@@ -309,6 +309,17 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       activeWorkspaceId,
     })];
 
+    // Preview/status updates can rerun this sort during streaming. Build the
+    // ranks and timestamps once per list instead of rescanning/parsing them
+    // inside every comparator call.
+    const customRanks = sortBy === 'custom'
+      ? new Map(customOrder.map((id, index) => [id, index] as const))
+      : null;
+    const updatedTimes = sortBy === 'recent' ? new Map(filtered.map((session) => [
+      session.id,
+      session.updatedAt ? new Date(session.updatedAt).getTime() : 0,
+    ] as const)) : null;
+
     filtered.sort((a, b) => {
       if (sortBy === 'custom') {
         // Manual drag order; ids missing from customOrder fall back to their
@@ -316,10 +327,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         // ids keep their input (= authoritative server) relative order instead
         // of re-sorting by updatedAt, so the server-persisted order survives a
         // refresh even when customOrder is partial/stale.
-        const rank = (id: string) => {
-          const i = customOrder.indexOf(id);
-          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-        };
+        const rank = (id: string) => customRanks?.get(id) ?? Number.MAX_SAFE_INTEGER;
         const diff = rank(a.id) - rank(b.id);
         if (diff !== 0) return diff;
         if (rank(a.id) === Number.MAX_SAFE_INTEGER) return 0;
@@ -327,8 +335,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name);
       }
-      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      const aTime = updatedTimes?.get(a.id) ?? 0;
+      const bTime = updatedTimes?.get(b.id) ?? 0;
       if (aTime !== bTime) return bTime - aTime;
       return a.name.localeCompare(b.name);
     });

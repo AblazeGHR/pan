@@ -1,7 +1,35 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
+
+function precompressAssets(): Plugin {
+  return {
+    name: 'precompress-static-assets',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      for (const [fileName, output] of Object.entries(bundle)) {
+        if (!/\.(?:js|css)$/.test(fileName)) continue;
+        const source = output.type === 'chunk' ? output.code : output.source;
+        const bytes = Buffer.from(source);
+        if (bytes.length < 1024) continue;
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.br`,
+          source: brotliCompressSync(bytes, {
+            params: { [constants.BROTLI_PARAM_QUALITY]: 7 },
+          }),
+        });
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.gz`,
+          source: gzipSync(bytes, { level: 6 }),
+        });
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
@@ -9,7 +37,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'src',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), precompressAssets()],
     base,
     resolve: {
       alias: {

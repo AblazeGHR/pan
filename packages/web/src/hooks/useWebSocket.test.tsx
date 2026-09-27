@@ -24,6 +24,7 @@ const wsMock = vi.hoisted(() => {
   });
   return {
     handlers,
+    isOpen: true,
     connect: vi.fn(),
     send,
     sendInteractiveSync,
@@ -55,7 +56,7 @@ vi.mock('@/services/ws', () => ({
       sendInteractiveSync: wsMock.sendInteractiveSync,
       sendAuthoritativeResync: wsMock.sendAuthoritativeResync,
       getConnectionGeneration: wsMock.getConnectionGeneration,
-      isOpen: true,
+      get isOpen() { return wsMock.isOpen; },
     isConnectionFresh: wsMock.isConnectionFresh,
   },
 }));
@@ -104,6 +105,7 @@ describe('useWebSocket worker.result wiring', () => {
     wsMock.getConnectionGeneration.mockReturnValue(1);
     wsMock.resetInteractiveSync();
     wsMock.connect.mockClear();
+    wsMock.isOpen = true;
     wsMock.reconnect.mockClear();
     wsMock.isConnectionFresh.mockReturnValue(true);
     apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
@@ -182,6 +184,23 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('fresh');
     apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
     vi.useRealTimers();
+  });
+
+  it('uses the first mount reads for initial open and refreshes on reconnect', async () => {
+    wsMock.isOpen = false;
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    apiMock.listWorkers.mockResolvedValue([]);
+    renderHook(() => useWebSocket());
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+    expect(apiMock.listWorkers).toHaveBeenCalledTimes(1);
+
+    act(() => wsMock.trigger('open', { type: 'open' }));
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+    expect(apiMock.listWorkers).toHaveBeenCalledTimes(1);
+
+    act(() => wsMock.trigger('open', { type: 'open' }));
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2);
+    expect(apiMock.listWorkers).toHaveBeenCalledTimes(2);
   });
 
   it('reconnects a stale socket and lets the open path refresh state', () => {

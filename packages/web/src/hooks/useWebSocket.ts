@@ -67,6 +67,12 @@ export function useWebSocket() {
       return;
     }
 
+    // The first physical open follows the initial HTTP reads below. The
+    // resync snapshot still performs a fresh authoritative read, so repeating
+    // the same two requests immediately on that first open adds only startup
+    // contention. An already-open singleton or any later reconnect keeps the
+    // normal open refresh.
+    let initialConnectionPending = !wsClient.isOpen;
     wsClient.connect();
 
     // 初始加载兜底：StrictMode dev 下 effect 会 setup→cleanup→setup 重跑，
@@ -180,8 +186,12 @@ export function useWebSocket() {
 
     // Open handler — refresh sessions and restore live native prompts on connect
     unsubscribers.push(wsClient.on('open', () => {
-      useSessionStore.getState().loadSessions();
-      useWorkerStore.getState().refresh();
+      if (initialConnectionPending) {
+        initialConnectionPending = false;
+      } else {
+        useSessionStore.getState().loadSessions();
+        useWorkerStore.getState().refresh();
+      }
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
       // An open event is the completion point for a focus-triggered stale

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -7,22 +7,23 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { nextSessionDefaultName } from '@/utils/sessionName';
 import { SessionList } from '@/components/session/SessionList';
-import { NewSessionModal } from '@/components/session/NewSessionModal';
-import { ImportModal } from '@/components/session/ImportModal';
-import { ManageModal } from '@/components/session/ManageModal';
-import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
-import { SessionDetailsModal } from '@/components/session/SessionDetailsModal';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
 import { SPECIAL_FILTERS, getSessionListCandidates } from '@/utils/sessionFilters';
 import { EditorDirectoryRoots } from '@/components/editor/EditorDirectoryRoots';
 import { SidebarResizer } from './SidebarResizer';
-import { AppSettingsModal } from './AppSettingsModal';
 import { Button } from '@/components/ui/Button';
 import { WorkspaceManagerChangeConfirmationModal } from './WorkspaceManagerChangeConfirmationModal';
 import type { WorkspaceMoveConfirmationRequest } from '@/utils/workspaceMoveConfirmation';
+
+const AppSettingsModal = lazy(() => import('./AppSettingsModal').then((module) => ({ default: module.AppSettingsModal })));
+const NewSessionModal = lazy(() => import('@/components/session/NewSessionModal').then((module) => ({ default: module.NewSessionModal })));
+const ImportModal = lazy(() => import('@/components/session/ImportModal').then((module) => ({ default: module.ImportModal })));
+const ManageModal = lazy(() => import('@/components/session/ManageModal').then((module) => ({ default: module.ManageModal })));
+const PostboxModal = lazy(() => import('@/components/session/PostboxModal').then((module) => ({ default: module.PostboxModal })));
+const SessionDetailsModal = lazy(() => import('@/components/session/SessionDetailsModal').then((module) => ({ default: module.SessionDetailsModal })));
 import {
   MessageSquare,
   Code,
@@ -424,10 +425,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
         >
           <Settings size={18} />
         </button>
-        <AppSettingsModal
-          open={showAppSettings}
-          onClose={() => setShowAppSettings(false)}
-        />
+        {showAppSettings && <Suspense fallback={null}>
+          <AppSettingsModal open onClose={() => setShowAppSettings(false)} />
+        </Suspense>}
 
         <button
           onClick={toggleTheme}
@@ -935,10 +935,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       {!isMobile && <SidebarResizer />}
 
       {/* Modals */}
-      <AppSettingsModal
-        open={showAppSettings}
-        onClose={() => setShowAppSettings(false)}
-      />
+      {showAppSettings && <Suspense fallback={null}>
+        <AppSettingsModal open onClose={() => setShowAppSettings(false)} />
+      </Suspense>}
       <WorkspaceManagerChangeConfirmationModal
         request={workspaceMoveConfirmation}
         onClose={() => {
@@ -950,29 +949,25 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           setWorkspaceMoveConfirmation(null);
         }}
       />
-      <NewSessionModal
-        open={showNewModal}
-        onClose={() => setShowNewModal(false)}
-      />
-      <ImportModal
-        open={showImportModal}
-        onClose={() => setShowImportModal(false)}
-      />
-      <ManageModal
-        open={!!manageSessionId}
-        onClose={() => setManageSessionId(null)}
-        sessionId={manageSessionId}
-        onViewRelationship={setManageSessionId}
-      />
-      <PostboxModal
-        open={!!postboxSessionId}
-        onClose={() => setPostboxSessionId(null)}
-        sessionId={postboxSessionId}
-      />
-      <SessionDetailsModal
-        session={detailsSessionId ? sessions.find((s) => s.id === detailsSessionId) ?? null : null}
-        onClose={() => setDetailsSessionId(null)}
-      />
+      <Suspense fallback={null}>
+        {showNewModal && <NewSessionModal open onClose={() => setShowNewModal(false)} />}
+        {showImportModal && <ImportModal open onClose={() => setShowImportModal(false)} />}
+        {manageSessionId && <ManageModal
+          open
+          onClose={() => setManageSessionId(null)}
+          sessionId={manageSessionId}
+          onViewRelationship={setManageSessionId}
+        />}
+        {postboxSessionId && <PostboxModal
+          open
+          onClose={() => setPostboxSessionId(null)}
+          sessionId={postboxSessionId}
+        />}
+        {detailsSessionId && <SessionDetailsModal
+          session={sessions.find((s) => s.id === detailsSessionId) ?? null}
+          onClose={() => setDetailsSessionId(null)}
+        />}
+      </Suspense>
       <RenameSessionModal
         session={renameSessionId ? sessions.find((s) => s.id === renameSessionId) ?? null : null}
         onClose={() => setRenameSessionId(null)}
