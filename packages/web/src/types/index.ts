@@ -816,6 +816,22 @@ export interface ApiMainExitResponse {
   jobId?: string;
 }
 
+export type ApiSessionExitStrategy = 'ask' | 'offline' | 'preserve-running';
+export type ApiStartupPreference = 'ask' | 'wake-running' | 'sync-actual' | 'preserve-running';
+
+export interface ApiSessionLifecyclePreferences {
+  exitStrategy: ApiSessionExitStrategy;
+  startupPreference: ApiStartupPreference;
+}
+
+export interface ApiSessionLegalStateSyncResult {
+  sessionId: string;
+  status: 'updated' | 'error';
+  legalWorkerState?: string;
+  runtimeWorkerStatus?: string;
+  error?: string;
+}
+
 export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual';
 
 export interface ApiStartupRecoveryCandidate {
@@ -832,6 +848,7 @@ export interface ApiStartupRecoveryRecord {
   state: 'initializing' | 'no_candidates' | 'pending' | 'processing' | 'failed' | 'completed';
   candidateSnapshot: ApiStartupRecoveryCandidate[];
   decision: ApiStartupRecoveryChoice | null;
+  autoPreference?: ApiStartupPreference | null;
   decisionId?: string | null;
   attempts: number;
   results: Array<Record<string, unknown>>;

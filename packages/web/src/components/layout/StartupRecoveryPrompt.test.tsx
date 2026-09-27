@@ -117,6 +117,36 @@ describe('StartupRecoveryPrompt', () => {
     ));
   });
 
+  it('shows automatic startup failure details and exposes only the saved-choice retry', async () => {
+    const failed = {
+      ...record('failed', 'restart'),
+      results: [{ sessionId: candidate.id, status: 'error', error: 'queue store unavailable' }],
+    };
+    fetchMock.mockResolvedValue(failed);
+    claimMock.mockResolvedValue({
+      ok: true,
+      claimed: true,
+      state: 'failed',
+      decision: 'restart',
+      attempts: 1,
+      results: failed.results,
+      candidates: [candidate],
+    });
+    decideMock.mockResolvedValue(record('completed', 'restart'));
+    render(<StartupRecoveryPrompt />);
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('session-1: queue store unavailable')).toBeTruthy();
+    expect((screen.getByRole('radio', { name: /Restart these Sessions/ }) as HTMLInputElement).checked)
+      .toBe(true);
+    expect((screen.getByRole('radio', { name: /Keep their legal state as running/ }) as HTMLInputElement).disabled)
+      .toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
+    await waitFor(() => expect(decideMock).toHaveBeenCalledWith(
+      'generation-1', expect.any(String), 'restart',
+    ));
+  });
+
   it('does not render another prompt while another tab owns the claim', async () => {
     claimMock.mockResolvedValue({ ok: true, claimed: false, state: 'pending' });
     render(<StartupRecoveryPrompt />);

@@ -184,9 +184,9 @@ async def lifespan(app: FastAPI):
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
     try:
-        _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
+        await _initialize_startup_recovery(sessions)
     except Exception as exc:
-        _log(f"[Pan] Startup legal-state recovery scan could not be persisted: {exc}")
+        _log(f"[Pan] Startup legal-state recovery initialization failed: {exc}")
 
     # Upgrade-shaped/incomplete summary projections are repaired in one
     # bounded worker-thread scan.  The summary HTTP path remains projection
@@ -352,6 +352,39 @@ _STARTUP_RECOVERY_LOCK = threading.RLock()
 _STARTUP_RECOVERY_INFLIGHT: set[str] = set()
 _STARTUP_RECOVERY_CLAIM_SECONDS = 20
 REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
+
+_SESSION_LIFECYCLE_DEFAULTS = {
+    "exitStrategy": "ask",
+    "startupPreference": "ask",
+}
+_SESSION_LIFECYCLE_EXIT_STRATEGIES = frozenset({
+    "ask", "offline", "preserve-running",
+})
+_SESSION_LIFECYCLE_STARTUP_PREFERENCES = frozenset({
+    "ask", "wake-running", "sync-actual", "preserve-running",
+})
+
+
+def _session_lifecycle_preferences(config: dict | None = None) -> dict[str, str]:
+    """Return valid persisted lifecycle preferences, defaulting old configs to ask."""
+    if config is None:
+        config = load_config()
+    raw = config.get("session_lifecycle", {}) if isinstance(config, dict) else {}
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "exitStrategy": (
+            raw.get("exitStrategy")
+            if isinstance(raw.get("exitStrategy"), str)
+            and raw.get("exitStrategy") in _SESSION_LIFECYCLE_EXIT_STRATEGIES
+            else _SESSION_LIFECYCLE_DEFAULTS["exitStrategy"]
+        ),
+        "startupPreference": (
+            raw.get("startupPreference")
+            if isinstance(raw.get("startupPreference"), str)
+            and raw.get("startupPreference") in _SESSION_LIFECYCLE_STARTUP_PREFERENCES
+            else _SESSION_LIFECYCLE_DEFAULTS["startupPreference"]
+        ),
+    }
 
 
 def _get_data_retention_service() -> DataRetentionService:
@@ -3182,9 +3215,19 @@ async def _schedule_main_exit(options: dict) -> dict:
         session.id for session in sessions
         if session.last_legal_worker_state == "running"
     )
+    exit_strategy = _session_lifecycle_preferences()["exitStrategy"]
+    if exit_strategy == "offline":
+        mark_running_offline = True
+    elif exit_strategy == "preserve-running":
+        mark_running_offline = False
+    else:
+        # Keep the legacy API's omitted-field behavior, while the current UI
+        # requires an explicit selection whenever the saved policy is ask.
+        mark_running_offline = options.get("markRunningSessionsOffline", True)
     options = {
         **options,
-        "markRunningSessionsOffline": options.get("markRunningSessionsOffline", True),
+        "exitStrategy": exit_strategy,
+        "markRunningSessionsOffline": mark_running_offline,
         "runningSessionIds": running_session_ids,
     }
 
@@ -4773,6 +4816,15 @@ def _ensure_startup_recovery_record(candidates: list[dict]) -> dict:
         return record
 
 
+async def _initialize_startup_recovery(sessions) -> dict:
+    """Snapshot startup candidates and apply any configured server-side policy."""
+    record = _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
+    preference = _session_lifecycle_preferences()["startupPreference"]
+    if preference != "ask" and record.get("candidateSnapshot"):
+        return await _run_automatic_startup_recovery(record, preference)
+    return record
+
+
 def _read_startup_recovery_record() -> dict | None:
     path = _startup_recovery_record_path()
     if not path.exists():
@@ -4807,6 +4859,147 @@ def _startup_recovery_public_record() -> dict:
             record["updatedAt"] = time.time()
             _write_startup_recovery_record(record)
         return json.loads(json.dumps(record, ensure_ascii=False))
+
+
+def _startup_recovery_failed_results(
+    candidates: list[dict], results: object, message: str,
+) -> list[dict]:
+    """Ensure recovery failures have rows the existing prompt can diagnose."""
+    rows = results if isinstance(results, list) else []
+    by_session = {
+        row.get("sessionId"): row for row in rows
+        if isinstance(row, dict) and isinstance(row.get("sessionId"), str)
+    }
+    for candidate in candidates:
+        session_id = candidate.get("id")
+        existing = by_session.get(session_id)
+        if existing is None:
+            row = {
+                "sessionId": session_id,
+                "status": "error",
+                "error": message,
+            }
+            rows.append(row)
+            by_session[session_id] = row
+    if not any(
+        isinstance(row, dict)
+        and row.get("status") not in {"queued", "preserved", "updated"}
+        for row in rows
+    ):
+        rows.append({
+            "sessionId": "startup-recovery",
+            "status": "error",
+            "error": message,
+        })
+    return rows
+
+
+async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
+    """Apply one already-durable startup choice and persist its outcome."""
+    results: list[dict] = []
+    error = None
+    try:
+        candidates = record.get("candidateSnapshot", [])
+        if choice == "restart":
+            response = await api_sessions_broadcast({
+                "sessionIds": [candidate["id"] for candidate in candidates],
+                "text": "继续",
+                "source": "user",
+                "clientMessageId": f"startup-recovery:{record['generation']}",
+            })
+            results = response.get("results", [])
+            expected_ids = {candidate["id"] for candidate in candidates}
+            queued_ids = {
+                item.get("sessionId") for item in results
+                if item.get("status") == "queued"
+            }
+            if not response.get("ok") or queued_ids != expected_ids:
+                error = "One or more recovery messages could not be queued. Retry this same choice."
+        elif choice == "preserve-running":
+            results = [
+                {"sessionId": candidate["id"], "status": "preserved",
+                 "legalWorkerState": "running"}
+                for candidate in candidates
+            ]
+        else:
+            for candidate in candidates:
+                try:
+                    results.append(await worker.sync_legal_worker_state_to_runtime(
+                        candidate["id"], source="session-recovery/startup-sync-actual",
+                    ))
+                except Exception as exc:
+                    results.append({
+                        "sessionId": candidate["id"],
+                        "status": "error",
+                        "error": str(exc),
+                    })
+            if any(item.get("status") != "updated" for item in results):
+                error = "One or more Session legal states could not be synchronized. Retry this same choice."
+    except asyncio.CancelledError:
+        error = "Startup recovery request was interrupted; retry the same choice."
+        raise
+    except Exception as exc:
+        error = f"Startup recovery failed: {exc}"
+    finally:
+        if error and choice == "restart":
+            results = _startup_recovery_failed_results(
+                record.get("candidateSnapshot", []), results, error,
+            )
+        with _STARTUP_RECOVERY_LOCK:
+            current = _read_startup_recovery_record()
+            if (current is not None
+                    and current.get("decisionId") == record.get("decisionId")):
+                current["state"] = "failed" if error else "completed"
+                current["results"] = results
+                current["error"] = error
+                current["updatedAt"] = time.time()
+                try:
+                    _write_startup_recovery_record(current)
+                finally:
+                    _STARTUP_RECOVERY_INFLIGHT.discard(record["generation"])
+            else:
+                _STARTUP_RECOVERY_INFLIGHT.discard(record["generation"])
+    return _startup_recovery_public_record()
+
+
+async def _run_automatic_startup_recovery(
+    record: dict, preference: str,
+) -> dict:
+    """Persist and apply the configured startup policy before serving requests."""
+    choice = {
+        "wake-running": "restart",
+        "sync-actual": "sync-actual",
+        "preserve-running": "preserve-running",
+    }.get(preference)
+    if choice is None or not record.get("candidateSnapshot"):
+        return record
+
+    async with _lifecycle_operation_lock:
+        with _STARTUP_RECOVERY_LOCK:
+            current = _read_startup_recovery_record()
+            if (current is None
+                    or current.get("generation") != record.get("generation")
+                    or current.get("decision") is not None
+                    or current.get("state") != "pending"):
+                return _startup_recovery_public_record()
+            current["state"] = "processing"
+            current["decision"] = choice
+            current["decisionId"] = current.get("decisionId") or uuid.uuid4().hex
+            current["autoPreference"] = preference
+            current["attempts"] = int(current.get("attempts", 0)) + 1
+            current["error"] = None
+            current["updatedAt"] = time.time()
+            # The decision is durable before any broadcast or runtime sync.
+            _write_startup_recovery_record(current)
+            _STARTUP_RECOVERY_INFLIGHT.add(current["generation"])
+
+        result = await _apply_startup_recovery_choice(current, choice)
+        if result.get("state") == "failed":
+            _log(
+                "[startup-recovery] automatic "
+                f"{preference} failed: {result.get('error')}"
+            )
+        return result
 
 
 @app.get("/api/sessions/recovery-candidates")
@@ -4914,68 +5107,10 @@ async def api_main_startup_recovery_decision(data: dict):
             record["attempts"] = int(record.get("attempts", 0)) + 1
             record["error"] = None
             record["updatedAt"] = time.time()
-            _STARTUP_RECOVERY_INFLIGHT.add(_STARTUP_RECOVERY_GENERATION)
             _write_startup_recovery_record(record)
+            _STARTUP_RECOVERY_INFLIGHT.add(_STARTUP_RECOVERY_GENERATION)
 
-        results: list[dict] = []
-        error = None
-        try:
-            candidates = record.get("candidateSnapshot", [])
-            if choice == "restart":
-                response = await api_sessions_broadcast({
-                    "sessionIds": [candidate["id"] for candidate in candidates],
-                    "text": "继续",
-                    "source": "user",
-                    "clientMessageId": f"startup-recovery:{generation}",
-                })
-                results = response.get("results", [])
-                expected_ids = {candidate["id"] for candidate in candidates}
-                queued_ids = {
-                    item.get("sessionId") for item in results
-                    if item.get("status") == "queued"
-                }
-                if not response.get("ok") or queued_ids != expected_ids:
-                    error = "One or more recovery messages could not be queued. Retry this same choice."
-            elif choice == "preserve-running":
-                results = [
-                    {"sessionId": candidate["id"], "status": "preserved",
-                     "legalWorkerState": "running"}
-                    for candidate in candidates
-                ]
-            else:
-                for candidate in candidates:
-                    try:
-                        results.append(await worker.sync_legal_worker_state_to_runtime(
-                            candidate["id"], source="session-recovery/startup-sync-actual",
-                        ))
-                    except Exception as exc:
-                        results.append({
-                            "sessionId": candidate["id"],
-                            "status": "error",
-                            "error": str(exc),
-                        })
-                if any(item.get("status") != "updated" for item in results):
-                    error = "One or more Session legal states could not be synchronized. Retry this same choice."
-        except asyncio.CancelledError:
-            error = "Startup recovery request was interrupted; retry the same choice."
-            raise
-        except Exception as exc:
-            error = f"Startup recovery failed: {exc}"
-        finally:
-            with _STARTUP_RECOVERY_LOCK:
-                current = _read_startup_recovery_record()
-                if current is not None and current.get("decision") == choice:
-                    current["state"] = "failed" if error else "completed"
-                    current["results"] = results
-                    current["error"] = error
-                    current["updatedAt"] = time.time()
-                    try:
-                        _write_startup_recovery_record(current)
-                    finally:
-                        _STARTUP_RECOVERY_INFLIGHT.discard(_STARTUP_RECOVERY_GENERATION)
-                else:
-                    _STARTUP_RECOVERY_INFLIGHT.discard(_STARTUP_RECOVERY_GENERATION)
-        return _startup_recovery_public_record()
+        return await _apply_startup_recovery_choice(record, choice)
 
 
 @app.get("/api/sessions/summary-repair")
@@ -5319,6 +5454,28 @@ async def api_get_session(session_id: str, view: str = "full",
         result["historyRevision"] = page.get("historyRevision", 0)
         return result
     return _session_to_api(s)
+
+
+@app.post("/api/sessions/{session_id}/legal-state/sync")
+async def api_sync_session_legal_worker_state(session_id: str):
+    """Synchronize legal state through the shared runtime-observation helper."""
+    session = await _store_read(_summary_session_get, session_id)
+    if not session:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": f"Session {session_id} not found",
+        }
+    try:
+        return await worker.sync_legal_worker_state_to_runtime(
+            session_id, source="session-details/sync-actual",
+        )
+    except Exception as exc:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": str(exc),
+        }
 
 
 @app.get("/api/sessions/{session_id}/usage")
@@ -7197,6 +7354,54 @@ async def api_put_settings_ui(data: dict):
     raw["ui"] = ui
     save_config(raw)
     return ui
+
+
+@app.get("/api/settings/session-lifecycle")
+async def api_get_settings_session_lifecycle():
+    """Read cross-browser Exit and startup legal-state preferences."""
+    return _session_lifecycle_preferences()
+
+
+@app.put("/api/settings/session-lifecycle")
+async def api_put_settings_session_lifecycle(data: dict = Body(...)):
+    """Strictly merge lifecycle preferences into config.json.
+
+    Only the two enum fields are accepted. The raw config object is updated so
+    unrelated project configuration and future keys remain intact.
+    """
+    if not isinstance(data, dict) or not data:
+        raise HTTPException(status_code=422, detail="expected lifecycle preference fields")
+    unknown = sorted(set(data) - set(_SESSION_LIFECYCLE_DEFAULTS))
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "unsupported_session_lifecycle_fields", "fields": unknown},
+        )
+    allowed = {
+        "exitStrategy": _SESSION_LIFECYCLE_EXIT_STRATEGIES,
+        "startupPreference": _SESSION_LIFECYCLE_STARTUP_PREFERENCES,
+    }
+    for field_name, value in data.items():
+        if not isinstance(value, str) or value not in allowed[field_name]:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "invalid_session_lifecycle_preference",
+                    "field": field_name,
+                    "allowed": sorted(allowed[field_name]),
+                },
+            )
+
+    current = _session_lifecycle_preferences()
+    updated = {**current, **data}
+    raw = read_config_file()
+    section = raw.get("session_lifecycle")
+    if not isinstance(section, dict):
+        section = {}
+    section.update(updated)
+    raw["session_lifecycle"] = section
+    save_config(raw)
+    return updated
 
 
 # ── Worker settings (config.json worker, hot-applied) ──

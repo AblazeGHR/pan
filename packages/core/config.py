@@ -187,6 +187,13 @@ DEFAULT_CONFIG: dict = {
         # scripts/setup.bat 首次运行时会把探测结果写入此处。
         "python": "",
     },
+    # Session legal-state behavior around Pan service Exit and startup.
+    # Persisted in config.json so all browsers and server-side startup logic
+    # share the same lifecycle policy.
+    "session_lifecycle": {
+        "exitStrategy": "ask",
+        "startupPreference": "ask",
+    },
     # 前端 App 设置（config.json 为单一真源，跨浏览器/会话一致）。
     # 由 GET/PUT /api/settings/ui 读写，前端 appSettingsStore 消费。
     "ui": {

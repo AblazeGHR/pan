@@ -12,6 +12,8 @@ import {
   restartMainService,
   fetchMainExitStatus,
   exitMainService,
+  fetchSessionLifecyclePreferences,
+  updateSessionLifecyclePreferences,
   fetchHealth,
   updateWorkerSettings,
   fetchCodexModels,
@@ -25,6 +27,9 @@ import type {
   ApiRemoteStatusResponse,
   ApiMainRestartStatusResponse,
   ApiMainExitStatusResponse,
+  ApiSessionExitStrategy,
+  ApiStartupPreference,
+  ApiSessionLifecyclePreferences,
   ApiModelsResponse,
   ApiDataCatalogResponse,
   ApiDataRetentionResponse,
@@ -45,6 +50,24 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 ];
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
+
+const DEFAULT_SESSION_LIFECYCLE: ApiSessionLifecyclePreferences = {
+  exitStrategy: 'ask',
+  startupPreference: 'ask',
+};
+
+function normalizeSessionLifecyclePreferences(
+  value: ApiSessionLifecyclePreferences,
+): ApiSessionLifecyclePreferences {
+  return {
+    exitStrategy: ['ask', 'offline', 'preserve-running'].includes(value?.exitStrategy)
+      ? value.exitStrategy
+      : 'ask',
+    startupPreference: ['ask', 'wake-running', 'sync-actual', 'preserve-running'].includes(value?.startupPreference)
+      ? value.startupPreference
+      : 'ask',
+  };
+}
 
 type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter' | 'data';
 const SETTINGS_TABS: SettingsTab[] = [
@@ -387,6 +410,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [mainExitState, setMainExitState] = useState<MainExitState>('idle');
   const [mainExitError, setMainExitError] = useState<string | null>(null);
   const [mainExitMarkRunningOffline, setMainExitMarkRunningOffline] = useState<boolean | null>(null);
+  const [sessionLifecycle, setSessionLifecycle] = useState(DEFAULT_SESSION_LIFECYCLE);
+  const [sessionLifecycleLoaded, setSessionLifecycleLoaded] = useState(false);
+  const [sessionLifecycleLoading, setSessionLifecycleLoading] = useState(false);
+  const [sessionLifecycleSaving, setSessionLifecycleSaving] = useState(false);
+  const [sessionLifecycleError, setSessionLifecycleError] = useState<string | null>(null);
+  const [sessionLifecycleReloadSeq, setSessionLifecycleReloadSeq] = useState(0);
   const recoveryAbortRef = useRef<AbortController | null>(null);
   const recoveryCancelledRef = useRef(false);
   const showToast = useUIStore((s) => s.showToast);
@@ -405,6 +434,31 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       cancelled = true;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setSessionLifecycleLoading(true);
+    setSessionLifecycleLoaded(false);
+    setSessionLifecycleError(null);
+    fetchSessionLifecyclePreferences()
+      .then((preferences) => {
+        if (cancelled) return;
+        setSessionLifecycle(normalizeSessionLifecyclePreferences(preferences));
+        setSessionLifecycleLoaded(true);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSessionLifecycleError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSessionLifecycleLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sessionLifecycleReloadSeq]);
 
   useEffect(() => {
     if (!open) return;
@@ -572,6 +626,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     }
   };
 
+  const saveSessionLifecycle = async (patch: Partial<ApiSessionLifecyclePreferences>) => {
+    if (!sessionLifecycleLoaded || sessionLifecycleSaving) return;
+    setSessionLifecycleSaving(true);
+    setSessionLifecycleError(null);
+    try {
+      const saved = await updateSessionLifecyclePreferences({ ...sessionLifecycle, ...patch });
+      setSessionLifecycle(normalizeSessionLifecyclePreferences(saved));
+    } catch (error) {
+      setSessionLifecycleError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSessionLifecycleSaving(false);
+    }
+  };
+
   const handleCodexRefresh = async () => {
     setCodexRefreshBusy(true);
     setCodexRefreshResult(null);
@@ -681,12 +749,18 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   };
 
   const handleMainExit = async () => {
-    if (mainExitMarkRunningOffline === null) return;
+    if (!sessionLifecycleLoaded || sessionLifecycleSaving) return;
+    const options = sessionLifecycle.exitStrategy === 'ask'
+      ? mainExitMarkRunningOffline === null
+        ? null
+        : { markRunningSessionsOffline: mainExitMarkRunningOffline }
+      : undefined;
+    if (options === null) return;
     setMainExitState('exiting');
     setMainExitError(null);
     setMainExitStatus((previous) => (previous ? { ...previous, pending: true } : previous));
     try {
-      await exitMainService({ markRunningSessionsOffline: mainExitMarkRunningOffline });
+      await exitMainService(options);
       setMainExitState('exited');
       showToast('Pan exit scheduled; this service will stop', 'info');
     } catch (e) {
@@ -1400,6 +1474,75 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </p>
               </section>
 
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Session legal-state lifecycle
+                </h3>
+                {sessionLifecycleLoading && !sessionLifecycleLoaded && (
+                  <p className="mb-2 text-[11px] text-text-tertiary">Loading lifecycle preferences…</p>
+                )}
+                {sessionLifecycleLoaded && (
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="session-exit-strategy" className="mb-1 block text-xs text-text-secondary">
+                        Exit strategy
+                      </label>
+                      <select
+                        id="session-exit-strategy"
+                        value={sessionLifecycle.exitStrategy}
+                        disabled={sessionLifecycleSaving || mainExitState === 'confirming' || mainExitState === 'exiting'}
+                        onChange={(event) => void saveSessionLifecycle({
+                          exitStrategy: event.target.value as ApiSessionExitStrategy,
+                        })}
+                        className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
+                      >
+                        <option value="ask">Ask every time</option>
+                        <option value="offline">Default to marking legal running Sessions offline</option>
+                        <option value="preserve-running">Default to preserving legal running state</option>
+                      </select>
+                      <p className="mt-1 text-[10px] text-text-tertiary">
+                        Every option stops all live Workers when Exit is confirmed.
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="session-startup-preference" className="mb-1 block text-xs text-text-secondary">
+                        Startup preference
+                      </label>
+                      <select
+                        id="session-startup-preference"
+                        value={sessionLifecycle.startupPreference}
+                        disabled={sessionLifecycleSaving}
+                        onChange={(event) => void saveSessionLifecycle({
+                          startupPreference: event.target.value as ApiStartupPreference,
+                        })}
+                        className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
+                      >
+                        <option value="ask">Ask every time</option>
+                        <option value="wake-running">Automatically wake legal running Sessions</option>
+                        <option value="sync-actual">Automatically update legal state to actual Worker state</option>
+                        <option value="preserve-running">Preserve legal state without waking Sessions</option>
+                      </select>
+                      <p className="mt-1 text-[10px] text-text-tertiary">
+                        Automatic choices run during Pan startup, before the dashboard loads.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {sessionLifecycleError && (
+                  <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {sessionLifecycleError}
+                    <button
+                      type="button"
+                      disabled={sessionLifecycleLoading}
+                      onClick={() => setSessionLifecycleReloadSeq((value) => value + 1)}
+                      className="ml-2 underline underline-offset-2 disabled:opacity-60"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </section>
+
               {/* Stop-only Pan exit — intentionally has no health-recovery
               polling because this action makes the current service unavailable. */}
               <section className="mt-4">
@@ -1412,29 +1555,37 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       Stop this Pan service and all live Workers? Pan will not restart and the
                       dashboard will disconnect after the stop is scheduled.
                     </p>
-                    <fieldset className="mt-3 space-y-2">
-                      <legend className="text-[11px] text-text-secondary">
-                        For Sessions whose last legal state is running:
-                      </legend>
-                      <label className="flex items-start gap-2 text-[11px] text-text-primary">
-                        <input
-                          type="radio"
-                          name="main-exit-running-session-state"
-                          checked={mainExitMarkRunningOffline === true}
-                          onChange={() => setMainExitMarkRunningOffline(true)}
-                        />
-                        <span>Yes, mark them offline when their Workers have stopped.</span>
-                      </label>
-                      <label className="flex items-start gap-2 text-[11px] text-text-primary">
-                        <input
-                          type="radio"
-                          name="main-exit-running-session-state"
-                          checked={mainExitMarkRunningOffline === false}
-                          onChange={() => setMainExitMarkRunningOffline(false)}
-                        />
-                        <span>No, stop the Workers but preserve their legal running state.</span>
-                      </label>
-                    </fieldset>
+                    {sessionLifecycle.exitStrategy === 'ask' ? (
+                      <fieldset className="mt-3 space-y-2">
+                        <legend className="text-[11px] text-text-secondary">
+                          For Sessions whose last legal state is running:
+                        </legend>
+                        <label className="flex items-start gap-2 text-[11px] text-text-primary">
+                          <input
+                            type="radio"
+                            name="main-exit-running-session-state"
+                            checked={mainExitMarkRunningOffline === true}
+                            onChange={() => setMainExitMarkRunningOffline(true)}
+                          />
+                          <span>Yes, mark them offline when their Workers have stopped.</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-[11px] text-text-primary">
+                          <input
+                            type="radio"
+                            name="main-exit-running-session-state"
+                            checked={mainExitMarkRunningOffline === false}
+                            onChange={() => setMainExitMarkRunningOffline(false)}
+                          />
+                          <span>No, stop the Workers but preserve their legal running state.</span>
+                        </label>
+                      </fieldset>
+                    ) : (
+                      <p className="mt-3 text-[11px] text-text-secondary">
+                        Saved policy: {sessionLifecycle.exitStrategy === 'offline'
+                          ? 'stop all Workers and mark legal running Sessions offline.'
+                          : 'stop all Workers and preserve legal running state.'}
+                      </p>
+                    )}
                     <div className="mt-3 flex justify-end gap-2">
                       <button
                         type="button"
@@ -1449,7 +1600,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       <button
                         type="button"
                         onClick={handleMainExit}
-                        disabled={mainExitMarkRunningOffline === null}
+                        disabled={sessionLifecycle.exitStrategy === 'ask' && mainExitMarkRunningOffline === null}
                         className="rounded bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90"
                       >
                         Confirm exit
@@ -1461,6 +1612,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     type="button"
                     disabled={
                       !mainExitStatus?.available ||
+                      !sessionLifecycleLoaded ||
+                      sessionLifecycleLoading ||
+                      sessionLifecycleSaving ||
                       mainExitState === 'exiting' ||
                       mainExitState === 'exited' ||
                       Boolean(mainExitStatus?.pending) ||

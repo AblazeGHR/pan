@@ -21,6 +21,9 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(srv, "_main_exit_request_id", None)
     monkeypatch.setattr(srv, "_main_exit_stage", "idle")
     monkeypatch.setattr(srv, "_main_exit_error", None)
+    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+        "exitStrategy": "ask", "startupPreference": "ask",
+    })
     monkeypatch.setattr(worker, "_shutdown_started", False)
     monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
 
@@ -58,11 +61,52 @@ def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch
     )
     assert result["ok"] is True
     assert job["options"] == {
+        "exitStrategy": "ask",
         "markRunningSessionsOffline": False,
         "runningSessionIds": ["running-a", "running-b"],
     }
     assert created_tasks == ["pan-main-exit"]
     assert worker._shutdown_started is True
+
+
+@pytest.mark.parametrize(
+    ("strategy", "legacy_choice", "expected_mark_offline"),
+    [
+        ("ask", True, True),
+        ("ask", False, False),
+        ("offline", False, True),
+        ("preserve-running", True, False),
+    ],
+)
+def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+    monkeypatch, strategy, legacy_choice, expected_mark_offline,
+):
+    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+        "exitStrategy": strategy, "startupPreference": "ask",
+    })
+    monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+        "available": True, "pending": False, "port": 8765,
+    })
+    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+    monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+        SimpleNamespace(id="running-session", last_legal_worker_state="running"),
+    ])
+    monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+
+    result = asyncio.run(srv.api_main_exit({
+        "options": {"markRunningSessionsOffline": legacy_choice},
+    }))
+    job = background_jobs.find_service_job(
+        result["requestId"], srv._main_restart_registry_root(),
+    )
+
+    assert job["options"] == {
+        "exitStrategy": strategy,
+        "markRunningSessionsOffline": expected_mark_offline,
+        "runningSessionIds": ["running-session"],
+    }
 
 
 def test_exit_rejects_non_boolean_running_state_choice():

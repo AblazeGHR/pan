@@ -56,6 +56,8 @@ import type {
   ApiMainRestartResponse,
   ApiMainExitStatusResponse,
   ApiMainExitResponse,
+  ApiSessionLifecyclePreferences,
+  ApiSessionLegalStateSyncResult,
   ApiStartupRecoveryRecord,
   ApiStartupRecoveryClaimResponse,
   ApiStartupRecoveryChoice,
@@ -254,6 +256,15 @@ export async function fetchSession(
   const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}${query}`, { signal });
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+export async function syncSessionLegalWorkerState(
+  id: string,
+): Promise<ApiSessionLegalStateSyncResult> {
+  return request<ApiSessionLegalStateSyncResult>(
+    `${BASE}/sessions/${encodeURIComponent(id)}/legal-state/sync`,
+    { method: 'POST' },
+  );
 }
 
 export async function fetchSessionUsage(id: string, signal?: AbortSignal): Promise<SessionUsageView> {
@@ -1078,11 +1089,11 @@ export async function fetchMainExitStatus(): Promise<ApiMainExitStatusResponse> 
 }
 
 export async function exitMainService(
-  options: { markRunningSessionsOffline: boolean },
+  options?: { markRunningSessionsOffline: boolean },
 ): Promise<ApiMainExitResponse> {
   const data = await request<ApiMainExitResponse>(`${BASE}/main/exit`, {
     method: 'POST',
-    body: JSON.stringify({ options }),
+    body: JSON.stringify(options ? { options } : {}),
   });
   if (!data.ok) throw new Error(data.error || `Pan exit ${data.status}`);
   return data;
@@ -1319,6 +1330,19 @@ export async function updateUiSettings(
   });
   if (data.error) throw new Error(String(data.error));
   return data;
+}
+
+export async function fetchSessionLifecyclePreferences(): Promise<ApiSessionLifecyclePreferences> {
+  return request<ApiSessionLifecyclePreferences>(`${BASE}/settings/session-lifecycle`);
+}
+
+export async function updateSessionLifecyclePreferences(
+  preferences: ApiSessionLifecyclePreferences,
+): Promise<ApiSessionLifecyclePreferences> {
+  return request<ApiSessionLifecyclePreferences>(`${BASE}/settings/session-lifecycle`, {
+    method: 'PUT',
+    body: JSON.stringify(preferences),
+  });
 }
 
 /** Read the registered Pan storage paths without enumerating directory contents. */

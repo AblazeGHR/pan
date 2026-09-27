@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor, act, screen } from '@testing-library/react';
 import { AppSettingsModal } from './AppSettingsModal';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 
@@ -11,6 +11,8 @@ const {
   restartMainServiceMock,
   fetchHealthMock,
   fetchMainExitStatusMock,
+  fetchSessionLifecyclePreferencesMock,
+  updateSessionLifecyclePreferencesMock,
   exitMainServiceMock,
   updateUiSettingsMock,
   fetchDataCatalogMock,
@@ -25,6 +27,8 @@ const {
   restartMainServiceMock: vi.fn(),
   fetchHealthMock: vi.fn(),
   fetchMainExitStatusMock: vi.fn(),
+  fetchSessionLifecyclePreferencesMock: vi.fn(),
+  updateSessionLifecyclePreferencesMock: vi.fn(),
   exitMainServiceMock: vi.fn(),
   updateUiSettingsMock: vi.fn(),
   fetchDataCatalogMock: vi.fn(),
@@ -51,6 +55,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     fetchMainRestartStatus: fetchMainRestartStatusMock,
     restartMainService: restartMainServiceMock,
     fetchMainExitStatus: fetchMainExitStatusMock,
+    fetchSessionLifecyclePreferences: fetchSessionLifecyclePreferencesMock,
+    updateSessionLifecyclePreferences: updateSessionLifecyclePreferencesMock,
     exitMainService: exitMainServiceMock,
     fetchHealth: fetchHealthMock,
     fetchCodexModels: fetchCodexModelsMock,
@@ -140,6 +146,13 @@ describe('AppSettingsModal', () => {
       platform: 'nt',
       stage: 'idle',
     });
+    fetchSessionLifecyclePreferencesMock.mockReset();
+    fetchSessionLifecyclePreferencesMock.mockResolvedValue({
+      exitStrategy: 'ask',
+      startupPreference: 'ask',
+    });
+    updateSessionLifecyclePreferencesMock.mockReset();
+    updateSessionLifecyclePreferencesMock.mockImplementation(async (preferences) => preferences);
     exitMainServiceMock.mockResolvedValue({
       ok: true,
       status: 'scheduled',
@@ -256,6 +269,101 @@ describe('AppSettingsModal', () => {
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(7);
     expect(card.textContent).toContain('Notification');
   });
+
+  it('loads lifecycle preferences from config with ask defaults and saves updates', async () => {
+    fetchSessionLifecyclePreferencesMock.mockResolvedValueOnce({
+      exitStrategy: 'ask',
+      startupPreference: 'ask',
+    });
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    const exitStrategy = await waitFor(() => {
+      const select = document.body.querySelector<HTMLSelectElement>('#session-exit-strategy');
+      expect(select).toBeTruthy();
+      return select!;
+    });
+    const startupPreference = document.body.querySelector<HTMLSelectElement>(
+      '#session-startup-preference',
+    )!;
+    expect(exitStrategy.value).toBe('ask');
+    expect(startupPreference.value).toBe('ask');
+
+    fireEvent.change(exitStrategy, { target: { value: 'offline' } });
+    await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenCalledWith({
+      exitStrategy: 'offline',
+      startupPreference: 'ask',
+    }));
+    expect(exitStrategy.value).toBe('offline');
+
+    fireEvent.change(startupPreference, { target: { value: 'sync-actual' } });
+    await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenLastCalledWith({
+      exitStrategy: 'offline',
+      startupPreference: 'sync-actual',
+    }));
+  });
+
+  it('shows lifecycle preference save errors and keeps the last saved value', async () => {
+    updateSessionLifecyclePreferencesMock.mockRejectedValueOnce(new Error('config is read-only'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    const startupPreference = await waitFor(() => {
+      const select = document.body.querySelector<HTMLSelectElement>(
+        '#session-startup-preference',
+      );
+      expect(select).toBeTruthy();
+      return select!;
+    });
+    fireEvent.change(startupPreference, { target: { value: 'wake-running' } });
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('config is read-only');
+    expect(startupPreference.value).toBe('ask');
+  });
+
+  it('shows a preference load error and retries the server read', async () => {
+    fetchSessionLifecyclePreferencesMock.mockRejectedValueOnce(new Error('settings unavailable'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('settings unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(document.body.querySelector<HTMLSelectElement>('#session-exit-strategy')?.value)
+        .toBe('ask');
+    });
+  });
+
+  it.each([
+    ['offline', 'stop all Workers and mark legal running Sessions offline.'],
+    ['preserve-running', 'stop all Workers and preserve legal running state.'],
+  ] as const)(
+    'confirms Exit using the saved %s policy without asking again',
+    async (exitStrategy, expectedSummary) => {
+      fetchSessionLifecyclePreferencesMock.mockResolvedValueOnce({
+        exitStrategy,
+        startupPreference: 'ask',
+      });
+      render(<AppSettingsModal open onClose={() => {}} />);
+      const exitButton = await waitFor(() => {
+        const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+          .find((candidate) => candidate.textContent?.includes('Exit Pan main service'));
+        expect(button).toBeTruthy();
+        expect(button!.disabled).toBe(false);
+        return button!;
+      });
+
+      fireEvent.click(exitButton);
+      expect(cardEl().textContent).toContain(expectedSummary);
+      expect(document.body.querySelectorAll('input[name="main-exit-running-session-state"]'))
+        .toHaveLength(0);
+      fireEvent.click(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Confirm exit'))!);
+
+      await waitFor(() => expect(exitMainServiceMock).toHaveBeenCalledTimes(1));
+      expect(exitMainServiceMock).toHaveBeenCalledWith(undefined);
+    },
+  );
 
   it('keeps all settings tabs reachable in a horizontal-only scroller', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
