@@ -35,6 +35,7 @@ import type {
   FsEntry,
   ApiClaimResponse,
   ApiSessionOrderResponse,
+  ApiSessionPinResponse,
   ApiWorkspacesResponse,
   ApiWorkspaceResponse,
   ApiWorkspaceOrderResponse,
@@ -610,6 +611,36 @@ export async function reorderSessions(
     throw err;
   }
   return { ok: true, order: data.order || [] };
+}
+
+/** Persist one shared Session pin toggle; pin metadata is separate from order. */
+export async function setSessionPinned(
+  sessionId: string,
+  pinned: boolean,
+): Promise<ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] }> {
+  const data = await request<ApiSessionPinResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/pin`,
+    { method: 'POST', body: JSON.stringify({ pinned }) },
+  );
+  if (data.ok !== true || typeof data.pinRevision !== 'number' || !Array.isArray(data.sessionIds)) {
+    throw new Error(data.error?.message || 'Pin update failed');
+  }
+  return data as ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] };
+}
+
+/** Reorder only the supplied currently pinned IDs; omitted pins keep their slots. */
+export async function reorderPinnedSessions(
+  sessionIds: string[],
+  pinRevision: number,
+): Promise<ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] }> {
+  const data = await request<ApiSessionPinResponse>(`${BASE}/sessions/pins/order`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionIds, pinRevision }),
+  });
+  if (data.ok !== true || typeof data.pinRevision !== 'number' || !Array.isArray(data.sessionIds)) {
+    throw new Error(data.error?.message || 'Pinned Session reorder failed');
+  }
+  return data as ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] };
 }
 
 /* ── Workspaces: durable named session groups (sidebar rail) ── */

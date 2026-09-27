@@ -409,6 +409,40 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('applies shared pin snapshots immediately and ignores stale revisions', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('session.pinsUpdated', {
+        type: 'session.pinsUpdated',
+        pinRevision: 3,
+        sessionIds: ['A'],
+      });
+    });
+
+    expect(useSessionStore.getState().sessions.map((session) => [
+      session.id, session.pinned, session.pinOrder, session.pinRevision,
+    ])).toEqual([
+      ['B', false, null, 3],
+      ['A', true, 0, 3],
+    ]);
+
+    act(() => {
+      wsMock.trigger('session.pinsUpdated', {
+        type: 'session.pinsUpdated',
+        pinRevision: 2,
+        sessionIds: ['B'],
+      });
+    });
+
+    expect(useSessionStore.getState().sessions.map((session) => [
+      session.id, session.pinned, session.pinOrder, session.pinRevision,
+    ])).toEqual([
+      ['B', false, null, 3],
+      ['A', true, 0, 3],
+    ]);
+  });
+
   it('keeps the selected transcript through summary backfill, live events, and delayed history', async () => {
     vi.useFakeTimers();
     const history = Array.from({ length: 12 }, (_, index) => msg(

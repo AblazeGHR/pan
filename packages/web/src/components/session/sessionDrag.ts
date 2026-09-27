@@ -41,6 +41,69 @@ export const DRAG_HIT = {
  *  a press released under this distance is treated as a plain click (select). */
 export const DRAG_START_THRESHOLD_PX = 5;
 
+export type SessionPinGroupBy = 'none' | 'manager' | 'workdir';
+
+/** Group identity for pin ordering; it never derives or changes relationships. */
+export function sessionPinGroupKey(session: Session, groupBy: SessionPinGroupBy): string {
+  if (groupBy === 'manager') return `manager:${session.managedBy ?? ''}`;
+  if (groupBy === 'workdir') {
+    return `workdir:${(session.workdir ?? '').replace(/\\/g, '/').replace(/\/$/, '')}`;
+  }
+  return 'flat';
+}
+
+/** Move a pinned ID within the currently visible members of one UI group. */
+export function movePinnedSessionId(
+  pinnedIds: string[],
+  draggedId: string,
+  targetId: string,
+  zone: 'before' | 'after',
+  targetPinned: boolean,
+): string[] {
+  const next = pinnedIds.filter((id) => id !== draggedId);
+  if (!targetPinned) {
+    next.push(draggedId);
+    return next;
+  }
+  const targetIndex = next.indexOf(targetId);
+  if (targetIndex < 0) return pinnedIds;
+  next.splice(targetIndex + (zone === 'after' ? 1 : 0), 0, draggedId);
+  return next;
+}
+
+/**
+ * Apply shared pin-leading ordering inside each current visual group while
+ * retaining the exact order of all unpinned rows from the selected sort.
+ */
+export function orderPinnedWithinGroups(
+  sessions: Session[],
+  groupBy: SessionPinGroupBy,
+): Session[] {
+  const byGroup = new Map<string, Session[]>();
+  for (const session of sessions) {
+    const key = sessionPinGroupKey(session, groupBy);
+    const group = byGroup.get(key);
+    if (group) group.push(session);
+    else byGroup.set(key, [session]);
+  }
+  const orderedGroups = new Map<string, Session[]>();
+  for (const [key, group] of byGroup) {
+    const pinned = group.filter((session) => session.pinned).sort((a, b) => {
+      const left = a.pinOrder ?? Number.MAX_SAFE_INTEGER;
+      const right = b.pinOrder ?? Number.MAX_SAFE_INTEGER;
+      return left - right;
+    });
+    orderedGroups.set(key, [...pinned, ...group.filter((session) => !session.pinned)]);
+  }
+  const offsets = new Map<string, number>();
+  return sessions.map((session) => {
+    const key = sessionPinGroupKey(session, groupBy);
+    const offset = offsets.get(key) ?? 0;
+    offsets.set(key, offset + 1);
+    return orderedGroups.get(key)![offset]!;
+  });
+}
+
 /** Pure hit-test: classify a pointer Y against a card's vertical extent. */
 export function resolveDropZone(
   cardTop: number,

@@ -18,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   claim: vi.fn(),
   unclaim: vi.fn(),
   reorder: vi.fn(),
+  reorderPins: vi.fn(),
   fetchSessions: vi.fn(),
 }));
 
@@ -28,6 +29,7 @@ vi.mock('@/services/api', async (importOriginal) => {
     claimSession: apiMocks.claim,
     unclaimSession: apiMocks.unclaim,
     reorderSessions: apiMocks.reorder,
+    reorderPinnedSessions: apiMocks.reorderPins,
     fetchSessions: apiMocks.fetchSessions,
   };
 });
@@ -138,6 +140,7 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
     apiMocks.claim.mockReset();
     apiMocks.unclaim.mockReset();
     apiMocks.reorder.mockReset();
+    apiMocks.reorderPins.mockReset();
     apiMocks.fetchSessions.mockReset();
 
     apiMocks.fetchSessions.mockImplementation(async () =>
@@ -173,6 +176,27 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
         .filter((s): s is Session => Boolean(s))
         .map((s, i) => ({ ...s, order: i }));
       return { ok: true, order: serverSessions.map((s) => s.id) };
+    });
+    apiMocks.reorderPins.mockImplementation(async (sessionIds: string[], pinRevision: number) => {
+      const current = serverSessions
+        .filter((session) => session.pinned)
+        .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+        .map((session) => session.id);
+      if (serverSessions.some((session) => (session.pinRevision ?? 0) !== pinRevision)) {
+        throw new Error('Pinned Session state changed; refresh and retry');
+      }
+      const selected = new Set(sessionIds);
+      const slots = current.flatMap((id, index) => selected.has(id) ? [index] : []);
+      const ordered = current.slice();
+      slots.forEach((slot, index) => { ordered[slot] = sessionIds[index]!; });
+      const nextRevision = pinRevision + 1;
+      for (const session of serverSessions) {
+        const pinOrder = ordered.indexOf(session.id);
+        session.pinned = pinOrder >= 0;
+        session.pinOrder = pinOrder >= 0 ? pinOrder : null;
+        session.pinRevision = nextRevision;
+      }
+      return { ok: true, pinRevision: nextRevision, sessionIds: ordered };
     });
 
     stubCardRects();
@@ -233,7 +257,7 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
       ],
     });
     const { container } = render(<SessionList />);
-    const handle = container.querySelector('[data-testid="drag-handle"]')!;
+    const handle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
     fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
     pointerMove(96); // A onto B's center
     pointerUp();
@@ -371,5 +395,143 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
       useUIStore.getState().toastQueue.some((t) => t.message.includes('禁止')),
     ).toBe(true);
     expect(useSessionStore.getState().sessions.find((s) => s.id === 'A')!.managedBy).toBeUndefined();
+  });
+
+  it.each([150, 180, 210, 250])(
+    'pinned flat drag at y=%i uses only the pin endpoint and clamps over/beyond unpinned rows',
+    async (dropY) => {
+    const sessions = [
+      mk('A', 'Alpha', { pinned: true, pinOrder: 0, pinRevision: 4, order: 17, managedBy: 'manager-a', workspaceIds: ['workspace-a'] }),
+      mk('B', 'Bravo', { pinned: true, pinOrder: 1, pinRevision: 4, order: 29 }),
+      mk('C', 'Charlie', { pinRevision: 4, order: 31, managedBy: 'manager-b', workspaceIds: ['workspace-b'] }),
+      mk('D', 'Delta', { pinRevision: 4, order: 43 }),
+    ];
+    serverSessions = sessions.map((session) => ({ ...session }));
+    useSessionStore.setState({ sessions: sessions.map((session) => ({ ...session })) });
+    useUIStore.setState({ sortBy: 'name', customOrder: ['D', 'C', 'B', 'A'] });
+    const { container } = render(<SessionList />);
+    const handle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
+    pointerMove(dropY); // On, below, and beyond the first unpinned card clamp to the pin-region end.
+    pointerUp();
+
+    await waitFor(() => expect(apiMocks.reorderPins).toHaveBeenCalledWith(['B', 'A'], 4));
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(apiMocks.claim).not.toHaveBeenCalled();
+    expect(apiMocks.unclaim).not.toHaveBeenCalled();
+    expect(useUIStore.getState().sortBy).toBe('name');
+    expect(useUIStore.getState().customOrder).toEqual(['D', 'C', 'B', 'A']);
+    expect(useSessionStore.getState().sessions.map((session) => session.order)).toEqual([17, 29, 31, 43]);
+    expect(useSessionStore.getState().sessions.map((session) => [session.managedBy, session.workspaceIds]))
+      .toEqual([['manager-a', ['workspace-a']], [undefined, undefined], ['manager-b', ['workspace-b']], [undefined, undefined]]);
+    expect(useSessionStore.getState().sessions.map((session) => session.id))
+      .toEqual(['A', 'B', 'C', 'D']);
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'A')?.pinOrder).toBe(1);
+    },
+  );
+
+  it('filtered pinned reorder preserves the hidden pin slot and its relative order', async () => {
+    const sessions = [
+      mk('A', 'Needle Alpha', { pinned: true, pinOrder: 0, pinRevision: 6 }),
+      mk('B', 'Hidden Bravo', { pinned: true, pinOrder: 1, pinRevision: 6 }),
+      mk('C', 'Needle Charlie', { pinned: true, pinOrder: 2, pinRevision: 6 }),
+      mk('D', 'Needle Delta', { pinRevision: 6 }),
+    ];
+    serverSessions = sessions.map((session) => ({ ...session }));
+    useSessionStore.setState({ sessions: sessions.map((session) => ({ ...session })) });
+    useUIStore.setState({ searchQuery: 'Needle', sortBy: 'recent', customOrder: [] });
+    const { container } = render(<SessionList />);
+    expect([...container.querySelectorAll<HTMLElement>('[data-session-card-id]')]
+      .map((card) => card.dataset.sessionCardId)).toEqual(['A', 'C', 'D']);
+    const handle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
+    pointerMove(180); // Drop below C; hidden pin B stays at its existing server slot.
+    pointerUp();
+
+    await waitFor(() => expect(apiMocks.reorderPins).toHaveBeenCalledWith(['C', 'A'], 6));
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(serverSessions.filter((session) => session.pinned)
+      .sort((a, b) => (a.pinOrder ?? 99) - (b.pinOrder ?? 99))
+      .map((session) => session.id)).toEqual(['C', 'B', 'A']);
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.pinOrder).toBe(1);
+  });
+
+  it('manager pin drag is sibling-only and rejects a cross-parent drop without relationship calls', async () => {
+    const sessions = [
+      mk('P', 'Parent', { pinRevision: 2, updatedAt: '2026-01-05T00:00:00Z' }),
+      mk('A', 'Alpha', { pinned: true, pinOrder: 0, pinRevision: 2, managedBy: 'P', order: 12, updatedAt: '2026-01-04T00:00:00Z' }),
+      mk('B', 'Bravo', { pinned: true, pinOrder: 1, pinRevision: 2, managedBy: 'P', order: 13, updatedAt: '2026-01-03T00:00:00Z' }),
+      mk('C', 'Charlie', { pinRevision: 2, order: 14, updatedAt: '2026-01-02T00:00:00Z' }),
+    ];
+    serverSessions = sessions.map((session) => ({ ...session }));
+    useSessionStore.setState({ sessions: sessions.map((session) => ({ ...session })) });
+    useUIStore.setState({ groupBy: 'manager', sortBy: 'recent', customOrder: [] });
+    stubCardRects({ P: 0, A: 64, B: 128, C: 192 });
+    const { container } = render(<SessionList />);
+    const handle = container.querySelector('[data-session-card-id="B"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 130 });
+    pointerMove(80); // Before sibling A; never the manager center action.
+    pointerUp();
+
+    await waitFor(() => expect(apiMocks.reorderPins).toHaveBeenCalledWith(['B', 'A'], 2));
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(apiMocks.claim).not.toHaveBeenCalled();
+    expect(apiMocks.unclaim).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'A')?.managedBy).toBe('P');
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.managedBy).toBe('P');
+
+    apiMocks.reorderPins.mockClear();
+    useUIStore.setState({ toastQueue: [] });
+    const secondHandle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(secondHandle, { button: 0, clientX: 10, clientY: 70 });
+    pointerMove(210); // Root C is a different sibling group from A.
+    pointerUp();
+    await flushAsync();
+
+    expect(apiMocks.reorderPins).not.toHaveBeenCalled();
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(apiMocks.claim).not.toHaveBeenCalled();
+    expect(apiMocks.unclaim).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'A')?.managedBy).toBe('P');
+    expect(useUIStore.getState().toastQueue.some((toast) => toast.type === 'error')).toBe(true);
+  });
+
+  it('workdir sections allow pinned reorder but reject a cross-workdir drop', async () => {
+    const sessions = [
+      mk('A', 'Alpha', { pinned: true, pinOrder: 0, pinRevision: 3, order: 5, workdir: 'D:/repo/a' }),
+      mk('B', 'Bravo', { pinned: true, pinOrder: 1, pinRevision: 3, order: 6, workdir: 'D:/repo/a' }),
+      mk('C', 'Charlie', { pinRevision: 3, order: 7, workdir: 'D:/repo/c' }),
+    ];
+    serverSessions = sessions.map((session) => ({ ...session }));
+    useSessionStore.setState({ sessions: sessions.map((session) => ({ ...session })) });
+    useUIStore.setState({ groupBy: 'workdir', sortBy: 'recent', customOrder: [] });
+    stubCardRects({ A: 0, B: 64, C: 128 });
+    const { container } = render(<SessionList />);
+    const handles = [...container.querySelectorAll<HTMLElement>('[data-testid="drag-handle"]')];
+    expect(handles).toHaveLength(2);
+    const handleB = container.querySelector('[data-session-card-id="B"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handleB, { button: 0, clientX: 10, clientY: 70 });
+    pointerMove(20); // Before A within the same workdir section.
+    pointerUp();
+
+    await waitFor(() => expect(apiMocks.reorderPins).toHaveBeenCalledWith(['B', 'A'], 3));
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(apiMocks.claim).not.toHaveBeenCalled();
+    expect(apiMocks.unclaim).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions.map((session) => session.order)).toEqual([5, 6, 7]);
+    expect(useSessionStore.getState().sessions.map((session) => session.workdir)).toEqual(['D:/repo/a', 'D:/repo/a', 'D:/repo/c']);
+
+    apiMocks.reorderPins.mockClear();
+    useUIStore.setState({ toastQueue: [] });
+    const crossHandle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(crossHandle, { button: 0, clientX: 10, clientY: 5 });
+    pointerMove(150); // A pinned dragged over the other workdir's C.
+    pointerUp();
+    expect(apiMocks.reorderPins).not.toHaveBeenCalled();
+    expect(apiMocks.reorder).not.toHaveBeenCalled();
+    expect(apiMocks.claim).not.toHaveBeenCalled();
+    expect(apiMocks.unclaim).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions.map((session) => session.workdir)).toEqual(['D:/repo/a', 'D:/repo/a', 'D:/repo/c']);
+    expect(useUIStore.getState().toastQueue.some((toast) => toast.type === 'error')).toBe(true);
   });
 });

@@ -16,8 +16,10 @@ import {
   branchSession,
   reimportSession,
   setSessionWorkspaces,
+  setSessionPinned as setSessionPinnedApi,
+  reorderPinnedSessions as reorderPinnedSessionsApi,
 } from '@/services/api';
-import { isMockMode } from '@/demo/mockBackend';
+import { applyMockPinnedOrder, isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
@@ -68,6 +70,8 @@ interface SessionStore {
   // so it only skips reverting workerStatus/workerId for sessions that WS
   // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
+  /** Latest locally applied shared pin snapshot; protects in-flight list reads. */
+  _pinStateTouchedSeq: number;
   _historyRefreshSeq: Record<string, number>;
   _historyPageSeq: Record<string, number>;
   /** Monotonic per-session selection request sequence; protects A→B→A. */
@@ -166,6 +170,9 @@ interface SessionStore {
     persist: (id: string, settings: SettingsBody) => Promise<Session | ApiGenericResponse>,
   ) => Promise<SessionSettingsMutationResult>;
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot?: boolean) => void;
+  setSessionPinned: (id: string, pinned: boolean) => Promise<void>;
+  reorderPinned: (ids: string[]) => Promise<void>;
+  applyPinnedSnapshot: (snapshot: { pinRevision: number; sessionIds: string[] }) => boolean;
   /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
    *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
    *  `_applyWorkerUpdate` 的就地更新路径）。 */
@@ -187,6 +194,7 @@ let wsTouchSeq = 0;
 let localTouchSeq = 0;
 let settingsTouchSeq = 0;
 let localMessageSeq = 0;
+let pinMutationSeq = 0;
 
 // Local user rows are transient projection state, not a new persisted wire
 // field.  Keep the count at which a row was created outside Zustand so an
@@ -1368,6 +1376,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   rendering: false,
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
+  _pinStateTouchedSeq: 0,
   _historyRefreshSeq: {},
   _historyPageSeq: {},
   _selectionSeq: {},
@@ -1393,6 +1402,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const touchedAtStart = get()._sessionWsTouchedSeq;
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
+    const pinTouchedAtStart = get()._pinStateTouchedSeq ?? 0;
     const eventPatchesAtStart = get()._sessionEventPatches ?? {};
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
@@ -1438,6 +1448,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             (s._sessionLocalTouchedSeq?.[sid] ?? 0) > (localTouchedAtStart[sid] ?? 0);
           const settingsTouchedDuringFetch =
             (s._sessionSettingsTouchedSeq?.[sid] ?? 0) > (settingsTouchedAtStart[sid] ?? 0);
+          const pinStateTouchedDuringFetch =
+            (s._pinStateTouchedSeq ?? 0) > pinTouchedAtStart;
           const snapshotIsTransientDone = sess.workerStatus === 'done';
           const preserveLocalWorker =
             touchedDuringFetch ||
@@ -1567,6 +1579,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const eventPatch = s._sessionEventPatches?.[sid] ?? eventPatchesAtStart[sid];
           if (eventPatch && Object.keys(eventPatch).length > 0) {
             next = { ...next, ...eventPatch };
+          }
+          if (pinStateTouchedDuringFetch) {
+            next = {
+              ...next,
+              pinned: cur.pinned,
+              pinOrder: cur.pinOrder,
+              pinRevision: cur.pinRevision,
+            };
+          } else if ((cur.pinRevision ?? -1) > (next.pinRevision ?? -1)) {
+            next = {
+              ...next,
+              pinned: cur.pinned,
+              pinOrder: cur.pinOrder,
+              pinRevision: cur.pinRevision,
+            };
           }
           const mutation = s.sessionSettingMutations?.[sid];
           if (settingsTouchedDuringFetch || mutation?.pending) {
@@ -3204,6 +3231,95 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           }
         : {}),
     }));
+  },
+
+  applyPinnedSnapshot: (snapshot) => {
+    const currentRevision = get().sessions.reduce(
+      (revision, session) => Math.max(revision, session.pinRevision ?? 0),
+      0,
+    );
+    if (snapshot.pinRevision < currentRevision) return false;
+    const orderById = new Map(snapshot.sessionIds.map((id, index) => [id, index]));
+    set((state) => ({
+      sessions: state.sessions.map((session) => {
+        const pinOrder = orderById.get(session.id);
+        return {
+          ...session,
+          pinned: pinOrder !== undefined,
+          pinOrder: pinOrder ?? null,
+          pinRevision: snapshot.pinRevision,
+        };
+      }),
+      _pinStateTouchedSeq: (state._pinStateTouchedSeq ?? 0) + 1,
+    }));
+    return true;
+  },
+
+  setSessionPinned: async (id, pinned) => {
+    const mutationSeq = ++pinMutationSeq;
+    if (isMockMode()) {
+      const state = get();
+      const ordered = state.sessions
+        .filter((session) => session.pinned && session.id !== id)
+        .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+        .map((session) => session.id);
+      if (pinned) ordered.push(id);
+      const pinRevision = Math.max(0, ...state.sessions.map((session) => session.pinRevision ?? 0)) + 1;
+      applyMockPinnedOrder(ordered, pinRevision);
+      state.applyPinnedSnapshot({ pinRevision, sessionIds: ordered });
+      return;
+    }
+    let response;
+    try {
+      response = await setSessionPinnedApi(id, pinned);
+    } catch (error) {
+      await get().loadSessions();
+      throw error;
+    }
+    if (mutationSeq !== pinMutationSeq) {
+      await get().loadSessions();
+      return;
+    }
+    if (!get().applyPinnedSnapshot(response)) {
+      await get().loadSessions();
+    }
+  },
+
+  reorderPinned: async (ids) => {
+    const mutationSeq = ++pinMutationSeq;
+    if (isMockMode()) {
+      const state = get();
+      const current = state.sessions
+        .filter((session) => session.pinned)
+        .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+        .map((session) => session.id);
+      const requested = new Set(ids);
+      const slots = current.flatMap((id, index) => requested.has(id) ? [index] : []);
+      const ordered = current.slice();
+      slots.forEach((slot, index) => { ordered[slot] = ids[index]!; });
+      const pinRevision = Math.max(0, ...state.sessions.map((session) => session.pinRevision ?? 0)) + 1;
+      applyMockPinnedOrder(ordered, pinRevision);
+      state.applyPinnedSnapshot({ pinRevision, sessionIds: ordered });
+      return;
+    }
+    const pinRevision = get().sessions.reduce(
+      (revision, session) => Math.max(revision, session.pinRevision ?? 0),
+      0,
+    );
+    let response;
+    try {
+      response = await reorderPinnedSessionsApi(ids, pinRevision);
+    } catch (error) {
+      await get().loadSessions();
+      throw error;
+    }
+    if (mutationSeq !== pinMutationSeq) {
+      await get().loadSessions();
+      return;
+    }
+    if (!get().applyPinnedSnapshot(response)) {
+      await get().loadSessions();
+    }
   },
 
   applyResultToSession: (id, e) => {

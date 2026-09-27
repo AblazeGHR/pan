@@ -722,6 +722,18 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('session.orderUpdated', () => {
       scheduleRefreshSessions();
     }));
+    // Pins have an independent server revision and never use Session.order.
+    // Apply a complete pin snapshot immediately; the debounced list refresh is
+    // still the final authority if the event was missed during reconnect.
+    unsubscribers.push(wsClient.on('session.pinsUpdated', (e: StreamEvent) => {
+      if (typeof e.pinRevision === 'number' && Array.isArray(e.sessionIds)) {
+        useSessionStore.getState().applyPinnedSnapshot({
+          pinRevision: e.pinRevision,
+          sessionIds: e.sessionIds.filter((id): id is string => typeof id === 'string'),
+        });
+      }
+      scheduleRefreshSessions();
+    }));
 
     // Error
     unsubscribers.push(wsClient.on('error', (e: StreamEvent) => {

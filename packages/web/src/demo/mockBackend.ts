@@ -183,6 +183,17 @@ export function applyMockSessionUpdate(id: string, patch: Partial<Session>): voi
   }
 }
 
+export function applyMockPinnedOrder(sessionIds: string[], pinRevision: number): void {
+  const orderById = new Map(sessionIds.map((id, index) => [id, index]));
+  for (const session of mockSessions) {
+    const pinOrder = orderById.get(session.id);
+    session.pinned = pinOrder !== undefined;
+    session.pinOrder = pinOrder ?? null;
+    session.pinRevision = pinRevision;
+  }
+  persistSessions();
+}
+
 /** Reset the demo data to its seeded state (used by the DemoBadge reset). */
 export function resetMockData(): void {
   try {
@@ -288,6 +299,48 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   // ── Sessions ──
   if (method === 'GET' && path === '/api/sessions') {
     return { sessions: mockSessions };
+  }
+  if (method === 'POST' && path === '/api/sessions/pins/order') {
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const requested = Array.isArray(values.sessionIds)
+      ? values.sessionIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    const current = mockSessions
+      .filter((session) => session.pinned)
+      .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+      .map((session) => session.id);
+    if (requested.some((id) => !current.includes(id)) || new Set(requested).size !== requested.length) {
+      return { ok: false, error: { message: 'Invalid pinned Session order' } };
+    }
+    const selected = new Set(requested);
+    const slots = current.flatMap((id, index) => selected.has(id) ? [index] : []);
+    const ordered = current.slice();
+    slots.forEach((slot, index) => { ordered[slot] = requested[index]!; });
+    const revision = Math.max(0, ...mockSessions.map((session) => session.pinRevision ?? 0)) + 1;
+    applyMockPinnedOrder(ordered, revision);
+    return { ok: true, pinRevision: revision, sessionIds: ordered };
+  }
+  const pinMatch = path.match(/^\/api\/sessions\/([^/]+)\/pin$/);
+  if (pinMatch && method === 'POST') {
+    const sessionId = decodePathPart(pinMatch[1]!);
+    const session = findSession(sessionId);
+    if (!session) return { ok: false, error: { message: 'Session not found' } };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const pinned = values.pinned === true;
+    const ordered = mockSessions
+      .filter((item) => item.pinned && item.id !== sessionId)
+      .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+      .map((item) => item.id);
+    if (pinned) ordered.push(sessionId);
+    const revision = Math.max(0, ...mockSessions.map((item) => item.pinRevision ?? 0)) + 1;
+    applyMockPinnedOrder(ordered, revision);
+    return {
+      ok: true,
+      pinned,
+      pinOrder: pinned ? ordered.indexOf(sessionId) : null,
+      pinRevision: revision,
+      sessionIds: ordered,
+    };
   }
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
   if (sessionMatch && method === 'GET') {

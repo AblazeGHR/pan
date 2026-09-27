@@ -11,8 +11,11 @@ import {
   ListChecks,
   Info,
   Trash2,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import type { Session } from '@/types';
+import { isMockMode } from '@/demo/mockBackend';
 
 interface SessionMenuProps {
   session: Session;
@@ -32,7 +35,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
-  const { reimport, branch, toggleMultiSelect } =
+  const { reimport, branch, toggleMultiSelect, setSessionPinned } =
     useSessionStore();
   const { showToast } = useUIStore();
 
@@ -126,6 +129,18 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
     toggleMultiSelect(session.id);
   };
 
+  const handlePinToggle = () => {
+    const current = useSessionStore.getState().sessions.find((item) => item.id === session.id);
+    const nextPinned = !(current?.pinned ?? session.pinned ?? false);
+    const label = session.name || session.id;
+    onClose();
+    void setSessionPinned(session.id, nextPinned).then(() => {
+      showToast(`${isMockMode() ? '[Mock] ' : ''}${nextPinned ? 'Pinned' : 'Unpinned'} “${label}”`);
+    }).catch((error) => {
+      showToast(error instanceof Error ? error.message : 'Pin update failed', 'error');
+    });
+  };
+
   const handleManage = () => {
     onClose();
     onManage?.(session.id);
@@ -150,6 +165,15 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
       className="fixed z-50 bg-bg-tertiary border border-border-default rounded-md shadow-xl py-1 min-w-[140px] max-h-[60vh] overflow-y-auto"
       style={{ left: placement.x, top: placement.y }}
     >
+      <button
+        onClick={handlePinToggle}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
+      >
+        {session.pinned
+          ? <PinOff size={12} className="text-text-tertiary shrink-0" />
+          : <Pin size={12} className="text-text-tertiary shrink-0" />}
+        {session.pinned ? 'Unpin' : 'Pin'}
+      </button>
       <button
         onClick={handleRename}
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"

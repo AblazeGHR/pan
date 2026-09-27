@@ -4,7 +4,7 @@ import { WorkerDot } from '@/components/worker/WorkerDot';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { DropZone } from './sessionDrag';
-import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin } from 'lucide-react';
 
 interface SessionItemProps {
   session: Session;
@@ -227,6 +227,14 @@ export const SessionItem = memo(function SessionItem({
           <span className="text-sm text-text-primary truncate font-medium">
             {session.name || 'Untitled'}
           </span>
+          {session.pinned && (
+            <Pin
+              data-testid="session-pinned-indicator"
+              aria-label="Pinned"
+              size={11}
+              className="shrink-0 text-accent"
+            />
+          )}
           {session.adapter && (
             <span data-testid="session-adapter-badge" className="max-md:hidden text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
               {session.adapter}

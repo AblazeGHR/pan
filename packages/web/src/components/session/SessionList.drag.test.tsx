@@ -269,16 +269,93 @@ describe('SessionList drag interactions (mock demo)', () => {
     expect(useSessionStore.getState().currentSessionId).toBeNull();
   });
 
-  it('no drag handle in the workdir-grouped list (only flat + manager)', () => {
+  it('workdir groups expose pin drag handles while unpinned general drag stays disabled', () => {
     useUIStore.setState({ groupBy: 'workdir' });
+    useSessionStore.setState({ sessions: [
+      mk('A', 'Alpha', { pinned: true, pinOrder: 0, workdir: 'D:/project/a' }),
+      mk('B', 'Bravo', { workdir: 'D:/project/a' }),
+      mk('C', 'Charlie', { pinned: true, pinOrder: 1, workdir: 'D:/project/c' }),
+      mk('D', 'Delta', { workdir: 'D:/project/d' }),
+    ] });
     const { container } = render(<SessionList />);
-    expect(container.querySelector('[data-testid="drag-handle"]')).toBeNull();
+    expect([...container.querySelectorAll<HTMLElement>('[data-session-card-id]')]
+      .filter((card) => card.querySelector('[data-testid="drag-handle"]'))
+      .map((card) => card.dataset.sessionCardId))
+      .toEqual(['A', 'C']);
   });
 
   it('manager tree: drag handle exists on roots and children', () => {
     useUIStore.setState({ groupBy: 'manager' });
     const { container } = render(<SessionList />);
     expect(container.querySelectorAll('[data-testid="drag-handle"]').length).toBe(4);
+  });
+
+  it.each(['recent', 'name', 'custom'] as const)(
+    'keeps pins leading and leaves the %s unpinned sequence unchanged', (sortBy) => {
+      useSessionStore.setState({ sessions: [
+        mk('A', 'Alpha', { pinned: true, pinOrder: 1, order: 44, updatedAt: '2026-01-01T00:00:00Z' }),
+        mk('B', 'Bravo', { order: 13, updatedAt: '2026-01-03T00:00:00Z' }),
+        mk('C', 'Charlie', { pinned: true, pinOrder: 0, order: 29, updatedAt: '2026-01-02T00:00:00Z' }),
+        mk('D', 'Delta', { order: 7, updatedAt: '2026-01-04T00:00:00Z' }),
+      ] });
+      useUIStore.setState({
+        sortBy,
+        customOrder: sortBy === 'custom' ? ['D', 'B', 'A', 'C'] : [],
+      });
+      const { container } = render(<SessionList />);
+      const expectedUnpinned = sortBy === 'name'
+        ? ['B', 'D']
+        : sortBy === 'custom'
+          ? ['D', 'B']
+          : ['D', 'B'];
+      expect(cardOrder(container)).toEqual(['C', 'A', ...expectedUnpinned]);
+      expect(useUIStore.getState().sortBy).toBe(sortBy);
+      expect(useUIStore.getState().customOrder).toEqual(sortBy === 'custom' ? ['D', 'B', 'A', 'C'] : []);
+      expect(useSessionStore.getState().sessions.map((session) => session.order)).toEqual([44, 13, 29, 7]);
+    },
+  );
+
+  it('pinned pointer drag clamps onto the unpinned region without switching sort or changing relationships', () => {
+    useSessionStore.setState({ sessions: [
+      mk('A', 'Alpha', { pinned: true, pinOrder: 0, pinRevision: 4, order: 10, managedBy: 'manager-a', workspaceIds: ['workspace-a'] }),
+      mk('B', 'Bravo', { pinned: true, pinOrder: 1, pinRevision: 4, order: 20 }),
+      mk('C', 'Charlie', { order: 30, managedBy: 'manager-b', workspaceIds: ['workspace-b'] }),
+      mk('D', 'Delta', { order: 40 }),
+    ] });
+    useUIStore.setState({ sortBy: 'name', customOrder: ['D', 'C', 'A', 'B'] });
+    const { container } = render(<SessionList />);
+    const handle = container.querySelector('[data-session-card-id="A"] [data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
+    pointerMove(150); // Onto the first unpinned Session: clamp after all pins.
+    pointerUp();
+
+    expect(useSessionStore.getState().sessions.map((session) => [session.id, session.pinOrder]))
+      .toEqual([['A', 1], ['B', 0], ['C', null], ['D', null]]);
+    expect(cardOrder(container)).toEqual(['B', 'A', 'C', 'D']);
+    expect(useUIStore.getState().sortBy).toBe('name');
+    expect(useUIStore.getState().customOrder).toEqual(['D', 'C', 'A', 'B']);
+    expect(useSessionStore.getState().sessions.map((session) => session.order)).toEqual([10, 20, 30, 40]);
+    expect(useSessionStore.getState().sessions.map((session) => [session.managedBy, session.workspaceIds]))
+      .toEqual([['manager-a', ['workspace-a']], [undefined, undefined], ['manager-b', ['workspace-b']], [undefined, undefined]]);
+  });
+
+  it('unpin returns a Session to its selected name sort', async () => {
+    useSessionStore.setState({ sessions: [
+      mk('A', 'Zulu', { pinned: true, pinOrder: 0, pinRevision: 1 }),
+      mk('B', 'Bravo', { pinRevision: 1 }),
+      mk('C', 'Charlie', { pinRevision: 1 }),
+    ] });
+    useUIStore.setState({ sortBy: 'name', customOrder: ['C', 'B', 'A'] });
+    const { container } = render(<SessionList />);
+    expect(cardOrder(container)).toEqual(['A', 'B', 'C']);
+
+    await act(async () => {
+      await useSessionStore.getState().setSessionPinned('A', false);
+    });
+
+    expect(cardOrder(container)).toEqual(['B', 'C', 'A']);
+    expect(useUIStore.getState().sortBy).toBe('name');
+    expect(useUIStore.getState().customOrder).toEqual(['C', 'B', 'A']);
   });
 });
 

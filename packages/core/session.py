@@ -68,6 +68,8 @@ RESULT_REPLAY_MAX_ENTRIES = 64
 #   In particular, a slow history/metadata flush for Session A does not hold
 #   the store lock and cannot delay Session B's flush.
 _STORE_LOCK = threading.RLock()
+_PIN_LOCK = threading.RLock()
+_PIN_STATE_CACHE: tuple[Path, int, tuple[str, ...]] | None = None
 _SAVE_STATES: dict[str, "_SessionSaveState"] = {}
 _MAX_SAVE_DIAGNOSTIC_SESSIONS = 128
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
@@ -2265,6 +2267,7 @@ def delete(session_id: str):
     state, ticket, enqueued_at = _reserve_save_ticket(session_id)
 
     def remove_files():
+        _remove_session_pin_locked(session_id)
         path = _path(session_id)
         if path.exists():
             path.unlink()
@@ -2711,6 +2714,154 @@ def apply_order(ordered_ids: list[str]) -> str | None:
             s.order = i
             save(s)
     return None
+
+
+def _pin_state_path() -> Path:
+    """Pin metadata lives beside, but separately from, Session order fields."""
+    return SESSION_DIR.parent / "session-pins.json"
+
+
+def _read_pin_state_locked() -> tuple[Path, int, tuple[str, ...]]:
+    global _PIN_STATE_CACHE
+    path = _pin_state_path()
+    if _PIN_STATE_CACHE is not None and _PIN_STATE_CACHE[0] == path:
+        return _PIN_STATE_CACHE
+    if not path.exists():
+        state = (path, 0, ())
+    else:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or raw.get("version") != 1:
+            raise ValueError("Invalid Session pin metadata")
+        revision = raw.get("revision")
+        session_ids = raw.get("sessionIds")
+        if (isinstance(revision, bool) or not isinstance(revision, int)
+                or revision < 0 or not isinstance(session_ids, list)
+                or not all(isinstance(item, str) and item for item in session_ids)
+                or len(set(session_ids)) != len(session_ids)):
+            raise ValueError("Invalid Session pin metadata")
+        state = (path, revision, tuple(session_ids))
+    _PIN_STATE_CACHE = state
+    return state
+
+
+def _write_pin_state_locked(path: Path, revision: int, session_ids: list[str]) -> None:
+    global _PIN_STATE_CACHE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.tmp")
+    payload = {
+        "version": 1,
+        "revision": revision,
+        "sessionIds": session_ids,
+    }
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+    _PIN_STATE_CACHE = (path, revision, tuple(session_ids))
+
+
+def session_pin_state() -> dict:
+    """Return a detached authoritative pin ordering snapshot."""
+    with _PIN_LOCK:
+        _, revision, session_ids = _read_pin_state_locked()
+        return {"pinRevision": revision, "sessionIds": list(session_ids)}
+
+
+def session_pin_order(session_id: str) -> int | None:
+    """Return this Session's rank in the shared pinned order, if pinned."""
+    with _PIN_LOCK:
+        _, _, session_ids = _read_pin_state_locked()
+        try:
+            return session_ids.index(session_id)
+        except ValueError:
+            return None
+
+
+def session_pin_projection(session_id: str) -> dict:
+    """Return the list-safe pin fields for one Session."""
+    with _PIN_LOCK:
+        _, revision, session_ids = _read_pin_state_locked()
+        try:
+            order = session_ids.index(session_id)
+        except ValueError:
+            order = None
+        return {
+            "pinned": order is not None,
+            "pinOrder": order,
+            "pinRevision": revision,
+        }
+
+
+@_store_serialized
+def set_session_pinned(session_id: str, pinned: bool) -> tuple[dict | None, str | None]:
+    """Pin/unpin one existing Session without touching Session.order."""
+    if session_id not in _cache and get(session_id) is None:
+        return None, "Session not found"
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        ordered = list(current)
+        present = session_id in ordered
+        if pinned and not present:
+            ordered.append(session_id)
+        elif not pinned and present:
+            ordered.remove(session_id)
+        if ordered != list(current):
+            _write_pin_state_locked(path, revision + 1, ordered)
+            revision += 1
+        return {"pinRevision": revision, "sessionIds": ordered}, None
+
+
+@_store_serialized
+def reorder_pinned_sessions(
+    session_ids: list[str], expected_revision: int,
+) -> tuple[dict | None, str | None, str | None]:
+    """Reorder selected pinned IDs while leaving every unlisted slot intact.
+
+    The caller supplies the visible pinned members of one current UI group.
+    Replacing only those IDs' existing slots means filtered, collapsed, and
+    other-group pins retain both their slots and their mutual relative order.
+    """
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        if expected_revision != revision:
+            return None, "pin_state_conflict", "Pinned Session state changed; refresh and retry"
+        if len(set(session_ids)) != len(session_ids):
+            return None, "duplicate_session_ids", "sessionIds contains duplicates"
+        all_ids = {session.id for session in list_all(load_history=False)}
+        unknown = [sid for sid in session_ids if sid not in all_ids]
+        if unknown:
+            return None, "session_not_found", f"Unknown Session id(s): {', '.join(unknown)}"
+        unpinned = [sid for sid in session_ids if sid not in current]
+        if unpinned:
+            return None, "session_not_pinned", "Every sessionId must currently be pinned"
+        requested = set(session_ids)
+        positions = [index for index, sid in enumerate(current) if sid in requested]
+        if len(positions) != len(session_ids):
+            return None, "session_not_pinned", "Every sessionId must currently be pinned"
+        ordered = list(current)
+        for index, sid in zip(positions, session_ids):
+            ordered[index] = sid
+        if ordered != list(current):
+            _write_pin_state_locked(path, revision + 1, ordered)
+            revision += 1
+        return {"pinRevision": revision, "sessionIds": ordered}, None, None
+
+
+def _remove_session_pin_locked(session_id: str) -> None:
+    """Drop a deleted Session from pin metadata while delete owns the store lock."""
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        if session_id not in current:
+            return
+        try:
+            _write_pin_state_locked(
+                path, revision + 1, [sid for sid in current if sid != session_id],
+            )
+        except (OSError, ValueError):
+            # Session deletion must not strand the Session cache/files if a
+            # secondary metadata write fails; list projections ignore orphan IDs.
+            pass
 
 
 # ── migration helpers ──

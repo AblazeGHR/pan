@@ -1835,6 +1835,7 @@ def _session_to_api(
         }
     mcp_lock_reason = _get_mcp_locked_state(s)
     projection = sess.summary_projection(s)
+    pin_projection = sess.session_pin_projection(s.id)
     return {
         "id": s.id,
         "name": s.name,
@@ -1874,6 +1875,7 @@ def _session_to_api(
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
+        **pin_projection,
         "workspaceIds": sess.effective_workspace_ids(s),
         "managed": s.managed,
         "managedBy": s.managed_by,
@@ -2069,6 +2071,7 @@ def _session_summary(s: sess.Session) -> dict:
     )
     updated_at = projection["updated_at"] or s.updated_at
     ac = s.adapter_config
+    pin_projection = sess.session_pin_projection(s.id)
     return {
         "id": s.id,
         "name": s.name,
@@ -2083,6 +2086,7 @@ def _session_summary(s: sess.Session) -> dict:
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
+        **pin_projection,
         "workspaceIds": sess.effective_workspace_ids(s),
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
@@ -5410,6 +5414,66 @@ async def api_sessions_order(data: dict):
     order = [s.id for s in sess.list_all(load_history=False)]
     await broadcast({"type": "session.orderUpdated", "order": order})
     return {"ok": True, "order": order}
+
+
+@app.post("/api/sessions/{session_id}/pin")
+async def api_set_session_pin(session_id: str, data: dict):
+    """Set one Session's shared pin state without changing custom order."""
+    pinned = data.get("pinned")
+    if not isinstance(pinned, bool):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "pinned (boolean) is required"}}
+    try:
+        state, error = sess.set_session_pinned(session_id, pinned)
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "pin_persist_failed", "message": str(exc) or "Could not persist pin state"}}
+    if error:
+        return {"ok": False, "error": {
+            "code": "session_not_found", "message": error}}
+    await broadcast({
+        "type": "session.pinsUpdated",
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    })
+    order = state["sessionIds"].index(session_id) if pinned else None
+    return {
+        "ok": True,
+        "pinned": pinned,
+        "pinOrder": order,
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    }
+
+
+@app.post("/api/sessions/pins/order")
+async def api_reorder_session_pins(data: dict):
+    """Reorder a visible subset of pins while preserving all other pin slots."""
+    ids = data.get("sessionIds")
+    expected_revision = data.get("pinRevision")
+    if (not isinstance(ids, list)
+            or not all(isinstance(item, str) and item.strip() for item in ids)
+            or isinstance(expected_revision, bool)
+            or not isinstance(expected_revision, int)
+            or expected_revision < 0):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "sessionIds (array) and pinRevision (non-negative integer) are required"}}
+    ids = [item.strip() for item in ids]
+    try:
+        state, code, message = sess.reorder_pinned_sessions(ids, expected_revision)
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "pin_persist_failed", "message": str(exc) or "Could not persist pin order"}}
+    if code:
+        return {"ok": False, "error": {"code": code, "message": message}}
+    await broadcast({
+        "type": "session.pinsUpdated",
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    })
+    return {"ok": True, **state}
 
 
 @app.get("/api/sessions/{session_id}")

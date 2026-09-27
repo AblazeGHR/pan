@@ -6,7 +6,7 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { effectiveWorkspaceIds, getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX, buildManagerEdges, collectDescendants } from './sessionDrag';
+import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX, buildManagerEdges, collectDescendants, movePinnedSessionId, orderPinnedWithinGroups, sessionPinGroupKey } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
 import { claimSession, unclaimSession, reorderSessions } from '@/services/api';
@@ -332,13 +332,14 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (aTime !== bTime) return bTime - aTime;
       return a.name.localeCompare(b.name);
     });
+    const pinnedOrdered = orderPinnedWithinGroups(filtered, groupBy);
 
     const groups: { key: string; label: string; sessions: Session[] }[] = [];
     if (groupBy === 'workdir') {
       const map = new Map<string, Session[]>();
       const uncategorized: Session[] = [];
 
-      for (const s of filtered) {
+      for (const s of pinnedOrdered) {
         if (s.workdir) {
           const dir = stripPrefix(s.workdir);
           const existing = map.get(dir);
@@ -366,7 +367,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       }
     }
 
-    const managerTree = groupBy === 'manager' ? buildManagerTree(filtered) : [];
+    const managerTree = groupBy === 'manager' ? buildManagerTree(pinnedOrdered) : [];
 
     // Normal mode, sessions exist IN THE ACTIVE WORKSPACE, but every one of
     // them is hidden. Scoped so a fully-hidden workspace still explains itself.
@@ -376,7 +377,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       scopedSessions.length > 0 &&
       scopedSessions.every((session) => hiddenSessionIds.has(session.id));
 
-    return { filtered, grouped: groups, managerTree, allHidden };
+    return { filtered: pinnedOrdered, grouped: groups, managerTree, allHidden };
   }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
@@ -429,6 +430,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // ghost near the cursor plus per-card highlight (center band → manage,
   // edge band → insert line). Drop executes a local mock action.
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragMode, setDragMode] = useState<'session' | 'pin' | null>(null);
+  const dragModeRef = useRef<'session' | 'pin' | null>(null);
   const [centerTargetId, setCenterTargetId] = useState<string | null>(null);
   const [insertTarget, setInsertTarget] = useState<{
     id: string;
@@ -550,6 +553,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     x: number;
     y: number;
     dragging: boolean;
+    mode: 'session' | 'pin';
   } | null>(null);
   // True once a real drag ran; the click that follows a drag release must not
   // select the session. Cleared on the next press / after a short delay.
@@ -614,7 +618,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (rect.height === 0) continue;
       if (clientY >= rect.top && clientY < rect.bottom) {
         const id = el.dataset.sessionCardId!;
-        const zone = resolveDropZone(rect.top, rect.height, clientY);
+        let zone = resolveDropZone(rect.top, rect.height, clientY);
+        if (dragModeRef.current === 'pin' && zone === 'center') {
+          zone = clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+        }
         dropTargetRef.current = { id, zone };
         setCenterTargetId(zone === 'center' ? id : null);
         setInsertTarget(
@@ -674,6 +681,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     stopAutoScroll();
     setDragId(null);
     dragIdRef.current = null;
+    setDragMode(null);
+    dragModeRef.current = null;
     pressRef.current = null;
     clearDragFeedback();
     // Rail drop state must not survive the drag either.
@@ -711,7 +720,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       press.dragging = true;
       didDragRef.current = true;
       dragIdRef.current = press.id;
+      dragModeRef.current = press.mode;
       setDragId(press.id);
+      setDragMode(press.mode);
     }
     positionGhost(e.clientX, e.clientY);
     if (updateRailHover(e.clientX, e.clientY)) {
@@ -735,6 +746,54 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const target = dropTargetRef.current;
     if (!dragCurrent) {
       finishDrag();
+      return;
+    }
+    if (press.mode === 'pin') {
+      const state = useSessionStore.getState();
+      const dragged = state.sessions.find((session) => session.id === dragCurrent);
+      const droppedOnRail = railZoneRef.current;
+      let targetSession = target
+        ? state.sessions.find((session) => session.id === target.id)
+        : undefined;
+      let zone: 'before' | 'after' = target?.zone === 'before' ? 'before' : 'after';
+      if (!targetSession && !droppedOnRail && dragged) {
+        const groupKey = sessionPinGroupKey(dragged, useUIStore.getState().groupBy);
+        const siblings = filteredRef.current.filter(
+          (session) => sessionPinGroupKey(session, useUIStore.getState().groupBy) === groupKey,
+        );
+        targetSession = siblings.filter((session) => session.id !== dragged.id).at(-1);
+        zone = 'after';
+      }
+      finishDrag();
+      if (!dragged || dragged.id.startsWith('__pending_')) return;
+      const rejectCrossGroup = () => {
+        showToast(`${isMockMode() ? '[Mock] ' : ''}Pinned Sessions can only be reordered within the same group`, 'error');
+      };
+      if (droppedOnRail) {
+        rejectCrossGroup();
+        return;
+      }
+      if (!targetSession) return;
+      const currentGroupBy = useUIStore.getState().groupBy;
+      if (sessionPinGroupKey(dragged, currentGroupBy) !== sessionPinGroupKey(targetSession, currentGroupBy)) {
+        rejectCrossGroup();
+        return;
+      }
+      const groupKey = sessionPinGroupKey(dragged, currentGroupBy);
+      const pinnedIds = filteredRef.current
+        .filter((session) => session.pinned && sessionPinGroupKey(session, currentGroupBy) === groupKey)
+        .map((session) => session.id);
+      const nextIds = movePinnedSessionId(
+        pinnedIds,
+        dragged.id,
+        targetSession.id,
+        zone,
+        targetSession.pinned === true,
+      );
+      if (nextIds.length === pinnedIds.length && nextIds.every((id, index) => id === pinnedIds[index])) return;
+      void state.reorderPinned(nextIds).catch((error) => {
+        showToast(error instanceof Error ? error.message : 'Pinned Session reorder failed', 'error');
+      });
       return;
     }
     // Workspace drop: over a rail tab → move (single membership + cascade).
@@ -928,7 +987,14 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       e.stopPropagation();
       if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
       didDragRef.current = false;
-      pressRef.current = { id, x: e.clientX, y: e.clientY, dragging: false };
+      const session = useSessionStore.getState().sessions.find((item) => item.id === id);
+      pressRef.current = {
+        id,
+        x: e.clientX,
+        y: e.clientY,
+        dragging: false,
+        mode: session?.pinned ? 'pin' : 'session',
+      };
       window.addEventListener('pointermove', windowPointerMove);
       window.addEventListener('pointerup', windowPointerUp);
       window.addEventListener('pointercancel', windowPointerCancel);
@@ -951,13 +1017,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // Drag works in the flat list AND the manager tree (same semantics:
   // center → manage, edge → sibling slot at the target row's level).
   // Grouped-by-dir lists stay non-draggable.
-  const dragEnabled = dragPreference && (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
+  const dragEnabled = dragPreference && !multiSelectMode;
 
   // Per-card drag props for memoized SessionItem (stable refs + primitives
   // keep unrelated cards from re-rendering).
   const dragPropsFor = useCallback(
     (session: Session) =>
-      dragEnabled
+      dragEnabled && (session.pinned || groupBy === 'none' || groupBy === 'manager')
         ? {
             dragEnabled: true,
             onDragHandlePointerDown: handleDragPointerDown,
@@ -966,7 +1032,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             insertZone: insertTarget?.id === session.id ? insertTarget.zone : null,
           }
         : {},
-    [dragEnabled, handleDragPointerDown, dragId, centerTargetId, insertTarget],
+    [dragEnabled, groupBy, handleDragPointerDown, dragId, centerTargetId, insertTarget],
   );
 
   // Ghost feedback: as the dragged session hovers a drop zone, preview on the
@@ -983,6 +1049,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const draggedS = sessions.find((s) => s.id === dragId);
     const targetS = sessions.find((s) => s.id === targetId);
     if (!draggedS || !targetS) return null;
+    if (draggedS.pinned) return { blocked: false, manage: false, order: true };
     const { newManager, blockedByCycle } = decideManagerDrop(
       filtered,
       dragId,
@@ -1015,6 +1082,11 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         <span className="text-sm text-text-primary font-medium truncate min-w-0 flex-1">
           {dragSession.name || 'Untitled'}
         </span>
+        {dragMode === 'pin' ? (
+          <span className="shrink-0 rounded px-1.5 py-px text-[10px] leading-tight bg-accent text-white font-medium">
+            Pin order
+          </span>
+        ) : <>
         {/* Outcome preview chips: 「管理」left, 「排序」right. */}
         <span
           data-ghost-manage
@@ -1049,9 +1121,12 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         >
           工作区
         </span>
+        </>}
       </div>
       <div className="mt-1 text-[10px] text-text-tertiary">
-        {railZone
+        {dragMode === 'pin'
+          ? 'Pinned Sessions reorder within the current group'
+          : railZone
           ? (railTarget === CREATE_WORKSPACE_DROP_TARGET_ID
             ? `新建「${dragSession?.name || 'Untitled'}」工作区（重名自动编号）`
             : railTarget === 'all'
@@ -1152,7 +1227,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   if (groupBy === 'workdir' && grouped.length > 0) {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col" ref={listRef}>
         {grouped.map((group) => (
           <GroupSection
             key={group.key}
@@ -1173,6 +1248,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
                 onSelect={handleSelect}
                 onToggleSelect={handleToggleSelect}
                 onMenu={handleMenu}
+                {...dragPropsFor(session)}
               />
             ))}
           </GroupSection>

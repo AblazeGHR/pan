@@ -152,6 +152,48 @@ describe('SessionMenu workspace entry removal', () => {
   });
 });
 
+describe('SessionMenu pin action', () => {
+  it('offers Pin, closes the menu, and reports the successful server update', async () => {
+    const original = useSessionStore.getState().setSessionPinned;
+    const action = vi.fn(async () => {});
+    const onClose = vi.fn();
+    useSessionStore.setState({ setSessionPinned: action });
+    useUIStore.setState({ toastQueue: [] });
+    try {
+      render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Pin' }));
+      await act(async () => { await Promise.resolve(); });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(action).toHaveBeenCalledWith(session.id, true);
+      expect(useUIStore.getState().toastQueue.some((toast) => toast.message.includes('Pinned'))).toBe(true);
+    } finally {
+      useSessionStore.setState({ setSessionPinned: original });
+    }
+  });
+
+  it('offers Unpin and shows an error when the pin update fails', async () => {
+    const original = useSessionStore.getState().setSessionPinned;
+    const action = vi.fn(async () => { throw new Error('server refused pin update'); });
+    const onClose = vi.fn();
+    useSessionStore.setState({ setSessionPinned: action });
+    useUIStore.setState({ toastQueue: [] });
+    try {
+      render(<SessionMenu session={{ ...session, pinned: true }} position={{ x: 10, y: 10 }} onClose={onClose} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
+      await act(async () => { await Promise.resolve(); });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(action).toHaveBeenCalledWith(session.id, false);
+      expect(useUIStore.getState().toastQueue.some(
+        (toast) => toast.type === 'error' && toast.message === 'server refused pin update',
+      )).toBe(true);
+    } finally {
+      useSessionStore.setState({ setSessionPinned: original });
+    }
+  });
+});
+
 describe('SessionMenu click-away dismissal', () => {
   it('does not dismiss from the click that opens the menu', () => {
     const onClose = vi.fn();

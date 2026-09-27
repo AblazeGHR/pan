@@ -98,6 +98,14 @@ export interface Session {
    * omit the field entirely.
    */
   workspaceIds?: string[];
+  /** Existing custom Session order; pin state uses its own storage. */
+  order?: number | null;
+  /** Shared pin state, independent of the user-defined Session order. */
+  pinned?: boolean;
+  /** Position among all pinned Sessions, or null when unpinned. */
+  pinOrder?: number | null;
+  /** Monotonic revision for the shared pin-state snapshot. */
+  pinRevision?: number;
   /** Managed-session report subscriptions (ids this session gets reports from). */
   reportSubscriptions?: string[];
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
@@ -414,6 +422,8 @@ export interface StreamEvent {
   workspaceIds?: string[];
   /** workspace.membershipUpdated: the workspace's complete member id snapshot. */
   sessionIds?: string[];
+  /** Shared Session pin snapshot revision. */
+  pinRevision?: number;
 }
 
 // ── API response types ──
@@ -474,6 +484,15 @@ export interface ApiSessionOrderResponse {
   ok?: boolean;
   /** Full session id order after the reorder (authoritative server order). */
   order?: string[];
+  error?: { code?: string; message?: string };
+}
+
+export interface ApiSessionPinResponse {
+  ok?: boolean;
+  pinned?: boolean;
+  pinOrder?: number | null;
+  pinRevision?: number;
+  sessionIds?: string[];
   error?: { code?: string; message?: string };
 }
 
