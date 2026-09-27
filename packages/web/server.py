@@ -6193,6 +6193,25 @@ async def api_session_handoff(session_id: str, data: dict):
     if isinstance(result, str):
         return {"error": result}
     a, b = result
+    # Retarget immediately after handoff commits.  This per-record pass is
+    # intentionally recoverable: Job write failures must not hide or roll back
+    # the already-created successor Session.
+    try:
+        # Resolve both active API roots (the unified Jobs API and legacy
+        # background-job routes may use distinct directories).
+        job_retarget = background_jobs.retarget_session_jobs(session_id, b.id)
+    except Exception as exc:
+        job_retarget = {
+            "oldSessionId": session_id,
+            "newSessionId": b.id,
+            "scanned": 0,
+            "updated": 0,
+            "unchanged": 0,
+            "errors": [{
+                "jobId": None,
+                "error": f"retarget pass failed: {type(exc).__name__}: {exc}",
+            }],
+        }
     # 跨 adapter 复制设置时，清洗 adapter_config：源 adapter 的 effort /
     # thinking / output_mode / maxThinkingTokens 对新 adapter 不成立的降级为
     # 默认（复制残值的既有降级语义；显式传参已在上面硬校验）。
@@ -6211,10 +6230,17 @@ async def api_session_handoff(session_id: str, data: dict):
         "sessionId": b.id,
         "name": b.name,
     })
+    await broadcast({
+        "type": "session.handoff.jobs_retargeted",
+        "sessionId": a.id,
+        "newSessionId": b.id,
+        "jobRetarget": job_retarget,
+    })
     return {
         "ok": True,
         "archivedSession": _session_to_api(a),
         "session": _session_to_api(b),
+        "jobRetarget": job_retarget,
     }
 
 

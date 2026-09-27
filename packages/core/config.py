@@ -74,6 +74,29 @@ DEFAULT_CONFIG: dict = {
         # cron 求值所用的默认时区（任务 schedule 未指定 timezone 时用）
         "default_timezone": "Asia/Shanghai",
     },
+    # Retention rules for the unified Jobs registry. Disabled by default.
+    "jobs": {
+        "completedRetention": {
+            "enabled": False,
+            "days": None,
+        },
+        "failedRetention": {
+            "enabled": False,
+            "days": None,
+        },
+        "timedOutRetention": {
+            "enabled": False,
+            "days": None,
+        },
+        "cancelledRetention": {
+            "enabled": False,
+            "days": None,
+        },
+        "logFileRetention": {
+            "enabled": False,
+            "days": None,
+        },
+    },
     # 本地日志（main.py 启动时配置）：文件大小/天轮转 + console 双输出
     "logging": {
         # 日志级别：DEBUG/INFO/WARNING/ERROR
@@ -183,6 +206,72 @@ DEFAULT_CONFIG: dict = {
         },
     },
 }
+
+COMPLETED_JOB_RETENTION_MIN_DAYS = 1
+COMPLETED_JOB_RETENTION_MAX_DAYS = 36500
+COMPLETED_JOB_RETENTION_DEFAULT = {"enabled": False, "days": None}
+JOB_RETENTION_CONFIG_KEYS = {
+    "completed": "completedRetention",
+    "failed": "failedRetention",
+    "timed_out": "timedOutRetention",
+    "cancelled": "cancelledRetention",
+    "logs": "logFileRetention",
+}
+
+
+def parse_retention_settings(section: object) -> tuple[dict, bool]:
+    settings = dict(COMPLETED_JOB_RETENTION_DEFAULT)
+    if not isinstance(section, dict):
+        return settings, False
+    valid = True
+    if "enabled" in section:
+        if type(section["enabled"]) is bool:
+            settings["enabled"] = section["enabled"]
+        else:
+            valid = False
+    if "days" in section:
+        days = section["days"]
+        if days is None:
+            settings["days"] = None
+        elif (type(days) is int
+                and COMPLETED_JOB_RETENTION_MIN_DAYS <= days
+                <= COMPLETED_JOB_RETENTION_MAX_DAYS):
+            settings["days"] = days
+        else:
+            valid = False
+    if not valid:
+        settings["enabled"] = False
+    return settings, valid
+
+
+def job_retention_settings(config: dict | None = None) -> tuple[dict, dict[str, bool]]:
+    """Return safe settings and per-rule validity for all Job/log retention."""
+    if config is None:
+        config = load_config()
+    jobs = config.get("jobs", {}) if isinstance(config, dict) else None
+    rules = {}
+    validity = {}
+    for rule, key in JOB_RETENTION_CONFIG_KEYS.items():
+        section = jobs.get(key, {}) if isinstance(jobs, dict) else None
+        rules[rule], validity[rule] = parse_retention_settings(section)
+    return rules, validity
+
+
+def completed_job_retention_settings(config: dict | None = None) -> tuple[dict, bool]:
+    """Return safe retention settings and whether the persisted values are valid.
+
+    Missing keys use the defaults for old config files. Explicitly malformed
+    values are reported as invalid and resolve to safe defaults; in
+    particular, malformed enable flags can never turn automatic deletion on.
+    """
+    if config is None:
+        config = load_config()
+    if not isinstance(config, dict):
+        return dict(COMPLETED_JOB_RETENTION_DEFAULT), False
+    jobs = config.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return dict(COMPLETED_JOB_RETENTION_DEFAULT), False
+    return parse_retention_settings(jobs.get("completedRetention", {}))
 
 
 def _python_argv_from_value(value, source: str) -> tuple[list[str] | None, str | None]:

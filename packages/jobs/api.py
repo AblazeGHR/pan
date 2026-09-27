@@ -30,6 +30,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from packages.core import background_jobs
+from packages.core import config as _config
 from packages.jobs import cron as _job_cron
 from packages.jobs import templates as _job_templates
 
@@ -44,6 +45,8 @@ _state: dict = {"broadcast": None}
 def bind(broadcast=None) -> None:
     """注入 WS 广播函数（server.py 启动时调用）。"""
     _state["broadcast"] = broadcast
+    background_jobs.register_completed_job_retention(
+        on_deleted=lambda job_id: _emit({"type": "job.deleted", "jobId": job_id}))
 
 
 def _ok(**payload):
@@ -128,6 +131,95 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
     jobs.sort(key=lambda j: (_KIND_ORDER.get(str(j.get("status")), 9),
                              str(j.get("updatedAt") or "")), reverse=False)
     return _ok(jobs=jobs)
+
+
+def _all_retention_settings() -> tuple[dict, dict[str, bool]]:
+    try:
+        return _config.job_retention_settings(_config.load_config())
+    except Exception:
+        defaults = {rule: dict(_config.COMPLETED_JOB_RETENTION_DEFAULT)
+                    for rule in _config.JOB_RETENTION_CONFIG_KEYS}
+        return defaults, {rule: False for rule in defaults}
+
+
+def _retention_response(**extra):
+    rules, validity = _all_retention_settings()
+    status = background_jobs.completed_job_retention_status()
+    return _ok(settings=rules["completed"], rules=rules,
+               configValid=all(validity.values()), configValidity=validity,
+               lastRun=status["lastRun"], lastRuns=status["lastRuns"], **extra)
+
+
+def _persist_retention_patches(validated_patches: dict) -> dict:
+    """Persist settings away from the asyncio event loop while waiting on locks."""
+    with background_jobs._registry_lock("completed_retention_config"):
+        raw = _config.read_config_file()
+        jobs = raw.get("jobs", {})
+        if not isinstance(jobs, dict):
+            return _err("invalid_config", "config.json jobs must be an object")
+        jobs = dict(jobs)
+        for rule, patch in validated_patches.items():
+            section_key = _config.JOB_RETENTION_CONFIG_KEYS[rule]
+            retention = jobs.get(section_key, {})
+            if not isinstance(retention, dict):
+                return _err("invalid_config", f"config.json jobs.{section_key} must be an object")
+            retention = dict(retention)
+            retention.update(patch)
+            _, section_valid = _config.parse_retention_settings(retention)
+            if not section_valid:
+                return _err("invalid_config", f"Existing {rule} settings are invalid; update both fields")
+            jobs[section_key] = retention
+        raw["jobs"] = jobs
+        try:
+            _config.save_config(raw)
+        except OSError as exc:
+            return _err("persistence_failed", str(exc))
+    return _retention_response()
+
+
+@router.get("/settings/completed-retention")
+async def get_completed_retention_settings():
+    """Read all independent Job record and Job log retention rules."""
+    return _retention_response()
+
+
+@router.put("/settings/completed-retention")
+async def put_completed_retention_settings(data: dict):
+    """Update requested retention rules while preserving every other setting.
+
+    The flat ``enabled``/``days`` body remains supported as the phase-one
+    completed-rule compatibility form. New callers send ``{"rules": {...}}``.
+    """
+    if not isinstance(data, dict):
+        return _err("invalid_argument", "request body must be an object")
+    if "rules" in data:
+        if set(data) != {"rules"} or not isinstance(data["rules"], dict):
+            return _err("invalid_argument", "rules must be the only top-level key and an object")
+        patches = data["rules"]
+    else:
+        if set(data) - {"enabled", "days"}:
+            return _err("invalid_argument", "Only rules or completed enabled/days may be updated")
+        patches = {"completed": data}
+    if not patches:
+        return _err("invalid_argument", "Provide at least one retention rule")
+
+    validated_patches = {}
+    for rule, patch in patches.items():
+        if rule not in _config.JOB_RETENTION_CONFIG_KEYS:
+            return _err("invalid_argument", f"unknown retention rule: {rule}")
+        if not isinstance(patch, dict) or not patch or set(patch) - {"enabled", "days"}:
+            return _err("invalid_argument", f"{rule} must contain enabled and/or days")
+        if "enabled" in patch and type(patch["enabled"]) is not bool:
+            return _err("invalid_argument", f"{rule}.enabled must be a boolean")
+        if "days" in patch:
+            days = patch["days"]
+            if (days is not None and (type(days) is not int
+                    or not (_config.COMPLETED_JOB_RETENTION_MIN_DAYS
+                            <= days <= _config.COMPLETED_JOB_RETENTION_MAX_DAYS))):
+                return _err("invalid_argument", f"{rule}.days must be null or an integer between 1 and 36500")
+        validated_patches[rule] = patch
+
+    return await asyncio.to_thread(_persist_retention_patches, validated_patches)
 
 
 def _session_exists(session_id: str) -> bool:

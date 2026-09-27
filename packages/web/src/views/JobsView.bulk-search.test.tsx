@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   fetchJob: vi.fn(),
   fetchJobKinds: vi.fn(),
   fetchJobRuns: vi.fn(),
+  fetchCompletedJobRetentionSettings: vi.fn(),
+  updateCompletedJobRetentionSettings: vi.fn(),
   patchJob: vi.fn(),
   deleteJob: vi.fn(),
 }));
@@ -20,6 +22,8 @@ vi.mock('@/services/api', () => ({
   fetchJob: api.fetchJob,
   fetchJobKinds: api.fetchJobKinds,
   fetchJobRuns: api.fetchJobRuns,
+  fetchCompletedJobRetentionSettings: api.fetchCompletedJobRetentionSettings,
+  updateCompletedJobRetentionSettings: api.updateCompletedJobRetentionSettings,
   patchJob: api.patchJob,
   deleteJob: api.deleteJob,
   createJob: vi.fn(),
@@ -91,6 +95,52 @@ function selectAllVisible() {
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible jobs' }));
 }
 
+const defaultRetentionRules = (): Record<MockRetentionRule, { enabled: boolean; days: number | null }> => ({
+  completed: { enabled: false, days: null },
+  failed: { enabled: false, days: null },
+  timed_out: { enabled: false, days: null },
+  cancelled: { enabled: false, days: null },
+  logs: { enabled: false, days: null },
+});
+
+type MockRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
+type MockRetentionRun = {
+  scannedAt: string;
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  errorCount: number;
+  errors: string[];
+} | null;
+
+const defaultRetentionRuns = (): Record<MockRetentionRule, MockRetentionRun> => ({
+  completed: null,
+  failed: null,
+  timed_out: null,
+  cancelled: null,
+  logs: null,
+});
+
+function retentionResponse(
+  rules = defaultRetentionRules(),
+  lastRuns: Record<MockRetentionRule, MockRetentionRun> = defaultRetentionRuns(),
+) {
+  return {
+    settings: rules.completed,
+    rules,
+    configValid: true,
+    configValidity: {
+      completed: true,
+      failed: true,
+      timed_out: true,
+      cancelled: true,
+      logs: true,
+    },
+    lastRun: lastRuns.completed,
+    lastRuns,
+  };
+}
+
 describe('JobsView search, status filters, and bulk actions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -103,6 +153,10 @@ describe('JobsView search, status filters, and bulk actions', () => {
       { kind: 'scheduled-task', label: '定时任务', hasSchedule: true, hasProcess: false },
     ]);
     api.fetchJobRuns.mockResolvedValue([]);
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse());
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (rules) =>
+      retentionResponse(rules),
+    );
   });
 
   afterEach(() => {
@@ -145,6 +199,153 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(screen.getByText('timed_out').className).toContain('text-danger');
     expect(screen.queryByText('Ordinary failure')).toBeNull();
     expect(screen.queryByText('Completed lifecycle')).toBeNull();
+  });
+
+  it('loads retention settings from the server and saves the edited values', async () => {
+    const loadedRules = defaultRetentionRules();
+    loadedRules.completed = { enabled: true, days: 12 };
+    const loadedRuns = defaultRetentionRuns();
+    loadedRuns.completed = {
+        scannedAt: '2026-09-27T01:00:00+00:00',
+        scanned: 9,
+        deleted: 4,
+        skipped: 1,
+        errorCount: 0,
+        errors: [],
+      };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(
+      retentionResponse(loadedRules, loadedRuns),
+    );
+    const savedRules = { ...loadedRules, completed: { enabled: true, days: 14 } };
+    const savedRuns = defaultRetentionRuns();
+    savedRuns.completed = {
+        scannedAt: '2026-09-27T01:00:00+00:00',
+        scanned: 9,
+        deleted: 4,
+        skipped: 1,
+        errorCount: 0,
+        errors: [],
+      };
+    api.updateCompletedJobRetentionSettings.mockResolvedValue(
+      retentionResponse(savedRules, savedRuns),
+    );
+    renderView();
+    expect(api.fetchCompletedJobRetentionSettings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const daysInput = await screen.findByRole('spinbutton', { name: 'Keep Completed Jobs for days' });
+    expect((daysInput as HTMLInputElement).value).toBe('12');
+    expect((screen.getByRole('checkbox', { name: 'Enable Completed Jobs cleanup' }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/deleted 4/).textContent).toContain('deleted 4');
+    expect(api.fetchCompletedJobRetentionSettings).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(daysInput, { target: { value: '14' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith(savedRules));
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('loads blank retention days from server defaults', async () => {
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    for (const label of [
+      'Completed Jobs',
+      'Failed Jobs',
+      'Timed out Jobs',
+      'Cancelled Jobs',
+      'Job log files',
+    ]) {
+      const input = await screen.findByRole('spinbutton', {
+        name: `Keep ${label} for days`,
+      });
+      expect((input as HTMLInputElement).value).toBe('');
+    }
+  });
+
+  it('loads and saves failed, timeout, cancelled, and log retention independently', async () => {
+    const rules = defaultRetentionRules();
+    rules.failed = { enabled: true, days: 11 };
+    rules.timed_out = { enabled: false, days: 12 };
+    rules.cancelled = { enabled: true, days: 13 };
+    rules.logs = { enabled: false, days: 14 };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse(rules));
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    for (const label of ['Failed Jobs', 'Timed out Jobs', 'Cancelled Jobs', 'Job log files']) {
+      expect(await screen.findByRole('spinbutton', { name: `Keep ${label} for days` })).toBeTruthy();
+      expect(screen.getByRole('checkbox', { name: `Enable ${label} cleanup` })).toBeTruthy();
+    }
+    expect(screen.getByText(/Job record may remain after its expired log is removed/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable Timed out Jobs cleanup' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Keep Job log files for days' }), {
+      target: { value: '21' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    const expected = {
+      ...rules,
+      timed_out: { enabled: true, days: 12 },
+      logs: { enabled: false, days: 21 },
+    };
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith(expected));
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('keeps a cleared day count blank when saving an enabled rule', async () => {
+    const rules = defaultRetentionRules();
+    rules.completed = { enabled: true, days: 14 };
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse(rules));
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (savedRules) =>
+      retentionResponse(savedRules),
+    );
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const daysInput = await screen.findByRole('spinbutton', {
+      name: 'Keep Completed Jobs for days',
+    });
+    fireEvent.change(daysInput, { target: { value: '' } });
+    expect((daysInput as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({
+      ...rules,
+      completed: { enabled: true, days: null },
+    }));
+    expect((daysInput as HTMLInputElement).value).toBe('');
+    expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
+  });
+
+  it('shows invalid persisted rule feedback and keeps that switch off', async () => {
+    const response = retentionResponse();
+    response.configValid = false;
+    response.configValidity.failed = false;
+    api.fetchCompletedJobRetentionSettings.mockResolvedValue(response);
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Failed Jobs');
+    expect((screen.getByRole('checkbox', {
+      name: 'Enable Failed Jobs cleanup',
+    }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('shows settings load and save errors', async () => {
+    api.fetchCompletedJobRetentionSettings.mockRejectedValueOnce(new Error('settings unavailable'));
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('settings unavailable');
+
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce(retentionResponse());
+    api.updateCompletedJobRetentionSettings.mockRejectedValueOnce(new Error('save failed'));
+    cleanup();
+    renderView();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByRole('spinbutton', { name: 'Keep Completed Jobs for days' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('save failed');
   });
 
   it('combines case-insensitive name, ID, and description search with status and kind filters', async () => {
