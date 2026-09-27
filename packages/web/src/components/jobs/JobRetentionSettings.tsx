@@ -197,7 +197,7 @@ export function JobRetentionSettings() {
                   <span>Enable automatic cleanup</span>
                 </label>
 
-                <label className="flex max-w-sm flex-col gap-1 text-xs text-text-secondary">
+                <label className="flex max-w-[24rem] flex-col gap-1 text-xs text-text-secondary">
                   <span>Keep {label} for at least</span>
                   <span className="flex items-center gap-2">
                     <input

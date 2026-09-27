@@ -71,7 +71,8 @@ describe('StartupRecoveryPrompt', () => {
     decideMock.mockResolvedValue(record('completed', 'restart'));
     render(<StartupRecoveryPrompt />);
 
-    expect(await screen.findByRole('dialog')).toBeTruthy();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.className).toContain('max-w-[36rem]');
     expect(screen.getByText(/Restart these Sessions/)).toBeTruthy();
     expect(screen.getByText(/Keep their legal state as running/)).toBeTruthy();
     expect(screen.getByText(/Update legal state to current Worker state/)).toBeTruthy();
@@ -81,6 +82,14 @@ describe('StartupRecoveryPrompt', () => {
     await waitFor(() => expect(decideMock).toHaveBeenCalledTimes(1));
     expect(decideMock).toHaveBeenCalledWith('generation-1', expect.any(String), 'restart');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('keeps the load-error fallback at a readable width', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('API unavailable'));
+    render(<StartupRecoveryPrompt />);
+
+    const error = await screen.findByText('API unavailable');
+    expect(error.closest('section')?.className).toContain('max-w-[32rem]');
   });
 
   it('locks a failed decision to the original choice for a retry', async () => {

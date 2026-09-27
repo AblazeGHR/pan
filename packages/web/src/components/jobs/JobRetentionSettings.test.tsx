@@ -68,6 +68,7 @@ describe('JobRetentionSettings shared editor', () => {
     ]) {
       const daysInput = await screen.findByRole('spinbutton', { name: `Keep ${label} for days` });
       expect((daysInput as HTMLInputElement).value).toBe('');
+      expect(daysInput.closest('label')?.className).toContain('max-w-[24rem]');
       expect((screen.getByRole('checkbox', { name: `Enable ${label} cleanup` }) as HTMLInputElement).checked).toBe(false);
     }
     expect(api.fetchCompletedJobRetentionSettings).toHaveBeenCalledTimes(1);

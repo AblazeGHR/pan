@@ -151,12 +151,12 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[20vh]"
       onClick={() => setOpen(false)}
     >
       <div className="fixed inset-0 bg-black/50" />
       <div
-        className="relative w-full max-w-lg bg-bg-tertiary border border-border-default rounded-lg shadow-dropdown overflow-hidden"
+        className="relative w-full min-w-0 max-w-[32rem] bg-bg-tertiary border border-border-default rounded-lg shadow-dropdown overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input */}
