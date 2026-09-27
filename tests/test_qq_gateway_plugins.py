@@ -47,6 +47,22 @@ def test_selection_keeps_legacy_channels_and_sets_bridge_address(monkeypatch):
     assert qq["channels"] == config["qq"]["channels"]
 
 
+def test_plugin_status_explains_legacy_multi_channel_mode(monkeypatch):
+    monkeypatch.setattr(server, "load_config", lambda: {"qq": {
+        "channel": "llonebot", "channels": [{"name": "napcat"}, {"name": "llonebot"}],
+        "snowluma": {"token": "configured"},
+    }})
+    monkeypatch.setattr(server.gateway_plugins, "list_plugins", lambda selected: {
+        "selected": selected,
+        "plugins": [{"id": "snowluma", "channel": "snowluma"}],
+    })
+    result = asyncio.run(server.api_get_qq_plugins())
+    assert result["selected"] == "llonebot"
+    assert result["legacyMultiChannel"] is True
+    assert result["legacyChannelCount"] == 2
+    assert result["plugins"][0]["tokenConfigured"] is True
+
+
 def test_invalid_manifest_command_is_rejected(tmp_path, monkeypatch):
     monkeypatch.setattr(plugins, "MANIFEST", tmp_path / "manifest.json")
     bad = {"plugins": [{"id": "bad", "name": "Bad", "channel": "onebot",

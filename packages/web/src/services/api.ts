@@ -164,6 +164,8 @@ export interface QqGatewayPluginsResponse {
   plugins: QqGatewayPlugin[];
   selected: string;
   manifestPath: string;
+  legacyMultiChannel: boolean;
+  legacyChannelCount: number;
 }
 
 export const fetchQqGatewayPlugins = () =>

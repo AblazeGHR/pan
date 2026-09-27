@@ -44,6 +44,11 @@ export function QqPluginsPanel() {
         </p>
       </div>
       {error && <p role="alert" className="rounded border border-danger/30 bg-danger/10 p-2 text-xs text-danger">{error}</p>}
+      {data?.legacyMultiChannel && (
+        <p className="rounded border border-border-default bg-bg-tertiary p-2 text-xs text-text-secondary">
+          Legacy multi-channel mode is active ({data.legacyChannelCount} channels). Selecting a plugin switches the QQ bridge to that one gateway after Pan restarts; the old channel list stays in config.json.
+        </p>
+      )}
       {restartNeeded && <p className="rounded border border-border-default bg-bg-tertiary p-2 text-xs text-text-secondary">Selection saved. Restart Pan to reconnect the QQ bridge to the new gateway.</p>}
       {!data && !error && <p className="text-xs text-text-secondary">Loading…</p>}
       {data?.plugins.map((plugin) => {
@@ -52,7 +57,7 @@ export function QqPluginsPanel() {
           <div key={plugin.id} className="min-w-0 rounded-md border border-border-default bg-bg-primary p-3 space-y-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary">{plugin.name} {selected && <span className="text-accent">· Selected</span>}</div>
+                <div className="text-xs font-medium text-text-primary">{plugin.name} {selected && <span className="text-accent">· {data.legacyMultiChannel ? 'Default in legacy mode' : 'Selected'}</span>}</div>
                 <div className="break-all font-mono text-[10px] text-text-tertiary">{plugin.wsUrl}</div>
               </div>
               <span className="text-[11px] text-text-secondary">

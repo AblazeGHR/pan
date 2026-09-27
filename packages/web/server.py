@@ -7634,6 +7634,8 @@ async def api_put_new_session_defaults(data: dict):
 async def api_get_qq_plugins():
     qq = load_config().get("qq") or {}
     selected = qq.get("plugin_id") or qq.get("channel") or "napcat"
+    legacy_channels = qq.get("channels")
+    legacy_multi_channel = not qq.get("plugin_id") and isinstance(legacy_channels, list) and bool(legacy_channels)
     try:
         result = await asyncio.to_thread(gateway_plugins.list_plugins, selected)
         for plugin in result["plugins"]:
@@ -7641,6 +7643,8 @@ async def api_get_qq_plugins():
             plugin["tokenConfigured"] = bool(
                 isinstance(channel_config, dict) and channel_config.get("token")
             )
+        result["legacyMultiChannel"] = legacy_multi_channel
+        result["legacyChannelCount"] = len(legacy_channels) if legacy_multi_channel else 0
         return result
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
