@@ -43,6 +43,8 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const assetRequests = [];
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (request.url().includes('/assets/')) assetRequests.push(request.url());
   });
@@ -132,8 +134,17 @@ try {
   await newSession.getByRole('button', { name: 'Close' }).click();
 
   await page.getByTitle('Import session').click();
-  await page.getByRole('dialog', { name: 'Import Session' }).waitFor({ state: 'visible' });
-  console.log('PASS lazy sidebar modals open in Chromium');
+  const importDialog = page.getByRole('dialog', { name: 'Import Session' });
+  await importDialog.waitFor({ state: 'visible' });
+  await importDialog.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('link', { name: 'Jobs' }).click();
+  await page.getByRole('heading', { name: 'Jobs', exact: true }).waitFor({ state: 'visible' });
+  assert.ok(page.url().endsWith('/react/jobs'), 'Jobs route opened');
+  assert.ok(assetRequests.some(url => /JobsView-.*\.js$/.test(url)),
+    'Jobs chunk loads on first navigation');
+  assert.deepEqual(pageErrors, [], 'lazy routes raised no browser error');
+  console.log('PASS lazy sidebar modals and Jobs route open in Chromium');
 } finally {
   await browser?.close();
   if (server && server.exitCode === null) {
