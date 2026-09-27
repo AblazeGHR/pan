@@ -34,6 +34,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from packages.web.static_assets import ReactStaticFiles
+
 import httpx
 
 from packages.core import worker
@@ -10405,7 +10407,7 @@ if REACT_DIST_EXISTS:
 
     app.mount(
         f"/{react_name}",
-        StaticFiles(directory=str(REACT_DIST_DIR), html=True),
+        ReactStaticFiles(directory=str(REACT_DIST_DIR), html=True),
         name=react_name,
     )
 
