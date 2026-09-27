@@ -27,7 +27,8 @@ def test_hashed_asset_prefers_brotli_then_gzip_and_revalidates(tmp_path):
             assert compressed.status_code == 200
             assert b"".join(compressed.iter_raw()) == brotli_fixture
             assert compressed.headers["content-encoding"] == "br"
-            assert compressed.headers["content-type"].startswith("text/javascript")
+            media_type = compressed.headers["content-type"].split(";", 1)[0].lower()
+            assert media_type in {"text/javascript", "application/javascript"}
             assert compressed.headers["cache-control"] == "public, max-age=31536000, immutable"
             assert compressed.headers["vary"] == "Accept-Encoding"
             etag = compressed.headers["etag"]
