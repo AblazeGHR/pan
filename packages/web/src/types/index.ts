@@ -777,7 +777,8 @@ export interface ApiMainRestartStatusResponse {
   reason?: string;
   requestId?: string;
   jobId?: string;
-  phase?: 'requested' | 'stopping' | 'stopped' | 'starting' | 'ready' | 'failed' | 'timed_out';
+  operation?: 'restart' | 'exit';
+  phase?: 'requested' | 'stopping_workers' | 'stopping' | 'stopped' | 'starting' | 'ready' | 'failed' | 'timed_out';
   jobStatus?: string;
   root?: string;
   oldPid?: number | null;

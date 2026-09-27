@@ -365,6 +365,194 @@ describe('AppSettingsModal', () => {
     },
   );
 
+  it.each([
+    ['offline', 'mark legal running Sessions offline'],
+    ['preserve-running', 'preserve legal running state'],
+  ] as const)(
+    'confirms Restart using the saved %s policy without asking again',
+    async (exitStrategy, expectedSummary) => {
+      fetchSessionLifecyclePreferencesMock.mockResolvedValueOnce({
+        exitStrategy,
+        startupPreference: 'preserve-running',
+      });
+      render(<AppSettingsModal open onClose={() => {}} />);
+      const restartButton = await waitFor(() => {
+        const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+          .find((candidate) => candidate.textContent?.includes('Restart Pan main service'));
+        expect(button).toBeTruthy();
+        expect(button!.disabled).toBe(false);
+        return button!;
+      });
+
+      fireEvent.click(restartButton);
+      expect(cardEl().textContent).toContain(expectedSummary);
+      expect(document.body.querySelectorAll(
+        'input[name="main-restart-running-session-state"]',
+      )).toHaveLength(0);
+      fireEvent.click(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Confirm restart'))!);
+
+      await waitFor(() => expect(restartMainServiceMock).toHaveBeenCalledTimes(1));
+      expect(restartMainServiceMock).toHaveBeenCalledWith(undefined);
+    },
+  );
+
+  it('refreshes both lifecycle statuses on every modal open and clears stale Exit state', async () => {
+    fetchMainExitStatusMock
+      .mockResolvedValueOnce({
+        available: true,
+        pending: true,
+        platform: 'nt',
+        operation: 'exit',
+        phase: 'stopping_workers',
+        stage: 'stopping_workers',
+      })
+      .mockResolvedValue({
+        available: true,
+        pending: false,
+        platform: 'nt',
+        stage: 'offline',
+        phase: 'offline',
+      });
+    const { rerender } = render(<AppSettingsModal open onClose={() => {}} />);
+    await waitFor(() => expect(cardEl().textContent).toContain('Stopping Workers and Pan'));
+    expect(fetchMainRestartStatusMock).toHaveBeenCalledTimes(1);
+    expect(fetchMainExitStatusMock).toHaveBeenCalledTimes(1);
+
+    rerender(<AppSettingsModal open={false} onClose={() => {}} />);
+    rerender(<AppSettingsModal open onClose={() => {}} />);
+    const exitButton = await waitFor(() => {
+      const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((candidate) => candidate.textContent?.includes('Exit Pan main service'));
+      expect(button).toBeTruthy();
+      expect(button!.disabled).toBe(false);
+      return button!;
+    });
+
+    expect(fetchMainRestartStatusMock).toHaveBeenCalledTimes(2);
+    expect(fetchMainExitStatusMock).toHaveBeenCalledTimes(2);
+    expect(exitButton.disabled).toBe(false);
+    expect(cardEl().textContent).not.toContain('Exit scheduled; this service will go offline');
+    expect(fetchHealthMock).not.toHaveBeenCalled();
+    expect(restartMainServiceMock).not.toHaveBeenCalled();
+    expect(exitMainServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps lifecycle actions disabled after a status fetch error until Retry succeeds', async () => {
+    fetchMainRestartStatusMock.mockRejectedValueOnce(new Error('status API unavailable'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    const refreshButton = await screen.findByRole('button', { name: 'Refresh status' });
+    expect(screen.getByRole('alert').textContent).toContain('status API unavailable');
+    const restartButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Restart Pan main service'))!;
+    const exitButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Exit Pan main service'))!;
+    expect(restartButton.disabled).toBe(true);
+    expect(exitButton.disabled).toBe(true);
+
+    fireEvent.click(refreshButton);
+    await waitFor(() => {
+      expect(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Restart Pan main service'))?.disabled)
+        .toBe(false);
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(fetchMainRestartStatusMock).toHaveBeenCalledTimes(2);
+    expect(fetchMainExitStatusMock).toHaveBeenCalledTimes(2);
+    expect(fetchHealthMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores status responses from an earlier modal-open cycle', async () => {
+    let resolveOldRestart!: (value: {
+      available: boolean;
+      pending: boolean;
+      platform: string;
+    }) => void;
+    let resolveOldExit!: (value: {
+      available: boolean;
+      pending: boolean;
+      platform: string;
+      stage: string;
+    }) => void;
+    fetchMainRestartStatusMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveOldRestart = resolve;
+    }));
+    fetchMainExitStatusMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveOldExit = resolve;
+    }));
+    const { rerender } = render(<AppSettingsModal open onClose={() => {}} />);
+    rerender(<AppSettingsModal open={false} onClose={() => {}} />);
+    rerender(<AppSettingsModal open onClose={() => {}} />);
+
+    const exitButton = await waitFor(() => {
+      const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((candidate) => candidate.textContent?.includes('Exit Pan main service'));
+      expect(button).toBeTruthy();
+      expect(button!.disabled).toBe(false);
+      return button!;
+    });
+    resolveOldRestart({ available: true, pending: true, platform: 'nt' });
+    resolveOldExit({
+      available: true, pending: true, platform: 'nt', stage: 'stopping_workers',
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(exitButton.disabled).toBe(false);
+    expect(cardEl().textContent).not.toContain('Stopping Workers and Pan');
+    expect(fetchMainRestartStatusMock).toHaveBeenCalledTimes(2);
+    expect(fetchMainExitStatusMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let a lifecycle action response from an earlier open overwrite the new status', async () => {
+    let resolveRestartAction!: (value: {
+      ok: boolean;
+      status: 'scheduled';
+      requestId: string;
+    }) => void;
+    restartMainServiceMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveRestartAction = resolve;
+    }));
+    fetchMainRestartStatusMock
+      .mockResolvedValueOnce({ available: true, pending: false, platform: 'nt' })
+      .mockResolvedValue({
+        available: true,
+        pending: true,
+        platform: 'nt',
+        operation: 'restart',
+        phase: 'stopping_workers',
+      });
+    const { rerender } = render(<AppSettingsModal open onClose={() => {}} />);
+    const restartButton = await waitFor(() => {
+      const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((candidate) => candidate.textContent?.includes('Restart Pan main service'));
+      expect(button).toBeTruthy();
+      expect(button!.disabled).toBe(false);
+      return button!;
+    });
+    fireEvent.click(restartButton);
+    fireEvent.click(Array.from(
+      document.body.querySelectorAll<HTMLInputElement>(
+        'input[name="main-restart-running-session-state"]',
+      ),
+    ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+    fireEvent.click(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Confirm restart'))!);
+    await waitFor(() => expect(restartMainServiceMock).toHaveBeenCalledTimes(1));
+
+    rerender(<AppSettingsModal open={false} onClose={() => {}} />);
+    rerender(<AppSettingsModal open onClose={() => {}} />);
+    await waitFor(() => expect(cardEl().textContent).toContain('Pan restart is in progress'));
+
+    resolveRestartAction({ ok: true, status: 'scheduled', requestId: 'restart-old-open' });
+    await act(async () => { await Promise.resolve(); });
+    await waitFor(() => expect(fetchMainRestartStatusMock).toHaveBeenCalledTimes(3));
+    expect(cardEl().textContent).toContain('Pan restart is in progress');
+    expect(fetchHealthMock).not.toHaveBeenCalled();
+  });
+
   it('keeps all settings tabs reachable in a horizontal-only scroller', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
 
@@ -892,18 +1080,26 @@ describe('AppSettingsModal', () => {
         (b) => b.textContent?.includes('Restart Pan main service'),
       );
       expect(button).toBeTruthy();
+      expect(button!.disabled).toBe(false);
       return button!;
     });
 
     fireEvent.click(restartButton);
     expect(cardEl().textContent).toContain('Confirm restart');
+    const restartConfirmButton = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Confirm restart'))!;
+    expect(restartConfirmButton.disabled).toBe(true);
+    const preserveRunningChoice = Array.from(
+      document.body.querySelectorAll<HTMLInputElement>('input[name="main-restart-running-session-state"]'),
+    ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!;
+    fireEvent.click(preserveRunningChoice);
     fireEvent.click(
-      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
-        b.textContent?.includes('Confirm restart'),
-      )!,
+      restartConfirmButton,
     );
-    expect(restartMainServiceMock).toHaveBeenCalledTimes(1);
-    expect(cardEl().textContent).toContain('Waiting for /api/health');
+    await waitFor(() => expect(restartMainServiceMock).toHaveBeenCalledTimes(1));
+    expect(restartMainServiceMock).toHaveBeenCalledWith({ markRunningSessionsOffline: false });
+    await waitFor(() => expect(cardEl().textContent).toContain('Waiting for /api/health'));
 
     // The first probe is delayed so a still-live old process cannot be
     // mistaken for the replacement.  Health resolves on the first probe.
@@ -921,6 +1117,7 @@ describe('AppSettingsModal', () => {
         (b) => b.textContent?.includes('Exit Pan main service'),
       );
       expect(button).toBeTruthy();
+      expect(button!.disabled).toBe(false);
       return button!;
     });
 
@@ -978,16 +1175,25 @@ describe('AppSettingsModal', () => {
           b.textContent?.includes('Restart Pan main service'),
         )!,
       );
+      fireEvent.click(Array.from(
+        document.body.querySelectorAll<HTMLInputElement>(
+          'input[name="main-restart-running-session-state"]',
+        ),
+      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
       fireEvent.click(
         Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
           b.textContent?.includes('Confirm restart'),
         )!,
       );
-      fireEvent.click(
-        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
-          b.textContent?.includes('Stop checking'),
-        )!,
-      );
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const stopCheckingButton = Array.from(
+        document.body.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((candidate) => candidate.textContent?.includes('Stop checking'));
+      expect(stopCheckingButton).toBeTruthy();
+      fireEvent.click(stopCheckingButton!);
       expect(cardEl().textContent).toContain('Health checking stopped');
       await act(async () => {
         await vi.runAllTimersAsync();
@@ -1031,6 +1237,11 @@ describe('AppSettingsModal', () => {
           b.textContent?.includes('Restart Pan main service'),
         )!,
       );
+      fireEvent.click(Array.from(
+        document.body.querySelectorAll<HTMLInputElement>(
+          'input[name="main-restart-running-session-state"]',
+        ),
+      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
       fireEvent.click(
         Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
           b.textContent?.includes('Confirm restart'),
@@ -1041,6 +1252,54 @@ describe('AppSettingsModal', () => {
       });
       expect(cardEl().textContent).toContain('health check timed out');
       expect(fetchHealthMock).toHaveBeenCalledTimes(20);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('requires an explicit lifecycle status refresh when the final restart status read fails', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchHealthMock.mockRejectedValue(new Error('connection refused'));
+      render(<AppSettingsModal open onClose={() => {}} />);
+      await act(async () => {
+        await vi.runOnlyPendingTimersAsync();
+      });
+      fetchMainRestartStatusMock.mockRejectedValueOnce(new Error('status API unavailable'));
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Restart Pan main service'),
+        )!,
+      );
+      fireEvent.click(Array.from(
+        document.body.querySelectorAll<HTMLInputElement>(
+          'input[name="main-restart-running-session-state"]',
+        ),
+      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Confirm restart'),
+        )!,
+      );
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByRole('alert').textContent).toContain('status API unavailable');
+      expect(screen.getByRole('button', { name: 'Refresh status' })).toBeTruthy();
+      expect(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Restart Pan main service'))?.disabled)
+        .toBe(true);
+      expect(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Exit Pan main service'))?.disabled)
+        .toBe(true);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Exit Pan main service'))?.disabled)
+        .toBe(false);
     } finally {
       vi.useRealTimers();
     }

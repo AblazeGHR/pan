@@ -1107,9 +1107,12 @@ export async function fetchMainRestartStatus(): Promise<ApiMainRestartStatusResp
   return request<ApiMainRestartStatusResponse>(`${BASE}/main/restart/status`);
 }
 
-export async function restartMainService(): Promise<ApiMainRestartResponse> {
+export async function restartMainService(
+  options?: { markRunningSessionsOffline: boolean },
+): Promise<ApiMainRestartResponse> {
   const data = await request<ApiMainRestartResponse>(`${BASE}/main/restart`, {
     method: 'POST',
+    body: JSON.stringify(options ? { options } : {}),
   });
   if (!data.ok) throw new Error(data.error || `Pan restart ${data.status}`);
   return data;

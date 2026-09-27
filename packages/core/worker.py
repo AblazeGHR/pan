@@ -1186,6 +1186,13 @@ def begin_shutdown() -> None:
     stop_global_watchdog()
 
 
+def reopen_after_failed_shutdown() -> None:
+    """Restore normal Worker admission after a lifecycle handoff fails."""
+    global _shutdown_started
+    _shutdown_started = False
+    start_global_watchdog()
+
+
 def _mcp_configured(s: _sess.Session | None) -> bool:
     """Session 是否配置了 MCP 工具（mcp_servers 非空）。
 
@@ -6924,6 +6931,7 @@ async def shutdown_all(
     mark_legal_offline: bool = False,
     preserve_legal_running_session_ids: list[str] | tuple[str, ...] = (),
     mark_legal_offline_session_ids: list[str] | tuple[str, ...] = (),
+    legal_state_source: str = "pan/main-exit",
 ):
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
@@ -6932,6 +6940,7 @@ async def shutdown_all(
     errors: list[str] = []
     preserve_ids = set(preserve_legal_running_session_ids)
     offline_ids = set(mark_legal_offline_session_ids)
+    legal_state_source = str(legal_state_source or "pan/main-exit")
 
     for task in list(_queue_retry_tasks.values()):
         try:
@@ -6985,7 +6994,7 @@ async def shutdown_all(
             errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
         if (mark_legal_offline and w.session_id not in preserve_ids
                 and _runtime_stopped(w)):
-            if not await _record_legal_worker_state(w, "offline", "pan/main-exit"):
+            if not await _record_legal_worker_state(w, "offline", legal_state_source):
                 errors.append(f"Worker {wid} legal offline state was not persisted")
 
     for session_id in sorted(offline_ids):
@@ -6993,7 +7002,7 @@ async def shutdown_all(
         # The check under the Session spawn lock prevents marking a concurrent
         # live Worker offline.
         if not await _sync_legal_state_if_stopped(
-                session_id, "offline", "pan/main-exit"):
+                session_id, "offline", legal_state_source):
             errors.append(f"Session {session_id} legal offline state was not persisted")
 
     for session_id in sorted(preserve_ids):
@@ -7001,7 +7010,7 @@ async def shutdown_all(
         # while Exit was draining. Restore the pre-exit legal running snapshot
         # after every Worker has stopped.
         if not await _persist_session_legal_worker_state(
-                session_id, "running", "pan/main-exit-preserve-running"):
+                session_id, "running", f"{legal_state_source}-preserve-running"):
             errors.append(f"Session {session_id} legal running state was not persisted")
 
     workers.clear()

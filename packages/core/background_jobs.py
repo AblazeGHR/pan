@@ -2870,7 +2870,8 @@ def transition_service_job(job_id: str, phase: str, *, registry_root: str | Path
             }
         else:
             allowed = {
-                "requested": {"stopping", "failed", "timed_out"},
+                "requested": {"stopping_workers", "stopping", "failed", "timed_out"},
+                "stopping_workers": {"stopping", "failed", "timed_out"},
                 "stopping": {"stopped", "failed", "timed_out"},
                 "stopped": {"starting", "failed", "timed_out"},
                 "starting": {"ready", "failed", "timed_out"},

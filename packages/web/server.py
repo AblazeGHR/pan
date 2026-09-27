@@ -181,6 +181,12 @@ async def lifespan(app: FastAPI):
     """Startup: load all saved sessions (don't auto-spawn Workers).
     Shutdown: kill all child processes."""
     sessions = sess.list_all(load_history=False)
+    interrupted_restarts = _recover_interrupted_main_restart_jobs()
+    if interrupted_restarts:
+        _log(
+            "[main-restart] marked "
+            f"{interrupted_restarts} interrupted pre-supervisor Job(s) failed"
+        )
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
     try:
@@ -430,6 +436,7 @@ def _retention_delete_session_from_thread(session_id: str, expected: dict) -> di
 _main_restart_lock = threading.Lock()
 _main_restart_pending = False
 _main_restart_request_id: str | None = None
+_main_restart_worker_shutdown_lock = asyncio.Lock()
 
 # Main-service exit has a separate state machine.  It never shares the
 # restart supervisor: once the workers are stopped the detached supervisor
@@ -442,7 +449,7 @@ _main_exit_error: str | None = None
 _lifecycle_operation_lock = asyncio.Lock()
 
 _MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
-_MAIN_EXIT_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline"})
+_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline"})
 
 
 def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
@@ -487,7 +494,7 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
                 "message": "options must be an object",
             },
         )
-    supported_options = _MAIN_EXIT_SUPPORTED_OPTIONS if operation == "exit" else frozenset()
+    supported_options = _MAIN_LIFECYCLE_SUPPORTED_OPTIONS
     unknown_options = sorted(set(options) - supported_options)
     if unknown_options:
         raise HTTPException(
@@ -500,7 +507,7 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
             },
         )
 
-    if operation == "exit" and "markRunningSessionsOffline" in options \
+    if "markRunningSessionsOffline" in options \
             and not isinstance(options["markRunningSessionsOffline"], bool):
         raise HTTPException(
             status_code=400,
@@ -516,6 +523,69 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
     # mapping so later phases receive a canonical snapshot, not a live input
     # object; the Job write is the cross-process source of truth.
     return json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
+
+
+def _resolve_main_lifecycle_policy(options: dict, operation: str) -> tuple[str, bool]:
+    """Resolve one shared Restart/Exit choice from the saved Session policy."""
+    strategy = _session_lifecycle_preferences()["exitStrategy"]
+    if strategy == "offline":
+        return strategy, True
+    if strategy == "preserve-running":
+        return strategy, False
+    if "markRunningSessionsOffline" not in options:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "lifecycle_choice_required",
+                "operation": operation,
+                "field": "markRunningSessionsOffline",
+                "message": (
+                    "choose whether legal-running Sessions should be marked offline "
+                    "before this service operation"
+                ),
+            },
+        )
+    return "ask", options["markRunningSessionsOffline"]
+
+
+async def _snapshot_main_lifecycle_options(options: dict, operation: str) -> dict:
+    """Freeze policy and the legal-running Session set before closing Worker gates."""
+    strategy, mark_running_offline = _resolve_main_lifecycle_policy(options, operation)
+    sessions = await _store_read(sess.list_all, load_history=False)
+    running_session_ids = sorted(
+        session.id for session in sessions
+        if session.last_legal_worker_state == "running"
+    )
+    return {
+        **options,
+        "exitStrategy": strategy,
+        "markRunningSessionsOffline": mark_running_offline,
+        "runningSessionIds": running_session_ids,
+    }
+
+
+def _resolve_main_lifecycle_job_choice(options: dict, operation: str) -> bool:
+    """Read a durable lifecycle choice without inventing an ask-mode default."""
+    saved_strategy = options.get("exitStrategy")
+    if saved_strategy is None:
+        strategy = _session_lifecycle_preferences()["exitStrategy"]
+    elif saved_strategy in _SESSION_LIFECYCLE_EXIT_STRATEGIES:
+        strategy = saved_strategy
+    else:
+        raise ValueError(f"{operation} Job has an invalid saved exitStrategy")
+
+    if strategy == "offline":
+        return True
+    if strategy == "preserve-running":
+        return False
+
+    choice = options.get("markRunningSessionsOffline")
+    if type(choice) is not bool:
+        raise ValueError(
+            f"{operation} Job is missing an explicit markRunningSessionsOffline choice "
+            "for exitStrategy=ask; Worker shutdown was refused",
+        )
+    return choice
 
 
 def _main_restart_paths() -> dict[str, Path]:
@@ -606,6 +676,41 @@ def _clear_main_restart_state(request_id: str) -> None:
         if _main_restart_request_id == request_id:
             _main_restart_pending = False
             _main_restart_request_id = None
+
+
+def _recover_interrupted_main_restart_jobs() -> int:
+    """Release Jobs whose service stop was not confirmed before new startup.
+
+    Application startup in these phases means the prior process/task ended
+    before the detached supervisor confirmed its service stop. Mark the Job
+    failed instead of launching another supervisor from startup; a detached
+    supervisor may still own the request during this short handoff window.
+    """
+    registry_root = _main_restart_registry_root()
+    root = str(_PROJECT_DIR.expanduser().resolve())
+    port = _main_restart_port()
+    recovered = 0
+    for job in background_jobs.list_jobs(registry_root):
+        if (
+            job.get("kind") != background_jobs.SERVICE_LIFECYCLE_KIND
+            or job.get("operation") != "restart"
+            or str(Path(str(job.get("root", ""))).expanduser().resolve()) != root
+            or int(job.get("port", -1)) != port
+            or job.get("phase") not in {"requested", "stopping_workers", "stopping"}
+        ):
+            continue
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root,
+                error=(
+                    "Pan stopped before Worker shutdown and restart-supervisor handoff "
+                    "completed; startup Session recovery follows startupPreference."
+                ),
+            )
+            recovered += 1
+        except (OSError, ValueError) as exc:
+            _log(f"[main-restart] could not reconcile interrupted Job {job.get('jobId')}: {exc}")
+    return recovered
 
 
 def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
@@ -3047,6 +3152,17 @@ async def _schedule_main_restart(options: dict) -> dict:
             "phase": status.get("phase"),
         }
 
+    try:
+        options = await _snapshot_main_lifecycle_options(options, "restart")
+    except HTTPException:
+        raise
+    except (OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": f"failed to snapshot Sessions before Pan restart: {exc}",
+        }
+
     registry_root = _main_restart_registry_root()
     port = status["port"]
     old_pid = main_lifecycle.listener_owner(port)
@@ -3075,18 +3191,31 @@ async def _schedule_main_restart(options: dict) -> dict:
         _main_restart_pending = True
         _main_restart_request_id = request_id
 
+    restart_task = _perform_main_restart(request_id)
     try:
-        _launch_main_restart_supervisor(request_id)
-    except (OSError, ValueError) as exc:
-        background_jobs.transition_service_job(
-            job["jobId"], "failed", registry_root=registry_root,
-            error=f"failed to spawn restart supervisor: {exc}",
+        # Persisted policy and Session IDs are authoritative before this
+        # synchronous gate closes later Worker mutations.
+        worker.begin_shutdown()
+        asyncio.create_task(
+            restart_task,
+            name="pan-main-restart",
         )
-        _clear_main_restart_state(request_id)
+    except Exception as exc:
+        restart_task.close()
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root,
+                error=f"failed to start Worker shutdown for Pan restart: {exc}",
+            )
+        except Exception as persist_exc:
+            _log(f"[main-restart] failed to persist scheduling failure: {persist_exc}")
+        finally:
+            _clear_main_restart_state(request_id)
+            worker.reopen_after_failed_shutdown()
         return {
             "ok": False,
             "status": "error",
-            "error": f"failed to schedule Pan restart: {exc}",
+            "error": f"failed to begin Pan restart: {exc}",
             "jobId": job["jobId"],
         }
     return {
@@ -3100,6 +3229,128 @@ async def _schedule_main_restart(options: dict) -> dict:
     }
 
 
+async def _perform_main_restart(request_id: str) -> None:
+    """Stop Workers and persist legal states before launching the restart supervisor."""
+    global _main_restart_pending, _main_restart_request_id
+    registry_root = _main_restart_registry_root()
+
+    # The route and startup recovery can both observe the same durable Job.
+    # Serialize their in-process work and re-read after acquiring the lock.
+    async with _main_restart_worker_shutdown_lock:
+        job = background_jobs.find_service_job(request_id, registry_root)
+        if not job or job.get("operation") != "restart":
+            return
+        if job.get("phase") not in {"requested", "stopping_workers"}:
+            return
+        with _main_restart_lock:
+            _main_restart_pending = True
+            _main_restart_request_id = request_id
+
+        options = job.get("options") or {}
+        try:
+            mark_running_offline = _resolve_main_lifecycle_job_choice(options, "Restart")
+        except ValueError as exc:
+            try:
+                background_jobs.transition_service_job(
+                    job["jobId"], "failed", registry_root=registry_root, error=str(exc),
+                )
+            except Exception as persist_exc:
+                _log(f"[main-restart] failed to persist invalid-choice failure: {persist_exc}")
+            _clear_main_restart_state(request_id)
+            worker.reopen_after_failed_shutdown()
+            _log(f"[main-restart] refusing Worker shutdown: {exc}")
+            return
+
+        if job.get("phase") == "requested":
+            try:
+                job = background_jobs.transition_service_job(
+                    job["jobId"], "stopping_workers", registry_root=registry_root,
+                    workerShutdownCompleted=False,
+                )
+            except (OSError, ValueError) as exc:
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"failed to record Worker shutdown phase: {exc}",
+                    )
+                except Exception:
+                    pass
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+                _log(f"[main-restart] failed to record Worker shutdown phase: {exc}")
+                return
+
+        if not job.get("workerShutdownCompleted"):
+            running_session_ids = list(options.get("runningSessionIds") or [])
+            try:
+                await worker.shutdown_all(
+                    mark_legal_offline=True,
+                    mark_legal_offline_session_ids=(
+                        running_session_ids if mark_running_offline else ()
+                    ),
+                    preserve_legal_running_session_ids=(
+                        () if mark_running_offline else running_session_ids
+                    ),
+                    legal_state_source="pan/main-restart",
+                )
+            except Exception as exc:
+                # Do not hand off to the service supervisor when a Worker or
+                # legal-state update failed. The service stays available and
+                # the queue watchdog resumes after the terminal Job write.
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"Worker shutdown failed: {exc}",
+                    )
+                except Exception as persist_exc:
+                    _log(f"[main-restart] failed to persist Worker shutdown failure: {persist_exc}")
+                finally:
+                    _clear_main_restart_state(request_id)
+                    worker.reopen_after_failed_shutdown()
+                _log(f"[main-restart] Worker shutdown failed: {exc}")
+                return
+
+            try:
+                job = background_jobs.transition_service_job(
+                    job["jobId"], "stopping_workers", registry_root=registry_root,
+                    workerShutdownCompleted=True,
+                )
+            except (OSError, ValueError) as exc:
+                _log(f"[main-restart] failed to persist Worker shutdown result: {exc}")
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"failed to persist Worker shutdown result: {exc}",
+                    )
+                except Exception as persist_exc:
+                    _log(f"[main-restart] failed to persist terminal Job failure: {persist_exc}")
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+                return
+
+        # Persist the handoff phase before spawning. If this task is entered
+        # again after the handoff, the phase guard above prevents a second
+        # detached supervisor for the same durable Job.
+        try:
+            job = background_jobs.transition_service_job(
+                job["jobId"], "stopping", registry_root=registry_root,
+                workerShutdownCompleted=True,
+            )
+            _launch_main_restart_supervisor(request_id)
+        except Exception as exc:
+            try:
+                background_jobs.transition_service_job(
+                    job["jobId"], "failed", registry_root=registry_root,
+                    error=f"failed to spawn restart supervisor: {exc}",
+                )
+            except Exception as persist_exc:
+                _log(f"[main-restart] failed to persist supervisor failure: {persist_exc}")
+            finally:
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+            _log(f"[main-restart] supervisor launch failed: {exc}")
+
+
 async def _perform_main_exit(request_id: str) -> None:
     """Stop Workers, persist confirmed legal offline states, then stop Pan."""
     global _main_exit_pending, _main_exit_stage, _main_exit_error
@@ -3107,6 +3358,25 @@ async def _perform_main_exit(request_id: str) -> None:
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job or job.get("operation") != "exit":
         return
+    options = job.get("options") or {}
+    try:
+        mark_running_offline = _resolve_main_lifecycle_job_choice(options, "Exit")
+    except ValueError as exc:
+        message = str(exc)
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root, error=message,
+            )
+        except Exception as persist_exc:
+            _log(f"[main-exit] failed to persist invalid-choice failure: {persist_exc}")
+        with _main_exit_lock:
+            _main_exit_pending = False
+            _main_exit_stage = "error"
+            _main_exit_error = message
+        worker.reopen_after_failed_shutdown()
+        _log(f"[main-exit] refusing Worker shutdown: {message}")
+        return
+
     with _main_exit_lock:
         if _main_exit_request_id != request_id:
             return
@@ -3119,9 +3389,7 @@ async def _perform_main_exit(request_id: str) -> None:
         _log(f"[main-exit] failed to record worker-stop phase: {exc}")
         return
     try:
-        options = job.get("options") or {}
         running_session_ids = list(options.get("runningSessionIds") or [])
-        mark_running_offline = options.get("markRunningSessionsOffline", True)
         await worker.shutdown_all(
             mark_legal_offline=True,
             mark_legal_offline_session_ids=(
@@ -3213,29 +3481,9 @@ async def _schedule_main_exit(options: dict) -> dict:
                 "error": "Pan main-service exit is already scheduled",
                 "requestId": _main_exit_request_id,
             }
-    # Snapshot the Session ledger immediately before recording the Exit Job.
-    # The lifecycle lock ensures a startup recovery decision cannot race this
-    # snapshot; begin_shutdown below closes later Worker mutations.
-    sessions = await _store_read(sess.list_all, load_history=False)
-    running_session_ids = sorted(
-        session.id for session in sessions
-        if session.last_legal_worker_state == "running"
-    )
-    exit_strategy = _session_lifecycle_preferences()["exitStrategy"]
-    if exit_strategy == "offline":
-        mark_running_offline = True
-    elif exit_strategy == "preserve-running":
-        mark_running_offline = False
-    else:
-        # Keep the legacy API's omitted-field behavior, while the current UI
-        # requires an explicit selection whenever the saved policy is ask.
-        mark_running_offline = options.get("markRunningSessionsOffline", True)
-    options = {
-        **options,
-        "exitStrategy": exit_strategy,
-        "markRunningSessionsOffline": mark_running_offline,
-        "runningSessionIds": running_session_ids,
-    }
+    # The lifecycle lock ensures startup recovery cannot race this snapshot.
+    # Restart and Exit freeze the same policy and legal-running Session set.
+    options = await _snapshot_main_lifecycle_options(options, "exit")
 
     registry_root = _main_restart_registry_root()
     port = status.get("port", _main_restart_port())
@@ -4827,7 +5075,7 @@ async def _initialize_startup_recovery(sessions) -> dict:
     """Snapshot startup candidates and apply any configured server-side policy."""
     record = _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
     preference = _session_lifecycle_preferences()["startupPreference"]
-    if preference != "ask" and record.get("candidateSnapshot"):
+    if preference in {"wake-running", "preserve-running"} and record.get("candidateSnapshot"):
         return await _run_automatic_startup_recovery(record, preference)
     return record
 
@@ -4975,7 +5223,6 @@ async def _run_automatic_startup_recovery(
     """Persist and apply the configured startup policy before serving requests."""
     choice = {
         "wake-running": "restart",
-        "sync-actual": "sync-actual",
         "preserve-running": "preserve-running",
     }.get(preference)
     if choice is None or not record.get("candidateSnapshot"):

@@ -268,28 +268,30 @@ def test_automatic_wake_uses_the_durable_normal_broadcast_identity(recovery_env,
     }
 
 
-def test_automatic_sync_uses_runtime_helper(recovery_env, monkeypatch):
-    _root, candidate = recovery_env
+def test_sync_actual_preference_waits_for_explicit_startup_choice(recovery_env, monkeypatch):
+    root, candidate = recovery_env
     set_startup_preference(monkeypatch, "sync-actual")
-    calls = []
-
-    async def sync_actual(session_id, *, source):
-        calls.append((session_id, source))
-        return {
-            "sessionId": session_id,
-            "status": "updated",
-            "legalWorkerState": "offline",
-            "runtimeWorkerStatus": "offline",
-        }
-
-    monkeypatch.setattr(worker, "sync_legal_worker_state_to_runtime", sync_actual)
+    monkeypatch.setattr(worker, "find_worker_by_session", lambda _session_id: None)
     result = asyncio.run(server._initialize_startup_recovery([candidate]))
 
-    assert result["state"] == "completed"
-    assert result["decision"] == "sync-actual"
-    assert result["autoPreference"] == "sync-actual"
-    assert calls == [(candidate.id, "session-recovery/startup-sync-actual")]
-    assert result["results"][0]["legalWorkerState"] == "offline"
+    metadata_path = root / "sessions" / f"{candidate.id}.json"
+    before = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert result["decision"] is None
+    assert result["state"] == "pending"
+    assert result["attempts"] == 0
+    assert sess.get(candidate.id, load_history=False).last_legal_worker_state == "running"
+    assert json.loads(metadata_path.read_text(encoding="utf-8")) == before
+
+    claim_owner()
+    chosen = asyncio.run(server.api_main_startup_recovery_decision({
+        "generation": "test-generation", "tabId": "tab-a", "choice": "sync-actual",
+    }))
+
+    assert chosen["state"] == "completed"
+    assert chosen["decision"] == "sync-actual"
+    assert chosen["results"][0]["legalWorkerState"] == "offline"
+    assert sess.get(candidate.id, load_history=False).last_legal_worker_state == "offline"
+    assert json.loads(metadata_path.read_text(encoding="utf-8"))["last_legal_worker_state"] == "offline"
 
 
 def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env, monkeypatch):
