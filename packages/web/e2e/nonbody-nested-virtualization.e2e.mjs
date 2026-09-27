@@ -137,7 +137,9 @@ try {
     return element.scrollTop >= element.scrollHeight - element.clientHeight - 2;
   });
   const bottomIndex = Number(await viewport.locator('[data-child-group]').last().getAttribute('data-index'));
+  const bottomMountedCount = await childRows.count();
   assert.ok(bottomIndex > 220, `bottom range did not reach the tail: ${bottomIndex}`);
+  assert.ok(bottomMountedCount <= 24, `too many child rows mounted at the bottom: ${bottomMountedCount}`);
 
   const bottomScrollTop = await viewport.evaluate((element) => element.scrollTop);
   const viewportBox = await viewport.boundingBox();
@@ -246,6 +248,7 @@ try {
       folded: 0,
       expandedAtTop: initialGeometry.mounted,
       afterWheelDown: downGeometry.mounted,
+      atBottom: bottomMountedCount,
       reopenedAtTop: finalGeometry.mounted,
     },
     scroll: {
