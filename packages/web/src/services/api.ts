@@ -146,6 +146,48 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface QqGatewayPlugin {
+  id: string;
+  name: string;
+  channel: string;
+  wsUrl: string;
+  cwd: string;
+  command: string[];
+  autoStart: boolean;
+  running: boolean;
+  endpointReachable: boolean;
+  installed: boolean;
+  tokenConfigured: boolean;
+}
+
+export interface QqGatewayPluginsResponse {
+  plugins: QqGatewayPlugin[];
+  selected: string;
+  manifestPath: string;
+}
+
+export const fetchQqGatewayPlugins = () =>
+  request<QqGatewayPluginsResponse>(`${BASE}/settings/qq-plugins`);
+
+export const selectQqGatewayPlugin = (id: string) =>
+  request<{ ok: boolean; requiresPanRestart: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/select`, { method: 'POST' });
+
+export const startQqGatewayPlugin = (id: string) =>
+  request<{ ok: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/start`, { method: 'POST' });
+
+export const stopQqGatewayPlugin = (id: string) =>
+  request<{ ok: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/stop`, { method: 'POST' });
+
+export const setQqGatewayPluginAutostart = (id: string, enabled: boolean) =>
+  request<{ ok: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/autostart`, {
+    method: 'PUT', body: JSON.stringify({ enabled }),
+  });
+
+export const setQqGatewayPluginToken = (id: string, token: string) =>
+  request<{ ok: boolean; requiresPanRestart: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/token`, {
+    method: 'PUT', body: JSON.stringify({ token }),
+  });
+
 export async function fetchDirectories(path?: string, includeFiles = false): Promise<DirectoryListResponse> {
   const params = new URLSearchParams();
   if (path) params.set('path', path);

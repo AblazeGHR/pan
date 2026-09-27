@@ -112,7 +112,12 @@ def _napcat_reachable(timeout: float = 1.0) -> bool:
     connection, or when no endpoint is configured (no degradation to report).
     Never raises; failures mean "unreachable".
     """
-    urls = _qq_ws_urls_from_env() or _qq_ws_urls_from_config()
+    try:
+        from packages.core.config import load_config
+        plugin_selected = bool((load_config().get("qq") or {}).get("plugin_id"))
+    except Exception:
+        plugin_selected = False
+    urls = (_qq_ws_urls_from_config() if plugin_selected else _qq_ws_urls_from_env()) or _qq_ws_urls_from_config()
     if not urls:
         return True
     for url in urls:
@@ -142,7 +147,7 @@ def _qq_health_check() -> None:
         # 子进程存活：NapCat 不可达时提示降级（bot.py 会自行每 3s 重试）。
         if not _napcat_reachable():
             _log.warning(
-                "[Pan] NapCat unreachable — QQ module runs degraded "
+                "[Pan] QQ gateway unreachable — QQ module runs degraded "
                 "(bot.py retries the OneBot WS connection every 3s)"
             )
         return

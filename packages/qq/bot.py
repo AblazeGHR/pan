@@ -49,7 +49,19 @@ def main() -> None:
     qq_cfg = _load_qq_config()
     # 多通道解析：qq.channels 数组存在则逐项构建（多账号同收发），
     # 否则退回单通道 build_channel_spec（向后兼容）。
-    specs = _channels.build_channel_specs(qq_cfg)
+    # An explicit Plugin-tab selection takes precedence over the legacy
+    # multi-channel list without deleting that list from config.json.
+    if qq_cfg.get("plugin_id"):
+        selected = qq_cfg.get("channel") or "napcat"
+        selected_cfg = qq_cfg.get(selected) or {}
+        specs = [{
+            "name": selected,
+            "ws_urls": selected_cfg.get("ws_urls") or ["ws://127.0.0.1:3001"],
+            "token": selected_cfg.get("token"),
+            "bot_uin": selected_cfg.get("bot_uin"),
+        }]
+    else:
+        specs = _channels.build_channel_specs(qq_cfg)
 
     # NoneBot OneBot v11 适配器按 ONEBOT_WS_URLS（JSON 数组）连接网关，原生支持
     # 多 bot：把全部通道的 ws_urls 合并注入，每个网关返回各自的 self_id，
@@ -62,6 +74,11 @@ def main() -> None:
                 all_urls.append(u)
         if first_token is None and spec["token"]:
             first_token = spec["token"]
+    if qq_cfg.get("plugin_id"):
+        # The explicit Plugin-tab selection must not accidentally reconnect to
+        # a legacy ONEBOT_WS_URLS / ONEBOT_ACCESS_TOKEN environment override.
+        os.environ["ONEBOT_WS_URLS"] = json.dumps(all_urls)
+        os.environ["ONEBOT_ACCESS_TOKEN"] = first_token or ""
     _inject_onebot_env(specs[0]["name"], all_urls, first_token)
 
     # Mixed driver: fastapi serves the QQ HTTP API (server_app) while websockets

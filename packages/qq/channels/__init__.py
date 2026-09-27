@@ -27,6 +27,7 @@ from typing import Callable
 from .base import ChannelConfig, QQChannel, QQMessage
 from .llonebot import LLOneBotChannel
 from .napcat import NapCatChannel
+from .snowluma import SnowLumaChannel
 from .onebot import OneBotChannel
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "QQMessage",
     "OneBotChannel",
     "NapCatChannel",
+    "SnowLumaChannel",
     "LLOneBotChannel",
     "ChannelConfig",
     "ChannelError",
@@ -53,14 +55,18 @@ from .base import ChannelError, ChannelNotConnected  # noqa: E402
 
 # 已注册的通道类
 _CHANNELS: dict[str, type[QQChannel]] = {
+    "onebot": OneBotChannel,
     "napcat": NapCatChannel,
     "llonebot": LLOneBotChannel,
+    "snowluma": SnowLumaChannel,
 }
 
 # 各通道缺省正向 WS 地址（LLOneBot 用 3002 避开 NapCat 的 3001）
 _DEFAULT_WS: dict[str, str] = {
+    "onebot": "ws://127.0.0.1:3001",
     "napcat": "ws://127.0.0.1:3001",
     "llonebot": "ws://127.0.0.1:3002",
+    "snowluma": "ws://127.0.0.1:3003",
 }
 
 _DEFAULT_CHANNEL = "napcat"

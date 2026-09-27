@@ -454,7 +454,7 @@ bash scripts/stop.sh    # 停止
 - `bypassPermissions` 默认不逐条审批命令和文件修改，适合可信环境；`default` / `acceptEdits` 更保守。Pan 默认无鉴权并绑定 `127.0.0.1`，不要把 `PAN_HOST` 改为公网地址而不做额外保护。
 - `worker.timeout_sec` 是无输出静默超时，`task_timeout_sec` 是 stream 任务总时长上限，`idle_sec` 是任务完成后的空闲回收时间。
 
-QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选择网关；`qq.mode` 为 `mirror` 时自动回复，为 `selective` 时只进收件箱由编排者处理。不使用 QQ 时可设置 `qq.enabled=false`。MCP 会话级注入、外部 Agent 接入和完整字段表见[用户手册第 4、12 章](docs/USER_MANUAL.md#12-mcp模板和端口对齐排障)。
+QQ 需要先运行 NapCat（3001）、LLOneBot（3002）或 SnowLuma（建议 3003），在 `qq.channel` 选择网关，也可在 App Settings → Plugin 登记和切换；`qq.mode` 为 `mirror` 时自动回复，为 `selective` 时只进收件箱由编排者处理。不使用 QQ 时可设置 `qq.enabled=false`。SnowLuma 安装、插件启停和共用桌面 QQ 的步骤见[QQ 插件与 SnowLuma 手册](docs/QQ_PLUGIN_SNOWLUMA.md)。MCP 会话级注入、外部 Agent 接入和完整字段表见[用户手册第 4、12 章](docs/USER_MANUAL.md#12-mcp模板和端口对齐排障)。
 
 ### 停止与常见限制
 

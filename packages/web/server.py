@@ -37,6 +37,7 @@ from fastapi.staticfiles import StaticFiles
 from packages.web.static_assets import ReactStaticFiles
 
 import httpx
+import psutil
 
 from packages.core import worker
 from packages.core import session as sess
@@ -91,6 +92,7 @@ from packages.core.codex_quota_store import (
 )
 from packages.core import main_lifecycle
 from packages.core import launcher
+from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
 from packages.scheduler import api as scheduler_api
 from packages.scheduler import engine as scheduler_engine
@@ -231,8 +233,12 @@ async def lifespan(app: FastAPI):
         _log(f"[Pan] Loaded {len(templates)} session templates from manifest")
     except Exception as e:
         _log(f"[Pan] Character manifest not loaded: {e}")
+
+    qq_config = load_config().get("qq") or {}
+    await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
     
     yield
+    await asyncio.to_thread(gateway_plugins.stop_all)
     # Request cancellation at a Session boundary.  The bounded wait protects
     # shutdown from a stuck/slow disk while the shield and done callback keep
     # any late worker observable instead of leaving an untracked mutator.
@@ -7623,6 +7629,91 @@ async def api_put_new_session_defaults(data: dict):
     raw["new_session_defaults"] = defaults
     save_config(raw)
     return {"defaults": defaults}
+
+@app.get("/api/settings/qq-plugins")
+async def api_get_qq_plugins():
+    qq = load_config().get("qq") or {}
+    selected = qq.get("plugin_id") or qq.get("channel") or "napcat"
+    try:
+        result = await asyncio.to_thread(gateway_plugins.list_plugins, selected)
+        for plugin in result["plugins"]:
+            channel_config = qq.get(plugin["channel"])
+            plugin["tokenConfigured"] = bool(
+                isinstance(channel_config, dict) and channel_config.get("token")
+            )
+        return result
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/select")
+async def api_select_qq_plugin(plugin_id: str):
+    try:
+        plugin = await asyncio.to_thread(gateway_plugins._plugin, plugin_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    qq["plugin_id"] = plugin_id
+    qq["channel"] = plugin["channel"]
+    channel_config = qq.get(plugin["channel"])
+    if not isinstance(channel_config, dict):
+        channel_config = {}
+    channel_config["ws_urls"] = [plugin["wsUrl"]]
+    qq[plugin["channel"]] = channel_config
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "selected": plugin_id, "requiresPanRestart": True}
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/start")
+async def api_start_qq_plugin(plugin_id: str):
+    selected = (load_config().get("qq") or {}).get("plugin_id") or (load_config().get("qq") or {}).get("channel") or "napcat"
+    if plugin_id != selected:
+        raise HTTPException(status_code=409, detail="select this QQ plugin before starting it")
+    try:
+        return await asyncio.to_thread(gateway_plugins.start, plugin_id)
+    except (ValueError, OSError, psutil.Error) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/stop")
+async def api_stop_qq_plugin(plugin_id: str):
+    try:
+        return await asyncio.to_thread(gateway_plugins.stop, plugin_id)
+    except (ValueError, OSError, psutil.Error) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/qq-plugins/{plugin_id}/autostart")
+async def api_qq_plugin_autostart(plugin_id: str, data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"enabled"} or not isinstance(data["enabled"], bool):
+        raise HTTPException(status_code=422, detail="expected enabled boolean")
+    try:
+        return await asyncio.to_thread(gateway_plugins.set_autostart, plugin_id, data["enabled"])
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/qq-plugins/{plugin_id}/token")
+async def api_qq_plugin_token(plugin_id: str, data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"token"} or not isinstance(data["token"], str):
+        raise HTTPException(status_code=422, detail="expected token string")
+    try:
+        plugin = await asyncio.to_thread(gateway_plugins._plugin, plugin_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    channel = qq.get(plugin["channel"])
+    if not isinstance(channel, dict):
+        channel = {}
+    channel["token"] = data["token"]
+    qq[plugin["channel"]] = channel
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "requiresPanRestart": True}
+
 
 @app.get("/api/settings/ui")
 async def api_get_settings_ui():

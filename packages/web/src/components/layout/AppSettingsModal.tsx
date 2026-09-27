@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Database, Eye, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
@@ -37,6 +37,7 @@ import type {
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 import { DataSettingsPanel } from './DataSettingsPanel';
+import { QqPluginsPanel } from './QqPluginsPanel';
 
 interface AppSettingsModalProps {
   open: boolean;
@@ -127,13 +128,14 @@ function MainLifecycleRunningChoice({
   );
 }
 
-type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter' | 'data';
+type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter' | 'plugin' | 'data';
 const SETTINGS_TABS: SettingsTab[] = [
   'general',
   'preferences',
   'appearance',
   'notifications',
   'adapter',
+  'plugin',
   'data',
 ];
 
@@ -1227,6 +1229,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           <button
             type="button"
             role="tab"
+            id="app-settings-tab-plugin"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'plugin'}
+            tabIndex={activeTab === 'plugin' ? 0 : -1}
+            onClick={() => setActiveTab('plugin')}
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'plugin'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Puzzle size={14} />
+            Plugin
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="app-settings-tab-data"
             aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'data'}
@@ -1471,6 +1490,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 />
               </div>
             </section>
+          ) : activeTab === 'plugin' ? (
+            <QqPluginsPanel />
           ) : activeTab === 'data' ? (
             <DataSettingsPanel
               catalog={dataCatalog}

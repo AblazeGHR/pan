@@ -565,6 +565,7 @@ describe('AppSettingsModal', () => {
       'Appearance',
       'Notification',
       'Adapter',
+      'Plugin',
       'Data',
     ]);
     expect(tabList.className).toContain('overflow-x-auto');
@@ -577,12 +578,12 @@ describe('AppSettingsModal', () => {
     expect(panel.className).not.toContain('overflow-x-auto');
 
     fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[6]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[6]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 6).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[6]!, { key: 'ArrowLeft' });
     expect(tabs[5]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[5]!.tabIndex).toBe(0);
-    expect(tabs.slice(0, 5).every((tab) => tab.tabIndex === -1)).toBe(true);
-    fireEvent.keyDown(tabs[5]!, { key: 'ArrowLeft' });
-    expect(tabs[4]!.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(tabs[4]!, { key: 'Home' });
+    fireEvent.keyDown(tabs[5]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-general');
   });
@@ -612,7 +613,7 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(panel.querySelector(
       '[aria-label="Keep Completed Jobs for days"]',
     )).not.toBeNull());
-    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(6);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(7);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
 
@@ -778,7 +779,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(7);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');
