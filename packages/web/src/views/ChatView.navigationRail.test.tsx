@@ -132,11 +132,25 @@ describe('ChatView: message navigation rail switch', () => {
     expect(searchStyles).toContain('right: 92px;');
     expect(searchStyles).toContain('width: min(430px, calc(100% - 104px));');
     expect(searchStyles).toContain('justify-content: flex-end;');
+    const globalSearchWrapperStyles = searchStyles.slice(
+      searchStyles.indexOf('.global-history-search {'),
+      searchStyles.indexOf('.global-history-search__toggle {'),
+    );
+    expect(globalSearchWrapperStyles).toContain('top: 8px;');
+    expect(globalSearchWrapperStyles).toContain('bottom: 8px;');
+    expect(globalSearchWrapperStyles).toContain('align-items: flex-start;');
+    expect(globalSearchWrapperStyles).toContain('pointer-events: none;');
+    expect(searchStyles).toContain('.global-history-search__toggle {');
+    expect(searchStyles).toMatch(/\.global-history-search__toggle \{[\s\S]*?pointer-events: auto;/);
     expect(searchStyles).toContain('.session-history-search__popup {');
     expect(searchStyles).toContain('.global-history-search__popup {');
     expect(searchStyles).toContain('max-height: calc(100% - 16px);');
+    expect(searchStyles).toMatch(/\.global-history-search__popup \{[\s\S]*?pointer-events: auto;/);
     expect(searchStyles).toContain('width: 100%;');
+    expect(searchStyles).toMatch(/\.global-history-search__results \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
     expect(searchStyles).not.toContain('100vw');
+    expect(searchStyles).not.toContain('100vh');
+    expect(chatViewSource).toMatch(/className="chat-view-stage flex flex-1 min-h-0 min-w-0"[\s\S]*?<\/div>\s*<InputRow \/>/);
     expect(chatStylesSource).toContain('right: 58px;\n    width: min(430px, calc(100% - 72px));');
     expect(chatStylesSource).toContain('right: 96px;\n    width: min(560px, calc(100% - 112px));');
   });

@@ -830,10 +830,13 @@ body {
   position: absolute;
   z-index: 9;
   top: 8px;
+  bottom: 8px;
   right: 58px;
   width: min(560px, calc(100% - 76px));
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
+  pointer-events: none;
   color: var(--color-text-primary);
 }
 
@@ -842,6 +845,7 @@ body {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 .global-history-search__popup {
@@ -852,6 +856,7 @@ body {
   flex-direction: column;
   width: 100%;
   max-height: calc(100% - 16px);
+  pointer-events: auto;
   padding: 7px;
   border: 1px solid var(--color-border-default);
   border-radius: 7px;
