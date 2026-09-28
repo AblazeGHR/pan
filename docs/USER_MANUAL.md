@@ -1,73 +1,43 @@
 # Pan 用户手册
 
-> 给第一次接触 Pan 的用户：从安装、创建第一个 Session，到让 MA（meta-agent）自动派活、收报告和交付结果。本文以当前 React Dashboard、`packages/mcp/server.py`、`packages/web/server.py`、`packages/core/worker.py` 和根目录 `manifest.json` 的实际行为为准。
+> 面向 Pan 使用者：介绍安装、Dashboard、Session 与工作区管理、MA 编排、Jobs 和生命周期恢复。界面名称以当前 React Dashboard 为准。
 
 **[English](./USER_MANUAL.en.md) · 中文**
 
-## 目录
+**目录：** [Pan 概念](#overview) · [安装与启动](#install) · [创建 Session](#first-session) · [Session 与 Workspace](#workspaces) · [管理关系与访问](#relationships) · [MA 与报告](#orchestration) · [Jobs](#jobs) · [Worker 与恢复](#lifecycle) · [QQ / SnowLuma](#qq) · [集成、排障与安全](#integrations)
 
-1. [先用一句话理解 Pan](#1-先用一句话理解-pan)
-2. [安装、启动和端口](#2-安装启动和端口)
-3. [第一次操作：新建会话并派出任务](#3-第一次操作新建会话并派出任务)
-4. [两种获得 Meta-Agent 能力的方式](#4-两种获得meta-agent能力的方式)
-5. [Dashboard 界面操作](#5-dashboard-界面操作)
-6. [Manage、managedBy 与父子关系](#6-managemanagedby-与父子关系)
-7. [Subscribe、报告和 queue_pending](#7-subscribe报告和-queue_pending)
-8. [pan_access 权限](#8-pan_access-权限)
-9. [四种派发工具如何选择](#9-四种派发工具如何选择)
-10. [Worker 生命周期与 watchdog](#10-worker-生命周期与-watchdog)
-11. [worktree 并行开发与交付](#11-worktree-并行开发与交付)
-12. [MCP、模板和端口对齐排障](#12-mcp模板和端口对齐排障)
-13. [安全、清理与常见问题](#13-安全清理与常见问题)
-14. [开发者速查](#14-开发者速查)
+<a id="overview"></a>
+## 1. Pan 的基本概念
 
----
+Pan 把 CLI Agent 的长期身份和临时进程分开管理。**Session** 保存历史、adapter、模型、工作目录、管理关系和队列；**Worker** 是实际运行 CLI 的进程，可在 Session 保留时停止并重新启动。
 
-## 1. 先用一句话理解 Pan
+| 名称 | 含义 |
+|---|---|
+| Session | 持久会话身份；也承载 MA 或 TA 角色 |
+| Worker | 运行某个 Session 的临时 CLI 进程；停止 Worker 不会删除 Session |
+| Adapter | cbc、kimi、opencode、claude 或 codex 等 CLI 的连接适配器；可用性取决于本机安装与 PATH |
+| MA / TA | MA（meta-agent）负责拆解、派发与验收；TA（task-agent）承接具体工作。二者都是 Session 的职责角色 |
+| Workspace / workdir | Workspace 用来整理 Sessions 与共享目录；`workdir` 是该 Session 的实际工作目录，两者用途不同 |
 
-Pan 是一个把多个 CLI Agent 组织成“一个主管、多个执行者”的编排平台。你可以只和一个 meta-agent（MA；Pan 内置模板名为 SMA，Super Meta-Agent）对话；它把目标拆成子任务，创建或复用会话，异步派发给不同的 task-agent（TA），收到完成报告后验收并汇总。
+日常单任务可直接使用普通 Session。需要把任务分给多个 Session、统一收取报告时，可使用 SMA 模板。
 
-### 1.1 容易混淆的名词
+<a id="install"></a>
+## 2. 安装、启动与端口
 
-> 统一术语分三层：**角色（MA/TA）— 身份（Session）— 进程（Worker）**。MA/TA 是职责角色；Session 是持久编排身份，承载 MA 或 TA；Worker 是临时 CLI 进程，实际运行 MA 或 TA 的会话——**既有 MA Worker 也有 TA Worker**，不要把 Worker 与 TA 划等号。
+### 需要准备
 
-| 名词 | 它是什么 | 生命周期与用途 |
-|---|---|---|
-| Agent（旧称） | 编排对象的历史叫法 | 现统一为：编排对象通常以 `Session` 身份存在和寻址（Agent = Session，兼容说法）；MA/TA 是运行在其上的职责角色 |
-| Session | 持久化的会话容器（身份层） | 承载 MA 或 TA 身份；保存对话历史、模型、adapter、`workdir`、管理关系、待处理队列；ID 形如 `ses_...` |
-| Worker | Session 名下实际运行的 CLI 子进程（进程层） | 临时的物理执行体，既有 MA Worker 也有 TA Worker；可被 watchdog 回收、重新 spawn；不等于删除 Session，也不等于 TA 本身 |
-| Adapter | Pan 对某种 CLI 的适配器 | 当前注册表包括 `cbc`、`kimi`、`opencode`、`claude`、`codex`；是否可用以 Dashboard 的 CLI 检测为准 |
-| MA（meta-agent）/ SMA | 主管角色，不是另一种进程 | 一个拥有 Pan MCP 工具和编排权限的 Session（SMA 是内置模板）；负责拆解、派发、订阅报告、验收和汇总；同样运行在 Worker 中 |
-| TA（task-agent） | 执行角色 | 承接具体开发、测试、调查或文档任务的 Session；由 MA 经 `agent_assign` 派发，完成后经 `report_subscribe` → `queue_pending` 回报验收 |
+- Python 3.10 或更新版本。
+- Node.js 20 或更新版本与 pnpm 9.7，用于构建 React Dashboard。
+- 至少一个已安装且能从 Pan 进程 PATH 找到的 CLI：`cbc`、`kimi`、`opencode`、`claude` 或 `codex`。缺少个别 CLI 不会阻止 Pan 主服务启动，但对应 Adapter 无法启动 Worker。
 
-可以把它想成：Session 是员工档案，Worker 是今天上班的进程，Adapter 是员工使用的工具类型，MA/TA 是角色（项目经理 / 执行员工）。Worker 死了，档案和历史仍在；重新启动时 adapter 会尝试恢复已有 CLI 上下文。
+### 安装并启动
 
-### 1.2 什么时候用哪一种
-
-- 只问一个问题、改一行代码：创建普通 Session，直接聊天即可。
-- 多个模块并行、需要统一验收、任务较长：创建 SMA，让它管理子 Session。
-- 已经有一个外部 Agent CLI：给它挂 `pan` MCP，再安装 `docs/skills/pan/SKILL.md` 这份 skill，它就能成为 MA（meta-agent）。
-
----
-
-## 2. 安装、启动和端口
-
-### 2.1 安装和启动
-
-至少准备一个 Pan 支持的 CLI，并在启动 Pan 的同一用户环境中确认命令可用：
+在仓库根目录运行。Windows PowerShell：
 
 ```powershell
-cbc --version
-kimi --version
-opencode --version
-claude --version
-codex --version
-```
-
-Windows：
-
-```powershell
-pip install -r minimal-requirements.txt
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r minimal-requirements.txt
 Copy-Item config.example.json config.json
 Set-Location packages/web
 pnpm install
@@ -76,339 +46,158 @@ Set-Location ../..
 python main.py
 ```
 
-这里的 minimal 层只包含 Core/API/MCP 运行依赖（包括 `httpx` 和 `mcp.server.fastmcp`），不安装 pytest、Memory ML provider 或 QQ。开发测试时另执行 `pip install -r dev-requirements.txt`；启用 Memory 时另执行 `pip install -r memory-requirements.txt`。QQ 始终独立安装 `packages/qq/requirements.txt`。根 `requirements.txt` 是兼容的全量本地开发入口，不作为默认安装方案。
-
-然后打开 <http://127.0.0.1:8768>。已有配置的 Windows 用户使用 `scripts/setup.bat` 后双击 `scripts/start_pan.bat`；`scripts/restart.bat` 和 `scripts/stop.bat` 只是 loopback lifecycle API 快捷入口，真正的重启/关闭由 Pan 内部处理，关闭仍由 Pan 的 exit 流程负责，不再使用独立的 `stop_pan.bat`。
-
-macOS/Linux 可使用：
+macOS/Linux：
 
 ```bash
-bash scripts/setup.sh
-bash scripts/start.sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r minimal-requirements.txt
+cp config.example.json config.json
+cd packages/web && pnpm install && pnpm build && cd ../..
+python main.py
 ```
 
-### 2.2 端口和三对齐
+访问 <http://127.0.0.1:8768>。也可用项目启动脚本：Windows `scripts\start_pan.bat`，macOS/Linux `bash scripts/start.sh`；对应的正常关闭脚本为 `scripts\stop.bat` 和 `bash scripts/stop.sh`。直接运行 `python main.py` 时，Ctrl+C 会结束前台进程。
 
-| 端口/变量 | 用途 |
+`minimal-requirements.txt` 安装 Pan Core/API/MCP 依赖，不包含 QQ bridge 或 Memory 的机器学习依赖。配置示例的 `qq.enabled` 默认是 `true`；不使用 QQ 时，可在 `config.json` 将它设为 `false`，跳过 QQ 子进程。使用 QQ 时，需在 `qq.python` 或 `PAN_QQ_PYTHON` 指定的解释器中安装 `packages/qq/requirements.txt`，并配置一个网关。详见[QQ 与 SnowLuma 说明](QQ_PLUGIN_SNOWLUMA.md)。Memory 的可选依赖在 `memory-requirements.txt`。
+
+| 设置 | 当前默认值 / 作用 |
 |---|---|
-| `8768` | Pan 面向用户的默认应用端口（代码默认值不变） |
-| `8767` / `8765` | main/test 工作树的测试或隔离运行端口 |
-| `PAN_PORT` | 覆盖主服务端口 |
-| `PAN_API_URL` | MCP server 访问 Pan 主服务的地址，默认 `http://127.0.0.1:8768` |
-| `PAN_PYTHON` | manifest 中 stdio MCP server 使用的 Python 解释器 |
-| `9740` | MCP server 的 SSE/streamable-http 默认端口，不是 Pan 主服务端口 |
+| Pan 端口 | `config.json` 的 `port` 默认 `8768`；`PAN_PORT` 可覆盖 |
+| 监听地址 | 默认 `127.0.0.1`；`PAN_HOST` 可覆盖 |
+| `PAN_API_URL` | 独立 MCP server 连接 Pan 时使用的地址；使用非默认端口时应同步调整 |
+| Remote | `config.example.json` 中 `remote.enabled` 默认 `false` |
 
-开发测试时可将 main/test 工作树配置为 8767 或 8765，以避开应用端口 8768；代码默认端口仍为 8768。使用 `report_subscribe` 时必须三者一致：MCP 配置中的目标地址、`PAN_API_URL`、`PAN_AGENT_SESSION_ID` 所属的 Pan 实例必须是同一服务（同一端口）。
+MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。对 `report_subscribe`，MCP 地址、`PAN_API_URL` 与 Session 所属端口必须指向同一实例。
 
----
+<a id="first-session"></a>
+## 3. 创建并使用第一个 Session
 
-## 3. 第一次操作：新建会话并派出任务
+1. 打开 Dashboard。侧栏的 **New** 会用默认值快速创建 Session；点击它旁边的设置按钮可打开完整创建表单。**Import** 用于浏览并导入受支持 CLI 的历史会话。
+2. 在完整表单中设置名称、Adapter 和可选的 Session Template、模型、权限模式与 workdir。Adapter 只会在对应 CLI 可用时正常启动。
+3. 选中 Session，点击顶栏 **Start**。也可以直接发送消息；没有活 Worker 时，Pan 会尝试启动 Worker。
+4. 在 Chat 输入任务。按 Enter 发送，Shift+Enter 换行。Worker 忙碌时追加的消息进入发送队列，等当前工作让出执行后继续处理。
+5. 在 **Editor** 查看 Session 的 workdir 文件。顶栏也提供 Worker 的 **Restart、Interrupt、Takeover、Kill** 等控制；这些操作针对 Worker，不等于重启或退出 Pan 主服务。
 
-这是普通用户不需要 MCP 的最短路径。
+新建的默认 workdir 位于 Pan 服务端。若并行修改同一仓库，应为每个 Session 指定不同 Git worktree；Pan 不会自动创建 worktree。
 
-1. 打开 Dashboard，点击左侧顶部 **New**，或打开新建配置弹窗。
-2. 填写会话名称，例如 `first-task`。
-3. 选择当前可用的 **Adapter**；如果没有 CLI 可用，创建后也无法运行 Worker。
-4. 可选地选择 **Session Template**；不选时使用系统默认配置。
-5. 可选地在 **Workdir** 中选择服务端目录。默认目录是实际运行该 Pan 实例的数据根下的 `data/workdirs/<name>`，以创建响应返回的 `workdir` 为准。
-6. 创建后选中该 Session，点击顶栏 **Start**。Start 只启动 Worker；若直接在输入框发送，当前实现也会在没有活 Worker 时自动启动。
-7. 在底部输入框输入自包含任务，按 Enter 发送；Shift+Enter 换行。例如：
+<a id="workspaces"></a>
+## 4. Session 列表与 Workspace
+
+### 使用侧栏管理列表
+
+- 搜索框筛选 Session；可切换按最近活动、名称或自定义顺序排列，也可按 workdir 或 manager 关系分组。
+- 右键 Session 可打开 **Pin / Unpin、Rename、Branch、Manage、msgBridge、Details、Select、Delete** 等操作；与导入历史关联的 Session 还可使用 **Reimport**。
+- 置顶 Session 显示在当前分组的未置顶 Session 之前。启用拖拽后，可调整自定义顺序或在同一分组内调整置顶项顺序；拖拽目标不同，界面会显示对应提示。
+- **Select** 多选模式支持批量移动到 Workspace 和批量删除。删除有子 Session 的管理树时，先阅读确认对话框再选择是否级联。
+
+### 用 Workspace 整理 Session
+
+桌面 Dashboard 左侧的 Workspace rail 列出 **全部** 和命名 Workspace。可新建、重命名、排序、切换或删除 Workspace；**全部**只是列表范围，不会给 Session 写入 Workspace 归属。使用 **Manage → Workspaces** 可将管理树根 Session 移入 Workspace。受管理的子 Session 沿 manager 链继承根节点的 Workspace。
+
+Workspace 不是 Git 分支或目录移动操作。Session 的 `workdir` 决定 Agent 工作位置；Workspace 只保存分组与目录引用。**Editor → Directories** 可为当前 Workspace 添加共享目录，或临时添加额外目录；添加/移除引用不会在磁盘上创建、移动或删除目录。
+
+<a id="relationships"></a>
+## 5. 管理关系与访问控制
+
+**Manage** 面板可以查看和编辑 Session 的管理树、Workspace、Pan Access 和 MCP server。若 `ses_parent` 管理 `ses_child`，前者的 managed 列表包含后者，子 Session 的 `managedBy` 指向父级。同一个 Session 同时只能有一个 manager。
+
+- **Manage** 建立管理关系；成功时也会为该子 Session 订阅完成报告。**Managed** 解除关系并退订报告，但不会删除子 Session。
+- **Subscribe / Subscribed** 单独控制完成报告订阅。退订后关系仍保留。
+- `session_readonly` 可由当前 manager 暂时阻止子 Session 接收其他 Session 发来的任务、消息和通知；它不是文件系统只读，也不是 HTTP 鉴权。
+- **Pan Access** 的 `restrictToManaged`、`canClaimUnmanaged`、`autoClaimCreated` 控制 MCP 调用可操作的 Session 范围。它们不限制 Dashboard 的直接管理操作。
+
+<a id="orchestration"></a>
+## 6. 创建 MA 并收取任务报告
+
+新用户可在完整创建表单中选择：
+
+- `SMA(NoAdapter)`：加载 SMA 编排模板，创建时仍需选择 CLI Adapter。
+- `SMA(cbc)`：使用同一 SMA 模板并固定使用 cbc。
+
+当前两个模板都配置 `pan`、`pan-qq` 和 `pan-wechat` MCP server。模板会给出 MA 编排指引；工具是否能连通仍取决于相应 CLI 与可选通道依赖。
+
+典型流程是先订阅子 Session 的报告，再派发任务：
 
 ```text
-请检查 src/utils.py 中的空指针问题，修复它，运行相关单元测试，并在最后告诉我修改了哪些文件和测试结果。
+report_subscribe → agent_assign → Worker 完成或报错 → manager queue_pending → 验收
 ```
 
-8. 等待聊天区出现结果。状态点通常会从 running 回到 idle；之后可以继续追问、在 **Editor** 查看文件，或右键会话选择 **Delete**。
+`agent_assign` 用于新任务，返回 `queued` 表示已接受，不表示已经完成。`agent_send` 将补充消息排队且不打断当前任务；`agent_send_force` 用于需要重启并强制送达的紧急消息；`agent_notify` 用于把后台命令或外部任务的事后结果持久通知给目标 Session。完成报告写入 manager 的 `queue_pending`，即使短暂掉线也可在之后读取。
 
-![新建 Session 弹窗](../assets/1.png)
+用 Dashboard 时，在 manager 的 **Manage → Relationship → Manages** 中为目标点击 **Subscribe**。这和右键 **msgBridge** 中的 QQ 收件箱订阅不是同一功能。
 
----
+已有 Agent CLI 也可以启用 `pan` MCP，并在该 Pan Session 的 **Manage → MCP and Plugins** 选择 server。修改 MCP 选择后，重启 Worker 使其在 CLI 中生效。独立运行、未由 Pan Session 注入身份的 MCP server 无法调用依赖 Session 身份的管理和报告工具。
 
-## 4. 两种获得 Meta-Agent 能力的方式
+<a id="jobs"></a>
+## 7. Jobs 与定时任务
 
-两种方式的共同点都是：最终得到一个带 Pan MCP 的 MA 会话（Session）。区别是“能力从哪里来”：模板一次性预置；已有 Agent 则由你手工接线和安装规则。两者可以结合，但不要把“模板名”误认为“任何 Agent 自动拥有编排能力”。
+侧栏 **Jobs** 打开任务中心；可按状态或类型筛选、查看详情与运行记录，也可创建、暂停/恢复或删除任务。当前用户表单提供以下类型：
 
-### 4.1 方式一：通过 Session Template 创建（推荐新用户）
-
-模板定义在根目录 `manifest.json` 的 `session_templates` 数组中。当前与 SMA 相关的模板是 `SMA(NoAdapter)` 和 `SMA(cbc)`。前者不预先锁定 adapter，后者固定使用 `cbc`。
-
-两个 SMA 模板都设置了 `mcp_mode: "always"`，挂载 `pan` 与 `pan-qq`，并提供 SMA system prompt；当前默认 `pan_access` 是：
-
-```json
-{
-  "restrict_to_managed": false,
-  "can_claim_unmanaged": true,
-  "auto_claim_created": true
-}
-```
-
-在 Dashboard 中选择 **New → Session Template → SMA(NoAdapter)**，确认 adapter、模型和工作目录后创建。创建完成后直接向它说：
-
-```text
-请先告诉我你能怎样使用 Pan。然后帮我把“检查项目测试并修复失败项”拆成合适的子任务，完成后汇总并附上验证结果。
-```
-
-SMA 会自行决定是否值得拆解；并行时典型链路是：`session_create → report_subscribe → agent_assign → queue_pending → session_get`。
-
-模板字段的应用顺序是“创建时显式字段 > 模板值 > 系统默认值”。`mcp_mode=always` 会锁定 MCP 开关；`never` 会锁定为关闭；`optional` 可选。模板是配置基线，不是一个独立的 Agent 类型。
-
-![选择 SMA(NoAdapter) 模板](../assets/2.png)
-
-### 4.2 方式二：给已有 Agent 配置 pan MCP + pan skill
-
-适用于你已经在外部 CLI 或其他 Agent 容器中有一个长期 Agent，希望它反过来管理 Pan。
-
-第一步，让这个 Agent 能调用 Pan MCP。最简单的完整方式是让 Pan 为 Session 自动注入：创建 Session 时启用 `mcpServers: ["pan"]`（或在 Dashboard 的 Manage → MCP Server 勾选 `pan`）。Worker spawn 时，adapter 会生成 `data/mcp-configs/<session_id>.mcp.json` 并注入到 CLI；不同 adapter 的注入方式由 adapter 自己处理，不要手工猜参数。
-
-如果是独立 MCP 客户端，可运行：
-
-```powershell
-$env:PAN_API_URL = "http://127.0.0.1:8768"
-python -m packages.mcp.server --transport stdio
-```
-
-第二步，把 `docs/skills/pan/SKILL.md` 安装到该 Agent CLI 的 skill 目录，并确保它能读到这份文件。该 skill 规定了术语、异步主链、报告队列、权限边界和排障动作；只有 MCP 没有 skill，Agent 可能会误用工具或持续轮询。
-
-第三步验证：让 Agent 调用 `pan_handbook()`；再用 `session_list(summary=true)` 查看精简列表；对一个测试 Session 执行 `report_subscribe` 后再 `agent_assign` 一个小任务。看到 `queued`，并能在完成后收到报告，才算接线完成。
-
-独立进程没有 `PAN_AGENT_SESSION_ID`，所以 `session_claim`、`report_subscribe`、`manager_chain` 等需要调用者身份的工具不可用。想获得完整主管能力，应让它作为 Pan 管理的 Session 运行，使 adapter 注入身份。
-
-### 4.3 两种方式如何选择
-
-| 情况 | 建议 |
+| 类型 | 用途 |
 |---|---|
-| 第一次用 Pan、没有现成 Agent | 选 `SMA(NoAdapter)` |
-| 已有固定 CLI 和想快速建立主管 | 选 `SMA(cbc)` 或已有 Session 勾选 `pan`，再安装 skill |
-| 外部 Agent 只想查询/派任务 | 独立 MCP 可用，但身份型工具和报告订阅受限 |
-| 要让已有 Agent 真正自主编排 | MCP + `pan` skill + Pan 管理的 Session，三者都要有 |
+| **定时任务** | 按计划向 Session 派发任务、发送消息，或执行已配置的命令 |
+| **Session 消息** | 在选定时间或重复计划向一个 Session 发送文本 |
+| **Session 群发** | 按计划向多个 Session 发送同一文本 |
+| **后台进程** | 立即在运行 Pan 的主机启动一组 argv 命令；它不是某个 Session 的 Worker，且不会通过 shell 解析 |
 
----
+计划可使用一次性触发、重复间隔、日历/cron 计划等表单选项；表单会预览接下来的触发时间。定时任务可在详情中运行一次、暂停或恢复；运行记录和错误信息可从详情查看。目标 Session 被删除或无法投递时，任务可能显示不可投递状态，需要在详情中处理目标或任务。
 
-## 5. Dashboard 界面操作
+Jobs 页面中的 **Settings** 可配置已完成、失败、超时、取消任务及其日志文件的保留期限。新配置默认不自动清理这些项目；只有明确启用并填写天数后才会按策略清理。
 
-左侧 Sidebar 是会话列表；Chat 与当前 Session 对话；Editor 浏览和编辑当前 Session 的 `workdir`；顶栏有 **Start、Restart、Interrupt、Takeover、Kill**。右键会话菜单包含当前可见的 Rename、Branch、Manage、msgBridge、Delete 等操作。
+命令类 Job 在 Pan 所在主机运行，使用服务进程可访问的路径和权限。提交命令前确认执行文件与工作目录；后台进程使用 argv 而不是 shell 字符串。
 
-会话卡片支持**拖拽**：同层拖动改变列表显示顺序（持久化到服务端，等价自定义排序 `POST /api/sessions/order`）；把一张卡片拖到另一张卡片正中会快速建立/解除管理关系（等价 Manage 面板的 Manage/Managed，走 claim/unclaim）。
+<a id="lifecycle"></a>
+## 8. Worker 生命周期、退出与启动恢复
 
-### 5.1 Manage 面板
+**Start / Restart / Interrupt / Takeover / Kill** 管理当前 Session 的 Worker。Worker 停止或被 watchdog 回收时，Session 和历史仍保留；可再次 Start。Session 的永久删除是另一个操作。
 
-**Manage** 打开 `Manage Sessions`，不是打开 Worker 终端，而是管理关系、完成报告订阅、workspace 归属、MCP 权限和 MCP server 的面板。它按标签页分成四部分（桌面版 Manage 弹窗与移动端 Manage 页面共用同一套标签）：
+主服务的 **Restart** 和 **Exit** 位于 App Settings → **General**，与顶栏的 Worker **Restart** 不同。在受支持的启动方式下，设置页提供主服务重启；若该按钮显示不可用，请通过启动 Pan 时使用的同一入口重启。当前默认的 **Restart and Exit Session policy** 与 **Startup preference** 都是 **Ask every time**。重启或退出会停止活 Worker；如有 Session 的 legal state 仍为 running，设置允许询问是否标记为 offline 或保留 running 状态。
 
-1. **Relationship**：**Managed by** 显示当前 Session 的父 manager，可以解除父子关系；**Manages** 点击 **Manage** 认领，点击 **Managed** 解除，同一行的 **Subscribe** 独立控制完成报告。
-2. **Workspaces**：显示该 Session 所在的工作区并就地切换归属。只有管理树根节点持久化归属，子 Session 沿 manager 链继承；移动一个受管理的 Session 会先确认（可关闭该确认），再解除管理关系并写入归属。
-3. **Access**：**Pan Access** 编辑三个权限开关，只影响 MCP 调用（界面文案保持英文 `Pan Access`）。
-4. **MCP and Plugins**：**MCP Server** 从 manifest 声明的服务中选择当前 Session 要挂载的服务。变更通常需要 Worker 重启才在 CLI 中生效；模板可能锁定选择。
+如果 Pan 启动时发现某些 Session 仍记录为 running，但没有活 Worker，Dashboard 会显示 **Continue previous Sessions?**，列出候选项并要求选择：
 
-![Manage Sessions 面板](../assets/3.png)
+1. **Restart these Sessions**：按正常 Session 消息路径向每个候选项发送“继续”。
+2. **Keep their legal state as running**：不启动 Worker，保留持久状态。
+3. **Update legal state to current Worker state**：不重启，读取当前 Worker 实际状态并更新持久状态。
 
-### 5.2 msgBridge 不等于报告订阅
+可在 App Settings → General 更改后续的启动偏好。若选同步实际状态，Dashboard 仍会在恢复时要求明确确认。意外断电或进程崩溃不等同于一次已确认的 Pan Exit；出现恢复对话框时，先核对候选 Session 再选择。
 
-右键菜单里的 **msgBridge** 包含 QQ、System 和 Browser 标签页；QQ 标签页是会话收件箱订阅，选择 QQ 联系人后，QQ 新消息可以进入该 Session 的队列。它不是 `report_subscribe`，也不会订阅 Worker 完成报告；没有使用 QQ 时不要在这里排查 Pan 编排报告。Browser 权限只能在该标签页由用户显式请求。
+<a id="qq"></a>
+## 9. QQ Bridge 与 SnowLuma
 
----
+NapCat、LLOneBot 和 SnowLuma 都可作为 OneBot 网关在 **App Settings → Plugin** 中选择。当前随仓库提供的插件清单把 SnowLuma 列为可选项；清单中三个插件的 `autoStart` 都为 `false`，示例配置也未默认选择 SnowLuma。QQ 桥接开关 `qq.enabled` 与插件自动启动是两个不同设置。
 
-## 6. Manage、managedBy 与父子关系
+Plugin 页面中的 **Select** 会保存网关选择；Pan 提示需要重启主服务才能让 QQ bridge 改连。**Start / Stop** 只管理由 Pan 启动的插件进程；**Start with Pan** 只对当前选中的插件生效。状态 **Running (Pan owned)** 表示 Pan 拥有该进程，**Endpoint in use** 表示端口已响应但进程并非由 Pan 管理，**Not installed** 表示注册路径下找不到安装文件。
 
-假设 SMA `ses_parent` 管理 Worker Session `ses_child`：
+SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和切换步骤见[QQ 与 SnowLuma 使用说明](QQ_PLUGIN_SNOWLUMA.md)。网关状态显示可达并不证明桌面 QQ 已登录或真实消息收发正常；按该说明进行端到端人工检查。
 
-```text
-ses_parent.managed   = ["ses_child"]
-ses_child.managedBy  = "ses_parent"
-```
+<a id="integrations"></a>
+## 10. 可选集成、排障与安全
 
-`managed` 是“我管理谁”，`managedBy` 是“谁管理我”。前端按这个关系显示树；一个 Session 同时只有一个 `managedBy`，因此一个已被别人管理的 Session 不能再被第二个 manager 认领。关系可以形成多层父子链。
+### 可选集成
 
-在 MCP 层，调用者身份来自 Pan adapter 注入的 `PAN_AGENT_SESSION_ID`。普通 MCP Session 默认三个 `pan_access` 都是 false；首次 `agent_assign`、`agent_send`、`agent_spawn` 或 `report_subscribe` 会尝试把目标认领到调用者名下，但仍受权限和“目标是否已被其他 manager 管理”限制。Dashboard 的 Manage 操作由后端直接执行，UI 本身不受 `restrictToManaged` 的 MCP 隔离限制。
+- **Memory**：不属于最小运行依赖；启用前按配置安装 `memory-requirements.txt` 中的依赖。
+- **Remote**：`remote.enabled` 默认 `false`。启用 Cloudflare Remote 会建立额外远程访问路径，并扩大服务暴露面。
+- **MCP / 编排参考**：参见 [Pan skill](skills/pan/SKILL.md)、[HTTP API reference](skills/pan/references/http-api.md) 与 [WebSocket protocol](skills/pan/references/ws-protocol.md)。这些参考适用于高级集成，不是首次启动所必需。
 
-建立关系：UI 打开 manager 的 Manage，点击目标行 **Manage**；MCP 调用 `session_claim(session_id="ses_child")`。解除整个关系：点击 **Managed** 或调用 `session_unclaim`，会清除 `managed`/`managedBy` 并连带取消报告订阅，但不会删除 Session。只停止报告：点击 **Subscribed** 或调用 `report_unsubscribe`，会保留 managed 关系。
+### 常见排查
 
-常见误解：Manage 不等于启动 Worker；Subscribe 不等于拥有管理权（但首次 MCP `report_subscribe` 对无主目标会自动 claim）；Kill 不等于删除 Session；删除子 Session 也不等于只解除关系。
-
-### 6.1 Managed Session 的持久只读
-
-如果希望子 Session 保留在管理树中、但暂时不接受其他 Session 发来的任务、消息或通知，可由当前 manager 调用 `session_readonly(session_id="ses_child", enabled=true)`。取消只读传 `enabled=false`。该操作只允许当前 manager 执行，不会自动认领目标；被拒绝时返回 `readonly_session`。这是编排层状态，不等同于 HTTP/API 鉴权或文件系统只读。
-
----
-
-## 7. Subscribe、报告和 queue_pending
-
-MA 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`。目标 Worker 进入 `done` 或 `error` 时，Pan 把报告追加到 manager 的持久化 `queue_pending`：
-
-```json
-{
-  "status": "done",
-  "result": "任务输出",
-  "sessionId": "ses_child",
-  "taskId": "task-001",
-  "workerId": "worker-2"
-}
-```
-
-`report_signal` 只是唤醒信号，报告内容以落盘队列为准；多份报告可能合并成一次唤醒消息，服务重启或短暂断线后队列仍可恢复。收到报告后，再用 `session_get` 读取完整历史/`lastResult` 做验收。
-
-在 manager Session 的 **Manage → Manages** 中找到目标行，点击 **Subscribe**；成功后显示 **Subscribed**。取消只停止报告，不解除 Managed。点击 **Manage** 会同时建立管理关系并自动订阅；点击 **Managed** 解除管理并自动退订。
-
-![Managed 与 Subscribed 按钮](../assets/4.png)
-
-普通 `agent_send` 只是向目标 Session 发消息；没有订阅时，仍可读取目标 Session 的结果，但不会按 MA 的 `queue_pending` 报告链自动唤醒。WebSocket 的 `worker.result` 是外部协调/排障通道；MA 的正常路径是 `report_subscribe → queue_pending`，不要用 WS 盯梢替代它。
-
-如果 `report_subscribe` 返回 404，通常是运行中的服务端版本没有该路由；如果返回 manager 不存在，优先检查三对齐。可以暂时用 `session_get` 查看 `lastResult.status`（`queued → running → done/error`）作为兜底。
-
----
-
-## 8. pan_access 权限
-
-`pan_access` 是 Session 的 MCP 能力位。模板和 API 使用 camelCase 返回/UI 展示，skill 和配置说明使用 snake_case：
-
-| 配置键 | 含义 | 边界 |
-|---|---|---|
-| `restrictToManaged` / `restrict_to_managed` | true 时，MCP 只能操作调用者自己、自己 `managed` 列表中的 Session | 不能借 MCP 枚举或操作无关 Session；Dashboard 直接管理不受此开关限制 |
-| `canClaimUnmanaged` / `can_claim_unmanaged` | 允许认领当前没有 manager 的 Session | 不能抢已经被其他 manager 管理的 Session |
-| `autoClaimCreated` / `auto_claim_created` | 当前 Agent 创建的新 Session 自动加入其 `managed` | 只影响创建后的自动归属；不等于可认领所有旧 Session |
-
-普通 Session 默认全 false。`SMA(NoAdapter)` 和 `SMA(cbc)` 当前默认是 `restrictToManaged=false`、`canClaimUnmanaged=true`、`autoClaimCreated=true`。越权调用通常返回结构化 `permission_denied`/错误结果；无身份时，claim/report/manager-chain 类工具返回 `missing_identity`。
-
-在 UI 的 Manage → Pan Access 修改后，保存的是该 Session 的 MCP 权限。权限不是网络安全鉴权：HTTP API/前端当前是高权限路径，不能因为 MCP 隔离存在就把 Pan 服务暴露到公网。
-
-![Pan Access 权限](../assets/5.png)
-
----
-
-## 9. 四种派发工具如何选择
-
-当前代码中的 `agent_*` 是推荐的一等工具，`worker_*` 是兼容旧名：
-
-| 工具 | 做什么 | 是否打断 | 何时用 |
-|---|---|---|---|
-| `agent_assign(session_id, text, task_id?)` | 异步派发新任务，立即返回 `queued`；无活 Worker 自动 spawn | 不以重启打断 | 新任务、并行 fan-out；重试时复用 `task_id` 防重复 |
-| `agent_send(session_id, text)` | 发多轮协作消息，进入持久队列，等目标空闲处理 | 不打断 | 补充信息、追问、后续建议 |
-| `agent_send_force(session_id, text)` | 对活 Worker 执行 restart + send | 会打断 | 紧急约束、方向变更、Worker 卡住；无活时退化为入队 |
-| `agent_notify(target_session_id, text)` | 把“事后通知”持久化投递到自己或自己管理的 Agent | 不启动普通任务序列；目标无活 Worker 时会唤醒/自动 spawn | 脱离当前 Agent/Worker 生命周期的后台命令、长时测试、编译、外部脚本完成后的回报 |
-
-`agent_notify` 不要和 QQ 的 `/api/qq/notify` 混淆：后者是 QQ 插件向 Pan Core 上报 QQ inbox 更新的内部 HTTP 路由。`agent_notify` 是可调用的通用 MCP 通知工具，但不是普通任务派发的替代品。适合这样使用：启动一个本身遵守权限、审批和安全规则的后台命令（例如 `nohup`、长时间测试、编译或外部脚本），命令结束后由仍可运行的脚本/Agent 调用：
-
-```text
-agent_notify(
-  target_session_id="ses_parent",
-  text="后台测试已完成：pytest 结果为 128 passed，日志已写入 artifacts/test.log。"
-)
-```
-
-通知会写入目标 Session 的持久化 `queue_pending`；即使原 Worker 已退出，目标无活 Worker 时也会自动唤醒/生成 Worker。它只负责可靠回报，不替后台命令授予额外权限，也不绕过 managed 隔离。普通新任务继续使用 `agent_assign`；向已有 Agent 排队补充消息使用 `agent_send`；需要立即打断并重启后送达使用 `agent_send_force`。要接收子任务完成/错误报告，则使用 `report_subscribe`。
-
-派发是异步编排：`queued` 只表示任务已入队/接受，不表示完成。SMA 应等待报告唤醒，再 `session_get`、验收、必要时补派；不要因没马上看到结果就重复派同一任务。新 Session 的第一条任务应写清背景、目标、文件、边界和验收标准；已有上下文时可简短追问。
-
----
-
-## 10. Worker 生命周期与 watchdog
-
-1. `session_create` 只创建持久 Session，不启动 Worker。
-2. `agent_spawn` 或 UI **Start** 创建一个 CLI Worker；同一 Session 同时只有一个 Worker。
-3. `agent_assign`/发送消息会在需要时自动 spawn；无活 Worker 的普通发送会保存到持久队列。
-4. Worker 可能是 `queued`、`running`、`idle`、`held`、`error`、`zombie` 等状态；没有进程时 `workerStatus` 为 `null`。
-5. watchdog 默认约每 30 秒检查：queued 长时间无输出、stream 任务运行过久、idle 太久都会被回收；`held`（Takeover）和 `zombie` 会跳过普通回收。
-6. Worker 被回收只影响进程，不删除 Session、history 或通常的 `cliSessionId`。重新 spawn 会尝试恢复上下文。
-
-无活 Worker 时，优先再次 `agent_assign` 或 UI **Start**；需要显式恢复时调用 `agent_spawn(session_id)`。只有卡死、需要中止进程或配置/MCP 改动要求重启时才用 `agent_kill`/Restart。`agent_kill` 对无活 Worker 是安全 no-op，不会删除 Session。
-
-如果 `queue_pending` 非空但没有活 Worker，全局 watchdog 会尝试自动补员；持续失败请看 `data/logs/pan.log`。异常进程退出会产生 `zombie`/error 报告，主管应把它当作失败处理并决定修复、重试或人工接管。
-
----
-
-## 11. worktree 并行开发与交付
-
-并行开发最安全的安排是“一个子任务、一个独立 git worktree/分支、一个 Session”。给每个 Session 的 `workdir` 传绝对路径，避免依赖默认目录；若多个 Worker 必须共享同一目录，先确认不会同时改同一文件。
-
-给 TA（子会话）的任务应明确：只在指定 worktree 修改、不要操作别的 worktree、完成后运行测试并提交 commit、不要 push。SMA 收到报告后检查 `git status`、`git diff --check`、测试结果和 commit，再决定如何合并。合并/冲突解决由明确的一个工作目录负责；不要让多个 Worker 同时在同一分支执行 merge。
-
-```text
-只在当前指定 worktree 修改。完成后运行相关测试和 git diff --check，提交一个清晰的 commit；不要 push。报告改动文件、验证结果和 commit hash。
-```
-
-Pan 的 Session 删除会 kill Worker、删除 Session 元数据并清理会话级 MCP 配置，但不会替你删除普通 workdir 磁盘目录；重要产物先确认已提交或复制到目标目录。
-
----
-
-## 12. MCP、模板和端口对齐排障
-
-### 12.1 MCP 接线自检
-
-在 Session 详情或 Manage 面板确认 `pan` 已启用；重启 Worker 后让 Agent 调 `pan_handbook()`。Pan adapter 自动生成的配置会包含 `pan` server 和 `PAN_AGENT_SESSION_ID`。在 `--mcp-config` 自动注入路径下，工具通常是 direct connected；项目级 `.mcp.json` 发现路径才可能需要 ToolSearch/DeferExecuteTool。
-
-### 12.2 常见症状
-
-| 症状 | 先查什么 | 处理 |
-|---|---|---|
-| 新建后不能运行 | Dashboard CLI status / `GET /api/cli/status` | 安装对应 CLI，确保 Pan 启动环境 PATH 可见后重启 Pan |
-| `Worker process dead` | `workerStatus`、`lastResult`、日志 | Start 或 `agent_spawn`；不要删除 Session |
-| 发消息没回 | 是否 `queued`、是否 `workerStatus=null`、队列是否有积压 | 再次 assign/Start；查 `data/logs/pan.log` |
-| `report_subscribe` 缺少 manager | 是否由 Pan adapter 运行、是否有 `PAN_AGENT_SESSION_ID` | 使用 Pan 管理的 Session；独立 MCP 只能做无身份操作 |
-| `report_subscribe` 404 | 服务端是否含 `/api/report-subscribe` | 对齐 MCP 与服务版本；临时用 `session_get` 读 `lastResult` |
-| 订阅成功但无报告 | manager 与目标是否同端口/实例，是否实际 assign | 对齐 8768/8767、`PAN_API_URL` 和身份 |
-| MCP 改了但 Worker 不生效 | `requireRestart` 或模板锁 | Restart/kill 后 spawn；`always` 至少保留一个 MCP |
-| 列表太大 | 是否全量 `session_list()` | 优先 `session_list(summary=true)`，再定向 `session_get(limit=15)` |
-
----
-
-## 13. 安全、清理与常见问题
-
-- 默认 API 无鉴权并绑定 `127.0.0.1`。不要把 `PAN_HOST` 改为公网地址后再把它当作安全服务；Remote/隧道会扩大暴露面。
-- 不要删除用户仍在使用的 Session；删除不是解除管理的替代品。一次性子 Session 确认交付完成后，才用 `session_batch_delete` 收尾。
-- 不要按 `ses_*` 全量删除。先看 `session_list(summary=true)`、名称、`managedBy` 和日志；测试夹具或旧队列可能仍有价值。
-- `session_unclaim` 只解除关系，不删除会话；`report_unsubscribe` 只停止报告。
-- 模型、权限、MCP 服务器变化可能在 Worker 空闲时自动重启，运行中则等任务结束或手动 Restart；不要误以为热改立即改变正在执行的 CLI。
-- API body 使用 camelCase（如 `sessionId`、`panAccess`），MCP 参数使用 snake_case（如 `session_id`）；创建返回字段是 `id`，后续请求使用这个值。
-
-### 最小 MCP 编排示例
-
-```text
-1. session_create(name="demo-worker", adapter="cbc", model="deepseek-v4-flash")
-2. 记下返回的 id，例如 ses_1234...
-3. report_subscribe(session_id="ses_1234...")
-4. agent_assign(session_id="ses_1234...", text="计算 17*23，并只返回结果和一句验证说明。", task_id="demo-17x23")
-5. 等 queue_pending 中的 done/error 报告
-6. session_get(session_id="ses_1234...", limit=15)
-```
-
-如果只是 UI 用户，不需要手工调用这些工具；创建 SMA 后把目标告诉 SMA 即可。
-
----
-
-## 14. 开发者速查
-
-| 类别 | 常用 MCP 工具 |
+| 现象 | 检查方式 |
 |---|---|
-| 会话 | `session_create`、`session_get`、`session_list(summary=true)`、`session_managed`、`session_delete`、`session_batch_delete` |
-| 关系 | `session_claim`、`session_unclaim`、`manager_chain` |
-| Worker | `agent_spawn`、`agent_kill`、`agent_list` |
-| 派发 | `agent_assign`、`agent_send`、`agent_send_force` |
-| 报告 | `report_subscribe`、`report_unsubscribe`、`queue_pending` |
-| 设置 | `session_update`、`pan_handbook` |
+| Session 无法启动 | 查看 Dashboard 的 CLI 状态，确认对应 CLI 在 Pan 的 PATH 中；检查选中的 Adapter 与权限设置 |
+| Worker 没有回复 | 查看 Worker 状态和发送队列；确认消息已排队后不要重复发送同一任务，必要时查看 `data/logs/pan.log` |
+| 没有收到 MA 报告 | 确认 manager 已订阅目标，并检查 MCP server、`PAN_API_URL`、`PAN_AGENT_SESSION_ID` 是否属于同一 Pan 实例 |
+| Jobs 没有触发 | 查看任务是否暂停、下一次触发时间、时区和任务详情中的错误/投递状态 |
+| SnowLuma 显示未安装 | 检查 `data/qq_plugins/manifest.json` 中的绝对 `cwd`、启动命令和 WebSocket 地址 |
 
-`worker_assign`、`worker_send` 等是兼容旧名；`agent_notify` 是当前实现中的一等 MCP 工具。
+### 安全与清理
 
-### HTTP 关键端点
+API 默认无身份验证且绑定 loopback。不要仅通过设置 `PAN_HOST` 或打开远程隧道就把它暴露到不可信网络。
 
-```text
-GET  /api/sessions?summary=1
-POST /api/sessions
-POST /api/spawn
-POST /api/assign
-POST /api/send
-POST /api/claim
-POST /api/unclaim
-POST /api/report-subscribe
-POST /api/report-unsubscribe
-POST /api/notify                 # agent_notify 的内部后端路由
-GET  /api/session-templates
-GET  /api/mcp/servers
-GET  /api/cli/status
-```
+手动删除 Session 会停止其 Worker、删除会话记录和历史，但会保留普通 workdir。另有默认关闭的数据保留策略；若启用 Session 自动清理，Pan 可能删除经验证只属于该 Session 且未被其他 Session 或 Workspace 引用的默认 workdir。重要文件应在清理前提交或备份。
 
-HTTP 请求体使用 camelCase；MCP 层提供权限/身份检查，直接 HTTP/前端路径不要当成同等隔离的安全边界。完整字段与协议见 [`http-api.md`](skills/pan/references/http-api.md)、[`ws-protocol.md`](skills/pan/references/ws-protocol.md)，编排规则见 [`SKILL.md`](skills/pan/SKILL.md)。
+## 相关文档
 
-## 关联文档
-
-- [`README.md`](../README.md)：项目概览和安装入口
-- [`docs/skills/pan/SKILL.md`](skills/pan/SKILL.md)：给 MA（meta-agent）的冷启动 skill
-- [`docs/pan-user-manual-images.txt`](pan-user-manual-images.txt)：本文图片截图清单
+- [README](../README.md)：项目简介和快速开始。
+- [English user manual](./USER_MANUAL.en.md)。
+- [QQ 与 SnowLuma 使用说明](./QQ_PLUGIN_SNOWLUMA.md)。

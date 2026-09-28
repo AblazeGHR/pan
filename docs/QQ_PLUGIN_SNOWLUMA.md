@@ -1,48 +1,67 @@
-# QQ 插件与 SnowLuma 使用手册
+# QQ Bridge 插件与 SnowLuma 使用说明
 
-## 已安装内容
+**[English](./QQ_PLUGIN_SNOWLUMA.en.md) · 中文**
 
-- SnowLuma Windows 完整版 v1.14.20：`D:\project\SnowLuma`，入口为 `node.exe index.mjs`。
-- Pan 的 **App Settings → Plugin** 已登记 NapCat、LLOneBot 和 SnowLuma。登记文件在运行 checkout 的 `data/qq_plugins/manifest.json`；首次打开 Plugin 页时从仓库的 `packages/qq/gateway_plugins_manifest.json` 复制。这个文件与根目录用于 Session/MCP 的 `manifest.json` 用途不同。
-- `D:\project\Pan` 的 practical 配置已预置 SnowLuma 连接地址与密钥；SnowLuma 的 `config/onebot.json` 已设置只监听本机的 WS `3003`，HTTP 服务关闭，WebUI 只监听本机 `5099`。当前 QQ 通道选择与旧 `qq.channels` 保持原样。三个插件的 `autoStart` 都为 `false`，不会因合并代码自动登录 QQ 或启动网关。
+本文说明 Pan 如何选择和管理 OneBot 网关。SnowLuma 自身的安装、QQ 客户端兼容范围和隐私/许可要求以 SnowLuma 当前发行版的文档为准；Pan 只检查插件文件、进程所有权和 WebSocket 端口状态。
 
-## 首次切换到 SnowLuma
+## 当前默认状态
 
-先重启运行 `D:\project\Pan` practical checkout 的 Pan 服务，让新增的后端接口和 Plugin 页面生效。重启会影响当前正在运行的 Pan 服务与 Worker，请按你现有的服务维护流程安排。
+- `config.example.json` 中 `qq.enabled` 默认是 `true`，表示 Pan 会启动 QQ bridge 子进程；它不代表 SnowLuma 已安装或会自动启动。
+- 示例配置没有预选 SnowLuma。Plugin 页面按 `qq.plugin_id`、旧的 `qq.channel` 或默认 `napcat` 显示当前选择；legacy `.env` / `qq.channels` 配置也可能影响实际连接方式。
+- 仓库提供的 `packages/qq/gateway_plugins_manifest.json` 包含 NapCat、LLOneBot 和 SnowLuma。清单中的 `autoStart` 均为 `false`；SnowLuma 是可选网关，默认不会由 Pan 启动。
+- 随仓库提供的注册项包含开发机专用绝对路径。首次打开 **App Settings → Plugin** 时，Pan 会把模板复制到运行数据目录 `data/qq_plugins/manifest.json`。请先改成当前主机上的真实绝对路径。
 
-1. 在桌面版 QQ 中登录要共用的账号。SnowLuma 必须与 QQ 在**同一个 Windows 用户、相同权限级别**下运行。人仍在原 QQ 图形窗口里聊天；SnowLuma 向同一客户端注入 Hook，再向 Pan 提供 OneBot v11 WebSocket。
-2. 如现有 NapCat 也注入同一个 QQ，先按其原有方式停掉 NapCat。不要让两个框架同时注入同一个 QQ 进程。
-3. 在 **App Settings → Plugin** 选择 **SnowLuma**，点击 **Start**。第一次运行需由你阅读并确认 SnowLuma 的 EULA/隐私页面；打开 `http://127.0.0.1:5099/`，初始 `admin` 密码可在 `D:\project\Pan\data\qq_plugins\snowluma.log` 中找到。WS 端口和 token 已预配置，无需复制密钥。
-4. 选择后重启 Pan，QQ 桥接会从旧网关改连 SnowLuma。若勾选 **Start with Pan**，以后只有当前选中的插件会自动启动。
-5. 在 Plugin 页确认 SnowLuma 显示 `Endpoint in use` 或 `Running (Pan owned)`；再到 SnowLuma WebUI 确认 QQ 已注入、WS 已连接。由你在 QQ GUI 发一条测试消息，再验证 Pan 收到并回复，以检验同一账号双向收发。
+不使用 QQ 时，在 `config.json` 中设 `qq.enabled` 为 `false`。使用 QQ 时，需在 `qq.python` 或 `PAN_QQ_PYTHON` 指定的 Python 环境中安装 `packages/qq/requirements.txt`。
 
-如果希望以后随 Pan 启动，在 SnowLuma 卡片勾选 **Start with Pan**。只有**当前选中的插件**会自动启动，避免不同网关抢占端口。Pan 正常退出时会停止由 Pan 启动的网关；对外部已运行的网关，Pan 不接管也不强行停止。
+## 配置 SnowLuma 网关
 
-NapCat 的旧 Windows 启动器可能要求管理员权限；若 Pan 进程没有该权限，Plugin 页会显示启动失败，请继续使用原有启动方式。NapCat 注入的 QQ 进程不能仅靠停止 Pan 启动器保证卸载 Hook；切换到 SnowLuma 前应按旧框架流程完整退出 NapCat/QQ，再重新打开官方 QQ。
+SnowLuma adapter 使用 OneBot v11 WebSocket；随仓库提供的示例地址是 `ws://127.0.0.1:3003`。在运行 Pan 的主机上安装并配置 SnowLuma，使它提供 Pan 可访问的 OneBot forward WebSocket。若 SnowLuma 要求 token，准备好它的 OneBot token。
 
-## 切回原框架
-
-在 Plugin 页停止 Pan 所启动的 SnowLuma；若它由其他方式启动，使用原启动方式对应的关闭方法。选择 NapCat 或 LLOneBot，按实际情况启动，随后重启 Pan。旧的 `qq.channels` 多通道配置仍保存在 `config.json`；清除 `qq.plugin_id` 后可恢复按多通道数组启动桥接。仅打开 Plugin 页不会改动原 QQ 桥接配置。
-
-## 登记其他 OneBot 网关
-
-编辑 `data/qq_plugins/manifest.json` 的 `plugins` 数组，新增一个对象，随后重新打开 Plugin 页：
+打开运行中的 `data/qq_plugins/manifest.json`，确认 `snowluma` 注册项的地址和启动信息符合你的安装：
 
 ```json
 {
-  "id": "my-gateway",
-  "name": "My gateway",
-  "channel": "onebot",
-  "wsUrl": "ws://127.0.0.1:3010",
-  "cwd": "D:/project/my-gateway",
-  "command": ["D:/project/my-gateway/gateway.exe", "--config", "config.json"],
-  "env": {},
+  "id": "snowluma",
+  "name": "SnowLuma",
+  "channel": "snowluma",
+  "wsUrl": "ws://127.0.0.1:3003",
+  "cwd": "<SnowLuma 安装目录的绝对路径>",
+  "command": ["<node.exe 的绝对路径>", "<index.mjs 的绝对路径>"],
+  "env": {"SNOWLUMA_HOOK_AUTOLOAD": "1"},
   "autoStart": false
 }
 ```
 
-`command` 是参数数组，首项必须为绝对路径，不通过 shell 执行。`wsUrl` 是 Pan 注入/连接地址；`channel` 可填 `onebot`、`napcat`、`llonebot` 或 `snowluma`。如果网关需要认证，在 Plugin 页选择后保存它的 OneBot token。修改启动命令或地址前先停止该插件。执行文件只应来自可信来源；Pan 会按该命令直接启动它。
+`cwd` 与启动命令首项必须是当前主机存在的绝对路径；`command` 是参数数组，Pan 会直接启动该程序，不经 shell。示例项目前把 `SNOWLUMA_HOOK_AUTOLOAD` 设为 `1`；请按所安装的 SnowLuma 版本确认是否保留该环境变量。若你的 SnowLuma 监听地址或端口不同，相应修改 `wsUrl`。切换到 SnowLuma 前，确认该 WebSocket 端口未被其他网关占用。
 
-## 当前验证边界
+## 在 Pan 中启用
 
-代码和前端类型检查已执行，SnowLuma 自带配置解析器已确认预置配置有效。尚未替你登录 QQ、接受协议或让它注入正在使用的 QQ，因此同一 GUI 的真实收发需要按上面的第 5 步验收。SnowLuma 官方说明它直接附着桌面 QQ 进程；QQ 客户端更新后 Hook 的版本匹配仍需留意。
+1. 在 **App Settings → Plugin** 检查 SnowLuma 卡片。若显示 **Not installed**，先修正 `data/qq_plugins/manifest.json` 的 `cwd` 和 `command`，再重新打开或刷新 Plugin 页面。
+2. 点击 SnowLuma 卡片上的 **Select**。Pan 会保存选择，并提示重启主服务以让 QQ bridge 改连该网关。若此前使用 legacy 多通道配置，选择插件会切换到单个选中网关；原 `qq.channels` 配置会保留。
+3. 用 App Settings → General 中的主服务 **Restart** 完成切换。Pan 重启后回到 Plugin 页面，点击 **Start** 启动当前选中的 SnowLuma；如果 SnowLuma 已由其他方式启动、端口可达，状态会显示 **Endpoint in use**，Pan 不会接管或停止外部进程。
+4. SnowLuma 卡片若显示 token 未配置且网关启用了认证，在卡片输入 OneBot token 并点击 **Save token**。保存后按页面提示重启 Pan，让 QQ bridge 使用新 token。
+5. 确认 SnowLuma 显示 **Running (Pan owned)** 或 **Endpoint in use**，并在 SnowLuma 自身界面确认 QQ 客户端已按其要求连接。最后由用户在 QQ 客户端发起一条消息，检查 Pan 是否收到并能回复。
+
+**Start with Pan** 只作用于当前选中的插件，并仅影响以后 Pan 启动时的自动启动行为。仓库清单默认关闭此选项。Pan 只能停止它自己启动并仍持有进程身份的插件；不会强行停止外部网关。
+
+### 状态含义
+
+| Plugin 页面状态 | 含义 |
+|---|---|
+| **Not installed** | 注册的工作目录或启动文件不存在 |
+| **Stopped** | 文件存在、对应 WebSocket 端口当前没有监听 |
+| **Running (Pan owned)** | 插件进程由 Pan 启动且仍可确认归 Pan 管理 |
+| **Endpoint in use** | WebSocket 端口可连接，但 Pan 不拥有该进程 |
+
+这些状态只说明本地注册项、进程或端口的情况，不证明 SnowLuma Hook 兼容当前 QQ 版本，也不证明真实 QQ 消息已双向送达。SnowLuma 的客户端支持和授权流程需按其官方文档确认。
+
+## 切回其他网关或恢复旧配置
+
+在 Plugin 页面选中 NapCat 或 LLOneBot，按页面提示重启 Pan；如需由 Pan 管理进程，先确认该网关注册路径有效，再点击 **Start**。切换框架前应按旧网关要求退出其进程及 QQ 客户端，避免两个框架争用同一个 QQ 客户端或 WebSocket 端口。
+
+若要恢复 legacy 多通道方式，先停止由 Pan 管理的插件，再清除 `config.json` 中由 Plugin 页面写入的 `qq.plugin_id`；保留并检查原有 `qq.channels` / `.env` 配置后重启 Pan。不要为切换而删除 `data/qq_plugins/manifest.json`，该文件保存当前主机上的插件注册信息。
+
+## 相关文档
+
+- [Pan 用户手册](USER_MANUAL.md)：QQ 开关、Dashboard 与其他功能。
+- [README](../README.md)：安装和快速开始。
