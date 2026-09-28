@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sqlite3
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -325,15 +326,89 @@ def test_api_cursor_expires_after_append_full_save_reimport_delete_or_reorder():
     assert sess.apply_order([second.id, first.id]) is None
     _assert_cursor_stale(order_page["nextCursor"], q="OrderNeedle", limit=1)
 
-    single_scope_page = _search(
-        q="OrderNeedle", sessionId=first.id, limit=1,
+
+@pytest.mark.parametrize("change", ["add", "delete", "reorder"])
+def test_session_cursor_ignores_unrelated_registry_changes_but_global_cursor_expires(change):
+    target = _append_matching_messages("scoped cursor target", 4, "ScopeNeedle")
+    other = None
+    if change != "add":
+        other = _append_matching_messages("scoped cursor other", 3, "ScopeNeedle")
+
+    global_first = _search(q="ScopeNeedle", limit=1)
+    target_first = _search(q="ScopeNeedle", sessionId=target.id, limit=1)
+    assert global_first["nextCursor"]
+    assert target_first["nextCursor"]
+
+    if change == "add":
+        other = _append_matching_messages("scoped cursor new other", 3, "ScopeNeedle")
+    elif change == "delete":
+        assert other is not None
+        sess.delete(other.id)
+    else:
+        assert other is not None
+        assert sess.apply_order([other.id, target.id]) is None
+
+    target_hits = list(target_first["hits"])
+    cursor = target_first["nextCursor"]
+    while cursor:
+        page = _search(
+            q="ScopeNeedle", sessionId=target.id, limit=1, cursor=cursor,
+        )
+        target_hits.extend(page["hits"])
+        cursor = page["nextCursor"]
+    assert [(hit["sessionId"], hit["messageIndex"]) for hit in target_hits] == [
+        (target.id, index) for index in range(4)
+    ]
+    assert len({hit["messageId"] for hit in target_hits}) == 4
+
+    _assert_cursor_stale(global_first["nextCursor"], q="ScopeNeedle", limit=1)
+    if change == "delete":
+        with sqlite3.connect(_index_path()) as connection:
+            assert connection.execute(
+                "SELECT 1 FROM history_search_sessions WHERE session_id=?",
+                (other.id,),
+            ).fetchone() is None
+
+
+def test_api_cursor_expiry_after_fifteen_minutes(monkeypatch):
+    session = _append_matching_messages("search cursor ttl", 3, "TTLNeedle")
+    page = _search(q="TTLNeedle", sessionId=session.id, limit=1)
+    assert page["nextCursor"]
+    original_time_module = server.time
+    base_time = original_time_module.time()
+    monkeypatch.setattr(
+        server, "time", SimpleNamespace(time=lambda: base_time + 901),
     )
-    assert single_scope_page["nextCursor"]
-    assert sess.apply_order([first.id, second.id]) is None
+
     _assert_cursor_stale(
-        single_scope_page["nextCursor"],
-        q="OrderNeedle", sessionId=first.id, limit=1,
+        page["nextCursor"], q="TTLNeedle", sessionId=session.id, limit=1,
     )
+
+
+def test_api_cursor_from_deleted_index_file_is_rejected_then_search_rebuilds():
+    session = _append_matching_messages("search cursor lost index", 3, "IndexNeedle")
+    page = _search(q="IndexNeedle", sessionId=session.id, limit=1)
+    assert page["nextCursor"]
+    index_path = _index_path()
+    assert index_path.exists()
+    index_path.unlink()
+
+    _assert_cursor_stale(
+        page["nextCursor"], q="IndexNeedle", sessionId=session.id, limit=1,
+    )
+    rebuilt = _search(q="IndexNeedle", sessionId=session.id, limit=1)
+    assert [hit["messageId"] for hit in rebuilt["hits"]] == [
+        session.history[0]["messageId"],
+    ]
+    assert rebuilt["nextCursor"]
+
+
+def test_api_rejects_oversized_and_malformed_cursors_with_409():
+    for cursor in ("x" * (server._HISTORY_SEARCH_CURSOR_MAX_LENGTH + 1), "not-a-cursor", ""):
+        with pytest.raises(HTTPException) as error:
+            _search(q="query", cursor=cursor)
+        assert error.value.status_code == 409
+        assert error.value.detail["code"] == "history_search_cursor_expired"
 
 
 def test_api_cursor_expires_when_total_changes_without_revision_change():

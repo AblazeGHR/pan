@@ -5515,7 +5515,7 @@ def _history_search_request(
     ]
     if (
         original_scope_ids != remaining_scope_ids
-        or initial_registry_ids != remaining_registry_ids
+        or (session_id is None and initial_registry_ids != remaining_registry_ids)
     ):
         raise _HistorySearchSnapshotChanged("Session registry changed during search")
     versions_by_session = {
@@ -5544,7 +5544,9 @@ def _history_search_request(
         version for version in result["versions"]
         if version["sessionId"] in remaining_ids
     ]
-    result["sessionOrder"] = remaining_registry_ids
+    # A scoped cursor binds only the one Session whose order can affect its
+    # page. Keep the complete live_ids passed above for stale-index cleanup.
+    result["sessionOrder"] = remaining_scope_ids
     return result
 
 
@@ -5582,7 +5584,7 @@ async def api_history_search(
     The independent SQLite index is created only for a non-empty search
     request; canonical Session history remains the source for every rebuild.
     A nextCursor continues the same trimmed query, scope, and bounded limit.
-    It expires after 15 minutes or when the ordered Session registry or any
+    It expires after 15 minutes or when the ordered search scope or any
     in-scope history version changes; callers should then start a new search.
     """
     query = q.strip()
