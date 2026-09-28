@@ -357,7 +357,26 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   if (historyMatch && method === 'GET') {
     const session = findSession(historyMatch[1]!);
     const history = session?.history ?? [];
+    history.forEach((message, index) => {
+      if ((message.role === 'user' || message.role === 'assistant') && !message.messageId) {
+        message.messageId = `mock-${session?.id}-${index}`;
+      }
+    });
     return { history, hasMore: false, start: 0, total: history.length };
+  }
+  const historyMessageMatch = path.match(/^\/api\/sessions\/([^/]+)\/history\/([^/]+)$/);
+  if (historyMessageMatch && method === 'DELETE') {
+    const session = findSession(decodePathPart(historyMessageMatch[1]!));
+    if (!session) return { ok: false, error: { code: 'session_not_found', message: 'Session not found' } };
+    const messageId = decodePathPart(historyMessageMatch[2]!);
+    const index = session.history.findIndex((message) => message.messageId === messageId);
+    if (index < 0) return { ok: false, error: { code: 'message_not_found', message: 'Message not found' } };
+    if (session.history[index]?.role !== 'user' && session.history[index]?.role !== 'assistant') {
+      return { ok: false, error: { code: 'message_not_deletable', message: 'This message cannot be deleted' } };
+    }
+    session.history.splice(index, 1);
+    session.historyTotal = session.history.length;
+    return { ok: true, historyTotal: session.history.length };
   }
 
   // ── Agent queue (frontend-only response-compatible mock) ──

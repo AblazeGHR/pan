@@ -9,6 +9,8 @@ export interface Message {
   content: string;
   /** Stable canonical history identity. Absent on legacy rows. */
   messageId?: string;
+  /** True while this is the newest assistant entry and the worker is streaming. */
+  streaming?: boolean;
   /** Stable provider block identity for compound messages. */
   blockId?: string;
   /** Stable provider turn identity when the adapter exposes one. */

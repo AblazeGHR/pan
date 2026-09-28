@@ -298,6 +298,17 @@ export async function fetchSessionHistory(
   return data;
 }
 
+export async function deleteSessionHistoryMessage(sessionId: string, messageId: string): Promise<void> {
+  const data = await request<{ ok?: boolean; error?: string | { message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/history/${encodeURIComponent(messageId)}`,
+    { method: 'DELETE' },
+  );
+  if (!data.ok) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '消息删除失败');
+  }
+}
+
 export interface CreateSessionSettings {
   model?: string;
   permissionMode?: string;

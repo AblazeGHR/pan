@@ -9,6 +9,7 @@ import type {
 import {
   fetchSessions,
   fetchSessionHistory,
+  deleteSessionHistoryMessage,
   createSession,
   deleteSession,
   batchDeleteSessions,
@@ -102,6 +103,7 @@ interface SessionStore {
   loadOlderMessages: (limit?: number) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number) => Promise<Message | null>;
+  deleteCurrentMessage: (message: Message) => Promise<void>;
   createNewSession: (
     name: string,
     workdir?: string | null,
@@ -1823,6 +1825,42 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ historyLoading: false });
       }
     }
+  },
+
+  deleteCurrentMessage: async (message: Message) => {
+    const sid = get().currentSessionId;
+    if (!sid) throw new Error('未选择 Session');
+    let messageId = message.messageId;
+    if (!messageId) {
+      await get().refreshCurrentSessionHistory();
+      const refreshed = get().currentMessages;
+      const candidate = refreshed.find((item) => item === message)
+        ?? [...refreshed].reverse().find((item) => item.role === message.role && item.content === message.content);
+      messageId = candidate?.messageId;
+    }
+    if (!messageId) throw new Error('消息身份不可用，请刷新后重试');
+    await deleteSessionHistoryMessage(sid, messageId);
+    set((s) => {
+      const remove = (items: Message[]) => items.filter((item) => item.messageId !== messageId);
+      const next = remove(s.currentMessages);
+      return {
+        currentMessages: next,
+        historyLoadEnd: s.hasMoreMessages ? Math.max(0, s.historyLoadEnd - 1) : s.historyLoadEnd,
+        hasMoreMessages: s.hasMoreMessages && s.historyLoadEnd > 1,
+        sessions: s.sessions.map((session) => session.id === sid
+          ? (() => {
+              const history = remove(session.history || []);
+              const last = history[history.length - 1];
+              return {
+                ...session,
+                history,
+                historyTotal: Math.max(0, (session.historyTotal ?? session.history?.length ?? 1) - 1),
+                lastMessage: last ? String(last.content).slice(0, 200) : '',
+              };
+            })()
+          : session),
+      };
+    });
   },
 
   createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {

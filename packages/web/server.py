@@ -1946,6 +1946,19 @@ def _session_to_api(
     projection = sess.summary_projection(s)
     if pin_projection is None:
         pin_projection = sess.session_pin_projection(s.id)
+    history_payload = (
+        _api_history(
+            s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
+        )
+        if include_history else None
+    )
+    if history_payload is not None and w and w.status in {"running", "queued"}:
+        # Mark the newest assistant entry as streaming so the frontend can
+        # distinguish an in-flight reply from a settled one (delete guard).
+        for item in reversed(history_payload):
+            if isinstance(item, dict) and item.get("role") == "assistant":
+                item["streaming"] = True
+                break
     return {
         "id": s.id,
         "name": s.name,
@@ -1973,9 +1986,7 @@ def _session_to_api(
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
-        **({"history": _api_history(
-            s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
-        )} if include_history else {}),
+        **({"history": history_payload} if include_history else {}),
         **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
@@ -4201,7 +4212,8 @@ def _api_history(
             else None
         )
         public_message = (
-            {key: value for key, value in message.items() if key != "delivered_keys"}
+            {key: value for key, value in message.items()
+             if key not in {"delivered_keys", "_pan_message_id"}}
             if isinstance(message, dict) else message
         )
         if isinstance(public_message, dict) and delivery_keys:
@@ -4210,9 +4222,12 @@ def _api_history(
             ]
         wire_identity = None
         if include_identity:
-            wire_identity = (
-                message.get("messageId") if isinstance(message, dict) else None
-            )
+            # Durable in-history identity (msg_*) wins; provider/legacy
+            # messageId next; index-derived legacy id as last resort.
+            if isinstance(message, dict):
+                wire_identity = message.get("_pan_message_id")
+                if not isinstance(wire_identity, str) or not wire_identity:
+                    wire_identity = message.get("messageId")
             if not isinstance(wire_identity, str) or not wire_identity:
                 epoch = history_epoch or "legacy"
                 wire_identity = f"legacy:{session_id}:{epoch}:{absolute_index}"
@@ -5901,19 +5916,74 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     page = await _store_read(_history_page_lookup, session_id, before, limit)
     if page is _NOT_FOUND:
         return {"error": "Session not found"}
+    page_history = _api_history(
+        session_id,
+        page["history"],
+        start=page.get("start", 0),
+        history_epoch=page.get("historyEpoch"),
+    )
+    active_worker = worker.find_alive_worker_by_session(session_id)
+    if active_worker and active_worker.status in {"running", "queued"}:
+        for item in reversed(page_history):
+            if isinstance(item, dict) and item.get("role") == "assistant":
+                item["streaming"] = True
+                break
     return {
-        "history": _api_history(
-            session_id,
-            page["history"],
-            start=page.get("start", 0),
-            history_epoch=page.get("historyEpoch"),
-        ),
+        "history": page_history,
         "total": page["total"],
         "hasMore": page["hasMore"],
         "start": page["start"],
         "historyEpoch": page.get("historyEpoch"),
         "historyRevision": page.get("historyRevision", 0),
     }
+
+
+def _delete_history_message(session_id: str, message_id: str):
+    """Resolve one entry by ``msg_*`` or ``legacy:{sid}:{epoch}:{index}`` id.
+
+    Runs on the store thread: hydration and the delete rewrite are blocking
+    disk I/O. The legacy identity is resolved against the *current* history
+    epoch so a stale page cannot delete the wrong row.
+    """
+    s = sess.get(session_id)
+    if s is None:
+        return None
+    if message_id.startswith("msg_"):
+        return s, sess.delete_history_item(s, message_id)
+    parts = message_id.split(":")
+    if len(parts) != 4 or parts[0] != "legacy" or parts[1] != session_id:
+        return s, "message_not_found"
+    epoch_value = getattr(s, "history_epoch", None)
+    current_epoch = str(epoch_value) if epoch_value else "legacy"
+    if parts[2] != current_epoch:
+        return s, "message_not_found"
+    try:
+        index = int(parts[3])
+    except ValueError:
+        return s, "message_not_found"
+    return s, sess.delete_history_item_at(s, index)
+
+
+@app.delete("/api/sessions/{session_id}/history/{message_id}")
+async def api_delete_session_history(session_id: str, message_id: str):
+    """Delete one user/assistant history entry after idempotent identity checks."""
+    active_worker = worker.find_alive_worker_by_session(session_id)
+    if active_worker and active_worker.status in {"running", "queued"}:
+        return {"ok": False, "error": {
+            "code": "session_busy",
+            "message": "任务运行中，无法删除消息",
+        }}
+    if (not isinstance(message_id, str)
+            or not (message_id.startswith("msg_") or message_id.startswith("legacy:"))):
+        return {"ok": False, "error": {"code": "invalid_message_id", "message": "Invalid message id"}}
+    result = await _store_read(_delete_history_message, session_id, message_id)
+    if result is None:
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    s, error_code = result
+    if error_code:
+        error_message = "This message cannot be deleted" if error_code == "message_not_deletable" else "Message not found"
+        return {"ok": False, "error": {"code": error_code, "message": error_message}}
+    return {"ok": True, "messageId": message_id, "historyTotal": len(s.history)}
 
 
 # ── Agent queue (session.queue_pending, normalized view) ──
