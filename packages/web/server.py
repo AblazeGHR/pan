@@ -36,6 +36,7 @@ import httpx
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import history_search_index
 from packages.core import workspace as workspaces
 from packages.core.adapters import get_adapter, list_adapters, get_sessions_provider
 from packages.core.adapters.validation import (
@@ -5353,6 +5354,100 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
         "historyEpoch": page.get("historyEpoch"),
         "historyRevision": page.get("historyRevision", 0),
     }
+
+
+def _history_search_request(query: str, session_id: str | None, limit: int) -> dict:
+    """Run one lazy index/search operation against the current Session registry."""
+    sessions = sess.list_all(load_history=False)
+    live_ids = [session.id for session in sessions]
+    if session_id is None:
+        scoped_sessions = sessions
+    else:
+        scoped_sessions = [session for session in sessions if session.id == session_id]
+        if not scoped_sessions:
+            return {"error": "Session not found"}
+
+    result = history_search_index.search_history(
+        sess.SESSION_DIR.parent / "history_search.sqlite3",
+        scoped_sessions,
+        live_ids,
+        query,
+        limit=limit,
+        load_session=_load_history_search_snapshot,
+    )
+
+    # A Session may be deleted while the index is loading/rebuilding. Recheck
+    # the authoritative registry before exposing any cached result.
+    remaining_ids = {session.id for session in sess.list_all(load_history=False)}
+    if session_id is not None and session_id not in remaining_ids:
+        return {"error": "Session not found"}
+    result["hits"] = [
+        hit for hit in result["hits"] if hit["sessionId"] in remaining_ids
+    ]
+    result["versions"] = [
+        version for version in result["versions"]
+        if version["sessionId"] in remaining_ids
+    ]
+    return result
+
+
+def _load_history_search_snapshot(session_id: str):
+    """Load one history for reindexing without hydrating the shared Session cache."""
+    path = sess._path(session_id)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise history_search_index.HistorySearchError(
+            f"Session {session_id} history could not be loaded: {exc}"
+        ) from exc
+    try:
+        # This existing read-only loader merges the canonical JSONL and applies
+        # the same legacy compatibility cleanup as ordinary Session loading.
+        # Its result is request-local and is never assigned into sess._cache.
+        return sess._from_data_with_history(session_id, data)
+    except Exception as exc:
+        raise history_search_index.HistorySearchError(
+            f"Session {session_id} history could not be loaded: {exc}"
+        ) from exc
+
+
+@app.get("/api/history/search")
+async def api_history_search(
+    q: str = "",
+    sessionId: str | None = None,
+    limit: int = history_search_index.DEFAULT_HISTORY_SEARCH_LIMIT,
+):
+    """Search indexed user/assistant bodies in one Session or across Sessions.
+
+    The independent SQLite index is created only for a non-empty search
+    request; canonical Session history remains the source for every rebuild.
+    """
+    query = q.strip()
+    bounded = history_search_index.bounded_limit(limit)
+    if not query:
+        return {"hits": [], "versions": [], "limit": bounded, "hasMore": False}
+    if len(query) > history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "query must be at most "
+                f"{history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH} characters"
+            ),
+        )
+    try:
+        result = await _store_read(
+            _history_search_request, query, sessionId, bounded,
+        )
+    except history_search_index.HistorySearchError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "history_search_unavailable", "message": str(exc)},
+        ) from exc
+    if result.get("error"):
+        return result
+    return result
 
 
 # ── Agent queue (session.queue_pending, normalized view) ──
