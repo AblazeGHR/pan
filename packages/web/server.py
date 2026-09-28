@@ -2089,6 +2089,87 @@ def _history_page_lookup(session_id: str, before: int, limit: int):
     return _NOT_FOUND if page is None else page
 
 
+def _search_session_history(session_id: str, query: str, limit: int = 200):
+    """Read durable history sequentially; no index or persistent cache is made."""
+    if not _summary_session_get(session_id):
+        return _NOT_FOUND
+    needle = str(query or "").strip().casefold()
+    if not needle:
+        return {"matches": [], "totalMatches": 0, "total": 0}
+    bounded_limit = max(1, min(int(limit or 200), 500))
+    history_path = sess._history_path(session_id)
+    main_path = sess._path(session_id)
+    matches: list[dict] = []
+    total_matches = 0
+    total_rows = 0
+
+    def consume(row: object, index: int) -> None:
+        nonlocal total_matches
+        if not isinstance(row, dict):
+            return
+        content = row.get("content")
+        if not isinstance(content, str) and isinstance(row.get("parts"), list):
+            content = "\n".join(
+                str(part.get("text", "")) for part in row["parts"]
+                if isinstance(part, dict)
+            )
+        if not isinstance(content, str):
+            return
+        folded = content.casefold()
+        count = 0
+        first = -1
+        offset = 0
+        while True:
+            hit = folded.find(needle, offset)
+            if hit < 0:
+                break
+            if first < 0:
+                first = hit
+            count += 1
+            offset = hit + max(1, len(needle))
+        if count <= 0:
+            return
+        total_matches += count
+        if len(matches) < bounded_limit:
+            public = _api_history(session_id, [row], start=index)[0]
+            matches.append({
+                "message": public,
+                "index": index,
+                "matchCount": count,
+                "firstMatch": first,
+            })
+
+    if history_path.exists():
+        try:
+            with history_path.open("rb") as handle:
+                valid_index = 0
+                for raw_line in handle:
+                    try:
+                        row = json.loads(raw_line.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        continue
+                    if not isinstance(row, dict):
+                        continue
+                    consume(row, valid_index)
+                    valid_index += 1
+                total_rows = valid_index
+        except OSError:
+            return {"matches": [], "totalMatches": 0, "total": 0}
+    else:
+        try:
+            data = json.loads(main_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"matches": [], "totalMatches": 0, "total": 0}
+        rows = data.get("history") if isinstance(data, dict) else []
+        if isinstance(rows, list):
+            total_rows = len(rows)
+            for index, row in enumerate(rows):
+                consume(row, index)
+    for item in matches:
+        item["fromEnd"] = max(0, total_rows - 1 - item["index"])
+    return {"matches": matches, "totalMatches": total_matches, "total": total_rows}
+
+
 def _session_list_api(
     s: sess.Session,
     *,
@@ -5914,6 +5995,15 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
         "historyEpoch": page.get("historyEpoch"),
         "historyRevision": page.get("historyRevision", 0),
     }
+
+
+@app.get("/api/sessions/{session_id}/search")
+async def api_session_search(session_id: str, q: str = "", limit: int = 200):
+    """Search all durable session history without persisting search state."""
+    result = await _store_read(_search_session_history, session_id, q, limit)
+    if result is _NOT_FOUND:
+        return {"error": "Session not found"}
+    return result
 
 
 # ── Agent queue (session.queue_pending, normalized view) ──

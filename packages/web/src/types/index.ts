@@ -558,6 +558,21 @@ export interface ApiSessionHistoryResponse {
   error?: string;
 }
 
+export interface ApiSessionSearchResult {
+  message: Message;
+  index: number;
+  fromEnd: number;
+  matchCount: number;
+  firstMatch: number;
+}
+
+export interface ApiSessionSearchResponse {
+  matches: ApiSessionSearchResult[];
+  totalMatches: number;
+  total: number;
+  error?: string;
+}
+
 // ── Session template types ──
 
 export interface SessionTemplate {

@@ -5,6 +5,7 @@ import type {
   ApiSessionsResponse,
   ApiSessionResponse,
   ApiSessionHistoryResponse,
+  ApiSessionSearchResponse,
   ApiGenericResponse,
   AdapterConfig,
   ApiConfigResponse,
@@ -292,6 +293,21 @@ export async function fetchSessionHistory(
 ): Promise<ApiSessionHistoryResponse> {
   const data = await request<ApiSessionHistoryResponse>(
     `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}`,
+    { signal },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function searchSessionHistory(
+  id: string,
+  query: string,
+  limit = 200,
+  signal?: AbortSignal,
+): Promise<ApiSessionSearchResponse> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const data = await request<ApiSessionSearchResponse>(
+    `${BASE}/sessions/${encodeURIComponent(id)}/search?${params.toString()}`,
     { signal },
   );
   if (data.error) throw new Error(data.error);
