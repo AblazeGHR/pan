@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import errno
 import functools
 import hashlib
+import hmac
 import inspect
 import json
 import math
@@ -5356,7 +5358,127 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     }
 
 
-def _history_search_request(query: str, session_id: str | None, limit: int) -> dict:
+_HISTORY_SEARCH_CURSOR_TTL_SECONDS = 15 * 60
+_HISTORY_SEARCH_CURSOR_MAX_LENGTH = 2048
+_HISTORY_SEARCH_CURSOR_MAX_POSITION = 2_147_483_647
+
+
+class _HistorySearchSnapshotChanged(RuntimeError):
+    """The Session registry or an in-scope history changed during a page."""
+
+
+def _history_search_cursor_error() -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={
+            "code": "history_search_cursor_expired",
+            "message": "Search results changed or the cursor is invalid or expired; start a new search.",
+        },
+    )
+
+
+def _history_search_query_fingerprint(query: str) -> str:
+    return hashlib.sha256(query.encode("utf-8")).hexdigest()
+
+
+def _history_search_versions_fingerprint(
+    versions: list[dict], session_order: list[str],
+) -> str:
+    snapshot = [
+        [
+            item["sessionId"], item["historyEpoch"],
+            int(item["historyRevision"]), int(item["historyTotal"]),
+        ]
+        for item in versions
+    ]
+    encoded = json.dumps(
+        {"sessionOrder": session_order, "versions": snapshot},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _encode_history_search_cursor(
+    *, query: str, session_id: str | None, limit: int, versions: list[dict],
+    session_order: list[str], after: tuple[int, int], key: bytes,
+) -> str:
+    payload = {
+        "v": 1,
+        "q": _history_search_query_fingerprint(query),
+        "s": session_id,
+        "l": limit,
+        "d": _history_search_versions_fingerprint(versions, session_order),
+        "a": [after[0], after[1]],
+        "t": int(time.time()),
+    }
+    raw = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+    body = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+    signature = hmac.new(
+        key, body.encode("ascii"), hashlib.sha256,
+    ).digest()
+    token = f"{body}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode('ascii')}"
+    if len(token) > _HISTORY_SEARCH_CURSOR_MAX_LENGTH:
+        raise RuntimeError("history search cursor exceeded its size bound")
+    return token
+
+
+def _decode_history_search_cursor(cursor: str) -> dict:
+    def decode_part(value: str) -> bytes:
+        if not value or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
+            raise ValueError("invalid base64")
+        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+    try:
+        if not isinstance(cursor, str) or len(cursor) > _HISTORY_SEARCH_CURSOR_MAX_LENGTH:
+            raise ValueError("cursor size")
+        body, signature = cursor.split(".", 1)
+        if len(signature) != 43:
+            raise ValueError("signature size")
+        raw_signature = decode_part(signature)
+        payload = json.loads(decode_part(body).decode("utf-8"))
+        if not isinstance(payload, dict) or set(payload) != {"v", "q", "s", "l", "d", "a", "t"}:
+            raise ValueError("shape")
+        if type(payload["v"]) is not int or payload["v"] != 1:
+            raise ValueError("version")
+        if any(
+            not isinstance(payload[key], str)
+            or re.fullmatch(r"[0-9a-f]{64}", payload[key]) is None
+            for key in ("q", "d")
+        ):
+            raise ValueError("fingerprint")
+        if payload["s"] is not None and (
+            not isinstance(payload["s"], str) or not payload["s"]
+            or len(payload["s"]) > 256
+        ):
+            raise ValueError("scope")
+        if type(payload["l"]) is not int or not 1 <= payload["l"] <= history_search_index.MAX_HISTORY_SEARCH_LIMIT:
+            raise ValueError("limit")
+        after = payload["a"]
+        if (
+            not isinstance(after, list) or len(after) != 2
+            or any(
+                type(value) is not int or value < 0
+                or value > _HISTORY_SEARCH_CURSOR_MAX_POSITION
+                for value in after
+            )
+        ):
+            raise ValueError("position")
+        if type(payload["t"]) is not int:
+            raise ValueError("timestamp")
+        now = int(time.time())
+        if payload["t"] > now + 30 or now - payload["t"] > _HISTORY_SEARCH_CURSOR_TTL_SECONDS:
+            raise ValueError("expired")
+        return {"payload": payload, "body": body, "signature": raw_signature}
+    except (ValueError, TypeError, UnicodeError, json.JSONDecodeError, RecursionError):
+        raise _history_search_cursor_error() from None
+
+
+def _history_search_request(
+    query: str, session_id: str | None, limit: int,
+    after: tuple[int, int] | None = None,
+    cursor_auth: tuple[str, bytes] | None = None,
+) -> dict:
     """Run one lazy index/search operation against the current Session registry."""
     sessions = sess.list_all(load_history=False)
     live_ids = [session.id for session in sessions]
@@ -5373,14 +5495,48 @@ def _history_search_request(query: str, session_id: str | None, limit: int) -> d
         live_ids,
         query,
         limit=limit,
+        after=after,
+        cursor_auth=cursor_auth,
         load_session=_load_history_search_snapshot,
     )
 
     # A Session may be deleted while the index is loading/rebuilding. Recheck
     # the authoritative registry before exposing any cached result.
-    remaining_ids = {session.id for session in sess.list_all(load_history=False)}
+    remaining_sessions = sess.list_all(load_history=False)
+    initial_registry_ids = [session.id for session in sessions]
+    remaining_registry_ids = [session.id for session in remaining_sessions]
+    remaining_ids = {session.id for session in remaining_sessions}
     if session_id is not None and session_id not in remaining_ids:
         return {"error": "Session not found"}
+    original_scope_ids = [session.id for session in scoped_sessions]
+    remaining_scope_ids = [
+        session.id for session in remaining_sessions
+        if session_id is None or session.id == session_id
+    ]
+    if (
+        original_scope_ids != remaining_scope_ids
+        or initial_registry_ids != remaining_registry_ids
+    ):
+        raise _HistorySearchSnapshotChanged("Session registry changed during search")
+    versions_by_session = {
+        version["sessionId"]: version for version in result["versions"]
+    }
+    for session in remaining_sessions:
+        if session_id is not None and session.id != session_id:
+            continue
+        indexed = versions_by_session.get(session.id)
+        if indexed is None:
+            raise _HistorySearchSnapshotChanged("Session index changed during search")
+        epoch, revision, _history_loaded, history_total = history_search_index.session_version(session)
+        if (
+            indexed["historyEpoch"] != epoch
+            or indexed["historyRevision"] != revision
+            or (
+                history_total is not None
+                and indexed["historyTotal"] != history_total
+            )
+        ):
+            raise _HistorySearchSnapshotChanged("Session history changed during search")
     result["hits"] = [
         hit for hit in result["hits"] if hit["sessionId"] in remaining_ids
     ]
@@ -5388,6 +5544,7 @@ def _history_search_request(query: str, session_id: str | None, limit: int) -> d
         version for version in result["versions"]
         if version["sessionId"] in remaining_ids
     ]
+    result["sessionOrder"] = remaining_registry_ids
     return result
 
 
@@ -5418,16 +5575,40 @@ async def api_history_search(
     q: str = "",
     sessionId: str | None = None,
     limit: int = history_search_index.DEFAULT_HISTORY_SEARCH_LIMIT,
+    cursor: str | None = None,
 ):
     """Search indexed user/assistant bodies in one Session or across Sessions.
 
     The independent SQLite index is created only for a non-empty search
     request; canonical Session history remains the source for every rebuild.
+    A nextCursor continues the same trimmed query, scope, and bounded limit.
+    It expires after 15 minutes or when the ordered Session registry or any
+    in-scope history version changes; callers should then start a new search.
     """
     query = q.strip()
     bounded = history_search_index.bounded_limit(limit)
+    decoded_cursor = _decode_history_search_cursor(cursor) if cursor is not None else None
+    cursor_data = decoded_cursor["payload"] if decoded_cursor is not None else None
+    cursor_auth = (
+        (decoded_cursor["body"], decoded_cursor["signature"])
+        if decoded_cursor is not None else None
+    )
+    after = None
+    if cursor_data is not None:
+        if (
+            cursor_data["q"] != _history_search_query_fingerprint(query)
+            or cursor_data["s"] != sessionId
+            or cursor_data["l"] != bounded
+        ):
+            raise _history_search_cursor_error()
+        after = (cursor_data["a"][0], cursor_data["a"][1])
     if not query:
-        return {"hits": [], "versions": [], "limit": bounded, "hasMore": False}
+        if cursor_data is not None:
+            raise _history_search_cursor_error()
+        return {
+            "hits": [], "versions": [], "limit": bounded,
+            "hasMore": False, "nextCursor": None,
+        }
     if len(query) > history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH:
         raise HTTPException(
             status_code=422,
@@ -5438,15 +5619,56 @@ async def api_history_search(
         )
     try:
         result = await _store_read(
-            _history_search_request, query, sessionId, bounded,
+            _history_search_request, query, sessionId, bounded, after, cursor_auth,
         )
+    except _HistorySearchSnapshotChanged:
+        if cursor_data is not None:
+            raise _history_search_cursor_error() from None
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "history_search_snapshot_changed",
+                "message": "The Session list changed during search; start a new search.",
+            },
+        ) from None
     except history_search_index.HistorySearchError as exc:
         raise HTTPException(
             status_code=503,
             detail={"code": "history_search_unavailable", "message": str(exc)},
         ) from exc
+    except history_search_index.HistorySearchCursorError:
+        raise _history_search_cursor_error() from None
     if result.get("error"):
+        if cursor_data is not None:
+            raise _history_search_cursor_error()
         return result
+    session_order = result.pop("sessionOrder", [])
+    if cursor_data is not None and not hmac.compare_digest(
+        cursor_data["d"],
+        _history_search_versions_fingerprint(result["versions"], session_order),
+    ):
+        raise _history_search_cursor_error()
+    next_after = result.pop("nextAfter", None)
+    cursor_key = result.pop("_cursorKey")
+    result["nextCursor"] = None
+    if result.get("hasMore"):
+        if next_after is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "history_search_unavailable",
+                    "message": "Search index could not create a continuation cursor.",
+                },
+            )
+        result["nextCursor"] = _encode_history_search_cursor(
+            query=query,
+            session_id=sessionId,
+            limit=bounded,
+            versions=result["versions"],
+            session_order=session_order,
+            after=next_after,
+            key=cursor_key,
+        )
     return result
 
 

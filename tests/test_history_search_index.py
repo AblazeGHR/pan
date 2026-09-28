@@ -23,13 +23,14 @@ def _session(session_id, history, *, epoch="epoch-a", revision=1):
     )
 
 
-def _search(path, sessions, query, *, limit=50, live_ids=None):
+def _search(path, sessions, query, *, limit=50, live_ids=None, after=None):
     return search_history(
         path,
         sessions,
         [session.id for session in sessions] if live_ids is None else live_ids,
         query,
         limit=limit,
+        after=after,
         load_session=lambda _session_id: None,
     )
 
@@ -128,6 +129,25 @@ def test_incremental_revision_and_epoch_replace_rows_without_duplicate_ids(tmp_p
     assert reimported["hits"][0]["historyRevision"] == 3
 
 
+def test_new_epoch_replaces_even_when_its_revision_is_lower(tmp_path):
+    message_id = _pan_id(12)
+    session = _session("s-epoch-reset", [
+        {"role": "user", "content": "old epoch phrase", "messageId": message_id},
+    ], epoch="epoch-old", revision=90)
+    path = tmp_path / "search.sqlite3"
+    assert len(_search(path, [session], "old epoch")["hits"]) == 1
+
+    session.history[0]["content"] = "new epoch phrase"
+    session.history_epoch = "epoch-new"
+    session.history_revision = 1
+    replaced = _search(path, [session], "new epoch")
+
+    assert [hit["messageId"] for hit in replaced["hits"]] == [message_id]
+    assert replaced["hits"][0]["historyEpoch"] == "epoch-new"
+    assert replaced["hits"][0]["historyRevision"] == 1
+    assert _search(path, [session], "old epoch")["hits"] == []
+
+
 def test_missing_index_file_rebuilds_and_deleted_sessions_are_pruned(tmp_path):
     path = tmp_path / "search.sqlite3"
     session = _session("s-rebuild", [
@@ -171,6 +191,59 @@ def test_result_limit_is_bounded_and_global_order_is_scope_then_history(tmp_path
     assert [(hit["sessionId"], hit["messageIndex"]) for hit in capped["hits"]] == [
         ("s-first", 0), ("s-first", 1), ("s-second", 0),
     ]
+
+
+def test_keyset_pages_cover_more_than_one_hundred_hits_without_duplicates(tmp_path):
+    history = [
+        {
+            "role": "user" if index % 2 == 0 else "assistant",
+            "content": f"PageNeedle {index}; pageneedle repeated",
+            "messageId": _pan_id(index + 1),
+        }
+        for index in range(237)
+    ]
+    session = _session("s-many-pages", history)
+    path = tmp_path / "search.sqlite3"
+
+    first = _search(path, [session], "PageNeedle", limit=73)
+    pages = [first]
+    while pages[-1]["hasMore"]:
+        previous = pages[-1]
+        last = previous["hits"][-1]
+        after = (0, last["messageIndex"])
+        pages.append(_search(
+            path, [session], "PageNeedle", limit=73, after=after,
+        ))
+
+    hits = [hit for page in pages for hit in page["hits"]]
+    assert [hit["messageIndex"] for hit in hits] == list(range(237))
+    assert [hit["messageId"] for hit in hits] == [
+        _pan_id(index + 1) for index in range(237)
+    ]
+    assert [len(page["hits"]) for page in pages] == [73, 73, 73, 18]
+    assert len({hit["messageId"] for hit in hits}) == 237
+    assert pages[-1]["hasMore"] is False
+
+
+def test_total_change_reindexes_even_when_epoch_and_revision_are_unchanged(tmp_path):
+    session = _session("s-total-change", [
+        {"role": "user", "content": "total needle", "messageId": _pan_id(1)},
+        {"role": "assistant", "content": "total needle", "messageId": _pan_id(2)},
+    ])
+    path = tmp_path / "search.sqlite3"
+    initial = _search(path, [session], "needle")
+    assert initial["versions"][0]["historyTotal"] == 2
+
+    session.history.append({
+        "role": "user", "content": "total needle", "messageId": _pan_id(3),
+    })
+    session.summary_projection["history_total"] = 3
+    changed = _search(path, [session], "needle")
+
+    assert len(changed["hits"]) == 3
+    assert changed["versions"][0]["historyEpoch"] == "epoch-a"
+    assert changed["versions"][0]["historyRevision"] == 1
+    assert changed["versions"][0]["historyTotal"] == 3
 
 
 def test_parallel_search_requests_do_not_duplicate_or_lose_a_message(tmp_path):
