@@ -1,19 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { forwardRef, type ReactNode } from 'react';
 import ChatView from './ChatView';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
-import { fetchSessionHistory } from '@/services/api';
+import { fetchHistorySearch, fetchSessionHistory } from '@/services/api';
 import type { Message } from '@/types';
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
+const mockedGlobalHistorySearch = vi.hoisted(() => vi.fn());
 
-vi.mock('@/services/api', () => ({
+vi.mock('@/services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/api')>()),
   fetchSessionHistory: vi.fn(),
+  fetchHistorySearch: mockedGlobalHistorySearch,
 }));
 
 // Keep the topbar action visible to the tests while leaving unrelated layout
@@ -45,6 +48,7 @@ vi.mock('@/hooks/useMediaQuery', () => ({
 }));
 
 const mockedHistory = vi.mocked(fetchSessionHistory);
+const mockedGlobalSearch = vi.mocked(fetchHistorySearch);
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
 const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.tsx'), 'utf8');
 const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\r\n/g, '\n');
@@ -52,6 +56,10 @@ const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), '
 beforeEach(() => {
   viewport.isMobile = false;
   mockedHistory.mockReset();
+  mockedGlobalSearch.mockReset();
+  mockedGlobalSearch.mockResolvedValue({
+    hits: [], versions: [], limit: 50, hasMore: false, nextCursor: null,
+  });
   mockedHistory.mockResolvedValue({
     history: [USER_MESSAGE],
     total: 1,
@@ -93,9 +101,11 @@ describe('ChatView: message navigation rail switch', () => {
     fireEvent(window, shortcut);
 
     expect(container.querySelector('[data-testid="session-history-search"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-history-search"]')).toBeNull();
     expect(keydownListeners).toHaveLength(0);
     expect(shortcut.defaultPrevented).toBe(false);
     expect(mockedHistory).not.toHaveBeenCalled();
+    expect(mockedGlobalSearch).not.toHaveBeenCalled();
     addListener.mockRestore();
   });
 
@@ -107,6 +117,12 @@ describe('ChatView: message navigation rail switch', () => {
     expect(chatViewSource).not.toMatch(
       /^\s*import\s+(?!\s*\()[\s\S]*?\s+from\s*['"]@\/components\/chat\/SessionHistorySearch['"]/m,
     );
+    expect(chatViewSource).toMatch(
+      /lazy\(\s*\(\s*\)\s*=>\s*import\(\s*['"]@\/components\/chat\/GlobalHistorySearch['"]\s*\)/s,
+    );
+    expect(chatViewSource).not.toMatch(
+      /^\s*import\s+(?!\s*\()[\s\S]*?\s+from\s*['"]@\/components\/chat\/GlobalHistorySearch['"]/m,
+    );
 
     const searchStyles = chatStylesSource.slice(
       chatStylesSource.indexOf('.session-history-search {'),
@@ -117,9 +133,12 @@ describe('ChatView: message navigation rail switch', () => {
     expect(searchStyles).toContain('width: min(430px, calc(100% - 104px));');
     expect(searchStyles).toContain('justify-content: flex-end;');
     expect(searchStyles).toContain('.session-history-search__popup {');
+    expect(searchStyles).toContain('.global-history-search__popup {');
+    expect(searchStyles).toContain('max-height: calc(100% - 16px);');
     expect(searchStyles).toContain('width: 100%;');
     expect(searchStyles).not.toContain('100vw');
     expect(chatStylesSource).toContain('right: 58px;\n    width: min(430px, calc(100% - 72px));');
+    expect(chatStylesSource).toContain('right: 96px;\n    width: min(560px, calc(100% - 112px));');
   });
 
   it('mounts a mobile search control below the Session title and opens it with Ctrl+F', async () => {
@@ -149,6 +168,26 @@ describe('ChatView: message navigation rail switch', () => {
     const search = await findByTestId('session-history-search');
     expect(search.getAttribute('data-layout'))
       .toBe('desktop-chat-top-right');
+  });
+
+  it('keeps global search distinct, mutually exclusive, and idle until a non-empty query', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { findByTestId, getByRole, queryByTestId } = render(<ChatView />);
+    const global = await findByTestId('global-history-search');
+    expect(global.getAttribute('data-layout')).toBe('desktop-chat-top-right');
+    expect(mockedGlobalSearch).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole('button', { name: 'Search all Session history' }));
+    const input = await findByTestId('global-history-search-input');
+    expect(queryByTestId('session-history-search-input')).toBeNull();
+    expect(mockedGlobalSearch).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: 'across sessions' } });
+    await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalledTimes(1));
+    expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal));
+
+    fireEvent.click(getByRole('button', { name: 'Search Session history' }));
+    expect(queryByTestId('global-history-search-input')).toBeNull();
+    expect(await findByTestId('session-history-search-input')).not.toBeNull();
   });
 
   it('shows a folded desktop handle when enabled and indexes only after hover expansion', async () => {

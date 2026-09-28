@@ -5,6 +5,7 @@ import type {
   ApiSessionsResponse,
   ApiSessionResponse,
   ApiSessionHistoryResponse,
+  ApiHistorySearchResponse,
   ApiGenericResponse,
   AdapterConfig,
   ApiConfigResponse,
@@ -84,6 +85,16 @@ import type {
 
 const BASE = '/api';
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
 export interface DirectoryEntry {
   name: string;
   path: string;
@@ -136,7 +147,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
       // Some error responses are empty or not JSON; retain the HTTP status below.
     }
     const status = res.statusText ? `HTTP ${res.status}: ${res.statusText}` : `HTTP ${res.status}`;
-    throw new Error(detail ? `${status}: ${detail}` : status);
+    throw new ApiRequestError(res.status, detail ? `${status}: ${detail}` : status);
   }
   return res.json() as Promise<T>;
 }
@@ -282,6 +293,20 @@ export async function fetchSessionHistory(
   );
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+export async function fetchHistorySearch(
+  query: string,
+  limit = 50,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<ApiHistorySearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(Math.min(100, Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 50)))),
+  });
+  if (cursor) params.set('cursor', cursor);
+  return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });
 }
 
 export interface CreateSessionSettings {

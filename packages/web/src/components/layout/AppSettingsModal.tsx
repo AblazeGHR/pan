@@ -1057,15 +1057,15 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Enable search in this Session"
-                    hint="Search user and assistant messages in the current Session history."
+                  label="Enable Session and global history search"
+                  hint="Search the current Session or search messages across all Sessions."
                     checked={showHistorySearch}
                     onChange={setShowHistorySearch}
                   />
                 </div>
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default. History is scanned only when you open search and enter a query.
-                  New persisted message IDs are required for stable results.
+                  Off by default. Search starts only after you enter a query. Results use stable
+                  message IDs for navigation; older history without IDs may not appear.
                 </p>
               </section>
             </>

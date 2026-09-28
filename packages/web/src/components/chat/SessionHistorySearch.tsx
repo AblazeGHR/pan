@@ -15,6 +15,8 @@ import {
 interface SessionHistorySearchProps {
   chatRef: RefObject<ChatMessagesHandle | null>;
   isMobile: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onHighlightMessage: (messageId: string | null) => void;
 }
 
@@ -58,7 +60,13 @@ function nextPaint(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
-export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: SessionHistorySearchProps) {
+export function SessionHistorySearch({
+  chatRef,
+  isMobile,
+  isOpen,
+  onOpenChange,
+  onHighlightMessage,
+}: SessionHistorySearchProps) {
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
   const summaryTotal = useSessionStore((state) => {
     const session = state.sessions.find((candidate) => candidate.id === state.currentSessionId);
@@ -70,7 +78,8 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
   const summaryRevision = useSessionStore((state) =>
     state.sessions.find((candidate) => candidate.id === state.currentSessionId)?.historyRevision,
   );
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = isOpen ?? uncontrolledOpen;
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SearchState>({ status: 'idle', scan: null });
   const [activeIndex, setActiveIndex] = useState(0);
@@ -79,6 +88,11 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
   const popupRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
   const jumpAbortRef = useRef<AbortController | null>(null);
+
+  const setOpen = useCallback((nextOpen: boolean) => {
+    if (isOpen === undefined) setUncontrolledOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  }, [isOpen, onOpenChange]);
 
   const stopJump = useCallback(() => {
     generationRef.current += 1;
@@ -92,7 +106,7 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
     setOpen(false);
     setSearch({ status: 'idle', scan: null });
     onHighlightMessage(null);
-  }, [onHighlightMessage, stopJump]);
+  }, [onHighlightMessage, setOpen, stopJump]);
 
   useEffect(() => {
     const handleShortcut = (event: globalThis.KeyboardEvent) => {
@@ -110,7 +124,7 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
     };
     window.addEventListener('keydown', handleShortcut);
     return () => window.removeEventListener('keydown', handleShortcut);
-  }, [closeSearch, open]);
+  }, [closeSearch, open, setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +136,7 @@ export function SessionHistorySearch({ chatRef, isMobile, onHighlightMessage }: 
     if (!open || !currentSessionId || !query.trim()) {
       setSearch({ status: 'idle', scan: null });
       setActiveIndex(0);
+      setNavigating(false);
       onHighlightMessage(null);
       return;
     }

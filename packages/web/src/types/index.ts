@@ -541,6 +541,32 @@ export interface ApiSessionHistoryResponse {
   error?: string;
 }
 
+export interface ApiHistorySearchVersion {
+  sessionId: string;
+  historyEpoch: string;
+  historyRevision: number;
+  historyTotal: number;
+}
+
+export interface ApiHistorySearchHit {
+  sessionId: string;
+  messageId: string;
+  messageIndex: number;
+  role: 'user' | 'assistant';
+  snippet: string;
+  historyEpoch: string;
+  historyRevision: number;
+  historyTotal: number;
+}
+
+export interface ApiHistorySearchResponse {
+  hits: ApiHistorySearchHit[];
+  versions: ApiHistorySearchVersion[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
 // ── Session template types ──
 
 export interface SessionTemplate {
