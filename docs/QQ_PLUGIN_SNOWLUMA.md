@@ -17,6 +17,8 @@
 
 SnowLuma adapter 使用 OneBot v11 WebSocket；随仓库提供的示例地址是 `ws://127.0.0.1:3003`。在运行 Pan 的主机上安装并配置 SnowLuma，使它提供 Pan 可访问的 OneBot forward WebSocket。若 SnowLuma 要求 token，准备好它的 OneBot token。
 
+**Windows 前置条件：** 使用 Windows 原生 Hook 时，SnowLuma 与桌面 QQ 必须以同一个 Windows 用户、相同权限级别运行。若一方以管理员身份提升、另一方以普通权限运行，或两者属于不同用户，Hook 注入会失败。部署步骤见 [SnowLuma 官方 Windows 部署说明](https://snowluma.github.io/en/docs/guide/deploy/windows)。
+
 打开运行中的 `data/qq_plugins/manifest.json`，确认 `snowluma` 注册项的地址和启动信息符合你的安装：
 
 ```json

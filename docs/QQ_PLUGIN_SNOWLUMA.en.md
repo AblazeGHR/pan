@@ -17,6 +17,8 @@ If you do not use QQ, set `qq.enabled` to `false` in `config.json`. To use QQ, i
 
 The SnowLuma adapter uses a OneBot v11 WebSocket. Its shipped example URL is `ws://127.0.0.1:3003`. Install and configure SnowLuma on a host reachable from Pan, with a OneBot forward WebSocket endpoint. If SnowLuma requires a token, have its OneBot token ready.
 
+**Windows prerequisite:** For the native Windows hook, run SnowLuma and the desktop QQ client as the same Windows user and at the same privilege level. If they run under different users or with mismatched privileges—for example, one elevated as administrator and the other at normal privilege—the hook injection will fail. See [SnowLuma's official Windows deployment guide](https://snowluma.github.io/en/docs/guide/deploy/windows).
+
 Open `data/qq_plugins/manifest.json` for the running checkout and verify that the `snowluma` entry matches your installation:
 
 ```json
