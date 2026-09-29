@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createRef } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, act, fireEvent, cleanup, screen } from '@testing-library/react';
-import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
+import { ChatMessages, SCROLL_BOTTOM_THRESHOLD, type ChatMessagesHandle } from './ChatMessages';
 import { formatMessageTs, groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -709,6 +710,33 @@ describe('ChatMessages scroll positioning', () => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
     });
     expect(scrollEl.scrollTop).toBe(2600);
+  });
+
+  it('stops following the bottom after a history-result jump', () => {
+    const initial = msgs(5).map((message, index) => ({ ...message, messageId: `history-${index}` }));
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: initial });
+    m.setTotalSize(2000);
+    const ref = createRef<ChatMessagesHandle>();
+    const { container } = render(<ChatMessages ref={ref} />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    act(() => {
+      expect(ref.current?.scrollToMessage(initial[0]!, 0)).toBe(true);
+      // Model the programmatic scroll produced by the real virtualizer when it
+      // brings an older search result into view.
+      scrollEl.scrollTop = 0;
+      fireEvent.scroll(scrollEl);
+    });
+
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [...initial, { role: 'assistant', content: 'later history row', messageId: 'history-5' }],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(0);
   });
 
   it('keeps following through measurement scrolls, stream growth, final, result, and DONE', () => {
