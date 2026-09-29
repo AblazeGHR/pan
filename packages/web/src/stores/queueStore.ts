@@ -7,6 +7,7 @@ import {
   fetchSessionQueue,
   releaseSessionQueueItemEdit,
   reorderSessionQueue,
+  setSessionAgentReportsPaused,
   updateSessionQueueItem,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -32,6 +33,9 @@ interface QueueStore {
   agentQueues: Record<string, AgentQueueItem[]>;
   agentQueueLoadSeq: Record<string, number>;
   queueRevisions: Record<string, number>;
+  agentReportsPaused: Record<string, boolean>;
+  agentReportsPauseLoaded: Record<string, boolean>;
+  agentReportsPauseUpdating: Record<string, boolean>;
   /** Durable projection guards for late ACKs and delivery/remove events. */
   queueTombstones: Record<string, Set<string>>;
   queueDeliveredIds: Record<string, Set<string>>;
@@ -45,7 +49,9 @@ interface QueueStore {
     queueRevision?: number;
     item?: Record<string, unknown>;
     messages?: import('@/types').Message[];
+    agentReportsPaused?: boolean;
   }) => void;
+  setAgentReportsPaused: (sessionId: string, paused: boolean) => Promise<void>;
   enqueue: (
     text: string,
     parts?: MessagePart[],
@@ -176,9 +182,11 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
   const kind =
     rawKind === 'qq'
       ? 'qq'
-      : rawKind === 'report' || rawKind === 'notice' || rawKind === 'zombie'
-        ? 'report'
-        : 'task';
+      : rawKind === 'wechat'
+        ? 'wechat'
+        : rawKind === 'report' || rawKind === 'notice' || rawKind === 'zombie'
+          ? 'report'
+          : 'task';
   const text =
     typeof raw.text === 'string' ? raw.text : typeof raw.result === 'string' ? raw.result : '';
   const source =
@@ -186,9 +194,11 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
       ? raw.source
       : kind === 'qq'
         ? 'qq'
-        : kind === 'task'
-          ? 'user'
-          : 'report';
+        : kind === 'wechat'
+          ? 'wechat'
+          : kind === 'task'
+            ? 'user'
+            : 'report';
   const state = raw.dispatchState ?? raw.deliveryState ?? meta.dispatchState ?? 'queued';
   const revision = raw.revision ?? meta.revision ?? 1;
   const parts = Array.isArray(raw.parts) ? (raw.parts as AgentQueueItem['parts']) : undefined;
@@ -246,6 +256,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
   agentQueues: {},
   agentQueueLoadSeq: {},
   queueRevisions: {},
+  agentReportsPaused: {},
+  agentReportsPauseLoaded: {},
+  agentReportsPauseUpdating: {},
   queueTombstones: {},
   queueDeliveredIds: {},
 
@@ -282,11 +295,68 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           && items.queueRevision === currentRevision
           && currentRevision === revisionAtRequest;
         setSnapshot(set, sessionId, items, items.queueRevision, freshObservation);
+        if (items.agentReportsPaused !== undefined) {
+          set((state) => ({
+            agentReportsPaused: {
+              ...state.agentReportsPaused,
+              [sessionId]: items.agentReportsPaused!,
+            },
+            agentReportsPauseLoaded: {
+              ...state.agentReportsPauseLoaded,
+              [sessionId]: true,
+            },
+          }));
+        }
       } catch {
         // Preserve the last authoritative snapshot; reconnect/session switch retries.
       }
     })();
     await request;
+  },
+
+  setAgentReportsPaused: async (sessionId, paused) => {
+    set((state) => ({
+      agentReportsPauseUpdating: {
+        ...state.agentReportsPauseUpdating,
+        [sessionId]: true,
+      },
+    }));
+    try {
+      const items = await setSessionAgentReportsPaused(sessionId, paused);
+      const currentRevision = get().queueRevisions[sessionId];
+      if (items.queueRevision === undefined
+          || currentRevision === undefined
+          || items.queueRevision >= currentRevision) {
+        const accepted = setSnapshot(set, sessionId, items, items.queueRevision, true);
+        if (accepted && items.agentReportsPaused !== undefined) {
+          set((state) => ({
+            agentReportsPaused: {
+              ...state.agentReportsPaused,
+              [sessionId]: items.agentReportsPaused!,
+            },
+            agentReportsPauseLoaded: {
+              ...state.agentReportsPauseLoaded,
+              [sessionId]: true,
+            },
+          }));
+        }
+      }
+    } catch (error) {
+      useUIStore.getState().showToast(
+        `报告暂停状态更新失败：${error instanceof Error ? error.message : String(error)}`,
+        'error',
+      );
+      // The server may have committed before a connection failure. Reload the
+      // authoritative queue and pause state so this Session returns to truth.
+      await get().loadAgentQueue(sessionId);
+    } finally {
+      set((state) => ({
+        agentReportsPauseUpdating: {
+          ...state.agentReportsPauseUpdating,
+          [sessionId]: false,
+        },
+      }));
+    }
   },
 
   applyQueueEvent: (event) => {
@@ -371,6 +441,18 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     if (next !== current || event.queueRevision !== undefined) {
       const accepted = setSnapshot(set, sid, next, event.queueRevision);
       if (!accepted) return;
+      if (event.agentReportsPaused !== undefined) {
+        set((state) => ({
+          agentReportsPaused: {
+            ...state.agentReportsPaused,
+            [sid]: event.agentReportsPaused!,
+          },
+          agentReportsPauseLoaded: {
+            ...state.agentReportsPauseLoaded,
+            [sid]: true,
+          },
+        }));
+      }
       if (event.type === 'queue.item_updated' && event.item) {
         const item = normalizeQueueEventItem(event.item);
         if (item?.meta?.dispatchState === 'queued') {
@@ -402,10 +484,22 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         ? await enqueueSessionMessage(sid, text, messageId, parts)
         : await enqueueSessionMessage(sid, text, messageId);
       const current = get().queues[sid] ?? [];
-      const next = current.some((item) => queueIdMatches(item.id, result.item.id))
+      const next = result.items ?? (current.some((item) => queueIdMatches(item.id, result.item.id))
         ? current
-        : [...current, result.item];
+        : [...current, result.item]);
       const accepted = setSnapshot(set, sid, next, result.queueRevision);
+      if (result.agentReportsPaused !== undefined) {
+        set((state) => ({
+          agentReportsPaused: {
+            ...state.agentReportsPaused,
+            [sid]: result.agentReportsPaused!,
+          },
+          agentReportsPauseLoaded: {
+            ...state.agentReportsPauseLoaded,
+            [sid]: true,
+          },
+        }));
+      }
       // Re-check the same cached, Session-keyed runtime registry at the
       // append boundary.  This covers a non-running→running transition
       // during HTTP enqueue without another request or an async wait.
@@ -676,10 +770,19 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const queueTombstones = { ...state.queueTombstones };
       const queueDeliveredIds = { ...state.queueDeliveredIds };
       const queueRevisions = { ...state.queueRevisions };
+      const agentReportsPaused = { ...state.agentReportsPaused };
+      const agentReportsPauseLoaded = { ...state.agentReportsPauseLoaded };
+      const agentReportsPauseUpdating = { ...state.agentReportsPauseUpdating };
       delete queueTombstones[sessionId];
       delete queueDeliveredIds[sessionId];
       delete queueRevisions[sessionId];
-      return { queues, edits, agentQueues, queueTombstones, queueDeliveredIds, queueRevisions };
+      delete agentReportsPaused[sessionId];
+      delete agentReportsPauseLoaded[sessionId];
+      delete agentReportsPauseUpdating[sessionId];
+      return {
+        queues, edits, agentQueues, queueTombstones, queueDeliveredIds, queueRevisions,
+        agentReportsPaused, agentReportsPauseLoaded, agentReportsPauseUpdating,
+      };
     });
   },
 

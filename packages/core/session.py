@@ -1007,6 +1007,9 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    # Pause durable agent completion/error/zombie reports while allowing other
+    # queue sources to keep their normal delivery order.
+    agent_reports_paused: bool = False
     # Expiring browser edit leases keep a queued item at the same durable
     # position while preventing the Worker from handing it to the provider.
     queue_edit_locks: dict[str, dict] = field(default_factory=dict)
@@ -1090,6 +1093,7 @@ class Session:
                  qq_subscriptions=None,
                  wechat_subscriptions=None, notification_settings=None, *,
                  queue_edit_locks: dict[str, dict] | None = None,
+                 agent_reports_paused: bool = False,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
@@ -1164,6 +1168,7 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.agent_reports_paused = bool(agent_reports_paused)
         self.queue_edit_locks = {
             key: copy.deepcopy(value)
             for key, value in (queue_edit_locks or {}).items()
@@ -1414,6 +1419,7 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "agent_reports_paused": self.agent_reports_paused,
             "queue_edit_locks": self.queue_edit_locks,
             "queue_delivery_ledger": self.queue_delivery_ledger,
             "queue_idempotency_index": self.queue_idempotency_index,

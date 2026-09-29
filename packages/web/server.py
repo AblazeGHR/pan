@@ -6072,7 +6072,15 @@ def _session_queue_items(s) -> list[dict]:
         it for it in (s.queue_pending or [])
         if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED
     ]
-    source_items.sort(key=lambda it: (it.get("position", 10**9), str(it.get("createdAt", ""))))
+    if getattr(s, "agent_reports_paused", False):
+        # Match Worker selection from the durable list order: messages that
+        # remain sendable lead the view, while paused reports stay visible at
+        # the end in their own order.
+        sendable = [it for it in source_items if not worker._is_pauseable_agent_report(it)]
+        paused_reports = [it for it in source_items if worker._is_pauseable_agent_report(it)]
+        source_items = sendable + paused_reports
+    else:
+        source_items.sort(key=lambda it: (it.get("position", 10**9), str(it.get("createdAt", ""))))
     for it in source_items:
         si = _serialize_queue_item(it, s)
         if si is not None and si["id"] not in seen:
@@ -6087,12 +6095,17 @@ async def api_session_queue(session_id: str):
     s = _summary_session_get(session_id)
     if not s:
         return {"error": "Session not found"}
-    migrated = worker._migrate_queue_delivery_state(s)
-    migrated = worker._sync_queued_ledger(s) or migrated
-    if migrated:
-        await worker._save_receipt(s)
-    return {"items": _session_queue_items(s),
-            "queueRevision": getattr(s, "queue_revision", 0)}
+    async with worker.queue_lock(session_id):
+        migrated = worker._migrate_queue_delivery_state(s)
+        migrated = worker._sync_queued_ledger(s) or migrated
+        if migrated:
+            await worker._save_receipt(s)
+        items = _session_queue_items(s)
+        reports_paused = bool(getattr(s, "agent_reports_paused", False))
+        queue_revision = getattr(s, "queue_revision", 0)
+    return {"items": items,
+            "queueRevision": queue_revision,
+            "agentReportsPaused": reports_paused}
 
 
 @app.post("/api/sessions/{session_id}/queue")
@@ -6161,7 +6174,9 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     s = _summary_session_get(session_id)
     return {"ok": True,
             "item": _serialize_queue_item(result.get("item") or {}, s),
+            "items": _session_queue_items(s) if s else [],
             "queueRevision": getattr(s, "queue_revision", 0),
+            "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
             "duplicate": bool(result.get("duplicate"))}
 
 
@@ -6177,6 +6192,47 @@ def _queue_error(code: str, message: str, s=None) -> dict:
 async def api_session_queue_order_route(session_id: str, data: dict):
     """Route the static order path before the dynamic item-id path below."""
     return await api_session_queue_order(session_id, data)
+
+
+@app.patch("/api/sessions/{session_id}/queue/reports-paused")
+async def api_session_queue_reports_paused(session_id: str, data: dict):
+    """Persist the per-Session agent-report pause state and refresh delivery."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    paused = data.get("paused")
+    if not isinstance(paused, bool):
+        return {"ok": False, "error": "paused must be a boolean"}
+
+    async with worker.queue_lock(session_id):
+        previous_paused = bool(getattr(s, "agent_reports_paused", False))
+        previous_revision = getattr(s, "queue_revision", 0)
+        if paused != previous_paused:
+            s.agent_reports_paused = paused
+            s.queue_revision = previous_revision + 1
+            try:
+                await worker._save_receipt(s)
+            except Exception as exc:
+                s.agent_reports_paused = previous_paused
+                s.queue_revision = previous_revision
+                return {"ok": False, "error": f"Could not save report pause state: {exc}"}
+
+    queue_revision = getattr(s, "queue_revision", 0)
+    await worker._bcast({
+        "type": "queue.snapshot",
+        "sessionId": session_id,
+        "queueRevision": queue_revision,
+        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+    })
+    # A pause can expose a later task/channel item; a resume can expose reports.
+    # Recovery is pause-aware and will not spawn for a paused-only backlog.
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {
+        "ok": True,
+        "items": _session_queue_items(s),
+        "queueRevision": queue_revision,
+        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+    }
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/edit")

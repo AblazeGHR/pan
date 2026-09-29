@@ -1935,16 +1935,24 @@ async def _legacy_consumer_reference(w: Worker):
 
 
 def _select_queue_unit(s) -> list[dict] | None:
-    """Select exactly the FIFO head, batching only contiguous reports."""
+    """Select the next sendable FIFO item, batching contiguous report units.
+
+    While agent reports are paused they remain in queue_pending but are
+    transparent to later queue sources. Other item order is unchanged.
+    """
     pending = list(s.queue_pending or [])
     for index, item in enumerate(pending):
         kind = _queue_item_kind(item)
         if kind is None:
             # A malformed/unknown row is durable data, so never skip over it.
             return None
-        if not _is_dispatchable(item):
+        if _delivery_state(item) != _DELIVERY_QUEUED:
             # reserved/writing/sent rows belong to the current/recovering
             # hand-off.  They must not let a later item overtake them.
+            return None
+        if _agent_report_is_paused(s, item):
+            continue
+        if not _retry_due(item):
             return None
         if queue_item_edit_locked(s, _queue_item_id(item)):
             # Keep FIFO ordering while the browser owns this item's edit
@@ -1954,6 +1962,10 @@ def _select_queue_unit(s) -> list[dict] | None:
             return [item]
         unit = [item]
         for follower in pending[index + 1:]:
+            if _agent_report_is_paused(s, follower):
+                # Retain the existing batch boundary. A later selector pass
+                # will pass the paused report and reach following queue items.
+                break
             if (_queue_item_kind(follower) not in {"report", "qq", "wechat"}
                     or not _is_dispatchable(follower)):
                 break
@@ -1991,6 +2003,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
         for item in items:
             if (not any(existing is item for existing in s.queue_pending)
                     or not _is_dispatchable(item)
+                    or _agent_report_is_paused(s, item)
                     or queue_item_edit_locked(s, _queue_item_id(item))):
                 return False
 
@@ -2261,8 +2274,7 @@ def _wake_after_queue_unit(w: Worker, s) -> None:
     """Re-arm one generic wakeup without making signals the queue."""
     if s is None:
         return
-    if any(isinstance(item, dict) and _is_dispatchable(item)
-           for item in (s.queue_pending or [])):
+    if _has_sendable_queued_items(s):
         if w.pending_signal is not None:
             w.pending_signal.put_nowait({"type": "queue_signal"})
     else:
@@ -2663,6 +2675,51 @@ def _queue_item_kind(item: dict) -> str | None:
     if "result" in item:
         return "report"
     return None
+
+
+def _is_pauseable_agent_report(item) -> bool:
+    """Only classify durable child-agent reports as pausable reports.
+
+    Explicit notice and channel types retain their own delivery behavior. The
+    source check also recognizes legacy report envelopes without a type.
+    """
+    if not isinstance(item, dict):
+        return False
+    item_type = item.get("type")
+    if item_type in {"notice", "qq", "wechat"}:
+        return False
+    if item_type in {"report", "zombie"}:
+        return item.get("source") in {None, "report"}
+    return item_type is None and item.get("source") == "report" and "result" in item
+
+
+def _agent_report_is_paused(s, item) -> bool:
+    return bool(getattr(s, "agent_reports_paused", False)) and _is_pauseable_agent_report(item)
+
+
+def _only_paused_agent_reports(s) -> bool:
+    """Whether automatic recovery has no work except queued paused reports."""
+    pending = list(getattr(s, "queue_pending", None) or []) if s is not None else []
+    return bool(pending) and all(
+        isinstance(item, dict)
+        and _delivery_state(item) == _DELIVERY_QUEUED
+        and _is_pauseable_agent_report(item)
+        for item in pending
+    ) and bool(getattr(s, "agent_reports_paused", False))
+
+
+def _has_sendable_queued_items(s) -> bool:
+    """Whether an immediate queue wake can select a non-paused item."""
+    if s is None:
+        return False
+    return any(
+        isinstance(item, dict)
+        and _queue_item_kind(item) is not None
+        and _delivery_state(item) == _DELIVERY_QUEUED
+        and _retry_due(item)
+        and not _agent_report_is_paused(s, item)
+        for item in (s.queue_pending or [])
+    )
 
 
 def _serialize_for_cli(adapter, text: str) -> bytes:
@@ -3245,6 +3302,7 @@ def _has_dispatchable_items(s) -> bool:
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
         and _delivery_state(item) == _DELIVERY_QUEUED
+        and not _agent_report_is_paused(s, item)
         for item in (s.queue_pending or [])
     ):
         return True
@@ -3957,14 +4015,16 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     item["queueItemId"] = item["id"]
     if report_type is not None:
         item["type"] = report_type
-    item["position"] = len(manager.queue_pending)
-    manager.queue_pending.append(item)
-    _remember_queue_item(manager, item, _DELIVERY_QUEUED)
-    manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
-    await _save_receipt(manager)
+    async with queue_lock(manager.id):
+        item["position"] = len(manager.queue_pending)
+        manager.queue_pending.append(item)
+        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+        manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
+        queue_revision = manager.queue_revision
+        await _save_receipt(manager)
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
-                  "queueRevision": manager.queue_revision,
+                  "queueRevision": queue_revision,
                   "item": dict(item)})
 
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
@@ -3986,10 +4046,15 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
-        mw.last_activity = time.monotonic()
-        await mw.pending_signal.put({"type": "queue_signal"})
+        if _has_sendable_queued_items(_get_session_shallow(session_id)):
+            mw.last_activity = time.monotonic()
+            await mw.pending_signal.put({"type": "queue_signal"})
+        else:
+            _schedule_queue_retry(session_id)
     elif not mw or mw.status not in {"held", "restarting"}:
         session = _get_session_shallow(session_id)
+        if _only_paused_agent_reports(session):
+            return
         if auto_spawn and (session is None or not session.queue_pending):
             # Legacy callers use auto_spawn to materialize an idle worker even
             # before the first item exists; retain that contract synchronously.
@@ -4069,14 +4134,16 @@ async def enqueue_channel_reminder(
         # one dict across sessions would let one worker's in-flight transition
         # suppress delivery to every other subscriber.
         subscriber_item = dict(item)
-        subscriber_item["position"] = len(s.queue_pending)
-        s.queue_pending.append(subscriber_item)
-        _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
-        s.queue_revision = getattr(s, "queue_revision", 0) + 1
-        await _save_receipt(s)
+        async with queue_lock(s.id):
+            subscriber_item["position"] = len(s.queue_pending)
+            s.queue_pending.append(subscriber_item)
+            _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
+            s.queue_revision = getattr(s, "queue_revision", 0) + 1
+            queue_revision = s.queue_revision
+            await _save_receipt(s)
         await _bcast({"type": "queue.item_added", "sessionId": s.id,
                       "queueItemId": subscriber_item["id"],
-                      "queueRevision": s.queue_revision,
+                      "queueRevision": queue_revision,
                       "item": dict(subscriber_item)})
         await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
@@ -4201,14 +4268,16 @@ async def enqueue_notice(target_session_id: str, text: str,
         list(target_session_ids) if target_session_ids is not None
         else [target_session_id]
     )
-    item["position"] = len(target.queue_pending)
-    target.queue_pending.append(item)
-    _remember_queue_item(target, item, _DELIVERY_QUEUED)
-    target.queue_revision = getattr(target, "queue_revision", 0) + 1
-    await _save_receipt(target)
+    async with queue_lock(target.id):
+        item["position"] = len(target.queue_pending)
+        target.queue_pending.append(item)
+        _remember_queue_item(target, item, _DELIVERY_QUEUED)
+        target.queue_revision = getattr(target, "queue_revision", 0) + 1
+        queue_revision = target.queue_revision
+        await _save_receipt(target)
     await _bcast({"type": "queue.item_added", "sessionId": target.id,
                   "queueItemId": item["id"],
-                  "queueRevision": target.queue_revision,
+                  "queueRevision": queue_revision,
                   "item": dict(item)})
     _log.info("[Session %s] queued notice source=%s sourceSessionId=%s",
               target_session_id, source_type, source_sid)
@@ -4383,6 +4452,11 @@ async def _recover_session(session_id: str, *, force: bool = False) -> None:
     if not s:
         _recovery_required.discard(session_id)
         return
+    if _only_paused_agent_reports(s):
+        # A forced recovery requested by an abnormal exit still must not
+        # launch a provider solely to wait on a paused report backlog.
+        _recovery_required.discard(session_id)
+        return
     if not force and not _has_dispatchable_items(s) and session_id not in _recovery_required:
         return
     current = find_worker_by_session(session_id)
@@ -4482,6 +4556,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
         and _delivery_state(item) == _DELIVERY_QUEUED
+        and not _agent_report_is_paused(session, item)
         and isinstance(item.get("nextAttemptAt"), (int, float))
         and item.get("nextAttemptAt") > time.time()
         for item in (session.queue_pending or [])
@@ -4508,14 +4583,16 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
                 if isinstance(item, dict)
                 and _queue_item_kind(item) is not None
                 and _delivery_state(item) == _DELIVERY_QUEUED
+                and not _agent_report_is_paused(s, item)
                 and isinstance(item.get("nextAttemptAt"), (int, float))
                 and item.get("nextAttemptAt") > time.time()
             ]
             if not future_times:
                 worker = find_alive_worker_by_session(session_id)
-                if worker and worker.pending_signal is not None:
+                if (worker and worker.pending_signal is not None
+                        and _has_sendable_queued_items(s)):
                     worker.pending_signal.put_nowait({"type": "queue_signal"})
-                elif _has_dispatchable_items(s):
+                elif worker is None and _has_dispatchable_items(s):
                     _schedule_session_recovery(session_id)
                 return
             delay = max(0.0, min(future_times) - time.time())
@@ -5091,6 +5168,7 @@ def _recover_pending_signals(w: Worker, s) -> bool:
         return migrated
     if any(isinstance(item, dict) and _queue_item_kind(item) is not None
            and _delivery_state(item) == _DELIVERY_QUEUED
+           and not _agent_report_is_paused(s, item)
            for item in pending):
         w.pending_signal.put_nowait({"type": "queue_signal"})
     _schedule_queue_retry(s.id)
@@ -6537,10 +6615,11 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     # 任务 item 持久化到 session.queue_pending（落盘真源）；pending_signal
     # 只放无正文 queue_signal，consumer 每次只看 FIFO 队首。worker 死亡/回收
     # 后由 create_worker / 全局 watchdog 自动恢复消费。
-    item, persist_error = await _persist_task_item(
-        s, text, source, seq, task_id, client_message_id, source_sid,
-        idempotent_task_id=idempotent_task_id,
-        activate_task=idempotent_task_id and task_id is not None)
+    async with queue_lock(s.id):
+        item, persist_error = await _persist_task_item(
+            s, text, source, seq, task_id, client_message_id, source_sid,
+            idempotent_task_id=idempotent_task_id,
+            activate_task=idempotent_task_id and task_id is not None)
     if persist_error:
         return persist_error
     if item is None:
@@ -6749,10 +6828,11 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         s = _get_session_shallow(session_id)
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
-        item, persist_error = await _persist_task_item(
-            s, text, source_type, None, inherited_task_id,
-            client_message_id, source_sid,
-            idempotent_task_id=False)
+        async with queue_lock(session_id):
+            item, persist_error = await _persist_task_item(
+                s, text, source_type, None, inherited_task_id,
+                client_message_id, source_sid,
+                idempotent_task_id=False)
         if persist_error:
             return {"status": "error", "result": persist_error}
         # The queue write is the acknowledgement boundary.  Start recovery

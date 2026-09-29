@@ -482,12 +482,33 @@ export async function branchSession(id: string, name: string): Promise<Session> 
 
 // ── Agent queue (session.queue_pending, normalized) ──
 
-export async function fetchSessionQueue(sessionId: string): Promise<AgentQueueItem[] & { queueRevision?: number }> {
+export type SessionQueueItems = AgentQueueItem[] & {
+  queueRevision?: number;
+  agentReportsPaused?: boolean;
+};
+
+function attachQueueSnapshot(items: AgentQueueItem[], data: ApiSessionQueueResponse): SessionQueueItems {
+  Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
+  Object.defineProperty(items, 'agentReportsPaused', { value: data.agentReportsPaused, enumerable: false });
+  return items as SessionQueueItems;
+}
+
+export async function fetchSessionQueue(sessionId: string): Promise<SessionQueueItems> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue`);
   if (data.error) throw new Error(data.error);
-  const items = data.items || [];
-  Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
-  return items;
+  return attachQueueSnapshot(data.items || [], data);
+}
+
+export async function setSessionAgentReportsPaused(
+  sessionId: string,
+  paused: boolean,
+): Promise<SessionQueueItems> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/reports-paused`,
+    { method: 'PATCH', body: JSON.stringify({ paused }) },
+  );
+  if (data.ok === false || data.error) throw new Error(data.error || 'Could not update report pause state');
+  return attachQueueSnapshot(data.items || [], data);
 }
 
 export async function enqueueSessionMessage(
@@ -495,11 +516,19 @@ export async function enqueueSessionMessage(
   text: string,
   clientMessageId: string,
   parts?: MessagePart[],
-): Promise<{ item: AgentQueueItem; queueRevision?: number; duplicate?: boolean }> {
+): Promise<{
+  item: AgentQueueItem;
+  items?: AgentQueueItem[];
+  queueRevision?: number;
+  agentReportsPaused?: boolean;
+  duplicate?: boolean;
+}> {
   const data = await request<{
     ok?: boolean;
     item?: AgentQueueItem;
+    items?: AgentQueueItem[];
     queueRevision?: number;
+    agentReportsPaused?: boolean;
     duplicate?: boolean;
     error?: { message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue`, {
@@ -510,7 +539,13 @@ export async function enqueueSessionMessage(
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
     throw new Error(error || '消息尚未入队');
   }
-  return { item: data.item, queueRevision: data.queueRevision, duplicate: data.duplicate };
+  return {
+    item: data.item,
+    items: data.items,
+    queueRevision: data.queueRevision,
+    agentReportsPaused: data.agentReportsPaused,
+    duplicate: data.duplicate,
+  };
 }
 
 export async function updateSessionQueueItem(
@@ -623,15 +658,13 @@ export async function reorderSessionQueue(
   sessionId: string,
   order: string[],
   expectedQueueRevision?: number,
-): Promise<AgentQueueItem[] & { queueRevision?: number }> {
+): Promise<SessionQueueItems> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue/order`, {
     method: 'PATCH',
     body: JSON.stringify({ orderedIds: order, expectedQueueRevision }),
   });
   if (data.error) throw new Error(data.error);
-  const items = data.items || [];
-  Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
-  return items;
+  return attachQueueSnapshot(data.items || [], data);
 }
 
 /** Send a message to a session, queuing it server-side when no worker exists. */

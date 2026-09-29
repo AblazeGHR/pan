@@ -123,6 +123,7 @@ export const mockSessions: Session[] = loadSessions();
 // turning the demo into a second backend implementation.
 const mockQueues: Record<string, AgentQueueItem[]> = {};
 const mockQueueRevisions: Record<string, number> = {};
+const mockAgentReportsPaused: Record<string, boolean> = {};
 const mockQueueClientIds: Record<string, Map<string, string>> = {};
 let mockQueueSequence = 0;
 
@@ -148,17 +149,24 @@ function bumpQueueRevision(sessionId: string): number {
   return next;
 }
 
-function queueResponse(sessionId: string): { ok: true; items: AgentQueueItem[]; queueRevision: number } {
+function queueResponse(sessionId: string): {
+  ok: true;
+  items: AgentQueueItem[];
+  queueRevision: number;
+  agentReportsPaused: boolean;
+} {
   return {
     ok: true,
     items: queueForSession(sessionId).slice(),
     queueRevision: queueRevisionForSession(sessionId),
+    agentReportsPaused: mockAgentReportsPaused[sessionId] ?? false,
   };
 }
 
 function clearMockQueues(): void {
   for (const key of Object.keys(mockQueues)) delete mockQueues[key];
   for (const key of Object.keys(mockQueueRevisions)) delete mockQueueRevisions[key];
+  for (const key of Object.keys(mockAgentReportsPaused)) delete mockAgentReportsPaused[key];
   for (const key of Object.keys(mockQueueClientIds)) delete mockQueueClientIds[key];
   mockQueueSequence = 0;
 }
@@ -428,6 +436,19 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       ...item,
       meta: { ...item.meta, revision },
     }));
+    return queueResponse(sessionId);
+  }
+
+  const queueReportsPausedMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/reports-paused$/);
+  if (queueReportsPausedMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueReportsPausedMatch[1]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.paused !== 'boolean') return { ok: false, error: 'paused must be a boolean' };
+    if ((mockAgentReportsPaused[sessionId] ?? false) !== values.paused) {
+      mockAgentReportsPaused[sessionId] = values.paused;
+      bumpQueueRevision(sessionId);
+    }
     return queueResponse(sessionId);
   }
 

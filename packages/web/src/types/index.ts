@@ -376,6 +376,8 @@ export interface StreamEvent {
   resultCursors?: Record<string, number>;
   resultsAvailableFrom?: Record<string, number>;
   sessionId?: string;
+  queueRevision?: number;
+  agentReportsPaused?: boolean;
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */
   generation?: number;
@@ -1026,7 +1028,7 @@ export interface QueuedEdit {
 
 // ── Agent queue (backend session.queue_pending, normalized) ──
 
-export type AgentQueueKind = 'task' | 'report' | 'qq';
+export type AgentQueueKind = 'task' | 'report' | 'qq' | 'wechat';
 export type QueueDispatchState =
   | 'queued'
   | 'reserved'
@@ -1064,6 +1066,7 @@ export interface AgentQueueItem {
 export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
   queueRevision?: number;
+  agentReportsPaused?: boolean;
   error?: string;
   ok?: boolean;
 }

@@ -79,6 +79,8 @@ MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。�
 4. 在 Chat 输入任务。按 Enter 发送，Shift+Enter 换行。Worker 忙碌时追加的消息进入发送队列，等当前工作让出执行后继续处理。
 5. 在 **Editor** 查看 Session 的 workdir 文件。顶栏也提供 Worker 的 **Restart、Interrupt、Takeover、Kill** 等控制；这些操作针对 Worker，不等于重启或退出 Pan 主服务。
 
+展开 Chat 下方的 **服务端队列**，可用 **Pause reports / Resume reports** 暂停或恢复该 Session 的子 Agent 完成、错误和异常退出报告。暂停状态按 Session 持久化；暂停期间报告仍保存在队列中，用户任务、Agent 任务、QQ / 微信提醒和系统通知继续按原顺序处理。已经进入 `reserved` 或 `writing` 的报告无法撤回；恢复后，仍排队的报告继续投递。
+
 新建的默认 workdir 位于 Pan 服务端。若并行修改同一仓库，应为每个 Session 指定不同 Git worktree；Pan 不会自动创建 worktree。
 
 <a id="workspaces"></a>

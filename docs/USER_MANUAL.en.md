@@ -79,6 +79,8 @@ Identity-dependent MCP tools require `PAN_AGENT_SESSION_ID` to belong to that Pa
 4. Enter a task in Chat. Press Enter to send and Shift+Enter for a newline. Messages added while a Worker is busy enter its send queue and are handled when the current work yields.
 5. Use **Editor** to inspect files in the Session workdir. The top bar also has Worker controls such as **Restart, Interrupt, Takeover, and Kill**. These affect the Worker, not the Pan main service.
 
+Expand **服务端队列** below Chat and use **Pause reports / Resume reports** to pause or resume child Agent completion, error, and abnormal-exit reports for that Session. The setting is persisted per Session. Paused reports remain in the queue while user tasks, Agent tasks, QQ / WeChat reminders, and system notices continue in their existing order. A report that has already entered `reserved` or `writing` cannot be recalled; queued reports resume delivery when reports are resumed.
+
 The default workdir is on the Pan server. For parallel changes to one repository, give each Session a different Git worktree; Pan does not create worktrees automatically.
 
 <a id="workspaces"></a>
