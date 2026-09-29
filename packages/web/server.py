@@ -5959,6 +5959,14 @@ def _queue_dispatch_state(s, item: dict) -> str:
     return "unknown_after_crash" if state == worker._DELIVERY_IN_FLIGHT else state
 
 
+def _queue_lock_meta(item: dict) -> dict:
+    return {
+        "locked": worker._queue_item_locked(item),
+        "lockManual": bool(item.get("queueLockManual")),
+        "lockAutoReport": bool(item.get("queueLockAutoReport")),
+    }
+
+
 def _serialize_queue_item(item, session=None) -> dict | None:
     """queue_pending item → AgentQueueItem；无法识别的形状返回 None（跳过）。"""
     if not isinstance(item, dict):
@@ -5977,6 +5985,7 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             "taskId": item.get("taskId"),
             "revision": item.get("revision", 1),
             "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+            **_queue_lock_meta(item),
         }
         if item.get("sourceSessionId") is not None:
             meta["sourceSessionId"] = item.get("sourceSessionId")
@@ -6013,6 +6022,7 @@ def _serialize_queue_item(item, session=None) -> dict | None:
                 "time": item.get("time"),
                 "revision": item.get("revision", 1),
                 "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+                **_queue_lock_meta(item),
             },
         }
     # 非 task/qq 一律按 report 处理（普通报告无 type 字段、zombie 为 type=zombie），
@@ -6038,6 +6048,7 @@ def _serialize_queue_item(item, session=None) -> dict | None:
         "workerId": item.get("workerId"),
         "revision": item.get("revision", 1),
         "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+        **_queue_lock_meta(item),
     }
     # Preserve structured system-Job metadata in the queue API.  The text
     # remains available for the Agent/CLI, but clients must not parse jobId or
@@ -6072,21 +6083,66 @@ def _session_queue_items(s) -> list[dict]:
         it for it in (s.queue_pending or [])
         if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED
     ]
-    if getattr(s, "agent_reports_paused", False):
-        # Match Worker selection from the durable list order: messages that
-        # remain sendable lead the view, while paused reports stay visible at
-        # the end in their own order.
-        sendable = [it for it in source_items if not worker._is_pauseable_agent_report(it)]
-        paused_reports = [it for it in source_items if worker._is_pauseable_agent_report(it)]
-        source_items = sendable + paused_reports
-    else:
-        source_items.sort(key=lambda it: (it.get("position", 10**9), str(it.get("createdAt", ""))))
+    # queue_pending itself is the durable order. Locks only affect selection,
+    # never the list's position or the order shown to the user.
     for it in source_items:
         si = _serialize_queue_item(it, s)
         if si is not None and si["id"] not in seen:
             items.append(si)
             seen.add(si["id"])
     return items
+
+
+def _queue_snapshot_locked(s) -> dict:
+    """Capture one queue version while the caller holds queue_lock(s.id)."""
+    return {
+        "items": _session_queue_items(s),
+        "queueRevision": getattr(s, "queue_revision", 0),
+        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+    }
+
+
+async def _mutate_queue_locks_locked(s, changes: list[tuple[dict, bool | None, bool | None]],
+                                     paused: bool | None = None) -> dict:
+    """Persist item lock sources and the optional report rule as one revision."""
+    old_paused = bool(getattr(s, "agent_reports_paused", False))
+    old_revision = getattr(s, "queue_revision", 0)
+    originals = []
+    changed = False
+    try:
+        for item, manual, automatic in changes:
+            item_id = _queue_item_id(item)
+            old_item = dict(item)
+            had_ledger = item_id in s.queue_delivery_ledger
+            ledger_record = s.queue_delivery_ledger.get(item_id)
+            old_ledger = dict(ledger_record) if isinstance(ledger_record, dict) else ledger_record
+            originals.append((item, old_item, item_id, had_ledger, old_ledger))
+            for key, value in (("queueLockManual", manual), ("queueLockAutoReport", automatic)):
+                if value is True:
+                    item[key] = True
+                elif value is False:
+                    item.pop(key, None)
+            if item != old_item:
+                worker._remember_queue_item(s, item, worker._DELIVERY_QUEUED)
+                changed = True
+        if paused is not None and paused != old_paused:
+            s.agent_reports_paused = paused
+            changed = True
+        if changed:
+            s.queue_revision = old_revision + 1
+            await worker._save_receipt(s)
+    except Exception:
+        for item, old_item, item_id, had_ledger, old_ledger in originals:
+            item.clear()
+            item.update(old_item)
+            if had_ledger:
+                s.queue_delivery_ledger[item_id] = old_ledger
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
+        s.agent_reports_paused = old_paused
+        s.queue_revision = old_revision
+        raise
+    return _queue_snapshot_locked(s)
 
 
 @app.get("/api/sessions/{session_id}/queue")
@@ -6100,12 +6156,8 @@ async def api_session_queue(session_id: str):
         migrated = worker._sync_queued_ledger(s) or migrated
         if migrated:
             await worker._save_receipt(s)
-        items = _session_queue_items(s)
-        reports_paused = bool(getattr(s, "agent_reports_paused", False))
-        queue_revision = getattr(s, "queue_revision", 0)
-    return {"items": items,
-            "queueRevision": queue_revision,
-            "agentReportsPaused": reports_paused}
+        snapshot = _queue_snapshot_locked(s)
+    return snapshot
 
 
 @app.post("/api/sessions/{session_id}/queue")
@@ -6145,10 +6197,24 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 512):
         return {"ok": False, "error": {"code": "invalid_client_message_id",
                                          "message": "clientMessageId must be a string of at most 512 characters"}}
+    locked = data.get("locked", False)
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": {"code": "invalid_queue_lock",
+                                         "message": "locked must be a boolean"}}
+    if locked:
+        parameters = inspect.signature(worker.enqueue_user_message).parameters
+        if ("locked" not in parameters
+                and not any(parameter.kind == inspect.Parameter.VAR_KEYWORD
+                            for parameter in parameters.values())):
+            return {"ok": False, "error": {"code": "locked_enqueue_unavailable",
+                                             "message": "Atomic locked enqueue is unavailable"}}
     if normalized_parts is None:
         # Keep the exact legacy call shape for embedders and test doubles that
         # still implement the text-only queue contract.
-        result = await worker.enqueue_user_message(session_id, text, client_id)
+        if locked:
+            result = await worker.enqueue_user_message(session_id, text, client_id, locked=True)
+        else:
+            result = await worker.enqueue_user_message(session_id, text, client_id)
     else:
         # Older embedders may still expose the three-argument queue function.
         # Production Worker accepts parts; a legacy replacement gets the
@@ -6160,31 +6226,41 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
                    for parameter in parameters.values())
         )
         if supports_parts:
-            result = await worker.enqueue_user_message(
-                session_id, text, client_id, parts=normalized_parts)
+            if locked:
+                result = await worker.enqueue_user_message(
+                    session_id, text, client_id, parts=normalized_parts, locked=True)
+            else:
+                result = await worker.enqueue_user_message(
+                    session_id, text, client_id, parts=normalized_parts)
         else:
             # A legacy replacement cannot consume the private path projection;
             # preserve its established text-only input after server-side
             # validation rather than changing its call semantics.
             legacy_text = original_text if parts is None else text
-            result = await worker.enqueue_user_message(session_id, legacy_text, client_id)
+            if locked:
+                result = await worker.enqueue_user_message(
+                    session_id, legacy_text, client_id, locked=True)
+            else:
+                result = await worker.enqueue_user_message(session_id, legacy_text, client_id)
     if result.get("status") == "error":
         return {"ok": False, "error": {"code": "enqueue_failed",
                                          "message": result.get("result", "enqueue failed")}}
     s = _summary_session_get(session_id)
-    return {"ok": True,
-            "item": _serialize_queue_item(result.get("item") or {}, s),
-            "items": _session_queue_items(s) if s else [],
-            "queueRevision": getattr(s, "queue_revision", 0),
-            "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+    if s is not None:
+        async with worker.queue_lock(session_id):
+            item = _serialize_queue_item(result.get("item") or {}, s)
+            snapshot = _queue_snapshot_locked(s)
+    else:
+        item = _serialize_queue_item(result.get("item") or {})
+        snapshot = {"items": [], "queueRevision": 0, "agentReportsPaused": False}
+    return {"ok": True, "item": item, **snapshot,
             "duplicate": bool(result.get("duplicate"))}
 
 
 def _queue_error(code: str, message: str, s=None) -> dict:
     response = {"ok": False, "error": {"code": code, "message": message}}
     if s is not None:
-        response["items"] = _session_queue_items(s)
-        response["queueRevision"] = getattr(s, "queue_revision", 0)
+        response.update(_queue_snapshot_locked(s))
     return response
 
 
@@ -6196,7 +6272,7 @@ async def api_session_queue_order_route(session_id: str, data: dict):
 
 @app.patch("/api/sessions/{session_id}/queue/reports-paused")
 async def api_session_queue_reports_paused(session_id: str, data: dict):
-    """Persist the per-Session agent-report pause state and refresh delivery."""
+    """Auto-lock queued Agent reports and future reports for this Session."""
     s = _summary_session_get(session_id)
     if not s:
         return {"ok": False, "error": "Session not found"}
@@ -6205,38 +6281,69 @@ async def api_session_queue_reports_paused(session_id: str, data: dict):
         return {"ok": False, "error": "paused must be a boolean"}
 
     async with worker.queue_lock(session_id):
-        previous_paused = bool(getattr(s, "agent_reports_paused", False))
-        previous_revision = getattr(s, "queue_revision", 0)
-        if paused != previous_paused:
-            s.agent_reports_paused = paused
-            s.queue_revision = previous_revision + 1
-            try:
-                await worker._save_receipt(s)
-            except Exception as exc:
-                s.agent_reports_paused = previous_paused
-                s.queue_revision = previous_revision
-                return {"ok": False, "error": f"Could not save report pause state: {exc}"}
-        # Keep the returned projection, pause state, and revision from one
-        # queue-lock snapshot. A later mutation may proceed before the event or
-        # HTTP response is sent, but it cannot splice two queue versions here.
-        queue_revision = getattr(s, "queue_revision", 0)
-        reports_paused = bool(getattr(s, "agent_reports_paused", False))
-        items = _session_queue_items(s)
-    await worker._bcast({
-        "type": "queue.snapshot",
-        "sessionId": session_id,
-        "queueRevision": queue_revision,
-        "agentReportsPaused": reports_paused,
-    })
-    # A pause can expose a later task/channel item; a resume can expose reports.
-    # Recovery is pause-aware and will not spawn for a paused-only backlog.
+        changes = [
+            (item, None, paused)
+            for item in (s.queue_pending or [])
+            if isinstance(item, dict)
+            and worker._delivery_state(item) == worker._DELIVERY_QUEUED
+            and worker._is_pauseable_agent_report(item)
+        ]
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, changes, paused=paused)
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save report pause state: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
     await worker._wake_worker(session_id, auto_spawn=False)
-    return {
-        "ok": True,
-        "items": items,
-        "queueRevision": queue_revision,
-        "agentReportsPaused": reports_paused,
-    }
+    return {"ok": True, **snapshot}
+
+
+@app.patch("/api/sessions/{session_id}/queue/locks")
+async def api_session_queue_locks(session_id: str, data: dict):
+    """Set every currently queued item's manual lock in one durable save."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    locked = data.get("locked")
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": "locked must be a boolean"}
+    async with worker.queue_lock(session_id):
+        changes = [
+            (item, True, None) if locked else (item, False, False)
+            for item in (s.queue_pending or [])
+            if isinstance(item, dict)
+            and worker._delivery_state(item) == worker._DELIVERY_QUEUED
+        ]
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, changes)
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save queue locks: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
+
+
+@app.patch("/api/sessions/{session_id}/queue/{item_id}/lock")
+async def api_session_queue_item_lock(session_id: str, item_id: str, data: dict):
+    """Lock or unlock one queued row without moving it in queue_pending."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    locked = data.get("locked")
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": "locked must be a boolean"}
+    async with worker.queue_lock(session_id):
+        item = next((item for item in (s.queue_pending or [])
+                     if isinstance(item, dict) and _queue_item_id(item) == item_id), None)
+        if item is None or worker._delivery_state(item) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_lockable", "Queue item is no longer queued", s)
+        change = (item, True, None) if locked else (item, False, False)
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, [change])
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save queue lock: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/edit")
@@ -6247,7 +6354,7 @@ async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict)
         return {"ok": False, "error": "Session not found"}
     token = data.get("editToken")
     if not isinstance(token, str) or not token or len(token) > 200:
-        return _queue_error("invalid_edit_token", "editToken is required", s)
+        return _queue_error("invalid_edit_token", "editToken is required")
     expected = data.get("expectedRevision")
     async with worker.queue_lock(session_id):
         target = next((it for it in s.queue_pending or []
@@ -6285,7 +6392,7 @@ async def api_session_queue_edit_release(session_id: str, item_id: str, data: di
         return {"ok": False, "error": "Session not found"}
     token = data.get("editToken")
     if not isinstance(token, str) or not token:
-        return _queue_error("invalid_edit_token", "editToken is required", s)
+        return _queue_error("invalid_edit_token", "editToken is required")
     async with worker.queue_lock(session_id):
         previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
         released = worker.release_queue_edit_lock(s, item_id, token)
@@ -6309,7 +6416,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     expected = data.get("expectedRevision")
     edit_token = data.get("editToken")
     if not isinstance(edit_token, str) or not edit_token:
-        return _queue_error("invalid_edit_token", "editToken is required", s)
+        return _queue_error("invalid_edit_token", "editToken is required")
     async with worker.queue_lock(session_id):
         target = next((it for it in s.queue_pending or []
                        if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
@@ -6508,9 +6615,9 @@ async def api_session_queue_order(session_id: str, data: dict):
                     it["position"] = old_positions[id(it)]
             s.queue_revision = old_queue_revision
             raise
-    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id,
-                         "queueRevision": s.queue_revision})
-    return {"items": _session_queue_items(s), "queueRevision": s.queue_revision}
+        snapshot = _queue_snapshot_locked(s)
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    return snapshot
 
 
 @app.patch("/api/sessions/{session_id}")

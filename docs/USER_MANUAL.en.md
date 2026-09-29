@@ -79,7 +79,11 @@ Identity-dependent MCP tools require `PAN_AGENT_SESSION_ID` to belong to that Pa
 4. Enter a task in Chat. Press Enter to send and Shift+Enter for a newline. Messages added while a Worker is busy enter its send queue and are handled when the current work yields.
 5. Use **Editor** to inspect files in the Session workdir. The top bar also has Worker controls such as **Restart, Interrupt, Takeover, and Kill**. These affect the Worker, not the Pan main service.
 
-Expand **服务端队列** below Chat and use **Pause reports / Resume reports** to pause or resume child Agent completion, error, and abnormal-exit reports for that Session. The setting is persisted per Session. Paused reports remain in the queue while user tasks, Agent tasks, QQ / WeChat reminders, and system notices continue in their existing order. A report that has already entered `reserved` or `writing` cannot be recalled; queued reports resume delivery when reports are resumed.
+Expand **服务端队列** below Chat. The lock button at the right of each row locks or unlocks that queued message. **Lock all / Unlock all** changes all items that are still `queued` in one operation. Locks never reorder the list or the durable queue. The Worker skips locked items and selects the next sendable item in the original order. An unlocked item participates again from its original position. Items already in `reserved` or `writing` cannot be recalled or locked.
+
+Click **new locked msg** to enter locked send mode for the current Session, or **cancel locked msg** to leave it. The Send button gains a red border and reads **put in queue**. Sending stores the text and attachments atomically as one locked user message. Success restores ordinary Send; failure keeps the draft and locked mode for retry. A locked message is persisted first even when the Worker is idle, and does not start a Worker by itself.
+
+**Pause reports / Resume reports** is a persisted per-Session rule using the same item locks. Enabling it locks queued child Agent completion, error, and abnormal-exit reports and automatically locks new reports of those kinds. It leaves system notices and QQ / WeChat reminders alone. You can unlock existing reports individually or with **Unlock all** while the rule stays enabled; future reports are still locked automatically. Disabling the rule removes only its automatic report locks and preserves manual locks.
 
 The default workdir is on the Pan server. For parallel changes to one repository, give each Session a different Git worktree; Pan does not create worktrees automatically.
 

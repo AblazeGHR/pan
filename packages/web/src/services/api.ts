@@ -493,9 +493,13 @@ function attachQueueSnapshot(items: AgentQueueItem[], data: ApiSessionQueueRespo
   return items as SessionQueueItems;
 }
 
+function queueResponseError(error: ApiSessionQueueResponse['error'], fallback: string): string {
+  return typeof error === 'string' ? error : error?.message || fallback;
+}
+
 export async function fetchSessionQueue(sessionId: string): Promise<SessionQueueItems> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue`);
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new Error(queueResponseError(data.error, 'Could not load queue'));
   return attachQueueSnapshot(data.items || [], data);
 }
 
@@ -507,7 +511,38 @@ export async function setSessionAgentReportsPaused(
     `${BASE}/sessions/${sessionId}/queue/reports-paused`,
     { method: 'PATCH', body: JSON.stringify({ paused }) },
   );
-  if (data.ok === false || data.error) throw new Error(data.error || 'Could not update report pause state');
+  if (data.ok === false || data.error) {
+    throw new Error(queueResponseError(data.error, 'Could not update report pause state'));
+  }
+  return attachQueueSnapshot(data.items || [], data);
+}
+
+export async function setSessionQueueItemLocked(
+  sessionId: string,
+  itemId: string,
+  locked: boolean,
+): Promise<SessionQueueItems> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/${encodeURIComponent(itemId)}/lock`,
+    { method: 'PATCH', body: JSON.stringify({ locked }) },
+  );
+  if (data.ok === false || data.error) {
+    throw new Error(queueResponseError(data.error, 'Queue item lock update failed'));
+  }
+  return attachQueueSnapshot(data.items || [], data);
+}
+
+export async function setSessionQueueItemsLocked(
+  sessionId: string,
+  locked: boolean,
+): Promise<SessionQueueItems> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/locks`,
+    { method: 'PATCH', body: JSON.stringify({ locked }) },
+  );
+  if (data.ok === false || data.error) {
+    throw new Error(queueResponseError(data.error, 'Queue locks update failed'));
+  }
   return attachQueueSnapshot(data.items || [], data);
 }
 
@@ -516,6 +551,7 @@ export async function enqueueSessionMessage(
   text: string,
   clientMessageId: string,
   parts?: MessagePart[],
+  locked = false,
 ): Promise<{
   item: AgentQueueItem;
   items?: AgentQueueItem[];
@@ -533,7 +569,7 @@ export async function enqueueSessionMessage(
     error?: { message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue`, {
     method: 'POST',
-    body: JSON.stringify({ text, clientMessageId, ...(parts ? { parts } : {}) }),
+    body: JSON.stringify({ text, clientMessageId, ...(parts ? { parts } : {}), ...(locked ? { locked: true } : {}) }),
   });
   if (!data.ok || !data.item) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
@@ -663,7 +699,7 @@ export async function reorderSessionQueue(
     method: 'PATCH',
     body: JSON.stringify({ orderedIds: order, expectedQueueRevision }),
   });
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new Error(queueResponseError(data.error, 'Could not reorder queue'));
   return attachQueueSnapshot(data.items || [], data);
 }
 

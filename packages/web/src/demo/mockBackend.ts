@@ -139,6 +139,19 @@ function queueForSession(sessionId: string): AgentQueueItem[] {
   return mockQueues[sessionId] ?? [];
 }
 
+function withMockQueueLock(
+  item: AgentQueueItem,
+  manual?: boolean,
+  automatic?: boolean,
+): AgentQueueItem {
+  const lockManual = manual ?? item.meta?.lockManual ?? false;
+  const lockAutoReport = automatic ?? item.meta?.lockAutoReport ?? false;
+  return {
+    ...item,
+    meta: { ...item.meta, lockManual, lockAutoReport, locked: lockManual || lockAutoReport },
+  };
+}
+
 function queueRevisionForSession(sessionId: string): number {
   return mockQueueRevisions[sessionId] ?? 0;
 }
@@ -378,6 +391,10 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
       const text = typeof values.text === 'string' ? values.text : '';
       const parts = Array.isArray(values.parts) ? values.parts : undefined;
+      if (values.locked !== undefined && typeof values.locked !== 'boolean') {
+        return { ok: false, error: 'locked must be a boolean' };
+      }
+      const locked = values.locked === true;
       if (!text.trim()) return { ok: false, error: '消息不能为空' };
       const clientMessageId = typeof values.clientMessageId === 'string'
         ? values.clientMessageId
@@ -404,7 +421,8 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
         ...(parts ? { parts: parts as AgentQueueItem['parts'] } : {}),
         createdAt: Date.now(),
         source: 'user',
-        meta: { dispatchState: 'queued', revision },
+        meta: { dispatchState: 'queued', revision,
+          locked, lockManual: locked, lockAutoReport: false },
       };
       mockQueues[sessionId] = [...queueForSession(sessionId), item];
       if (clientMessageId) {
@@ -445,10 +463,40 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     if (!findSession(sessionId)) return { ok: false, error: 'not found' };
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     if (typeof values.paused !== 'boolean') return { ok: false, error: 'paused must be a boolean' };
-    if ((mockAgentReportsPaused[sessionId] ?? false) !== values.paused) {
-      mockAgentReportsPaused[sessionId] = values.paused;
-      bumpQueueRevision(sessionId);
-    }
+    mockAgentReportsPaused[sessionId] = values.paused;
+    mockQueues[sessionId] = queueForSession(sessionId).map((item) =>
+      item.kind === 'report' && item.source === 'report'
+        ? withMockQueueLock(item, undefined, values.paused as boolean)
+        : item);
+    bumpQueueRevision(sessionId);
+    return queueResponse(sessionId);
+  }
+
+  const queueLocksMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/locks$/);
+  if (queueLocksMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueLocksMatch[1]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.locked !== 'boolean') return { ok: false, error: 'locked must be a boolean' };
+    mockQueues[sessionId] = queueForSession(sessionId).map((item) =>
+      withMockQueueLock(item, values.locked as boolean, values.locked ? undefined : false));
+    bumpQueueRevision(sessionId);
+    return queueResponse(sessionId);
+  }
+
+  const queueItemLockMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/([^/]+)\/lock$/);
+  if (queueItemLockMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueItemLockMatch[1]!);
+    const itemId = decodePathPart(queueItemLockMatch[2]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.locked !== 'boolean') return { ok: false, error: 'locked must be a boolean' };
+    const current = queueForSession(sessionId);
+    if (!current.some((item) => item.id === itemId)) return { ok: false, error: 'not found' };
+    mockQueues[sessionId] = current.map((item) => item.id === itemId
+      ? withMockQueueLock(item, values.locked as boolean, values.locked ? undefined : false)
+      : item);
+    bumpQueueRevision(sessionId);
     return queueResponse(sessionId);
   }
 

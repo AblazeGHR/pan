@@ -126,6 +126,7 @@ interface SendSnapshot {
   message: string;
   parts?: MessagePart[];
   appendOptimisticHistory: boolean;
+  locked: boolean;
 }
 
 interface SessionComposerDraft {
@@ -406,6 +407,8 @@ export function InputRow() {
     [rememberSessionDraft],
   );
   const enqueue = useQueueStore((s) => s.enqueue);
+  const lockedComposerMode = useQueueStore((s) =>
+    currentSessionId ? s.lockedComposerModes[currentSessionId] ?? false : false);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
   // 计数只投影真正待发的队列项；编辑是同一项的状态，不是额外一条。
@@ -944,10 +947,14 @@ export function InputRow() {
         showToast('请先保存或取消队列消息编辑', 'error');
         return;
       }
+      const lockedSend = useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
+      if (lockedSend && [...sendSnapshotsRef.current.values()].some(
+        (pending) => pending.sessionId === currentSessionId && pending.locked,
+      )) return;
       // Read the cached, Session-keyed runtime registry synchronously at the
       // start of the send transaction.  Session summaries can lag worker
       // events; this must not add a request or wait before enqueueing.
-      const appendOptimisticHistory = !isRuntimeWorkerRunning(currentSessionId);
+      const appendOptimisticHistory = !lockedSend && !isRuntimeWorkerRunning(currentSessionId);
       if (attachments.some((attachment) => attachment.status === 'uploading')) {
         showToast('附件仍在上传，请稍候', 'error');
         return;
@@ -1067,6 +1074,7 @@ export function InputRow() {
         message,
         parts: structuredParts.length > 0 ? structuredParts : undefined,
         appendOptimisticHistory,
+        locked: lockedSend,
       };
       sendSnapshotsRef.current.set(snapshot.transactionId, snapshot);
 
@@ -1113,11 +1121,14 @@ export function InputRow() {
             snapshot.parts,
             snapshot.sessionId,
             snapshot.clientMessageId,
-            { appendOptimisticHistory: snapshot.appendOptimisticHistory },
+            { appendOptimisticHistory: snapshot.appendOptimisticHistory, locked: snapshot.locked },
           );
           if (!ok) throw new Error('消息尚未入队');
           sendSnapshotsRef.current.delete(snapshot.transactionId);
           recoveryBySessionRef.current.delete(snapshot.sessionId);
+          if (snapshot.locked) {
+            useQueueStore.getState().setLockedComposerMode(snapshot.sessionId, false);
+          }
         } catch {
           if (sendSnapshotsRef.current.get(snapshot.transactionId) !== snapshot) return;
           sendSnapshotsRef.current.delete(snapshot.transactionId);
@@ -1744,7 +1755,7 @@ export function InputRow() {
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">
-              {canSteer && (
+              {canSteer && !lockedComposerMode && (
                 <button
                   disabled={queueEditActive}
                   onClick={() => handleSteer(composerValueRef.current.text)}
@@ -1764,10 +1775,12 @@ export function InputRow() {
                     ? '请先保存或取消队列消息编辑'
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
-                      : 'Send'}
-                  className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50"
+                      : lockedComposerMode ? 'put in queue' : 'Send'}
+                  className={`rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
+                    ? 'border-danger bg-accent hover:bg-accent-hover'
+                    : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
-                  Send
+                  {lockedComposerMode ? 'put in queue' : 'Send'}
                 </button>
               </div>
             </div>

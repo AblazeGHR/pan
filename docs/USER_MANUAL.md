@@ -79,7 +79,11 @@ MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。�
 4. 在 Chat 输入任务。按 Enter 发送，Shift+Enter 换行。Worker 忙碌时追加的消息进入发送队列，等当前工作让出执行后继续处理。
 5. 在 **Editor** 查看 Session 的 workdir 文件。顶栏也提供 Worker 的 **Restart、Interrupt、Takeover、Kill** 等控制；这些操作针对 Worker，不等于重启或退出 Pan 主服务。
 
-展开 Chat 下方的 **服务端队列**，可用 **Pause reports / Resume reports** 暂停或恢复该 Session 的子 Agent 完成、错误和异常退出报告。暂停状态按 Session 持久化；暂停期间报告仍保存在队列中，用户任务、Agent 任务、QQ / 微信提醒和系统通知继续按原顺序处理。已经进入 `reserved` 或 `writing` 的报告无法撤回；恢复后，仍排队的报告继续投递。
+展开 Chat 下方的 **服务端队列**，每条排队消息最右侧的锁按钮可单独锁定或解锁；**Lock all / Unlock all** 一次处理当前所有仍为 `queued` 的消息。锁定不会改变列表或落盘队列顺序；Worker 跳过锁定项，按原顺序选下一条可发送消息。解锁后，该项从原位置重新参与选择。已经进入 `reserved` 或 `writing` 的消息无法撤回或锁定。
+
+点击 **new locked msg** 进入当前 Session 的带锁发送模式，也可点击 **cancel locked msg** 退出该模式。Send 按钮变为红边的 **put in queue**；点击后，正文和附件会作为一条已锁定的用户消息原子入队。入队成功后恢复普通 Send；失败时保留草稿和带锁模式以便重试。带锁消息即使在 Worker 空闲时也只先落盘，不会单独启动 Worker。
+
+**Pause reports / Resume reports** 是同一锁机制的报告自动规则，按 Session 持久化。开启时锁定当前 `queued` 的子 Agent 完成、错误和异常退出报告，并自动锁定以后新入队的此类报告；不会锁定系统通知或 QQ / 微信提醒。即使规则仍开启，也可以单独解锁报告或使用 **Unlock all** 放行已有消息；以后新报告仍会自动锁定。关闭规则只解除报告的自动锁，保留手动锁。
 
 新建的默认 workdir 位于 Pan 服务端。若并行修改同一仓库，应为每个 Session 指定不同 Git worktree；Pan 不会自动创建 worktree。
 

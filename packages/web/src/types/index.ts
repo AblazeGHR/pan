@@ -1060,6 +1060,9 @@ export interface AgentQueueItem {
     /** queued=仍待本地 CLI 交接；reserved/writing 只在恢复事件中短暂存在。 */
     dispatchState?: QueueDispatchState;
     revision?: number;
+    locked?: boolean;
+    lockManual?: boolean;
+    lockAutoReport?: boolean;
   };
 }
 
@@ -1067,7 +1070,7 @@ export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
   queueRevision?: number;
   agentReportsPaused?: boolean;
-  error?: string;
+  error?: string | { code?: string; message?: string };
   ok?: boolean;
 }
 
