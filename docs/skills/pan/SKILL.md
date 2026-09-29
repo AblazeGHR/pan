@@ -87,7 +87,7 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 6. 收尾：session_delete / session_batch_delete 释放资源（§2.5 / §5）
 ```
 
-**不需要手动轮询**。agent_assign 之后 worker 会自动 spawn（如果该 Agent 无活 worker）。
+**派发后的终止条件**：agent_assign 已确认入队、report_subscribe 可用、必要状态已记录，且没有可独立推进的工作时，立即发送简短最终回复并结束当前回合。完成报告或用户新消息再触发下一回合。不要用定时 sleep/wait、反复查询 Session/Worker/queue_pending、持续保持工具调用或重复进度消息来“等待”报告；这些同样占住 MA 回合。只有报告订阅确实不可用且任务必须主动确认结果时，才使用有界轮询兜底。agent_assign 之后 worker 会自动 spawn（如果该 Agent 无活 worker）。
 
 ### 2.2 串行依赖步骤（worker_handoff 已移除）
 
