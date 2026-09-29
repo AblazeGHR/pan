@@ -24,26 +24,19 @@ const statusColors: Record<string, string> = {
 };
 
 export function WorkerDot({ status, legalState, className = '' }: WorkerDotProps) {
-  const color = statusColors[status || 'offline'] || statusColors.offline;
-  const dot = (
+  const legalRunningMismatch = legalState === 'running' && status !== 'running';
+  const color = legalRunningMismatch
+    ? 'bg-danger'
+    : statusColors[status || 'offline'] || statusColors.offline;
+  return (
     <span
       className={`inline-block w-2 h-2 rounded-full ${color} ${className}`}
-      title={status || 'offline'}
+      title={legalRunningMismatch
+        ? `Legal state: running; actual Worker: ${status || 'offline'}`
+        : status || 'offline'}
+      aria-label={legalRunningMismatch
+        ? `Legal Worker state is running, but actual status is ${status || 'offline'}`
+        : undefined}
     />
-  );
-
-  if (legalState !== 'running' || status === 'running') return dot;
-
-  return (
-    <span className={`relative inline-flex w-2 h-2 ${className}`}>
-      {dot}
-      <span
-        role="img"
-        aria-label={`Legal Worker state is running, but actual status is ${status || 'offline'}`}
-        title={`Legal state: running; actual Worker: ${status || 'offline'}`}
-        data-testid="legal-running-worker-mismatch-indicator"
-        className="absolute -right-1 -top-1 w-1.5 h-1.5 rounded-full bg-danger outline outline-1 outline-bg-secondary"
-      />
-    </span>
   );
 }

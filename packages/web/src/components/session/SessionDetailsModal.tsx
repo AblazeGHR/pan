@@ -7,6 +7,7 @@ import {
   fetchSessionUsage,
   syncSessionLegalWorkerState,
 } from '@/services/api';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
@@ -292,6 +293,11 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
         const latest = detailCache.current.get(targetSessionId) ?? currentDetailSession;
         const updated = { ...latest, lastLegalWorkerState: result.legalWorkerState };
         detailCache.current.set(targetSessionId, updated);
+        useSessionStore.getState().updateSession(
+          targetSessionId,
+          { lastLegalWorkerState: result.legalWorkerState },
+          true,
+        );
         setDetailSession((current) => current?.id === targetSessionId
           ? { ...current, lastLegalWorkerState: result.legalWorkerState }
           : current);
