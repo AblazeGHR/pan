@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { createQuickNewSession } from '@/utils/quickNewSession';
@@ -50,6 +51,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const navigate = useNavigate();
   const isEditorRoute = location.pathname === '/editor';
   const { isMobile } = useMediaQuery();
+  const showGroupBy = useAppSettingsStore((s) => s.showGroupBy);
 
   // Session store — 细粒度订阅（useShallow）：只在此切片变化时重渲染。
   // 不能用 useSessionStore() 整体订阅：inputDrafts（每次敲键）、
@@ -116,6 +118,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     setDragEnabled: s.setDragEnabled,
     activeWorkspaceId: s.activeWorkspaceId,
   })));
+  const effectiveGroupBy = showGroupBy ? groupBy : 'manager';
   // Workspace rail state (batch move menu + scope label).
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
@@ -212,7 +215,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
   // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
   const groupKeys = useMemo(() => {
-    if (groupBy === 'workdir') {
+    if (effectiveGroupBy === 'workdir') {
       const keys = new Set<string>();
       for (const s of sessions) {
         if (s.workdir) {
@@ -223,11 +226,11 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       }
       return [...keys];
     }
-    if (groupBy === 'manager') {
+    if (effectiveGroupBy === 'manager') {
       return sessions.map((s) => s.id);
     }
     return [] as string[];
-  }, [sessions, groupBy]);
+  }, [sessions, effectiveGroupBy]);
 
   const selectableSessions = useMemo(
     () => getSessionListCandidates(sessions, {
@@ -690,21 +693,23 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 </div>
               )}
             </div>
-            <button
-              onClick={cycleGroupBy}
-              className={`flex items-center gap-1 p-1 rounded transition-colors ${
-                groupBy !== 'none'
-                  ? 'text-accent bg-accent/10'
-                  : 'text-text-tertiary hover:text-text-primary'
-              }`}
-              title={`Group by ${groupBy === 'workdir' ? 'manager' : groupBy === 'manager' ? 'none' : 'dir'} (click to cycle)`}
-            >
-              <Layers size={14} />
-              <span className="text-[10px] leading-none">
-                {groupBy === 'workdir' ? 'dir' : groupBy === 'manager' ? 'manager' : 'off'}
-              </span>
-            </button>
-            {(groupBy === 'workdir' || groupBy === 'manager') && (
+            {showGroupBy && (
+              <button
+                onClick={cycleGroupBy}
+                className={`flex items-center gap-1 p-1 rounded transition-colors ${
+                  groupBy !== 'none'
+                    ? 'text-accent bg-accent/10'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+                title={`Group by ${groupBy === 'workdir' ? 'manager' : groupBy === 'manager' ? 'none' : 'dir'} (click to cycle)`}
+              >
+                <Layers size={14} />
+                <span className="text-[10px] leading-none">
+                  {groupBy === 'workdir' ? 'dir' : groupBy === 'manager' ? 'manager' : 'off'}
+                </span>
+              </button>
+            )}
+            {(effectiveGroupBy === 'workdir' || effectiveGroupBy === 'manager') && (
               <button
                 onClick={() =>
                   collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups(groupKeys)

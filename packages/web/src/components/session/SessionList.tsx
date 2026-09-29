@@ -257,7 +257,16 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     dragEnabled: s.dragEnabled,
     activeWorkspaceId: s.activeWorkspaceId,
   })));
-  const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
+  const { defaultGroupBy, showGroupBy, settingsLoaded } = useAppSettingsStore(useShallow((s) => ({
+    defaultGroupBy: s.defaultGroupBy,
+    showGroupBy: s.showGroupBy,
+    settingsLoaded: s.loaded,
+  })));
+  // Hiding the control also forces the list and drag grouping semantics to
+  // Manager, even while settings are still hydrating or legacy UI state says
+  // workdir/off. Keep this derived value synchronous to avoid a first-paint
+  // flash of the old grouping.
+  const effectiveGroupBy = showGroupBy ? groupBy : 'manager';
 
   // Default grouping: adopt the app-settings default as long as the user has
   // never manually picked a grouping (nothing persisted to pan:groupBy AND the
@@ -267,18 +276,29 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // groups manually.
   useLayoutEffect(() => {
     const ui = useUIStore.getState();
+    if (!settingsLoaded) {
+      // If a user opens Preferences before the initial settings GET settles,
+      // showing the control still resumes from Manager instead of resurrecting
+      // an old browser-local mode.
+      if (showGroupBy && ui.groupBy !== 'manager') ui.setGroupBy('manager');
+      return;
+    }
+    if (!showGroupBy) {
+      if (ui.groupBy !== 'manager') ui.setGroupBy('manager');
+      return;
+    }
     if (localStorage.getItem('pan:groupBy') === null && ui.groupBy === 'none') {
       useUIStore.setState({ groupBy: defaultGroupBy });
     }
-  }, [defaultGroupBy]);
+  }, [defaultGroupBy, showGroupBy, settingsLoaded]);
 
   // Keep collapsedGroups consistent with the live tree: drop stale keys left
   // behind by session placeholders (`__pending_*`) or deleted sessions so a
   // newly-joined manager group toggles immediately without a refresh.
   useEffect(() => {
-    if (groupBy !== 'manager' && groupBy !== 'workdir') return;
+    if (effectiveGroupBy !== 'manager' && effectiveGroupBy !== 'workdir') return;
     const valid = new Set<string>();
-    if (groupBy === 'manager') {
+    if (effectiveGroupBy === 'manager') {
       for (const s of sessions) valid.add(s.id);
     } else {
       for (const s of sessions) {
@@ -287,7 +307,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       valid.add('__no_workdir');
     }
     pruneCollapsedGroups(valid);
-  }, [sessions, groupBy, pruneCollapsedGroups]);
+  }, [sessions, effectiveGroupBy, pruneCollapsedGroups]);
 
   // Keep hiddenSessionIds consistent with the live list: drop ids of deleted
   // sessions. Guarded on sessions.length > 0 so a fresh page load (empty list
@@ -340,10 +360,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (aTime !== bTime) return bTime - aTime;
       return a.name.localeCompare(b.name);
     });
-    const pinnedOrdered = orderPinnedWithinGroups(filtered, groupBy);
+    const pinnedOrdered = orderPinnedWithinGroups(filtered, effectiveGroupBy);
 
     const groups: { key: string; label: string; sessions: Session[] }[] = [];
-    if (groupBy === 'workdir') {
+    if (effectiveGroupBy === 'workdir') {
       const map = new Map<string, Session[]>();
       const uncategorized: Session[] = [];
 
@@ -375,7 +395,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       }
     }
 
-    const managerTree = groupBy === 'manager' ? buildManagerTree(pinnedOrdered) : [];
+    const managerTree = effectiveGroupBy === 'manager' ? buildManagerTree(pinnedOrdered) : [];
 
     // Normal mode, sessions exist IN THE ACTIVE WORKSPACE, but every one of
     // them is hidden. Scoped so a fully-hidden workspace still explains itself.
@@ -386,7 +406,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       scopedSessions.every((session) => hiddenSessionIds.has(session.id));
 
     return { filtered: pinnedOrdered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId]);
+  }, [sessions, searchQuery, sortBy, customOrder, effectiveGroupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
@@ -765,9 +785,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         : undefined;
       let zone: 'before' | 'after' = target?.zone === 'before' ? 'before' : 'after';
       if (!targetSession && !droppedOnRail && dragged) {
-        const groupKey = sessionPinGroupKey(dragged, useUIStore.getState().groupBy);
+        const groupKey = sessionPinGroupKey(dragged, effectiveGroupBy);
         const siblings = filteredRef.current.filter(
-          (session) => sessionPinGroupKey(session, useUIStore.getState().groupBy) === groupKey,
+          (session) => sessionPinGroupKey(session, effectiveGroupBy) === groupKey,
         );
         targetSession = siblings.filter((session) => session.id !== dragged.id).at(-1);
         zone = 'after';
@@ -782,7 +802,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         return;
       }
       if (!targetSession) return;
-      const currentGroupBy = useUIStore.getState().groupBy;
+      const currentGroupBy = effectiveGroupBy;
       if (sessionPinGroupKey(dragged, currentGroupBy) !== sessionPinGroupKey(targetSession, currentGroupBy)) {
         rejectCrossGroup();
         return;
@@ -1031,7 +1051,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // keep unrelated cards from re-rendering).
   const dragPropsFor = useCallback(
     (session: Session) =>
-      dragEnabled && (session.pinned || groupBy === 'none' || groupBy === 'manager')
+      dragEnabled && (session.pinned || effectiveGroupBy === 'none' || effectiveGroupBy === 'manager')
         ? {
             dragEnabled: true,
             onDragHandlePointerDown: handleDragPointerDown,
@@ -1040,7 +1060,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             insertZone: insertTarget?.id === session.id ? insertTarget.zone : null,
           }
         : {},
-    [dragEnabled, groupBy, handleDragPointerDown, dragId, centerTargetId, insertTarget],
+    [dragEnabled, effectiveGroupBy, handleDragPointerDown, dragId, centerTargetId, insertTarget],
   );
 
   // Ghost feedback: as the dragged session hovers a drop zone, preview on the
@@ -1208,7 +1228,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
   }
 
-  if (groupBy === 'manager' && managerTree.length > 0) {
+  if (effectiveGroupBy === 'manager' && managerTree.length > 0) {
     return (
       <div className="flex flex-col" ref={listRef}>
         {managerTree.map((node) => (
@@ -1233,7 +1253,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
   }
 
-  if (groupBy === 'workdir' && grouped.length > 0) {
+  if (effectiveGroupBy === 'workdir' && grouped.length > 0) {
     return (
       <div className="flex flex-col" ref={listRef}>
         {grouped.map((group) => (

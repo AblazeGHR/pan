@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useEditorStore } from '@/stores/editorStore';
 
 function RouteProbe() {
@@ -24,6 +25,7 @@ describe('Sidebar Session search controls', () => {
     vi.useFakeTimers();
     localStorage.clear();
     useSessionStore.setState({ sessions: [], currentSessionId: null, multiSelectMode: false });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
     useUIStore.setState({
       sidebarCollapsed: false,
       searchQuery: '',
@@ -50,6 +52,32 @@ describe('Sidebar Session search controls', () => {
       target: { value: 'cli-session' },
     });
     expect(screen.getByRole('button', { name: 'Clear session search' })).toBeTruthy();
+  });
+
+  it('hides Group by by default while keeping Manager collapse and the toggle cycle usable', () => {
+    useSessionStore.setState({
+      sessions: [
+        { id: 'manager', name: 'Manager', alwaysThinkingEnabled: false, effort: '', history: [] },
+        { id: 'child', name: 'Child', managedBy: 'manager', alwaysThinkingEnabled: false, effort: '', history: [] },
+      ],
+    });
+    useUIStore.setState({ groupBy: 'workdir', collapsedGroups: new Set() });
+    renderSidebar();
+
+    expect(screen.queryByTitle(/Group by/)).toBeNull();
+    const collapseButton = screen.getByTitle('Collapse all groups');
+    fireEvent.click(collapseButton);
+    expect(useUIStore.getState().collapsedGroups.size).toBeGreaterThan(0);
+
+    act(() => useAppSettingsStore.getState().setShowGroupBy(true));
+    const groupButton = screen.getByTitle('Group by none (click to cycle)');
+    fireEvent.click(groupButton);
+    expect(useUIStore.getState().groupBy).toBe('none');
+
+    act(() => useAppSettingsStore.getState().setShowGroupBy(false));
+    expect(screen.queryByTitle(/Group by/)).toBeNull();
+    expect(useUIStore.getState().groupBy).toBe('manager');
+    expect(localStorage.getItem('pan:groupBy')).toBe('manager');
   });
 
   it('renders the CWD root as a collapsible section labelled CWD', () => {

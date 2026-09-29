@@ -376,6 +376,7 @@ function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse[
 export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const {
     defaultGroupBy,
+    showGroupBy,
     defaultNewSessionToCurrentWorkspace,
     showMetaAgent,
     showTaskAgent,
@@ -387,6 +388,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     chatViewStyle,
     notifications,
     setDefaultGroupBy,
+    setShowGroupBy,
     setDefaultNewSessionToCurrentWorkspace,
     setShowMetaAgent,
     setShowTaskAgent,
@@ -1477,19 +1479,34 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               </section>
             </>
           ) : activeTab === 'preferences' ? (
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                New Sessions
-              </h3>
-              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                <SwitchRow
-                  label="Place new Sessions in the current Workspace by default"
-                  hint="Sessions created from All or Ungrouped remain ungrouped."
-                  checked={defaultNewSessionToCurrentWorkspace}
-                  onChange={setDefaultNewSessionToCurrentWorkspace}
-                />
-              </div>
-            </section>
+            <>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Session list
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show Group by"
+                    hint="When hidden, the Session list always uses Manager grouping."
+                    checked={showGroupBy}
+                    onChange={setShowGroupBy}
+                  />
+                </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  New Sessions
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Place new Sessions in the current Workspace by default"
+                    hint="Sessions created from All or Ungrouped remain ungrouped."
+                    checked={defaultNewSessionToCurrentWorkspace}
+                    onChange={setDefaultNewSessionToCurrentWorkspace}
+                  />
+                </div>
+              </section>
+            </>
           ) : activeTab === 'plugin' ? (
             <QqPluginsPanel />
           ) : activeTab === 'data' ? (

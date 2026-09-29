@@ -31,6 +31,7 @@ describe('appSettingsStore', () => {
     expect(s.loaded).toBe(false);
     expect(s.chatViewStyle).toBe('tui');
     expect(s.defaultGroupBy).toBe('none');
+    expect(s.showGroupBy).toBe(false);
     expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
@@ -53,6 +54,7 @@ describe('appSettingsStore', () => {
       keepScrollOnSessionSwitch: true,
       showMessageNavigationRail: true,
       chatViewStyle: 'bubble',
+      showGroupBy: true,
     });
 
     await useAppSettingsStore.getState().loadSettings();
@@ -68,6 +70,7 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(true);
     expect(s.showMessageNavigationRail).toBe(true);
     expect(s.chatViewStyle).toBe('bubble');
+    expect(s.showGroupBy).toBe(true);
   });
 
   it('validates server values on load, falling back to defaults', async () => {
@@ -137,6 +140,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowCodexTerminalInput(true);
     useAppSettingsStore.getState().setMergeConsecutiveNonBodyBlocks(true);
     useAppSettingsStore.getState().setChatViewStyle('bubble');
+    useAppSettingsStore.getState().setShowGroupBy(true);
 
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
     expect(mockedUpdate).toHaveBeenNthCalledWith(1, { defaultGroupBy: 'workdir' });
@@ -149,6 +153,8 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(8, { chatViewStyle: 'bubble' });
+    expect(mockedUpdate).toHaveBeenNthCalledWith(9, { showGroupBy: true });
+    expect(useAppSettingsStore.getState().showGroupBy).toBe(true);
     expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
 
@@ -178,6 +184,7 @@ describe('appSettingsStore', () => {
 
   it('resets all settings to defaults and writes them back', () => {
     useAppSettingsStore.getState().setDefaultGroupBy('manager');
+    useAppSettingsStore.getState().setShowGroupBy(true);
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
     useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
@@ -195,6 +202,7 @@ describe('appSettingsStore', () => {
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(DEFAULT_SETTINGS.mergeConsecutiveNonBodyBlocks);
     expect(s.keepScrollOnSessionSwitch).toBe(DEFAULT_SETTINGS.keepScrollOnSessionSwitch);
     expect(s.showMessageNavigationRail).toBe(DEFAULT_SETTINGS.showMessageNavigationRail);
+    expect(s.showGroupBy).toBe(DEFAULT_SETTINGS.showGroupBy);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -209,6 +217,7 @@ describe('appSettingsStore', () => {
     const loadPromise = useAppSettingsStore.getState().loadSettings();
     // User toggles a switch before the GET resolves.
     useAppSettingsStore.getState().setShowMetaAgent(false);
+    useAppSettingsStore.getState().setShowGroupBy(true);
     // The GET resolves with the pre-change (stale) server value.
     resolveLoad({
       defaultGroupBy: 'none',
@@ -220,6 +229,7 @@ describe('appSettingsStore', () => {
     await loadPromise;
 
     expect(useAppSettingsStore.getState().showMetaAgent).toBe(false);
+    expect(useAppSettingsStore.getState().showGroupBy).toBe(true);
   });
 
   it('sanitizeSettings fills missing fields with defaults', () => {
@@ -257,5 +267,9 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showMessageNavigationRail: true }).showMessageNavigationRail)
       .toBe(true);
     expect(sanitizeSettings({}).showMessageNavigationRail).toBe(false);
+    expect(sanitizeSettings({ showGroupBy: 'yes' }).showGroupBy).toBe(false);
+    expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
+    expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');
+    expect(sanitizeSettings({ defaultGroupBy: 'off' }).defaultGroupBy).toBe('none');
   });
 });

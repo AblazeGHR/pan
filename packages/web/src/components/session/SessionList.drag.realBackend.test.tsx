@@ -108,7 +108,7 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
   ];
 
   beforeEach(() => {
-    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true });
     localStorage.clear(); // no pan:mockDemo → real mode
     const sessions = seed();
     serverSessions = sessions.map((s) => ({ ...s }));
