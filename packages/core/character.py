@@ -13,6 +13,7 @@ Usage::
 
 from __future__ import annotations
 
+import copy
 import json
 import hashlib
 import logging
@@ -448,12 +449,21 @@ class CharacterManager:
         payload: dict,
         *,
         validate: Callable[[dict], dict],
+        base_template: str | None = None,
     ) -> dict:
-        """Create and atomically append one validated template to a loaded manifest."""
+        """Create and atomically append one validated template to a loaded manifest.
+
+        When ``base_template`` is set, read its complete manifest definition
+        from the locked snapshots and merge explicit request fields over it.
+        """
         from .manifest_loader import resolve_manifest_files
 
         if not isinstance(target_id, str) or not target_id:
             raise ValueError("manifestId must be a loaded manifest target id")
+        if base_template is not None and (
+            not isinstance(base_template, str) or not base_template.strip()
+        ):
+            raise ValueError("baseTemplate must be a non-empty loaded Session Template name")
         with self._manifest_write_lock:
             paths = resolve_manifest_files(self._plugin_paths)
             if not paths:
@@ -470,9 +480,66 @@ class CharacterManager:
                 if not writable:
                     raise ValueError(reason or "Manifest is not writable")
 
+                effective_payload: dict = {"name": payload.get("name")}
+                if base_template is not None:
+                    base_entry = None
+                    for snapshot in snapshots:
+                        manifest = snapshot["data"]
+                        for key in ("session_templates", "profiles"):
+                            entries = manifest.get(key, [])
+                            if not isinstance(entries, list):
+                                raise ValueError(f"Manifest {key} must be an array before saving")
+                            for entry in entries:
+                                if isinstance(entry, dict) and entry.get("name") == base_template:
+                                    base_entry = entry
+                                    break
+                            if base_entry is not None:
+                                break
+                        if base_entry is not None:
+                            break
+                    if base_entry is None:
+                        raise ValueError(f"Base Session Template {base_template!r} is no longer loaded")
+
+                    for field in (
+                        "adapter", "model", "permission_mode", "system_prompt",
+                        "mcp_mode", "mcp_servers",
+                    ):
+                        if field in base_entry:
+                            effective_payload[field] = copy.deepcopy(base_entry[field])
+
+                    base_access = base_entry.get("pan_access", {})
+                    if base_access is None:
+                        base_access = {}
+                    if not isinstance(base_access, dict):
+                        raise ValueError("Base Session Template pan_access must be an object")
+                    access_fields = (
+                        "restrict_to_managed", "can_claim_unmanaged", "auto_claim_created",
+                    )
+                    merged_access = {
+                        key: value for key, value in base_access.items()
+                        if key in access_fields
+                    }
+                    for access_key in access_fields:
+                        if access_key not in merged_access and access_key in base_entry:
+                            merged_access[access_key] = base_entry[access_key]
+                    if merged_access:
+                        effective_payload["pan_access"] = merged_access
+
+                request_payload = dict(payload)
+                request_access = request_payload.pop("pan_access", None)
+                has_request_access = "pan_access" in payload
+                effective_payload.update(request_payload)
+                if has_request_access:
+                    if isinstance(request_access, dict) and isinstance(effective_payload.get("pan_access"), dict):
+                        access = dict(effective_payload["pan_access"])
+                        access.update(request_access)
+                        effective_payload["pan_access"] = access
+                    else:
+                        effective_payload["pan_access"] = request_access
+
                 # Validate under the same lock as the global duplicate-name
                 # scan and replacement, against the current loaded MCP catalog.
-                normalized = validate(payload)
+                normalized = validate(effective_payload)
                 name = normalized["name"]
                 for snapshot in snapshots:
                     manifest = snapshot["data"]

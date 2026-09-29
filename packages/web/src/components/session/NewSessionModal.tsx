@@ -33,6 +33,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
   const [adapter, setAdapter] = useState('');
+  const [adapterExplicit, setAdapterExplicit] = useState(false);
   // Output mode follows the selected adapter's config.
   const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
@@ -51,7 +52,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [systemPromptOverride, setSystemPromptOverride] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [mcpServerOverride, setMcpServerOverride] = useState<string[] | null>(null);
-  const [mcpMode, setMcpMode] = useState<'always' | 'optional' | 'never'>('optional');
+  const [mcpMode, setMcpMode] = useState<'' | 'always' | 'optional' | 'never'>('optional');
   const [panAccess, setPanAccess] = useState<{
     restrictToManaged?: boolean;
     canClaimUnmanaged?: boolean;
@@ -105,6 +106,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setName('');
       setWorkdir('');
       setAdapter('');
+      setAdapterExplicit(false);
       setOutputMode('');
       setSessionTemplate('');
       setActiveTab('basic');
@@ -153,6 +155,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         const savedTemplate = defaults?.sessionTemplate ?? '';
         const templateExists = !savedTemplate || loadedTemplates.some((t) => t.name === savedTemplate);
         setSessionTemplate(templateExists ? savedTemplate : '');
+        setMcpMode(templateExists && savedTemplate ? '' : 'optional');
         if (savedTemplate && !templateExists) {
           showToast(`已保存的 Session Template「${savedTemplate}」不可用，已清除该预填项`, 'error');
         }
@@ -223,6 +226,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const handleAdapterChange = (next: string) => {
     setAdapter(next);
+    setAdapterExplicit(true);
     // Fetch + cache this adapter's config so the Output Mode options update.
     void loadConfig(next);
   };
@@ -232,6 +236,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // an adapter (or "None") releases the lock and the selector becomes editable.
   const handleTemplateChange = (value: string) => {
     setSessionTemplate(value);
+    setMcpMode(value ? '' : 'optional');
+    setAdapterExplicit(false);
     setModel('');
     setPermissionMode('');
     setEffort('');
@@ -406,25 +412,22 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       return;
     }
 
-    const selected = templates.find((item) => item.name === sessionTemplate);
-    const effectivePanAccess = {
-      restrict_to_managed: panAccess.restrictToManaged ?? selected?.panAccess?.restrictToManaged,
-      can_claim_unmanaged: panAccess.canClaimUnmanaged ?? selected?.panAccess?.canClaimUnmanaged,
-      auto_claim_created: panAccess.autoClaimCreated ?? selected?.panAccess?.autoClaimCreated,
-    };
     const payload: SessionTemplateSaveInput = {
       manifestId: target.id,
       name: cleanName,
-      adapter: adapter || null,
-      mcp_mode: mcpMode,
+      ...(sessionTemplate ? { baseTemplate: sessionTemplate } : {}),
     };
+    if (!sessionTemplate || adapterExplicit) payload.adapter = adapter || null;
+    if (mcpMode) payload.mcp_mode = mcpMode;
+    else if (!sessionTemplate) payload.mcp_mode = 'optional';
     if (model) payload.model = model;
     if (permissionMode) payload.permission_mode = permissionMode;
     if (systemPromptOverride) payload.system_prompt = systemPrompt;
     if (mcpServerOverride !== null) payload.mcp_servers = mcpServerOverride;
-    const definedPanAccess = Object.fromEntries(
-      Object.entries(effectivePanAccess).filter(([, value]) => value !== undefined),
-    ) as NonNullable<SessionTemplateSaveInput['pan_access']>;
+    const definedPanAccess: NonNullable<SessionTemplateSaveInput['pan_access']> = {};
+    if (panAccess.restrictToManaged !== undefined) definedPanAccess.restrict_to_managed = panAccess.restrictToManaged;
+    if (panAccess.canClaimUnmanaged !== undefined) definedPanAccess.can_claim_unmanaged = panAccess.canClaimUnmanaged;
+    if (panAccess.autoClaimCreated !== undefined) definedPanAccess.auto_claim_created = panAccess.autoClaimCreated;
     if (Object.keys(definedPanAccess).length) payload.pan_access = definedPanAccess;
 
     setSavingTemplate(true);
@@ -433,30 +436,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       await saveSessionTemplate(payload);
       try {
         const refreshed = await fetchSessionTemplates();
-        setTemplates(refreshed);
         if (!refreshed.some((item) => item.name === cleanName)) {
           throw new Error('保存成功，但刷新结果中未找到新模板。');
         }
+        setTemplates(refreshed);
+        setSaveTemplateOpen(false);
+        showToast(`Session Template「${cleanName}」已保存`, 'info');
       } catch (refreshError) {
-        setTemplates((current) => current.some((item) => item.name === cleanName)
-          ? current
-          : [...current, {
-              name: cleanName,
-              adapter: adapter || undefined,
-              model: model || undefined,
-              mcpServers: mcpServerOverride ?? undefined,
-              panAccess: {
-                restrictToManaged: definedPanAccess.restrict_to_managed,
-                canClaimUnmanaged: definedPanAccess.can_claim_unmanaged,
-                autoClaimCreated: definedPanAccess.auto_claim_created,
-              },
-              sourceManifestLabel: target.label,
-              system_prompt_preview: systemPromptOverride ? systemPrompt.slice(0, 100) : undefined,
-            }]);
-        showToast(`模板已保存并可选择，但刷新模板列表失败：${refreshError instanceof Error ? refreshError.message : '未知错误'}`, 'error');
+        setSaveTemplateOpen(false);
+        showToast(`模板已保存，但刷新模板列表失败，新模板暂时不可选：${refreshError instanceof Error ? refreshError.message : '未知错误'}`, 'error');
       }
-      setSaveTemplateOpen(false);
-      showToast(`Session Template「${cleanName}」已保存`, 'info');
     } catch (error) {
       setSaveTemplateError(error instanceof Error ? error.message : 'Session Template 保存失败');
     } finally {
@@ -728,10 +717,11 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           </div>}
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Saved template MCP policy</span>
-            <select value={mcpMode} onChange={(event) => setMcpMode(event.target.value as 'always' | 'optional' | 'never')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+            <select value={mcpMode} onChange={(event) => setMcpMode(event.target.value as '' | 'always' | 'optional' | 'never')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              {sessionTemplate && <option value="">继承原模板{selectedTemplate?.mcpMode ? ` (${selectedTemplate.mcpMode})` : ''}</option>}
               <option value="optional">Optional</option><option value="always">Always — lock selected servers</option><option value="never">Never — lock MCP off</option>
             </select>
-            <span className="text-xs text-text-tertiary">此策略写入模板；当前 Session 创建仍由上方“继承 / 显式指定”控制。</span>
+            <span className="text-xs text-text-tertiary">{sessionTemplate ? '默认继承原模板；只有选择其他 policy 才覆盖。' : '未选择模板时默认写入 optional。'}</span>
           </label>
           {selectedTemplate && <p className="text-xs text-text-tertiary">如模板将 MCP 锁定为 always 或 never，后端会校验显式服务器列表；冲突时会显示拒绝原因。</p>}
           <div className="flex flex-col gap-1">

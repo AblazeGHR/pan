@@ -592,6 +592,7 @@ export interface SessionTemplate {
   name: string;
   adapter?: string;
   model?: string | null;
+  mcpMode?: 'always' | 'optional' | 'never';
   mcpServers?: string[];
   panAccess?: PanAccess;
   /** Absolute path of the plugin dir whose manifest.json defined this template. */
@@ -617,6 +618,7 @@ export interface ApiSessionTemplateTargetsResponse {
 
 export interface SessionTemplateSaveInput {
   manifestId: string;
+  baseTemplate?: string;
   name: string;
   adapter?: string | null;
   model?: string | null;

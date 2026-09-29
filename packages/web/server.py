@@ -10532,10 +10532,12 @@ async def api_save_session_template(data: dict):
     if not isinstance(target_id, str) or not target_id:
         return {"ok": False, "error": "manifestId (loaded manifest target id) is required"}
     payload = {key: value for key, value in data.items() if key != "manifestId"}
+    base_template = payload.pop("baseTemplate", None)
     _ensure_manifest_fresh()
     try:
         saved = _character_manager.save_session_template(
             target_id, payload, validate=_validate_session_template_save_payload,
+            base_template=base_template,
         )
     except (ValueError, RuntimeError, OSError) as exc:
         return {"ok": False, "error": str(exc)}
@@ -10559,6 +10561,7 @@ async def api_session_templates():
                 "name": t.name,
                 "adapter": t.adapter,
                 "model": t.model,
+                "mcpMode": t.mcp_mode,
                 "mcpServers": list(t.mcp_servers or []),
                 "sourceManifest": t.source_manifest,
                 "sourceManifestLabel": t.source_manifest_label,
