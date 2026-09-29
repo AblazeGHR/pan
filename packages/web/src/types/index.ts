@@ -389,6 +389,7 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
+  result?: string;
   notification?: {
     title?: string;
     body?: string;
@@ -399,6 +400,10 @@ export interface StreamEvent {
   taskSeq?: number;
   /** Durable task identity carried by worker.stream for late-frame isolation. */
   taskId?: string | null;
+  /** Stable backend identity for this terminal task result. */
+  terminalKey?: string;
+  /** Monotonic per-Session cursor for terminal result replay and ordering. */
+  resultCursor?: number;
   name?: string;
   newName?: string;
   /** Safe session fields included by session lifecycle events when available. */

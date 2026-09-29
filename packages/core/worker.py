@@ -1588,6 +1588,17 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
+        if w._terminal_handled and not adapter.is_result_event(event):
+            # `worker.result` closes this serialized provider turn. A provider
+            # frame buffered behind its terminal result must not be appended
+            # after the DONE marker or relabelled with the next queue item's
+            # taskSeq. `_consumer_stream` clears this latch immediately before
+            # writing the next prompt to the provider.
+            _log.warning(
+                "[Worker %s] post-terminal provider event ignored generation=%s",
+                w.worker_id, w.generation,
+            )
+            continue
         # Keep only native interactive prompts in the worker-local replay
         # cache.  The cache is consumed by the dashboard after a WS reconnect;
         # normal stream events remain live-only to avoid retaining history.
@@ -1644,6 +1655,7 @@ async def _read_stdout(w: Worker):
             # replay 结束：标记完成，不保存（history 无变化）
             if w._replaying:
                 w._replaying = False
+                w._terminal_handled = True
                 w.status = "idle"
                 await _record_legal_worker_state(w, "idle", "task/replay-complete")
                 _signal_task_done(w)
@@ -4699,7 +4711,6 @@ async def _global_watchdog_tick():
 
 async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=None):
     """Stream mode: write to the adapter's long-running stdin."""
-    w._terminal_handled = False
     standalone_items = []
     if on_handoff is None:
         if w._current_queue_item is not None:
@@ -4742,6 +4753,11 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
     try:
         data = w.adapter.encode_user_message(text)
         w._current_serialized = data + b"\n"
+        # Keep the previous terminal latched while task-start persistence and
+        # broadcasts yield control. Clear it only at the provider hand-off
+        # boundary so already-buffered post-terminal frames cannot be assigned
+        # to this queue item's taskSeq.
+        w._terminal_handled = False
         written = w.process.stdin.write(w._current_serialized)
         if written is not None and written != len(w._current_serialized):
             raise OSError("short stdin write")

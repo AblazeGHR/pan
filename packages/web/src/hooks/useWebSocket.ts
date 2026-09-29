@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
 import { isMockMode } from '@/demo/mockBackend';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, workerResultMarkerId } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
@@ -36,6 +36,43 @@ function clearInteractiveRequests(sessionId?: string): void {
   ui.clearUserInputRequests(sessionId);
   ui.clearElicitationRequests(sessionId);
   ui.clearTerminalInteractions(sessionId);
+}
+
+function terminalResultStatus(event: Pick<StreamEvent, 'status' | 'cancelled'>): string {
+  return event.status === 'error'
+    ? 'error'
+    : event.status === 'cancelled' || event.cancelled
+      ? 'cancelled'
+      : 'done';
+}
+
+function appendTerminalResultMarker(
+  sessionId: string,
+  event: StreamEvent,
+  deferUntilCoverage = false,
+): void {
+  const status = terminalResultStatus(event);
+  const markerId = workerResultMarkerId(sessionId, event);
+  const marker: Message = {
+    role: 'system',
+    content: `[${status.toUpperCase()}] Task completed`,
+    ...(markerId ? { nativeItemId: markerId } : {}),
+  };
+  const coverage = event.terminalCoverage ?? {
+    ...(typeof event.historyEpoch === 'string' ? { historyEpoch: event.historyEpoch } : {}),
+    ...(typeof event.historyRevision === 'number'
+      ? { historyRevision: event.historyRevision }
+      : {}),
+  };
+  useSessionStore.getState().appendWorkerResultMarker(sessionId, marker, {
+    serverEpoch: event.serverEpoch || event.eventEpoch,
+    workerId: event.workerId,
+    generation: event.generation,
+    taskSeq: event.taskSeq,
+    taskId: typeof event.taskId === 'string' ? event.taskId : undefined,
+    terminalKey: event.terminalKey,
+    resultCursor: event.resultCursor,
+  }, coverage, deferUntilCoverage);
 }
 
 function showCodexWarningToast(): boolean {
@@ -235,21 +272,55 @@ export function useWebSocket() {
       // and the old partial are rendered as two separate assistant messages.
       for (const [sessionId, detail] of Object.entries(e.details ?? {})) {
         const last = detail.lastResult as Record<string, unknown> | null | undefined;
+        if (!last) continue;
         const buffer = useSessionStore.getState().liveStreamBuffers[sessionId];
-        if (!buffer || !last || typeof last.taskSeq !== 'number') continue;
-        if (last.taskSeq !== buffer.taskSeq) continue;
-        useSessionStore.getState().reconcileWorkerResult(sessionId, {
+        const terminalEvent: StreamEvent = {
+          type: 'worker.result',
+          sessionId,
           result: typeof last.result === 'string' ? last.result : '',
           status: typeof last.status === 'string' ? last.status : 'done',
           historyEpoch: typeof last.historyEpoch === 'string' ? last.historyEpoch : undefined,
           historyRevision: typeof last.historyRevision === 'number' ? last.historyRevision : undefined,
-        }, {
-          serverEpoch: e.serverEpoch || e.eventEpoch,
-          workerId: typeof last.workerId === 'string' ? last.workerId : buffer.workerId,
-          generation: typeof last.generation === 'number' ? last.generation : buffer.generation,
-          taskSeq: last.taskSeq,
+          terminalCoverage: {
+            ...(typeof last.historyEpoch === 'string' ? { historyEpoch: last.historyEpoch } : {}),
+            ...(typeof last.historyRevision === 'number'
+              ? { historyRevision: last.historyRevision }
+              : {}),
+          },
+          terminalKey: typeof last.terminalKey === 'string' ? last.terminalKey : undefined,
+          resultCursor: typeof last.resultCursor === 'number' ? last.resultCursor : undefined,
+          taskSeq: typeof last.taskSeq === 'number' ? last.taskSeq : undefined,
           taskId: typeof last.taskId === 'string' ? last.taskId : undefined,
-        });
+          workerId: typeof last.workerId === 'string' ? last.workerId : undefined,
+          generation: typeof last.generation === 'number' ? last.generation : undefined,
+        };
+        const lastTaskId = typeof last.taskId === 'string' ? last.taskId : undefined;
+        const matchingBuffer = Boolean(buffer
+          && (terminalEvent.taskSeq !== undefined
+            ? buffer.taskSeq === terminalEvent.taskSeq
+              && !(lastTaskId && buffer.taskId && lastTaskId !== buffer.taskId)
+            : lastTaskId && buffer.taskId === lastTaskId)
+          && (terminalEvent.generation === undefined || buffer.generation === undefined
+            || terminalEvent.generation === buffer.generation));
+        if (matchingBuffer && buffer) {
+          const reconciled = useSessionStore.getState().reconcileWorkerResult(sessionId, terminalEvent, {
+            serverEpoch: e.serverEpoch || e.eventEpoch,
+            workerId: terminalEvent.workerId ?? buffer.workerId,
+            generation: terminalEvent.generation ?? buffer.generation,
+            taskSeq: terminalEvent.taskSeq,
+            taskId: lastTaskId,
+            terminalKey: terminalEvent.terminalKey,
+            resultCursor: terminalEvent.resultCursor,
+          });
+          if (reconciled) appendTerminalResultMarker(sessionId, terminalEvent);
+          else appendTerminalResultMarker(sessionId, terminalEvent, true);
+        } else {
+          // The snapshot may describe an earlier completed task while a newer
+          // task is already streaming, or a seq-less report. Keep the marker
+          // hidden until its durable boundary arrives; never attach it to the
+          // current buffer just because it is the last visible row.
+          appendTerminalResultMarker(sessionId, terminalEvent, true);
+        }
       }
       const knownSessionIds = [
         ...useSessionStore.getState().sessions.map((session) => session.id),
@@ -594,7 +665,7 @@ export function useWebSocket() {
 
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
-      if (!isCurrentWorkerEvent(e)) {
+      if (!isCurrentWorkerEvent(e, true)) {
         // A terminal event attributed to an older worker generation is dropped
         // (a late result must not clear its replacement), but the drop must not
         // silently strand the card's status dot either: fall back to the
@@ -619,32 +690,14 @@ export function useWebSocket() {
         generation: e.generation,
         taskSeq: e.taskSeq,
         taskId: typeof e.taskId === 'string' ? e.taskId : undefined,
+        terminalKey: typeof e.terminalKey === 'string' ? e.terminalKey : undefined,
+        resultCursor: typeof e.resultCursor === 'number' ? e.resultCursor : undefined,
       });
       if (!reconciled) {
         scheduleRefreshSessions();
         return;
       }
-      const afterReconcile = useSessionStore.getState();
-      if (sessionId === afterReconcile.currentSessionId) {
-        const status = e.status === 'error'
-          ? 'error'
-          : e.status === 'cancelled' || e.cancelled
-            ? 'cancelled'
-            : 'done';
-        const resultKey = e.taskSeq === undefined
-          ? undefined
-          : `worker.result:${e.sessionId}:${e.taskSeq}`;
-        const alreadyShown = resultKey
-          ? afterReconcile.currentMessages.some((message) => message.nativeItemId === resultKey)
-          : false;
-        if (!alreadyShown) {
-          afterReconcile.addMessage({
-            role: 'system',
-            content: `[${status.toUpperCase()}] Task completed`,
-            ...(resultKey ? { nativeItemId: resultKey } : {}),
-          });
-        }
-      }
+      appendTerminalResultMarker(sessionId, e);
       // 流式预览节流：result 为最终 lastMessage，先清掉该 session 未 flush 的
       // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
       // 紧接着以 result 写入 lastMessage）。
