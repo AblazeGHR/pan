@@ -10,6 +10,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 import hashlib
 import hmac
+import json
 import re
 import secrets
 import sqlite3
@@ -48,6 +49,8 @@ class _HistorySnapshot:
     history_revision: int
     history_total: int
     messages: tuple[_SearchMessage, ...]
+    digest: bytes | None
+    prefix_digest: bytes | None
 
 
 def bounded_limit(value: int | None) -> int:
@@ -84,13 +87,34 @@ def session_version(session) -> tuple[str, int, bool, int | None]:
         return epoch, revision, history_loaded, history_total
 
 
-def _snapshot(session) -> _HistorySnapshot | None:
+def _snapshot(session, previous_total: int | None = None) -> _HistorySnapshot | None:
     """Capture searchable body text and its version under the Session lock."""
     lock = getattr(session, "_summary_lock", None)
     with lock if lock is not None else nullcontext():
         if not getattr(session, "_history_loaded", True):
             return None
         history = getattr(session, "history", []) or []
+        # Hash every canonical row, including excluded roles and legacy IDs.
+        # An unchanged revision or a growing total alone cannot prove append.
+        digest = hashlib.sha256()
+        prefix_digest = digest.digest() if previous_total == 0 else None
+        try:
+            for index, row in enumerate(history):
+                if index == previous_total:
+                    prefix_digest = digest.digest()
+                encoded = json.dumps(
+                    row, sort_keys=True, ensure_ascii=False, allow_nan=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                digest.update(len(encoded).to_bytes(8, "big"))
+                digest.update(encoded)
+            if previous_total == len(history):
+                prefix_digest = digest.digest()
+            full_digest = digest.digest()
+        except (TypeError, ValueError, OverflowError):
+            # Unusual in-memory rows still get a complete rebuild; they never
+            # qualify for the prefix proof.
+            full_digest = prefix_digest = None
         epoch = getattr(session, "history_epoch", "")
         if not isinstance(epoch, str) or not epoch:
             epoch = f"legacy:{getattr(session, 'id', 'unknown')}"
@@ -129,6 +153,8 @@ def _snapshot(session) -> _HistorySnapshot | None:
             history_revision=revision,
             history_total=len(history),
             messages=tuple(sorted(by_id.values(), key=lambda item: item.message_index)),
+            digest=full_digest,
+            prefix_digest=prefix_digest,
         )
 
 
@@ -222,22 +248,45 @@ def _delete_session(connection: sqlite3.Connection, session_id: str) -> None:
     connection.execute(
         "DELETE FROM history_search_sessions WHERE session_id=?", (session_id,)
     )
+    connection.execute(
+        "DELETE FROM history_search_meta WHERE key=?", (f"digest:{session_id}",)
+    )
 
 
 def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot) -> None:
     connection.execute("BEGIN IMMEDIATE")
     try:
         current = connection.execute(
-            """SELECT history_epoch, history_revision FROM history_search_sessions
-               WHERE session_id=?""",
+            """SELECT history_epoch, history_revision, history_total
+               FROM history_search_sessions WHERE session_id=?""",
             (snapshot.session_id,),
         ).fetchone()
+        if (
+            current is not None
+            and snapshot.digest is not None
+            and current["history_epoch"] == snapshot.history_epoch
+            and int(current["history_revision"]) == snapshot.history_revision
+            and int(current["history_total"]) == snapshot.history_total
+        ):
+            saved_digest = connection.execute(
+                "SELECT value FROM history_search_meta WHERE key=?",
+                (f"digest:{snapshot.session_id}",),
+            ).fetchone()
+            if saved_digest is not None and saved_digest["value"] == snapshot.digest:
+                connection.commit()
+                return
         # A concurrent request may have indexed a newer append while this
         # request loaded history; do not overwrite the newer snapshot.
         if (
             current
             and current["history_epoch"] == snapshot.history_epoch
-            and int(current["history_revision"]) > snapshot.history_revision
+            and (
+                int(current["history_revision"]) > snapshot.history_revision
+                or (
+                    int(current["history_revision"]) == snapshot.history_revision
+                    and int(current["history_total"]) > snapshot.history_total
+                )
+            )
         ):
             connection.commit()
             return
@@ -265,7 +314,80 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
                 "INSERT INTO history_search_fts(rowid, folded_content) VALUES (?, ?)",
                 (cursor.lastrowid, message.content.lower()),
             )
+        if snapshot.digest is not None:
+            connection.execute(
+                "INSERT INTO history_search_meta(key, value) VALUES (?, ?)",
+                (f"digest:{snapshot.session_id}", snapshot.digest),
+            )
         connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+
+
+def _append_session(
+    connection: sqlite3.Connection, snapshot: _HistorySnapshot,
+    previous_epoch: str, previous_revision: int, previous_total: int,
+) -> bool:
+    """Append a verified suffix, or return False for a complete rebuild."""
+    if snapshot.prefix_digest is None or snapshot.digest is None:
+        return False
+    suffix = [message for message in snapshot.messages
+              if message.message_index >= previous_total]
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        current = connection.execute(
+            """SELECT history_epoch, history_revision, history_total
+               FROM history_search_sessions WHERE session_id=?""",
+            (snapshot.session_id,),
+        ).fetchone()
+        saved_digest = connection.execute(
+            "SELECT value FROM history_search_meta WHERE key=?",
+            (f"digest:{snapshot.session_id}",),
+        ).fetchone()
+        if (
+            current is None
+            or current["history_epoch"] != previous_epoch
+            or int(current["history_revision"]) != previous_revision
+            or int(current["history_total"]) != previous_total
+            or snapshot.history_revision < previous_revision
+            or saved_digest is None
+            or saved_digest["value"] != snapshot.prefix_digest
+        ):
+            connection.rollback()
+            return False
+        # A duplicate Pan ID in the suffix changes which occurrence wins.
+        # Rebuild so the old row is removed and the last occurrence survives.
+        if any(connection.execute(
+            """SELECT 1 FROM history_search_messages
+               WHERE session_id=? AND message_id=?""",
+            (snapshot.session_id, message.message_id),
+        ).fetchone() for message in suffix):
+            connection.rollback()
+            return False
+        for message in suffix:
+            cursor = connection.execute(
+                """INSERT INTO history_search_messages
+                   (session_id, message_id, message_index, role, content, folded_content)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (snapshot.session_id, message.message_id, message.message_index,
+                 message.role, message.content, message.content.lower()),
+            )
+            connection.execute(
+                "INSERT INTO history_search_fts(rowid, folded_content) VALUES (?, ?)",
+                (cursor.lastrowid, message.content.lower()),
+            )
+        connection.execute(
+            """UPDATE history_search_sessions
+               SET history_revision=?, history_total=? WHERE session_id=?""",
+            (snapshot.history_revision, snapshot.history_total, snapshot.session_id),
+        )
+        connection.execute(
+            "UPDATE history_search_meta SET value=? WHERE key=?",
+            (snapshot.digest, f"digest:{snapshot.session_id}"),
+        )
+        connection.commit()
+        return True
     except BaseException:
         connection.rollback()
         raise
@@ -439,12 +561,23 @@ def search_history(
                 raise HistorySearchError(
                     f"Session {session_id} history could not be loaded for indexing"
                 )
-            snapshot = _snapshot(full_session)
+            previous_total = int(indexed["history_total"]) if indexed else None
+            snapshot = _snapshot(full_session, previous_total)
             if snapshot is None:
                 raise HistorySearchError(
                     f"Session {session_id} history could not be loaded for indexing"
                 )
-            _replace_session(connection, snapshot)
+            appended = (
+                indexed is not None
+                and indexed["history_epoch"] == snapshot.history_epoch
+                and snapshot.history_total > previous_total
+                and _append_session(
+                    connection, snapshot, indexed["history_epoch"],
+                    int(indexed["history_revision"]), previous_total,
+                )
+            )
+            if not appended:
+                _replace_session(connection, snapshot)
             del snapshot, full_session
 
         scope_ids = [

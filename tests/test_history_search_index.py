@@ -1,8 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import sqlite3
 from threading import RLock
 from types import SimpleNamespace
 
+from packages.core import history_search_index
 from packages.core.history_search_index import search_history
 
 
@@ -164,6 +166,11 @@ def test_missing_index_file_rebuilds_and_deleted_sessions_are_pruned(tmp_path):
     pruned = _search(path, [], "rebuildable", live_ids=[])
     assert pruned["hits"] == []
     assert pruned["versions"] == []
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT value FROM history_search_meta WHERE key=?",
+            (f"digest:{session.id}",),
+        ).fetchone() is None
 
 
 def test_result_limit_is_bounded_and_global_order_is_scope_then_history(tmp_path):
@@ -260,3 +267,149 @@ def test_parallel_search_requests_do_not_duplicate_or_lose_a_message(tmp_path):
 
     assert all([hit["messageId"] for hit in result["hits"]] == [_pan_id(1)]
                for result in results)
+
+
+def _indexed_rowid(path, session_id, message_id):
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            """SELECT rowid FROM history_search_messages
+               WHERE session_id=? AND message_id=?""",
+            (session_id, message_id),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def test_verified_append_preserves_prefix_rows_and_indexes_only_suffix(tmp_path, monkeypatch):
+    path = tmp_path / "append.sqlite3"
+    session = _session("s-append", [
+        {"role": "user", "content": "needle first", "messageId": _pan_id(1)},
+        {"role": "thinking", "content": "needle excluded", "messageId": _pan_id(2)},
+    ])
+    assert len(_search(path, [session], "needle")["hits"]) == 1
+    original_rowid = _indexed_rowid(path, session.id, _pan_id(1))
+    session.history.extend([
+        {"role": "assistant", "content": "needle second", "messageId": _pan_id(3)},
+        {"role": "user", "content": "needle legacy", "messageId": "legacy:s:0:3"},
+    ])
+    session.history_revision += 2
+    def unexpected_rebuild(*_args):
+        raise AssertionError("verified append rebuilt the full Session")
+    with monkeypatch.context() as patch:
+        patch.setattr(history_search_index, "_replace_session", unexpected_rebuild)
+        result = _search(path, [session], "needle")
+
+    assert [hit["messageId"] for hit in result["hits"]] == [_pan_id(1), _pan_id(3)]
+    assert _indexed_rowid(path, session.id, _pan_id(1)) == original_rowid
+    assert _indexed_rowid(path, session.id, _pan_id(2)) is None
+    assert _search(path, [session], "needle")["hits"] == result["hits"]
+
+
+def test_changed_prefix_with_growing_total_rebuilds_instead_of_appending(tmp_path, monkeypatch):
+    path = tmp_path / "changed-prefix.sqlite3"
+    session = _session("s-prefix", [
+        {"role": "user", "content": "old needle", "messageId": _pan_id(1)},
+        {"role": "thinking", "content": "hidden needle", "messageId": _pan_id(2)},
+    ])
+    assert len(_search(path, [session], "old needle")["hits"]) == 1
+    session.history[0]["content"] = "new needle"
+    session.history[1]["role"] = "assistant"
+    session.history.append({
+        "role": "assistant", "content": "tail needle", "messageId": _pan_id(3),
+    })
+    session.history_revision += 1
+    original_replace = history_search_index._replace_session
+    rebuilds = []
+    def record_rebuild(*args):
+        rebuilds.append(True)
+        return original_replace(*args)
+    with monkeypatch.context() as patch:
+        patch.setattr(history_search_index, "_replace_session", record_rebuild)
+        result = _search(path, [session], "needle")
+
+    assert rebuilds == [True]
+    assert [hit["messageId"] for hit in result["hits"]] == [
+        _pan_id(1), _pan_id(2), _pan_id(3),
+    ]
+    assert _search(path, [session], "old needle")["hits"] == []
+
+
+def test_suffix_duplicate_id_rebuilds_to_last_occurrence(tmp_path):
+    path = tmp_path / "duplicate.sqlite3"
+    session = _session("s-duplicate", [
+        {"role": "user", "content": "old needle", "messageId": _pan_id(1)},
+    ])
+    assert len(_search(path, [session], "old needle")["hits"]) == 1
+    session.history.append({
+        "role": "assistant", "content": "new needle", "messageId": _pan_id(1),
+    })
+    session.history_revision += 1
+
+    assert _search(path, [session], "old needle")["hits"] == []
+    result = _search(path, [session], "new needle")
+    assert [(hit["messageId"], hit["messageIndex"]) for hit in result["hits"]] == [
+        (_pan_id(1), 1),
+    ]
+
+
+def test_missing_prefix_proof_rebuilds_before_next_append(tmp_path):
+    path = tmp_path / "old-index.sqlite3"
+    session = _session("s-old-index", [
+        {"role": "user", "content": "old needle", "messageId": _pan_id(1)},
+    ])
+    _search(path, [session], "needle")
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "DELETE FROM history_search_meta WHERE key=?",
+            (f"digest:{session.id}",),
+        )
+    session.history.append({
+        "role": "assistant", "content": "new needle", "messageId": _pan_id(2),
+    })
+    session.history_revision += 1
+    assert [hit["messageId"] for hit in _search(path, [session], "needle")["hits"]] == [
+        _pan_id(1), _pan_id(2),
+    ]
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT value FROM history_search_meta WHERE key=?",
+            (f"digest:{session.id}",),
+        ).fetchone() is not None
+
+
+def test_same_total_id_rewrite_replaces_old_identity(tmp_path):
+    path = tmp_path / "id-rewrite.sqlite3"
+    session = _session("s-id-rewrite", [
+        {"role": "user", "content": "needle text", "messageId": _pan_id(1)},
+    ])
+    _search(path, [session], "needle")
+    session.history[0]["messageId"] = _pan_id(2)
+    session.history_revision += 1
+    assert [hit["messageId"] for hit in _search(path, [session], "needle")["hits"]] == [
+        _pan_id(2),
+    ]
+    assert _indexed_rowid(path, session.id, _pan_id(1)) is None
+
+
+def test_parallel_queries_after_append_index_suffix_once(tmp_path):
+    path = tmp_path / "parallel-append.sqlite3"
+    session = _session("s-parallel-append", [
+        {"role": "user", "content": "needle first", "messageId": _pan_id(1)},
+    ])
+    _search(path, [session], "needle")
+    session.history.append({
+        "role": "assistant", "content": "needle second", "messageId": _pan_id(2),
+    })
+    session.history_revision += 1
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(
+            lambda _index: _search(path, [session], "needle"), range(8),
+        ))
+    assert all([hit["messageId"] for hit in result["hits"]] == [
+        _pan_id(1), _pan_id(2),
+    ] for result in results)
+    with sqlite3.connect(path) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM history_search_messages WHERE session_id=?",
+            (session.id,),
+        ).fetchone()[0]
+    assert count == 2
