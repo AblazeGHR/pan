@@ -103,7 +103,7 @@ export function SendQueuePanel() {
 
   return (
     <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-      <div className="overflow-hidden">
+      <div className="overflow-hidden bg-bg-secondary">
         <div className="px-3 pt-2 pb-1">
           <div className="flex flex-wrap items-center gap-2 pb-1.5">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
