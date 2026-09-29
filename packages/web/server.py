@@ -5882,6 +5882,29 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
 
 
+@app.post("/api/sessions/{session_id}/legal-state/running")
+async def api_set_session_legal_worker_state_running(session_id: str):
+    """Explicitly persist running without changing or inspecting Worker runtime."""
+    try:
+        result = await worker.set_session_legal_worker_state_running(
+            session_id, source="session-details/set-running",
+        )
+    except Exception as exc:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": str(exc),
+        }
+    if result.get("status") == "updated":
+        try:
+            await broadcast({"type": "session.updated", "sessionId": session_id})
+        except Exception as exc:
+            # The metadata is already durable. A transient websocket fan-out
+            # failure must not report the successful write as a failed action.
+            _log(f"[Session {session_id}] legal-state broadcast failed: {exc}")
+    return result
+
+
 @app.get("/api/sessions/{session_id}/usage")
 async def api_get_session_usage(session_id: str):
     """Return the stable persisted input/output/cache usage projection.

@@ -164,6 +164,56 @@ def test_runtime_sync_helper_persists_observed_offline_state(isolated_sessions):
     assert metadata["last_legal_worker_state"] == "offline"
 
 
+def test_explicit_running_write_serializes_after_details_runtime_sync(
+    isolated_sessions, monkeypatch,
+):
+    session = sess.create("explicit-running-sync-race")
+    session.last_legal_worker_state = "idle"
+    sess.save(session)
+    sync_has_legal_lock = asyncio.Event()
+    allow_sync_persist = asyncio.Event()
+    original_persist = worker._persist_session_legal_worker_state
+
+    async def pause_sync_persist(session_id, state, source, *, _locked=False):
+        if source == "test-details-sync":
+            sync_has_legal_lock.set()
+            await allow_sync_persist.wait()
+        return await original_persist(
+            session_id, state, source, _locked=_locked,
+        )
+
+    monkeypatch.setattr(
+        worker, "_persist_session_legal_worker_state", pause_sync_persist,
+    )
+
+    async def run_race():
+        sync_task = asyncio.create_task(
+            worker.sync_legal_worker_state_to_runtime(
+                session.id, source="test-details-sync",
+            )
+        )
+        await sync_has_legal_lock.wait()
+        set_running_task = asyncio.create_task(
+            worker.set_session_legal_worker_state_running(session.id)
+        )
+        await asyncio.sleep(0)
+        assert not set_running_task.done()
+        allow_sync_persist.set()
+        return await sync_task, await set_running_task
+
+    sync_result, running_result = asyncio.run(run_race())
+
+    assert sync_result["legalWorkerState"] == "offline"
+    assert running_result == {
+        "sessionId": session.id,
+        "status": "updated",
+        "legalWorkerState": "running",
+    }
+    assert session.last_legal_worker_state == "running"
+    metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
+    assert metadata["last_legal_worker_state"] == "running"
+
+
 def test_runtime_sync_does_not_mark_a_still_running_provider_process_offline(
     isolated_sessions,
 ):

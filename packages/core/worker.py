@@ -573,7 +573,16 @@ async def _record_legal_worker_state(
             )
             return False
     else:
-        s.last_legal_worker_state = state
+        # Terminal result preparation batches this metadata change with the
+        # surrounding Session save. Serialize the in-memory transition with
+        # durable legal-state helpers so concurrent transitions have a clear
+        # per-Session order.
+        lock = _legal_state_locks.setdefault(w.session_id, asyncio.Lock())
+        async with lock:
+            s = _session(w)
+            if s is None:
+                return False
+            s.last_legal_worker_state = state
     _log.info(
         "[Worker %s] legal state=%s source=%s session=%s",
         w.worker_id, state, source, w.session_id,
@@ -610,6 +619,45 @@ async def _persist_session_legal_worker_state(
         )
         return False
     return True
+
+
+async def set_session_legal_worker_state_running(
+    session_id: str, *, source: str = "session-details/set-running",
+) -> dict:
+    """Explicitly record running without observing or changing Worker runtime.
+
+    This shares the per-Session legal-state lock with runtime synchronization
+    and every other legal-state writer.  The value is intentionally fixed so
+    callers cannot turn this Details action into an arbitrary state update.
+    """
+    lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+    async with lock:
+        if _sess.get(session_id) is None:
+            return {
+                "sessionId": session_id,
+                "status": "error",
+                "error": f"Session {session_id} not found",
+            }
+        if not await _persist_session_legal_worker_state(
+                session_id, "running", source, _locked=True):
+            # The Session may have been removed between the first lookup and
+            # the persistence helper's own lookup.
+            if _sess.get(session_id) is None:
+                return {
+                    "sessionId": session_id,
+                    "status": "error",
+                    "error": f"Session {session_id} not found",
+                }
+            return {
+                "sessionId": session_id,
+                "status": "error",
+                "error": "failed to persist Session legal state",
+            }
+    return {
+        "sessionId": session_id,
+        "status": "updated",
+        "legalWorkerState": "running",
+    }
 
 
 def _terminal_enrichment_key(

@@ -30,12 +30,17 @@ beforeEach(() => {
   vi.spyOn(api, 'fetchSession').mockRejectedValue(new Error('session details unavailable'));
   vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
   vi.spyOn(api, 'syncSessionLegalWorkerState').mockRejectedValue(new Error('legal state sync unavailable'));
+  vi.spyOn(api, 'setSessionLegalWorkerStateRunning').mockRejectedValue(new Error('legal state update unavailable'));
 });
 
 function dialogCard(): HTMLElement {
   const card = document.body.querySelector<HTMLElement>('.modal-card');
   expect(card).toBeTruthy();
   return card!;
+}
+
+function legalStateValue(section: HTMLElement): string {
+  return section.querySelector('.text-sm')?.textContent ?? '';
 }
 
 describe('SessionDetailsModal', () => {
@@ -495,12 +500,12 @@ describe('SessionDetailsModal', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
     const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
     fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
 
     expect(await screen.findByRole('status')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('Legal state updated to idle');
-    expect(stateSection.textContent).toContain('idle');
+    expect(legalStateValue(stateSection)).toContain('idle');
     expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(baseSession.id);
   });
 
@@ -517,12 +522,12 @@ describe('SessionDetailsModal', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
     const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
     fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('Worker runtime is not stopped');
-    expect(stateSection.textContent).toContain('running');
+    expect(legalStateValue(stateSection)).toContain('running');
   });
 
   it('does not let a slow sync for the previous Session replace the current Details', async () => {
@@ -546,13 +551,13 @@ describe('SessionDetailsModal', () => {
     const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
 
     let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
     fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
     expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(sessionA.id);
 
     rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
     stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(stateSection.textContent).toContain('offline'));
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
     await act(async () => {
       resolveSync?.({
         sessionId: sessionA.id,
@@ -562,8 +567,178 @@ describe('SessionDetailsModal', () => {
       });
     });
 
-    expect(stateSection.textContent).toContain('offline');
+    expect(legalStateValue(stateSection)).toContain('offline');
     expect(stateSection.textContent).not.toContain('Legal state updated to idle');
+  });
+
+  it('shows running only after the explicit legal-state write succeeds', async () => {
+    vi.mocked(api.fetchSession).mockResolvedValue({
+      ...baseSession,
+      lastLegalWorkerState: 'offline',
+    });
+    let resolveSetRunning: ((value: {
+      sessionId: string;
+      status: 'updated';
+      legalWorkerState: string;
+    }) => void) | undefined;
+    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+      resolveSetRunning = resolve;
+    }));
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    const setRunning = screen.getByRole('button', { name: 'Set legal state to running' });
+    expect(screen.getByText("Records this Session's legal state only; it does not start a Worker.")).toBeTruthy();
+    fireEvent.click(setRunning);
+
+    expect(api.setSessionLegalWorkerStateRunning).toHaveBeenCalledWith(baseSession.id);
+    expect(setRunning.hasAttribute('disabled')).toBe(true);
+    expect(legalStateValue(stateSection)).toContain('offline');
+    expect(legalStateValue(stateSection)).not.toContain('running');
+
+    await act(async () => {
+      resolveSetRunning?.({
+        sessionId: baseSession.id,
+        status: 'updated',
+        legalWorkerState: 'running',
+      });
+    });
+
+    expect(legalStateValue(stateSection)).toContain('running');
+    expect(screen.getByRole('status').textContent).toContain('Legal state set to running');
+  });
+
+  it('keeps the persisted legal state on explicit running write failure', async () => {
+    vi.mocked(api.fetchSession).mockResolvedValue({
+      ...baseSession,
+      lastLegalWorkerState: 'offline',
+    });
+    vi.mocked(api.setSessionLegalWorkerStateRunning).mockResolvedValue({
+      sessionId: baseSession.id,
+      status: 'error',
+      error: 'failed to persist Session legal state',
+    });
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    fireEvent.click(screen.getByRole('button', { name: 'Set legal state to running' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('failed to persist Session legal state');
+    expect(legalStateValue(stateSection)).toContain('offline');
+    expect(legalStateValue(stateSection)).not.toContain('running');
+  });
+
+  it('ignores stale metadata and set-running responses after switching Sessions', async () => {
+    const sessionA = { ...baseSession, id: 'ses_set_a', name: 'A' };
+    const sessionB = { ...baseSession, id: 'ses_set_b', name: 'B' };
+    let resolveStaleA: ((session: Session) => void) | undefined;
+    let fetchACount = 0;
+    vi.mocked(api.fetchSession).mockImplementation(async (id) => {
+      if (id === sessionA.id && ++fetchACount === 2) {
+        return new Promise((resolve) => { resolveStaleA = resolve; });
+      }
+      return {
+        ...baseSession,
+        id,
+        name: id,
+        lastLegalWorkerState: id === sessionA.id ? 'idle' : 'offline',
+      };
+    });
+    let resolveSetRunning: ((value: {
+      sessionId: string;
+      status: 'updated';
+      legalWorkerState: string;
+    }) => void) | undefined;
+    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+      resolveSetRunning = resolve;
+    }));
+    const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
+    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('idle'));
+
+    rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    rerender(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    fireEvent.click(screen.getByRole('button', { name: 'Set legal state to running' }));
+    expect(api.setSessionLegalWorkerStateRunning).toHaveBeenCalledWith(sessionA.id);
+
+    rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    await act(async () => {
+      resolveStaleA?.({
+        ...baseSession,
+        id: sessionA.id,
+        lastLegalWorkerState: 'held',
+      });
+      resolveSetRunning?.({
+        sessionId: sessionA.id,
+        status: 'updated',
+        legalWorkerState: 'running',
+      });
+    });
+
+    expect(legalStateValue(stateSection)).toContain('offline');
+    expect(legalStateValue(stateSection)).not.toContain('held');
+    expect(legalStateValue(stateSection)).not.toContain('running');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('serializes the explicit action with Update to actual state', async () => {
+    vi.mocked(api.fetchSession).mockResolvedValue({
+      ...baseSession,
+      lastLegalWorkerState: 'idle',
+    });
+    let resolveSync: ((value: {
+      sessionId: string;
+      status: 'updated';
+      legalWorkerState: string;
+      runtimeWorkerStatus: string;
+    }) => void) | undefined;
+    vi.mocked(api.syncSessionLegalWorkerState).mockImplementation(() => new Promise((resolve) => {
+      resolveSync = resolve;
+    }));
+    let resolveSetRunning: ((value: {
+      sessionId: string;
+      status: 'updated';
+      legalWorkerState: string;
+    }) => void) | undefined;
+    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+      resolveSetRunning = resolve;
+    }));
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+    await waitFor(() => expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!)).toContain('idle'));
+
+    const sync = screen.getByRole('button', { name: 'Update to actual state' });
+    const setRunning = screen.getByRole('button', { name: 'Set legal state to running' });
+    fireEvent.click(sync);
+    expect(setRunning.hasAttribute('disabled')).toBe(true);
+    await act(async () => {
+      resolveSync?.({
+        sessionId: baseSession.id,
+        status: 'updated',
+        legalWorkerState: 'offline',
+        runtimeWorkerStatus: 'offline',
+      });
+    });
+    await waitFor(() => expect(setRunning.hasAttribute('disabled')).toBe(false));
+
+    fireEvent.click(setRunning);
+    expect(sync.hasAttribute('disabled')).toBe(true);
+    await act(async () => {
+      resolveSetRunning?.({
+        sessionId: baseSession.id,
+        status: 'updated',
+        legalWorkerState: 'running',
+      });
+    });
+    expect(sync.hasAttribute('disabled')).toBe(false);
+    expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!)).toContain('running');
   });
 
   it('degrades safely when clipboard is unavailable and displays missing values', async () => {
