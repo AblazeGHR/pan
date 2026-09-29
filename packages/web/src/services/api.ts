@@ -166,6 +166,12 @@ export interface QqGatewayPluginsResponse {
   manifestPath: string;
   legacyMultiChannel: boolean;
   legacyChannelCount: number;
+  snowlumaAccounts: SnowLumaAccount[];
+}
+
+export interface SnowLumaAccount {
+  bot_uin: string;
+  ws_url: string;
 }
 
 export const fetchQqGatewayPlugins = () =>
@@ -188,6 +194,11 @@ export const setQqGatewayPluginAutostart = (id: string, enabled: boolean) =>
 export const setQqGatewayPluginToken = (id: string, token: string) =>
   request<{ ok: boolean; requiresPanRestart: boolean }>(`${BASE}/settings/qq-plugins/${encodeURIComponent(id)}/token`, {
     method: 'PUT', body: JSON.stringify({ token }),
+  });
+
+export const setSnowLumaAccounts = (accounts: SnowLumaAccount[]) =>
+  request<{ ok: boolean; requiresPanRestart: boolean }>(`${BASE}/settings/qq-plugins/snowluma/accounts`, {
+    method: 'PUT', body: JSON.stringify({ accounts }),
   });
 
 export async function fetchDirectories(path?: string, includeFiles = false): Promise<DirectoryListResponse> {

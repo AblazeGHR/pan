@@ -45,6 +45,29 @@ def _inject_onebot_env(name: str, ws_urls: list[str], token: str | None) -> None
     print(f"[QQ] 启动通道 '{name}'，OneBot WS: {ws_urls}")
 
 
+def _selected_specs(qq_cfg: dict) -> list[dict]:
+    """Resolve the selected gateway without consuming preserved legacy channels."""
+    selected = qq_cfg.get("channel") or "napcat"
+    selected_cfg = qq_cfg.get(selected) or {}
+    accounts = selected_cfg.get("accounts") if selected == "snowluma" else None
+    if isinstance(accounts, list) and accounts:
+        specs = []
+        for index, account in enumerate(accounts):
+            specs.append({
+                "name": selected if index == 0 else f"{selected}{index + 1}",
+                "ws_urls": [account["ws_url"]],
+                "token": selected_cfg.get("token"),
+                "bot_uin": account["bot_uin"],
+            })
+        return specs
+    return [{
+        "name": selected,
+        "ws_urls": selected_cfg.get("ws_urls") or ["ws://127.0.0.1:3001"],
+        "token": selected_cfg.get("token"),
+        "bot_uin": selected_cfg.get("bot_uin"),
+    }]
+
+
 def main() -> None:
     qq_cfg = _load_qq_config()
     # 多通道解析：qq.channels 数组存在则逐项构建（多账号同收发），
@@ -52,14 +75,7 @@ def main() -> None:
     # An explicit Plugin-tab selection takes precedence over the legacy
     # multi-channel list without deleting that list from config.json.
     if qq_cfg.get("plugin_id"):
-        selected = qq_cfg.get("channel") or "napcat"
-        selected_cfg = qq_cfg.get(selected) or {}
-        specs = [{
-            "name": selected,
-            "ws_urls": selected_cfg.get("ws_urls") or ["ws://127.0.0.1:3001"],
-            "token": selected_cfg.get("token"),
-            "bot_uin": selected_cfg.get("bot_uin"),
-        }]
+        specs = _selected_specs(qq_cfg)
     else:
         specs = _channels.build_channel_specs(qq_cfg)
 

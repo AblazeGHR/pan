@@ -57,6 +57,17 @@ SnowLuma adapter 使用 OneBot v11 WebSocket；随仓库提供的示例地址是
 
 这些状态只说明本地注册项、进程或端口的情况，不证明 SnowLuma Hook 兼容当前 QQ 版本，也不证明真实 QQ 消息已双向送达。SnowLuma 的客户端支持和授权流程需按其官方文档确认。
 
+## 多个 QQ 账号
+
+SnowLuma 可为同一 Windows 用户下登录的多个 QQ 账号提供各自的 OneBot 实例。Pan 的 Plugin 页在选中 SnowLuma 后可维护多个账号：
+
+1. 在 **App Settings → Plugin → SnowLuma** 的账号区点击 **Add account**，逐项填写 QQ 号和本机 WS 地址，再点 **Save accounts**。例如第一个 `ws://127.0.0.1:3003`，第二个 `ws://127.0.0.1:3004`。QQ 号与端口必须各不相同。空列表则继续使用原有单账号配置。
+2. 在 SnowLuma WebUI 中给每个账号的 OneBot WS 设置对应端口。各账号使用 Plugin 页保存的同一个 OneBot token。
+3. 确认 SnowLuma 能看到各账号及对应 WS 端口。保存 Pan 账号列表后重启 Pan，桥接会创建 `snowluma`、`snowluma2` 等通道，并按消息的 `bot_uin` 路由收发。旧 `qq.channels` 配置仍保留。
+4. 在 Pan 的 QQ 通道列表中确认每个账号分别显示 `connected: true`；再由用户分别发送真实消息，检查 Pan 收到并回复。
+
+修改账号列表或端口后，Pan QQ 桥接需要重启。如果还修改了 SnowLuma 的账号级 WS 端口，应在 SnowLuma WebUI 中应用配置或重启 SnowLuma。不能让两个账号共用一个 WS 监听端口。此前在 practical 环境验证了两个账号的 WS 连接及 OneBot 身份查询；真实入站与回复仍需分别验收。
+
 ## 切回其他网关或恢复旧配置
 
 在 Plugin 页面选中 NapCat 或 LLOneBot，按页面提示重启 Pan；如需由 Pan 管理进程，先确认该网关注册路径有效，再点击 **Start**。切换框架前应按旧网关要求退出其进程及 QQ 客户端，避免两个框架争用同一个 QQ 客户端或 WebSocket 端口。

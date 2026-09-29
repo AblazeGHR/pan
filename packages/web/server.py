@@ -7645,6 +7645,8 @@ async def api_get_qq_plugins():
             )
         result["legacyMultiChannel"] = legacy_multi_channel
         result["legacyChannelCount"] = len(legacy_channels) if legacy_multi_channel else 0
+        snowluma = qq.get("snowluma") or {}
+        result["snowlumaAccounts"] = snowluma.get("accounts", []) if isinstance(snowluma, dict) else []
         return result
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -7717,6 +7719,56 @@ async def api_qq_plugin_token(plugin_id: str, data: dict = Body(...)):
     raw["qq"] = qq
     save_config(raw)
     return {"ok": True, "requiresPanRestart": True}
+
+
+def _validate_snowluma_accounts(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise ValueError("accounts must be an array")
+    accounts: list[dict[str, str]] = []
+    uins: set[str] = set()
+    ports: set[int] = set()
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != {"bot_uin", "ws_url"}:
+            raise ValueError("each account needs bot_uin and ws_url")
+        uin = entry["bot_uin"]
+        url = entry["ws_url"]
+        if not isinstance(uin, str) or not uin.isascii() or not uin.isdecimal() or int(uin) <= 0:
+            raise ValueError("bot_uin must be a positive decimal QQ number")
+        if not isinstance(url, str):
+            raise ValueError("ws_url must be a local WebSocket URL")
+        try:
+            parsed = urlsplit(url)
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("ws_url has an invalid port") from exc
+        if (parsed.scheme != "ws" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+                or port is None or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or parsed.path not in {"", "/"}):
+            raise ValueError("ws_url must be ws://127.0.0.1:<port>/ (or localhost)")
+        if uin in uins or port in ports:
+            raise ValueError("QQ numbers and WebSocket ports must be unique")
+        uins.add(uin)
+        ports.add(port)
+        accounts.append({"bot_uin": uin, "ws_url": url})
+    return accounts
+
+
+@app.put("/api/settings/qq-plugins/snowluma/accounts")
+async def api_qq_snowluma_accounts(data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"accounts"}:
+        raise HTTPException(status_code=422, detail="expected accounts array")
+    try:
+        accounts = _validate_snowluma_accounts(data["accounts"])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    channel = qq.get("snowluma") if isinstance(qq.get("snowluma"), dict) else {}
+    channel["accounts"] = accounts
+    qq["snowluma"] = channel
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "requiresPanRestart": True, "accounts": accounts}
 
 
 @app.get("/api/settings/ui")
