@@ -1,0 +1,32 @@
+{
+  "plugins": [
+    {
+      "id": "napcat",
+      "name": "NapCat",
+      "channel": "napcat",
+      "wsUrl": "ws://127.0.0.1:3001",
+      "cwd": "D:/project/NapCat/NapCat.44498.Shell",
+      "command": ["D:/project/NapCat/NapCat.44498.Shell/NapCatWinBootMain.exe", "3494144273"],
+      "autoStart": false
+    },
+    {
+      "id": "llonebot",
+      "name": "LLOneBot",
+      "channel": "llonebot",
+      "wsUrl": "ws://127.0.0.1:3002",
+      "cwd": "D:/project/LLBot-CLI-win-x64",
+      "command": ["D:/project/LLBot-CLI-win-x64/llbot.exe", "--qq=3494144273"],
+      "autoStart": false
+    },
+    {
+      "id": "snowluma",
+      "name": "SnowLuma",
+      "channel": "snowluma",
+      "wsUrl": "ws://127.0.0.1:3003",
+      "cwd": "D:/project/SnowLuma",
+      "command": ["D:/project/SnowLuma/node.exe", "D:/project/SnowLuma/index.mjs"],
+      "env": {"SNOWLUMA_HOOK_AUTOLOAD": "1"},
+      "autoStart": false
+    }
+  ]
+}

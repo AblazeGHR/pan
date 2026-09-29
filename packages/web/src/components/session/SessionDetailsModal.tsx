@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { fetchCodexQuota, fetchSession, fetchSessionUsage } from '@/services/api';
+import {
+  fetchCodexQuota,
+  fetchSession,
+  fetchSessionUsage,
+  syncSessionLegalWorkerState,
+} from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
 import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
@@ -109,15 +114,24 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const [detailSession, setDetailSession] = useState<Session | null>(null);
   const usageRequestId = useRef(0);
   const detailRequestId = useRef(0);
+  const legalSyncRequestId = useRef(0);
+  const activeSessionIdRef = useRef(sessionId);
+  activeSessionIdRef.current = sessionId;
   const detailCache = useRef(new Map<string, Session>());
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRefreshing, setDetailRefreshing] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailRetrySeq, setDetailRetrySeq] = useState(0);
   const [usageRetrySeq, setUsageRetrySeq] = useState(0);
+  const [legalSyncBusy, setLegalSyncBusy] = useState(false);
+  const [legalSyncFeedback, setLegalSyncFeedback] = useState<{
+    kind: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     usageRequestId.current += 1;
+    legalSyncRequestId.current += 1;
     const cached = sessionId ? getSessionUsageCache(sessionId) : undefined;
     setUsageExpanded(false);
     setUsage(cached?.usage ?? null);
@@ -130,6 +144,8 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     setDetailLoading(false);
     setDetailRefreshing(false);
     setDetailError(null);
+    setLegalSyncBusy(false);
+    setLegalSyncFeedback(null);
   }, [sessionId]);
 
   useEffect(() => {
@@ -227,7 +243,8 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   // Sidebar sessions come from summary=1 and intentionally omit detail-only
   // fields such as systemPrompt. Render that snapshot immediately, then use
   // the complete session fetched for this open modal once it arrives.
-  const displayedSession = detailSession ?? session;
+  const currentDetailSession = detailSession?.id === sessionId ? detailSession : null;
+  const displayedSession = currentDetailSession ?? session;
   const usageView = usage ?? fallbackUsage(displayedSession);
   const quotaRefreshError = usageView.codexQuota?.refreshError;
   const detailFreshness: FreshnessState = detailError
@@ -236,10 +253,10 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
       ? 'loading'
       : detailRefreshing
         ? 'refreshing'
-        : detailSession
+        : currentDetailSession
           ? 'updated'
           : 'cached';
-  const detailSource = detailSession ? 'session metadata' : 'session summary cache';
+  const detailSource = currentDetailSession ? 'session metadata' : 'session summary cache';
   const usageCache = sessionId ? getSessionUsageCache(sessionId) : undefined;
   const usageFreshness: FreshnessState = usageError
     ? 'error'
@@ -259,6 +276,53 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
       : 'unknown';
   const usageUpdatedAt = usage?.updatedAt ?? usageCache?.cachedAt ?? null;
   const retryUsage = () => setUsageRetrySeq((value) => value + 1);
+  const syncLegalState = async () => {
+    if (!sessionId || !currentDetailSession || legalSyncBusy) return;
+    const targetSessionId = sessionId;
+    const requestId = ++legalSyncRequestId.current;
+    setLegalSyncBusy(true);
+    setLegalSyncFeedback(null);
+    try {
+      const result = await syncSessionLegalWorkerState(targetSessionId);
+      if (legalSyncRequestId.current !== requestId
+          || activeSessionIdRef.current !== targetSessionId) return;
+      if (result.sessionId !== targetSessionId) {
+        setLegalSyncFeedback({ kind: 'error', message: 'Sync returned a different Session.' });
+      } else if (result.status === 'updated' && result.legalWorkerState) {
+        const latest = detailCache.current.get(targetSessionId) ?? currentDetailSession;
+        const updated = { ...latest, lastLegalWorkerState: result.legalWorkerState };
+        detailCache.current.set(targetSessionId, updated);
+        setDetailSession((current) => current?.id === targetSessionId
+          ? { ...current, lastLegalWorkerState: result.legalWorkerState }
+          : current);
+        // A metadata request that started before the sync must not overwrite
+        // the helper's newer persisted result when it settles later.
+        detailRequestId.current += 1;
+        setLegalSyncFeedback({
+          kind: 'success',
+          message: `Legal state updated to ${result.legalWorkerState}`
+            + (result.runtimeWorkerStatus ? ` (runtime: ${result.runtimeWorkerStatus})` : ''),
+        });
+      } else {
+        setLegalSyncFeedback({
+          kind: 'error',
+          message: result.error || 'Could not synchronize the legal Worker state.',
+        });
+      }
+    } catch (error) {
+      if (legalSyncRequestId.current !== requestId
+          || activeSessionIdRef.current !== targetSessionId) return;
+      setLegalSyncFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      if (legalSyncRequestId.current === requestId
+          && activeSessionIdRef.current === targetSessionId) {
+        setLegalSyncBusy(false);
+      }
+    }
+  };
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -337,6 +401,34 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           );
         })}
+        <section aria-label="Legal Worker state" className="rounded border border-border-default px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-text-tertiary mb-1">Last legal Worker state</div>
+              <div className="text-sm text-text-primary break-words">
+                {currentDetailSession
+                  ? displayValue(currentDetailSession.lastLegalWorkerState, 'Not recorded')
+                  : detailLoading ? 'Loading Session metadata…' : 'Unavailable'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void syncLegalState()}
+              disabled={!currentDetailSession || detailLoading || legalSyncBusy}
+              className="shrink-0 rounded border border-border-default px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {legalSyncBusy ? 'Updating…' : 'Update to actual state'}
+            </button>
+          </div>
+          {legalSyncFeedback && (
+            <p
+              role={legalSyncFeedback.kind === 'error' ? 'alert' : 'status'}
+              className={`mt-2 text-[11px] ${legalSyncFeedback.kind === 'error' ? 'text-danger' : 'text-success'}`}
+            >
+              {legalSyncFeedback.message}
+            </p>
+          )}
+        </section>
         <section className="rounded border border-border-default overflow-hidden" aria-label="System prompt">
           <button
             type="button"

@@ -240,8 +240,13 @@ def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
 def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None:
     """Merge a single manifest's data into *config* with dedup."""
     # Session templates — dedup by name. ``profiles`` is the legacy key kept
-    # for backward compatibility (pre-refactor manifests used it).
-    for raw in data.get("session_templates", data.get("profiles", [])):
+    # for backward compatibility (pre-refactor manifests used it). Read both
+    # when present so a save can append to ``session_templates`` without
+    # dropping legacy entries still stored under ``profiles``.
+    for raw in data.get("session_templates", []):
+        template = _parse_session_template(raw, plugin_dir)
+        _dedup_append(config.session_templates, template, key=lambda t: t.name)
+    for raw in data.get("profiles", []):
         template = _parse_session_template(raw, plugin_dir)
         _dedup_append(config.session_templates, template, key=lambda t: t.name)
 

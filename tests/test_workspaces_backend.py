@@ -103,7 +103,8 @@ def test_managed_workspace_inheritance_claim_detach_and_list(monkeypatch, tmp_pa
     monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
     workspace.clear_cache()
     parent = sess.Session(id="ses_parent", name="parent")
-    child = sess.Session(id="ses_child", name="child", workspace_ids=["ws_stale"])
+    child = sess.Session(id="ses_child", name="child", managed=["ses_grandchild"],
+                         workspace_ids=["ws_stale"])
     grandchild = sess.Session(id="ses_grandchild", name="grandchild", managed_by=child.id,
                               workspace_ids=["ws_stale"])
     one = workspace.create("One")

@@ -13,15 +13,21 @@ Usage::
 
 from __future__ import annotations
 
+import copy
 import json
+import hashlib
 import logging
+import os
 import secrets
+import stat
+import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from .memory.embedder import PROVIDER_SENTENCE_TRANSFORMERS
 
@@ -31,6 +37,78 @@ if TYPE_CHECKING:
     from .memory.search import SearchResult
 
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def _manifest_process_lock(paths: list[Path]):
+    """Serialize manifest writes across Pan processes using the same catalog."""
+    key = "\n".join(sorted(os.path.normcase(str(path.resolve())) for path in paths))
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    lock_dir = Path(tempfile.gettempdir()) / "pan-manifest-template-locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{digest}.lock"
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if os.fstat(fd).st_size == 0:
+            os.write(fd, b"\0")
+        os.lseek(fd, 0, os.SEEK_SET)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            os.lseek(fd, 0, os.SEEK_SET)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+def _file_signature(path: Path) -> tuple[int, int, int, int]:
+    info = path.stat()
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+
+def _write_bytes_atomic(path: Path, content: bytes, mode: int) -> None:
+    """Replace one file atomically, cleaning up the temporary on every path."""
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temp_path, stat.S_IMODE(mode))
+        os.replace(temp_path, path)
+        try:
+            dir_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            # Directory fsync is unsupported on some platforms (notably
+            # Windows); the file contents were still flushed before replace.
+            pass
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 # ------------------------------------------------------------------ #
@@ -90,6 +168,9 @@ class CharacterManager:
         self._memory_managers: dict[str, MemoryManager] = {}
         self._memory_managers_lock = threading.Lock()  # guards the dict (#32)
         self._manifest_config: ManifestConfig | None = None
+        # Saves and reloads share this lock so validation, disk replacement,
+        # and catalog refresh observe one in-process manifest generation.
+        self._manifest_write_lock = threading.RLock()
 
         # Hot-reload bookkeeping. ``_plugin_paths`` is the same list passed to
         # ``load_manifest`` so ``reload_manifest`` can re-read the exact same
@@ -117,10 +198,11 @@ class CharacterManager:
     def load_manifest(self, plugin_paths: list[str]) -> ManifestConfig:
         from .manifest_loader import load_manifests
 
-        self._plugin_paths = list(plugin_paths)
-        self._manifest_config = load_manifests(plugin_paths)
-        self._refresh_manifest_state()
-        return self._manifest_config
+        with self._manifest_write_lock:
+            self._plugin_paths = list(plugin_paths)
+            self._manifest_config = load_manifests(plugin_paths)
+            self._refresh_manifest_state()
+            return self._manifest_config
 
     # --- manifest hot-reload ------------------------------------------- #
 
@@ -212,6 +294,10 @@ class CharacterManager:
 
         Returns the (possibly unchanged) config.
         """
+        with self._manifest_write_lock:
+            return self._reload_manifest_unlocked()
+
+    def _reload_manifest_unlocked(self) -> ManifestConfig | None:
         if not self._plugin_paths:
             # Nothing was ever loaded via paths; nothing to reload.
             return self._manifest_config
@@ -253,6 +339,12 @@ class CharacterManager:
         Returns ``(config, errors)``: on success ``(new_config, [])``; on
         abort ``(None, errors)`` with the previous state untouched.
         """
+        with self._manifest_write_lock:
+            return self._reload_plugin_paths_unlocked(plugin_paths)
+
+    def _reload_plugin_paths_unlocked(
+        self, plugin_paths: list[str]
+    ) -> tuple[ManifestConfig | None, list[str]]:
         ok, errors = self._manifest_files_parse_ok(list(plugin_paths))
         if not ok:
             log.error(
@@ -276,6 +368,227 @@ class CharacterManager:
         self._manifest_config = new_config
         self._refresh_manifest_state()
         return new_config, []
+
+    @staticmethod
+    def _manifest_target_id(path: Path) -> str:
+        identity = os.path.normcase(str(path.resolve()))
+        return "manifest-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _manifest_target_label(path: Path) -> str:
+        from .manifest_loader import REPO_ROOT
+
+        resolved = path.resolve()
+        try:
+            return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
+        except ValueError:
+            return f"{resolved.parent.name}/manifest.json"
+
+    @staticmethod
+    def _manifest_write_status(path: Path) -> tuple[bool, str | None]:
+        try:
+            info = path.stat()
+            parent_info = path.parent.stat()
+            has_mode_write = bool(info.st_mode & 0o222) and bool(parent_info.st_mode & 0o222)
+            if not has_mode_write or not os.access(path, os.W_OK) or not os.access(path.parent, os.W_OK):
+                return False, "Manifest file or containing directory is not writable"
+        except OSError:
+            return False, "Manifest file or containing directory is not accessible"
+        return True, None
+
+    def list_session_template_manifest_targets(self) -> list[dict]:
+        """List parseable manifests from the exact paths loaded by this manager.
+
+        Only opaque stable IDs leave the server. A client can select a loaded
+        target, but cannot submit a filesystem path to the save API.
+        """
+        from .manifest_loader import resolve_manifest_files
+
+        with self._manifest_write_lock:
+            targets: list[dict] = []
+            for path in resolve_manifest_files(self._plugin_paths):
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8-sig"))
+                except (OSError, UnicodeError, json.JSONDecodeError):
+                    continue
+                if not isinstance(data, dict):
+                    continue
+                writable, reason = self._manifest_write_status(path)
+                targets.append({
+                    "id": self._manifest_target_id(path),
+                    "label": self._manifest_target_label(path),
+                    "writable": writable,
+                    "reason": reason,
+                })
+            return targets
+
+    @staticmethod
+    def _read_manifest_snapshot(path: Path) -> dict:
+        before = _file_signature(path)
+        content = path.read_bytes()
+        after = _file_signature(path)
+        if before != after:
+            raise ValueError("A loaded manifest changed while it was being read; retry the save")
+        try:
+            data = json.loads(content.decode("utf-8-sig"))
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError("All loaded manifests must be readable valid JSON before saving") from exc
+        if not isinstance(data, dict):
+            raise ValueError("All loaded manifests must contain a JSON object")
+        return {
+            "path": path,
+            "content": content,
+            "signature": after,
+            "mode": path.stat().st_mode,
+            "data": data,
+        }
+
+    def save_session_template(
+        self,
+        target_id: str,
+        payload: dict,
+        *,
+        validate: Callable[[dict], dict],
+        base_template: str | None = None,
+    ) -> dict:
+        """Create and atomically append one validated template to a loaded manifest.
+
+        When ``base_template`` is set, read its complete manifest definition
+        from the locked snapshots and merge explicit request fields over it.
+        """
+        from .manifest_loader import resolve_manifest_files
+
+        if not isinstance(target_id, str) or not target_id:
+            raise ValueError("manifestId must be a loaded manifest target id")
+        if base_template is not None and (
+            not isinstance(base_template, str) or not base_template.strip()
+        ):
+            raise ValueError("baseTemplate must be a non-empty loaded Session Template name")
+        with self._manifest_write_lock:
+            paths = resolve_manifest_files(self._plugin_paths)
+            if not paths:
+                raise ValueError("No loaded manifest is available for saving")
+            with _manifest_process_lock(paths):
+                snapshots = [self._read_manifest_snapshot(path) for path in paths]
+                target = next((
+                    item for item in snapshots
+                    if self._manifest_target_id(item["path"]) == target_id
+                ), None)
+                if target is None:
+                    raise ValueError("manifestId is not one of the currently loaded manifest targets")
+                writable, reason = self._manifest_write_status(target["path"])
+                if not writable:
+                    raise ValueError(reason or "Manifest is not writable")
+
+                effective_payload: dict = {"name": payload.get("name")}
+                if base_template is not None:
+                    base_entry = None
+                    # Match load_manifests/_merge_manifest precedence: scan in
+                    # order and let every later same-name entry replace it.
+                    for snapshot in snapshots:
+                        manifest = snapshot["data"]
+                        for key in ("session_templates", "profiles"):
+                            entries = manifest.get(key, [])
+                            if not isinstance(entries, list):
+                                raise ValueError(f"Manifest {key} must be an array before saving")
+                            for entry in entries:
+                                if isinstance(entry, dict) and entry.get("name") == base_template:
+                                    base_entry = entry
+                    if base_entry is None:
+                        raise ValueError(f"Base Session Template {base_template!r} is no longer loaded")
+
+                    for field in (
+                        "adapter", "model", "permission_mode", "system_prompt",
+                        "mcp_mode", "mcp_servers",
+                    ):
+                        if field in base_entry:
+                            effective_payload[field] = copy.deepcopy(base_entry[field])
+
+                    base_access = base_entry.get("pan_access", {})
+                    if base_access is None:
+                        base_access = {}
+                    if not isinstance(base_access, dict):
+                        raise ValueError("Base Session Template pan_access must be an object")
+                    access_fields = (
+                        "restrict_to_managed", "can_claim_unmanaged", "auto_claim_created",
+                    )
+                    merged_access = {
+                        key: value for key, value in base_access.items()
+                        if key in access_fields
+                    }
+                    for access_key in access_fields:
+                        if access_key not in merged_access and access_key in base_entry:
+                            merged_access[access_key] = base_entry[access_key]
+                    if merged_access:
+                        effective_payload["pan_access"] = merged_access
+
+                request_payload = dict(payload)
+                request_access = request_payload.pop("pan_access", None)
+                has_request_access = "pan_access" in payload
+                effective_payload.update(request_payload)
+                if has_request_access:
+                    if isinstance(request_access, dict) and isinstance(effective_payload.get("pan_access"), dict):
+                        access = dict(effective_payload["pan_access"])
+                        access.update(request_access)
+                        effective_payload["pan_access"] = access
+                    else:
+                        effective_payload["pan_access"] = request_access
+
+                # Validate under the same lock as the global duplicate-name
+                # scan and replacement, against the current loaded MCP catalog.
+                normalized = validate(effective_payload)
+                name = normalized["name"]
+                for snapshot in snapshots:
+                    manifest = snapshot["data"]
+                    for key in ("session_templates", "profiles"):
+                        entries = manifest.get(key, [])
+                        if not isinstance(entries, list):
+                            raise ValueError(f"Manifest {key} must be an array before saving")
+                        if any(not isinstance(entry, dict) for entry in entries):
+                            raise ValueError(f"Manifest {key} entries must be objects before saving")
+                        if any(entry.get("name") == name for entry in entries):
+                            raise ValueError(f"Session Template {name!r} already exists in a loaded manifest")
+
+                for snapshot in snapshots:
+                    try:
+                        unchanged = _file_signature(snapshot["path"]) == snapshot["signature"]
+                    except OSError:
+                        unchanged = False
+                    if not unchanged:
+                        raise ValueError("A loaded manifest changed while saving; reload and retry")
+
+                manifest = target["data"]
+                templates = manifest.setdefault("session_templates", [])
+                if not isinstance(templates, list):
+                    raise ValueError("Target manifest session_templates must be an array")
+                templates.append(normalized)
+                written = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                path = target["path"]
+                _write_bytes_atomic(path, written, target["mode"])
+
+                try:
+                    refreshed = self._reload_manifest_unlocked()
+                    saved = refreshed.get_session_template(name) if refreshed is not None else None
+                    if saved is None or Path(saved.source_manifest).resolve() != path.parent.resolve():
+                        raise RuntimeError("The saved template did not appear in the refreshed manifest catalog")
+                except Exception as exc:
+                    try:
+                        current = path.read_bytes()
+                        if current != written:
+                            raise RuntimeError("Manifest changed after replacement; safe rollback was not possible")
+                        _write_bytes_atomic(path, target["content"], target["mode"])
+                        self._reload_manifest_unlocked()
+                    except Exception as rollback_exc:
+                        raise RuntimeError(
+                            f"Manifest refresh failed ({exc}); rollback failed ({rollback_exc})"
+                        ) from rollback_exc
+                    raise RuntimeError(f"Manifest refresh failed; save was rolled back: {exc}") from exc
+
+                return {
+                    "manifestId": target_id,
+                    "manifestLabel": self._manifest_target_label(path),
+                    "sessionTemplate": normalized,
+                }
 
     def list_session_templates(self) -> list[SessionTemplate]:
         if self._manifest_config is None:

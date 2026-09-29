@@ -14,6 +14,34 @@ vi.mock('./MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
+vi.mock('@tanstack/react-virtual', async () => {
+  const { useReducer } = await import('react');
+  return {
+    useVirtualizer: (options: {
+      count: number;
+      estimateSize: (index: number) => number;
+      gap: number;
+      getItemKey: (index: number) => string | number;
+    }) => {
+      const [, rerender] = useReducer((value: number) => value + 1, 0);
+      return {
+        getVirtualItems: () => Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: options.getItemKey(index),
+          start: index * (options.estimateSize(index) + options.gap),
+          size: options.estimateSize(index),
+        })),
+        getTotalSize: () => options.count === 0
+          ? 0
+          : options.count * options.estimateSize(0) + (options.count - 1) * options.gap,
+        measureElement: () => {},
+        measure: rerender,
+        scrollToIndex: () => {},
+      };
+    },
+  };
+});
+
 afterEach(() => cleanup());
 
 const thinking = (label: string, blockId: string): Message => ({

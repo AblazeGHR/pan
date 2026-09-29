@@ -123,6 +123,7 @@ export const mockSessions: Session[] = loadSessions();
 // turning the demo into a second backend implementation.
 const mockQueues: Record<string, AgentQueueItem[]> = {};
 const mockQueueRevisions: Record<string, number> = {};
+const mockAgentReportsPaused: Record<string, boolean> = {};
 const mockQueueClientIds: Record<string, Map<string, string>> = {};
 let mockQueueSequence = 0;
 
@@ -138,6 +139,19 @@ function queueForSession(sessionId: string): AgentQueueItem[] {
   return mockQueues[sessionId] ?? [];
 }
 
+function withMockQueueLock(
+  item: AgentQueueItem,
+  manual?: boolean,
+  automatic?: boolean,
+): AgentQueueItem {
+  const lockManual = manual ?? item.meta?.lockManual ?? false;
+  const lockAutoReport = automatic ?? item.meta?.lockAutoReport ?? false;
+  return {
+    ...item,
+    meta: { ...item.meta, lockManual, lockAutoReport, locked: lockManual || lockAutoReport },
+  };
+}
+
 function queueRevisionForSession(sessionId: string): number {
   return mockQueueRevisions[sessionId] ?? 0;
 }
@@ -148,17 +162,24 @@ function bumpQueueRevision(sessionId: string): number {
   return next;
 }
 
-function queueResponse(sessionId: string): { ok: true; items: AgentQueueItem[]; queueRevision: number } {
+function queueResponse(sessionId: string): {
+  ok: true;
+  items: AgentQueueItem[];
+  queueRevision: number;
+  agentReportsPaused: boolean;
+} {
   return {
     ok: true,
     items: queueForSession(sessionId).slice(),
     queueRevision: queueRevisionForSession(sessionId),
+    agentReportsPaused: mockAgentReportsPaused[sessionId] ?? false,
   };
 }
 
 function clearMockQueues(): void {
   for (const key of Object.keys(mockQueues)) delete mockQueues[key];
   for (const key of Object.keys(mockQueueRevisions)) delete mockQueueRevisions[key];
+  for (const key of Object.keys(mockAgentReportsPaused)) delete mockAgentReportsPaused[key];
   for (const key of Object.keys(mockQueueClientIds)) delete mockQueueClientIds[key];
   mockQueueSequence = 0;
 }
@@ -181,6 +202,17 @@ export function applyMockSessionUpdate(id: string, patch: Partial<Session>): voi
     Object.assign(session, patch);
     persistSessions();
   }
+}
+
+export function applyMockPinnedOrder(sessionIds: string[], pinRevision: number): void {
+  const orderById = new Map(sessionIds.map((id, index) => [id, index]));
+  for (const session of mockSessions) {
+    const pinOrder = orderById.get(session.id);
+    session.pinned = pinOrder !== undefined;
+    session.pinOrder = pinOrder ?? null;
+    session.pinRevision = pinRevision;
+  }
+  persistSessions();
 }
 
 /** Reset the demo data to its seeded state (used by the DemoBadge reset). */
@@ -289,6 +321,48 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   if (method === 'GET' && path === '/api/sessions') {
     return { sessions: mockSessions };
   }
+  if (method === 'POST' && path === '/api/sessions/pins/order') {
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const requested = Array.isArray(values.sessionIds)
+      ? values.sessionIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    const current = mockSessions
+      .filter((session) => session.pinned)
+      .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+      .map((session) => session.id);
+    if (requested.some((id) => !current.includes(id)) || new Set(requested).size !== requested.length) {
+      return { ok: false, error: { message: 'Invalid pinned Session order' } };
+    }
+    const selected = new Set(requested);
+    const slots = current.flatMap((id, index) => selected.has(id) ? [index] : []);
+    const ordered = current.slice();
+    slots.forEach((slot, index) => { ordered[slot] = requested[index]!; });
+    const revision = Math.max(0, ...mockSessions.map((session) => session.pinRevision ?? 0)) + 1;
+    applyMockPinnedOrder(ordered, revision);
+    return { ok: true, pinRevision: revision, sessionIds: ordered };
+  }
+  const pinMatch = path.match(/^\/api\/sessions\/([^/]+)\/pin$/);
+  if (pinMatch && method === 'POST') {
+    const sessionId = decodePathPart(pinMatch[1]!);
+    const session = findSession(sessionId);
+    if (!session) return { ok: false, error: { message: 'Session not found' } };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const pinned = values.pinned === true;
+    const ordered = mockSessions
+      .filter((item) => item.pinned && item.id !== sessionId)
+      .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+      .map((item) => item.id);
+    if (pinned) ordered.push(sessionId);
+    const revision = Math.max(0, ...mockSessions.map((item) => item.pinRevision ?? 0)) + 1;
+    applyMockPinnedOrder(ordered, revision);
+    return {
+      ok: true,
+      pinned,
+      pinOrder: pinned ? ordered.indexOf(sessionId) : null,
+      pinRevision: revision,
+      sessionIds: ordered,
+    };
+  }
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
   if (sessionMatch && method === 'GET') {
     return findSession(sessionMatch[1]!) ?? { error: 'not found' };
@@ -317,6 +391,10 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
       const text = typeof values.text === 'string' ? values.text : '';
       const parts = Array.isArray(values.parts) ? values.parts : undefined;
+      if (values.locked !== undefined && typeof values.locked !== 'boolean') {
+        return { ok: false, error: 'locked must be a boolean' };
+      }
+      const locked = values.locked === true;
       if (!text.trim()) return { ok: false, error: '消息不能为空' };
       const clientMessageId = typeof values.clientMessageId === 'string'
         ? values.clientMessageId
@@ -343,7 +421,8 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
         ...(parts ? { parts: parts as AgentQueueItem['parts'] } : {}),
         createdAt: Date.now(),
         source: 'user',
-        meta: { dispatchState: 'queued', revision },
+        meta: { dispatchState: 'queued', revision,
+          locked, lockManual: locked, lockAutoReport: false },
       };
       mockQueues[sessionId] = [...queueForSession(sessionId), item];
       if (clientMessageId) {
@@ -375,6 +454,49 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       ...item,
       meta: { ...item.meta, revision },
     }));
+    return queueResponse(sessionId);
+  }
+
+  const queueReportsPausedMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/reports-paused$/);
+  if (queueReportsPausedMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueReportsPausedMatch[1]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.paused !== 'boolean') return { ok: false, error: 'paused must be a boolean' };
+    mockAgentReportsPaused[sessionId] = values.paused;
+    mockQueues[sessionId] = queueForSession(sessionId).map((item) =>
+      item.kind === 'report' && item.source === 'report'
+        ? withMockQueueLock(item, undefined, values.paused as boolean)
+        : item);
+    bumpQueueRevision(sessionId);
+    return queueResponse(sessionId);
+  }
+
+  const queueLocksMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/locks$/);
+  if (queueLocksMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueLocksMatch[1]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.locked !== 'boolean') return { ok: false, error: 'locked must be a boolean' };
+    mockQueues[sessionId] = queueForSession(sessionId).map((item) =>
+      withMockQueueLock(item, values.locked as boolean, values.locked ? undefined : false));
+    bumpQueueRevision(sessionId);
+    return queueResponse(sessionId);
+  }
+
+  const queueItemLockMatch = path.match(/^\/api\/sessions\/([^/]+)\/queue\/([^/]+)\/lock$/);
+  if (queueItemLockMatch && method === 'PATCH') {
+    const sessionId = decodePathPart(queueItemLockMatch[1]!);
+    const itemId = decodePathPart(queueItemLockMatch[2]!);
+    if (!findSession(sessionId)) return { ok: false, error: 'not found' };
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (typeof values.locked !== 'boolean') return { ok: false, error: 'locked must be a boolean' };
+    const current = queueForSession(sessionId);
+    if (!current.some((item) => item.id === itemId)) return { ok: false, error: 'not found' };
+    mockQueues[sessionId] = current.map((item) => item.id === itemId
+      ? withMockQueueLock(item, values.locked as boolean, values.locked ? undefined : false)
+      : item);
+    bumpQueueRevision(sessionId);
     return queueResponse(sessionId);
   }
 
@@ -431,6 +553,52 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   }
   if (path === '/api/settings/ui' && method === 'PUT') {
     return body ?? {};
+  }
+  if (path === '/api/data/catalog' && method === 'GET') {
+    return {
+      categories: [],
+      notice: 'Demo mode does not expose filesystem paths; connect to a Pan backend to view its registered storage locations.',
+      jobsRetention: {
+        slot: 'jobs-retention-control',
+        status: 'reserved',
+        message: 'Jobs retention controls will follow the Jobs API field contract.',
+      },
+    };
+  }
+  if (path === '/api/settings/data-retention' && method === 'GET') {
+    const policies = {
+      sessions: { enabled: false, days: null },
+      attachments: { enabled: false, days: null },
+      qq_history: { enabled: false, days: null },
+      qq_media: { enabled: false, days: null },
+      pan_logs: { enabled: false, days: null },
+    };
+    const lastScans = Object.fromEntries(Object.keys(policies).map((key) => [key, {
+      scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null,
+    }]));
+    return { policies, configKey: 'data_retention', lastScans };
+  }
+  if (path === '/api/settings/data-retention' && method === 'PUT') {
+    const submitted = body && typeof body === 'object' && !Array.isArray(body)
+      ? body as { policies?: Record<string, { enabled: boolean; days: number | null }> }
+      : {};
+    return {
+      policies: submitted.policies ?? {
+        sessions: { enabled: false, days: null },
+        attachments: { enabled: false, days: null },
+        qq_history: { enabled: false, days: null },
+        qq_media: { enabled: false, days: null },
+        pan_logs: { enabled: false, days: null },
+      },
+      configKey: 'data_retention',
+      lastScans: {
+        sessions: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        attachments: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        qq_history: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        qq_media: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        pan_logs: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+      },
+    };
   }
   if (path === '/api/adapters') {
     return {

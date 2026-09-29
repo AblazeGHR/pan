@@ -71,7 +71,8 @@ describe('StartupRecoveryPrompt', () => {
     decideMock.mockResolvedValue(record('completed', 'restart'));
     render(<StartupRecoveryPrompt />);
 
-    expect(await screen.findByRole('dialog')).toBeTruthy();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.className).toContain('max-w-[36rem]');
     expect(screen.getByText(/Restart these Sessions/)).toBeTruthy();
     expect(screen.getByText(/Keep their legal state as running/)).toBeTruthy();
     expect(screen.getByText(/Update legal state to current Worker state/)).toBeTruthy();
@@ -81,6 +82,14 @@ describe('StartupRecoveryPrompt', () => {
     await waitFor(() => expect(decideMock).toHaveBeenCalledTimes(1));
     expect(decideMock).toHaveBeenCalledWith('generation-1', expect.any(String), 'restart');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('keeps the load-error fallback at a readable width', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('API unavailable'));
+    render(<StartupRecoveryPrompt />);
+
+    const error = await screen.findByText('API unavailable');
+    expect(error.closest('section')?.className).toContain('max-w-[32rem]');
   });
 
   it('locks a failed decision to the original choice for a retry', async () => {
@@ -105,6 +114,36 @@ describe('StartupRecoveryPrompt', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
     await waitFor(() => expect(decideMock).toHaveBeenCalledWith(
       'generation-1', expect.any(String), 'sync-actual',
+    ));
+  });
+
+  it('shows automatic startup failure details and exposes only the saved-choice retry', async () => {
+    const failed = {
+      ...record('failed', 'restart'),
+      results: [{ sessionId: candidate.id, status: 'error', error: 'queue store unavailable' }],
+    };
+    fetchMock.mockResolvedValue(failed);
+    claimMock.mockResolvedValue({
+      ok: true,
+      claimed: true,
+      state: 'failed',
+      decision: 'restart',
+      attempts: 1,
+      results: failed.results,
+      candidates: [candidate],
+    });
+    decideMock.mockResolvedValue(record('completed', 'restart'));
+    render(<StartupRecoveryPrompt />);
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('session-1: queue store unavailable')).toBeTruthy();
+    expect((screen.getByRole('radio', { name: /Restart these Sessions/ }) as HTMLInputElement).checked)
+      .toBe(true);
+    expect((screen.getByRole('radio', { name: /Keep their legal state as running/ }) as HTMLInputElement).disabled)
+      .toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
+    await waitFor(() => expect(decideMock).toHaveBeenCalledWith(
+      'generation-1', expect.any(String), 'restart',
     ));
   });
 

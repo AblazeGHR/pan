@@ -711,8 +711,13 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     paginationAnchorRef.current = null;
     restoreRef.current = null;
     isRestoringRef.current = false;
-    if (direction === 'older') upwardPaginationArmedRef.current = true;
-    else if (direction === 'newer') upwardPaginationArmedRef.current = false;
+    if (direction === 'older') {
+      // Streaming can rerender before the browser dispatches the wheel's scroll
+      // event. Stop following on the input itself so that rerender cannot pin
+      // the viewport back to the bottom and erase the reader's movement.
+      shouldFollowBottomRef.current = false;
+      upwardPaginationArmedRef.current = true;
+    } else if (direction === 'newer') upwardPaginationArmedRef.current = false;
     const state = userScrollStateRef.current;
     state.generation += 1;
     state.active = true;
@@ -1313,7 +1318,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     };
 
     const handleWheel = (event: WheelEvent) => {
-      markUserScrollInput();
+      markUserScrollInput(event);
       if (
         event.deltaY < 0 &&
         el.scrollTop <= 0 &&

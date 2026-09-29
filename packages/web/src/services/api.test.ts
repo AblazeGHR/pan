@@ -12,6 +12,8 @@ import {
   reimportSession,
   steerSessionWorker,
   uploadSessionAttachment,
+  fetchCompletedJobRetentionSettings,
+  updateCompletedJobRetentionSettings,
 } from './api';
 
 class FakeXMLHttpRequest {
@@ -265,6 +267,69 @@ describe('history page API for search jumps', () => {
 
     expect(new URL(urls[0]!, 'http://localhost').searchParams.has('searchJump')).toBe(false);
     expect(new URL(urls[1]!, 'http://localhost').searchParams.get('searchJump')).toBe('true');
+  });
+});
+
+describe('canonical Jobs completed-retention API', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reads and writes the same Jobs API route with the rules payload', async () => {
+    const rules = {
+      completed: { enabled: false, days: null },
+      failed: { enabled: true, days: 14 },
+      timed_out: { enabled: false, days: null },
+      cancelled: { enabled: false, days: null },
+      logs: { enabled: false, days: null },
+    };
+    const configValidity = {
+      completed: true,
+      failed: true,
+      timed_out: true,
+      cancelled: true,
+      logs: true,
+    };
+    const lastRuns = {
+      completed: null,
+      failed: null,
+      timed_out: null,
+      cancelled: null,
+      logs: null,
+    };
+    const requests: Array<{ url: string; method: string; body: unknown }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(url),
+        method: init?.method ?? 'GET',
+        body: init?.body ? JSON.parse(init.body as string) : undefined,
+      });
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          settings: rules.completed,
+          rules,
+          configValid: true,
+          configValidity,
+          lastRun: null,
+          lastRuns,
+        }),
+      };
+    }));
+
+    await expect(fetchCompletedJobRetentionSettings()).resolves.toMatchObject({ rules });
+    await updateCompletedJobRetentionSettings(rules);
+
+    expect(requests).toEqual([
+      { url: '/api/jobs/settings/completed-retention', method: 'GET', body: undefined },
+      {
+        url: '/api/jobs/settings/completed-retention',
+        method: 'PUT',
+        body: { rules },
+      },
+    ]);
   });
 });
 

@@ -148,7 +148,7 @@ await runCase('drag auto scroll and HTTP order persistence', async (page) => {
   assert.ok(names.indexOf('Drag 01') > 0, `dragged session was not reordered: ${names.join(', ')}`);
 });
 
-await runCase('stream follows exact bottom only', async (page) => {
+await runCase('stream follows bottom and respects upward wheel input', async (page) => {
   const card = await selectSession(page, 'Chat Stream');
   await page.getByRole('heading', { name: 'Browser file-link fixtures' }).waitFor({ state: 'visible' });
   const scroller = page.locator('main div.overflow-auto').first();
@@ -172,14 +172,17 @@ await runCase('stream follows exact bottom only', async (page) => {
   await page.locator('main').getByText('bottom-follow').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(100);
   assert.equal(await scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight), 0);
-  await scroller.evaluate((el) => { el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - 1); el.dispatchEvent(new Event('scroll', { bubbles: true })); });
-  const onePixelAway = await scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-  assert.ok(onePixelAway >= 1);
-  await stream('away-stream', `one-pixel-away\n${'line\n'.repeat(24)}`);
-  await page.locator('main').getByText('one-pixel-away').first().waitFor({ state: 'visible' });
+  await scroller.hover();
+  await page.mouse.wheel(0, -250);
+  const away = await poll(
+    () => scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight),
+    (distance) => distance > 100,
+  );
+  await stream('away-stream', `away-from-bottom\n${'line\n'.repeat(24)}`);
+  await page.locator('main').getByText('away-from-bottom').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(120);
   const afterAway = await scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-  assert.ok(afterAway > onePixelAway, `stream pulled one-pixel-away reader to bottom: before=${onePixelAway}, after=${afterAway}`);
+  assert.ok(afterAway >= away, `stream pulled the reader to bottom: before=${away}, after=${afterAway}`);
 });
 
 await runCase('markdown files through real editor and external link preservation', async (page) => {

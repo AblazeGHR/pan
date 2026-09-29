@@ -119,7 +119,7 @@ export function StartupRecoveryPrompt() {
     if (!loadError || record || claimed) return null;
     return (
       <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 px-4">
-        <section className="w-full max-w-lg rounded-lg border border-border-default bg-bg-secondary p-5 shadow-2xl">
+        <section className="w-full min-w-0 max-w-[32rem] rounded-lg border border-border-default bg-bg-secondary p-5 shadow-2xl">
           <h2 className="text-base font-semibold text-text-primary">Session recovery decision</h2>
           <p className="mt-2 text-sm text-text-secondary">{loadError}</p>
           <button
@@ -145,7 +145,7 @@ export function StartupRecoveryPrompt() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="startup-recovery-title"
-        className="w-full max-w-xl rounded-lg border border-border-default bg-bg-secondary p-5 shadow-2xl"
+        className="w-full min-w-0 max-w-[36rem] rounded-lg border border-border-default bg-bg-secondary p-5 shadow-2xl"
       >
         <h2 id="startup-recovery-title" className="text-base font-semibold text-text-primary">
           Continue previous Sessions?

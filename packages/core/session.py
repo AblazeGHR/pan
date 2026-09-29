@@ -70,6 +70,9 @@ RESULT_REPLAY_MAX_ENTRIES = 64
 #   In particular, a slow history/metadata flush for Session A does not hold
 #   the store lock and cannot delay Session B's flush.
 _STORE_LOCK = threading.RLock()
+_PIN_LOCK = threading.RLock()
+_PIN_STATE_CACHE: tuple[Path, int, tuple[str, ...]] | None = None
+_PIN_STATE_CACHE_STAMP: tuple[int, int, int] | None = None
 _SAVE_STATES: dict[str, "_SessionSaveState"] = {}
 _MAX_SAVE_DIAGNOSTIC_SESSIONS = 128
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
@@ -1234,6 +1237,10 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    # Pause durable agent completion/error/zombie reports while allowing other
+    # queue sources to keep their normal delivery order.
+    agent_reports_paused: bool = False
+    queue_item_locks_version: int = 1
     # Expiring browser edit leases keep a queued item at the same durable
     # position while preventing the Worker from handing it to the provider.
     queue_edit_locks: dict[str, dict] = field(default_factory=dict)
@@ -1317,6 +1324,8 @@ class Session:
                  qq_subscriptions=None,
                  wechat_subscriptions=None, notification_settings=None, *,
                  queue_edit_locks: dict[str, dict] | None = None,
+                 agent_reports_paused: bool = False,
+                 queue_item_locks_version: int = 1,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
@@ -1391,6 +1400,8 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.agent_reports_paused = bool(agent_reports_paused)
+        self.queue_item_locks_version = 1
         self.queue_edit_locks = {
             key: copy.deepcopy(value)
             for key, value in (queue_edit_locks or {}).items()
@@ -1420,6 +1431,26 @@ class Session:
             self.queue_revision = int(queue_revision or 0)
         except (TypeError, ValueError):
             self.queue_revision = 0
+        if queue_item_locks_version != 1 and self.agent_reports_paused:
+            # Previous Pause reports stored only a Session flag. Upgrade its
+            # pending reports once, so later manual unlocks survive restarts.
+            migrated = False
+            for item in self.queue_pending:
+                if not isinstance(item, dict):
+                    continue
+                item_type = item.get("type")
+                source = item.get("source")
+                report = (
+                    item_type in {"report", "zombie"} and source in {None, "report"}
+                ) or (
+                    item_type is None and source == "report" and "result" in item
+                )
+                if (report and item.get("deliveryState", "queued") == "queued"
+                        and not item.get("queueLockAutoReport")):
+                    item["queueLockAutoReport"] = True
+                    migrated = True
+            if migrated:
+                self.queue_revision += 1
         self.task_seq = task_seq
         self.active_task_id = active_task_id
         raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
@@ -1588,6 +1619,7 @@ class Session:
                 if alias in data:
                     data["queue_idempotency_index"] = data.pop(alias)
                     break
+        data.setdefault("queue_item_locks_version", 0)
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
@@ -1641,6 +1673,8 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "agent_reports_paused": self.agent_reports_paused,
+            "queue_item_locks_version": self.queue_item_locks_version,
             "queue_edit_locks": self.queue_edit_locks,
             "queue_delivery_ledger": self.queue_delivery_ledger,
             "queue_idempotency_index": self.queue_idempotency_index,
@@ -2495,6 +2529,7 @@ def delete(session_id: str):
     state, ticket, enqueued_at = _reserve_save_ticket(session_id)
 
     def remove_files():
+        _remove_session_pin_locked(session_id)
         path = _path(session_id)
         if path.exists():
             path.unlink()
@@ -2547,7 +2582,7 @@ def effective_workspace_ids(session_or_id: "Session | str") -> list[str]:
     Broken/cyclic chains fail closed to ungrouped. Only a true root's persisted
     value is authoritative; old child workspace_ids are deliberately ignored.
     """
-    current = get(session_or_id) if isinstance(session_or_id, str) else session_or_id
+    current = get(session_or_id, load_history=False) if isinstance(session_or_id, str) else session_or_id
     seen: set[str] = set()
     while current is not None:
         if current.id in seen:
@@ -2555,7 +2590,9 @@ def effective_workspace_ids(session_or_id: "Session | str") -> list[str]:
         seen.add(current.id)
         if not current.managed_by:
             return list(current.workspace_ids[:1])
-        parent = get(current.managed_by)
+        # Membership needs only metadata. A cold summary request must not
+        # hydrate a manager's potentially long JSONL history for every child.
+        parent = get(current.managed_by, load_history=False)
         if parent is None:
             return []
         current = parent
@@ -2570,7 +2607,7 @@ def claim(manager_id: str, session_id: str) -> str | None:
 
     Claim 建立 managed 关系时默认自动 report_subscribe：manager.report_subscriptions
     自动加入 session_id，使该 manager 收到目标 session 的完成报告（done/error）。
-    仅当确实新增了 managed 条目或首次订阅时才 save(manager)（set.add 幂等）。
+    关系两端按序持久化；若写入失败，会回滚内存状态并尽力持久化回滚，返回错误。
 
     Refuses (returns an error string) if the target session is already managed
     by a different existing session. A dangling manager reference is treated
@@ -2608,70 +2645,368 @@ def claim(manager_id: str, session_id: str) -> str | None:
     if target.managed_by and target.managed_by != manager_id \
             and get(target.managed_by) is not None:
         return f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"
-    changed = False
-    if session_id not in manager.managed:
-        manager.managed.append(session_id)
-        changed = True
-    if session_id not in manager.report_subscriptions:
-        manager.report_subscriptions.add(session_id)
-        changed = True
-    if changed:
-        save(manager)
-    if target.managed_by != manager_id or target.workspace_ids:
-        target.managed_by = manager_id
-        # A child never persists a competing/stale membership value.
-        target.workspace_ids = []
-        save(target)
+    old_managed = list(manager.managed)
+    old_subscriptions = set(manager.report_subscriptions)
+    old_managed_by = target.managed_by
+    old_workspace_ids = list(target.workspace_ids)
+    changed_manager = False
+    changed_target = False
+    try:
+        if session_id not in manager.managed:
+            manager.managed.append(session_id)
+            changed_manager = True
+        if session_id not in manager.report_subscriptions:
+            manager.report_subscriptions.add(session_id)
+            changed_manager = True
+        if target.managed_by != manager_id or target.workspace_ids:
+            target.managed_by = manager_id
+            # A child never persists a competing/stale membership value.
+            target.workspace_ids = []
+            changed_target = True
+        # Persist target first so a failure cannot leave a durable manager
+        # backlink to a target whose managed_by was never written.
+        if changed_target:
+            save(target)
+        if changed_manager:
+            save(manager)
+    except Exception as exc:
+        # Restore both cached objects and best-effort persist the rollback. If
+        # storage itself remains unavailable, return an error rather than
+        # reporting a successful claim with a one-sided relationship.
+        manager.managed = old_managed
+        manager.report_subscriptions = old_subscriptions
+        target.managed_by = old_managed_by
+        target.workspace_ids = old_workspace_ids
+        rollback_errors = []
+        for changed, session in ((changed_target, target), (changed_manager, manager)):
+            if changed:
+                try:
+                    save(session)
+                except Exception as rollback_exc:
+                    rollback_errors.append(str(rollback_exc))
+        detail = f"Failed to persist managed relationship: {exc}"
+        if rollback_errors:
+            detail += f"; rollback persistence failed: {'; '.join(rollback_errors)}"
+        return detail
     return None
 
 
 @_store_serialized
 def release(session_id: str) -> str | None:
-    """Remove the managed relationship pointing at session_id.
+    """Remove a Session and its relationship references before storage deletion.
 
-    Called when a session is deleted: the managing session's `managed` list is
-    cleaned up so it doesn't reference a deleted session (立项 #3), and every
-    other session's `report_subscriptions` is purged of session_id so no
-    session keeps subscribing to a deleted session's completion reports
-    (B1 残留清理).
+    Direct children are promoted to roots when this Session has no manager.
+    Otherwise they are reparented to its manager, including when that manager
+    is itself a root. Descendants below those direct children retain their
+    existing parent links and therefore keep inheriting the same root
+    Workspace.
+
+    Relationship metadata is validated before mutation. A broken, dangling,
+    one-sided, duplicated, or cyclic managed graph refuses release so callers
+    cannot delete a Session while leaving children pointing at a missing
+    manager. Writes are ordered child-first and rolled back in memory and on
+    disk as far as storage allows if any save fails.
+
+    Report subscriptions to the deleted Session are removed globally. When
+    children are reparented, their old manager's per-child subscription
+    setting is copied to the new manager; subscriptions for other children
+    already managed by the new manager are left untouched.
 
     Returns None on success, or an error message string.
     """
-    # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id。
-    # 同时解除被删 session 作为 manager 时留下的子 session 关系，避免
-    # children 被永久锁在一个不存在的 manager 上。
+    try:
+        all_sessions = list_all(load_history=False)
+        by_id = {s.id: s for s in all_sessions}
+        owners: dict[str, list[str]] = {}
+        for manager in all_sessions:
+            if not isinstance(manager.managed, list):
+                continue
+            for child_id in manager.managed:
+                if isinstance(child_id, str):
+                    owners.setdefault(child_id, []).append(manager.id)
+
+        target = by_id.get(session_id)
+        if target is None:
+            dangling = [
+                s.id for s in all_sessions
+                if s.managed_by == session_id
+                or session_id in s.managed
+                or session_id in s.report_subscriptions
+            ]
+            if dangling:
+                return (f"Cannot release missing Session {session_id}: "
+                        f"relationship references remain on {', '.join(dangling)}")
+            return None
+
+        def validate_direct_links(manager: Session) -> str | None:
+            if not isinstance(manager.managed, list):
+                return f"Session {manager.id} has invalid managed links"
+            if any(not isinstance(child_id, str) or not child_id
+                   for child_id in manager.managed):
+                return f"Session {manager.id} has invalid managed child id"
+            if len(manager.managed) != len(set(manager.managed)):
+                return f"Session {manager.id} has duplicate managed child links"
+            if manager.id in manager.managed:
+                return f"Session {manager.id} manages itself"
+            expected = set(manager.managed)
+            actual = {s.id for s in all_sessions if s.managed_by == manager.id}
+            if expected != actual:
+                return (f"Session {manager.id} managed links do not match child "
+                        "managed_by backlinks")
+            for child_id in manager.managed:
+                child = by_id.get(child_id)
+                if child is None:
+                    return f"Session {manager.id} references missing child {child_id}"
+                if child.managed_by != manager.id:
+                    return (f"Session {manager.id} child {child_id} has a "
+                            "different managed_by backlink")
+                child_owners = owners.get(child_id, [])
+                if child_owners != [manager.id]:
+                    return f"Session {child_id} has inconsistent manager backlinks"
+            return None
+
+        # Validate the target's full managed subtree, catching cycles and
+        # malformed links before deriving or applying any Workspace changes.
+        active: set[str] = set()
+        visited: set[str] = set()
+
+        def validate_subtree(manager: Session) -> str | None:
+            if manager.id in active:
+                return f"Managed cycle detected at Session {manager.id}"
+            if manager.id in visited:
+                return f"Managed graph has a shared child at Session {manager.id}"
+            link_error = validate_direct_links(manager)
+            if link_error:
+                return link_error
+            parent_id = manager.managed_by
+            parent_owners = owners.get(manager.id, [])
+            if parent_id:
+                parent = by_id.get(parent_id)
+                if parent is None:
+                    return (f"Session {manager.id} has missing manager "
+                            f"{parent_id}")
+                if parent_owners != [parent_id] or parent.managed.count(manager.id) != 1:
+                    return f"Session {manager.id} has inconsistent manager backlinks"
+            elif parent_owners:
+                return f"Root Session {manager.id} is listed by a manager"
+            active.add(manager.id)
+            visited.add(manager.id)
+            for child_id in manager.managed:
+                child_error = validate_subtree(by_id[child_id])
+                if child_error:
+                    return child_error
+            active.remove(manager.id)
+            return None
+
+        # Validate the full child subtree. Ancestors are walked separately so
+        # cycles above the target cannot be hidden by a valid child subtree.
+        graph_error = validate_subtree(target)
+        if graph_error:
+            return f"Cannot release Session {session_id}: {graph_error}"
+
+        ancestor_seen = {session_id}
+        current = target
+        while current.managed_by:
+            manager_id = current.managed_by
+            manager = by_id.get(manager_id)
+            if manager is None:
+                return (f"Cannot release Session {session_id}: missing manager "
+                        f"{manager_id}")
+            if manager_id in ancestor_seen:
+                return (f"Cannot release Session {session_id}: managed cycle "
+                        f"detected at {manager_id}")
+            # The manager itself is about to be edited when it is the direct
+            # parent. Validate all of its direct edges before replacing A.
+            link_error = validate_direct_links(manager)
+            if link_error:
+                return f"Cannot release Session {session_id}: {link_error}"
+            if manager.managed.count(current.id) != 1:
+                return (f"Cannot release Session {session_id}: manager "
+                        f"{manager_id} does not contain exactly one backlink")
+            if owners.get(current.id, []) != [manager_id]:
+                return (f"Cannot release Session {session_id}: inconsistent "
+                        f"manager backlinks for {current.id}")
+            ancestor_seen.add(manager_id)
+            current = manager
+
+        parent = by_id.get(target.managed_by) if target.managed_by else None
+        direct_children = [by_id[child_id] for child_id in target.managed]
+        child_ids = [child.id for child in direct_children]
+        old_target_subscriptions = set(target.report_subscriptions)
+
+        # Capture only relationship fields touched by release. The target is
+        # included because its old manager/list/subscription state is cleared
+        # before the caller removes its files.
+        originals: dict[str, dict] = {}
+        desired: dict[str, dict] = {}
+
+        def ensure_change(session: Session) -> dict:
+            if session.id not in originals:
+                originals[session.id] = {
+                    "managed": list(session.managed),
+                    "managed_by": session.managed_by,
+                    "workspace_ids": list(session.workspace_ids),
+                    "report_subscriptions": set(session.report_subscriptions),
+                }
+                desired[session.id] = {
+                    "managed": list(session.managed),
+                    "managed_by": session.managed_by,
+                    "workspace_ids": list(session.workspace_ids),
+                    "report_subscriptions": set(session.report_subscriptions),
+                }
+            return desired[session.id]
+
+        # Remove subscriptions to the deleted Session from every surviving
+        # record, regardless of who originally created that subscription.
+        for session in all_sessions:
+            if session.id == session_id:
+                continue
+            if session_id in session.report_subscriptions:
+                ensure_change(session)["report_subscriptions"].discard(session_id)
+
+        if parent is not None:
+            parent_state = ensure_change(parent)
+            replaced_managed: list[str] = []
+            for child_id in parent_state["managed"]:
+                if child_id == session_id:
+                    replaced_managed.extend(child_ids)
+                else:
+                    replaced_managed.append(child_id)
+            parent_state["managed"] = replaced_managed
+            parent_subscriptions = parent_state["report_subscriptions"]
+            for child_id in child_ids:
+                if child_id in old_target_subscriptions:
+                    parent_subscriptions.add(child_id)
+                else:
+                    parent_subscriptions.discard(child_id)
+
+        root_workspace_ids = (
+            effective_workspace_ids(target)[:1] if parent is None else []
+        )
+        for child in direct_children:
+            child_state = ensure_change(child)
+            child_state["managed_by"] = parent.id if parent is not None else None
+            # Managed children inherit from the new parent. Only a child
+            # promoted from a root manager receives the old effective value.
+            child_state["workspace_ids"] = [] if parent is not None else list(root_workspace_ids)
+
+        target_state = ensure_change(target)
+        target_state["managed"] = []
+        target_state["managed_by"] = None
+        target_state["report_subscriptions"] = set()
+
+        # Persist new children before the manager backlink, unrelated
+        # subscription cleanup next, and the record being deleted last.
+        save_order: list[str] = []
+
+        def queue_save(session: Session) -> None:
+            if session.id in desired and session.id not in save_order:
+                save_order.append(session.id)
+
+        for child in direct_children:
+            queue_save(child)
+        if parent is not None:
+            queue_save(parent)
+        for session in all_sessions:
+            if session.id != session_id:
+                queue_save(session)
+        queue_save(target)
+
+        # Include no-op parent/child objects only when an actual field changed.
+        changed = {
+            sid for sid, state in desired.items()
+            if state != originals[sid]
+        }
+        save_order = [sid for sid in save_order if sid in changed]
+        attempted: list[str] = []
+
+        def assign_state(sid: str, state: dict) -> None:
+            session = by_id[sid]
+            session.managed = list(state["managed"])
+            session.managed_by = state["managed_by"]
+            session.workspace_ids = list(state["workspace_ids"])
+            session.report_subscriptions = set(state["report_subscriptions"])
+
+        try:
+            for sid, state in desired.items():
+                assign_state(sid, state)
+            for sid in save_order:
+                attempted.append(sid)
+                save(by_id[sid])
+        except Exception as exc:
+            for sid, state in originals.items():
+                assign_state(sid, state)
+            rollback_errors = []
+            for sid in reversed(attempted):
+                try:
+                    save(by_id[sid])
+                except Exception as rollback_exc:
+                    rollback_errors.append(f"{sid}: {rollback_exc}")
+            detail = f"Failed to persist Session release: {exc}"
+            if rollback_errors:
+                detail += "; rollback persistence failed: " + "; ".join(rollback_errors)
+            return f"Cannot release Session {session_id}: {detail}"
+    except Exception as exc:
+        return f"Cannot release Session {session_id}: {type(exc).__name__}: {exc}"
+    return None
+
+
+@_store_serialized
+def delete_with_release(session_id: str) -> str | None:
+    """Release managed relationships and delete one Session as one operation.
+
+    The relationship changes are rolled back if the Session file removal
+    fails. This is the deletion entry point for server APIs; direct ``delete``
+    remains available for store maintenance that already owns relationship
+    handling.
+    """
     all_sessions = list_all(load_history=False)
-    detached_memberships = {
-        s.id: effective_workspace_ids(s)
-        for s in all_sessions if s.managed_by == session_id
+    originals = {
+        session.id: {
+            "managed": list(session.managed),
+            "managed_by": session.managed_by,
+            "workspace_ids": list(session.workspace_ids),
+            "report_subscriptions": set(session.report_subscriptions),
+        }
+        for session in all_sessions
     }
-    for s in all_sessions:
-        if s.id == session_id:
-            continue
-        if session_id in s.report_subscriptions:
-            s.report_subscriptions.discard(session_id)
-            save(s)
-        if s.managed_by == session_id:
-            s.managed_by = None
-            s.workspace_ids = detached_memberships.get(s.id, [])
-            save(s)
-    target = get(session_id)
-    if target is None:
-        return None  # nothing else to clean up
-    # The object is about to be deleted, but clear these in-memory too so the
-    # relationship is fully detached for callers holding the old object.
-    target.managed.clear()
-    target.report_subscriptions.clear()
-    manager_id = target.managed_by
-    if not manager_id:
-        save(target)
-        return None
-    manager = get(manager_id)
-    if manager is not None and session_id in manager.managed:
-        manager.managed.remove(session_id)
-        save(manager)
-    target.managed_by = None
-    save(target)
+    target = next((session for session in all_sessions if session.id == session_id), None)
+
+    release_error = release(session_id)
+    if release_error:
+        return release_error
+    try:
+        delete(session_id)
+    except Exception as exc:
+        rollback_errors = []
+        changed: list[Session] = []
+        for session in all_sessions:
+            old = originals[session.id]
+            current = {
+                "managed": list(session.managed),
+                "managed_by": session.managed_by,
+                "workspace_ids": list(session.workspace_ids),
+                "report_subscriptions": set(session.report_subscriptions),
+            }
+            if current != old or session.id == session_id:
+                session.managed = list(old["managed"])
+                session.managed_by = old["managed_by"]
+                session.workspace_ids = list(old["workspace_ids"])
+                session.report_subscriptions = set(old["report_subscriptions"])
+                changed.append(session)
+        if target is not None:
+            # delete() may have removed metadata before a later filesystem
+            # operation failed. Reinsert the old object so save can restore it.
+            _cache[session_id] = target
+        for session in reversed(changed):
+            try:
+                save(session)
+            except Exception as rollback_exc:
+                rollback_errors.append(f"{session.id}: {rollback_exc}")
+        detail = f"Failed to delete Session {session_id}: {exc}"
+        if rollback_errors:
+            detail += "; relationship rollback persistence failed: " + "; ".join(rollback_errors)
+        return detail
     return None
 
 
@@ -2941,6 +3276,164 @@ def apply_order(ordered_ids: list[str]) -> str | None:
             s.order = i
             save(s)
     return None
+
+
+def _pin_state_path() -> Path:
+    """Pin metadata lives beside, but separately from, Session order fields."""
+    return SESSION_DIR.parent / "session-pins.json"
+
+
+def _read_pin_state_locked() -> tuple[Path, int, tuple[str, ...]]:
+    global _PIN_STATE_CACHE, _PIN_STATE_CACHE_STAMP
+    path = _pin_state_path()
+    try:
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+    except FileNotFoundError:
+        stamp = None
+    if (_PIN_STATE_CACHE is not None and _PIN_STATE_CACHE[0] == path
+            and _PIN_STATE_CACHE_STAMP == stamp):
+        return _PIN_STATE_CACHE
+    if stamp is None:
+        state = (path, 0, ())
+    else:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or raw.get("version") != 1:
+            raise ValueError("Invalid Session pin metadata")
+        revision = raw.get("revision")
+        session_ids = raw.get("sessionIds")
+        if (isinstance(revision, bool) or not isinstance(revision, int)
+                or revision < 0 or not isinstance(session_ids, list)
+                or not all(isinstance(item, str) and item for item in session_ids)
+                or len(set(session_ids)) != len(session_ids)):
+            raise ValueError("Invalid Session pin metadata")
+        state = (path, revision, tuple(session_ids))
+    _PIN_STATE_CACHE = state
+    _PIN_STATE_CACHE_STAMP = stamp
+    return state
+
+
+def _write_pin_state_locked(path: Path, revision: int, session_ids: list[str]) -> None:
+    global _PIN_STATE_CACHE, _PIN_STATE_CACHE_STAMP
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.tmp")
+    payload = {
+        "version": 1,
+        "revision": revision,
+        "sessionIds": session_ids,
+    }
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+    _PIN_STATE_CACHE = (path, revision, tuple(session_ids))
+    # Recheck the file on the next read. An external Pan process may replace
+    # it after this write; a path-only cache would never observe that change.
+    _PIN_STATE_CACHE_STAMP = None
+
+
+def session_pin_state() -> dict:
+    """Return a detached authoritative pin ordering snapshot."""
+    with _PIN_LOCK:
+        _, revision, session_ids = _read_pin_state_locked()
+        return {"pinRevision": revision, "sessionIds": list(session_ids)}
+
+
+def session_pin_order(session_id: str) -> int | None:
+    """Return this Session's rank in the shared pinned order, if pinned."""
+    with _PIN_LOCK:
+        _, _, session_ids = _read_pin_state_locked()
+        try:
+            return session_ids.index(session_id)
+        except ValueError:
+            return None
+
+
+def session_pin_projection(session_id: str) -> dict:
+    """Return the list-safe pin fields for one Session."""
+    with _PIN_LOCK:
+        _, revision, session_ids = _read_pin_state_locked()
+        try:
+            order = session_ids.index(session_id)
+        except ValueError:
+            order = None
+        return {
+            "pinned": order is not None,
+            "pinOrder": order,
+            "pinRevision": revision,
+        }
+
+
+@_store_serialized
+def set_session_pinned(session_id: str, pinned: bool) -> tuple[dict | None, str | None]:
+    """Pin/unpin one existing Session without touching Session.order."""
+    if session_id not in _cache and get(session_id) is None:
+        return None, "Session not found"
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        ordered = list(current)
+        present = session_id in ordered
+        if pinned and not present:
+            ordered.append(session_id)
+        elif not pinned and present:
+            ordered.remove(session_id)
+        if ordered != list(current):
+            _write_pin_state_locked(path, revision + 1, ordered)
+            revision += 1
+        return {"pinRevision": revision, "sessionIds": ordered}, None
+
+
+@_store_serialized
+def reorder_pinned_sessions(
+    session_ids: list[str], expected_revision: int,
+) -> tuple[dict | None, str | None, str | None]:
+    """Reorder selected pinned IDs while leaving every unlisted slot intact.
+
+    The caller supplies the visible pinned members of one current UI group.
+    Replacing only those IDs' existing slots means filtered, collapsed, and
+    other-group pins retain both their slots and their mutual relative order.
+    """
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        if expected_revision != revision:
+            return None, "pin_state_conflict", "Pinned Session state changed; refresh and retry"
+        if len(set(session_ids)) != len(session_ids):
+            return None, "duplicate_session_ids", "sessionIds contains duplicates"
+        all_ids = {session.id for session in list_all(load_history=False)}
+        unknown = [sid for sid in session_ids if sid not in all_ids]
+        if unknown:
+            return None, "session_not_found", f"Unknown Session id(s): {', '.join(unknown)}"
+        unpinned = [sid for sid in session_ids if sid not in current]
+        if unpinned:
+            return None, "session_not_pinned", "Every sessionId must currently be pinned"
+        requested = set(session_ids)
+        positions = [index for index, sid in enumerate(current) if sid in requested]
+        if len(positions) != len(session_ids):
+            return None, "session_not_pinned", "Every sessionId must currently be pinned"
+        ordered = list(current)
+        for index, sid in zip(positions, session_ids):
+            ordered[index] = sid
+        if ordered != list(current):
+            _write_pin_state_locked(path, revision + 1, ordered)
+            revision += 1
+        return {"pinRevision": revision, "sessionIds": ordered}, None, None
+
+
+def _remove_session_pin_locked(session_id: str) -> None:
+    """Drop a deleted Session from pin metadata while delete owns the store lock."""
+    with _PIN_LOCK:
+        path, revision, current = _read_pin_state_locked()
+        if session_id not in current:
+            return
+        try:
+            _write_pin_state_locked(
+                path, revision + 1, [sid for sid in current if sid != session_id],
+            )
+        except (OSError, ValueError):
+            # Session deletion must not strand the Session cache/files if a
+            # secondary metadata write fails; list projections ignore orphan IDs.
+            pass
 
 
 # ── migration helpers ──

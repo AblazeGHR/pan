@@ -1,0 +1,137 @@
+.session-quick-action-rail {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  align-self: stretch;
+  margin-block: -0.5rem;
+}
+
+.session-quick-action-group {
+  position: absolute;
+  z-index: 2;
+  top: 1px;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 18px);
+  grid-template-rows: 22px;
+}
+
+.session-quick-action-button,
+.session-quick-action-control {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    transform 80ms ease;
+}
+
+.session-quick-action-button {
+  position: relative;
+  z-index: 2;
+  width: 18px;
+  height: 22px;
+  opacity: 0.68;
+}
+
+.session-quick-action-button:hover,
+.session-quick-action-control:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-hover);
+  opacity: 1;
+}
+
+.session-quick-action-button[data-quick-state='on'] {
+  color: var(--color-accent);
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 44%, transparent);
+  opacity: 1;
+}
+
+.session-quick-action-button[data-quick-state='on']:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 23%, transparent);
+}
+
+.session-quick-action-button[data-quick-action='readonly'][data-quick-state='on'],
+.session-quick-action-button[data-quick-action='stopReport'][data-quick-state='on'] {
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 44%, transparent);
+}
+
+.session-quick-action-button[data-quick-action='readonly'][data-quick-state='on']:hover,
+.session-quick-action-button[data-quick-action='stopReport'][data-quick-state='on']:hover {
+  background-color: color-mix(in srgb, var(--color-warning) 23%, transparent);
+}
+
+.session-quick-action-button[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.session-quick-action-button[aria-disabled='true']:hover {
+  opacity: 0.68;
+  background-color: transparent;
+}
+
+.session-quick-action-button[data-quick-state='on'][aria-disabled='true']:hover {
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.session-quick-action-button:focus-visible,
+.session-quick-action-control:focus-visible {
+  z-index: 3;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.session-quick-action-button:active {
+  transform: scale(0.88);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.session-quick-action-control:active {
+  transform: scale(0.92);
+}
+
+.session-quick-action-control {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 22px;
+  height: 100%;
+}
+
+.session-quick-action-chevron {
+  right: 26px;
+}
+
+.session-quick-action-settings {
+  right: 0;
+}
+
+.session-quick-action-adapter {
+  position: absolute;
+  z-index: 4;
+  right: 1px;
+  bottom: 3px;
+  padding: 0 3px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-tertiary);
+  font-size: 9px;
+  line-height: 11px;
+  pointer-events: auto;
+}

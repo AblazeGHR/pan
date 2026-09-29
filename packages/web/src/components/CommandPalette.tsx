@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { nextSessionDefaultName } from '@/utils/sessionName';
+import { createQuickNewSession } from '@/utils/quickNewSession';
 import { Search } from 'lucide-react';
 
 interface PaletteAction {
@@ -22,7 +22,6 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const sessions = useSessionStore((s) => s.sessions);
   const selectSession = useSessionStore((s) => s.selectSession);
-  const createNewSession = useSessionStore((s) => s.createNewSession);
   const {
     toggleTheme,
     showToast,
@@ -41,7 +40,7 @@ export function CommandPalette() {
     // Session
     result.push(
       { id: 'sess-new', label: 'New Session', detail: 'Create a new session', group: 'Session', action: () => {
-        createNewSession(nextSessionDefaultName(sessions))
+        createQuickNewSession()
           .then(() => showToast('Session created'))
           .catch((e) => showToast(e.message || 'Creation failed', 'error'));
       }},
@@ -75,7 +74,7 @@ export function CommandPalette() {
     );
 
     return result;
-  }, [sessions, navigate, selectSession, createNewSession, toggleTheme, showToast]);
+  }, [sessions, navigate, selectSession, toggleTheme, showToast]);
 
   // Filter by query
   const filtered = useMemo(() => {
@@ -151,12 +150,12 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[20vh]"
       onClick={() => setOpen(false)}
     >
       <div className="fixed inset-0 bg-black/50" />
       <div
-        className="relative w-full max-w-lg bg-bg-tertiary border border-border-default rounded-lg shadow-dropdown overflow-hidden"
+        className="relative w-full min-w-0 max-w-[32rem] bg-bg-tertiary border border-border-default rounded-lg shadow-dropdown overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input */}

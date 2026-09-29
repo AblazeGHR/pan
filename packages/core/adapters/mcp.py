@@ -41,6 +41,7 @@ _PAN_SESSION_TITLE_ENV = "PAN_AGENT_SESSION_TITLE"
 _PAN_API_URL_ENV = "PAN_API_URL"
 _PAN_PYTHON_ENV = "PAN_PYTHON"
 _PYTHONPATH_ENV = "PYTHONPATH"
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _pan_module_for_entry(name: str, entry: dict) -> str | None:
@@ -137,6 +138,7 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
                 f"MCP server {name!r} has no command or URL configured"
             )
         if name in _PAN_API_SERVERS and _pan_module_for_entry(name, entry):
+            entry["cwd"] = str(_PROJECT_ROOT)
             env = _pan_runtime_env(entry)
         else:
             env = dict(entry.get("env") or {})

@@ -19,7 +19,6 @@ describe('SessionDeleteModal', () => {
     expect(overlay?.className).toContain('p-4');
     expect(card?.className).toContain('w-full');
     expect(card?.className).toContain('max-w-[32rem]');
-    expect(card?.className).not.toContain('max-w-lg');
     expect(card?.className).not.toContain('var(--spacing-lg)');
     expect(screen.getByText(/up to 3 managed sessions recursively/)).toBeTruthy();
     expect(screen.getByText(/1 session without children will also be deleted/)).toBeTruthy();

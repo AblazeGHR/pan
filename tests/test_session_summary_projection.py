@@ -52,6 +52,42 @@ def test_summary_cold_list_does_not_load_history_config_or_attachment_io(
     assert summary["summaryRevision"] >= 1000
 
 
+def test_cold_managed_summary_uses_metadata_and_one_worker_snapshot(monkeypatch):
+    manager = _new_session("manager")
+    manager.workspace_ids = ["ws-existing"]
+    for index in range(200):
+        sess.append_history(manager, {"role": "assistant", "content": str(index)})
+    sess.save(manager)
+    child = _new_session("child")
+    child.managed_by = manager.id
+    sess.save(child)
+
+    sess._cache.clear()
+    sess._all_loaded = False
+    monkeypatch.setattr(sess, "_read_jsonl", lambda *_args: (_ for _ in ()).throw(
+        AssertionError("a summary relationship lookup hydrated history")
+    ))
+    snapshots = 0
+    original = server.worker.find_alive_workers_by_session
+
+    def snapshot_once():
+        nonlocal snapshots
+        snapshots += 1
+        return original()
+
+    monkeypatch.setattr(server.worker, "find_alive_workers_by_session", snapshot_once)
+    monkeypatch.setattr(server.worker, "find_alive_worker_by_session", lambda *_args: (_ for _ in ()).throw(
+        AssertionError("summary scanned the worker registry per Session")
+    ))
+
+    response = asyncio.run(server.api_list_sessions(summary=1))
+    summary = next(item for item in response["sessions"] if item["id"] == child.id)
+    assert summary["workspaceIds"] == ["ws-existing"]
+    assert summary["agentLevel"] == 2
+    assert snapshots == 1
+    assert not sess._cache[manager.id]._history_loaded
+
+
 def test_full_session_list_loads_dynamic_config_once_per_response(monkeypatch):
     first = _new_session("full list one")
     second = _new_session("full list two")

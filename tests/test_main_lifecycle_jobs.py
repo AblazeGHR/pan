@@ -73,6 +73,33 @@ def test_service_job_is_durable_atomic_and_has_no_session_target(tmp_path):
     assert second["requestId"] == "request-2"
 
 
+def test_restart_job_allows_worker_drain_before_detached_supervisor(tmp_path):
+    registry = tmp_path / "registry"
+    job = jobs.create_service_job(
+        request_id="request-worker-drain", operation="restart", root=str(tmp_path),
+        port=8765, registry_root=registry,
+    )
+
+    job = jobs.transition_service_job(
+        job["jobId"], "stopping_workers", registry_root=registry,
+        workerShutdownCompleted=False,
+    )
+    assert job["phase"] == "stopping_workers"
+    assert job["status"] == "running"
+
+    job = jobs.transition_service_job(
+        job["jobId"], "stopping_workers", registry_root=registry,
+        workerShutdownCompleted=True,
+    )
+    assert job["workerShutdownCompleted"] is True
+    job = jobs.transition_service_job(job["jobId"], "stopping", registry_root=registry)
+    assert job["phase"] == "stopping"
+    for phase in ("stopped", "starting", "ready"):
+        job = jobs.transition_service_job(job["jobId"], phase, registry_root=registry)
+    assert job["phase"] == "ready"
+    assert job["status"] == "completed"
+
+
 def test_duplicate_service_job_is_rejected_from_persisted_registry(tmp_path):
     registry = tmp_path / "registry"
     first = jobs.create_service_job(
@@ -105,6 +132,39 @@ def test_restart_status_recovers_pending_job_without_memory_state(tmp_path, monk
     assert status["jobId"] == job["jobId"]
     assert status["requestId"] == "request-after-reload"
     assert status["phase"] == "requested"
+
+
+def test_startup_fails_interrupted_pre_handoff_jobs_without_relaunching_supervisor(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(web_server, "_main_restart_port", lambda: 8765)
+    for request_id, phase, expected_recovered in (
+        ("interrupted-requested", "requested", 1),
+        ("interrupted-drain", "stopping_workers", 1),
+        ("interrupted-handoff", "stopping", 1),
+    ):
+        root = tmp_path / request_id
+        root.mkdir()
+        registry = root / "data" / "background_jobs"
+        monkeypatch.setattr(web_server, "_PROJECT_DIR", root)
+        job = jobs.create_service_job(
+            request_id=request_id, operation="restart", root=str(root), port=8765,
+            registry_root=registry,
+        )
+        if phase != "requested":
+            job = jobs.transition_service_job(
+                job["jobId"], "stopping_workers", registry_root=registry,
+                workerShutdownCompleted=(phase == "stopping"),
+            )
+        if phase == "stopping":
+            job = jobs.transition_service_job(
+                job["jobId"], "stopping", registry_root=registry,
+                workerShutdownCompleted=True,
+            )
+        assert web_server._recover_interrupted_main_restart_jobs() == expected_recovered
+        saved = jobs.get(job["jobId"], registry)
+        assert saved["phase"] == "failed"
+        assert "startupPreference" in saved["error"]
 
 
 def test_ready_checks_reject_old_listener_before_http_health(monkeypatch):
@@ -160,6 +220,47 @@ def test_supervisor_persists_ready_only_after_all_checks(monkeypatch, tmp_path):
     assert saved["newPidCreatedAt"] == 13.5
 
 
+def test_supervisor_starts_after_persisted_worker_drain_phase(monkeypatch, tmp_path):
+    registry = tmp_path / "registry"
+    job = jobs.create_service_job(
+        request_id="request-after-worker-drain", operation="restart",
+        root=str(tmp_path), port=8765, old_pid=41, old_pid_created_at=12.5,
+        registry_root=registry,
+        options={
+            "exitStrategy": "offline",
+            "markRunningSessionsOffline": True,
+            "runningSessionIds": ["running-session"],
+            "workerShutdownCompleted": True,
+        },
+    )
+    jobs.transition_service_job(
+        job["jobId"], "stopping_workers", registry_root=registry,
+        workerShutdownCompleted=True,
+    )
+    jobs.transition_service_job(job["jobId"], "stopping", registry_root=registry)
+    monkeypatch.setattr(
+        main_lifecycle.launcher, "stop_service",
+        lambda *args, **kwargs: {"stopped": True},
+    )
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True},
+    )
+    monkeypatch.setattr(main_lifecycle, "ready_checks", lambda **kwargs: {
+        "ok": True, "newPid": 42, "newPidCreatedAt": 13.5,
+    })
+
+    result = main_lifecycle.run_supervisor(
+        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
+    )
+
+    saved = jobs.get(job["jobId"], registry)
+    assert result == 0
+    assert saved["phase"] == "ready"
+    assert saved["options"]["markRunningSessionsOffline"] is True
+    assert "startupPreference" not in saved["options"]
+
+
 def test_exit_supervisor_persists_offline_only_after_verified_stop(monkeypatch, tmp_path):
     registry = tmp_path / "registry"
     job = jobs.create_service_job(
@@ -188,6 +289,11 @@ def test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure(monkeyp
     job = jobs.create_service_job(
         request_id="request-exit-worker-failure", operation="exit", root=str(tmp_path),
         port=8765, old_pid=41, old_pid_created_at=12.5, registry_root=registry,
+        options={
+            "exitStrategy": "ask",
+            "markRunningSessionsOffline": True,
+            "runningSessionIds": [],
+        },
     )
 
     async def failed_worker_shutdown(**kwargs):

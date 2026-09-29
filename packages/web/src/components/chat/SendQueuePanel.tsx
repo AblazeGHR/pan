@@ -5,12 +5,13 @@ import { useUIStore } from '@/stores/uiStore';
 import type { AgentQueueItem } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
-import { Pencil, ArrowUp, ArrowDown, Trash2, Check, X, ClipboardList, Copy } from 'lucide-react';
+import { Pencil, ArrowUp, ArrowDown, Trash2, Check, X, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
 const BUTTON = 'rounded p-1 text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
 const PREVIEW_PRIMARY = 'inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 const PREVIEW_SECONDARY = 'inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-tertiary px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+const REPORT_PAUSE_BUTTON = 'inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50';
 
 function label(item: AgentQueueItem): string {
   if (item.source === 'user') return '用户';
@@ -66,10 +67,19 @@ function QueueMessagePreview({ item, onClose }: { item: AgentQueueItem; onClose:
 export function SendQueuePanel() {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const open = useQueueStore((state) => state.panelOpen);
+  const reportsPaused = useQueueStore((state) => sessionId ? state.agentReportsPaused[sessionId] ?? false : false);
+  const reportPauseLoaded = useQueueStore((state) => sessionId ? state.agentReportsPauseLoaded[sessionId] ?? false : false);
+  const reportPauseUpdating = useQueueStore((state) => sessionId ? state.agentReportsPauseUpdating[sessionId] ?? false : false);
+  const lockUpdating = useQueueStore((state) => sessionId ? state.queueLockUpdating[sessionId] ?? false : false);
+  const lockedComposerMode = useQueueStore((state) => sessionId ? state.lockedComposerModes[sessionId] ?? false : false);
   const items = (useQueueStore((state) => sessionId ? state.queues[sessionId] : undefined) ?? EMPTY)
     .filter((item) => item.meta?.dispatchState === 'queued');
   const edit = useQueueStore((state) => sessionId ? state.edits[sessionId] : null);
   const load = useQueueStore((state) => state.loadForSession);
+  const setReportsPaused = useQueueStore((state) => state.setAgentReportsPaused);
+  const setItemLocked = useQueueStore((state) => state.setQueueItemLocked);
+  const setItemsLocked = useQueueStore((state) => state.setQueueItemsLocked);
+  const setLockedComposerMode = useQueueStore((state) => state.setLockedComposerMode);
   const startEdit = useQueueStore((state) => state.startEdit);
   const updateDraft = useQueueStore((state) => state.updateEditDraft);
   const saveEdit = useQueueStore((state) => state.saveEdit);
@@ -93,21 +103,56 @@ export function SendQueuePanel() {
 
   return (
     <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-      <div className="overflow-hidden">
+      <div className="overflow-hidden bg-bg-secondary">
         <div className="px-3 pt-2 pb-1">
-          <div className="flex items-center gap-2 pb-1.5">
+          <div className="flex flex-wrap items-center gap-2 pb-1.5">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
               <ClipboardList size={14} /> 服务端队列
               <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none">{displayItems.length}</span>
             </span>
             <div className="flex-1" />
+            <button type="button" className={`${REPORT_PAUSE_BUTTON} ${lockedComposerMode
+              ? 'border-danger bg-danger/10 text-danger hover:bg-danger/15'
+              : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+              disabled={!sessionId} onClick={() => { if (sessionId) setLockedComposerMode(sessionId, !lockedComposerMode); }}
+              aria-label={lockedComposerMode ? 'Cancel locked message mode' : 'New locked message'}
+              aria-pressed={lockedComposerMode}
+              title={lockedComposerMode ? 'Cancel locked message mode' : 'New locked message'}>
+              <Plus size={12} aria-hidden="true" /> {lockedComposerMode ? 'cancel locked msg' : 'new locked msg'}
+            </button>
+            <button type="button" className={REPORT_PAUSE_BUTTON + ' border-border-default text-text-secondary hover:bg-bg-hover'}
+              disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
+              onClick={() => { if (sessionId) void setItemsLocked(sessionId, true); }}
+              aria-label="Lock all queued messages" title="Lock all queued messages">
+              <Lock size={12} aria-hidden="true" /> Lock all
+            </button>
+            <button type="button" className={REPORT_PAUSE_BUTTON + ' border-border-default text-text-secondary hover:bg-bg-hover'}
+              disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
+              onClick={() => { if (sessionId) void setItemsLocked(sessionId, false); }}
+              aria-label="Unlock all queued messages" title="Unlock all queued messages">
+              <Unlock size={12} aria-hidden="true" /> Unlock all
+            </button>
+            <button
+              type="button"
+              className={`${REPORT_PAUSE_BUTTON} ${reportsPaused
+                ? 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/15'
+                : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+              aria-label={reportsPaused ? 'Resume reports' : 'Pause reports'}
+              aria-pressed={reportsPaused}
+              title={reportsPaused ? 'Resume reports' : 'Pause reports'}
+              disabled={!sessionId || !reportPauseLoaded || reportPauseUpdating || lockUpdating}
+              onClick={() => { if (sessionId) void setReportsPaused(sessionId, !reportsPaused); }}
+            >
+              {reportsPaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
+              {reportsPaused ? 'Resume reports' : 'Pause reports'}
+            </button>
             {items.some((item) => item.meta?.dispatchState === 'queued') && (
               <button onClick={clear} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-tertiary hover:bg-danger/10 hover:text-danger" title="清空仍在队列中的消息">
                 <Trash2 size={12} /> 清空
               </button>
             )}
           </div>
-          <div className="queue-list-scroll max-h-[45vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary/60">
+          <div className="queue-list-scroll max-h-[45vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
             {displayItems.length === 0 ? (
               <div className="px-3 py-3 text-center text-xs text-text-tertiary">队列为空</div>
             ) : (
@@ -115,6 +160,7 @@ export function SendQueuePanel() {
                 {displayItems.map((item, index) => {
                   const editing = edit?.id === item.id;
                   const editable = item.kind === 'task' && item.source === 'user';
+                  const locked = item.meta?.locked === true;
                   return (
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
                       {editing ? (
@@ -143,6 +189,15 @@ export function SendQueuePanel() {
                           </span>
                         </>
                       )}
+                      <button type="button"
+                        className={`${BUTTON} shrink-0 ${locked ? 'border border-danger text-danger hover:bg-danger/10' : 'border border-border-default'}`}
+                        disabled={!sessionId || lockUpdating || reportPauseUpdating}
+                        onClick={() => { if (sessionId) void setItemLocked(sessionId, item.id, !locked); }}
+                        aria-label={locked ? `Unlock queued message ${index + 1}` : `Lock queued message ${index + 1}`}
+                        aria-pressed={locked}
+                        title={locked ? 'Unlock' : 'Lock'}>
+                        {locked ? <Lock size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
+                      </button>
                     </div>
                   );
                 })}

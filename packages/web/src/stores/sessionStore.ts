@@ -16,8 +16,10 @@ import {
   branchSession,
   reimportSession,
   setSessionWorkspaces,
+  setSessionPinned as setSessionPinnedApi,
+  reorderPinnedSessions as reorderPinnedSessionsApi,
 } from '@/services/api';
-import { isMockMode } from '@/demo/mockBackend';
+import { applyMockPinnedOrder, isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
@@ -68,6 +70,8 @@ interface SessionStore {
   // so it only skips reverting workerStatus/workerId for sessions that WS
   // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
+  /** Latest locally applied shared pin snapshot; protects in-flight list reads. */
+  _pinStateTouchedSeq: number;
   _historyRefreshSeq: Record<string, number>;
   _historyPageSeq: Record<string, number>;
   /** Monotonic per-session selection request sequence; protects A→B→A. */
@@ -92,7 +96,7 @@ interface SessionStore {
   historyWindowStarts: Record<string, number>;
 
   // Actions
-  loadSessions: () => Promise<void>;
+  loadSessions: (options?: { throwOnError?: boolean }) => Promise<void>;
   selectSession: (id: string, signal?: AbortSignal) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
@@ -109,6 +113,11 @@ interface SessionStore {
       alwaysThinkingEnabled?: boolean;
       effort?: string;
       outputMode?: string;
+      modelContextWindow?: number;
+      modelAutoCompactTokenLimit?: number;
+      systemPrompt?: string;
+      mcpServers?: string[];
+      panAccess?: import('@/types').PanAccess;
       workspaceIds?: string[];
     },
   ) => Promise<void>;
@@ -122,6 +131,14 @@ interface SessionStore {
   acceptServerEpoch: (epoch: string | null | undefined) => void;
   beginUnscopedReplay: (sessionIds: string[]) => void;
   addMessage: (msg: Message) => void;
+  /** Append a terminal marker to its owning Session transcript, once per identity. */
+  appendWorkerResultMarker: (
+    sessionId: string,
+    marker: Message,
+    meta: LiveStreamMeta,
+    coverage?: TerminalCoverage,
+    deferUntilCoverage?: boolean,
+  ) => boolean;
   appendMessages: (msgs: Message[]) => void;
   /** Append a user-side control/message to its target Session projection. */
   appendLocalMessage: (sessionId: string, msg: Message) => void;
@@ -166,6 +183,9 @@ interface SessionStore {
     persist: (id: string, settings: SettingsBody) => Promise<Session | ApiGenericResponse>,
   ) => Promise<SessionSettingsMutationResult>;
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot?: boolean) => void;
+  setSessionPinned: (id: string, pinned: boolean) => Promise<void>;
+  reorderPinned: (ids: string[]) => Promise<void>;
+  applyPinnedSnapshot: (snapshot: { pinRevision: number; sessionIds: string[] }) => boolean;
   /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
    *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
    *  `_applyWorkerUpdate` 的就地更新路径）。 */
@@ -187,6 +207,7 @@ let wsTouchSeq = 0;
 let localTouchSeq = 0;
 let settingsTouchSeq = 0;
 let localMessageSeq = 0;
+let pinMutationSeq = 0;
 
 // Local user rows are transient projection state, not a new persisted wire
 // field.  Keep the count at which a row was created outside Zustand so an
@@ -336,6 +357,10 @@ export interface LiveStreamBuffer {
    * a stale index overwrite an unrelated message.
    */
   projectionRefs?: Record<string, Message>;
+  /** Background-only display cache, valid for one canonical window/runtime. */
+  projectionDisplay?: Message[];
+  projectionWindow?: LoadedWindow;
+  projectionRuntime?: Message[];
 }
 
 /**
@@ -361,8 +386,14 @@ export interface SessionTranscript {
 const runtimeKeys = new WeakMap<Message, string>();
 /** Canonical end offset proven to precede a local worker.result marker. */
 const terminalMarkerCoverage = Symbol('terminalMarkerCoverage');
+/** Server history boundary retained until its page has been loaded locally. */
+const terminalMarkerBoundary = Symbol('terminalMarkerBoundary');
+/** Resync-only marker that must wait for its canonical boundary before display. */
+const terminalMarkerAwaitCoverage = Symbol('terminalMarkerAwaitCoverage');
 type TerminalMarkerMessage = Message & {
   [terminalMarkerCoverage]?: { epoch: string | null; end: number };
+  [terminalMarkerBoundary]?: { historyEpoch?: string; historyRevision?: number };
+  [terminalMarkerAwaitCoverage]?: boolean;
 };
 
 function bindRuntimeKey(message: Message, key: string): Message {
@@ -387,6 +418,10 @@ export interface LiveStreamMeta {
   generation?: number;
   taskSeq?: number;
   taskId?: string;
+  /** Stable backend identity for one terminal event, including seq-less tasks. */
+  terminalKey?: string;
+  /** Monotonic per-Session terminal cursor used to reject delayed replays. */
+  resultCursor?: number;
   /** True only for the server's reconnect replay cache, not live traffic. */
   replayed?: boolean;
   turnId?: string;
@@ -397,13 +432,55 @@ export interface LiveStreamMeta {
 interface TerminalWatermark extends LiveStreamMeta {
   status: string;
   revision: number;
-  /** Task identity of the terminal event, for idempotent replays. */
-  taskKey?: string;
-  /** Result body recorded at terminal time (replay detection without a cursor). */
-  result?: string;
   /** Durable coverage boundary carried by `worker.result`. */
   historyEpoch?: string;
   historyRevision?: number;
+}
+
+function terminalMarkerEnd(
+  window: LoadedWindow,
+  marker: Message,
+): number | undefined {
+  const row = marker as TerminalMarkerMessage;
+  const known = row[terminalMarkerCoverage];
+  if (known?.epoch === window.epoch) return known.end;
+  const boundary = row[terminalMarkerBoundary];
+  if (!boundary?.historyEpoch || boundary.historyEpoch !== window.epoch
+      || typeof boundary.historyRevision !== 'number'
+      || !Number.isSafeInteger(boundary.historyRevision)
+      || window.revision < boundary.historyRevision) return undefined;
+
+  // In an unchanged history epoch, every append advances historyRevision once
+  // and increases total by one. Their difference therefore identifies the
+  // absolute end offset covered by this terminal result, even if its live rows
+  // have already converged into history or later tasks have appended rows.
+  const end = window.total - (window.revision - boundary.historyRevision);
+  if (!Number.isSafeInteger(end) || end < 0 || end > window.total) return undefined;
+  row[terminalMarkerCoverage] = { epoch: window.epoch, end };
+  return end;
+}
+
+export function workerResultMarkerId(
+  sessionId: string,
+  meta: {
+    terminalKey?: string;
+    resultCursor?: number;
+    taskSeq?: number;
+    taskId?: string | null;
+  },
+): string | undefined {
+  const identity = meta.terminalKey
+    ? `terminal:${meta.terminalKey}`
+    : meta.resultCursor !== undefined
+      ? `cursor:${meta.resultCursor}`
+      : meta.taskSeq !== undefined && meta.taskId
+        ? `seq:${meta.taskSeq}:task:${meta.taskId}`
+        : meta.taskSeq !== undefined
+          ? String(meta.taskSeq)
+          : meta.taskId
+            ? `task:${meta.taskId}`
+            : undefined;
+  return identity ? `worker.result:${sessionId}:${identity}` : undefined;
 }
 
 /**
@@ -813,14 +890,65 @@ function projectTranscript(
     }
   }
   const display: Message[] = [];
-  for (const [offset, message] of ordered) {
-    if (offset < anchorOffset) display.push(message);
+  const terminalMarkersByEnd = new Map<number, Message[]>();
+  const anchoredTerminalMarkers = new Set<Message>();
+  const emittedTerminalMarkers = new Set<Message>();
+  const outsideLoadedMarkers = new Set<Message>();
+  for (const row of runtime) {
+    if (!isLocalMarker(row) || !row.nativeItemId?.startsWith('worker.result:')) continue;
+    const end = terminalMarkerEnd(window, row);
+    if (end === undefined) {
+      if ((row as TerminalMarkerMessage)[terminalMarkerAwaitCoverage]) {
+        outsideLoadedMarkers.add(row);
+      }
+      continue;
+    }
+    if (window.start !== null && end < window.start) {
+      // Its owning history rows are outside this loaded page. Keep the marker
+      // in the Session runtime, but do not display it at the unrelated tail.
+      outsideLoadedMarkers.add(row);
+      continue;
+    }
+    const represented = end === window.start || end === window.end
+      || window.rows.has(end) || window.rows.has(end - 1);
+    if (!represented) {
+      if ((row as TerminalMarkerMessage)[terminalMarkerAwaitCoverage]) {
+        outsideLoadedMarkers.add(row);
+      }
+      continue;
+    }
+    const markers = terminalMarkersByEnd.get(end) ?? [];
+    markers.push(row);
+    terminalMarkersByEnd.set(end, markers);
+    anchoredTerminalMarkers.add(row);
   }
+  const pushTerminalMarkersAt = (end: number): void => {
+    const markers = terminalMarkersByEnd.get(end);
+    if (!markers) return;
+    display.push(...markers);
+    markers.forEach((marker) => emittedTerminalMarkers.add(marker));
+    terminalMarkersByEnd.delete(end);
+  };
   const emitted = new Set<number>();
+  const pushCanonicalRow = (offset: number, message: Message): void => {
+    pushTerminalMarkersAt(offset);
+    display.push(message);
+    emitted.add(offset);
+    pushTerminalMarkersAt(offset + 1);
+  };
+  if (window.start !== null && window.start < anchorOffset) {
+    pushTerminalMarkersAt(window.start);
+  }
+  for (const [offset, message] of ordered) {
+    if (offset >= anchorOffset) break;
+    pushCanonicalRow(offset, message);
+  }
+  pushTerminalMarkersAt(anchorOffset);
   let next = anchorOffset;
   let aligned = true;
   for (let index = 0; index < runtime.length; index += 1) {
     const row = runtime[index]!;
+    if (anchoredTerminalMarkers.has(row) || outsideLoadedMarkers.has(row)) continue;
     // Result markers bound a single completed turn. Once its whole runtime
     // run is durable, show canonical order and keep the marker after that run.
     // This also advances the offset before the next turn, so identical text in
@@ -837,15 +965,17 @@ function projectTranscript(
           const coveredEnd = coveredTerminalRunEnd(window, next, run);
           if (coveredEnd !== undefined) {
             for (let offset = next; offset < coveredEnd; offset += 1) {
-              display.push(window.rows.get(offset)!);
-              emitted.add(offset);
+              pushCanonicalRow(offset, window.rows.get(offset)!);
             }
             const marker = runtime[markerIndex]!;
-            (marker as TerminalMarkerMessage)[terminalMarkerCoverage] = {
-              epoch: window.epoch,
-              end: coveredEnd,
-            };
-            display.push(marker);
+            if (!anchoredTerminalMarkers.has(marker)) {
+              (marker as TerminalMarkerMessage)[terminalMarkerCoverage] = {
+                epoch: window.epoch,
+                end: coveredEnd,
+              };
+              display.push(marker);
+              emittedTerminalMarkers.add(marker);
+            }
             next = coveredEnd;
             index = markerIndex;
             continue;
@@ -876,13 +1006,12 @@ function projectTranscript(
         }
         if (fullyLoaded) {
           for (let offset = next; offset < coverage.end; offset += 1) {
-            display.push(window.rows.get(offset)!);
-            emitted.add(offset);
+            pushCanonicalRow(offset, window.rows.get(offset)!);
           }
           next = coverage.end;
         }
       }
-      display.push(row);
+      if (!emittedTerminalMarkers.has(row)) display.push(row);
       continue;
     }
     const canonicalOffset = explicitIdentityOf(row)
@@ -920,13 +1049,11 @@ function projectTranscript(
         }
         // A canonical row the client never streamed (agent/user/tool injection)
         // belongs before this runtime row.
-        display.push(durable);
-        emitted.add(next);
+        pushCanonicalRow(next, durable);
         next += 1;
       }
       if (matched >= 0) {
-        display.push(window.rows.get(matched)!);
-        emitted.add(matched);
+        pushCanonicalRow(matched, window.rows.get(matched)!);
         next = matched + 1;
         continue;
       }
@@ -935,8 +1062,9 @@ function projectTranscript(
     display.push(row);
   }
   for (const [offset, message] of ordered) {
-    if (offset >= anchorOffset && !emitted.has(offset)) display.push(message);
+    if (offset >= anchorOffset && !emitted.has(offset)) pushCanonicalRow(offset, message);
   }
+  if (window.end !== null) pushTerminalMarkersAt(window.end);
   return display;
 }
 
@@ -1381,6 +1509,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   rendering: false,
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
+  _pinStateTouchedSeq: 0,
   _historyRefreshSeq: {},
   _historyPageSeq: {},
   _selectionSeq: {},
@@ -1397,7 +1526,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   unscopedReplayPending: {},
   historyWindowStarts: {},
 
-  loadSessions: async () => {
+  loadSessions: async (options) => {
     // Reserve this refresh's sequence + snapshot the per-session WS touch
     // counters so a stale in-flight response can neither overwrite a newer
     // refresh nor revert sessions that were locally freshened while THIS
@@ -1406,6 +1535,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const touchedAtStart = get()._sessionWsTouchedSeq;
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
+    const pinTouchedAtStart = get()._pinStateTouchedSeq ?? 0;
     const eventPatchesAtStart = get()._sessionEventPatches ?? {};
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
@@ -1437,9 +1567,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         //    carrying it must not regress a status WS events already settled.
         // Anything else means the snapshot is authoritative for this session —
         // including the settled status of a completion event we never received.
+        const currentById = new Map(s.sessions.map((session) => [session.id, session]));
         const merged = sessions.map((sess) => {
           const sid = sess.id;
-          const cur = s.sessions.find((x) => x.id === sid);
+          const cur = currentById.get(sid);
           if (!cur) return sess;
           const touchedBefore = Object.prototype.hasOwnProperty.call(
             touchedAtStart,
@@ -1451,6 +1582,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             (s._sessionLocalTouchedSeq?.[sid] ?? 0) > (localTouchedAtStart[sid] ?? 0);
           const settingsTouchedDuringFetch =
             (s._sessionSettingsTouchedSeq?.[sid] ?? 0) > (settingsTouchedAtStart[sid] ?? 0);
+          const pinStateTouchedDuringFetch =
+            (s._pinStateTouchedSeq ?? 0) > pinTouchedAtStart;
           const snapshotIsTransientDone = sess.workerStatus === 'done';
           const preserveLocalWorker =
             touchedDuringFetch ||
@@ -1581,6 +1714,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           if (eventPatch && Object.keys(eventPatch).length > 0) {
             next = { ...next, ...eventPatch };
           }
+          if (pinStateTouchedDuringFetch) {
+            next = {
+              ...next,
+              pinned: cur.pinned,
+              pinOrder: cur.pinOrder,
+              pinRevision: cur.pinRevision,
+            };
+          } else if ((cur.pinRevision ?? -1) > (next.pinRevision ?? -1)) {
+            next = {
+              ...next,
+              pinned: cur.pinned,
+              pinOrder: cur.pinOrder,
+              pinRevision: cur.pinRevision,
+            };
+          }
           const mutation = s.sessionSettingMutations?.[sid];
           if (settingsTouchedDuringFetch || mutation?.pending) {
             // This HTTP snapshot was issued before the latest local settings
@@ -1631,8 +1779,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           initialLoading: false,
         });
       }
-    } catch {
+    } catch (error) {
       console.warn('[sessionStore] loadSessions failed');
+      if (options?.throwOnError) throw error;
     } finally {
       // 只有最新的刷新请求拥有 sessionsLoading 标志：被更新请求取代的旧响应
       // 在 finally 里不能清掉新请求的转圈状态（否则刷新瞬间 sidebar 闪烁）。
@@ -2238,6 +2387,87 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
+  appendWorkerResultMarker: (sessionId, marker, meta, coverage, deferUntilCoverage = false) => {
+    if (!sessionId || marker.role !== 'system') return false;
+    const touchSeq = (localTouchSeq += 1);
+    let appended = false;
+    set((s) => {
+      const session = sessionOf(s, sessionId);
+      const base = s.sessionTranscripts[sessionId]
+        ?? (session
+          ? ensureTranscript(s.sessionTranscripts, session)
+          : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null });
+      const markerId = marker.nativeItemId;
+      const watermark = s.terminalWatermarks[sessionId];
+      if (watermark) {
+        const sameTerminal = Boolean(
+          (meta.terminalKey && watermark.terminalKey
+            && meta.terminalKey === watermark.terminalKey)
+          || (meta.resultCursor !== undefined && watermark.resultCursor !== undefined
+            && meta.resultCursor === watermark.resultCursor)
+          || (meta.taskSeq !== undefined && watermark.taskSeq !== undefined
+            && meta.taskSeq === watermark.taskSeq
+            && !(meta.taskId && watermark.taskId && meta.taskId !== watermark.taskId)),
+        );
+        const comparableCursor = meta.resultCursor !== undefined
+          && watermark.resultCursor !== undefined;
+        const sameCursorDistinctIdentity = meta.taskSeq !== undefined
+          && watermark.taskSeq !== undefined && meta.taskSeq === watermark.taskSeq
+          && Boolean((meta.terminalKey && watermark.terminalKey
+            && meta.terminalKey !== watermark.terminalKey)
+            || (meta.taskId && watermark.taskId && meta.taskId !== watermark.taskId));
+        if (!sameTerminal && comparableCursor && meta.resultCursor! < watermark.resultCursor!) {
+          return s;
+        }
+        if (!sameTerminal && !comparableCursor && isOlderMeta(meta, watermark)
+            && !sameCursorDistinctIdentity) return s;
+      }
+      if (markerId && (
+        base.runtime.some((row) => row.nativeItemId === markerId)
+        || (s.currentSessionId === sessionId
+          && s.currentMessages.some((row) => row.nativeItemId === markerId))
+      )) return s;
+
+      markLocalMarker(marker);
+      if (coverage?.historyEpoch && typeof coverage.historyRevision === 'number') {
+        (marker as TerminalMarkerMessage)[terminalMarkerBoundary] = {
+          historyEpoch: coverage.historyEpoch,
+          historyRevision: coverage.historyRevision,
+        };
+      }
+      if (deferUntilCoverage) {
+        (marker as TerminalMarkerMessage)[terminalMarkerAwaitCoverage] = true;
+      }
+      const row = bindRuntimeKey(
+        marker,
+        markerId ? `marker:${markerId}` : `marker:${touchSeq}`,
+      );
+      const transcript: SessionTranscript = {
+        ...base,
+        runtime: [...base.runtime, row],
+      };
+      appended = true;
+      const touched = {
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: touchSeq,
+        },
+      };
+      if (s.currentSessionId !== sessionId) {
+        return { ...withTranscript(s, sessionId, transcript), ...touched };
+      }
+
+      const display = projectTranscript(transcript, s.liveStreamBuffers[sessionId]);
+      return {
+        currentMessages: display,
+        sessions: mirrorHistory(s.sessions, sessionId, display),
+        ...withTranscript(s, sessionId, transcript),
+        ...touched,
+      };
+    });
+    return appended;
+  },
+
   appendMessages: (msgs: Message[]) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
@@ -2368,9 +2598,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // moves rows appended during the turn (Steer/queue delivery) in front of
       // stream blocks that had already appeared. Use the target Session's
       // current projection, then retain that exact interleaving in runtime.
-      const targetDisplay = s.currentSessionId === sessionId
+      const selected = s.currentSessionId === sessionId;
+      const targetDisplay = selected
         ? s.currentMessages
-        : projectTranscript(base, previous);
+        : previous?.projectionDisplay
+          && previous.projectionWindow === base.window
+          && previous.projectionRuntime === base.runtime
+          ? previous.projectionDisplay
+          : projectTranscript(base, previous);
       const projected = projectLiveRows(
         targetDisplay,
         previous,
@@ -2381,16 +2616,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       buffer.projectionIndexes = projected.indexes;
       buffer.projectionRefs = projected.refs;
       const runtime = projected.display.filter((row) => !isDurableRow(row));
+      if (!selected) {
+        buffer.projectionDisplay = projected.display;
+        buffer.projectionWindow = base.window;
+        buffer.projectionRuntime = runtime;
+      }
       const transcript: SessionTranscript = {
         ...base,
         runtime,
       };
-      if (s.currentSessionId === sessionId) {
+      if (selected) {
         return {
           liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
           unscopedReplayPending: replayPending,
           currentMessages: projected.display,
-          sessions: mirrorHistory(s.sessions, sessionId, projected.display),
           ...withTranscript(s, sessionId, transcript),
         };
       }
@@ -2418,16 +2657,32 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : 'done';
       const incomingTaskKey = taskScopeKey(sessionId, meta, previousBuffer);
       if (terminal) {
-        // Every side effect of a terminal event is idempotent. A replay or a
-        // late event for the same task cursor must not add a second assistant
-        // row, clear a newer live buffer, or move the DONE anchor.
-        if (isOlderMeta(meta, terminal)) return s;
+        // Backend terminal identity is stronger than taskSeq: reports and
+        // compatibility tasks can have no taskSeq, and a cursor can be reused
+        // across distinct task identities. resultCursor also lets an older
+        // replay be rejected after a newer terminal has already been applied.
+        const sameTerminalKey = Boolean(meta.terminalKey && terminal.terminalKey
+          && meta.terminalKey === terminal.terminalKey);
+        if (sameTerminalKey) return s;
+        const hasComparableResultCursor = meta.resultCursor !== undefined
+          && terminal.resultCursor !== undefined;
+        if (hasComparableResultCursor && meta.resultCursor! <= terminal.resultCursor!) return s;
+
+        const distinctTaskIdentity = Boolean(
+          (meta.terminalKey && terminal.terminalKey
+            && meta.terminalKey !== terminal.terminalKey)
+          || (meta.resultCursor !== undefined && terminal.resultCursor !== undefined
+            && meta.resultCursor !== terminal.resultCursor)
+          || (meta.taskId && terminal.taskId && meta.taskId !== terminal.taskId),
+        );
         const sameCursor = terminal.taskSeq !== undefined && meta.taskSeq !== undefined
           && terminal.taskSeq === meta.taskSeq;
-        const noCursor = terminal.taskSeq === undefined && meta.taskSeq === undefined
-          && terminal.taskId === undefined && meta.taskId === undefined;
-        if (sameCursor || terminal.taskKey === incomingTaskKey) return s;
-        if (noCursor && terminal.result === result) return s;
+        const sameCursorWithDistinctIdentity = sameCursor && distinctTaskIdentity;
+        if (!hasComparableResultCursor && isOlderMeta(meta, terminal)
+            && !sameCursorWithDistinctIdentity) return s;
+        if (sameCursor && !distinctTaskIdentity) return s;
+        if (meta.taskId && terminal.taskId && meta.taskId === terminal.taskId
+            && !distinctTaskIdentity) return s;
       }
       if (previousBuffer && isOlderMeta(meta, previousBuffer)) return s;
       const coverage: TerminalCoverage = event.terminalCoverage ?? {
@@ -2444,6 +2699,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const base = session
         ? ensureTranscript(s.sessionTranscripts, session)
         : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const markerId = workerResultMarkerId(sessionId, meta);
+      if (markerId && (
+        base.runtime.some((row) => row.nativeItemId === markerId)
+        || (s.currentSessionId === sessionId
+          && s.currentMessages.some((row) => row.nativeItemId === markerId))
+      )) return s;
       const liveMessages = previousBuffer?.messages ?? [];
       // The protocol-referenced final block is the last assistant block *of this
       // task's own live rows* — never "the last assistant anywhere".
@@ -2621,10 +2882,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...s.terminalWatermarks,
           [sessionId]: {
             ...meta,
-            taskKey: incomingTaskKey,
             status,
             revision,
-            result,
             ...(coverage.historyEpoch ? { historyEpoch: coverage.historyEpoch } : {}),
             ...(typeof coverage.historyRevision === 'number'
               ? { historyRevision: coverage.historyRevision }
@@ -3230,6 +3489,95 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           }
         : {}),
     }));
+  },
+
+  applyPinnedSnapshot: (snapshot) => {
+    const currentRevision = get().sessions.reduce(
+      (revision, session) => Math.max(revision, session.pinRevision ?? 0),
+      0,
+    );
+    if (snapshot.pinRevision < currentRevision) return false;
+    const orderById = new Map(snapshot.sessionIds.map((id, index) => [id, index]));
+    set((state) => ({
+      sessions: state.sessions.map((session) => {
+        const pinOrder = orderById.get(session.id);
+        return {
+          ...session,
+          pinned: pinOrder !== undefined,
+          pinOrder: pinOrder ?? null,
+          pinRevision: snapshot.pinRevision,
+        };
+      }),
+      _pinStateTouchedSeq: (state._pinStateTouchedSeq ?? 0) + 1,
+    }));
+    return true;
+  },
+
+  setSessionPinned: async (id, pinned) => {
+    const mutationSeq = ++pinMutationSeq;
+    if (isMockMode()) {
+      const state = get();
+      const ordered = state.sessions
+        .filter((session) => session.pinned && session.id !== id)
+        .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+        .map((session) => session.id);
+      if (pinned) ordered.push(id);
+      const pinRevision = Math.max(0, ...state.sessions.map((session) => session.pinRevision ?? 0)) + 1;
+      applyMockPinnedOrder(ordered, pinRevision);
+      state.applyPinnedSnapshot({ pinRevision, sessionIds: ordered });
+      return;
+    }
+    let response;
+    try {
+      response = await setSessionPinnedApi(id, pinned);
+    } catch (error) {
+      await get().loadSessions();
+      throw error;
+    }
+    if (mutationSeq !== pinMutationSeq) {
+      await get().loadSessions();
+      return;
+    }
+    if (!get().applyPinnedSnapshot(response)) {
+      await get().loadSessions();
+    }
+  },
+
+  reorderPinned: async (ids) => {
+    const mutationSeq = ++pinMutationSeq;
+    if (isMockMode()) {
+      const state = get();
+      const current = state.sessions
+        .filter((session) => session.pinned)
+        .sort((a, b) => (a.pinOrder ?? Number.MAX_SAFE_INTEGER) - (b.pinOrder ?? Number.MAX_SAFE_INTEGER))
+        .map((session) => session.id);
+      const requested = new Set(ids);
+      const slots = current.flatMap((id, index) => requested.has(id) ? [index] : []);
+      const ordered = current.slice();
+      slots.forEach((slot, index) => { ordered[slot] = ids[index]!; });
+      const pinRevision = Math.max(0, ...state.sessions.map((session) => session.pinRevision ?? 0)) + 1;
+      applyMockPinnedOrder(ordered, pinRevision);
+      state.applyPinnedSnapshot({ pinRevision, sessionIds: ordered });
+      return;
+    }
+    const pinRevision = get().sessions.reduce(
+      (revision, session) => Math.max(revision, session.pinRevision ?? 0),
+      0,
+    );
+    let response;
+    try {
+      response = await reorderPinnedSessionsApi(ids, pinRevision);
+    } catch (error) {
+      await get().loadSessions();
+      throw error;
+    }
+    if (mutationSeq !== pinMutationSeq) {
+      await get().loadSessions();
+      return;
+    }
+    if (!get().applyPinnedSnapshot(response)) {
+      await get().loadSessions();
+    }
   },
 
   applyResultToSession: (id, e) => {

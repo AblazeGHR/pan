@@ -100,11 +100,23 @@ export interface Session {
    * omit the field entirely.
    */
   workspaceIds?: string[];
+  /** Existing custom Session order; pin state uses its own storage. */
+  order?: number | null;
+  /** Shared pin state, independent of the user-defined Session order. */
+  pinned?: boolean;
+  /** Position among all pinned Sessions, or null when unpinned. */
+  pinOrder?: number | null;
+  /** Monotonic revision for the shared pin-state snapshot. */
+  pinRevision?: number;
   /** Managed-session report subscriptions (ids this session gets reports from). */
   reportSubscriptions?: string[];
+  /** Whether the direct manager subscribes to this Session's completion reports. */
+  reportsToManager?: boolean | null;
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
   qqSubscriptions?: string[];
   notificationSettings?: { browser: boolean; system: boolean };
+  /** QQ, system, or browser msgBridge is enabled for this Session. */
+  msgBridgeEnabled?: boolean;
   /** MCP capability flags; only present on the full (non-summary) endpoint. */
   panAccess?: PanAccess;
   /** Whether MCP was ever enabled for this session (mcp_servers non-empty). */
@@ -370,6 +382,8 @@ export interface StreamEvent {
   resultCursors?: Record<string, number>;
   resultsAvailableFrom?: Record<string, number>;
   sessionId?: string;
+  queueRevision?: number;
+  agentReportsPaused?: boolean;
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */
   generation?: number;
@@ -381,6 +395,7 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
+  result?: string;
   notification?: {
     title?: string;
     body?: string;
@@ -391,6 +406,10 @@ export interface StreamEvent {
   taskSeq?: number;
   /** Durable task identity carried by worker.stream for late-frame isolation. */
   taskId?: string | null;
+  /** Stable backend identity for this terminal task result. */
+  terminalKey?: string;
+  /** Monotonic per-Session cursor for terminal result replay and ordering. */
+  resultCursor?: number;
   name?: string;
   newName?: string;
   /** Safe session fields included by session lifecycle events when available. */
@@ -416,6 +435,8 @@ export interface StreamEvent {
   workspaceIds?: string[];
   /** workspace.membershipUpdated: the workspace's complete member id snapshot. */
   sessionIds?: string[];
+  /** Shared Session pin snapshot revision. */
+  pinRevision?: number;
 }
 
 // ── API response types ──
@@ -479,6 +500,15 @@ export interface ApiSessionOrderResponse {
   error?: { code?: string; message?: string };
 }
 
+export interface ApiSessionPinResponse {
+  ok?: boolean;
+  pinned?: boolean;
+  pinOrder?: number | null;
+  pinRevision?: number;
+  sessionIds?: string[];
+  error?: { code?: string; message?: string };
+}
+
 export interface ApiReportSubscribeResponse {
   managerId?: string;
   sessionId?: string;
@@ -492,6 +522,23 @@ export interface ApiReadonlyResponse {
   managerId?: string;
   sessionId?: string;
   readonlySession?: boolean;
+  error?: ApiErrorInfo;
+}
+
+export interface ApiSessionReportToManagerResponse {
+  ok?: boolean;
+  sessionId?: string;
+  managerId?: string;
+  reportsToManager?: boolean;
+  error?: ApiErrorInfo;
+}
+
+export interface ApiSessionMsgBridgeResponse {
+  ok?: boolean;
+  sessionId?: string;
+  msgBridgeEnabled?: boolean;
+  qqSubscriptions?: string[];
+  notificationSettings?: { browser: boolean; system: boolean };
   error?: ApiErrorInfo;
 }
 
@@ -573,7 +620,9 @@ export interface SessionTemplate {
   name: string;
   adapter?: string;
   model?: string | null;
+  mcpMode?: 'always' | 'optional' | 'never';
   mcpServers?: string[];
+  panAccess?: PanAccess;
   /** Absolute path of the plugin dir whose manifest.json defined this template. */
   sourceManifest?: string;
   /** Short readable manifest label, e.g. "packages/mcp/manifest.json". */
@@ -581,10 +630,48 @@ export interface SessionTemplate {
   system_prompt_preview?: string;
 }
 
+export interface SessionTemplateManifestTarget {
+  id: string;
+  label: string;
+  writable: boolean;
+  reason?: string | null;
+}
+
+export interface ApiSessionTemplateTargetsResponse {
+  manifestTargets?: SessionTemplateManifestTarget[];
+  loaded?: boolean;
+  total?: number;
+  error?: string;
+}
+
+export interface SessionTemplateSaveInput {
+  manifestId: string;
+  baseTemplate?: string;
+  name: string;
+  adapter?: string | null;
+  model?: string | null;
+  permission_mode?: string | null;
+  system_prompt?: string | string[];
+  mcp_mode?: 'always' | 'optional' | 'never';
+  mcp_servers?: string[];
+  pan_access?: {
+    restrict_to_managed?: boolean;
+    can_claim_unmanaged?: boolean;
+    auto_claim_created?: boolean;
+  };
+}
+
 export interface ApiSessionTemplatesResponse {
   sessionTemplates?: SessionTemplate[];
   total?: number;
   error?: string;
+}
+
+export interface ApiSessionTemplateSaveResponse {
+  ok?: boolean;
+  error?: string;
+  name?: string;
+  manifestId?: string;
 }
 
 export interface ApiMcpServersResponse {
@@ -623,6 +710,63 @@ export interface ApiConfigResponse {
   defaultPermissionMode?: string;
   supportedSettings?: string[];
   executionModes?: string[];
+}
+
+export type DataCatalogPolicyStatus =
+  | 'data_retention_policy'
+  | 'jobs_api_managed'
+  | 'session_lifecycle_cleanup'
+  | 'not_auto_cleanable';
+
+export interface DataCatalogPath {
+  label: string;
+  path: string;
+  exists: boolean;
+  source: string;
+  overridden: boolean;
+  external: boolean;
+}
+
+export interface DataCatalogCategory {
+  id: string;
+  name: string;
+  purpose: string;
+  policyStatus: DataCatalogPolicyStatus;
+  paths: DataCatalogPath[];
+  note?: string;
+}
+
+export interface ApiDataCatalogResponse {
+  categories: DataCatalogCategory[];
+  notice: string;
+  jobsRetention: {
+    slot: string;
+    status: 'reserved';
+    message: string;
+  };
+}
+
+export type DataRetentionPolicyId = 'sessions' | 'attachments' | 'qq_history' | 'qq_media' | 'pan_logs';
+
+export interface ApiDataRetentionPolicy {
+  enabled: boolean;
+  days: number | null;
+}
+
+export interface ApiDataRetentionScanResult {
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  skipReasons: Record<string, number>;
+  error?: string | null;
+  completedAt?: string | null;
+  lastScanAt?: string | null;
+}
+
+export interface ApiDataRetentionResponse {
+  policies: Record<DataRetentionPolicyId, ApiDataRetentionPolicy>;
+  configKey: 'data_retention';
+  lastScans: Record<DataRetentionPolicyId, ApiDataRetentionScanResult>;
 }
 
 export interface AdapterInfo {
@@ -729,7 +873,8 @@ export interface ApiMainRestartStatusResponse {
   reason?: string;
   requestId?: string;
   jobId?: string;
-  phase?: 'requested' | 'stopping' | 'stopped' | 'starting' | 'ready' | 'failed' | 'timed_out';
+  operation?: 'restart' | 'exit';
+  phase?: 'requested' | 'stopping_workers' | 'stopping' | 'stopped' | 'starting' | 'ready' | 'failed' | 'timed_out';
   jobStatus?: string;
   root?: string;
   oldPid?: number | null;
@@ -787,6 +932,22 @@ export interface ApiMainExitResponse {
   jobId?: string;
 }
 
+export type ApiSessionExitStrategy = 'ask' | 'offline' | 'preserve-running';
+export type ApiStartupPreference = 'ask' | 'wake-running' | 'sync-actual' | 'preserve-running';
+
+export interface ApiSessionLifecyclePreferences {
+  exitStrategy: ApiSessionExitStrategy;
+  startupPreference: ApiStartupPreference;
+}
+
+export interface ApiSessionLegalStateSyncResult {
+  sessionId: string;
+  status: 'updated' | 'error';
+  legalWorkerState?: string;
+  runtimeWorkerStatus?: string;
+  error?: string;
+}
+
 export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual';
 
 export interface ApiStartupRecoveryCandidate {
@@ -803,6 +964,7 @@ export interface ApiStartupRecoveryRecord {
   state: 'initializing' | 'no_candidates' | 'pending' | 'processing' | 'failed' | 'completed';
   candidateSnapshot: ApiStartupRecoveryCandidate[];
   decision: ApiStartupRecoveryChoice | null;
+  autoPreference?: ApiStartupPreference | null;
   decisionId?: string | null;
   attempts: number;
   results: Array<Record<string, unknown>>;
@@ -960,7 +1122,7 @@ export interface QueuedEdit {
 
 // ── Agent queue (backend session.queue_pending, normalized) ──
 
-export type AgentQueueKind = 'task' | 'report' | 'qq';
+export type AgentQueueKind = 'task' | 'report' | 'qq' | 'wechat';
 export type QueueDispatchState =
   | 'queued'
   | 'reserved'
@@ -992,13 +1154,17 @@ export interface AgentQueueItem {
     /** queued=仍待本地 CLI 交接；reserved/writing 只在恢复事件中短暂存在。 */
     dispatchState?: QueueDispatchState;
     revision?: number;
+    locked?: boolean;
+    lockManual?: boolean;
+    lockAutoReport?: boolean;
   };
 }
 
 export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
   queueRevision?: number;
-  error?: string;
+  agentReportsPaused?: boolean;
+  error?: string | { code?: string; message?: string };
   ok?: boolean;
 }
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
 import type { Message } from '@/types';
@@ -8,7 +8,71 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
 import { NonBodyGroup } from './NonBodyGroup';
+import { groupChildren } from './nonBodyGroupUtils';
 import { LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
+
+const virtualizerHarness = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  return {
+    groupCount: 0,
+    itemKeys: [] as string[],
+    visibleIndexes: null as number[] | null,
+    listeners,
+    setVisibleIndexes(indexes: number[] | null) {
+      this.visibleIndexes = indexes;
+      for (const listener of listeners) listener();
+    },
+    reset() {
+      this.groupCount = 0;
+      this.itemKeys = [];
+      this.visibleIndexes = null;
+      listeners.clear();
+    },
+  };
+});
+
+vi.mock('@tanstack/react-virtual', async () => {
+  const { useEffect, useReducer } = await import('react');
+  return {
+    useVirtualizer: (options: {
+      count: number;
+      getItemKey: (index: number) => string | number;
+      estimateSize: (index: number) => number;
+      gap: number;
+    }) => {
+      const [, rerender] = useReducer((value: number) => value + 1, 0);
+      virtualizerHarness.groupCount = options.count;
+      virtualizerHarness.itemKeys = Array.from({ length: options.count }, (_, index) =>
+        String(options.getItemKey(index)),
+      );
+      useEffect(() => {
+        virtualizerHarness.listeners.add(rerender);
+        return () => {
+          virtualizerHarness.listeners.delete(rerender);
+        };
+      }, []);
+
+      const visibleIndexes = virtualizerHarness.visibleIndexes ??
+        Array.from({ length: Math.min(options.count, 8) }, (_, index) => index);
+      return {
+        getVirtualItems: () => visibleIndexes
+          .filter((index) => index >= 0 && index < options.count)
+          .map((index) => ({
+            index,
+            key: options.getItemKey(index),
+            start: index * (options.estimateSize(index) + options.gap),
+            size: options.estimateSize(index),
+          })),
+        getTotalSize: () => options.count === 0
+          ? 0
+          : options.count * options.estimateSize(0) + (options.count - 1) * options.gap,
+        measureElement: () => {},
+        measure: () => {},
+        scrollToIndex: () => {},
+      };
+    },
+  };
+});
 
 vi.mock('./MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
@@ -19,6 +83,7 @@ vi.mock('./MarkdownRenderer', () => ({
 afterEach(() => cleanup());
 
 beforeEach(() => {
+  virtualizerHarness.reset();
   useSessionStore.setState({ currentSessionId: 'session-1' });
   useDetailStore.setState({ detailTarget: null });
 });
@@ -180,19 +245,97 @@ describe('lazy long chat blocks', () => {
     });
   });
 
-  it('does not render folded short thinking Markdown across a long merged run', () => {
+  it('virtualizes alternating child runs without mounting folded Markdown', () => {
     const items: Message[] = Array.from({ length: 120 }, (_, index) => ({
       role: index % 2 === 0 ? 'thinking' : 'tool',
       content: index % 2 === 0 ? `short thought ${index}` : 'tool result (Bash)',
       blockId: `long-run-${index}`,
     }));
-    render(<NonBodyGroup items={items} />);
+    const { container } = render(<NonBodyGroup items={items} />);
 
+    expect(container.querySelectorAll('.tool-group, .thinking')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: /120 non-body blocks/ }));
-    expect(screen.getAllByRole('button', { name: 'thinking' })).toHaveLength(60);
+    expect(virtualizerHarness.groupCount).toBe(120);
+    expect(container.querySelector('[data-testid="non-body-group-window"]')?.getAttribute('data-group-count'))
+      .toBe('120');
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(8);
+    expect(screen.getAllByRole('button', { name: 'thinking' })).toHaveLength(4);
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'thinking' })[0]!);
     expect(screen.getAllByTestId('rendered-thinking-content')).toHaveLength(1);
+
+    // A row that leaves the virtual range unmounts. When it returns, its local
+    // disclosure state starts folded, matching existing top-level groups.
+    act(() => virtualizerHarness.setVisibleIndexes([118, 119]));
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(2);
+    act(() => virtualizerHarness.setVisibleIndexes([0, 1]));
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'thinking' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('counts one long contiguous run as one virtual row and handles empty or single group lists', () => {
+    expect(groupChildren([])).toEqual([]);
+    const items: Message[] = Array.from({ length: 240 }, (_, index) => ({
+      role: 'tool',
+      content: `tool result (${index})`,
+      blockId: `one-long-run-${index}`,
+    }));
+    const { container, rerender } = render(<NonBodyGroup items={items} />);
+    fireEvent.click(screen.getByRole('button', { name: /240 non-body blocks/ }));
+
+    expect(virtualizerHarness.groupCount).toBe(1);
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '240 tools' })).toBeTruthy();
+
+    rerender(<NonBodyGroup items={[items[0]!]} />);
+    expect(virtualizerHarness.groupCount).toBe(1);
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(1);
+
+    rerender(<NonBodyGroup items={[]} />);
+    expect(container.querySelector('.non-body-group')).toBeNull();
+    expect(container.querySelector('[data-testid="non-body-group-window"]')).toBeNull();
+  });
+
+  it('keeps child keys stable as a run streams and existing groups shift after prepend', () => {
+    const initial: Message[] = [
+      { role: 'tool', content: 'Bash({})', blockId: 'stable-tool-first' },
+      { role: 'tool', content: 'Read({})', blockId: 'stable-tool-second' },
+      { role: 'thinking', content: 'plan', blockId: 'stable-thinking' },
+      { role: 'tool', content: 'Write({})', blockId: 'stable-tool-last' },
+    ];
+    const { rerender, container } = render(<NonBodyGroup items={initial} />);
+    fireEvent.click(screen.getByRole('button', { name: /4 non-body blocks/ }));
+    const originalKeys = [...virtualizerHarness.itemKeys];
+    expect(originalKeys).toHaveLength(3);
+
+    const streamedFirst = { ...initial[0]!, content: 'Bash({"stream":"updated"})' };
+    const appendedTool: Message = { role: 'tool', content: 'Patch({})', blockId: 'stable-tool-appended' };
+    rerender(<NonBodyGroup items={[streamedFirst, initial[1]!, appendedTool, ...initial.slice(2)]} />);
+    expect(virtualizerHarness.itemKeys).toEqual(originalKeys);
+    expect(screen.getByRole('button', { name: '3 tools' })).toBeTruthy();
+
+    const prepended: Message = { role: 'thinking', content: 'older plan', blockId: 'stable-prepended' };
+    rerender(<NonBodyGroup items={[prepended, streamedFirst, initial[1]!, appendedTool, ...initial.slice(2)]} />);
+    expect(virtualizerHarness.itemKeys.slice(1)).toEqual(originalKeys);
+    expect(container.querySelectorAll('[data-child-group]')).toHaveLength(4);
+  });
+
+  it('does not parse folded child tool payloads when the outer group opens', () => {
+    const args = '{"command":"echo deferred"}';
+    const parse = vi.spyOn(JSON, 'parse');
+    const tool: Message = {
+      role: 'tool',
+      content: `tool call: Bash\nargs: ${args}`,
+      blockId: 'lazy-child-tool',
+    };
+    const { container } = render(<NonBodyGroup items={[tool]} />);
+    fireEvent.click(screen.getByRole('button', { name: /1 non-body blocks/ }));
+
+    expect(container.querySelectorAll('.tool-group')).toHaveLength(1);
+    expect(parse).not.toHaveBeenCalledWith(args);
+    fireEvent.click(screen.getByRole('button', { name: '1 tools' }));
+    expect(parse).toHaveBeenCalledWith(args);
+    parse.mockRestore();
   });
 });

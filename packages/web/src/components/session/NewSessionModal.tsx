@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { DirectoryInput } from '@/components/session/DirectoryInput';
+import { SessionTemplateSelect } from '@/components/session/SessionTemplateSelect';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
@@ -13,11 +14,14 @@ import {
   createDirectory,
   fetchDirectories,
   fetchNewSessionDefaults,
+  fetchMcpServers,
   fetchSessionTemplates,
+  fetchSessionTemplateTargets,
   saveNewSessionDefaults,
+  saveSessionTemplate,
 } from '@/services/api';
 import { isMissingDirectoryError, parseDirectoryInput } from '@/utils/directoryInput';
-import type { SessionTemplate } from '@/types';
+import type { McpServerInfo, SessionTemplate, SessionTemplateManifestTarget, SessionTemplateSaveInput } from '@/types';
 import { ArrowLeft } from 'lucide-react';
 
 interface NewSessionModalProps {
@@ -25,28 +29,41 @@ interface NewSessionModalProps {
   onClose: () => void;
 }
 
-/** Readable manifest location for a template: prefer the backend-computed
- *  short label (e.g. "packages/mcp/manifest.json"); fall back to the last
- *  directory of the full path + "/manifest.json" when the label is missing. */
-function manifestLabel(t: SessionTemplate): string {
-  if (t.sourceManifestLabel) return t.sourceManifestLabel;
-  if (t.sourceManifest) {
-    const parts = t.sourceManifest.replace(/\\/g, '/').split('/').filter(Boolean);
-    return (parts[parts.length - 1] || '') + '/manifest.json';
-  }
-  return 'manifest.json';
-}
-
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
   const [adapter, setAdapter] = useState('');
+  const [adapterExplicit, setAdapterExplicit] = useState(false);
   // Output mode follows the selected adapter's config.
   const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
   const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [defaultsReady, setDefaultsReady] = useState(false);
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
+  const [manifestTargets, setManifestTargets] = useState<SessionTemplateManifestTarget[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
+  const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  const [model, setModel] = useState('');
+  const [permissionMode, setPermissionMode] = useState('');
+  const [effort, setEffort] = useState('');
+  const [modelContextWindow, setModelContextWindow] = useState('');
+  const [modelAutoCompactTokenLimit, setModelAutoCompactTokenLimit] = useState('');
+  const [thinking, setThinking] = useState<boolean | undefined>(undefined);
+  const [systemPromptOverride, setSystemPromptOverride] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [mcpServerOverride, setMcpServerOverride] = useState<string[] | null>(null);
+  const [mcpMode, setMcpMode] = useState<'' | 'always' | 'optional' | 'never'>('optional');
+  const [panAccess, setPanAccess] = useState<{
+    restrictToManaged?: boolean;
+    canClaimUnmanaged?: boolean;
+    autoClaimCreated?: boolean;
+  }>({});
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [saveTemplateTarget, setSaveTemplateTarget] = useState('');
+  const [saveTemplateError, setSaveTemplateError] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [targetsLoadError, setTargetsLoadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [directoryCreationPath, setDirectoryCreationPath] = useState<string | null>(null);
   const directoryCreationWorkspaceIds = useRef<string[] | null>(null);
@@ -89,8 +106,26 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setName('');
       setWorkdir('');
       setAdapter('');
+      setAdapterExplicit(false);
       setOutputMode('');
       setSessionTemplate('');
+      setActiveTab('basic');
+      setModel('');
+      setPermissionMode('');
+      setEffort('');
+      setModelContextWindow('');
+      setModelAutoCompactTokenLimit('');
+      setThinking(undefined);
+      setSystemPromptOverride(false);
+      setSystemPrompt('');
+      setMcpServerOverride(null);
+      setMcpMode('optional');
+      setPanAccess({});
+      setSaveTemplateOpen(false);
+      setSaveTemplateName('');
+      setSaveTemplateTarget('');
+      setSaveTemplateError('');
+      setTargetsLoadError('');
       setSaveAsDefault(false);
       setDefaultsReady(false);
       setSubmitting(false);
@@ -99,6 +134,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       let cancelled = false;
       Promise.all([
         fetchSessionTemplates().catch(() => [] as SessionTemplate[]),
+        fetchSessionTemplateTargets().catch((error: unknown) => {
+          if (!cancelled) setTargetsLoadError(error instanceof Error ? error.message : '未知错误');
+          if (!cancelled) showToast(`读取可保存目标失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
+          return [] as SessionTemplateManifestTarget[];
+        }),
+        fetchMcpServers().catch(() => [] as McpServerInfo[]),
         fetchNewSessionDefaults().catch((error: unknown) => {
           if (!cancelled) showToast(
             `读取 New Session 默认配置失败：${error instanceof Error ? error.message : '未知错误'}`,
@@ -106,12 +147,15 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           );
           return null;
         }),
-      ]).then(([loadedTemplates, defaults]) => {
+      ]).then(([loadedTemplates, loadedTargets, loadedMcpServers, defaults]) => {
         if (cancelled) return;
         setTemplates(loadedTemplates);
+        setManifestTargets(loadedTargets);
+        setMcpServers(loadedMcpServers);
         const savedTemplate = defaults?.sessionTemplate ?? '';
         const templateExists = !savedTemplate || loadedTemplates.some((t) => t.name === savedTemplate);
         setSessionTemplate(templateExists ? savedTemplate : '');
+        setMcpMode(templateExists && savedTemplate ? '' : 'optional');
         if (savedTemplate && !templateExists) {
           showToast(`已保存的 Session Template「${savedTemplate}」不可用，已清除该预填项`, 'error');
         }
@@ -182,6 +226,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const handleAdapterChange = (next: string) => {
     setAdapter(next);
+    setAdapterExplicit(true);
     // Fetch + cache this adapter's config so the Output Mode options update.
     void loadConfig(next);
   };
@@ -191,6 +236,18 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // an adapter (or "None") releases the lock and the selector becomes editable.
   const handleTemplateChange = (value: string) => {
     setSessionTemplate(value);
+    setMcpMode(value ? '' : 'optional');
+    setAdapterExplicit(false);
+    setModel('');
+    setPermissionMode('');
+    setEffort('');
+    setModelContextWindow('');
+    setModelAutoCompactTokenLimit('');
+    setThinking(undefined);
+    setSystemPromptOverride(false);
+    setSystemPrompt('');
+    setMcpServerOverride(null);
+    setPanAccess({});
     const tpl = templates.find((t) => t.name === value);
     if (tpl?.adapter) {
       if (!cliStatus || cliStatusLoading) {
@@ -216,12 +273,25 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     workspaceIds: string[],
   ) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
+    const createSettings = {
+      outputMode: outputMode || undefined,
+      workspaceIds,
+      model: model || undefined,
+      permissionMode: permissionMode || undefined,
+      effort: effort || undefined,
+      modelContextWindow: modelContextWindow ? Number(modelContextWindow) : undefined,
+      modelAutoCompactTokenLimit: modelAutoCompactTokenLimit ? Number(modelAutoCompactTokenLimit) : undefined,
+      alwaysThinkingEnabled: thinking,
+      systemPrompt: systemPromptOverride ? systemPrompt : undefined,
+      mcpServers: mcpServerOverride === null ? undefined : mcpServerOverride,
+      panAccess: Object.keys(panAccess).length ? panAccess : undefined,
+    };
     await createNewSession(
       finalName,
       requestedWorkdir,
       adapter,
       sessionTemplate || undefined,
-      { outputMode: outputMode || undefined, workspaceIds },
+      createSettings,
     );
     if (saveAsDefault) {
       try {
@@ -317,6 +387,72 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   };
 
+  const openSaveTemplate = () => {
+    setSaveTemplateError('');
+    setSaveTemplateName('');
+    setSaveTemplateTarget(manifestTargets.find((target) => target.writable)?.id ?? '');
+    setSaveTemplateOpen(true);
+  };
+
+  const handleSaveTemplate = async (event: FormEvent) => {
+    event.preventDefault();
+    if (savingTemplate) return;
+    const cleanName = saveTemplateName.trim();
+    const target = manifestTargets.find((item) => item.id === saveTemplateTarget);
+    if (!cleanName) {
+      setSaveTemplateError('请输入 Template Name。');
+      return;
+    }
+    if (!target) {
+      setSaveTemplateError('请选择一个已加载的 manifest 目标。');
+      return;
+    }
+    if (!target.writable) {
+      setSaveTemplateError(target.reason || '此 manifest 当前不可写。');
+      return;
+    }
+
+    const payload: SessionTemplateSaveInput = {
+      manifestId: target.id,
+      name: cleanName,
+      ...(sessionTemplate ? { baseTemplate: sessionTemplate } : {}),
+    };
+    if (!sessionTemplate || adapterExplicit) payload.adapter = adapter || null;
+    if (mcpMode) payload.mcp_mode = mcpMode;
+    else if (!sessionTemplate) payload.mcp_mode = 'optional';
+    if (model) payload.model = model;
+    if (permissionMode) payload.permission_mode = permissionMode;
+    if (systemPromptOverride) payload.system_prompt = systemPrompt;
+    if (mcpServerOverride !== null) payload.mcp_servers = mcpServerOverride;
+    const definedPanAccess: NonNullable<SessionTemplateSaveInput['pan_access']> = {};
+    if (panAccess.restrictToManaged !== undefined) definedPanAccess.restrict_to_managed = panAccess.restrictToManaged;
+    if (panAccess.canClaimUnmanaged !== undefined) definedPanAccess.can_claim_unmanaged = panAccess.canClaimUnmanaged;
+    if (panAccess.autoClaimCreated !== undefined) definedPanAccess.auto_claim_created = panAccess.autoClaimCreated;
+    if (Object.keys(definedPanAccess).length) payload.pan_access = definedPanAccess;
+
+    setSavingTemplate(true);
+    setSaveTemplateError('');
+    try {
+      await saveSessionTemplate(payload);
+      try {
+        const refreshed = await fetchSessionTemplates();
+        if (!refreshed.some((item) => item.name === cleanName)) {
+          throw new Error('保存成功，但刷新结果中未找到新模板。');
+        }
+        setTemplates(refreshed);
+        setSaveTemplateOpen(false);
+        showToast(`Session Template「${cleanName}」已保存`, 'info');
+      } catch (refreshError) {
+        setSaveTemplateOpen(false);
+        showToast(`模板已保存，但刷新模板列表失败，新模板暂时不可选：${refreshError instanceof Error ? refreshError.message : '未知错误'}`, 'error');
+      }
+    } catch (error) {
+      setSaveTemplateError(error instanceof Error ? error.message : 'Session Template 保存失败');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   // Closed → render nothing. The Sidebar keeps this component always mounted
   // and toggles `open`; without this guard the mobile branch below would
   // portal the full-screen page even while the creation flow is closed (the
@@ -327,6 +463,13 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const execModes = config?.executionModes || ['stream'];
   const showOutputMode = execModes.length > 1;
+  const supportedSettings = config?.supportedSettings ?? [];
+  const showModel = supportedSettings.includes('model') && (config?.models.length ?? 0) > 0;
+  const showPermission = supportedSettings.includes('permissionMode') && (config?.permissionModes.length ?? 0) > 0;
+  const showEffort = supportedSettings.includes('effort') && (config?.effortValues.length ?? 0) > 0;
+  const showThinking = supportedSettings.includes('thinking');
+  const showContextWindow = supportedSettings.includes('modelContextWindow');
+  const showAutoCompactLimit = supportedSettings.includes('modelAutoCompactTokenLimit');
   const createDisabled =
     submitting ||
     !defaultsReady ||
@@ -350,9 +493,43 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     </Modal>
   );
 
+  const saveTemplateDialog = (
+    <Modal open={saveTemplateOpen} title="Save as Template" onClose={() => setSaveTemplateOpen(false)} size="md">
+      <form onSubmit={handleSaveTemplate} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-text-secondary">Template Name <span className="text-danger">*</span></span>
+          <input autoFocus required value={saveTemplateName} onChange={(event) => setSaveTemplateName(event.target.value)} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-text-secondary">Target manifest <span className="text-danger">*</span></span>
+          <select value={saveTemplateTarget} onChange={(event) => setSaveTemplateTarget(event.target.value)} disabled={manifestTargets.length === 0} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent disabled:opacity-60">
+            <option value="">{targetsLoadError ? '无法加载目标' : '选择 manifest'}</option>
+            {manifestTargets.map((target) => <option key={target.id} value={target.id}>{target.label} — {target.writable ? 'writable' : '不可写'}</option>)}
+          </select>
+        </label>
+        {saveTemplateTarget && (() => {
+          const target = manifestTargets.find((item) => item.id === saveTemplateTarget);
+          if (!target) return null;
+          return <p className={`text-xs ${target.writable ? 'text-text-tertiary' : 'text-danger'}`}>{target.writable ? 'writable' : '不可写'}{target.reason ? `：${target.reason}` : ''}</p>;
+        })()}
+        {targetsLoadError && <p className="text-xs text-danger">读取目标失败：{targetsLoadError}</p>}
+        {saveTemplateError && <p role="alert" className="text-sm text-danger">{saveTemplateError}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setSaveTemplateOpen(false)} disabled={savingTemplate}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={savingTemplate || !saveTemplateTarget || !manifestTargets.find((item) => item.id === saveTemplateTarget)?.writable}>{savingTemplate ? 'Saving...' : 'Save Template'}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+
   const formBody = (
-    <form id="new-session-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form id="new-session-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <fieldset disabled={!defaultsReady} className="contents">
+        <div role="tablist" aria-label="New Session settings" className="flex border-b border-border-muted">
+          <button type="button" role="tab" aria-selected={activeTab === 'basic'} onClick={() => setActiveTab('basic')} className={`border-b-2 px-3 py-2 text-sm ${activeTab === 'basic' ? 'border-accent text-accent' : 'border-transparent text-text-secondary'}`}>Basic</button>
+          <button type="button" role="tab" aria-selected={activeTab === 'advanced'} onClick={() => setActiveTab('advanced')} className={`border-b-2 px-3 py-2 text-sm ${activeTab === 'advanced' ? 'border-accent text-accent' : 'border-transparent text-text-secondary'}`}>Advanced Options</button>
+        </div>
+        {activeTab === 'basic' && <>
         {/* Adapter select — availability comes from /api/cli/status. */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
@@ -417,28 +594,21 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         )}
 
         {/* Session template select */}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-text-secondary">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span id="new-session-template-label" className="text-xs font-medium text-text-secondary">
             Session Template{' '}
             <span className="font-normal text-text-tertiary">
               (optional)
             </span>
           </span>
-          <select
+          <SessionTemplateSelect
+            templates={templates}
             value={sessionTemplate}
-            onChange={(e) => handleTemplateChange(e.target.value)}
-            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
-          >
-            <option value="">None</option>
-            {templates.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name} ({t.model || '?'})
-                {t.mcpServers && t.mcpServers.length > 0 ? ' [MCP]' : ''} (
-                {manifestLabel(t)})
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={handleTemplateChange}
+            labelId="new-session-template-label"
+            disabled={!defaultsReady}
+          />
+        </div>
 
         {adapter === 'kimi' && (
           <p className="-mt-2 text-[11px] leading-snug text-text-tertiary">
@@ -487,12 +657,101 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           />
           将本次配置设为默认（不含 Session Name）
         </label>
+        </>}
+
+        {activeTab === 'advanced' && <div className="flex flex-col gap-4">
+          <p className="text-xs text-text-tertiary">留空或选择“继承”表示沿用所选模板或后端默认；显式输入的值只用于本次创建。</p>
+          {showModel && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Model</span>
+            <select value={model} onChange={(event) => { setModel(event.target.value); setEffort(''); }} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              <option value="">继承模板 / 默认</option>{config!.models.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>}
+          {showPermission && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Permission Mode</span>
+            <select value={permissionMode} onChange={(event) => setPermissionMode(event.target.value)} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              <option value="">继承模板 / 默认</option>{config!.permissionModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>}
+          {showEffort && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Effort / Thinking Level</span>
+            <select value={effort} onChange={(event) => setEffort(event.target.value)} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              <option value="">继承模板 / 默认</option>{(config!.modelEfforts?.[model] ?? config!.effortValues).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>}
+          {showThinking && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Always Thinking</span>
+            <select value={thinking === undefined ? '' : String(thinking)} onChange={(event) => setThinking(event.target.value === '' ? undefined : event.target.value === 'true')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              <option value="">继承模板 / 默认</option><option value="true">开启</option><option value="false">关闭</option>
+            </select>
+          </label>}
+          {showContextWindow && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Model Context Window</span>
+            <input type="number" min={1} value={modelContextWindow} onChange={(event) => setModelContextWindow(event.target.value)} placeholder="继承默认" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </label>}
+          {showAutoCompactLimit && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Auto Compact Token Limit</span>
+            <input type="number" min={1} value={modelAutoCompactTokenLimit} onChange={(event) => setModelAutoCompactTokenLimit(event.target.value)} placeholder="继承默认" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </label>}
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
+            <input type="checkbox" checked={systemPromptOverride} onChange={(event) => setSystemPromptOverride(event.target.checked)} className="accent-accent" />
+            显式覆盖 System Prompt（空白内容也会作为空字符串提交）
+          </label>
+          {systemPromptOverride && <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">System Prompt</span>
+            <textarea value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} rows={5} className="rounded border border-border-muted bg-bg-primary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent" />
+          </label>}
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">MCP Servers</span>
+            <select value={mcpServerOverride === null ? 'inherit' : 'custom'} onChange={(event) => setMcpServerOverride(event.target.value === 'inherit' ? null : [])} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              <option value="inherit">继承模板 / 默认 MCP 设置</option><option value="custom">显式指定服务器</option>
+            </select>
+          </label>
+          {mcpServerOverride !== null && <div className="flex flex-col gap-2 rounded border border-border-muted p-3">
+            {mcpServers.length === 0 ? <p className="text-xs text-text-tertiary">当前没有已加载的 MCP server。提交空列表会显式关闭 MCP。</p> : mcpServers.map((server) => <label key={server.name} className="flex items-center gap-2 text-sm text-text-secondary">
+              <input type="checkbox" checked={mcpServerOverride.includes(server.name)} onChange={(event) => setMcpServerOverride((current) => {
+                const list = current ?? [];
+                return event.target.checked ? [...list, server.name] : list.filter((item) => item !== server.name);
+              })} className="accent-accent" />{server.name}
+            </label>)}
+          </div>}
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Saved template MCP policy</span>
+            <select value={mcpMode} onChange={(event) => setMcpMode(event.target.value as '' | 'always' | 'optional' | 'never')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              {sessionTemplate && <option value="">继承原模板{selectedTemplate?.mcpMode ? ` (${selectedTemplate.mcpMode})` : ''}</option>}
+              <option value="optional">Optional</option><option value="always">Always — lock selected servers</option><option value="never">Never — lock MCP off</option>
+            </select>
+            <span className="text-xs text-text-tertiary">{sessionTemplate ? '默认继承原模板；只有选择其他 policy 才覆盖。' : '未选择模板时默认写入 optional。'}</span>
+          </label>
+          {selectedTemplate && <p className="text-xs text-text-tertiary">如模板将 MCP 锁定为 always 或 never，后端会校验显式服务器列表；冲突时会显示拒绝原因。</p>}
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">Pan access</span>
+            {([
+              ['restrictToManaged', '仅操作已管理的 Session'],
+              ['canClaimUnmanaged', '允许认领未管理的 Session'],
+              ['autoClaimCreated', '自动认领新建的 Session'],
+            ] as const).map(([key, label]) => <label key={key} className="flex items-center justify-between gap-3 text-sm text-text-secondary">
+              <span>{label}</span>
+              <select value={panAccess[key] === undefined ? '' : String(panAccess[key])} onChange={(event) => setPanAccess((current) => {
+                if (event.target.value === '') {
+                  const next = { ...current };
+                  delete next[key];
+                  return next;
+                }
+                return { ...current, [key]: event.target.value === 'true' };
+              })} className="rounded border border-border-muted bg-bg-primary px-2 py-1 text-xs text-text-primary">
+                <option value="">继承</option><option value="true">开启</option><option value="false">关闭</option>
+              </select>
+            </label>)}
+          </div>
+        </div>}
 
         {/* Actions — desktop keeps them inside the dialog. On mobile they
             move to the fixed full-screen footer; the submit button there is
             associated with the form via the HTML `form` attribute. */}
         {!isMobile && (
           <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>
             <Button
               type="button"
               variant="ghost"
@@ -543,6 +802,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{formBody}</div>
         <footer className="flex shrink-0 justify-end gap-2 border-t border-border-muted bg-bg-primary px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2">
+          <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
@@ -552,6 +812,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         </footer>
         </div>
         {directoryConfirmation}
+        {saveTemplateDialog}
       </>,
       document.body,
     );
@@ -563,6 +824,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         {formBody}
       </Modal>
       {directoryConfirmation}
+      {saveTemplateDialog}
     </>
   );
 }

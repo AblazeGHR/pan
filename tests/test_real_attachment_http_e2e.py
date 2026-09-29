@@ -1,8 +1,8 @@
 """Real-process HTTP coverage for the attachment reference contract.
 
-The fixture reuses the repository's isolated Pan launcher and binds only to
-8767.  It never uses the production data directory or the protected 8768
-service.
+The fixture reuses the repository's isolated Pan launcher and defaults to
+8767; PAN_TEST_HTTP_PORT can select another isolated port. It never uses the
+production data directory or the protected 8768 service.
 """
 
 from __future__ import annotations

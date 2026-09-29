@@ -72,7 +72,10 @@ describe('New Session directory input', () => {
     setup();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it('uses one workdir input and searches after the final backslash', async () => {
     apiMock.fetchDirectories.mockResolvedValue(listing('D:\\workspace', [
@@ -122,8 +125,130 @@ describe('New Session directory input', () => {
 
     expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).value).toBe('kimi');
     expect((screen.getByRole('combobox', { name: 'Output Mode' }) as HTMLSelectElement).value).toBe('oneshot');
-    expect((screen.getByRole('combobox', { name: /Session Template/ }) as HTMLSelectElement).value).toBe('kimi-template');
+    expect(screen.getByRole('combobox', { name: /Session Template/ }).textContent).toContain('kimi-template');
     expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('filters templates by name, adapter, model, and manifest without changing selection', async () => {
+    apiMock.fetchSessionTemplates.mockResolvedValue([
+      { name: 'alpha', adapter: 'cbc', model: 'o3', sourceManifestLabel: 'plugins/first/manifest.json' },
+      { name: 'beta', adapter: 'kimi', model: 'moonshot-v1', sourceManifestLabel: 'plugins/second/manifest.json' },
+    ]);
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'cbc', outputMode: '', sessionTemplate: 'alpha', workdir: '',
+    });
+    await renderReady();
+    const picker = screen.getByRole('combobox', { name: /Session Template/ });
+    expect(picker.textContent).toContain('alpha');
+    fireEvent.click(picker);
+    const search = screen.getByRole('searchbox', { name: '搜索 Session Template' });
+
+    for (const [query, expected, hidden] of [
+      ['beta', 'beta', 'alpha'],
+      ['kimi', 'beta', 'alpha'],
+      ['moonshot-v1', 'beta', 'alpha'],
+      ['plugins/first', 'alpha', 'beta'],
+    ] as const) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(screen.getByRole('option', { name: new RegExp(expected) })).toBeTruthy();
+      expect(screen.queryByRole('option', { name: new RegExp(hidden) })).toBeNull();
+      expect(picker.textContent).toContain('alpha');
+    }
+  });
+
+  it('supports keyboard navigation and selection, Escape cancellation, and clearing with None', async () => {
+    apiMock.fetchSessionTemplates.mockResolvedValue([
+      { name: 'alpha', adapter: 'cbc', model: 'a-model' },
+      { name: 'beta', adapter: 'kimi', model: 'b-model' },
+    ]);
+    await renderReady();
+    const picker = screen.getByRole('combobox', { name: /Session Template/ });
+    fireEvent.keyDown(picker, { key: 'ArrowDown' });
+    const search = screen.getByRole('searchbox', { name: '搜索 Session Template' });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(picker.textContent).toContain('beta');
+
+    fireEvent.click(picker);
+    expect(screen.getByRole('option', { name: 'None' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: '搜索 Session Template' }), { key: 'Escape' });
+    expect(picker.textContent).toContain('beta');
+
+    fireEvent.click(picker);
+    fireEvent.click(screen.getByRole('option', { name: 'None' }));
+    expect(picker.textContent).toBe('None▾');
+  });
+
+  it('applies and releases the adapter lock only after explicitly selecting a template', async () => {
+    const kimiStatus = { ...cliStatus(), name: 'kimi', label: 'kimi' };
+    useAdapterStore.setState({
+      cliStatus: { adapters: [cliStatus(), kimiStatus], available: ['cbc', 'kimi'], hasAvailable: true },
+      adapterConfigs: {
+        cbc: { models: [], defaultModel: '', effortValues: [], permissionModes: [], defaultPermissionMode: '', supportedSettings: [], executionModes: ['stream'] },
+        kimi: { models: [], defaultModel: '', effortValues: [], permissionModes: [], defaultPermissionMode: '', supportedSettings: [], executionModes: ['stream'] },
+      },
+    });
+    apiMock.fetchSessionTemplates.mockResolvedValue([
+      { name: 'kimi-template', adapter: 'kimi', model: 'model-x' },
+      { name: 'plain-template', model: 'model-y' },
+    ]);
+    await renderReady();
+    const adapterSelect = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    const picker = screen.getByRole('combobox', { name: /Session Template/ });
+    fireEvent.click(picker);
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索 Session Template' }), { target: { value: 'kimi' } });
+    expect(picker.textContent).toBe('None▾');
+    expect(adapterSelect.disabled).toBe(false);
+    fireEvent.click(screen.getByRole('option', { name: /kimi-template/ }));
+    expect(adapterSelect.value).toBe('kimi');
+    expect(adapterSelect.disabled).toBe(true);
+
+    fireEvent.click(picker);
+    fireEvent.click(screen.getByRole('option', { name: 'None' }));
+    expect(adapterSelect.disabled).toBe(false);
+  });
+
+  it('keeps CLI-unavailable pinned templates from enabling creation and clears missing defaults', async () => {
+    const { showToast } = setup();
+    apiMock.fetchSessionTemplates.mockResolvedValue([
+      { name: 'needs-kimi', adapter: 'kimi', model: 'model-x' },
+    ]);
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'cbc', outputMode: '', sessionTemplate: 'removed-template', workdir: '',
+    });
+    const view = render(<NewSessionModal open onClose={() => {}} />);
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      '已保存的 Session Template「removed-template」不可用，已清除该预填项', 'error',
+    ));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled).toBe(false));
+    const picker = screen.getByRole('combobox', { name: /Session Template/ });
+    fireEvent.click(picker);
+    fireEvent.click(screen.getByRole('option', { name: /needs-kimi/ }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled).toBe(true));
+    expect(screen.getByText(/当前模板要求 adapter/).textContent).toContain('kimi');
+    view.unmount();
+  });
+
+  it('keeps the template menu inside a narrow mobile viewport', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('max-width'), media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })));
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 667 });
+    await renderReady();
+    const picker = screen.getByRole('combobox', { name: /Session Template/ });
+    vi.spyOn(picker, 'getBoundingClientRect').mockReturnValue({
+      x: 300, y: 80, left: 300, top: 80, right: 640, bottom: 120, width: 340, height: 40,
+      toJSON: () => ({}),
+    } as DOMRect);
+    fireEvent.click(picker);
+    const menu = document.querySelector('[data-session-template-menu]') as HTMLDivElement;
+    expect(menu.style.left).toBe('27px');
+    expect(menu.style.width).toBe('340px');
+    expect(parseFloat(menu.style.left) + parseFloat(menu.style.width)).toBeLessThanOrEqual(367);
   });
 
   it('saves the non-name form fields only when explicitly checked', async () => {

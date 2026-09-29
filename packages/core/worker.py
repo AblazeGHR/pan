@@ -1192,6 +1192,13 @@ def begin_shutdown() -> None:
     stop_global_watchdog()
 
 
+def reopen_after_failed_shutdown() -> None:
+    """Restore normal Worker admission after a lifecycle handoff fails."""
+    global _shutdown_started
+    _shutdown_started = False
+    start_global_watchdog()
+
+
 def _mcp_configured(s: _sess.Session | None) -> bool:
     """Session 是否配置了 MCP 工具（mcp_servers 非空）。
 
@@ -1587,6 +1594,17 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
+        if w._terminal_handled and not adapter.is_result_event(event):
+            # `worker.result` closes this serialized provider turn. A provider
+            # frame buffered behind its terminal result must not be appended
+            # after the DONE marker or relabelled with the next queue item's
+            # taskSeq. `_consumer_stream` clears this latch immediately before
+            # writing the next prompt to the provider.
+            _log.warning(
+                "[Worker %s] post-terminal provider event ignored generation=%s",
+                w.worker_id, w.generation,
+            )
+            continue
         # Keep only native interactive prompts in the worker-local replay
         # cache.  The cache is consumed by the dashboard after a WS reconnect;
         # normal stream events remain live-only to avoid retaining history.
@@ -1646,6 +1664,7 @@ async def _read_stdout(w: Worker):
             # replay 结束：标记完成，不保存（history 无变化）
             if w._replaying:
                 w._replaying = False
+                w._terminal_handled = True
                 w.status = "idle"
                 await _record_legal_worker_state(w, "idle", "task/replay-complete")
                 _signal_task_done(w)
@@ -1937,16 +1956,20 @@ async def _legacy_consumer_reference(w: Worker):
 
 
 def _select_queue_unit(s) -> list[dict] | None:
-    """Select exactly the FIFO head, batching only contiguous reports."""
+    """Select the first unlocked queued unit in durable FIFO order."""
     pending = list(s.queue_pending or [])
     for index, item in enumerate(pending):
         kind = _queue_item_kind(item)
         if kind is None:
             # A malformed/unknown row is durable data, so never skip over it.
             return None
-        if not _is_dispatchable(item):
+        if _delivery_state(item) != _DELIVERY_QUEUED:
             # reserved/writing/sent rows belong to the current/recovering
             # hand-off.  They must not let a later item overtake them.
+            return None
+        if _queue_item_locked(item):
+            continue
+        if not _retry_due(item):
             return None
         if queue_item_edit_locked(s, _queue_item_id(item)):
             # Keep FIFO ordering while the browser owns this item's edit
@@ -1956,6 +1979,9 @@ def _select_queue_unit(s) -> list[dict] | None:
             return [item]
         unit = [item]
         for follower in pending[index + 1:]:
+            if _queue_item_locked(follower):
+                # A locked row remains in place and ends this delivery batch.
+                break
             if (_queue_item_kind(follower) not in {"report", "qq", "wechat"}
                     or not _is_dispatchable(follower)):
                 break
@@ -1990,9 +2016,19 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
     if not _process_alive(w):
         return False
     async with queue_lock(s.id):
+        current_unit = _select_queue_unit(s)
+        if (current_unit is None
+                or len(current_unit) != len(items)
+                or any(current is not selected
+                       for current, selected in zip(current_unit, items))):
+            # Selection happens before reservation. Re-select under the lock
+            # so a pause toggle or queue reorder between those steps cannot
+            # reserve a task that has just been overtaken by the FIFO head.
+            return False
         for item in items:
             if (not any(existing is item for existing in s.queue_pending)
                     or not _is_dispatchable(item)
+                    or _queue_item_locked(item)
                     or queue_item_edit_locked(s, _queue_item_id(item))):
                 return False
 
@@ -2263,8 +2299,7 @@ def _wake_after_queue_unit(w: Worker, s) -> None:
     """Re-arm one generic wakeup without making signals the queue."""
     if s is None:
         return
-    if any(isinstance(item, dict) and _is_dispatchable(item)
-           for item in (s.queue_pending or [])):
+    if _has_sendable_queued_items(s):
         if w.pending_signal is not None:
             w.pending_signal.put_nowait({"type": "queue_signal"})
     else:
@@ -2665,6 +2700,53 @@ def _queue_item_kind(item: dict) -> str | None:
     if "result" in item:
         return "report"
     return None
+
+
+def _is_pauseable_agent_report(item) -> bool:
+    """Only classify durable child-agent reports as pausable reports.
+
+    Explicit notice and channel types retain their own delivery behavior. The
+    source check also recognizes legacy report envelopes without a type.
+    """
+    if not isinstance(item, dict):
+        return False
+    item_type = item.get("type")
+    if item_type in {"notice", "qq", "wechat"}:
+        return False
+    if item_type in {"report", "zombie"}:
+        return item.get("source") in {None, "report"}
+    return item_type is None and item.get("source") == "report" and "result" in item
+
+
+def _queue_item_locked(item) -> bool:
+    return isinstance(item, dict) and bool(
+        item.get("queueLockManual") or item.get("queueLockAutoReport")
+    )
+
+
+def _only_locked_queue_items(s) -> bool:
+    """Whether automatic recovery has only locked queued rows to ignore."""
+    pending = list(getattr(s, "queue_pending", None) or []) if s is not None else []
+    return bool(pending) and all(
+        isinstance(item, dict)
+        and _delivery_state(item) == _DELIVERY_QUEUED
+        and _queue_item_locked(item)
+        for item in pending
+    )
+
+
+def _has_sendable_queued_items(s) -> bool:
+    """Whether an immediate queue wake has an unlocked queued item."""
+    if s is None:
+        return False
+    return any(
+        isinstance(item, dict)
+        and _queue_item_kind(item) is not None
+        and _delivery_state(item) == _DELIVERY_QUEUED
+        and _retry_due(item)
+        and not _queue_item_locked(item)
+        for item in (s.queue_pending or [])
+    )
 
 
 def _serialize_for_cli(adapter, text: str) -> bytes:
@@ -3247,6 +3329,7 @@ def _has_dispatchable_items(s) -> bool:
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
         and _delivery_state(item) == _DELIVERY_QUEUED
+        and not _queue_item_locked(item)
         for item in (s.queue_pending or [])
     ):
         return True
@@ -3959,14 +4042,19 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     item["queueItemId"] = item["id"]
     if report_type is not None:
         item["type"] = report_type
-    item["position"] = len(manager.queue_pending)
-    manager.queue_pending.append(item)
-    _remember_queue_item(manager, item, _DELIVERY_QUEUED)
-    manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
-    await _save_receipt(manager)
+    async with queue_lock(manager.id):
+        if (getattr(manager, "agent_reports_paused", False)
+                and _is_pauseable_agent_report(item)):
+            item["queueLockAutoReport"] = True
+        item["position"] = len(manager.queue_pending)
+        manager.queue_pending.append(item)
+        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+        manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
+        queue_revision = manager.queue_revision
+        await _save_receipt(manager)
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
-                  "queueRevision": manager.queue_revision,
+                  "queueRevision": queue_revision,
                   "item": dict(item)})
 
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
@@ -3988,10 +4076,15 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
-        mw.last_activity = time.monotonic()
-        await mw.pending_signal.put({"type": "queue_signal"})
+        if _has_sendable_queued_items(_get_session_shallow(session_id)):
+            mw.last_activity = time.monotonic()
+            await mw.pending_signal.put({"type": "queue_signal"})
+        else:
+            _schedule_queue_retry(session_id)
     elif not mw or mw.status not in {"held", "restarting"}:
         session = _get_session_shallow(session_id)
+        if _only_locked_queue_items(session):
+            return
         if auto_spawn and (session is None or not session.queue_pending):
             # Legacy callers use auto_spawn to materialize an idle worker even
             # before the first item exists; retain that contract synchronously.
@@ -4071,14 +4164,16 @@ async def enqueue_channel_reminder(
         # one dict across sessions would let one worker's in-flight transition
         # suppress delivery to every other subscriber.
         subscriber_item = dict(item)
-        subscriber_item["position"] = len(s.queue_pending)
-        s.queue_pending.append(subscriber_item)
-        _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
-        s.queue_revision = getattr(s, "queue_revision", 0) + 1
-        await _save_receipt(s)
+        async with queue_lock(s.id):
+            subscriber_item["position"] = len(s.queue_pending)
+            s.queue_pending.append(subscriber_item)
+            _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
+            s.queue_revision = getattr(s, "queue_revision", 0) + 1
+            queue_revision = s.queue_revision
+            await _save_receipt(s)
         await _bcast({"type": "queue.item_added", "sessionId": s.id,
                       "queueItemId": subscriber_item["id"],
-                      "queueRevision": s.queue_revision,
+                      "queueRevision": queue_revision,
                       "item": dict(subscriber_item)})
         await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
@@ -4203,14 +4298,16 @@ async def enqueue_notice(target_session_id: str, text: str,
         list(target_session_ids) if target_session_ids is not None
         else [target_session_id]
     )
-    item["position"] = len(target.queue_pending)
-    target.queue_pending.append(item)
-    _remember_queue_item(target, item, _DELIVERY_QUEUED)
-    target.queue_revision = getattr(target, "queue_revision", 0) + 1
-    await _save_receipt(target)
+    async with queue_lock(target.id):
+        item["position"] = len(target.queue_pending)
+        target.queue_pending.append(item)
+        _remember_queue_item(target, item, _DELIVERY_QUEUED)
+        target.queue_revision = getattr(target, "queue_revision", 0) + 1
+        queue_revision = target.queue_revision
+        await _save_receipt(target)
     await _bcast({"type": "queue.item_added", "sessionId": target.id,
                   "queueItemId": item["id"],
-                  "queueRevision": target.queue_revision,
+                  "queueRevision": queue_revision,
                   "item": dict(item)})
     _log.info("[Session %s] queued notice source=%s sourceSessionId=%s",
               target_session_id, source_type, source_sid)
@@ -4385,6 +4482,11 @@ async def _recover_session(session_id: str, *, force: bool = False) -> None:
     if not s:
         _recovery_required.discard(session_id)
         return
+    if _only_locked_queue_items(s):
+        # A forced recovery requested by an abnormal exit still must not
+        # launch a provider solely to wait on a locked queue backlog.
+        _recovery_required.discard(session_id)
+        return
     if not force and not _has_dispatchable_items(s) and session_id not in _recovery_required:
         return
     current = find_worker_by_session(session_id)
@@ -4484,6 +4586,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
         and _delivery_state(item) == _DELIVERY_QUEUED
+        and not _queue_item_locked(item)
         and isinstance(item.get("nextAttemptAt"), (int, float))
         and item.get("nextAttemptAt") > time.time()
         for item in (session.queue_pending or [])
@@ -4510,14 +4613,16 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
                 if isinstance(item, dict)
                 and _queue_item_kind(item) is not None
                 and _delivery_state(item) == _DELIVERY_QUEUED
+                and not _queue_item_locked(item)
                 and isinstance(item.get("nextAttemptAt"), (int, float))
                 and item.get("nextAttemptAt") > time.time()
             ]
             if not future_times:
                 worker = find_alive_worker_by_session(session_id)
-                if worker and worker.pending_signal is not None:
+                if (worker and worker.pending_signal is not None
+                        and _has_sendable_queued_items(s)):
                     worker.pending_signal.put_nowait({"type": "queue_signal"})
-                elif _has_dispatchable_items(s):
+                elif worker is None and _has_dispatchable_items(s):
                     _schedule_session_recovery(session_id)
                 return
             delay = max(0.0, min(future_times) - time.time())
@@ -4615,7 +4720,6 @@ async def _global_watchdog_tick():
 
 async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=None):
     """Stream mode: write to the adapter's long-running stdin."""
-    w._terminal_handled = False
     standalone_items = []
     if on_handoff is None:
         if w._current_queue_item is not None:
@@ -4658,6 +4762,11 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
     try:
         data = w.adapter.encode_user_message(text)
         w._current_serialized = data + b"\n"
+        # Keep the previous terminal latched while task-start persistence and
+        # broadcasts yield control. Clear it only at the provider hand-off
+        # boundary so already-buffered post-terminal frames cannot be assigned
+        # to this queue item's taskSeq.
+        w._terminal_handled = False
         written = w.process.stdin.write(w._current_serialized)
         if written is not None and written != len(w._current_serialized):
             raise OSError("short stdin write")
@@ -5096,6 +5205,7 @@ def _recover_pending_signals(w: Worker, s) -> bool:
         return migrated
     if any(isinstance(item, dict) and _queue_item_kind(item) is not None
            and _delivery_state(item) == _DELIVERY_QUEUED
+           and not _queue_item_locked(item)
            for item in pending):
         w.pending_signal.put_nowait({"type": "queue_signal"})
     _schedule_queue_retry(s.id)
@@ -6279,7 +6389,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              source_session_id: str | None = None,
                              parts: list[dict] | None = None,
                              *, idempotent_task_id: bool = True,
-                             activate_task: bool = False) -> tuple[dict | None, str | None]:
+                             activate_task: bool = False,
+                             locked: bool = False) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
     if _shutdown_started:
         return None, "Pan main service is shutting down"
@@ -6328,6 +6439,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         "revision": 1,
         "createdAt": time.time(),
     }
+    if locked:
+        item["queueLockManual"] = True
     if task_id is not None:
         # An inherited id is reporting context only; an assign id is also the
         # durable idempotency key.
@@ -6378,7 +6491,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
 
 async def enqueue_user_message(session_id: str, text: str,
                                client_message_id: str | None = None,
-                               parts: list[dict] | None = None) -> dict:
+                               parts: list[dict] | None = None,
+                               *, locked: bool = False) -> dict:
     """Canonical durable entry point for browser/user queue messages.
 
     The queue item and receipt are written before acknowledging the request.
@@ -6408,10 +6522,12 @@ async def enqueue_user_message(session_id: str, text: str,
             }
         if parts is None:
             item, error = await _persist_task_item(
-                s, text, "user", None, None, client_message_id, None)
+                s, text, "user", None, None, client_message_id, None,
+                locked=locked)
         else:
             item, error = await _persist_task_item(
-                s, text, "user", None, None, client_message_id, None, parts)
+                s, text, "user", None, None, client_message_id, None, parts,
+                locked=locked)
         if error:
             return {"status": "error", "result": error}
         if item is None:
@@ -6422,9 +6538,12 @@ async def enqueue_user_message(session_id: str, text: str,
             item = existing
         live = find_alive_worker_by_session(session_id)
         if live is not None and item in (s.queue_pending or []):
-            if live.pending_signal is not None:
+            if live.pending_signal is not None and _has_sendable_queued_items(s):
                 await live.pending_signal.put({"type": "queue_signal"})
-        elif live is None and item in (s.queue_pending or []):
+            else:
+                _schedule_queue_retry(session_id)
+        elif (live is None and item in (s.queue_pending or [])
+              and _has_dispatchable_items(s)):
             _schedule_session_recovery(session_id)
         return {
             "status": "queued",
@@ -6544,10 +6663,11 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     # 任务 item 持久化到 session.queue_pending（落盘真源）；pending_signal
     # 只放无正文 queue_signal，consumer 每次只看 FIFO 队首。worker 死亡/回收
     # 后由 create_worker / 全局 watchdog 自动恢复消费。
-    item, persist_error = await _persist_task_item(
-        s, text, source, seq, task_id, client_message_id, source_sid,
-        idempotent_task_id=idempotent_task_id,
-        activate_task=idempotent_task_id and task_id is not None)
+    async with queue_lock(s.id):
+        item, persist_error = await _persist_task_item(
+            s, text, source, seq, task_id, client_message_id, source_sid,
+            idempotent_task_id=idempotent_task_id,
+            activate_task=idempotent_task_id and task_id is not None)
     if persist_error:
         return persist_error
     if item is None:
@@ -6756,10 +6876,11 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         s = _get_session_shallow(session_id)
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
-        item, persist_error = await _persist_task_item(
-            s, text, source_type, None, inherited_task_id,
-            client_message_id, source_sid,
-            idempotent_task_id=False)
+        async with queue_lock(session_id):
+            item, persist_error = await _persist_task_item(
+                s, text, source_type, None, inherited_task_id,
+                client_message_id, source_sid,
+                idempotent_task_id=False)
         if persist_error:
             return {"status": "error", "result": persist_error}
         # The queue write is the acknowledgement boundary.  Start recovery
@@ -6855,6 +6976,22 @@ def find_alive_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
+def find_alive_workers_by_session() -> dict[str, Worker]:
+    """Snapshot live workers for a whole Session list in one registry walk."""
+    candidates: dict[str, Worker] = {}
+    for session_id, indexed in _workers_by_session.items():
+        if workers.get(indexed.worker_id) is indexed:
+            candidates[session_id] = indexed
+    # Legacy embedders may populate the public registry without the index.
+    for item in workers.values():
+        candidates.setdefault(item.session_id, item)
+    return {
+        session_id: item for session_id, item in candidates.items()
+        if (item._consume_task is None or not item._consume_task.done())
+        and _process_alive(item)
+    }
+
+
 async def sync_legal_worker_state_to_runtime(
     session_id: str, *, source: str = "session-recovery/sync-actual",
 ) -> dict:
@@ -6922,6 +7059,7 @@ async def shutdown_all(
     mark_legal_offline: bool = False,
     preserve_legal_running_session_ids: list[str] | tuple[str, ...] = (),
     mark_legal_offline_session_ids: list[str] | tuple[str, ...] = (),
+    legal_state_source: str = "pan/main-exit",
 ):
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
@@ -6930,6 +7068,7 @@ async def shutdown_all(
     errors: list[str] = []
     preserve_ids = set(preserve_legal_running_session_ids)
     offline_ids = set(mark_legal_offline_session_ids)
+    legal_state_source = str(legal_state_source or "pan/main-exit")
 
     for task in list(_queue_retry_tasks.values()):
         try:
@@ -6983,7 +7122,7 @@ async def shutdown_all(
             errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
         if (mark_legal_offline and w.session_id not in preserve_ids
                 and _runtime_stopped(w)):
-            if not await _record_legal_worker_state(w, "offline", "pan/main-exit"):
+            if not await _record_legal_worker_state(w, "offline", legal_state_source):
                 errors.append(f"Worker {wid} legal offline state was not persisted")
 
     for session_id in sorted(offline_ids):
@@ -6991,7 +7130,7 @@ async def shutdown_all(
         # The check under the Session spawn lock prevents marking a concurrent
         # live Worker offline.
         if not await _sync_legal_state_if_stopped(
-                session_id, "offline", "pan/main-exit"):
+                session_id, "offline", legal_state_source):
             errors.append(f"Session {session_id} legal offline state was not persisted")
 
     for session_id in sorted(preserve_ids):
@@ -6999,7 +7138,7 @@ async def shutdown_all(
         # while Exit was draining. Restore the pre-exit legal running snapshot
         # after every Worker has stopped.
         if not await _persist_session_legal_worker_state(
-                session_id, "running", "pan/main-exit-preserve-running"):
+                session_id, "running", f"{legal_state_source}-preserve-running"):
             errors.append(f"Session {session_id} legal running state was not persisted")
 
     workers.clear()

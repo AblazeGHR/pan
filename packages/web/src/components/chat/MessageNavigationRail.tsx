@@ -188,13 +188,17 @@ export function MessageNavigationRail({
   }, [clearScrub, currentSessionId, settings]);
 
   const loadedWindowTargets = useMemo(
-    () => getQuickJumpIndexItems(
-      currentMessages,
-      currentHistoryTotal,
-      historyLoadEnd,
-      settings,
-    ),
-    [currentMessages, currentHistoryTotal, historyLoadEnd, settings],
+    () => fullIndex.length > 0 && indexStatus !== 'error'
+      // The full index already wins below. Scanning every loaded message on
+      // each delta here used to rebuild a projection that was never rendered.
+      ? fullIndex
+      : getQuickJumpIndexItems(
+        currentMessages,
+        currentHistoryTotal,
+        historyLoadEnd,
+        settings,
+      ),
+    [currentMessages, currentHistoryTotal, historyLoadEnd, settings, fullIndex, indexStatus],
   );
 
   const allTargets = fullIndex.length > 0 && indexStatus !== 'error'

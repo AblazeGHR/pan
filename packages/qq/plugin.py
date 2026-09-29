@@ -31,6 +31,7 @@ import asyncio
 import json
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,6 +39,7 @@ import httpx
 import websockets
 from nonebot import get_driver
 from nonebot.adapters.onebot.v11 import Bot
+from packages.core.data_retention import cross_process_file_lock
 
 # recent_contacts 结果缓存（按 bot_uin）：联系人/会话列表相对稳定，短 TTL 缓存
 # 避免每次打开 Postbox 都全量调 3 个 OneBot API（get_recent_contact / get_friend_list /
@@ -800,23 +802,34 @@ async def _append_history(
     if not text:
         return
     async with _history_lock:
-        _migrate_legacy_file(_history_path(target_id), _history_path(target_id, bot_uin))
-        messages = await _load_history(target_id, bot_uin)
-        entry = {
-            "role": role,
-            "text": text,
-            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        if bot_uin:
-            entry["bot_uin"] = str(bot_uin)
-        messages.append(entry)
-        if len(messages) > _HISTORY_MAX_ENTRIES:
-            messages = messages[-_HISTORY_MAX_ENTRIES:]
-        _history_path(target_id, bot_uin).parent.mkdir(parents=True, exist_ok=True)
-        _history_path(target_id, bot_uin).write_text(
-            json.dumps(messages, ensure_ascii=False, indent=1),
-            encoding="utf-8",
-        )
+        _HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+        with cross_process_file_lock(_HISTORY_DIR / ".retention.lock"):
+            _migrate_legacy_file(_history_path(target_id), _history_path(target_id, bot_uin))
+            messages = await _load_history(target_id, bot_uin)
+            entry = {
+                "role": role,
+                "text": text,
+                "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            if bot_uin:
+                entry["bot_uin"] = str(bot_uin)
+            messages.append(entry)
+            if len(messages) > _HISTORY_MAX_ENTRIES:
+                messages = messages[-_HISTORY_MAX_ENTRIES:]
+            target = _history_path(target_id, bot_uin)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                temporary.write_text(
+                    json.dumps(messages, ensure_ascii=False, indent=1),
+                    encoding="utf-8",
+                )
+                os.replace(temporary, target)
+            finally:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
 
 # ── inbox（selective 模式待处理队列）──

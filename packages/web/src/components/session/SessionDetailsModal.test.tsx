@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { clearSessionUsageCache } from './sessionUsageCache';
 import { useUIStore } from '@/stores/uiStore';
@@ -29,6 +29,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.spyOn(api, 'fetchSession').mockRejectedValue(new Error('session details unavailable'));
   vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
+  vi.spyOn(api, 'syncSessionLegalWorkerState').mockRejectedValue(new Error('legal state sync unavailable'));
 });
 
 function dialogCard(): HTMLElement {
@@ -478,6 +479,91 @@ describe('SessionDetailsModal', () => {
     expect(await screen.findByText('当前没有可用的五小时/周/月 quota 缓存')).toBeTruthy();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
+  });
+
+  it('shows persisted legal state and refreshes it from a successful runtime sync', async () => {
+    vi.mocked(api.fetchSession).mockResolvedValue({
+      ...baseSession,
+      lastLegalWorkerState: 'running',
+    });
+    vi.mocked(api.syncSessionLegalWorkerState).mockResolvedValue({
+      sessionId: baseSession.id,
+      status: 'updated',
+      legalWorkerState: 'idle',
+      runtimeWorkerStatus: 'idle',
+    });
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
+
+    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Legal state updated to idle');
+    expect(stateSection.textContent).toContain('idle');
+    expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(baseSession.id);
+  });
+
+  it('shows helper failure without replacing the persisted legal state', async () => {
+    vi.mocked(api.fetchSession).mockResolvedValue({
+      ...baseSession,
+      lastLegalWorkerState: 'running',
+    });
+    vi.mocked(api.syncSessionLegalWorkerState).mockResolvedValue({
+      sessionId: baseSession.id,
+      status: 'error',
+      error: 'Worker runtime is not stopped',
+    });
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('Worker runtime is not stopped');
+    expect(stateSection.textContent).toContain('running');
+  });
+
+  it('does not let a slow sync for the previous Session replace the current Details', async () => {
+    const sessionA = { ...baseSession, id: 'ses_a', name: 'A' };
+    const sessionB = { ...baseSession, id: 'ses_b', name: 'B' };
+    vi.mocked(api.fetchSession).mockImplementation(async (id) => ({
+      ...baseSession,
+      id,
+      name: id,
+      lastLegalWorkerState: id === sessionA.id ? 'running' : 'offline',
+    }));
+    let resolveSync: ((value: {
+      sessionId: string;
+      status: 'updated';
+      legalWorkerState: string;
+      runtimeWorkerStatus: string;
+    }) => void) | undefined;
+    vi.mocked(api.syncSessionLegalWorkerState).mockImplementation(() => new Promise((resolve) => {
+      resolveSync = resolve;
+    }));
+    const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
+
+    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(stateSection.textContent).toContain('running'));
+    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
+    expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(sessionA.id);
+
+    rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
+    await waitFor(() => expect(stateSection.textContent).toContain('offline'));
+    await act(async () => {
+      resolveSync?.({
+        sessionId: sessionA.id,
+        status: 'updated',
+        legalWorkerState: 'idle',
+        runtimeWorkerStatus: 'idle',
+      });
+    });
+
+    expect(stateSection.textContent).toContain('offline');
+    expect(stateSection.textContent).not.toContain('Legal state updated to idle');
   });
 
   it('degrades safely when clipboard is unavailable and displays missing values', async () => {
