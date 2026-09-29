@@ -2000,6 +2000,15 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
     if not _process_alive(w):
         return False
     async with queue_lock(s.id):
+        current_unit = _select_queue_unit(s)
+        if (current_unit is None
+                or len(current_unit) != len(items)
+                or any(current is not selected
+                       for current, selected in zip(current_unit, items))):
+            # Selection happens before reservation. Re-select under the lock
+            # so a pause toggle or queue reorder between those steps cannot
+            # reserve a task that has just been overtaken by the FIFO head.
+            return False
         for item in items:
             if (not any(existing is item for existing in s.queue_pending)
                     or not _is_dispatchable(item)

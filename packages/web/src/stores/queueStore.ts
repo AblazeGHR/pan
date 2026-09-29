@@ -172,6 +172,43 @@ function setSnapshot(
   return accepted;
 }
 
+function canApplyAgentReportsPause(
+  snapshotAccepted: boolean,
+  snapshotRevision: number | undefined,
+  currentRevision: number | undefined,
+): boolean {
+  if (snapshotRevision !== undefined
+      && currentRevision !== undefined
+      && snapshotRevision < currentRevision) {
+    return false;
+  }
+  // An accepted snapshot may update its pause bit. A rejected equal-revision
+  // snapshot is also authoritative for that bit because it names the exact
+  // queue version currently held by the store.
+  return snapshotAccepted || (
+    snapshotRevision !== undefined
+    && currentRevision !== undefined
+    && snapshotRevision === currentRevision
+  );
+}
+
+function setAgentReportsPauseState(
+  set: (fn: (state: QueueStore) => Partial<QueueStore>) => void,
+  sessionId: string,
+  paused: boolean,
+): void {
+  set((state) => ({
+    agentReportsPaused: {
+      ...state.agentReportsPaused,
+      [sessionId]: paused,
+    },
+    agentReportsPauseLoaded: {
+      ...state.agentReportsPauseLoaded,
+      [sessionId]: true,
+    },
+  }));
+}
+
 function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem | null {
   const id = raw.queueItemId ?? raw.id;
   if (typeof id !== 'string' || !id) return null;
@@ -294,18 +331,14 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           && revisionAtRequest !== undefined
           && items.queueRevision === currentRevision
           && currentRevision === revisionAtRequest;
-        setSnapshot(set, sessionId, items, items.queueRevision, freshObservation);
-        if (items.agentReportsPaused !== undefined) {
-          set((state) => ({
-            agentReportsPaused: {
-              ...state.agentReportsPaused,
-              [sessionId]: items.agentReportsPaused!,
-            },
-            agentReportsPauseLoaded: {
-              ...state.agentReportsPauseLoaded,
-              [sessionId]: true,
-            },
-          }));
+        const accepted = setSnapshot(set, sessionId, items, items.queueRevision, freshObservation);
+        if (items.agentReportsPaused !== undefined
+            && canApplyAgentReportsPause(
+              accepted,
+              items.queueRevision,
+              get().queueRevisions[sessionId],
+            )) {
+          setAgentReportsPauseState(set, sessionId, items.agentReportsPaused);
         }
       } catch {
         // Preserve the last authoritative snapshot; reconnect/session switch retries.
@@ -323,23 +356,14 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     }));
     try {
       const items = await setSessionAgentReportsPaused(sessionId, paused);
-      const currentRevision = get().queueRevisions[sessionId];
-      if (items.queueRevision === undefined
-          || currentRevision === undefined
-          || items.queueRevision >= currentRevision) {
-        const accepted = setSnapshot(set, sessionId, items, items.queueRevision, true);
-        if (accepted && items.agentReportsPaused !== undefined) {
-          set((state) => ({
-            agentReportsPaused: {
-              ...state.agentReportsPaused,
-              [sessionId]: items.agentReportsPaused!,
-            },
-            agentReportsPauseLoaded: {
-              ...state.agentReportsPauseLoaded,
-              [sessionId]: true,
-            },
-          }));
-        }
+      const accepted = setSnapshot(set, sessionId, items, items.queueRevision, true);
+      if (items.agentReportsPaused !== undefined
+          && canApplyAgentReportsPause(
+            accepted,
+            items.queueRevision,
+            get().queueRevisions[sessionId],
+          )) {
+        setAgentReportsPauseState(set, sessionId, items.agentReportsPaused);
       }
     } catch (error) {
       useUIStore.getState().showToast(
@@ -366,9 +390,17 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     if (
       event.queueRevision !== undefined &&
       currentRevision !== undefined &&
-      event.queueRevision <= currentRevision
-    )
+      event.queueRevision < currentRevision
+    ) return;
+    if (event.queueRevision !== undefined
+        && currentRevision !== undefined
+        && event.queueRevision === currentRevision) {
+      if (event.agentReportsPaused !== undefined
+          && canApplyAgentReportsPause(false, event.queueRevision, currentRevision)) {
+        setAgentReportsPauseState(set, sid, event.agentReportsPaused);
+      }
       return;
+    }
     const current = get().queues[sid] ?? [];
     const id = event.queueItemId ?? event.item?.queueItemId ?? event.item?.id;
     let next = current;
@@ -440,19 +472,15 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     }
     if (next !== current || event.queueRevision !== undefined) {
       const accepted = setSnapshot(set, sid, next, event.queueRevision);
-      if (!accepted) return;
-      if (event.agentReportsPaused !== undefined) {
-        set((state) => ({
-          agentReportsPaused: {
-            ...state.agentReportsPaused,
-            [sid]: event.agentReportsPaused!,
-          },
-          agentReportsPauseLoaded: {
-            ...state.agentReportsPauseLoaded,
-            [sid]: true,
-          },
-        }));
+      if (event.agentReportsPaused !== undefined
+          && canApplyAgentReportsPause(
+            accepted,
+            event.queueRevision,
+            get().queueRevisions[sid],
+          )) {
+        setAgentReportsPauseState(set, sid, event.agentReportsPaused);
       }
+      if (!accepted) return;
       if (event.type === 'queue.item_updated' && event.item) {
         const item = normalizeQueueEventItem(event.item);
         if (item?.meta?.dispatchState === 'queued') {
@@ -488,17 +516,13 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         ? current
         : [...current, result.item]);
       const accepted = setSnapshot(set, sid, next, result.queueRevision);
-      if (result.agentReportsPaused !== undefined) {
-        set((state) => ({
-          agentReportsPaused: {
-            ...state.agentReportsPaused,
-            [sid]: result.agentReportsPaused!,
-          },
-          agentReportsPauseLoaded: {
-            ...state.agentReportsPauseLoaded,
-            [sid]: true,
-          },
-        }));
+      if (result.agentReportsPaused !== undefined
+          && canApplyAgentReportsPause(
+            accepted,
+            result.queueRevision,
+            get().queueRevisions[sid],
+          )) {
+        setAgentReportsPauseState(set, sid, result.agentReportsPaused);
       }
       // Re-check the same cached, Session-keyed runtime registry at the
       // append boundary.  This covers a non-running→running transition

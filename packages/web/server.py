@@ -6216,22 +6216,26 @@ async def api_session_queue_reports_paused(session_id: str, data: dict):
                 s.agent_reports_paused = previous_paused
                 s.queue_revision = previous_revision
                 return {"ok": False, "error": f"Could not save report pause state: {exc}"}
-
-    queue_revision = getattr(s, "queue_revision", 0)
+        # Keep the returned projection, pause state, and revision from one
+        # queue-lock snapshot. A later mutation may proceed before the event or
+        # HTTP response is sent, but it cannot splice two queue versions here.
+        queue_revision = getattr(s, "queue_revision", 0)
+        reports_paused = bool(getattr(s, "agent_reports_paused", False))
+        items = _session_queue_items(s)
     await worker._bcast({
         "type": "queue.snapshot",
         "sessionId": session_id,
         "queueRevision": queue_revision,
-        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+        "agentReportsPaused": reports_paused,
     })
     # A pause can expose a later task/channel item; a resume can expose reports.
     # Recovery is pause-aware and will not spawn for a paused-only backlog.
     await worker._wake_worker(session_id, auto_spawn=False)
     return {
         "ok": True,
-        "items": _session_queue_items(s),
+        "items": items,
         "queueRevision": queue_revision,
-        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+        "agentReportsPaused": reports_paused,
     }
 
 
