@@ -41,6 +41,7 @@ def _read(p):
 
 _UI_DEFAULTS = {
     "defaultGroupBy": "none",
+    "showGroupBy": False,
     "defaultNewSessionToCurrentWorkspace": True,
     "showMetaAgent": True,
     "showTaskAgent": True,
@@ -83,6 +84,7 @@ def test_get_ui_merges_partial_config(tmp_path, monkeypatch):
     assert r["showMetaAgent"] is True
     assert r["showTaskAgent"] is True
     assert r["defaultGroupBy"] == "none"
+    assert r["showGroupBy"] is False
     assert r["notifications"]["codexWarningToast"] is True
 
 
