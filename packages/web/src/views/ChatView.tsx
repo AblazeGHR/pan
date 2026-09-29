@@ -2,6 +2,7 @@ import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMessages';
 import { MessageNavigationDock, MESSAGE_NAVIGATION_PANEL_ID } from '@/components/chat/MessageNavigationDock';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { InputRow } from '@/components/chat/InputRow';
 import { ApprovalBanner } from '@/components/chat/ApprovalBanner';
@@ -17,6 +18,12 @@ const SessionHistorySearch = lazy(() =>
   })),
 );
 
+const GlobalHistorySearch = lazy(() =>
+  import('@/components/chat/GlobalHistorySearch').then((module) => ({
+    default: module.GlobalHistorySearch,
+  })),
+);
+
 export default function ChatView() {
   const chatRef = useRef<ChatMessagesHandle>(null);
   const chatStageRef = useRef<HTMLDivElement>(null);
@@ -28,7 +35,8 @@ export default function ChatView() {
   const showHistorySearch = useAppSettingsStore((s) => s.showHistorySearch);
   const { isMobile } = useMediaQuery();
   const [mobileExpanded, setMobileExpanded] = useState(false);
-  const [searchTargetMessageId, setSearchTargetMessageId] = useState<string | null>(null);
+  const [activeHistorySearch, setActiveHistorySearch] = useState<'session' | 'global' | null>(null);
+  const [searchTarget, setSearchTarget] = useState<{ sessionId: string; messageId: string } | null>(null);
 
   useEffect(() => {
     // Enabling the master switch and changing viewport modes both start folded.
@@ -36,8 +44,32 @@ export default function ChatView() {
   }, [showMessageNavigationRail, isMobile]);
 
   useEffect(() => {
-    if (!showHistorySearch) setSearchTargetMessageId(null);
+    if (!showHistorySearch) {
+      setActiveHistorySearch(null);
+      setSearchTarget(null);
+    }
   }, [showHistorySearch]);
+
+  const handleSessionSearchOpenChange = useCallback((open: boolean) => {
+    setActiveHistorySearch((active) => open ? 'session' : active === 'session' ? null : active);
+  }, []);
+
+  const handleGlobalSearchOpenChange = useCallback((open: boolean) => {
+    setActiveHistorySearch((active) => open ? 'global' : active === 'global' ? null : active);
+  }, []);
+
+  const handleSessionHighlight = useCallback((messageId: string | null) => {
+    if (!messageId) {
+      setSearchTarget(null);
+      return;
+    }
+    const sessionId = useSessionStore.getState().currentSessionId;
+    setSearchTarget(sessionId ? { sessionId, messageId } : null);
+  }, []);
+
+  const handleGlobalHighlight = useCallback((sessionId: string | null, messageId: string | null) => {
+    setSearchTarget(sessionId && messageId ? { sessionId, messageId } : null);
+  }, []);
 
   const restoreChatFocus = useCallback(() => {
     chatStageRef.current?.focus();
@@ -85,16 +117,29 @@ export default function ChatView() {
           <ChatMessages
             ref={chatRef}
             hideScrollToBottom={showMessageNavigationRail && isMobile && mobileExpanded}
-            searchTargetMessageId={showHistorySearch ? searchTargetMessageId : null}
+            searchTarget={showHistorySearch ? searchTarget : null}
           />
           {showHistorySearch && (
-            <Suspense fallback={null}>
-              <SessionHistorySearch
-                chatRef={chatRef}
-                isMobile={isMobile}
-                onHighlightMessage={setSearchTargetMessageId}
-              />
-            </Suspense>
+            <>
+              <Suspense fallback={null}>
+                <SessionHistorySearch
+                  chatRef={chatRef}
+                  isMobile={isMobile}
+                  isOpen={activeHistorySearch === 'session'}
+                  onOpenChange={handleSessionSearchOpenChange}
+                  onHighlightMessage={handleSessionHighlight}
+                />
+              </Suspense>
+              <Suspense fallback={null}>
+                <GlobalHistorySearch
+                  chatRef={chatRef}
+                  isMobile={isMobile}
+                  open={activeHistorySearch === 'global'}
+                  onOpenChange={handleGlobalSearchOpenChange}
+                  onHighlightMessage={handleGlobalHighlight}
+                />
+              </Suspense>
+            </>
           )}
           {showMessageNavigationRail && (
             <MessageNavigationDock

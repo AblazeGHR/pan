@@ -135,10 +135,16 @@ export interface ChatMessagesProps {
   hideScrollToBottom?: boolean;
   /** Persistent block-level marker for the selected history-search result. */
   searchTargetMessageId?: string | null;
+  /** Session-scoped search target; ignored whenever the target belongs elsewhere. */
+  searchTarget?: { sessionId: string; messageId: string } | null;
 }
 
 export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(function ChatMessages(
-  { hideScrollToBottom = false, searchTargetMessageId = null },
+  {
+    hideScrollToBottom = false,
+    searchTargetMessageId: unscopedSearchTargetMessageId = null,
+    searchTarget = null,
+  },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -148,6 +154,9 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const searchTargetMessageId = searchTarget?.sessionId === currentSessionId
+    ? searchTarget.messageId
+    : unscopedSearchTargetMessageId;
   // Two chat presentations share this component. TUI (the default) lays out
   // full-width role-bar rows; Bubble adds `.bubble-mode` on the scroll
   // container, which is what the shrink-to-fit bubble rules are scoped to.

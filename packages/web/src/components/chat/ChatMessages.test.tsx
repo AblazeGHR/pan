@@ -274,6 +274,21 @@ it('keeps a search-selected QQ body row visible and block-highlighted until the 
   expect(view.container.querySelector('.chat-message-search-target')).toBeNull();
 });
 
+it('scopes a global search highlight to its target Session', () => {
+  const target: Message = { role: 'assistant', content: 'needle target', messageId: 'same-id' };
+  useAppSettingsStore.setState({ showQQ: true });
+  useSessionStore.setState({ currentSessionId: 's1', currentMessages: [target] });
+  m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+
+  const view = render(
+    <ChatMessages searchTarget={{ sessionId: 's2', messageId: 'same-id' }} />,
+  );
+  expect(view.container.querySelector('[data-search-target="true"]')).toBeNull();
+
+  view.rerender(<ChatMessages searchTarget={{ sessionId: 's1', messageId: 'same-id' }} />);
+  expect(view.container.querySelector('[data-search-target="true"]')?.textContent).toContain('needle target');
+});
+
 it('merges each adjacent tool/thinking run only when the preference is enabled', () => {
   const messages: Message[] = [
     { role: 'thinking', content: 'thought 1' },

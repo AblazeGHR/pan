@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ApiRequestError,
   createSession,
+  fetchHistorySearch,
   importCbcSession,
   importCodexSession,
   importKimiSession,
@@ -193,6 +195,53 @@ describe('worker control business errors', () => {
       text: 'edited', expectedRevision: 2, editToken: 'edit-token',
     });
     expect(JSON.parse(requests[2]?.body as string)).toEqual({ editToken: 'edit-token' });
+  });
+});
+
+describe('global history search API', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('encodes the global query, bounds pages to 100, and forwards cancellation', async () => {
+    const controller = new AbortController();
+    let requestUrl = '';
+    let requestInit: RequestInit | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      requestUrl = String(url);
+      requestInit = init;
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          hits: [], versions: [], limit: 100, hasMore: false, nextCursor: null,
+        }),
+      };
+    }));
+
+    await fetchHistorySearch('needle & 雪', 250, 'next cursor', controller.signal);
+
+    const url = new URL(requestUrl, 'http://localhost');
+    expect(url.pathname).toBe('/api/history/search');
+    expect(url.searchParams.get('q')).toBe('needle & 雪');
+    expect(url.searchParams.get('limit')).toBe('100');
+    expect(url.searchParams.get('cursor')).toBe('next cursor');
+    expect(requestInit?.signal).toBe(controller.signal);
+  });
+
+  it.each([409, 503])('preserves HTTP %i so search can show the correct recovery state', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status,
+      statusText: status === 409 ? 'Conflict' : 'Service Unavailable',
+      json: async () => ({ detail: { code: 'history_search_error', message: 'unavailable' } }),
+    })));
+
+    await expect(fetchHistorySearch('needle')).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status,
+    } satisfies Partial<ApiRequestError>);
   });
 });
 

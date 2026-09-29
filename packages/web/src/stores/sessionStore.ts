@@ -93,11 +93,11 @@ interface SessionStore {
 
   // Actions
   loadSessions: () => Promise<void>;
-  selectSession: (id: string) => Promise<void>;
+  selectSession: (id: string, signal?: AbortSignal) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
-  loadOlderMessages: (limit?: number) => Promise<void>;
+  loadOlderMessages: (limit?: number, signal?: AbortSignal) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
-  ensureMessageLoaded: (fromEnd: number, total: number) => Promise<Message | null>;
+  ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   createNewSession: (
     name: string,
     workdir?: string | null,
@@ -1640,7 +1640,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  selectSession: async (id: string) => {
+  selectSession: async (id: string, signal?: AbortSignal) => {
     // Drafts are persisted by InputRow's onChange → setInputDraft; nothing to
     // save here. (Previously read a non-existent `#chatInput` DOM node.)
 
@@ -1688,15 +1688,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // loadSessions 刷新，可能滞后或（在 _loadSeq 超驰/事件丢失时）过期——
     // 事件刷新快照可能先于 history 持久化，不能覆盖正在流式显示的回复。
     try {
-      const data: ApiSessionHistoryResponse = await fetchSessionHistory(
-        id,
-        0,
-        historyPageSize(),
-      );
+      const data: ApiSessionHistoryResponse = signal
+        ? await fetchSessionHistory(id, 0, historyPageSize(), signal)
+        : await fetchSessionHistory(id, 0, historyPageSize());
       if (
+        signal?.aborted ||
         get().currentSessionId !== id ||
         get()._selectionSeq[id] !== selectionSeq
       ) {
+        if (signal?.aborted && get().currentSessionId === id && get()._selectionSeq[id] === selectionSeq) {
+          set({ initialLoading: false });
+        }
         // 用户已切走，丢弃过期结果。若当前已无选中 session（如该 session 在
         // 请求期间被删除），不会有后续 selectSession 重置 initialLoading——
         // 这里兜底清掉，避免 chat 面板一直停在转圈。
@@ -1705,6 +1707,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
       get().applyHistoryPage(id, data as HistoryPage);
     } catch {
+      if (signal?.aborted) {
+        if (get().currentSessionId === id && get()._selectionSeq[id] === selectionSeq) {
+          set({ initialLoading: false });
+        }
+        return;
+      }
       // 网络失败：保留快照（上方已 set），不阻塞切换。同样清掉
       // initialLoading——否则「空快照 + 拉取失败」会让 chat 面板一直转圈。
       if (
@@ -1741,13 +1749,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  ensureMessageLoaded: async (fromEnd: number, total: number) => {
+  ensureMessageLoaded: async (fromEnd: number, total: number, signal?: AbortSignal) => {
     const absoluteIndex = total - 1 - fromEnd;
     if (absoluteIndex < 0) return null;
+    const sessionId = get().currentSessionId;
+    if (!sessionId) return null;
+    const selectionSeq = get()._selectionSeq[sessionId];
+    const selectionIsCurrent = (state: SessionStore) =>
+      state.currentSessionId === sessionId && state._selectionSeq[sessionId] === selectionSeq;
     let previousEnd = Number.POSITIVE_INFINITY;
     for (let attempt = 0; attempt < 400; attempt += 1) {
       const state = get();
-      if (!state.currentSessionId) return null;
+      if (signal?.aborted || !selectionIsCurrent(state)) return null;
       if (state.historyLoadEnd <= absoluteIndex || !state.hasMoreMessages) break;
       if (state.historyLoading) {
         await new Promise((resolve) => setTimeout(resolve, 25));
@@ -1759,17 +1772,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // span in one bounded request instead of replaying 50-message pages;
       // normal scroll pagination keeps its 50-message default below.
       const needed = state.historyLoadEnd - absoluteIndex;
-      await state.loadOlderMessages(Math.min(Math.max(needed, 50), 1000));
+      const pageSize = Math.min(Math.max(needed, 50), 1000);
+      if (signal) await state.loadOlderMessages(pageSize, signal);
+      else await state.loadOlderMessages(pageSize);
     }
     const state = get();
-    if (!state.currentSessionId || state.historyLoadEnd > absoluteIndex) return null;
+    if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
     const localIndex = absoluteIndex - state.historyLoadEnd;
     return state.currentMessages[localIndex] ?? null;
   },
 
-  loadOlderMessages: async (limit?: number) => {
+  loadOlderMessages: async (limit?: number, signal?: AbortSignal) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
     if (
+      signal?.aborted ||
       historyLoading ||
       historyLoadEnd <= 0 ||
       !currentSessionId
@@ -1782,12 +1798,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({ _historyPageSeq: { ...s._historyPageSeq, [sid]: pageSeq } }));
 
     try {
-      const data: ApiSessionHistoryResponse = await fetchSessionHistory(
-        sid,
-        historyLoadEnd,
-        limit ?? historyPageSize(),
-      );
-      if (get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
+      const data: ApiSessionHistoryResponse = signal
+        ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal)
+        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize());
+      if (signal?.aborted || get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;
       }
