@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { nextSessionDefaultName } from '@/utils/sessionName';
+import { createQuickNewSession } from '@/utils/quickNewSession';
 import { Search } from 'lucide-react';
 
 interface PaletteAction {
@@ -22,7 +22,6 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const sessions = useSessionStore((s) => s.sessions);
   const selectSession = useSessionStore((s) => s.selectSession);
-  const createNewSession = useSessionStore((s) => s.createNewSession);
   const {
     toggleTheme,
     showToast,
@@ -41,7 +40,7 @@ export function CommandPalette() {
     // Session
     result.push(
       { id: 'sess-new', label: 'New Session', detail: 'Create a new session', group: 'Session', action: () => {
-        createNewSession(nextSessionDefaultName(sessions))
+        createQuickNewSession()
           .then(() => showToast('Session created'))
           .catch((e) => showToast(e.message || 'Creation failed', 'error'));
       }},
@@ -75,7 +74,7 @@ export function CommandPalette() {
     );
 
     return result;
-  }, [sessions, navigate, selectSession, createNewSession, toggleTheme, showToast]);
+  }, [sessions, navigate, selectSession, toggleTheme, showToast]);
 
   // Filter by query
   const filtered = useMemo(() => {

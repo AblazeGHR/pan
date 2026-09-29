@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { nextSessionDefaultName } from '@/utils/sessionName';
+import { createQuickNewSession } from '@/utils/quickNewSession';
 import { SessionList } from '@/components/session/SessionList';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
@@ -336,13 +336,10 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   };
 
   const quickNew = useCallback(() => {
-    const name = nextSessionDefaultName(sessions);
-    const store = useSessionStore.getState();
-    store
-      .createNewSession(name)
+    createQuickNewSession()
       .then(() => showToast('Session created'))
       .catch((e) => showToast(e.message || 'Creation failed', 'error'));
-  }, [sessions, showToast]);
+  }, [showToast]);
 
   // useCallback：SessionList 的 SessionItem 是 React.memo，onSessionMenu 必须
   // 引用稳定（依赖的 setMenuPosition/setMenuSession 均为稳定 setter），否则每次
