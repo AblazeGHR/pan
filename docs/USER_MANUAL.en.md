@@ -14,7 +14,7 @@ Pan manages long-lived CLI Agent identities separately from temporary processes.
 | Term | Meaning |
 |---|---|
 | Session | A persistent conversation identity that can carry an MA or TA role |
-| Worker | A temporary CLI process running a Session; stopping a Worker does not delete the Session |
+| Worker | A temporary CLI process running a Session with either the MA or TA role; both MA Workers and TA Workers exist. Stopping a Worker does not delete the Session |
 | Adapter | Integration for a CLI such as cbc, kimi, opencode, claude, or codex; availability depends on local installation and PATH |
 | MA / TA | The MA (meta-agent) decomposes, assigns, and accepts work; a TA (task-agent) carries out a task. Both are Session roles |
 | Workspace / workdir | A Workspace organizes Sessions and shared directories; `workdir` is the Agent's actual working directory |

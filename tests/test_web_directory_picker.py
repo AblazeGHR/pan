@@ -318,7 +318,11 @@ def test_queue_route_validates_attachment_links_before_enqueue(monkeypatch, tmp_
     target_dir.mkdir(parents=True)
     storage = "upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt"
     (target_dir / storage).write_bytes(b"uploaded")
-    monkeypatch.setattr(server.sess, "get", lambda session_id: object() if session_id == "ses_a" else None)
+    monkeypatch.setattr(
+        server.sess,
+        "get",
+        lambda session_id: SimpleNamespace(queue_pending=[]) if session_id == "ses_a" else None,
+    )
     calls = []
 
     async def fake_enqueue(session_id, text, client_message_id=None):

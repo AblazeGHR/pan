@@ -8,7 +8,7 @@ Pan 是一个用于管理 CLI Agent 会话并协调多 Agent 任务的本地 Web
 
 - **管理 Sessions**：在一个 Dashboard 中创建、导入、重命名、分支、置顶和删除会话；使用 cbc、kimi、opencode、claude 或 codex adapter。实际可用项取决于本机安装的 CLI。
 - **整理工作区**：用 Workspace 分组 Sessions、切换列表范围，并为当前 Session 的 Editor 增加工作区共享目录。Workspace 是组织元数据，不会移动或复制磁盘目录；Session 的 `workdir` 仍是 Agent 工作目录。
-- **协调多个 Agent**：SMA 模板提供 MA（主管）会话。MA 可以创建或认领子 Session、异步派发任务，并通过持久化报告队列收集完成或错误结果。
+- **协调多个 Agent**：SMA 模板提供 MA（主管）会话。MA 与 TA 是 Session 承载的职责角色，Worker 是运行 Session 的临时 CLI 进程，因此既有 MA Worker 也有 TA Worker。MA 可以创建或认领子 Session、异步派发任务，并通过持久化报告队列收集完成或错误结果。
 - **跟进 Jobs**：Dashboard 的 Jobs 页面可查看和管理定时任务、定时 Session 消息/群发和立即运行的后台进程。
 - **管理运行状态**：分别控制 Session Worker 与 Pan 主服务；重新启动后，可对上次仍记录为运行中的 Session 做恢复选择。
 - **按需接入通道**：每个 Session 可配置 MCP server；QQ OneBot 网关在 App Settings → Plugin 中管理。Cloudflare Remote 与 Memory 是可选能力，Remote 默认关闭。

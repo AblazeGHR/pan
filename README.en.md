@@ -8,7 +8,7 @@ Pan is a local web app for managing CLI Agent sessions and coordinating multi-ag
 
 - **Manage Sessions**: create, import, rename, branch, pin, and delete Sessions in one Dashboard. Built-in adapters cover cbc, kimi, opencode, claude, and codex; each requires its CLI to be installed locally.
 - **Organize workspaces**: group Sessions, filter the list by workspace, and add shared workspace directories to the current Session's Editor. A Workspace is organizational metadata; it does not move or copy directories on disk. The Session `workdir` remains the Agent's working directory.
-- **Coordinate Agents**: SMA templates provide an MA (supervisor) Session. An MA can create or claim child Sessions, dispatch work asynchronously, and collect completion or error reports from a durable inbox.
+- **Coordinate Agents**: SMA templates provide an MA (supervisor) Session. MA and TA are roles carried by Sessions; Workers are temporary CLI processes, so Pan has MA Workers as well as TA Workers. An MA can create or claim child Sessions, dispatch work asynchronously, and collect completion or error reports from a durable inbox.
 - **Track Jobs**: the Dashboard Jobs page lists scheduled tasks, scheduled Session messages or broadcasts, and immediate background processes.
 - **Manage runtime state**: control Session Workers separately from the Pan service. After startup, choose how to handle Sessions still recorded as running when their Worker is absent.
 - **Add integrations as needed**: configure MCP servers per Session and manage QQ OneBot gateways in App Settings → Plugin. Cloudflare Remote and Memory are optional; Remote is disabled by default.
