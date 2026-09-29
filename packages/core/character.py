@@ -483,6 +483,8 @@ class CharacterManager:
                 effective_payload: dict = {"name": payload.get("name")}
                 if base_template is not None:
                     base_entry = None
+                    # Match load_manifests/_merge_manifest precedence: scan in
+                    # order and let every later same-name entry replace it.
                     for snapshot in snapshots:
                         manifest = snapshot["data"]
                         for key in ("session_templates", "profiles"):
@@ -492,11 +494,6 @@ class CharacterManager:
                             for entry in entries:
                                 if isinstance(entry, dict) and entry.get("name") == base_template:
                                     base_entry = entry
-                                    break
-                            if base_entry is not None:
-                                break
-                        if base_entry is not None:
-                            break
                     if base_entry is None:
                         raise ValueError(f"Base Session Template {base_template!r} is no longer loaded")
 
