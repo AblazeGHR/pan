@@ -6543,6 +6543,31 @@ async def api_rename_session(session_id: str, data: dict):
     return {"sessionId": s.id, "name": new_name, "status": "renamed"}
 
 
+def _branch_ownership(source: sess.Session) -> tuple[str | None, list[str]] | str:
+    """Validate source ownership and return its manager plus root membership.
+
+    Branching must not turn a broken managed child into an unrelated root, nor
+    inherit workspace ids from a child. Check the full chain and its backlinks
+    before touching adapter-owned fork state.
+    """
+    current = source
+    seen: set[str] = set()
+    while True:
+        if current.id in seen:
+            return f"Cannot branch from Session {source.id}: manager cycle at {current.id}"
+        seen.add(current.id)
+        manager_id = current.managed_by
+        if not manager_id:
+            return (source.managed_by, list(current.workspace_ids[:1]))
+        manager = sess.get(manager_id, load_history=False)
+        if manager is None:
+            return f"Cannot branch from Session {source.id}: manager {manager_id} not found"
+        if current.id not in manager.managed:
+            return (f"Cannot branch from Session {source.id}: manager relationship "
+                    f"{manager_id} -> {current.id} is inconsistent")
+        current = manager
+
+
 @app.post("/api/sessions/{session_id}/branch")
 async def api_branch_session(session_id: str, data: dict):
     """Branch from a session — copy adapter-specific transcript, import new session, preserve settings.
@@ -6553,6 +6578,10 @@ async def api_branch_session(session_id: str, data: dict):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
+    ownership = _branch_ownership(s)
+    if isinstance(ownership, str):
+        return {"error": ownership}
+    manager_id, root_workspace_ids = ownership
     if not s.cli_session_id:
         return {"error": "Session has no CLI session ID — cannot branch"}
 
@@ -6619,7 +6648,17 @@ async def api_branch_session(session_id: str, data: dict):
         adapter_config=new_adapter_config,
         pan_access=dict(s.pan_access),
         notification_settings=dict(s.notification_settings),
+        workspace_ids=root_workspace_ids if manager_id is None else [],
     )
+
+    if manager_id is not None:
+        claim_error = sess.claim(manager_id, new_s.id)
+        if claim_error:
+            try:
+                sess.delete(new_s.id)
+            except Exception as cleanup_error:
+                return {"error": f"{claim_error}; failed to remove new Session: {cleanup_error}"}
+            return {"error": claim_error}
 
     await broadcast({
         "type": "session.created",
@@ -9739,6 +9778,10 @@ async def api_branch(worker_id: str, data: dict):
     orig = sess.get(w.session_id)
     if not orig or not orig.cli_session_id:
         return {"error": "Session not ready for branching"}
+    ownership = _branch_ownership(orig)
+    if isinstance(ownership, str):
+        return {"error": ownership}
+    manager_id, root_workspace_ids = ownership
 
     name = data.get("name") or f"{orig.name}-branch"
     new_session = sess.create(name, adapter=orig.adapter, model=orig.model,
@@ -9746,11 +9789,29 @@ async def api_branch(worker_id: str, data: dict):
                               always_thinking_enabled=orig.adapter_config.get("always_thinking_enabled", False),
                               effort=orig.adapter_config.get("effort", ""),
                               max_thinking_tokens=orig.adapter_config.get("max_thinking_tokens"),
-                              workdir=orig.workdir)
+                              workdir=orig.workdir,
+                              workspace_ids=root_workspace_ids if manager_id is None else [])
+
+    if manager_id is not None:
+        claim_error = sess.claim(manager_id, new_session.id)
+        if claim_error:
+            try:
+                sess.delete(new_session.id)
+            except Exception as cleanup_error:
+                return {"error": f"{claim_error}; failed to remove new Session: {cleanup_error}"}
+            return {"error": claim_error}
 
     result = await worker.branch_worker(worker_id, new_session.id)
     if isinstance(result, str):
-        sess.delete(new_session.id)
+        if manager_id is not None:
+            release_error = sess.release(new_session.id)
+            if release_error:
+                return {"error": f"{result}; failed to roll back managed relationship: "
+                                 f"{release_error}; Session {new_session.id} was retained"}
+        try:
+            sess.delete(new_session.id)
+        except Exception as cleanup_error:
+            return {"error": f"{result}; failed to remove new Session: {cleanup_error}"}
         return {"error": result}
 
     return {

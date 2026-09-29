@@ -2346,7 +2346,7 @@ def claim(manager_id: str, session_id: str) -> str | None:
 
     Claim 建立 managed 关系时默认自动 report_subscribe：manager.report_subscriptions
     自动加入 session_id，使该 manager 收到目标 session 的完成报告（done/error）。
-    仅当确实新增了 managed 条目或首次订阅时才 save(manager)（set.add 幂等）。
+    关系两端按序持久化；若写入失败，会回滚内存状态并尽力持久化回滚，返回错误。
 
     Refuses (returns an error string) if the target session is already managed
     by a different existing session. A dangling manager reference is treated
@@ -2384,20 +2384,49 @@ def claim(manager_id: str, session_id: str) -> str | None:
     if target.managed_by and target.managed_by != manager_id \
             and get(target.managed_by) is not None:
         return f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"
-    changed = False
-    if session_id not in manager.managed:
-        manager.managed.append(session_id)
-        changed = True
-    if session_id not in manager.report_subscriptions:
-        manager.report_subscriptions.add(session_id)
-        changed = True
-    if changed:
-        save(manager)
-    if target.managed_by != manager_id or target.workspace_ids:
-        target.managed_by = manager_id
-        # A child never persists a competing/stale membership value.
-        target.workspace_ids = []
-        save(target)
+    old_managed = list(manager.managed)
+    old_subscriptions = set(manager.report_subscriptions)
+    old_managed_by = target.managed_by
+    old_workspace_ids = list(target.workspace_ids)
+    changed_manager = False
+    changed_target = False
+    try:
+        if session_id not in manager.managed:
+            manager.managed.append(session_id)
+            changed_manager = True
+        if session_id not in manager.report_subscriptions:
+            manager.report_subscriptions.add(session_id)
+            changed_manager = True
+        if target.managed_by != manager_id or target.workspace_ids:
+            target.managed_by = manager_id
+            # A child never persists a competing/stale membership value.
+            target.workspace_ids = []
+            changed_target = True
+        # Persist target first so a failure cannot leave a durable manager
+        # backlink to a target whose managed_by was never written.
+        if changed_target:
+            save(target)
+        if changed_manager:
+            save(manager)
+    except Exception as exc:
+        # Restore both cached objects and best-effort persist the rollback. If
+        # storage itself remains unavailable, return an error rather than
+        # reporting a successful claim with a one-sided relationship.
+        manager.managed = old_managed
+        manager.report_subscriptions = old_subscriptions
+        target.managed_by = old_managed_by
+        target.workspace_ids = old_workspace_ids
+        rollback_errors = []
+        for changed, session in ((changed_target, target), (changed_manager, manager)):
+            if changed:
+                try:
+                    save(session)
+                except Exception as rollback_exc:
+                    rollback_errors.append(str(rollback_exc))
+        detail = f"Failed to persist managed relationship: {exc}"
+        if rollback_errors:
+            detail += f"; rollback persistence failed: {'; '.join(rollback_errors)}"
+        return detail
     return None
 
 
