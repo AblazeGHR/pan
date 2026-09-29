@@ -1294,12 +1294,13 @@ _scheduled_task_hooks: dict[str, Any] = {
     "root_resolver": None,
     "config_resolver": None,
     "on_event": None,
+    "qq_send": None,
 }
 _scheduled_task_stats: dict[str, Any] = {"dueScanned": 0, "lastTickAt": None}
 
 
 def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
-                             on_event=None) -> None:
+                             on_event=None, qq_send=None) -> None:
     """Register the scheduler plugin's registry root / config / event callback.
 
     幂等：仅覆盖显式给出的可调用项，重复注册安全。
@@ -1310,6 +1311,8 @@ def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
         _scheduled_task_hooks["config_resolver"] = config_resolver
     if on_event is not None:
         _scheduled_task_hooks["on_event"] = on_event
+    if callable(qq_send):
+        _scheduled_task_hooks["qq_send"] = qq_send
 
 
 def scheduled_task_stats() -> dict:
@@ -1998,12 +2001,65 @@ async def _run_job_action(job: dict, target: str | None,
     - ``assign``（默认）：task 文本入目标 session 队列，worker 幂等索引兜底；
     - ``send_session``：发人可读消息（走 message 语义，无 task_id 幂等）。
     - ``resume_legal_running``：fire 时重新筛选并按 Session 收据幂等发送固定消息。
+    - ``send_qq``：通过 Web 层注册的 QQ 插件回调发送到选定的联系人和 bot。
 
     未知 action.api / 兼容层旧记录（无 action 字段）一律回落 assign。
     """
     action = job.get("action")
     api = str(action.get("api") or "assign") if isinstance(action, dict) else "assign"
     text = job.get("text") or ""
+    if api == "send_qq":
+        from packages.jobs.actions import normalize_scheduled_qq_action
+
+        normalized, validation_error = normalize_scheduled_qq_action(action)
+        if validation_error:
+            error = f"invalid send_qq action: {validation_error}"
+            return {"status": "error", "error": error, "result": error,
+                    "dispatchKey": dispatch_key}
+        args = normalized["args"]
+        sender = _scheduled_task_hooks.get("qq_send")
+        if not callable(sender):
+            error = "QQ sender is unavailable"
+            return {"status": "error", "error": error, "result": error,
+                    "dispatchKey": dispatch_key}
+        target_type = args.get("targetType")
+        target_id = args.get("targetId")
+        bot_uin = args.get("botUin")
+        try:
+            response = await sender(
+                target_type="private" if target_type == "user" else "group",
+                target_id=target_id,
+                text=text,
+                bot_uin=bot_uin,
+            )
+        except Exception as exc:
+            error = f"QQ send failed: {exc}"
+            return {"status": "error", "error": error, "result": error,
+                    "dispatchKey": dispatch_key}
+        if not isinstance(response, dict):
+            response = {"ok": False, "error": {
+                "code": "invalid_response",
+                "message": "QQ send callback returned an invalid response"}}
+        if response.get("ok") is True:
+            return {
+                "status": "completed",
+                "dispatchKey": dispatch_key,
+                "targetType": target_type,
+                "targetId": target_id,
+                "botUin": bot_uin,
+                **({"messageId": response.get("message_id")}
+                   if response.get("message_id") is not None else {}),
+            }
+        raw_error = response.get("error")
+        if isinstance(raw_error, dict):
+            error = str(raw_error.get("message") or raw_error.get("code") or "QQ send failed")
+            error_code = raw_error.get("code")
+        else:
+            error = str(raw_error or response.get("message") or "QQ send failed")
+            error_code = None
+        return {"status": "error", "error": error, "result": error,
+                "dispatchKey": dispatch_key,
+                **({"qqErrorCode": error_code} if error_code is not None else {})}
     if api == "shell":
         child = start_scheduled_process(
             job, dispatch_key, fire_at=fire_at, entry_id=entry_id,
@@ -2321,7 +2377,8 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
             return left_key == right_key
         return left == right
 
-    delivered: list[tuple[dict, dict]] = []
+    delivered: list[tuple[dict, dict, dict]] = []
+    qq_attempts: list[tuple[dict, dict, dict]] = []
     for stale_note in notes:
         # tick_scheduled_tasks iterates a list snapshot.  A concurrent process
         # can retarget, edit, pause, disable, or cancel the Job after that
@@ -2352,7 +2409,7 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
         target = current.get("targetSessionId")
         action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
         target_required = action_api not in {
-            "shell", RESUME_LEGAL_RUNNING_ACTION,
+            "shell", RESUME_LEGAL_RUNNING_ACTION, "send_qq",
         }
         if target_required and not target:
             # target 仍缺失（可能被清空）：便条原样保留。
@@ -2366,11 +2423,13 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
                 registry_root=registry_root)
         except Exception as exc:
             result = {"status": "error", "result": str(exc)}
+        if action_api == "send_qq":
+            qq_attempts.append((dict(note), current, result))
         if (isinstance(result, dict)
                 and str(result.get("status")) not in {"error", "failed", "cancelled"}):
-            delivered.append((dict(note), current))
+            delivered.append((dict(note), current, result))
 
-    if delivered:
+    if delivered or qq_attempts:
         # Remove only the notes this pass actually delivered from the latest
         # record; preserve fires concurrently appended by another scheduler.
         with _lock, _job_lock(job_id, registry_root):
@@ -2379,22 +2438,53 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
             if not latest:
                 return 0
             remaining = list(latest.get("undeliveredFires") or [])
-            for delivered_note, _ in delivered:
+            for delivered_note, _, _ in delivered:
                 for index, current_note in enumerate(remaining):
                     if isinstance(current_note, dict) and same_note(
                             current_note, delivered_note):
                         remaining.pop(index)
                         break
-            latest.update(undeliveredFires=remaining,
-                          lastStatus="dispatched", lastError=None,
-                          updatedAt=time.time())
+            if delivered:
+                latest["undeliveredFires"] = remaining
+            if qq_attempts:
+                _, _, last_result = qq_attempts[-1]
+                last_error = (None if str(last_result.get("status"))
+                              not in {"error", "failed", "cancelled"}
+                              else str(last_result.get("error")
+                                       or last_result.get("result")
+                                       or "QQ send failed"))
+                latest.update(lastStatus="error" if last_error else "completed",
+                              lastError=last_error, lastDelivery=last_result,
+                              updatedAt=time.time())
+            elif delivered:
+                latest.update(lastStatus="dispatched", lastError=None,
+                              updatedAt=time.time())
             _atomic_write(path, latest)
-        for note, delivered_job in delivered:
+        for note, delivered_job, result in delivered:
             fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
-            _append_task_run(delivered_job,
-                             delivered_job.get("taskId") or job_id, fire_dt,
-                             note.get("dispatchKey") or "", "dispatched", None,
-                             registry_root, entry_id=note.get("entryId"))
+            is_qq = (isinstance(delivered_job.get("action"), dict)
+                     and delivered_job["action"].get("api") == "send_qq")
+            if is_qq:
+                _append_task_run(delivered_job,
+                                 delivered_job.get("taskId") or job_id, fire_dt,
+                                 note.get("dispatchKey") or "", "completed", None,
+                                 registry_root, entry_id=note.get("entryId"),
+                                 result=result)
+            else:
+                _append_task_run(delivered_job,
+                                 delivered_job.get("taskId") or job_id, fire_dt,
+                                 note.get("dispatchKey") or "", "dispatched", None,
+                                 registry_root, entry_id=note.get("entryId"))
+        for note, attempted_job, result in qq_attempts:
+            if str(result.get("status")) not in {"error", "failed", "cancelled"}:
+                continue  # successful QQ sends were recorded with delivered notes above
+            fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
+            error = str(result.get("error") or result.get("result") or "QQ send failed")
+            _append_task_run(attempted_job,
+                             attempted_job.get("taskId") or job_id, fire_dt,
+                             note.get("dispatchKey") or "", "error", error,
+                             registry_root, entry_id=note.get("entryId"),
+                             result=result)
     return len(delivered)
 
 
@@ -2528,7 +2618,7 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                           "error": None})
 
     target_required = action_api not in {
-        "shell", RESUME_LEGAL_RUNNING_ACTION,
+        "shell", RESUME_LEGAL_RUNNING_ACTION, "send_qq",
     }
     if not target and target_required:
         return _backlog_undelivered_fire(
@@ -2636,7 +2726,14 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
             continue
         if not job.get("enabled"):
             continue
-        if job.get("undeliveredFires") and _sessions.get(job.get("targetSessionId")) is not None:
+        action = job.get("action")
+        action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
+        target_required = action_api not in {
+            "shell", RESUME_LEGAL_RUNNING_ACTION, "send_qq",
+        }
+        if (job.get("undeliveredFires")
+                and (not target_required
+                     or _sessions.get(job.get("targetSessionId")) is not None)):
             try:
                 handled += await _redeliver_undelivered(job, root)
             except Exception:

@@ -15,6 +15,7 @@ worker.assign/send_session 替身；不 spawn 进程、不写真实 data/。
 import asyncio
 import json
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -36,7 +37,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(scheduler_store, "DEFAULT_ROOT", tmp_path / "bg_jobs")
     monkeypatch.setattr(jobs, "_scheduled_task_hooks",
                         {"root_resolver": None, "config_resolver": None,
-                         "on_event": None})
+                         "on_event": None, "qq_send": None})
     yield
     scheduler_store.release_leader()
 
@@ -624,6 +625,263 @@ def test_post_creates_scheduled_shell_action_without_target_or_runner(
     assert persisted["action"]["args"]["cwd"] == cwd
     assert scheduler_store.data_root().is_relative_to(tmp_path)
     assert popen_calls == []
+
+
+def _create_scheduled_qq_job(client, *, target_type="user", target_id="123456",
+                             bot_uin="987654", text="hello QQ"):
+    args = {"targetType": target_type, "targetId": target_id}
+    if bot_uin is not None:
+        args["botUin"] = bot_uin
+    return client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "name": "QQ reminder",
+        "action": {"api": "send_qq", "args": args},
+        "text": text,
+        "schedule": [{"kind": "interval", "intervalSec": 3600}],
+        "misfirePolicy": "fire_now",
+        "maxRuns": 5,
+        "enabled": True,
+        "paused": False,
+    }).json()
+
+
+def test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields(client):
+    created = _create_scheduled_qq_job(client)
+    assert created["ok"] is True, created
+    job = created["job"]
+    assert job["action"] == {"api": "send_qq", "args": {
+        "targetType": "user", "targetId": "123456", "botUin": "987654"}}
+    assert job["target"] == {"sessionId": None}
+    assert job["targetSessionId"] is None
+    assert job["text"] == "hello QQ"
+
+    invalid_bodies = [
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "user", "targetId": "123"}}, "text": "x"},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "group", "targetId": "123456", "botUin": "abc"}},
+         "text": "x"},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "user", "targetId": "123456", "url": "http://host"}},
+         "text": "x"},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": ["user"], "targetId": "123456"}}, "text": "x"},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "friend", "targetId": "123456"}}, "text": "x"},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "user", "targetId": "123456"}}, "text": "  "},
+        {"action": {"api": "send_qq", "args": {
+            "targetType": "user", "targetId": "123456"}},
+         "target": {"sessionId": "ses_arbitrary"}, "text": "x"},
+    ]
+    for fields in invalid_bodies:
+        body = client.post("/api/jobs", json={
+            "kind": "scheduled-task",
+            "schedule": [{"kind": "interval", "intervalSec": 3600}],
+            **fields,
+        }).json()
+        assert body["ok"] is False, fields
+        assert body["error"]["code"] == "invalid_argument"
+
+
+def test_patch_scheduled_qq_action_is_strict_and_editable(client):
+    created = _create_scheduled_qq_job(client)
+    assert created["ok"] is True, created
+    job_id = created["job"]["jobId"]
+
+    malformed = client.patch(f"/api/jobs/{job_id}", json={
+        "action": {"api": "send_qq", "args": {
+            "targetType": "group", "targetId": "123456", "command": "echo unsafe"}},
+    }).json()
+    malformed_bot = client.patch(f"/api/jobs/{job_id}", json={
+        "action": {"api": "send_qq", "args": {
+            "targetType": "user", "targetId": "123456", "botUin": "not-a-bot"}},
+    }).json()
+    malformed_recipient = client.patch(f"/api/jobs/{job_id}", json={
+        "action": {"api": "send_qq", "args": {
+            "targetType": "group", "targetId": "not-a-qq-id"}},
+    }).json()
+    empty_text = client.patch(f"/api/jobs/{job_id}", json={"text": "  "}).json()
+    session_target = client.patch(f"/api/jobs/{job_id}", json={
+        "target": {"sessionId": "ses_arbitrary"},
+    }).json()
+    assert malformed["ok"] is False
+    assert malformed_bot["ok"] is False
+    assert malformed_recipient["ok"] is False
+    assert empty_text["ok"] is False
+    assert session_target["ok"] is False
+
+    edited = client.patch(f"/api/jobs/{job_id}", json={
+        "name": "Updated QQ reminder",
+        "action": {"api": "send_qq", "args": {
+            "targetType": "group", "targetId": "456789", "botUin": "234567"}},
+        "text": "updated text",
+        "paused": True,
+    }).json()
+    assert edited["ok"] is True, edited
+    assert edited["job"]["action"] == {"api": "send_qq", "args": {
+        "targetType": "group", "targetId": "456789", "botUin": "234567"}}
+    assert edited["job"]["target"] == {"sessionId": None}
+    assert edited["job"]["text"] == "updated text"
+    assert edited["job"]["paused"] is True
+
+
+def test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error(
+        client, monkeypatch):
+    _register_unified_hooks()
+    calls = []
+
+    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
+        calls.append({"target_type": target_type, "target_id": target_id,
+                      "text": text, "bot_uin": bot_uin})
+        if bot_uin == "765432":
+            return {"ok": False, "error": {
+                "code": "bot_offline", "message": "selected QQ bot is offline"}}
+        return {"ok": True, "message_id": "msg-1"}
+
+    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
+    success = _create_scheduled_qq_job(client, target_type="user", target_id="123456")
+    offline = _create_scheduled_qq_job(
+        client, target_type="group", target_id="654321", bot_uin="765432")
+    assert success["ok"] and offline["ok"]
+
+    for index, created in enumerate((success, offline)):
+        saved = scheduler_store._job_for_task(created["job"]["taskId"])
+        due = {**saved["schedule"][0],
+               "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}
+        patch = {"schedule": [due]}
+        if index == 0:
+            # Recover a stale in-flight claim and retry its due targetless action.
+            patch.update(status="running", runStartedAt=time.time() - 60)
+        jobs._update(saved["jobId"], patch,
+                     registry_root=scheduler_store.data_root())
+
+    assert asyncio.run(jobs.run_due_scheduled_tasks()) == 2
+    success_job = jobs.get(success["job"]["jobId"], registry_root=scheduler_store.data_root())
+    offline_job = jobs.get(offline["job"]["jobId"], registry_root=scheduler_store.data_root())
+    assert success_job["targetSessionId"] is None
+    assert success_job["lastStatus"] == "completed"
+    assert success_job["lastDelivery"]["messageId"] == "msg-1"
+    assert offline_job["lastStatus"] == "error"
+    assert "offline" in offline_job["lastError"]
+    assert offline_job["undeliveredFires"] == []
+    success_run = jobs.list_run_records(
+        task_id=success["job"]["taskId"], registry_root=scheduler_store.data_root())[0]
+    offline_run = jobs.list_run_records(
+        task_id=offline["job"]["taskId"], registry_root=scheduler_store.data_root())[0]
+    assert success_run["status"] == "completed"
+    assert offline_run["status"] == "error"
+    assert {call["target_id"]: call for call in calls} == {
+        "123456": {"target_type": "private", "target_id": "123456",
+                   "text": "hello QQ", "bot_uin": "987654"},
+        "654321": {"target_type": "group", "target_id": "654321",
+                   "text": "hello QQ", "bot_uin": "765432"},
+    }
+
+
+def test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure(client):
+    calls = []
+
+    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
+        calls.append((target_type, target_id, text, bot_uin))
+        if bot_uin == "765432":
+            return {"ok": False, "error": {
+                "code": "connection_error", "message": "QQ plugin is unavailable"}}
+        return {"ok": True, "message_id": "manual-1"}
+
+    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
+    success = _create_scheduled_qq_job(client)
+    offline = _create_scheduled_qq_job(client, bot_uin="765432")
+    assert success["ok"] and offline["ok"]
+
+    success_run = client.post(
+        f"/api/jobs/{success['job']['jobId']}/run-now").json()
+    offline_run = client.post(
+        f"/api/jobs/{offline['job']['jobId']}/run-now").json()
+    assert success_run["ok"] is True
+    assert success_run["run"]["status"] == "completed"
+    assert success_run["run"]["session_id"] is None
+    assert success_run["run"]["result"]["messageId"] == "manual-1"
+    assert offline_run["ok"] is True
+    assert offline_run["run"]["status"] == "error"
+    assert "unavailable" in offline_run["run"]["error"]
+    assert len(client.get(
+        f"/api/jobs/{offline['job']['jobId']}/runs").json()["runs"]) == 1
+    assert calls == [
+        ("private", "123456", "hello QQ", "987654"),
+        ("private", "123456", "hello QQ", "765432"),
+    ]
+
+
+def test_scheduled_qq_backlog_retry_runs_without_session_target(client):
+    calls = []
+
+    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
+        calls.append((target_type, target_id, text, bot_uin))
+        return {"ok": True, "message_id": "replay-1"}
+
+    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
+    created = _create_scheduled_qq_job(client)
+    assert created["ok"] is True
+    saved = jobs.get(created["job"]["jobId"], registry_root=scheduler_store.data_root())
+    note = {
+        "entryId": saved["schedule"][0]["id"],
+        "fireAt": (datetime.now() - timedelta(seconds=5)).isoformat(),
+        "dispatchKey": f"{saved['taskId']}:retry-fixture",
+        "text": saved["text"],
+        "error": "recovered pending QQ send",
+    }
+    saved = jobs._update(saved["jobId"], {
+        "undeliveredFires": [note],
+        "targetSessionId": None,
+    }, registry_root=scheduler_store.data_root())
+
+    assert asyncio.run(jobs._redeliver_undelivered(
+        saved, scheduler_store.data_root())) == 1
+    refreshed = jobs.get(saved["jobId"], registry_root=scheduler_store.data_root())
+    run = jobs.list_run_records(
+        task_id=saved["taskId"], registry_root=scheduler_store.data_root())[0]
+    assert calls == [("private", "123456", "hello QQ", "987654")]
+    assert refreshed["undeliveredFires"] == []
+    assert refreshed["lastStatus"] == "completed"
+    assert refreshed["lastDelivery"]["messageId"] == "replay-1"
+    assert run["status"] == "completed"
+
+
+def test_scheduled_qq_registered_callback_posts_only_to_plugin_send_route(monkeypatch):
+    from packages.web import server as web_server
+
+    requests = []
+
+    async def fake_post(path, body):
+        requests.append((path, body))
+        if body.get("bot_uin") == "765432":
+            return {"ok": False, "error": {
+                "code": "bot_offline", "message": "selected bot is offline"}}
+        return {"ok": True, "message_id": "plugin-message-1"}
+
+    monkeypatch.setattr(web_server, "_qq_plugin_post", fake_post)
+    sent = asyncio.run(web_server._send_scheduled_qq(
+        target_type="private", target_id="123456", text="fixed text",
+        bot_uin="987654"))
+    offline = asyncio.run(web_server._send_scheduled_qq(
+        target_type="group", target_id="654321", text="fixed text",
+        bot_uin="765432"))
+    default = asyncio.run(web_server._send_scheduled_qq(
+        target_type="private", target_id="123456", text="default channel",
+        bot_uin=None))
+
+    assert sent == {"ok": True, "message_id": "plugin-message-1"}
+    assert offline["ok"] is False
+    assert default["ok"] is True
+    assert requests == [
+        ("/api/qq/send", {"target_type": "private", "target_id": "123456",
+                           "text": "fixed text", "bot_uin": "987654"}),
+        ("/api/qq/send", {"target_type": "group", "target_id": "654321",
+                           "text": "fixed text", "bot_uin": "765432"}),
+        ("/api/qq/send", {"target_type": "private", "target_id": "123456",
+                           "text": "default channel"}),
+    ]
 
 
 def test_post_accepts_session_message_and_rejects_empty_schedule(

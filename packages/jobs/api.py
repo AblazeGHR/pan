@@ -31,6 +31,7 @@ from fastapi import APIRouter
 
 from packages.core import background_jobs
 from packages.core import config as _config
+from packages.jobs.actions import normalize_scheduled_qq_action
 from packages.jobs import cron as _job_cron
 from packages.jobs import templates as _job_templates
 
@@ -260,9 +261,11 @@ def _normalize_scheduled_action(action: object):
     if api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
         error = _unknown_fields(action, {"api"}, "resume legal running action")
         return ({"api": api}, None) if not error else (None, error)
+    if api == "send_qq":
+        return normalize_scheduled_qq_action(action)
     if api != "shell":
         return None, ("action.api must be assign, send_session, "
-                      "resume_legal_running, or shell")
+                      "resume_legal_running, send_qq, or shell")
     error = _unknown_fields(action, {"api", "args"}, "shell action")
     args = action.get("args")
     if not isinstance(args, dict):
@@ -485,6 +488,15 @@ async def create_job(data: dict):
             if not isinstance(text, str) or not text.strip():
                 return _err("invalid_argument", f"text is required for {action_api}")
             scheduled_text = text
+        elif action_api == "send_qq":
+            action, action_error = normalize_scheduled_qq_action(action)
+            if action_error:
+                return _err("invalid_argument", action_error)
+            required_target = False
+            text = data.get("text")
+            if not isinstance(text, str) or not text.strip():
+                return _err("invalid_argument", "text is required for send_qq")
+            scheduled_text = text
         elif action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
             action_error = _unknown_fields(
                 action, {"api"}, "resume legal running action")
@@ -515,13 +527,21 @@ async def create_job(data: dict):
         else:
             return _err("invalid_argument",
                         "action.api must be assign, send_session, "
-                        "resume_legal_running, or shell")
+                        "resume_legal_running, send_qq, or shell")
         if action_error:
             return _err("invalid_argument", action_error)
-        target, target_error = _session_target(data, required=required_target)
-        if target_error:
-            return _err("invalid_argument", target_error)
-        sid = target.get("sessionId") if target else None
+        if action_api == "send_qq":
+            target, target_error = _session_target(data, required=False)
+            if target_error:
+                return _err("invalid_argument", target_error)
+            if target and target.get("sessionId"):
+                return _err("invalid_argument", "send_qq does not accept a Session target")
+            sid = None
+        else:
+            target, target_error = _session_target(data, required=required_target)
+            if target_error:
+                return _err("invalid_argument", target_error)
+            sid = target.get("sessionId") if target else None
         if action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION and sid:
             return _err("invalid_argument",
                         "resume_legal_running does not accept a fixed target Session")
@@ -667,6 +687,7 @@ async def job_kinds():
          "hasSchedule": True, "hasProcess": False, "creatable": True,
          "createMode": "scheduled", "createFields": ["name", "description",
              "action.api", "action.args.command", "action.args.cwd",
+             "action.args.targetType", "action.args.targetId", "action.args.botUin",
              "target.sessionId", "text", "schedule[].kind", "schedule[].at",
              "schedule[].intervalSec", "schedule[].anchor", "schedule[].cron",
              "schedule[].timezone", "schedule[].enabled",
@@ -872,6 +893,11 @@ async def patch_job(job_id: str, data: dict):
                 and "action" not in data and sid):
             return _err("invalid_argument",
                         "resume_legal_running does not accept a fixed target Session")
+        if (kind == background_jobs.SCHEDULED_TASK_KIND
+                and isinstance(job.get("action"), dict)
+                and job["action"].get("api") == "send_qq"
+                and "action" not in data and sid):
+            return _err("invalid_argument", "send_qq does not accept a Session target")
         if sid:
             if not _session_exists(sid):
                 return _err("session_not_found", f"Session {sid} not found")
@@ -897,7 +923,11 @@ async def patch_job(job_id: str, data: dict):
             "target", {"sessionId": job.get("targetSessionId")})
         target_sid = (proposed_target.get("sessionId")
                       if isinstance(proposed_target, dict) else None)
-        if action_api in {"assign", "send_session"}:
+        if action_api == "send_qq":
+            if "target" in data and target_sid:
+                return _err("invalid_argument", "send_qq does not accept a Session target")
+            changes["target"] = {"sessionId": None}
+        elif action_api in {"assign", "send_session"}:
             if not isinstance(target_sid, str) or not target_sid.strip():
                 return _err("invalid_argument",
                             f"target.sessionId is required for {action_api}")
@@ -914,6 +944,10 @@ async def patch_job(job_id: str, data: dict):
         if action_api in {"assign", "send_session"}:
             if not isinstance(merged_text, str) or not merged_text.strip():
                 return _err("invalid_argument", f"text is required for {action_api}")
+        elif action_api == "send_qq":
+            if not isinstance(merged_text, str) or not merged_text.strip():
+                return _err("invalid_argument", "text is required for send_qq")
+            changes["text"] = merged_text
         elif action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION:
             if ("text" in data and merged_text !=
                     background_jobs.RESUME_LEGAL_RUNNING_TEXT):

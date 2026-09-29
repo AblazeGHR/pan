@@ -211,6 +211,7 @@ async def lifespan(app: FastAPI):
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
+    background_jobs.register_scheduled_tasks(qq_send=_send_scheduled_qq)
     background_jobs.start_recovery_loop()
     global _DATA_RETENTION_LOOP
     _DATA_RETENTION_LOOP = asyncio.get_running_loop()
@@ -9249,6 +9250,45 @@ async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
         return {"ok": False, "error": {
             "code": "connection_error",
             "message": f"{type(e).__name__}: {e}"}}
+
+
+async def _qq_plugin_post(path: str, body: dict) -> dict:
+    """POST through the existing isolated QQ plugin HTTP process boundary."""
+    plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    try:
+        response = await _qq_plugin_client_get().post(
+            f"{plugin_url}{path}", json=body)
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {
+            "ok": False, "error": {"code": "invalid_response",
+                                    "message": "QQ plugin returned a non-object response"}}
+    except httpx.HTTPStatusError as exc:
+        try:
+            payload = exc.response.json()
+            if isinstance(payload, dict) and payload.get("error"):
+                return payload
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": exc.response.status_code,
+            "message": exc.response.text[:300]}}
+    except httpx.HTTPError as exc:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(exc).__name__}: {exc}"}}
+
+
+async def _send_scheduled_qq(*, target_type: str, target_id: str,
+                             text: str, bot_uin: str | None = None) -> dict:
+    """Send only fixed text through the QQ plugin's registered send route."""
+    if target_type not in {"private", "group"}:
+        return {"ok": False, "error": {
+            "code": "invalid_target_type", "message": "invalid QQ target type"}}
+    body = {"target_type": target_type, "target_id": target_id, "text": text}
+    if bot_uin:
+        body["bot_uin"] = bot_uin
+    return await _qq_plugin_post("/api/qq/send", body)
 
 
 _wechat_plugin_client: httpx.AsyncClient | None = None

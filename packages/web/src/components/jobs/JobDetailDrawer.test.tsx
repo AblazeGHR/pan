@@ -82,4 +82,42 @@ describe('JobDetailDrawer width', () => {
       .toBeGreaterThan(0);
     expect(screen.getByText('继续')).toBeTruthy();
   });
+
+  it('shows the QQ contact and bot identity and permits run-now without a Session target', () => {
+    const qqJob: Job = {
+      ...job,
+      jobId: 'job_qq',
+      kind: 'scheduled-task',
+      name: 'Scheduled QQ message',
+      target: { sessionId: null },
+      action: { api: 'send_qq', args: {
+        targetType: 'group', targetId: '654321', botUin: '123456',
+      } },
+      text: 'Scheduled text',
+      status: 'scheduled',
+      schedule: [],
+    };
+    render(
+      <JobDetailDrawer
+        job={qqJob}
+        kindLabel="Scheduled task"
+        runs={[]}
+        runsLoading={false}
+        onLoadMoreRuns={vi.fn()}
+        onClose={vi.fn()}
+        onRunNow={vi.fn()}
+        onTogglePaused={vi.fn()}
+        onDelete={vi.fn()}
+        onChangeTarget={vi.fn()}
+        onEdit={vi.fn()}
+        onToggleEntryEnabled={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Run now' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Change target' })).toBeNull();
+    expect(screen.getByText('QQ group 654321 · bot 123456')).toBeTruthy();
+    expect(screen.getByText('Scheduled QQ text message')).toBeTruthy();
+    expect(screen.queryByText('no target')).toBeNull();
+  });
 });
