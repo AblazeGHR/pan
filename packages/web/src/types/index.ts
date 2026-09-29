@@ -108,9 +108,13 @@ export interface Session {
   pinRevision?: number;
   /** Managed-session report subscriptions (ids this session gets reports from). */
   reportSubscriptions?: string[];
+  /** Whether the direct manager subscribes to this Session's completion reports. */
+  reportsToManager?: boolean | null;
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
   qqSubscriptions?: string[];
   notificationSettings?: { browser: boolean; system: boolean };
+  /** QQ, system, or browser msgBridge is enabled for this Session. */
+  msgBridgeEnabled?: boolean;
   /** MCP capability flags; only present on the full (non-summary) endpoint. */
   panAccess?: PanAccess;
   /** Whether MCP was ever enabled for this session (mcp_servers non-empty). */
@@ -516,6 +520,23 @@ export interface ApiReadonlyResponse {
   managerId?: string;
   sessionId?: string;
   readonlySession?: boolean;
+  error?: ApiErrorInfo;
+}
+
+export interface ApiSessionReportToManagerResponse {
+  ok?: boolean;
+  sessionId?: string;
+  managerId?: string;
+  reportsToManager?: boolean;
+  error?: ApiErrorInfo;
+}
+
+export interface ApiSessionMsgBridgeResponse {
+  ok?: boolean;
+  sessionId?: string;
+  msgBridgeEnabled?: boolean;
+  qqSubscriptions?: string[];
+  notificationSettings?: { browser: boolean; system: boolean };
   error?: ApiErrorInfo;
 }
 

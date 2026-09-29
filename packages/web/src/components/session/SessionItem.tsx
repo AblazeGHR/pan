@@ -1,10 +1,76 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { useUIStore } from '@/stores/uiStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { setReportsToManager, setSessionMsgBridge, setSessionReadonly } from '@/services/api';
 import type { DropZone } from './sessionDrag';
-import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin } from 'lucide-react';
+import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin, Bell, Lock, Unlock } from 'lucide-react';
+import './sessionQuickActions.css';
+
+type QuickActionKey = 'pin' | 'readonly' | 'stopReport' | 'notification';
+
+const quickActionLabels: Record<QuickActionKey, string> = {
+  pin: 'Pin',
+  readonly: 'Readonly',
+  stopReport: 'Stop report',
+  notification: 'Notification',
+};
+
+function quickActionIcon(key: QuickActionKey, isOn: boolean) {
+  if (key === 'readonly') return isOn ? Lock : Unlock;
+  if (key === 'pin') return Pin;
+  if (key === 'stopReport') return null;
+  return Bell;
+}
+
+function ReportUpIcon({ stopped }: { stopped: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true" focusable="false">
+      <circle cx="10" cy="8" r="4" />
+      <path d="M4 20c0-4 2.7-6 6-6" />
+      <path d="M17 20V10" />
+      <path d="m13 14 4-4 4 4" />
+      {stopped ? <path d="m4 4 16 16" /> : null}
+    </svg>
+  );
+}
+
+function quickActionState(session: Session, key: QuickActionKey): boolean {
+  if (key === 'pin') return session.pinned === true;
+  if (key === 'readonly') return session.readonlySession === true;
+  if (key === 'stopReport') return session.reportsToManager === false && !!session.managedBy;
+  return session.msgBridgeEnabled === true;
+}
+
+function quickActionDisabled(session: Session, key: QuickActionKey): boolean {
+  if (key === 'readonly') return !session.managedBy || typeof session.readonlySession !== 'boolean';
+  if (key === 'stopReport') return !session.managedBy || typeof session.reportsToManager !== 'boolean';
+  if (key === 'notification') return typeof session.msgBridgeEnabled !== 'boolean';
+  return false;
+}
+
+function quickActionDescription(session: Session, key: QuickActionKey, isOn: boolean): string {
+  if (key === 'readonly' && !session.managedBy) return 'Readonly unavailable: this Session has no direct manager';
+  if (key === 'stopReport' && !session.managedBy) return 'Stop report unavailable: this Session has no direct manager';
+  if (key === 'stopReport' && typeof session.reportsToManager !== 'boolean') return 'Stop report unavailable: manager subscription is loading or unavailable';
+  if (key === 'notification' && typeof session.msgBridgeEnabled !== 'boolean') return 'Notification state is loading or unavailable';
+  if (key === 'stopReport') {
+    return isOn
+      ? 'Completion reports to the direct parent are stopped; click to restore the parent subscription'
+      : 'The direct parent receives completion reports; click to stop the parent subscription';
+  }
+  if (key === 'notification') {
+    return isOn
+      ? 'QQ, system, or browser msgBridge is on; click to turn all three off'
+      : 'msgBridge is off; click to turn on system notifications only';
+  }
+  if (key === 'readonly') return isOn ? 'Readonly on; click to allow manager actions' : 'Readonly off; click to block manager actions';
+  return isOn ? 'Pinned; click to unpin' : 'Not pinned; click to pin';
+}
 
 interface SessionItemProps {
   session: Session;
@@ -90,6 +156,12 @@ export const SessionItem = memo(function SessionItem({
   insertZone = null,
 }: SessionItemProps) {
   const isPending = session.id.startsWith('__pending_');
+  const [busyAction, setBusyAction] = useState<QuickActionKey | null>(null);
+  const [syncUnavailable, setSyncUnavailable] = useState(false);
+  const busyRef = useRef(false);
+  // A failed refresh leaves the displayed toggle value uncertain. A later
+  // Session snapshot (or a remount) is required before another write.
+  useEffect(() => { setSyncUnavailable(false); }, [session]);
   // Preview comes from the summary endpoint's lastMessage (the list carries no
   // history now); fall back to the last local history message when present.
   const messages = session.history || [];
@@ -123,6 +195,50 @@ export const SessionItem = memo(function SessionItem({
   const handleClick = () => {
     if (isPending) return;
     onSelect?.(session.id);
+  };
+
+  const toggleQuickAction = async (key: QuickActionKey) => {
+    if (isPending || busyRef.current) return;
+    const store = useSessionStore.getState();
+    const current = store.sessions.find((item) => item.id === session.id);
+    if (!current || quickActionDisabled(current, key)) return;
+    const managerAtStart = current.managedBy;
+    busyRef.current = true;
+    setBusyAction(key);
+    try {
+      if (key === 'pin') {
+        await store.setSessionPinned(current.id, !current.pinned);
+      } else if (key === 'readonly' && managerAtStart) {
+        await setSessionReadonly(managerAtStart, current.id, !current.readonlySession, current.readonlySession);
+      } else if (key === 'stopReport' && managerAtStart) {
+        await setReportsToManager(current.id, managerAtStart, !current.reportsToManager);
+      } else if (key === 'notification') {
+        await setSessionMsgBridge(current.id, !current.msgBridgeEnabled);
+      }
+      if (key !== 'pin') {
+        try {
+          await useSessionStore.getState().loadSessions({ throwOnError: true });
+        } catch {
+          setSyncUnavailable(true);
+          useUIStore.getState().showToast('Saved, but the Session list could not refresh', 'error');
+        }
+      }
+    } catch (error) {
+      // No optimistic state is retained on failure. Re-read server state in
+      // case another control changed the same Session while this request ran.
+      try {
+        await useSessionStore.getState().loadSessions({ throwOnError: true });
+      } catch {
+        setSyncUnavailable(true);
+      }
+      useUIStore.getState().showToast(
+        error instanceof Error ? error.message : `${quickActionLabels[key]} update failed`,
+        'error',
+      );
+    } finally {
+      busyRef.current = false;
+      setBusyAction(null);
+    }
   };
 
   return (
@@ -227,7 +343,7 @@ export const SessionItem = memo(function SessionItem({
           <span className="text-sm text-text-primary truncate font-medium">
             {session.name || 'Untitled'}
           </span>
-          {session.pinned && (
+          {session.pinned && multiSelectMode && (
             <Pin
               data-testid="session-pinned-indicator"
               aria-label="Pinned"
@@ -235,7 +351,7 @@ export const SessionItem = memo(function SessionItem({
               className="shrink-0 text-accent"
             />
           )}
-          {session.adapter && (
+          {session.adapter && multiSelectMode && (
             <span data-testid="session-adapter-badge" className="max-md:hidden text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
               {session.adapter}
             </span>
@@ -299,33 +415,104 @@ export const SessionItem = memo(function SessionItem({
         </button>
       ) : null}
 
-      {/* Chevron stays available in select mode: expanding/collapsing a
-          manager group must not be swallowed by the selection UI. The button
-          stopPropagation keeps the card click (open session) from firing. */}
-      {!isPending && expandable && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleChildren?.(e);
-          }}
-          className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
-          title={expanded ? 'Collapse group' : 'Expand group'}
-        >
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-      )}
+      {!multiSelectMode && !isPending ? (
+        <div className="session-quick-action-rail" data-testid="session-quick-action-rail">
+          <div className="session-quick-action-group" role="group" aria-label="Session quick actions">
+            {(['pin', 'readonly', 'stopReport', 'notification'] as const).map((key) => {
+              const isOn = quickActionState(session, key);
+              const unavailable = syncUnavailable || quickActionDisabled(session, key);
+              const description = syncUnavailable
+                ? 'Session state could not refresh; reload the Session list before retrying'
+                : quickActionDescription(session, key, isOn);
+              const ActionIcon = quickActionIcon(key, isOn);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="session-quick-action-button"
+                  data-quick-action={key}
+                  data-quick-state={isOn ? 'on' : 'off'}
+                  data-testid={key === 'pin' && isOn ? 'session-pinned-indicator' : undefined}
+                  aria-label={`${quickActionLabels[key]}: ${isOn ? 'on' : 'off'}. ${description}`}
+                  aria-pressed={isOn}
+                  aria-disabled={unavailable || busyAction !== null}
+                  aria-busy={busyAction === key}
+                  title={busyAction === key ? 'Updating…' : description}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!unavailable && busyAction === null) void toggleQuickAction(key);
+                  }}
+                >
+                  {key === 'stopReport' ? (
+                    <ReportUpIcon stopped={isOn} />
+                  ) : ActionIcon ? (
+                    <ActionIcon size={12} strokeWidth={2} aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
 
-      {!multiSelectMode && !isPending && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMenu?.(e, session.id);
-          }}
-          className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
-          title="Session actions"
-        >
-          <Settings size={14} />
-        </button>
+          {session.adapter && (
+            <span
+              className="session-quick-action-adapter"
+              data-testid="session-adapter-badge"
+              role="img"
+              aria-label={`Adapter ${session.adapter}`}
+              title={`Adapter: ${session.adapter}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {session.adapter}
+            </span>
+          )}
+
+          {expandable && (
+            <button
+              type="button"
+              data-testid="session-group-toggle"
+              className="session-quick-action-control session-quick-action-chevron"
+              title={expanded ? 'Collapse group' : 'Expand group'}
+              aria-label={expanded ? 'Collapse group' : 'Expand group'}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleChildren?.(e);
+              }}
+            >
+              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+          )}
+          <button
+            type="button"
+            data-testid="session-actions-menu"
+            className="session-quick-action-control session-quick-action-settings"
+            title="Session actions"
+            aria-label="Session actions"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMenu?.(e, session.id);
+            }}
+          >
+            <Settings size={14} />
+          </button>
+        </div>
+      ) : (
+        /* The manager chevron remains available during multi-select. */
+        !isPending && expandable && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleChildren?.(e);
+            }}
+            className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
+            title={expanded ? 'Collapse group' : 'Expand group'}
+          >
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+        )
       )}
     </div>
   );

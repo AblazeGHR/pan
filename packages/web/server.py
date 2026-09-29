@@ -1928,6 +1928,21 @@ async def no_cache_api(request: Request, call_next):
 
 # ── helpers ──
 
+def _reports_to_manager(s: sess.Session, manager_by_id: dict | None = None) -> bool | None:
+    """Current direct parent's report subscription; None means unavailable."""
+    if not s.managed_by:
+        return None
+    manager = (manager_by_id.get(s.managed_by) if manager_by_id is not None
+               else sess.get(s.managed_by, load_history=False))
+    if manager is None or s.id not in manager.managed:
+        return None
+    return s.id in manager.report_subscriptions
+
+
+def _msg_bridge_enabled(s: sess.Session) -> bool:
+    settings = notifications.normalize_notification_settings(s.notification_settings)
+    return bool(s.qq_subscriptions or settings["system"] or settings["browser"])
+
 def _session_to_api(
     s: sess.Session,
     *,
@@ -1996,11 +2011,13 @@ def _session_to_api(
         "managed": s.managed,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
+        "reportsToManager": _reports_to_manager(s),
         "agentLevel": sess.agent_level(s.id, load_history=False),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
         "wechatSubscriptions": sorted(s.wechat_subscriptions),
         "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
+        "msgBridgeEnabled": _msg_bridge_enabled(s),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "lastLegalWorkerState": s.last_legal_worker_state,
@@ -2157,6 +2174,7 @@ def _session_import_api(s: sess.Session) -> dict:
 def _session_summary(
     s: sess.Session, active_workers: dict | None = None,
     pin_projection: dict | None = None,
+    manager_by_id: dict | None = None,
 ) -> dict:
     """Lean session dict for list summaries (A1: no history / usage).
 
@@ -2215,6 +2233,8 @@ def _session_summary(
         "workspaceIds": sess.effective_workspace_ids(s),
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
+        "reportsToManager": _reports_to_manager(s, manager_by_id),
+        "msgBridgeEnabled": _msg_bridge_enabled(s),
         "agentLevel": sess.agent_level(s.id, load_history=False),
         "lastUserPreview": projection["last_user_preview"],
         "lastAssistantPreview": projection["last_assistant_preview"],
@@ -5005,6 +5025,7 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         if workspaces.get(workspaceId) is None:
             return {"sessions": [], "workspaceId": workspaceId}
     sessions = await _store_read(sess.list_all, load_history=False)
+    manager_by_id = {s.id: s for s in sessions} if summary else None
     if workspaceId == "ungrouped":
         # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
         # equivalent to the historical all-sessions response.
@@ -5029,7 +5050,7 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     if summary:
         active_workers = worker.find_alive_workers_by_session()
         return {"sessions": [
-            _session_summary(s, active_workers, pin_projection_for(s.id))
+            _session_summary(s, active_workers, pin_projection_for(s.id), manager_by_id)
             for s in sessions
         ]}
     pages = await _store_read(
@@ -8879,6 +8900,35 @@ async def api_report_unsubscribe(data: dict):
     }
 
 
+@app.put("/api/sessions/{session_id}/report-to-manager")
+async def api_set_reports_to_manager(session_id: str, data: dict):
+    """Toggle only the direct parent's subscription to this Session's reports."""
+    manager_id = data.get("managerId")
+    enabled = data.get("enabled")
+    expected_enabled = data.get("expectedEnabled")
+    if (not isinstance(manager_id, str) or not manager_id
+            or not isinstance(enabled, bool) or not isinstance(expected_enabled, bool)):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "managerId, enabled and expectedEnabled(boolean) are required"}}
+    target = sess.get(session_id)
+    manager = sess.get(manager_id)
+    if not target or not manager or target.managed_by != manager_id or session_id not in manager.managed:
+        return {"ok": False, "error": {"code": "manager_changed",
+                "message": "The direct manager changed; refresh and retry"}}
+    if (session_id in manager.report_subscriptions) != expected_enabled:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The report subscription changed; refresh and retry"}}
+    if enabled:
+        manager.report_subscriptions.add(session_id)
+    else:
+        manager.report_subscriptions.discard(session_id)
+    sess.save(manager)
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "sessionId": session_id, "managerId": manager_id,
+            "reportsToManager": session_id in manager.report_subscriptions}
+
+
 # ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
 # 订阅**字段**保持平行（qq_subscriptions / wechat_subscriptions，老数据不动），
 # 但订阅/解绑/通知的**处理逻辑**在此泛化为通道无关：_channel_subscribe /
@@ -9007,6 +9057,33 @@ async def api_qq_subscribe(data: dict):
 async def api_qq_unsubscribe(data: dict):
     """取消订阅某 QQ 会话的 inbox 更新提醒（转调 _channel_unsubscribe）。"""
     return _channel_unsubscribe("qq", data)
+
+
+@app.put("/api/sessions/{session_id}/msg-bridge")
+async def api_set_session_msg_bridge(session_id: str, data: dict):
+    """Set the card's QQ/system/browser notification group in one save."""
+    enabled = data.get("enabled")
+    expected_enabled = data.get("expectedEnabled")
+    if not isinstance(enabled, bool) or not isinstance(expected_enabled, bool):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "enabled and expectedEnabled(boolean) are required"}}
+    target = sess.get(session_id)
+    if not target:
+        return {"ok": False, "error": {"code": "session_not_found",
+                "message": "Session not found"}}
+    if _msg_bridge_enabled(target) != expected_enabled:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The msgBridge setting changed; refresh and retry"}}
+    # Enabling selects only system notifications. Disabling clears the whole
+    # QQ/system/browser group; WeChat and queued reports are independent.
+    target.qq_subscriptions.clear()
+    target.notification_settings = {"browser": False, "system": enabled}
+    sess.save(target)
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "sessionId": session_id,
+            "msgBridgeEnabled": _msg_bridge_enabled(target),
+            "qqSubscriptions": [],
+            "notificationSettings": notifications.normalize_notification_settings(target.notification_settings)}
 
 
 @app.post("/api/qq/notify")
@@ -9273,6 +9350,10 @@ async def api_readonly(data: dict):
     if target.managed_by != manager_id or session_id not in manager.managed:
         return {"ok": False, "error": {"code": "permission_denied",
                 "message": f"Session {manager_id} does not manage {session_id}"}}
+    expected_readonly = data.get("expectedReadonlySession")
+    if isinstance(expected_readonly, bool) and target.readonly_session != expected_readonly:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The readonly setting changed; refresh and retry"}}
     target.readonly_session = enabled
     sess.save(target)
     await broadcast({"type": "session.updated", "sessionId": session_id})

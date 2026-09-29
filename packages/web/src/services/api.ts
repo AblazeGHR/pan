@@ -42,6 +42,8 @@ import type {
   Workspace,
   ApiReportSubscribeResponse,
   ApiReadonlyResponse,
+  ApiSessionReportToManagerResponse,
+  ApiSessionMsgBridgeResponse,
   ApiQqContactsResponse,
   ApiQqChannelsResponse,
   ApiQqSubscribeResponse,
@@ -924,10 +926,12 @@ export async function setSessionReadonly(
   managerId: string,
   sessionId: string,
   enabled: boolean,
+  expectedCurrent?: boolean,
 ): Promise<ApiReadonlyResponse> {
   const data = await request<ApiReadonlyResponse>(`${BASE}/readonly`, {
     method: 'POST',
-    body: JSON.stringify({ managerId, sessionId, readonlySession: enabled }),
+    body: JSON.stringify({ managerId, sessionId, readonlySession: enabled,
+      ...(expectedCurrent === undefined ? {} : { expectedReadonlySession: expectedCurrent }) }),
   });
   if (data.ok === false || data.error) {
     throw new Error(
@@ -935,6 +939,37 @@ export async function setSessionReadonly(
     );
   }
   return data;
+}
+
+/** Toggle only the current direct manager's completion-report subscription. */
+export async function setReportsToManager(
+  sessionId: string,
+  managerId: string,
+  enabled: boolean,
+): Promise<ApiSessionReportToManagerResponse & { ok: true; reportsToManager: boolean }> {
+  const data = await request<ApiSessionReportToManagerResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/report-to-manager`,
+    { method: 'PUT', body: JSON.stringify({ managerId, enabled, expectedEnabled: !enabled }) },
+  );
+  if (data.ok !== true || typeof data.reportsToManager !== 'boolean') {
+    throw new Error(data.error?.message || 'Report subscription update failed');
+  }
+  return data as ApiSessionReportToManagerResponse & { ok: true; reportsToManager: boolean };
+}
+
+/** Atomically clear QQ/system/browser, or enable system notifications only. */
+export async function setSessionMsgBridge(
+  sessionId: string,
+  enabled: boolean,
+): Promise<ApiSessionMsgBridgeResponse & { ok: true; msgBridgeEnabled: boolean }> {
+  const data = await request<ApiSessionMsgBridgeResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/msg-bridge`,
+    { method: 'PUT', body: JSON.stringify({ enabled, expectedEnabled: !enabled }) },
+  );
+  if (data.ok !== true || typeof data.msgBridgeEnabled !== 'boolean') {
+    throw new Error(data.error?.message || 'msgBridge update failed');
+  }
+  return data as ApiSessionMsgBridgeResponse & { ok: true; msgBridgeEnabled: boolean };
 }
 
 // ── QQ postbox (subscribe inbox reminders) ──

@@ -96,7 +96,7 @@ interface SessionStore {
   historyWindowStarts: Record<string, number>;
 
   // Actions
-  loadSessions: () => Promise<void>;
+  loadSessions: (options?: { throwOnError?: boolean }) => Promise<void>;
   selectSession: (id: string) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number) => Promise<void>;
@@ -1508,7 +1508,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   unscopedReplayPending: {},
   historyWindowStarts: {},
 
-  loadSessions: async () => {
+  loadSessions: async (options) => {
     // Reserve this refresh's sequence + snapshot the per-session WS touch
     // counters so a stale in-flight response can neither overwrite a newer
     // refresh nor revert sessions that were locally freshened while THIS
@@ -1761,8 +1761,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           initialLoading: false,
         });
       }
-    } catch {
+    } catch (error) {
       console.warn('[sessionStore] loadSessions failed');
+      if (options?.throwOnError) throw error;
     } finally {
       // 只有最新的刷新请求拥有 sessionsLoading 标志：被更新请求取代的旧响应
       // 在 finally 里不能清掉新请求的转圈状态（否则刷新瞬间 sidebar 闪烁）。
