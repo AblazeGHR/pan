@@ -1877,7 +1877,8 @@ def _history_pages_for(session_ids: list[str], limit: int) -> dict:
     return {sid: sess.history_page(sid, limit=limit) for sid in session_ids}
 
 
-def _history_page_lookup(session_id: str, before: int, limit: int):
+def _history_page_lookup(session_id: str, before: int, limit: int,
+                         search_jump: bool = False):
     """Shallow membership check plus one bounded page, in one blocking call.
 
     ``_NOT_FOUND`` covers both "no such Session" and "unreadable main file",
@@ -1886,7 +1887,8 @@ def _history_page_lookup(session_id: str, before: int, limit: int):
     """
     if not _summary_session_get(session_id):
         return _NOT_FOUND
-    page = sess.history_page(session_id, before=before, limit=limit)
+    page = sess.history_page(
+        session_id, before=before, limit=limit, search_jump=search_jump)
     return _NOT_FOUND if page is None else page
 
 
@@ -5338,9 +5340,11 @@ async def api_session_managers(session_id: str):
 
 
 @app.get("/api/sessions/{session_id}/history")
-async def api_session_history(session_id: str, before: int = 0, limit: int = 50):
+async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
+                              searchJump: bool = False):
     """Paginated session history for lazy-loading older messages."""
-    page = await _store_read(_history_page_lookup, session_id, before, limit)
+    page = await _store_read(
+        _history_page_lookup, session_id, before, limit, searchJump)
     if page is _NOT_FOUND:
         return {"error": "Session not found"}
     return {

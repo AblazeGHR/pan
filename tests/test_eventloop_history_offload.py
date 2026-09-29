@@ -535,6 +535,16 @@ def test_history_paging_semantics_are_unchanged():
     assert len(capped["history"]) == _sess.HISTORY_PAGE_MAX
     assert capped["start"] == 1_000 - _sess.HISTORY_PAGE_MAX
 
+    jump = asyncio.run(server.api_session_history(
+        "ses-paging", before=0, limit=99_999, searchJump=True))
+    assert len(jump["history"]) == _sess.HISTORY_SEARCH_JUMP_PAGE_MAX
+    assert jump["start"] == 0
+
+    # The larger cap is explicit and leaves the ordinary endpoint behavior intact.
+    capped_again = asyncio.run(server.api_session_history(
+        "ses-paging", before=0, limit=99_999))
+    assert len(capped_again["history"]) == _sess.HISTORY_PAGE_MAX
+
 
 def test_empty_history_page_semantics():
     _seed("ses-empty", [])

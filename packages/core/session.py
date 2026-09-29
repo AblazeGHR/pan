@@ -49,6 +49,8 @@ _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（
 # compatibility-preserving bounds: pending/uncertain queue rows are never
 # evicted, while completed receipt metadata may expire after this window.
 HISTORY_PAGE_MAX = 200
+# Search jumps opt in to larger bounded pages; ordinary history callers stay at 200.
+HISTORY_SEARCH_JUMP_PAGE_MAX = 1000
 ACCEPTED_INPUT_ID_MAX = 256
 QUEUE_RECEIPT_MAX_ENTRIES = 2048
 QUEUE_RECEIPT_TTL_SEC = 7 * 24 * 60 * 60
@@ -1044,20 +1046,22 @@ def _history_file_signature(path: Path) -> tuple[int, int, int, int, int] | None
 
 
 def history_page(session_id: str, *, before: int = 0,
-                 limit: int = 50) -> dict | None:
+                 limit: int = 50, search_jump: bool = False) -> dict | None:
     """Return a bounded history page while keeping cold Sessions shallow.
 
     A fully hydrated Session is served from its in-memory history so unsaved
     worker appends remain visible.  A shallow/cold Session reads only the
     requested tail window from the companion JSONL and never replaces the
-    cached shallow object with the complete history. Repeated tail requests
+    cached shallow object with the complete history. Search jumps may request
+    up to 1000 rows per page; ordinary callers retain the 200-row cap. Repeated tail requests
     reuse one bounded page while the file signature is unchanged; appends and
     replacements invalidate it. This is the read/page boundary for
     Manage/session-history callers; explicit ``get()`` remains the compatibility
     full-history API.
     """
     try:
-        bounded_limit = max(1, min(int(limit), HISTORY_PAGE_MAX))
+        page_max = HISTORY_SEARCH_JUMP_PAGE_MAX if search_jump else HISTORY_PAGE_MAX
+        bounded_limit = max(1, min(int(limit), page_max))
     except (TypeError, ValueError):
         bounded_limit = 50
     try:

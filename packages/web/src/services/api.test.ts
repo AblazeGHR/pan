@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ApiRequestError,
   createSession,
+  fetchSessionHistory,
   fetchHistorySearch,
   importCbcSession,
   importCodexSession,
@@ -242,6 +243,28 @@ describe('global history search API', () => {
       name: 'ApiRequestError',
       status,
     } satisfies Partial<ApiRequestError>);
+  });
+});
+
+describe('history page API for search jumps', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('opts in only explicit jump requests to the larger page cap', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ history: [], total: 0, hasMore: false, start: 0 }),
+      };
+    }));
+
+    await fetchSessionHistory('session', 1000, 1000);
+    await fetchSessionHistory('session', 1000, 1000, undefined, true);
+
+    expect(new URL(urls[0]!, 'http://localhost').searchParams.has('searchJump')).toBe(false);
+    expect(new URL(urls[1]!, 'http://localhost').searchParams.get('searchJump')).toBe('true');
   });
 });
 

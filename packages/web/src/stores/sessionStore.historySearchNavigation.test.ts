@@ -89,6 +89,7 @@ describe('SessionStore search navigation cancellation', () => {
 
     expect(message).toBeNull();
     expect(loadOlderMessages).toHaveBeenCalledTimes(1);
+    expect(loadOlderMessages).toHaveBeenCalledWith(50, undefined, true);
     expect(useSessionStore.getState().currentSessionId).toBe('other');
   });
 });

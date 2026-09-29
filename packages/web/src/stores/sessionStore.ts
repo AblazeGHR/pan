@@ -95,7 +95,7 @@ interface SessionStore {
   loadSessions: () => Promise<void>;
   selectSession: (id: string, signal?: AbortSignal) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
-  loadOlderMessages: (limit?: number, signal?: AbortSignal) => Promise<void>;
+  loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   createNewSession: (
@@ -1773,8 +1773,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // normal scroll pagination keeps its 50-message default below.
       const needed = state.historyLoadEnd - absoluteIndex;
       const pageSize = Math.min(Math.max(needed, 50), 1000);
-      if (signal) await state.loadOlderMessages(pageSize, signal);
-      else await state.loadOlderMessages(pageSize);
+      await state.loadOlderMessages(pageSize, signal, true);
     }
     const state = get();
     if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
@@ -1782,7 +1781,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return state.currentMessages[localIndex] ?? null;
   },
 
-  loadOlderMessages: async (limit?: number, signal?: AbortSignal) => {
+  loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
     if (
       signal?.aborted ||
@@ -1799,8 +1798,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     try {
       const data: ApiSessionHistoryResponse = signal
-        ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal)
-        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize());
+        ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal, searchJump)
+        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump);
       if (signal?.aborted || get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;

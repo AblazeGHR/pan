@@ -286,9 +286,10 @@ export async function fetchSessionHistory(
   before: number = 0,
   limit: number = 50,
   signal?: AbortSignal,
+  searchJump = false,
 ): Promise<ApiSessionHistoryResponse> {
   const data = await request<ApiSessionHistoryResponse>(
-    `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}`,
+    `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}${searchJump ? '&searchJump=true' : ''}`,
     { signal },
   );
   if (data.error) throw new Error(data.error);
