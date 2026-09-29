@@ -2636,21 +2636,29 @@ def _build_session_params(
         "auto_claim_created": template.auto_claim_created,
     }
     req_pa = data.get("panAccess")
-    if isinstance(req_pa, dict):
-        for req_key, pa_key in [
-            ("restrictToManaged", "restrict_to_managed"),
-            ("canClaimUnmanaged", "can_claim_unmanaged"),
-            ("autoClaimCreated", "auto_claim_created"),
-        ]:
+    pan_access_keys = {
+        "restrictToManaged": "restrict_to_managed",
+        "canClaimUnmanaged": "can_claim_unmanaged",
+        "autoClaimCreated": "auto_claim_created",
+    }
+    if "panAccess" in data:
+        if not isinstance(req_pa, dict):
+            raise ValueError("panAccess must be an object of boolean capability flags")
+        unknown_pan_access = set(req_pa) - set(pan_access_keys)
+        if unknown_pan_access:
+            raise ValueError(
+                "Unknown panAccess field(s): " + ", ".join(sorted(map(str, unknown_pan_access)))
+            )
+        for req_key, pa_key in pan_access_keys.items():
             if req_key in req_pa:
-                pan_access[pa_key] = bool(req_pa[req_key])
-    for req_key, pa_key in [
-        ("restrictToManaged", "restrict_to_managed"),
-        ("canClaimUnmanaged", "can_claim_unmanaged"),
-        ("autoClaimCreated", "auto_claim_created"),
-    ]:
+                if not isinstance(req_pa[req_key], bool):
+                    raise ValueError(f"panAccess.{req_key} must be a boolean")
+                pan_access[pa_key] = req_pa[req_key]
+    for req_key, pa_key in pan_access_keys.items():
         if req_key in data:  # legacy flat body fields (backward compat)
-            pan_access[pa_key] = bool(data[req_key])
+            if not isinstance(data[req_key], bool):
+                raise ValueError(f"{req_key} must be a boolean")
+            pan_access[pa_key] = data[req_key]
 
     # 显式请求的能力校验：非法值直接拒绝（结构化错误，不静默回退）。
     # 校验在所有回退值解析完成后进行，per-model effort 收窄以最终 model 为准。
@@ -2766,10 +2774,34 @@ def _build_session_params(
             )
         params["adapter_config"]["output_mode"] = raw_mode
 
-    # MCP servers come from the template (names → full configs).
-    # mcp_mode decides injection: "always" injects; "optional"/"never" start
-    # without servers (optional templates toggle via PATCH mcpServers).
-    if template.mcp_mode == "always" and template.mcp_servers:
+    # An explicit mcpServers array is a one-time override for this creation:
+    # [] deliberately disables MCP, while omission keeps the current template
+    # and default behavior. A named always/never template locks that choice.
+    if "mcpServers" in data:
+        requested_servers = data["mcpServers"]
+        try:
+            resolved_servers = _resolve_mcp_server_configs(requested_servers)
+        except ValueError as exc:
+            if not strict_mcp:
+                _log(
+                    f"Imported MCP server(s) {requested_servers!r} unavailable; "
+                    f"continuing without MCP: {exc}"
+                )
+                params["adapter_config"]["mcp_servers"] = []
+                return params
+            raise ValueError(
+                f"Unable to configure requested MCP server(s) "
+                f"{requested_servers!r}: {exc}"
+            ) from exc
+        if template_name and template.mcp_locked:
+            locked_servers = template.mcp_servers if template.mcp_mode == "always" else []
+            if set(requested_servers) != set(locked_servers):
+                locked_label = ", ".join(locked_servers) if locked_servers else "none"
+                raise ValueError(
+                    f"Session template {template.name!r} locks MCP servers to {locked_label}"
+                )
+        params["adapter_config"]["mcp_servers"] = resolved_servers
+    elif template.mcp_mode == "always" and template.mcp_servers:
         try:
             params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
         except ValueError as exc:
@@ -2780,9 +2812,6 @@ def _build_session_params(
                 )
                 params["adapter_config"]["mcp_servers"] = []
                 return params
-            # Do not create a session that claims to have the default Pan MCP
-            # while silently dropping its descriptor.  The API caller needs a
-            # concrete configuration error so it can fix the catalog first.
             raise ValueError(
                 f"Unable to configure default MCP server(s) "
                 f"{template.mcp_servers!r}: {exc}"
@@ -2812,11 +2841,13 @@ def _resolve_mcp_server_configs(server_names) -> list[dict]:
     名称必须是字符串、不允许重复，transport/type 必须在白名单内
     （stdio/http/sse），不接受任意 command/url/env 内联描述符。
     """
+    if not isinstance(server_names, list):
+        raise ValueError("MCP server names must be a list")
+    if not server_names:
+        return []
     _ensure_manifest_fresh()
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("MCP manifest not loaded")
-    if not isinstance(server_names, list):
-        raise ValueError("MCP server names must be a list")
     seen: set[str] = set()
     configs: list[dict] = []
     for name in server_names:
@@ -10394,6 +10425,121 @@ def _ensure_manifest_fresh() -> None:
             _character_manager.reload_manifest()
     except Exception:
         _log("[Pan] Manifest hot-reload check failed (non-fatal)")
+
+
+_SESSION_TEMPLATE_SAVE_FIELDS = {
+    "adapter", "model", "permission_mode", "system_prompt", "mcp_mode",
+    "mcp_servers", "pan_access",
+}
+_SESSION_TEMPLATE_PAN_ACCESS_FIELDS = {
+    "restrict_to_managed", "can_claim_unmanaged", "auto_claim_created",
+}
+
+
+def _validate_session_template_save_payload(data: dict) -> dict:
+    """Strictly validate the manifest SessionTemplate schema for create-only save."""
+    if not isinstance(data, dict):
+        raise ValueError("Request body must be a JSON object")
+    allowed = {"name", *_SESSION_TEMPLATE_SAVE_FIELDS}
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValueError("Unknown Session Template field(s): " + ", ".join(sorted(map(str, unknown))))
+
+    raw_name = data.get("name")
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        raise ValueError("Template name must be a non-empty string")
+    result: dict[str, Any] = {"name": raw_name.strip()}
+
+    raw_adapter = data.get("adapter")
+    if "adapter" in data:
+        if raw_adapter is not None and not isinstance(raw_adapter, str):
+            raise ValueError("adapter must be a string or null")
+        normalized_adapter = raw_adapter or ""
+        result["adapter"] = normalized_adapter
+    adapter_name = result.get("adapter") or "cbc"
+    adapter = resolve_adapter(adapter_name)
+
+    if "model" in data:
+        model = data["model"]
+        if model is not None and not isinstance(model, str):
+            raise ValueError("model must be a string or null")
+        if model:
+            validate_model(adapter, model)
+        result["model"] = model
+
+    if "permission_mode" in data:
+        permission_mode = data["permission_mode"]
+        if permission_mode is not None and not isinstance(permission_mode, str):
+            raise ValueError("permission_mode must be a string or null")
+        if permission_mode:
+            validate_permission_mode(adapter, permission_mode)
+        result["permission_mode"] = permission_mode
+
+    if "system_prompt" in data:
+        system_prompt = data["system_prompt"]
+        if isinstance(system_prompt, str):
+            result["system_prompt"] = system_prompt
+        elif isinstance(system_prompt, list) and all(isinstance(line, str) for line in system_prompt):
+            result["system_prompt"] = list(system_prompt)
+        else:
+            raise ValueError("system_prompt must be a string or an array of strings")
+
+    if "mcp_mode" in data:
+        mcp_mode = data["mcp_mode"]
+        if mcp_mode not in ("always", "optional", "never"):
+            raise ValueError("mcp_mode must be one of: always, optional, never")
+        result["mcp_mode"] = mcp_mode
+
+    if "mcp_servers" in data:
+        mcp_servers = data["mcp_servers"]
+        if not isinstance(mcp_servers, list) or not all(
+            isinstance(name, str) and name.strip() for name in mcp_servers
+        ):
+            raise ValueError("mcp_servers must be an array of non-empty server names")
+        _resolve_mcp_server_configs(mcp_servers)
+        result["mcp_servers"] = list(mcp_servers)
+
+    if "pan_access" in data:
+        pan_access = data["pan_access"]
+        if not isinstance(pan_access, dict):
+            raise ValueError("pan_access must be an object of boolean capability flags")
+        unknown_access = set(pan_access) - _SESSION_TEMPLATE_PAN_ACCESS_FIELDS
+        if unknown_access:
+            raise ValueError("Unknown pan_access field(s): " + ", ".join(sorted(map(str, unknown_access))))
+        if any(not isinstance(value, bool) for value in pan_access.values()):
+            raise ValueError("pan_access values must be booleans")
+        result["pan_access"] = dict(pan_access)
+
+    return result
+
+
+@app.get("/api/session-templates/targets")
+async def api_session_template_manifest_targets():
+    """List loaded, parseable manifest choices for saving a Session Template."""
+    if _character_manager is None:
+        return {"manifestTargets": [], "loaded": False}
+    _ensure_manifest_fresh()
+    targets = _character_manager.list_session_template_manifest_targets()
+    return {"manifestTargets": targets, "total": len(targets), "loaded": True}
+
+
+@app.post("/api/session-templates")
+async def api_save_session_template(data: dict):
+    """Create-only save of one strictly validated Session Template."""
+    if _character_manager is None:
+        return {"ok": False, "error": "Character manager not initialized"}
+    target_id = data.get("manifestId") if isinstance(data, dict) else None
+    if not isinstance(target_id, str) or not target_id:
+        return {"ok": False, "error": "manifestId (loaded manifest target id) is required"}
+    payload = {key: value for key, value in data.items() if key != "manifestId"}
+    _ensure_manifest_fresh()
+    try:
+        saved = _character_manager.save_session_template(
+            target_id, payload, validate=_validate_session_template_save_payload,
+        )
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, **saved}
 
 
 @app.get("/api/session-templates")
