@@ -32,7 +32,7 @@ describe('SessionList default group-by (app settings)', () => {
   });
 
   it('adopts the app-settings default on first render when nothing was persisted', () => {
-    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, defaultGroupBy: 'workdir' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true, defaultGroupBy: 'workdir' });
     useSessionStore.setState({
       sessions: [mk('a', 'A', 'D:/proj'), mk('b', 'B')],
       currentSessionId: null,
@@ -47,7 +47,7 @@ describe('SessionList default group-by (app settings)', () => {
   });
 
   it('does not override a grouping the user manually picked (pan:groupBy persisted)', () => {
-    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, defaultGroupBy: 'workdir' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true, defaultGroupBy: 'workdir' });
     localStorage.setItem('pan:groupBy', 'manager');
     useUIStore.setState({ groupBy: 'manager' });
     useSessionStore.setState({
@@ -61,11 +61,59 @@ describe('SessionList default group-by (app settings)', () => {
   });
 
   it('respects a non-none groupBy that was set without persistence', () => {
-    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, defaultGroupBy: 'workdir' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true, defaultGroupBy: 'workdir' });
     useUIStore.setState({ groupBy: 'manager' });
 
     render(<SessionList />);
 
     expect(useUIStore.getState().groupBy).toBe('manager');
+  });
+
+  it.each([
+    ['workdir', 'workdir'],
+    ['none', 'none'],
+    ['dir', 'none'],
+    ['off', 'none'],
+  ] as const)(
+    'forces Manager while hidden, even with legacy local value %s',
+    (legacyLocalValue, loadedGroupMode) => {
+      useAppSettingsStore.setState({
+        ...DEFAULT_SETTINGS,
+        loaded: true,
+        defaultGroupBy: loadedGroupMode,
+        showGroupBy: false,
+      });
+      localStorage.setItem('pan:groupBy', legacyLocalValue);
+      useUIStore.setState({ groupBy: loadedGroupMode });
+      useSessionStore.setState({
+        sessions: [mk('a', 'A', 'D:/proj'), mk('b', 'B')],
+        currentSessionId: null,
+      });
+
+      const { container } = render(<SessionList />);
+
+      expect(container.textContent).not.toContain('D:/proj');
+      expect(useUIStore.getState().groupBy).toBe('manager');
+      expect(localStorage.getItem('pan:groupBy')).toBe('manager');
+    },
+  );
+
+  it('keeps hidden grouping at Manager during settings hydration, then honors enabled setting', () => {
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    localStorage.setItem('pan:groupBy', 'workdir');
+    useUIStore.setState({ groupBy: 'workdir' });
+    useSessionStore.setState({
+      sessions: [mk('a', 'A', 'D:/proj'), mk('b', 'B')],
+      currentSessionId: null,
+    });
+
+    const { container, rerender } = render(<SessionList />);
+    expect(container.textContent).not.toContain('D:/proj');
+    expect(useUIStore.getState().groupBy).toBe('workdir');
+
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true });
+    rerender(<SessionList />);
+    expect(container.textContent).toContain('D:/proj');
+    expect(useUIStore.getState().groupBy).toBe('workdir');
   });
 });

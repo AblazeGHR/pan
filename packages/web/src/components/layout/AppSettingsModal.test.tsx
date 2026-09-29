@@ -1042,6 +1042,17 @@ describe('AppSettingsModal', () => {
     expect(metaSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
+  it('exposes Show Group by in Preferences and persists the toggle', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-preferences')!);
+    const groupSwitch = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Show Group by'))!;
+    expect(groupSwitch.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(groupSwitch);
+    expect(useAppSettingsStore.getState().showGroupBy).toBe(true);
+    expect(groupSwitch.getAttribute('aria-checked')).toBe('true');
+  });
+
   it('changes default group by via the select', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const select = document.body.querySelector<HTMLSelectElement>('select')!;

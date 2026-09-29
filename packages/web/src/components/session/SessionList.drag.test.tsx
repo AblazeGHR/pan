@@ -5,6 +5,7 @@ import { SessionList } from './SessionList';
 import { resolveDropZone, DRAG_HIT, decideManagerDrop } from './sessionDrag';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Session } from '@/types';
 
 function mk(id: string, name: string, extra: Partial<Session> = {}): Session {
@@ -106,6 +107,7 @@ describe('resolveDropZone (宽松命中区域)', () => {
 describe('SessionList drag interactions (mock demo)', () => {
   beforeEach(() => {
     localStorage.clear();
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true, showGroupBy: true });
     // These interactions exercise the ?mock=1/no-backend demo branch. The real
     // backend branch (no mock flag) is covered by SessionList.drag.realBackend.test.tsx.
     window.history.pushState({}, '', '/?mock=1');
