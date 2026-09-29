@@ -331,11 +331,11 @@ export const SessionItem = memo(function SessionItem({
         >
           <span aria-hidden="true" className="drag-matrix pointer-events-none absolute inset-x-0 top-[10px] bottom-[10px] rounded-sm" />
           <span className="relative z-[1] flex items-center">
-            <WorkerDot status={session.workerStatus} />
+            <WorkerDot status={session.workerStatus} legalState={session.lastLegalWorkerState} />
           </span>
         </span>
       ) : (
-        <WorkerDot status={session.workerStatus} />
+        <WorkerDot status={session.workerStatus} legalState={session.lastLegalWorkerState} />
       )}
 
       <div className="flex-1 min-w-0">

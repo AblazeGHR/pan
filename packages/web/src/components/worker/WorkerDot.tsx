@@ -1,5 +1,6 @@
 interface WorkerDotProps {
   status?: string | null;
+  legalState?: string | null;
   className?: string;
 }
 
@@ -22,12 +23,27 @@ const statusColors: Record<string, string> = {
   offline: 'bg-text-tertiary',
 };
 
-export function WorkerDot({ status, className = '' }: WorkerDotProps) {
+export function WorkerDot({ status, legalState, className = '' }: WorkerDotProps) {
   const color = statusColors[status || 'offline'] || statusColors.offline;
-  return (
+  const dot = (
     <span
       className={`inline-block w-2 h-2 rounded-full ${color} ${className}`}
       title={status || 'offline'}
     />
+  );
+
+  if (legalState !== 'running' || status === 'running') return dot;
+
+  return (
+    <span className={`relative inline-flex w-2 h-2 ${className}`}>
+      {dot}
+      <span
+        role="img"
+        aria-label={`Legal Worker state is running, but actual status is ${status || 'offline'}`}
+        title={`Legal state: running; actual Worker: ${status || 'offline'}`}
+        data-testid="legal-running-worker-mismatch-indicator"
+        className="absolute -right-1 -top-1 w-1.5 h-1.5 rounded-full bg-danger outline outline-1 outline-bg-secondary"
+      />
+    </span>
   );
 }
