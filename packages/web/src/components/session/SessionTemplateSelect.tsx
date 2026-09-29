@@ -140,7 +140,6 @@ export function SessionTemplateSelect({ templates, value, onChange, labelId, dis
         aria-controls={listId}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-activedescendant={open && filtered[activeIndex] ? `${listId}-option-${activeIndex}` : undefined}
         disabled={disabled}
         onClick={() => {
           if (open) close();
@@ -184,6 +183,7 @@ export function SessionTemplateSelect({ templates, value, onChange, labelId, dis
             placeholder="搜索名称、adapter、model 或 manifest…"
             aria-label="搜索 Session Template"
             aria-controls={listId}
+            aria-activedescendant={filtered[activeIndex] ? `${listId}-option-${activeIndex}` : undefined}
             className="w-full shrink-0 border-b border-border-muted bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-tertiary"
           />
           <ul id={listId} role="listbox" aria-labelledby={labelId} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

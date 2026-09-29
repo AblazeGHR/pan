@@ -113,6 +113,11 @@ interface SessionStore {
       alwaysThinkingEnabled?: boolean;
       effort?: string;
       outputMode?: string;
+      modelContextWindow?: number;
+      modelAutoCompactTokenLimit?: number;
+      systemPrompt?: string;
+      mcpServers?: string[];
+      panAccess?: import('@/types').PanAccess;
       workspaceIds?: string[];
     },
   ) => Promise<void>;

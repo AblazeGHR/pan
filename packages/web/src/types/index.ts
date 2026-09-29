@@ -593,6 +593,7 @@ export interface SessionTemplate {
   adapter?: string;
   model?: string | null;
   mcpServers?: string[];
+  panAccess?: PanAccess;
   /** Absolute path of the plugin dir whose manifest.json defined this template. */
   sourceManifest?: string;
   /** Short readable manifest label, e.g. "packages/mcp/manifest.json". */
@@ -600,10 +601,47 @@ export interface SessionTemplate {
   system_prompt_preview?: string;
 }
 
+export interface SessionTemplateManifestTarget {
+  id: string;
+  label: string;
+  writable: boolean;
+  reason?: string | null;
+}
+
+export interface ApiSessionTemplateTargetsResponse {
+  manifestTargets?: SessionTemplateManifestTarget[];
+  loaded?: boolean;
+  total?: number;
+  error?: string;
+}
+
+export interface SessionTemplateSaveInput {
+  manifestId: string;
+  name: string;
+  adapter?: string | null;
+  model?: string | null;
+  permission_mode?: string | null;
+  system_prompt?: string | string[];
+  mcp_mode?: 'always' | 'optional' | 'never';
+  mcp_servers?: string[];
+  pan_access?: {
+    restrict_to_managed?: boolean;
+    can_claim_unmanaged?: boolean;
+    auto_claim_created?: boolean;
+  };
+}
+
 export interface ApiSessionTemplatesResponse {
   sessionTemplates?: SessionTemplate[];
   total?: number;
   error?: string;
+}
+
+export interface ApiSessionTemplateSaveResponse {
+  ok?: boolean;
+  error?: string;
+  name?: string;
+  manifestId?: string;
 }
 
 export interface ApiMcpServersResponse {

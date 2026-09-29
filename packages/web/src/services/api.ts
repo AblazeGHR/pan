@@ -19,6 +19,11 @@ import type {
   ApiBatchDeleteResponse,
   SessionTemplate,
   ApiSessionTemplatesResponse,
+  ApiSessionTemplateTargetsResponse,
+  ApiSessionTemplateSaveResponse,
+  SessionTemplateManifestTarget,
+  SessionTemplateSaveInput,
+  PanAccess,
   CbcProject,
   CbcSessionItem,
   KimiWorkspace,
@@ -363,6 +368,9 @@ export interface CreateSessionSettings {
   outputMode?: string;
   modelContextWindow?: number;
   modelAutoCompactTokenLimit?: number;
+  systemPrompt?: string;
+  mcpServers?: string[];
+  panAccess?: PanAccess;
   workspaceIds?: string[];
 }
 
@@ -388,6 +396,9 @@ export async function createSession(
     body.modelContextWindow = settings.modelContextWindow;
   if (settings?.modelAutoCompactTokenLimit !== undefined)
     body.modelAutoCompactTokenLimit = settings.modelAutoCompactTokenLimit;
+  if (settings?.systemPrompt !== undefined) body.systemPrompt = settings.systemPrompt;
+  if (settings?.mcpServers !== undefined) body.mcpServers = settings.mcpServers;
+  if (settings?.panAccess !== undefined) body.panAccess = settings.panAccess;
   if (settings?.workspaceIds !== undefined)
     body.workspaceIds = settings.workspaceIds;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
@@ -402,6 +413,22 @@ export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
   const data = await request<ApiSessionTemplatesResponse>(`${BASE}/session-templates`);
   if (data.error) throw new Error(data.error);
   return data.sessionTemplates || [];
+}
+
+export async function fetchSessionTemplateTargets(): Promise<SessionTemplateManifestTarget[]> {
+  const data = await request<ApiSessionTemplateTargetsResponse>(`${BASE}/session-templates/targets`);
+  if (data.error) throw new Error(data.error);
+  return data.manifestTargets || [];
+}
+
+export async function saveSessionTemplate(input: SessionTemplateSaveInput): Promise<void> {
+  const data = await request<ApiSessionTemplateSaveResponse>(`${BASE}/session-templates`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (data.error || data.ok !== true) {
+    throw new Error(data.error || 'Session Template 保存失败');
+  }
 }
 
 export interface NewSessionDefaults {
