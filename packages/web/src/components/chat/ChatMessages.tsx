@@ -422,30 +422,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     // session switch (where it used to write a snapshot for the wrong session).
   }, []);
 
-  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
-    const identity = getMessageIdentity(message);
-    const itemIndex = grouped.findIndex((item) => {
-      if ('type' in item && item.type === 'tool_group') return false;
-      return getMessageIdentity(item as import('@/types').Message) === identity;
-    });
-    if (itemIndex < 0) return false;
-    virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-    setHighlightedTarget({ identity, historyIndex });
-    // A jump moves the viewport without touching the scroll listener (and may
-    // not even change totalSize), so refresh the round-trip anchor once the
-    // targeted row has landed. Otherwise leaving right after a jump would
-    // remember the position from before it.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = parentRef.current;
-        if (el) rememberScrollPosition(el);
-      });
-    });
-    return true;
-  }, [grouped, virtualizer, rememberScrollPosition]);
-
-  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
-
   useEffect(() => {
     if (!highlightedTarget) return;
     const timer = window.setTimeout(() => setHighlightedTarget(null), 1400);
@@ -640,6 +616,37 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       }
     }, PROGRAMMATIC_SETTLE_TIMEOUT_MS);
   }, [clearProgrammaticSuppression]);
+
+  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
+    const identity = getMessageIdentity(message);
+    const itemIndex = grouped.findIndex((item) => {
+      if ('type' in item && item.type === 'tool_group') return false;
+      return getMessageIdentity(item as import('@/types').Message) === identity;
+    });
+    if (itemIndex < 0) return false;
+
+    // Search navigation changes the reading position deliberately. Keep later
+    // history/layout updates from treating the previous bottom position as an
+    // instruction to pull the reader back down.
+    shouldFollowBottomRef.current = false;
+    initialScrollPendingRef.current = false;
+    markProgrammaticChange();
+    virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
+    setHighlightedTarget({ identity, historyIndex });
+    // A jump moves the viewport without touching the scroll listener (and may
+    // not even change totalSize), so refresh the round-trip anchor once the
+    // targeted row has landed. Otherwise leaving right after a jump would
+    // remember the position from before it.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = parentRef.current;
+        if (el) rememberScrollPosition(el);
+      });
+    });
+    return true;
+  }, [grouped, virtualizer, rememberScrollPosition, markProgrammaticChange]);
+
+  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
 
   const clearUserScrollActivity = useCallback(() => {
     const state = userScrollStateRef.current;
