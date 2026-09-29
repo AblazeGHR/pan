@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { DirectoryInput } from '@/components/session/DirectoryInput';
+import { SessionTemplateSelect } from '@/components/session/SessionTemplateSelect';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
@@ -23,18 +24,6 @@ import { ArrowLeft } from 'lucide-react';
 interface NewSessionModalProps {
   open: boolean;
   onClose: () => void;
-}
-
-/** Readable manifest location for a template: prefer the backend-computed
- *  short label (e.g. "packages/mcp/manifest.json"); fall back to the last
- *  directory of the full path + "/manifest.json" when the label is missing. */
-function manifestLabel(t: SessionTemplate): string {
-  if (t.sourceManifestLabel) return t.sourceManifestLabel;
-  if (t.sourceManifest) {
-    const parts = t.sourceManifest.replace(/\\/g, '/').split('/').filter(Boolean);
-    return (parts[parts.length - 1] || '') + '/manifest.json';
-  }
-  return 'manifest.json';
 }
 
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
@@ -417,28 +406,21 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         )}
 
         {/* Session template select */}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-text-secondary">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span id="new-session-template-label" className="text-xs font-medium text-text-secondary">
             Session Template{' '}
             <span className="font-normal text-text-tertiary">
               (optional)
             </span>
           </span>
-          <select
+          <SessionTemplateSelect
+            templates={templates}
             value={sessionTemplate}
-            onChange={(e) => handleTemplateChange(e.target.value)}
-            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
-          >
-            <option value="">None</option>
-            {templates.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name} ({t.model || '?'})
-                {t.mcpServers && t.mcpServers.length > 0 ? ' [MCP]' : ''} (
-                {manifestLabel(t)})
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={handleTemplateChange}
+            labelId="new-session-template-label"
+            disabled={!defaultsReady}
+          />
+        </div>
 
         {adapter === 'kimi' && (
           <p className="-mt-2 text-[11px] leading-snug text-text-tertiary">
