@@ -7400,10 +7400,22 @@ def _retention_cleanup_auxiliary(session_id: str) -> list[str]:
     return skipped
 
 
+class SessionDeleteError(RuntimeError):
+    """A Session could not be safely detached and removed from storage."""
+
+
 def _delete_session_storage(session_id: str, *, cleanup_auxiliary: bool,
                             retention_cleanup: bool = False) -> list[str]:
-    sess.release(session_id)  # Clear manager links and report subscriptions through the Session store.
-    sess.delete(session_id)    # The store serializes metadata and history removal.
+    try:
+        delete_error = sess.delete_with_release(session_id)
+    except Exception as exc:
+        raise SessionDeleteError(
+            f"Failed to prepare Session {session_id} deletion: {exc}"
+        ) from exc
+    if delete_error:
+        # The core operation rolls relationships back and refuses to report
+        # deletion when either detachment or file removal fails.
+        raise SessionDeleteError(delete_error)
     if cleanup_auxiliary:
         if retention_cleanup:
             return _retention_cleanup_auxiliary(session_id)
@@ -7516,7 +7528,10 @@ async def _retention_delete_session(session_id: str, expected: dict) -> dict:
 @app.delete("/api/sessions/{session_id}")
 async def api_delete_session(session_id: str):
     """Delete a session and its worker if running."""
-    return await _delete_session_records(session_id)
+    try:
+        return await _delete_session_records(session_id)
+    except SessionDeleteError as exc:
+        return {"error": str(exc)}
 
 
 @app.post("/api/sessions/batch-delete")
@@ -7538,25 +7553,36 @@ async def api_batch_delete_sessions(data: dict):
     ordered_ids = list(dict.fromkeys(
         sess.expand_managed_descendants(cascade_ids) + list(session_ids)
     ))
-    deleted = 0
+    deleted_ids: list[str] = []
     for sid in ordered_ids:
-        sess.release(sid)  # 清理 managed 关系 + 各 manager 的 report 订阅残留（B1）
+        try:
+            _delete_session_storage(
+                sid, cleanup_auxiliary=True, retention_cleanup=False,
+            )
+        except SessionDeleteError as exc:
+            if deleted_ids:
+                await broadcast({
+                    "type": "sessions.deleted",
+                    "sessionIds": deleted_ids,
+                })
+            return {
+                "deleted": len(deleted_ids),
+                "sessionIds": deleted_ids,
+                "error": str(exc),
+            }
         w = worker.find_worker_by_session(sid)
         if w:
             asyncio.create_task(
                 worker.cleanup_worker_background(w.worker_id, w.session_id)
             )
-        sess.delete(sid)
-        _cleanup_mcp_config(sid)
-        _cleanup_kimi_home(sid)
-        deleted += 1
+        deleted_ids.append(sid)
 
     await broadcast({
         "type": "sessions.deleted",
-        "sessionIds": ordered_ids,
+        "sessionIds": deleted_ids,
     })
 
-    return {"deleted": deleted, "sessionIds": ordered_ids}
+    return {"deleted": len(deleted_ids), "sessionIds": deleted_ids}
 
 
 @app.get("/api/models")

@@ -2463,51 +2463,320 @@ def claim(manager_id: str, session_id: str) -> str | None:
 
 @_store_serialized
 def release(session_id: str) -> str | None:
-    """Remove the managed relationship pointing at session_id.
+    """Remove a Session and its relationship references before storage deletion.
 
-    Called when a session is deleted: the managing session's `managed` list is
-    cleaned up so it doesn't reference a deleted session (立项 #3), and every
-    other session's `report_subscriptions` is purged of session_id so no
-    session keeps subscribing to a deleted session's completion reports
-    (B1 残留清理).
+    Direct children are promoted to roots when this Session has no manager.
+    Otherwise they are reparented to its manager, including when that manager
+    is itself a root. Descendants below those direct children retain their
+    existing parent links and therefore keep inheriting the same root
+    Workspace.
+
+    Relationship metadata is validated before mutation. A broken, dangling,
+    one-sided, duplicated, or cyclic managed graph refuses release so callers
+    cannot delete a Session while leaving children pointing at a missing
+    manager. Writes are ordered child-first and rolled back in memory and on
+    disk as far as storage allows if any save fails.
+
+    Report subscriptions to the deleted Session are removed globally. When
+    children are reparented, their old manager's per-child subscription
+    setting is copied to the new manager; subscriptions for other children
+    already managed by the new manager are left untouched.
 
     Returns None on success, or an error message string.
     """
-    # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id。
-    # 同时解除被删 session 作为 manager 时留下的子 session 关系，避免
-    # children 被永久锁在一个不存在的 manager 上。
+    try:
+        all_sessions = list_all(load_history=False)
+        by_id = {s.id: s for s in all_sessions}
+        owners: dict[str, list[str]] = {}
+        for manager in all_sessions:
+            if not isinstance(manager.managed, list):
+                continue
+            for child_id in manager.managed:
+                if isinstance(child_id, str):
+                    owners.setdefault(child_id, []).append(manager.id)
+
+        target = by_id.get(session_id)
+        if target is None:
+            dangling = [
+                s.id for s in all_sessions
+                if s.managed_by == session_id
+                or session_id in s.managed
+                or session_id in s.report_subscriptions
+            ]
+            if dangling:
+                return (f"Cannot release missing Session {session_id}: "
+                        f"relationship references remain on {', '.join(dangling)}")
+            return None
+
+        def validate_direct_links(manager: Session) -> str | None:
+            if not isinstance(manager.managed, list):
+                return f"Session {manager.id} has invalid managed links"
+            if any(not isinstance(child_id, str) or not child_id
+                   for child_id in manager.managed):
+                return f"Session {manager.id} has invalid managed child id"
+            if len(manager.managed) != len(set(manager.managed)):
+                return f"Session {manager.id} has duplicate managed child links"
+            if manager.id in manager.managed:
+                return f"Session {manager.id} manages itself"
+            expected = set(manager.managed)
+            actual = {s.id for s in all_sessions if s.managed_by == manager.id}
+            if expected != actual:
+                return (f"Session {manager.id} managed links do not match child "
+                        "managed_by backlinks")
+            for child_id in manager.managed:
+                child = by_id.get(child_id)
+                if child is None:
+                    return f"Session {manager.id} references missing child {child_id}"
+                if child.managed_by != manager.id:
+                    return (f"Session {manager.id} child {child_id} has a "
+                            "different managed_by backlink")
+                child_owners = owners.get(child_id, [])
+                if child_owners != [manager.id]:
+                    return f"Session {child_id} has inconsistent manager backlinks"
+            return None
+
+        # Validate the target's full managed subtree, catching cycles and
+        # malformed links before deriving or applying any Workspace changes.
+        active: set[str] = set()
+        visited: set[str] = set()
+
+        def validate_subtree(manager: Session) -> str | None:
+            if manager.id in active:
+                return f"Managed cycle detected at Session {manager.id}"
+            if manager.id in visited:
+                return f"Managed graph has a shared child at Session {manager.id}"
+            link_error = validate_direct_links(manager)
+            if link_error:
+                return link_error
+            parent_id = manager.managed_by
+            parent_owners = owners.get(manager.id, [])
+            if parent_id:
+                parent = by_id.get(parent_id)
+                if parent is None:
+                    return (f"Session {manager.id} has missing manager "
+                            f"{parent_id}")
+                if parent_owners != [parent_id] or parent.managed.count(manager.id) != 1:
+                    return f"Session {manager.id} has inconsistent manager backlinks"
+            elif parent_owners:
+                return f"Root Session {manager.id} is listed by a manager"
+            active.add(manager.id)
+            visited.add(manager.id)
+            for child_id in manager.managed:
+                child_error = validate_subtree(by_id[child_id])
+                if child_error:
+                    return child_error
+            active.remove(manager.id)
+            return None
+
+        # Validate the full child subtree. Ancestors are walked separately so
+        # cycles above the target cannot be hidden by a valid child subtree.
+        graph_error = validate_subtree(target)
+        if graph_error:
+            return f"Cannot release Session {session_id}: {graph_error}"
+
+        ancestor_seen = {session_id}
+        current = target
+        while current.managed_by:
+            manager_id = current.managed_by
+            manager = by_id.get(manager_id)
+            if manager is None:
+                return (f"Cannot release Session {session_id}: missing manager "
+                        f"{manager_id}")
+            if manager_id in ancestor_seen:
+                return (f"Cannot release Session {session_id}: managed cycle "
+                        f"detected at {manager_id}")
+            # The manager itself is about to be edited when it is the direct
+            # parent. Validate all of its direct edges before replacing A.
+            link_error = validate_direct_links(manager)
+            if link_error:
+                return f"Cannot release Session {session_id}: {link_error}"
+            if manager.managed.count(current.id) != 1:
+                return (f"Cannot release Session {session_id}: manager "
+                        f"{manager_id} does not contain exactly one backlink")
+            if owners.get(current.id, []) != [manager_id]:
+                return (f"Cannot release Session {session_id}: inconsistent "
+                        f"manager backlinks for {current.id}")
+            ancestor_seen.add(manager_id)
+            current = manager
+
+        parent = by_id.get(target.managed_by) if target.managed_by else None
+        direct_children = [by_id[child_id] for child_id in target.managed]
+        child_ids = [child.id for child in direct_children]
+        old_target_subscriptions = set(target.report_subscriptions)
+
+        # Capture only relationship fields touched by release. The target is
+        # included because its old manager/list/subscription state is cleared
+        # before the caller removes its files.
+        originals: dict[str, dict] = {}
+        desired: dict[str, dict] = {}
+
+        def ensure_change(session: Session) -> dict:
+            if session.id not in originals:
+                originals[session.id] = {
+                    "managed": list(session.managed),
+                    "managed_by": session.managed_by,
+                    "workspace_ids": list(session.workspace_ids),
+                    "report_subscriptions": set(session.report_subscriptions),
+                }
+                desired[session.id] = {
+                    "managed": list(session.managed),
+                    "managed_by": session.managed_by,
+                    "workspace_ids": list(session.workspace_ids),
+                    "report_subscriptions": set(session.report_subscriptions),
+                }
+            return desired[session.id]
+
+        # Remove subscriptions to the deleted Session from every surviving
+        # record, regardless of who originally created that subscription.
+        for session in all_sessions:
+            if session.id == session_id:
+                continue
+            if session_id in session.report_subscriptions:
+                ensure_change(session)["report_subscriptions"].discard(session_id)
+
+        if parent is not None:
+            parent_state = ensure_change(parent)
+            replaced_managed: list[str] = []
+            for child_id in parent_state["managed"]:
+                if child_id == session_id:
+                    replaced_managed.extend(child_ids)
+                else:
+                    replaced_managed.append(child_id)
+            parent_state["managed"] = replaced_managed
+            parent_subscriptions = parent_state["report_subscriptions"]
+            for child_id in child_ids:
+                if child_id in old_target_subscriptions:
+                    parent_subscriptions.add(child_id)
+                else:
+                    parent_subscriptions.discard(child_id)
+
+        root_workspace_ids = (
+            effective_workspace_ids(target)[:1] if parent is None else []
+        )
+        for child in direct_children:
+            child_state = ensure_change(child)
+            child_state["managed_by"] = parent.id if parent is not None else None
+            # Managed children inherit from the new parent. Only a child
+            # promoted from a root manager receives the old effective value.
+            child_state["workspace_ids"] = [] if parent is not None else list(root_workspace_ids)
+
+        target_state = ensure_change(target)
+        target_state["managed"] = []
+        target_state["managed_by"] = None
+        target_state["report_subscriptions"] = set()
+
+        # Persist new children before the manager backlink, unrelated
+        # subscription cleanup next, and the record being deleted last.
+        save_order: list[str] = []
+
+        def queue_save(session: Session) -> None:
+            if session.id in desired and session.id not in save_order:
+                save_order.append(session.id)
+
+        for child in direct_children:
+            queue_save(child)
+        if parent is not None:
+            queue_save(parent)
+        for session in all_sessions:
+            if session.id != session_id:
+                queue_save(session)
+        queue_save(target)
+
+        # Include no-op parent/child objects only when an actual field changed.
+        changed = {
+            sid for sid, state in desired.items()
+            if state != originals[sid]
+        }
+        save_order = [sid for sid in save_order if sid in changed]
+        attempted: list[str] = []
+
+        def assign_state(sid: str, state: dict) -> None:
+            session = by_id[sid]
+            session.managed = list(state["managed"])
+            session.managed_by = state["managed_by"]
+            session.workspace_ids = list(state["workspace_ids"])
+            session.report_subscriptions = set(state["report_subscriptions"])
+
+        try:
+            for sid, state in desired.items():
+                assign_state(sid, state)
+            for sid in save_order:
+                attempted.append(sid)
+                save(by_id[sid])
+        except Exception as exc:
+            for sid, state in originals.items():
+                assign_state(sid, state)
+            rollback_errors = []
+            for sid in reversed(attempted):
+                try:
+                    save(by_id[sid])
+                except Exception as rollback_exc:
+                    rollback_errors.append(f"{sid}: {rollback_exc}")
+            detail = f"Failed to persist Session release: {exc}"
+            if rollback_errors:
+                detail += "; rollback persistence failed: " + "; ".join(rollback_errors)
+            return f"Cannot release Session {session_id}: {detail}"
+    except Exception as exc:
+        return f"Cannot release Session {session_id}: {type(exc).__name__}: {exc}"
+    return None
+
+
+@_store_serialized
+def delete_with_release(session_id: str) -> str | None:
+    """Release managed relationships and delete one Session as one operation.
+
+    The relationship changes are rolled back if the Session file removal
+    fails. This is the deletion entry point for server APIs; direct ``delete``
+    remains available for store maintenance that already owns relationship
+    handling.
+    """
     all_sessions = list_all(load_history=False)
-    detached_memberships = {
-        s.id: effective_workspace_ids(s)
-        for s in all_sessions if s.managed_by == session_id
+    originals = {
+        session.id: {
+            "managed": list(session.managed),
+            "managed_by": session.managed_by,
+            "workspace_ids": list(session.workspace_ids),
+            "report_subscriptions": set(session.report_subscriptions),
+        }
+        for session in all_sessions
     }
-    for s in all_sessions:
-        if s.id == session_id:
-            continue
-        if session_id in s.report_subscriptions:
-            s.report_subscriptions.discard(session_id)
-            save(s)
-        if s.managed_by == session_id:
-            s.managed_by = None
-            s.workspace_ids = detached_memberships.get(s.id, [])
-            save(s)
-    target = get(session_id)
-    if target is None:
-        return None  # nothing else to clean up
-    # The object is about to be deleted, but clear these in-memory too so the
-    # relationship is fully detached for callers holding the old object.
-    target.managed.clear()
-    target.report_subscriptions.clear()
-    manager_id = target.managed_by
-    if not manager_id:
-        save(target)
-        return None
-    manager = get(manager_id)
-    if manager is not None and session_id in manager.managed:
-        manager.managed.remove(session_id)
-        save(manager)
-    target.managed_by = None
-    save(target)
+    target = next((session for session in all_sessions if session.id == session_id), None)
+
+    release_error = release(session_id)
+    if release_error:
+        return release_error
+    try:
+        delete(session_id)
+    except Exception as exc:
+        rollback_errors = []
+        changed: list[Session] = []
+        for session in all_sessions:
+            old = originals[session.id]
+            current = {
+                "managed": list(session.managed),
+                "managed_by": session.managed_by,
+                "workspace_ids": list(session.workspace_ids),
+                "report_subscriptions": set(session.report_subscriptions),
+            }
+            if current != old or session.id == session_id:
+                session.managed = list(old["managed"])
+                session.managed_by = old["managed_by"]
+                session.workspace_ids = list(old["workspace_ids"])
+                session.report_subscriptions = set(old["report_subscriptions"])
+                changed.append(session)
+        if target is not None:
+            # delete() may have removed metadata before a later filesystem
+            # operation failed. Reinsert the old object so save can restore it.
+            _cache[session_id] = target
+        for session in reversed(changed):
+            try:
+                save(session)
+            except Exception as rollback_exc:
+                rollback_errors.append(f"{session.id}: {rollback_exc}")
+        detail = f"Failed to delete Session {session_id}: {exc}"
+        if rollback_errors:
+            detail += "; relationship rollback persistence failed: " + "; ".join(rollback_errors)
+        return detail
     return None
 
 

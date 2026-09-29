@@ -61,6 +61,13 @@ def test_batch_endpoint_expands_child_first_and_keeps_worker_cleanup(monkeypatch
         def delete(self, sid):
             calls.append(("delete", sid))
 
+        def delete_with_release(self, sid):
+            error = self.release(sid)
+            if error:
+                return error
+            self.delete(sid)
+            return None
+
     class FakeWorker:
         def find_worker_by_session(self, sid):
             return SimpleNamespace(worker_id="worker-child", session_id=sid) if sid == "child" else None
@@ -118,6 +125,13 @@ def test_delete_session_records_deletes_storage_once_and_uses_mode_cleanup(
 
         def delete(self, sid):
             calls.append(("delete", sid))
+
+        def delete_with_release(self, sid):
+            error = self.release(sid)
+            if error:
+                return error
+            self.delete(sid)
+            return None
 
     class FakeWorker:
         def find_worker_by_session(self, _sid):
