@@ -1524,6 +1524,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
     const pinTouchedAtStart = get()._pinStateTouchedSeq ?? 0;
     const eventPatchesAtStart = get()._sessionEventPatches ?? {};
+    // Snapshot the accepted server epoch: a Pan restart while this request is
+    // in flight must not let the previous process's response (captured
+    // mid-shutdown) revert Sessions after the client accepted the new epoch.
+    const epochAtStart = get().serverEpoch;
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
       // summary=1: lean list (no per-session history download). Card preview
@@ -1531,6 +1535,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // session's messages are loaded by selectSession via fetchSessionHistory.
       const sessions = await fetchSessions(true);
       if (get()._loadSeq !== loadSeq) return; // superseded by a newer refresh
+      // A response served by the pre-restart process must not overwrite
+      // post-restart state, even when no newer request superseded its seq
+      // (the epoch change is the later authority boundary here).
+      if (epochAtStart !== null && get().serverEpoch !== epochAtStart) return;
       const { currentSessionId } = get();
 
       set((s) => {
