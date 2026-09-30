@@ -241,6 +241,7 @@ class Worker:
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
+    takeover_job: object | None = None  # Windows Codex descendants, including orphans
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     # ── 活性探测（watchdog 用）──
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
@@ -5518,6 +5519,12 @@ async def _create_worker(session_id: str) -> Worker | str:
 
 async def _kill_takeover_terminal(w: Worker) -> bool:
     """杀掉 takeover 模式打开的终端及子进程树。异步版，不阻塞事件循环。"""
+    if w.takeover_job is not None:
+        # Keep ownership on failure so Restart/Kill can retry safely.
+        await asyncio.to_thread(w.takeover_job.stop)
+        w.takeover_job = None
+        w.takeover_pid = None
+        return True
     if not w.takeover_pid:
         return False
     pid = w.takeover_pid
@@ -5659,6 +5666,12 @@ async def _kill_worker_unlocked(
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    if w.takeover_job is not None:
+        try:
+            await _kill_takeover_terminal(w)
+        except Exception as exc:
+            return f"Takeover stop failed: {exc}"
 
     abnormal = w.status in {"running", "queued"}
 
@@ -5929,6 +5942,14 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    # Stop the takeover owner before changing generation/state or spawning.
+    # A failed stop leaves a held worker retryable and cannot create a writer.
+    if w.takeover_job is not None:
+        try:
+            await _kill_takeover_terminal(w)
+        except Exception as exc:
+            return f"Takeover stop failed: {exc}"
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was restarted")
 

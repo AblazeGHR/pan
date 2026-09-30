@@ -3099,7 +3099,26 @@ def _apply_output_mode(s: sess.Session, mode):
     s.set_adapter_field("output_mode", mode)
 
 
-def _open_terminal(cmd: str, cwd: str | Path) -> int:
+async def _open_takeover_terminal(w, cmd, cwd, generation):
+    # Opening the TUI belongs to the same lifecycle lock as Restart/Kill.
+    lock = await worker._session_spawn_lock(w.session_id)
+    async with lock:
+        if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
+            raise OSError("Takeover superseded by another lifecycle operation")
+        if sys.platform == "win32" and w.adapter.name == "codex":
+            from packages.core.takeover_job import TakeoverJob
+            job = TakeoverJob()
+            w.takeover_job = job
+            try:
+                w.takeover_pid = _open_terminal(cmd, cwd, takeover_job=job)
+            except BaseException:
+                await worker._kill_takeover_terminal(w)
+                raise
+        else:
+            w.takeover_pid = _open_terminal(cmd, cwd)
+
+
+def _open_terminal(cmd: str, cwd: str | Path, *, takeover_job=None) -> int:
     """Open a new terminal window running `cmd` in `cwd` (cross-platform)."""
     cwd = str(cwd) if cwd else str(Path.cwd())
     if sys.platform == "win32":
@@ -3110,6 +3129,10 @@ def _open_terminal(cmd: str, cwd: str | Path) -> int:
         env.pop("TERM", None)
         env.pop("NO_COLOR", None)
         env.pop("COLORTERM", None)
+        if takeover_job is not None:
+            return takeover_job.launch(
+                ["powershell.exe", "-NoExit", "-Command", cmd], cwd=cwd, env=env,
+            )
         proc = subprocess.Popen(
             ["powershell.exe", "-NoExit", "-Command", cmd],
             cwd=cwd,
@@ -10295,6 +10318,7 @@ async def api_takeover(worker_id: str):
     if err:
         return {"error": err}
 
+    generation = w.generation
     await broadcast({
         "type": "worker.status",
         "sessionId": w.session_id,
@@ -10304,11 +10328,11 @@ async def api_takeover(worker_id: str):
     })
 
     try:
-        w.takeover_pid = _open_terminal(
+        await _open_takeover_terminal(w,
             # 逐参数引号转义：takeover 命令含 --resume <cli_session_id>，裸 join
             # 会把其特殊字符拆成额外参数，导致 takeover 终端 cbc 启动失败。
             subprocess.list2cmdline(adapter_cmd),
-            s.workdir or Path.cwd(),
+            s.workdir or Path.cwd(), generation,
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
@@ -10350,6 +10374,7 @@ async def api_session_takeover(session_id: str):
     if result is None:
         return {"workerId": None, "sessionId": session_id, "status": "offline"}
     w = result
+    generation = w.generation
     await broadcast({
         "type": "worker.status",
         "sessionId": session_id,
@@ -10358,8 +10383,8 @@ async def api_session_takeover(session_id: str):
         "status": "held",
     })
     try:
-        w.takeover_pid = _open_terminal(
-            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(),
+        await _open_takeover_terminal(w,
+            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(), generation,
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
