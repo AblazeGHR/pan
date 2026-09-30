@@ -973,6 +973,12 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
     refresh_qq_state(root_path, state)
     save_state(root_path, state)
     start_cloudflared(root_path, port, state, log_path=log_path)
+    if (load_config(root_path).get("mcp_remote") or {}).get("enabled") is True:
+        from packages.remote.mcp_runtime import control
+        try:
+            control(root_path, "start")
+        except Exception as exc:
+            _write_log(log_path, f"MCP remote startup failed: {exc}")
     print(f"[OK] Pan Core API ready on 127.0.0.1:{port}, PID={record['pid']}")
     return state
 
@@ -1061,6 +1067,8 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
             raise LauncherError(
                 f"Pan graceful shutdown failed ({coordination_error}); verified fallback failed: {outcome}"
             )
+    from packages.remote.mcp_runtime import control
+    control(root_path, "stop")
     for field in ("qq", "cloudflared"):
         child = state.get(field)
         if not child:

@@ -180,6 +180,10 @@ DEFAULT_CONFIG: dict = {
         # 握手不通，http2 稳定。空串 = 不注入（沿用 cloudflared 默认 auto）。
         "protocol": "http2",
     },
+    # Independent authenticated MCP gateway + named tunnel; opt-in only.
+    "mcp_remote": {"enabled": False, "port": 9742, "public_hostname": "",
+                   "access_issuer": "", "access_audience": "",
+                   "config_path": "", "binary_path": ""},
     # QQ 模块（packages/qq/bot.py，NoneBot，跑在独立解释器上）
     "qq": {
         # QQ bot 独立解释器路径（单一事实源）。空串 = 走默认解析链：

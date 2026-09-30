@@ -8360,6 +8360,41 @@ async def api_remote_restart():
 
 # ── Config hot-reload ──
 
+@app.get("/api/remote/mcp")
+async def api_mcp_remote_status():
+    from packages.remote.mcp_runtime import status
+    return {**await asyncio.to_thread(status, _PROJECT_DIR),
+            "config": load_config().get("mcp_remote") or {}}
+
+
+@app.put("/api/remote/mcp")
+async def api_mcp_remote_config(request: Request):
+    payload = await request.json()
+    allowed = {"enabled", "port", "public_hostname", "access_issuer", "access_audience", "config_path", "binary_path"}
+    if not isinstance(payload, dict) or set(payload) - allowed:
+        raise HTTPException(status_code=400, detail="Invalid MCP configuration fields")
+    if "enabled" in payload and not isinstance(payload["enabled"], bool):
+        raise HTTPException(status_code=400, detail="enabled must be boolean")
+    if "port" in payload and (type(payload["port"]) is not int or not 1024 <= payload["port"] <= 65535):
+        raise HTTPException(status_code=400, detail="Invalid MCP port")
+    if any(not isinstance(value, str) for key, value in payload.items() if key not in {"enabled", "port"}):
+        raise HTTPException(status_code=400, detail="MCP text fields must be strings")
+    raw = read_config_file()
+    raw["mcp_remote"] = {**(load_config().get("mcp_remote") or {}), **payload}
+    save_config(raw)
+    return {"ok": True}
+
+
+@app.post("/api/remote/mcp/{action}")
+async def api_mcp_remote_control(action: str):
+    from packages.remote.mcp_runtime import control
+    if action not in {"start", "stop", "restart"}:
+        raise HTTPException(status_code=400, detail="Unknown MCP action")
+    try:
+        return await asyncio.to_thread(control, _PROJECT_DIR, action)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
 def _reload_adapter_models() -> tuple[list[dict], list[str]]:
     """Invalidate adapter model caches and return count diffs and errors."""
     adapters_out = []
