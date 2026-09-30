@@ -160,14 +160,6 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
 
 - 与 §2.3 的关系：§2.3 解决「找 session + 选择派活方式」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`agent_spawn`（`workerStatus` 为 null 时）→ 简短指令。
 
-### 2.6.1 MA 的 TA 模型策略
-
-当前默认使用 **CBC 策略**；用户明确指定时才切换到 **Codex 策略**。每个任务按难度使用 `high`、`xhigh` 或 `max` effort，两套策略都不低于 `high`。
-
-- **CBC 策略**：adapter 为 `cbc`，模型优先顺序为 `GLM 5.3 Flash` → `DeepSeek 4.1 Flash` → `MiniMax M3`。派发和切换前先用 `model_list(adapter="cbc")` 检查当前实际可用 ID，并传入列表中的对应 ID。遇到明确 HTTP 429/限速后，在**同一个 TA Session** 上依次用 `session_update(model=...)` 切换到下一个可用模型；随后立即用 `agent_send` 发送简短的“继续原任务”消息激活续作。保留同一 Session、worktree、任务和 effort；不要另建 Session 或重复派发。若候选不可用，记录并查看顺序中的下一项；没有可用候选或全部限速时停止并报告。
-- **Codex 策略**（此前默认规则）：`adapter="codex"`、`model="gpt-6-luna"`、`permission_mode="bypass"`、`always_thinking_enabled=false`；effort 仍在 `high`、`xhigh`、`max` 中按任务难度选择。
-- 用户对单项任务明确指定的策略或模型优先。切换只能由明确限速触发，不因普通任务错误擅自改变模型策略。
-
 ### 2.7 替身交接（session_handoff）：精简上下文 / 切换 adapter
 
 > 场景：当前 session（A）上下文过大需要精简，或想中途切换 adapter（普通 session **不能**中途切换 adapter）。A 保留为可阅读上下文（归档重命名 `(archive) <原名>`），创建孪生 session B 接管 A 的名字与全部 pan 关系网。
