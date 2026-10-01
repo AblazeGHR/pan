@@ -28,6 +28,7 @@ export const ThinkingGroup = memo(function ThinkingGroup({
   const [hasMountedContent, setHasMountedContent] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const previousItemsRef = useRef<Message[] | null>(null);
+  const followContentRef = useRef(true);
 
   // A parent non-body disclosure can contain hundreds of folded thinking
   // groups. Keep their Markdown out of the DOM until each child is opened.
@@ -38,7 +39,8 @@ export const ThinkingGroup = memo(function ThinkingGroup({
     return () => window.clearTimeout(timeout);
   }, [isOpen, hasMountedContent]);
 
-  // Keep an open group pinned to its latest thinking content while it streams;
+  // Keep an open group pinned while following its latest thinking content;
+  // user scrolling away must survive the next stream update.
   // appending a member keeps the first member's display identity stable.
   // A finished group never grows, so opening/re-opening one leaves the reading
   // position untouched.
@@ -52,13 +54,16 @@ export const ThinkingGroup = memo(function ThinkingGroup({
     const appended = items.length > previous.length;
     const extended = items.length === previous.length && !!last && !!previousLast
       && last.content.length > previousLast.content.length;
-    if (appended || extended) {
+    if (followContentRef.current && (appended || extended)) {
       content.scrollTop = content.scrollHeight;
     }
   }, [isOpen, items]);
 
   const toggle = () => {
-    if (!isOpen) setHasMountedContent(true);
+    if (!isOpen) {
+      setHasMountedContent(true);
+      followContentRef.current = true;
+    }
     setIsOpen(!isOpen);
   };
 
@@ -107,6 +112,17 @@ export const ThinkingGroup = memo(function ThinkingGroup({
         {shouldRenderContent && (
           <div
             ref={contentRef}
+            onWheel={(event) => {
+              if (event.deltaY < 0) followContentRef.current = false;
+            }}
+            onTouchStart={() => { followContentRef.current = false; }}
+            onKeyDown={(event) => {
+              if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) followContentRef.current = false;
+            }}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              followContentRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+            }}
             className="rounded-lg bg-bg-tertiary border border-border-default text-sm text-text-secondary leading-relaxed px-4 py-3 max-h-40 overflow-y-auto"
           >
             {items.length === 1 && singleItem ? (
