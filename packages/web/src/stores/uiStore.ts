@@ -240,6 +240,8 @@ interface UIStore {
   railExpanded: boolean;
   /** One-shot requests from the editor to the mounted chat composer. */
   chatAttachmentRequests: ChatAttachmentRequest[];
+  /** Monotonic token bumped to ask the mounted chat composer for focus. */
+  composerFocusToken: number;
 
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
@@ -287,6 +289,7 @@ interface UIStore {
   setRailExpanded: (expanded: boolean) => void;
   requestChatAttachment: (sessionId: string, path: string) => void;
   consumeChatAttachmentRequests: (sessionId: string, paths: string[]) => void;
+  requestComposerFocus: () => void;
 }
 
 let toastCounter = 0;
@@ -312,6 +315,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   activeWorkspaceId: loadActiveWorkspaceId(),
   railExpanded: loadRailExpanded(),
   chatAttachmentRequests: [],
+  composerFocusToken: 0,
 
   showToast: (message, type = 'info') => {
     const id = `toast-${++toastCounter}`;
@@ -616,5 +620,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
         request.sessionId !== sessionId || !pathSet.has(request.path),
       ),
     }));
+  },
+
+  requestComposerFocus: () => {
+    set((s) => ({ composerFocusToken: s.composerFocusToken + 1 }));
   },
 }));

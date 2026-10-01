@@ -9,6 +9,9 @@ export interface Message {
   content: string;
   /** Stable canonical history identity. Absent on legacy rows. */
   messageId?: string;
+  /** True while this (last) assistant entry is still being streamed by a
+   *  running worker; actions that would fork or mutate history guard on it. */
+  streaming?: boolean;
   /** Stable provider block identity for compound messages. */
   blockId?: string;
   /** Stable provider turn identity when the adapter exposes one. */
@@ -424,6 +427,45 @@ export interface StreamEvent {
   sessionIds?: string[];
   /** Shared Session pin snapshot revision. */
   pinRevision?: number;
+  /** session.rewind.progress: rewind job identity. */
+  jobId?: string;
+  /** session.rewind.progress: starting/resuming/rewinding-files/truncating/completed/failed. */
+  stage?: string;
+  /** session.rewind.progress: branch session created on completion. */
+  newSessionId?: string;
+  /** session.rewind.progress: failure detail (stage=failed). */
+  error?: string | null;
+  /** session.rewind.progress: capability boundary note from the backend. */
+  limitation?: string;
+}
+
+// ── Rewind ──
+
+/** 1 = code + conversation, 2 = conversation only, 3 = code only. */
+export type RewindScope = 1 | 2 | 3;
+
+export interface ApiRewindResponse {
+  ok?: boolean;
+  error?: string | { code?: string; message?: string };
+  jobId?: string;
+  sessionId?: string;
+  scope?: RewindScope;
+  scopeLabel?: string;
+  status?: string;
+  stage?: string;
+  limitation?: string;
+}
+
+export interface ApiRewindJobStatus {
+  ok?: boolean;
+  error?: string | { code?: string; message?: string } | null;
+  jobId?: string;
+  sessionId?: string;
+  stage?: string;
+  status?: string;
+  scope?: RewindScope;
+  newSessionId?: string | null;
+  limitation?: string;
 }
 
 // ── API response types ──

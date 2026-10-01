@@ -77,6 +77,15 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
+from packages.core.rewind import (
+    AnchorSpec,
+    REWIND_SCOPE_LABELS,
+    RewindRecordStore,
+    coerce_rewind_scope,
+    run_hybrid_rewind,
+)
+from packages.core.rewind.driver import compute_match_ordinal
+from packages.core.rewind.filetools import extract_mutated_files
 from packages.core.data_catalog import get_data_catalog
 from packages.core.codex_quota import (
     format_codex_quota_record,
@@ -5916,6 +5925,365 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     }
 
 
+def _resolve_history_message(session_id: str, message_id: str):
+    """Resolve one history entry by ``msg_*`` or ``legacy:{sid}:{epoch}:{index}``."""
+    s = sess.get(session_id)
+    if s is None:
+        return None
+    if message_id.startswith("msg_"):
+        index = next((i for i, message in enumerate(s.history)
+                      if isinstance(message, dict)
+                      and message.get("_pan_message_id") == message_id), None)
+        if index is None:
+            return s, None, "message_not_found"
+        return s, index, None
+    parts = message_id.split(":")
+    if len(parts) != 4 or parts[0] != "legacy" or parts[1] != session_id:
+        return s, None, "message_not_found"
+    epoch_value = getattr(s, "history_epoch", None)
+    current_epoch = str(epoch_value) if epoch_value else "legacy"
+    if parts[2] != current_epoch:
+        return s, None, "message_not_found"
+    try:
+        index = int(parts[3])
+    except ValueError:
+        return s, None, "message_not_found"
+    if not 0 <= index < len(s.history):
+        return s, None, "message_not_found"
+    return s, index, None
+
+
+@app.post('/api/sessions/{session_id}/history/{message_id}/rewind')
+async def api_rewind_session_history(session_id: str, message_id: str,
+                                     payload: Annotated[dict | None, Body()] = None):
+    active_worker = worker.find_alive_worker_by_session(session_id)
+    if active_worker and active_worker.status in {'running', 'queued'}:
+        return {'ok': False, 'error': {
+            'code': 'session_busy',
+            'message': 'Task is running; rewind is unavailable',
+        }}
+    try:
+        scope = coerce_rewind_scope((payload or {}).get('scope', 1))
+    except ValueError:
+        return {'ok': False, 'error': {
+            'code': 'invalid_scope',
+            'message': 'scope must be 1 (code and conversation), 2 (conversation only) '
+                       'or 3 (code only)',
+        }}
+    if (not isinstance(message_id, str)
+            or not (message_id.startswith('msg_') or message_id.startswith('legacy:'))):
+        return {'ok': False, 'error': {'code': 'invalid_message_id', 'message': 'Invalid message id'}}
+    resolved = await _store_read(_resolve_history_message, session_id, message_id)
+    if resolved is None:
+        return {'ok': False, 'error': {'code': 'session_not_found', 'message': 'Session not found'}}
+    s, anchor_index, error_code = resolved
+    if error_code:
+        return {'ok': False, 'error': {'code': error_code, 'message': 'Message not found'}}
+    anchor = s.history[anchor_index]
+    if not isinstance(anchor, dict) or anchor.get('role') != 'user':
+        return {'ok': False, 'error': {
+            'code': 'message_not_rewindable',
+            'message': 'Only user messages can be used as rewind anchors',
+        }}
+    if s.adapter != 'cbc':
+        return {'ok': False, 'error': {
+            'code': 'adapter_not_supported',
+            'message': f'Rewind is not implemented for adapter {s.adapter}',
+        }}
+    if not s.cli_session_id:
+        return {'ok': False, 'error': {'code': 'missing_cli_session', 'message': 'Session has no CLI session id'}}
+    if not s.workdir:
+        return {'ok': False, 'error': {'code': 'missing_workdir', 'message': 'Session has no workdir'}}
+    anchor_text = _history_message_text(anchor).strip()
+    if len(anchor_text) < 3:
+        return {'ok': False, 'error': {'code': 'invalid_anchor', 'message': 'Anchor message has no usable text'}}
+
+    job_id = 'rewind_' + uuid.uuid4().hex[:16]
+    _update_rewind_record(
+        session_id,
+        job_id,
+        status='running',
+        stage='starting',
+        adapter=s.adapter,
+        cli_session_id=s.cli_session_id,
+        workdir=s.workdir,
+        scope=scope,
+        anchor={
+            'message_id': message_id,
+            'absolute_index': anchor_index,
+            'message_text': anchor_text,
+            'epoch': getattr(s, 'history_epoch', None),
+        },
+        limitation=_REWIND_LIMITATION,
+        created_at=datetime.now().isoformat(),
+        error=None,
+    )
+    task = asyncio.create_task(
+        _run_rewind_job(session_id, message_id, anchor_index, anchor_text, scope),
+        name=f'rewind:{job_id}',
+    )
+    _REWIND_TASKS[job_id] = task
+    task.add_done_callback(lambda _task, key=job_id: _REWIND_TASKS.pop(key, None))
+    await _broadcast_rewind_progress(session_id, job_id, 'starting', status='running')
+    return {
+        'ok': True,
+        'jobId': job_id,
+        'sessionId': session_id,
+        'scope': scope,
+        'scopeLabel': REWIND_SCOPE_LABELS[scope],
+        'status': 'queued',
+        'stage': 'starting',
+        'limitation': _REWIND_LIMITATION,
+    }
+
+
+@app.get('/api/sessions/{session_id}/rewind/{job_id}')
+async def api_get_rewind_job(session_id: str, job_id: str):
+    """Polling fallback for rewind progress: the modal polls this while a job
+    runs so a missed WS event can never leave the first click without
+    progress (Bug 3)."""
+    record = _rewind_store().load(session_id, job_id)
+    if record is None:
+        return {'ok': False, 'error': {'code': 'job_not_found', 'message': 'Rewind job not found'}}
+    return {
+        'ok': True,
+        'jobId': job_id,
+        'sessionId': session_id,
+        'stage': record.get('stage'),
+        'status': record.get('status'),
+        'scope': record.get('scope'),
+        'error': record.get('error'),
+        'newSessionId': record.get('new_pan_session_id'),
+        'limitation': record.get('limitation', _REWIND_LIMITATION),
+    }
+
+
+_REWIND_EVENT_TYPE = 'session.rewind.progress'
+_REWIND_LIMITATION = 'cbc rewind does not track files edited manually or via bash.'
+_REWIND_TASKS: dict[str, asyncio.Task] = {}
+
+
+def _rewind_store() -> RewindRecordStore:
+    return RewindRecordStore(DATA_DIR / 'rewind')
+
+
+def _history_message_text(message: dict) -> str:
+    content = message.get('content')
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                value = item.get('text') or item.get('content')
+                if isinstance(value, str):
+                    parts.append(value)
+            elif isinstance(item, str):
+                parts.append(item)
+        return ' '.join(parts)
+    return ''
+
+
+def _update_rewind_record(session_id: str, job_id: str, **changes) -> dict:
+    store = _rewind_store()
+    record = store.load(session_id, job_id) or {
+        'job_id': job_id,
+        'session_id': session_id,
+    }
+    record.update(changes)
+    record['updated_at'] = datetime.now().isoformat()
+    store.save(record)
+    return record
+
+
+async def _broadcast_rewind_progress(session_id: str, job_id: str, stage: str,
+                                     *, status: str | None = None,
+                                     error: str | None = None,
+                                     new_session_id: str | None = None,
+                                     details: dict | None = None) -> None:
+    await broadcast({
+        'type': _REWIND_EVENT_TYPE,
+        'sessionId': session_id,
+        'jobId': job_id,
+        'stage': stage,
+        'status': status or ('running' if stage not in {'completed', 'failed'} else stage),
+        'error': error,
+        'newSessionId': new_session_id,
+        'details': details or {},
+        'limitation': _REWIND_LIMITATION,
+    })
+
+
+def _rewind_adapter_config(parent) -> dict:
+    adapter_config = {
+        'always_thinking_enabled': parent.adapter_config.get('always_thinking_enabled', False),
+        'effort': parent.adapter_config.get('effort', ''),
+        'max_thinking_tokens': parent.adapter_config.get('max_thinking_tokens'),
+    }
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if native_key in parent.adapter_config:
+            adapter_config[native_key] = parent.adapter_config[native_key]
+    if parent.adapter_config.get('mcp_servers'):
+        adapter_config['mcp_servers'] = parent.adapter_config['mcp_servers']
+    return adapter_config
+
+
+def _create_rewound_session(parent, result, anchor_index: int):
+    raw_usage = sess.accumulate_raw_usage(None, result.raw_usage)
+    total_usage = sess.compute_total_usage(raw_usage)
+    base_name = f'{parent.name}@{anchor_index}'
+    if len(base_name) > 56:
+        base_name = base_name[:56].rstrip('-_')
+    return sess.create_with_available_name(
+        base_name,
+        adapter=parent.adapter,
+        cli_session_id=result.forked_cli_session_id,
+        model=parent.model,
+        permission_mode=parent.permission_mode,
+        always_thinking_enabled=parent.adapter_config.get('always_thinking_enabled', False),
+        effort=parent.adapter_config.get('effort', ''),
+        max_thinking_tokens=parent.adapter_config.get('max_thinking_tokens'),
+        raw_usage=raw_usage,
+        total_usage=total_usage,
+        workdir=parent.workdir,
+        history=result.history,
+        character_id=parent.character_id,
+        original_prompt=parent.original_prompt,
+        handoff_prompt=parent.handoff_prompt,
+        adapter_config=_rewind_adapter_config(parent),
+        pan_access=dict(parent.pan_access or {}),
+        notification_settings=dict(parent.notification_settings or {}),
+        # Inherit the parent's workspace membership so the new branch
+        # session stays visible under workspace filtering. workspace_ids is
+        # an existing field (root sessions persist it; managed sessions keep
+        # it empty and follow their manager), so this is a value copy, not
+        # a schema change.
+        workspace_ids=list(parent.workspace_ids or []),
+    )
+
+
+async def _run_rewind_job(parent_session_id: str, message_id: str,
+                          anchor_index: int, anchor_text: str,
+                          scope: int = 1) -> None:
+    loop = asyncio.get_running_loop()
+    started = time.monotonic()
+    job_id = asyncio.current_task().get_name().removeprefix('rewind:')
+
+    def update(**changes):
+        return _update_rewind_record(parent_session_id, job_id, **changes)
+
+    def broadcast_stage(stage: str, details: dict | None = None, *,
+                        status: str | None = None, error: str | None = None,
+                        new_session_id: str | None = None) -> None:
+        asyncio.run_coroutine_threadsafe(
+            _broadcast_rewind_progress(
+                parent_session_id, job_id, stage,
+                status=status, error=error, new_session_id=new_session_id,
+                details=details,
+            ),
+            loop,
+        )
+
+    def on_stage(stage: str, details) -> None:
+        if stage == 'completed':
+            return
+        update(stage=stage, status='failed' if stage == 'failed' else 'running',
+               error=(details or {}).get('error'))
+        broadcast_stage(stage, dict(details or {}),
+                        status='failed' if stage == 'failed' else 'running',
+                        error=(details or {}).get('error'))
+
+    result = None
+    try:
+        parent = await _store_read(sess.get, parent_session_id)
+        if parent is None:
+            raise ValueError('session_not_found')
+        result = await asyncio.to_thread(
+            run_hybrid_rewind,
+            parent.cli_session_id,
+            parent.workdir,
+            AnchorSpec(
+                message_text=anchor_text,
+                absolute_index=anchor_index,
+                # Identical first-line previews (worker reports share their
+                # header) make text-only matching ambiguous; the ordinal
+                # picks the exact occurrence among matching checkpoints.
+                match_ordinal=compute_match_ordinal(
+                    parent.history or [], anchor_index, anchor_text),
+            ),
+            scope=scope,
+            expected_files=None,
+            watched_files=extract_mutated_files(parent.history or [], anchor_index),
+            timeout=35.0,
+            on_stage=on_stage,
+        )
+        if not result.success:
+            raise RuntimeError(result.error or 'rewind failed')
+        latest_parent = await _store_read(sess.get, parent_session_id)
+        if latest_parent is None:
+            raise RuntimeError('parent session disappeared during rewind')
+        new_session = _create_rewound_session(latest_parent, result, anchor_index)
+        update(
+            stage='completed',
+            status='completed',
+            error=None,
+            scope=scope,
+            new_pan_session_id=new_session.id,
+            new_pan_session_name=new_session.name,
+            forked_cli_session_id=result.forked_cli_session_id,
+            history_messages=len(result.history),
+            raw_usage_records=len(result.raw_usage),
+            restore_verification=(
+                result.file_rewind.restore_verification if result.file_rewind else None),
+            add_dirs=(result.file_rewind.add_dirs if result.file_rewind else None),
+            add_dirs_notes=(result.file_rewind.add_dirs_notes if result.file_rewind else None),
+            truncation=result.truncation.__dict__ if result.truncation else None,
+            elapsed_seconds=round(time.monotonic() - started, 3),
+        )
+        await _broadcast_rewind_progress(
+            parent_session_id, job_id, 'completed', status='completed',
+            new_session_id=new_session.id,
+            details={
+                'scope': scope,
+                'historyMessages': len(result.history),
+                'rawUsageRecords': len(result.raw_usage),
+                'elapsedSeconds': round(time.monotonic() - started, 3),
+            },
+        )
+        await broadcast({
+            'type': 'session.created',
+            'sessionId': new_session.id,
+            'name': new_session.name,
+        })
+    except Exception as exc:
+        # Avoid stacking duplicate prefixes (RuntimeError: RuntimeError: ...)
+        # when re-wrapping an already-formatted driver/hybrid error string.
+        _exc_message = str(exc)
+        _exc_prefix = f'{type(exc).__name__}:'
+        error = _exc_message if _exc_message.startswith(_exc_prefix) else f'{_exc_prefix} {_exc_message}'
+        update(stage='failed', status='failed', error=error,
+               restore_verification=(
+                   result.file_rewind.restore_verification
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               add_dirs=(
+                   result.file_rewind.add_dirs
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               add_dirs_notes=(
+                   result.file_rewind.add_dirs_notes
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               failure_screen_tail=(
+                   result.file_rewind.screen_tail
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               elapsed_seconds=round(time.monotonic() - started, 3))
+        await _broadcast_rewind_progress(
+            parent_session_id, job_id, 'failed', status='failed', error=error,
+        )
+
+
 # ── Agent queue (session.queue_pending, normalized view) ──
 #
 # queue_pending 是异构落盘队列：task、report/notice、QQ 都使用统一 envelope；
@@ -6775,6 +7143,16 @@ def _cleanup_kimi_home(session_id: str) -> None:
         _log(f"[kimi-home] 清理失败 {p}: {e}")
 
 
+def _cleanup_rewind_records(session_id: str) -> None:
+    """Remove this Session's rewind sidecar records, if present."""
+    p = DATA_DIR / "rewind" / session_id
+    try:
+        if p.exists():
+            shutil.rmtree(p)
+    except OSError as e:
+        _log(f"[rewind] cleanup failed {p}: {e}")
+
+
 def _session_targets_from_item(value: object) -> set[str]:
     if not isinstance(value, dict):
         return set()
@@ -7164,6 +7542,19 @@ def _retention_cleanup_auxiliary(session_id: str) -> list[str]:
             skipped.append("kimi_session_home_unsafe")
     elif (kimi_root.exists() or kimi_root.is_symlink()) and safe_kimi_root is None:
         skipped.append("kimi_home_root_unsafe")
+    rewind_root = DATA_DIR / "rewind"
+    safe_rewind_root = _retention_safe_root(rewind_root)
+    rewind_dir = rewind_root / session_id
+    if safe_rewind_root is not None and (rewind_dir.exists() or rewind_dir.is_symlink()):
+        if _retention_plain_tree(rewind_dir, rewind_root):
+            try:
+                shutil.rmtree(rewind_dir)
+            except OSError:
+                skipped.append("rewind_records_cleanup_failed")
+        else:
+            skipped.append("rewind_records_unsafe")
+    elif (rewind_root.exists() or rewind_root.is_symlink()) and safe_rewind_root is None:
+        skipped.append("rewind_root_unsafe")
     return skipped
 
 
@@ -7177,6 +7568,7 @@ def _delete_session_storage(session_id: str, *, cleanup_auxiliary: bool,
         else:
             _cleanup_mcp_config(session_id)
             _cleanup_kimi_home(session_id)
+            _cleanup_rewind_records(session_id)
     return []
 
 

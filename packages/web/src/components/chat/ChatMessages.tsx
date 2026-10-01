@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
+import { RewindConfirmModal } from './RewindConfirmModal';
 import { filterVisibleMessages } from './messageFilter';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
@@ -1608,6 +1609,24 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
           Loading older messages...
         </div>
       )}
+
+      {/* Rewind confirm modal lives at the chat level, driven by store state
+          (rewindTarget), NOT inside MessageBubble: a message-list remount
+          during the rewind job must never unmount the modal and hide the
+          progress (Bug 3). */}
+      <RewindModalHost />
     </div>
   );
 });
+
+function RewindModalHost() {
+  const rewindTarget = useSessionStore((s) => s.rewindTarget);
+  const closeRewind = useSessionStore((s) => s.closeRewind);
+  // With concurrent rewinds possible, keep a single popup mounted — the one
+  // the user just acted on (rewindTarget). The modal itself subscribes to
+  // activeRewinds for its progress view, so multiple jobs need no host change;
+  // other jobs keep running in the background (a status-bar entry point is a
+  // later step).
+  if (!rewindTarget) return null;
+  return <RewindConfirmModal message={rewindTarget} onClose={closeRewind} />;
+}
