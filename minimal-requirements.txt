@@ -4,3 +4,5 @@ websockets
 psutil
 httpx>=0.28.0
 mcp==1.28.1
+pywinpty==3.0.5
+pyte==0.8.2

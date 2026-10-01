@@ -1554,6 +1554,13 @@ def _available_name(name: str, *, exclude_ids: set[str] | None = None) -> str:
     return f"{name}-{suffix}"
 
 
+@_store_serialized
+def create_with_available_name(name: str, **kwargs) -> Session:
+    '''Create a Session after atomically resolving a duplicate-free name.'''
+    kwargs['name'] = _available_name(name)
+    return create(**kwargs)
+
+
 _META_PROJECTION_UNSET = object()
 
 
