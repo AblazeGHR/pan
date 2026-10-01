@@ -82,6 +82,67 @@ def main():
             emit({'type': 'result', 'result': f'answer:{label}', 'is_error': False})
             continue
         turn = f'turn:{label}'
+        if label == 'thinking-scroll-regression':
+            runtime = Path(os.environ['PAN_E2E_RUNTIME'])
+            thinking = '\n\n'.join(f'Thought {i}: keep reading this paragraph.' for i in range(80))
+            item_id = f'think:{label}'
+            emit({'type': 'content.part', 'role': 'thinking', 'delta': True, 'item_id': item_id, 'turn_id': turn,
+                  'part': {'type': 'think', 'think': thinking}, 'stream_text': thinking})
+            (runtime / 'thinking-ready').write_text('ready', encoding='utf-8')
+            while not (runtime / 'thinking-release').exists():
+                time.sleep(.01)
+            extension = '\n\nThought 80: appended while the user is reading.'
+            thinking += extension
+            emit({'type': 'content.part', 'role': 'thinking', 'delta': True, 'item_id': item_id, 'turn_id': turn,
+                  'part': {'type': 'think', 'think': extension}, 'stream_text': thinking})
+            (runtime / 'thinking-appended').write_text('ready', encoding='utf-8')
+            while not (runtime / 'thinking-finish').exists():
+                time.sleep(.01)
+            emit({'type': 'thinking', 'final': True, 'content': thinking, 'item_id': item_id, 'turn_id': turn})
+            answer = 'Thinking scroll fixture completed.'
+            emit({'type': 'assistant', 'final': True, 'item_id': f'answer:{label}', 'turn_id': turn,
+                  'message': {'content': [{'type': 'text', 'text': answer}]}})
+            emit({'type': 'result', 'result': answer, 'is_error': False})
+            continue
+        if label.startswith('large-code-regression-'):
+            language = label.removeprefix('large-code-regression-')
+            runtime = Path(os.environ['PAN_E2E_RUNTIME'])
+            item_id = f'answer:{label}'
+            rows = [
+                (f'+const value{i} = {{name: "line {i}", enabled: true}};'
+                 if language == 'diff'
+                 else f'export const value{i} = {{name: "line {i}", enabled: true}};')
+                for i in range(2000)
+            ]
+            cumulative = ''
+
+            def publish(chunk):
+                nonlocal cumulative
+                cumulative += chunk
+                emit({'type': 'content.part', 'role': 'assistant', 'delta': True,
+                      'item_id': item_id, 'turn_id': turn,
+                      'part': {'type': 'text', 'text': chunk}, 'stream_text': cumulative})
+
+            def gate(stage):
+                (runtime / f'{label}-{stage}-ready').write_text('ready', encoding='utf-8')
+                while not (runtime / f'{label}-{stage}-release').exists():
+                    time.sleep(.01)
+
+            publish(f'# {label}\n\n```{language}\n' + '\n'.join(rows[:20]) + '\n')
+            gate('small')
+            for start in range(20, 1220, 100):
+                publish('\n'.join(rows[start:start + 100]) + '\n')
+                time.sleep(.025)
+            gate('large')
+            for start in range(1220, 2000, 100):
+                publish('\n'.join(rows[start:start + 100]) + '\n')
+                time.sleep(.05)
+            gate('finish')
+            publish('```\n\nCompleted large code fixture.')
+            emit({'type': 'assistant', 'final': True, 'item_id': item_id, 'turn_id': turn,
+                  'message': {'content': [{'type': 'text', 'text': cumulative}]}})
+            emit({'type': 'result', 'result': cumulative, 'is_error': False})
+            continue
         if label == 'codex-five-story-items':
             runtime = Path(os.environ['PAN_E2E_RUNTIME'])
             for story in range(1, 6):

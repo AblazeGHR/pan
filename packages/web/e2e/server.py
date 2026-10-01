@@ -28,6 +28,21 @@ SESSION_DIR = RUNTIME / "sessions"
 WORKDIR = RUNTIME / "session-workdir"
 DATA_DIR = RUNTIME / "data"
 PORT = int(os.environ.get("PAN_PORT", "8767"))
+if PORT in (8767, 8768):
+    raise RuntimeError("E2E requires an explicitly selected, unprotected port")
+
+# Isolate auxiliary registries and settings before importing the web server.
+# Otherwise startup jobs or browser settings can escape the Session fixture.
+RUNTIME.mkdir(parents=True, exist_ok=True)
+os.environ["PAN_BACKGROUND_JOBS_DIR"] = str(RUNTIME / "background-jobs")
+os.environ["PAN_SCHEDULER_DIR"] = str(RUNTIME / "scheduler")
+from packages.core import config as fixture_config
+fixture_config.CONFIG_FILE = RUNTIME / "config.json"
+if not fixture_config.CONFIG_FILE.exists():
+    fixture_config.CONFIG_FILE.write_text(
+        json.dumps({"plugin_manifests": [], "scheduler": {"enabled": False}}),
+        encoding="utf-8",
+    )
 
 
 def _write_fixture_files() -> None:
