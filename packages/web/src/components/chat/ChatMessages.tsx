@@ -319,6 +319,25 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
   const virtualItems = virtualizer.getVirtualItems();
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
+  // Rows use normal document flow to prevent overlap during streaming. While
+  // scrolling, TanStack defers a new row's first measurement to ResizeObserver.
+  // Its actual DOM height can therefore move later rows before the estimated
+  // prefix/scroll compensation catches up. Measure only these newly mounted
+  // rows in the layout phase, so both changes settle before the first paint.
+  // Previously measured rows retain the library's normal resize policy (in
+  // particular, growth below the reading point in a tall row does not scroll).
+  useLayoutEffect(() => {
+    const instance = virtualizerRef.current;
+    if (!instance.itemSizeCache || !parentRef.current) return;
+    for (const node of parentRef.current.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
+      const index = Number(node.dataset.index);
+      const key = instance.options.getItemKey(index);
+      if (!instance.itemSizeCache.has(key)) {
+        const height = instance.options.measureElement(node, undefined, instance);
+        if (height > 0) instance.resizeItem(index, height);
+      }
+    }
+  }, [virtualItems, currentSessionId]);
   const [isUnderfilled, setIsUnderfilled] = useState(false);
   const refreshUnderfilled = useCallback(() => {
     const el = parentRef.current;
@@ -808,7 +827,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       !anchor ||
       anchor.sessionId !== currentSessionIdRef.current ||
       sessionSwitchWaitingForSettingsRef.current ||
-      shouldFollowBottomRef.current
+      shouldFollowBottomRef.current ||
+      (userScrollStateRef.current.active && !paginationAnchorRef.current && !restoreRef.current)
     ) return false;
 
     let row = anchor.identity
@@ -856,6 +876,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
   }, [markProgrammaticChange]);
 
   const scheduleSessionAnchorRestore = useCallback(() => {
+    // A measurement-triggered render must not re-arm the restore that explicit
+    // wheel/touch input just cancelled. Genuine prepend/route restores retain
+    // their own anchor until the requested content has landed.
+    if (userScrollStateRef.current.active && !paginationAnchorRef.current && !restoreRef.current) return;
     if (sessionAnchorRestoreRafRef.current !== null) return;
     let frameCount = 0;
     let stableFrames = 0;
