@@ -73,6 +73,9 @@ import type {
   ApiHealthResponse,
   AttachmentRef,
   MessagePart,
+  RewindScope,
+  ApiRewindResponse,
+  ApiRewindJobStatus,
   ScheduledTask,
   ScheduledTaskInput,
   ScheduledTaskPatch,
@@ -466,6 +469,36 @@ export async function prepareHistorySearch(
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
+}
+
+export async function rewindSessionHistory(
+  sessionId: string,
+  messageId: string,
+  scope: RewindScope,
+): Promise<ApiRewindResponse> {
+  const data = await request<ApiRewindResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/history/${encodeURIComponent(messageId)}/rewind`,
+    { method: 'POST', body: JSON.stringify({ scope }) },
+  );
+  if (!data.ok) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '撤回失败');
+  }
+  return data;
+}
+
+export async function fetchRewindJobStatus(
+  sessionId: string,
+  jobId: string,
+): Promise<ApiRewindJobStatus> {
+  const data = await request<ApiRewindJobStatus>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/rewind/${encodeURIComponent(jobId)}`,
+  );
+  if (!data.ok) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '撤回状态查询失败');
+  }
+  return data;
 }
 
 export interface CreateSessionSettings {

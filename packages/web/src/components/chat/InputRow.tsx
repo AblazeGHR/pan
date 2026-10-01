@@ -350,6 +350,14 @@ export function InputRow() {
   const { showToast } = useUIStore();
   const chatAttachmentRequests = useUIStore((s) => s.chatAttachmentRequests);
   const consumeChatAttachmentRequests = useUIStore((s) => s.consumeChatAttachmentRequests);
+  const composerFocusToken = useUIStore((s) => s.composerFocusToken);
+
+  // External one-shot focus requests (e.g. rewind completion jumps to the
+  // new branch session and wants the composer focused with the prefilled
+  // anchor text). Token-based: every bump focuses once.
+  useEffect(() => {
+    if (composerFocusToken > 0) composerRef.current?.focus();
+  }, [composerFocusToken]);
   const { isMobile } = useMediaQuery();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [composerHeight, setComposerHeight] = useState(180);
