@@ -71,6 +71,42 @@ function measuredRowKey(
   return `${sessionId ?? 'no-session'}:${getDisplayItemKey(item, index)}`;
 }
 
+// Content-aware pre-measurement estimate, used only for keys the measured-height
+// cache does not hold. The stock flat estimate underestimates long assistant
+// rows by hundreds of px, and every such row pays that error back as a
+// synchronous size compensation the moment it is first measured — which is the
+// per-frame content shift this file fights. This is a *pure* function of the
+// display item, so it returns the same value on every render (a stable estimate
+// is required: an estimate that changes per render would itself re-measure the
+// row and create more churn than it removes).
+//
+// It is deliberately coarse. Rendered height is dominated by markdown structure
+// (tables, code fences) that no cheap text metric can see, so this must not
+// pretend to precision — it only has to be closer than a flat 100 for the common
+// long-text row. Empirical row metrics (bubble mode, 1120px viewport): a body
+// line is ~22.75px, an assistant row carries ~20px of vertical padding. Clamp to
+// a ceiling so a pathological row cannot reserve a screenful before it is
+// measured.
+const ESTIMATE_PADDING = 24;
+const ESTIMATE_LINE_HEIGHT = 23;
+const ESTIMATE_CHARS_PER_LINE = 78;
+const ESTIMATE_MAX = 640;
+
+function estimateRowHeight(item: DisplayItem | undefined): number {
+  if (!item) return 100;
+  if ('type' in item) {
+    // A grouped block (tool/thinking/non-body) renders folded by default: its
+    // header plus a bounded preview, never the full member set.
+    return item.type === 'non_body_group' ? 48 : 56;
+  }
+  const message = item as Message;
+  const text = typeof message.content === 'string' ? message.content : '';
+  const explicitLines = text.length === 0 ? 0 : text.split('\n').length;
+  const wrappedLines = Math.ceil(text.length / ESTIMATE_CHARS_PER_LINE);
+  const lines = Math.max(1, Math.min(Math.max(explicitLines, wrappedLines), 40));
+  return Math.min(ESTIMATE_MAX, ESTIMATE_PADDING + lines * ESTIMATE_LINE_HEIGHT);
+}
+
 /** Disclosure rows remount folded, so their previous expanded heights are stale. */
 function invalidateDisclosureHeights(sessionId: string, items: DisplayItem[]): void {
   const heights = measuredHeights.get(sessionId);
@@ -302,7 +338,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     estimateSize: (index) =>
       measuredHeights
         .get(currentSessionId ?? '')
-        ?.get(measuredRowKey(currentSessionId, grouped[index], index)) ?? 100,
+        ?.get(measuredRowKey(currentSessionId, grouped[index], index)) ??
+      estimateRowHeight(grouped[index]),
     overscan: 5,
     // The default key is the array index. Streaming replaces message objects,
     // prepending history shifts indexes, and tool grouping changes row shapes;
@@ -311,6 +348,68 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     // when two Sessions happen to expose the same native/message identity.
     getItemKey: (index) => measuredRowKey(currentSessionId, grouped[index], index),
   });
+  // `shouldAdjustScrollPositionOnItemSizeChange` is the virtualizer's synchronous
+  // size-correction hook: returning true applies the measured delta to
+  // `scrollOffset` in the same tick as the measurement write, so an
+  // estimated-then-measured row never moves the reader's line on screen.
+  //
+  // The stock predicate compensates a re-measured row only while
+  // `scrollDirection !== 'backward'`, which is exactly the "items jump while
+  // scrolling up" case this chat hits after a navigation jump leaves a long run
+  // of estimated rows: scrolling up remeasures them, the content above the
+  // viewport grows, and the default refuses to correct.
+  //
+  // Measured finding: the library DOES run this correction and its write lands
+  // (verified: the predicted offset equals the achieved `scrollTop`, never
+  // clamped), yet the frame still jumps. The competing restores in this
+  // component (`sessionAnchorRef` and `paginationAnchorRef`) then pin the same
+  // row back to the offset they remembered *before* the growth — the same
+  // magnitude with the opposite sign, cancelling the library exactly and, during
+  // an up-scroll through a run of estimated rows, compounding into an
+  // overshoot-then-snap loop (measured: S2 single-frame jumps up to ~4.6k px).
+  // The hook below therefore must stay, and every other writer must stand down
+  // for a row the virtualizer already corrected this frame (see the guards near
+  // `restoreSessionViewportAnchor` and `restorePaginationAnchor`). One writer per
+  // frame is the invariant; a genuine prepend (no compensation) still restores
+  // immediately, so prepend accuracy is preserved.
+  //
+  // Rows the virtualizer compensated during the current frame, with the summed
+  // delta it applied. Every competing restore consults this so it stands down
+  // for a row the virtualizer already moved this frame. Cleared on the next
+  // animation frame: one frame is exactly the window in which the competing
+  // correction runs.
+  //
+  const sizeCompensatedThisFrameRef = useRef<Map<number, number> | null>(null);
+  // The option is honoured by the virtualizer's `setOptions` (it copies every
+  // key into `this.options` before `resizeItem` reads it) but is missing from
+  // `VirtualizerOptions`, hence the cast.
+  (virtualizer as unknown as {
+    shouldAdjustScrollPositionOnItemSizeChange?: (
+      item: { start: number; end: number; delta: number },
+      delta: number,
+      instance: { scrollOffset: number | null },
+    ) => boolean;
+  }).shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
+    // Any row whose top is above the reader's line moved every pixel below it,
+    // so compensating its measured delta keeps that line fixed. `start < so`
+    // intentionally includes the row that straddles the fold (start < so but
+    // end > so): its growth pushes the content below it down too, and excluding
+    // it (as `end <= so` does) leaves exactly the visible jump this hook fixes.
+    // Rows fully below the fold are excluded by the same comparison.
+    if (item.start >= (instance.scrollOffset ?? 0)) return false;
+    const compensated = sizeCompensatedThisFrameRef.current ??= new Map<number, number>();
+    const index = (item as { index?: number }).index;
+    if (typeof index === 'number') {
+      compensated.set(index, (compensated.get(index) ?? 0) + delta);
+      if (compensated.size === 1) {
+        // First compensation of this frame arms the clear for the next one.
+        requestAnimationFrame(() => {
+          sizeCompensatedThisFrameRef.current = null;
+        });
+      }
+    }
+    return true;
+  };
   // Virtualized content height. Changes when messages are added/removed or
   // when items get measured after layout. Re-scrolling on this (while the user
   // is pinned to the bottom) is what lands the view at the *true* bottom once
@@ -319,6 +418,29 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
   const virtualItems = virtualizer.getVirtualItems();
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
+  // Keep this Session's measured-height cache warm *during* the mount, not only
+  // at unmount. `estimateSize` reads this map for a row the virtualizer has not
+  // measured in the current window: the more keys it already holds, the closer
+  // the pre-measurement estimate is to the committed height, so the synchronous
+  // size compensation on a row's first paint is smaller and the content above
+  // the reader's line shifts less. Writing from the live `measurementsCache`
+  // (keyed by the same `measuredRowKey` the estimate reads, which `getItemKey`
+  // also produces) is what makes a row measured once — in any earlier scroll
+  // within this mount — stay measured when it re-enters the window. Entries
+  // whose `size` is not a positive number are skipped so the estimate stays a
+  // pure function of identity; a value that changed every render would itself
+  // re-measure the row and create more churn than it removes.
+  if (currentSessionId) {
+    const cache = virtualizer.measurementsCache;
+    if (Array.isArray(cache)) {
+      let heights = measuredHeights.get(currentSessionId);
+      for (const measurement of cache) {
+        if (typeof measurement.size !== 'number' || measurement.size <= 0) continue;
+        if (!heights) { heights = new Map(); measuredHeights.set(currentSessionId, heights); }
+        heights.set(String(measurement.key), measurement.size);
+      }
+    }
+  }
   const [isUnderfilled, setIsUnderfilled] = useState(false);
   const refreshUnderfilled = useCallback(() => {
     const el = parentRef.current;
@@ -734,6 +856,30 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     const anchor = paginationAnchorRef.current;
     if (!el || !anchor) return;
 
+    // Single-writer discipline. `shouldAdjustScrollPositionOnItemSizeChange`
+    // may already have applied this frame's size delta to `scrollOffset` for a
+    // row above the reader's line. If that row is the one this anchor pins, the
+    // correction below would cancel the virtualizer's write exactly (opposite
+    // sign, same magnitude) — the overshoot-then-snap loop this restore leaks
+    // while a run of estimated rows above the fold keeps re-measuring during an
+    // up-scroll. Stand down for this frame only; the loop re-runs next frame
+    // from the settled layout, and a genuine prepend (no compensation) still
+    // corrects immediately, so prepend accuracy is preserved.
+    // Resolve the anchored row to its current display index through the same
+    // stable identity the virtualizer keys on (`rowKey` first, then the message
+    // identity it groups into), so the set membership check is exact.
+    const compensated = sizeCompensatedThisFrameRef.current;
+    if (compensated) {
+      const anchorIndex = anchor.rowKey
+        ? groupedRef.current.findIndex((item, itemIndex) =>
+            measuredRowKey(currentSessionIdRef.current, item, itemIndex) === anchor.rowKey,
+          )
+        : anchor.identity
+          ? findDisplayItemIndexByMessageIdentity(groupedRef.current, anchor.identity)
+          : -1;
+      if (anchorIndex >= 0 && compensated.has(anchorIndex)) return;
+    }
+
     // Re-resolve stable identities on every correction instead of trusting a
     // connected DOM node: a virtualizer may recycle that node for another row.
     if (anchor.rowKey) {
@@ -810,6 +956,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       sessionSwitchWaitingForSettingsRef.current ||
       shouldFollowBottomRef.current
     ) return false;
+
+    // The virtualizer already compensated a size change for a row above the
+    // reader's line in this frame. If that row is the one this restore anchors
+    // to, applying the correction again would undo it exactly (opposite sign,
+    // same magnitude) and leave the jump on screen. Stand down for this frame
+    // only; the recorded anchor is refreshed from the settled layout afterwards.
+    const compensated = sizeCompensatedThisFrameRef.current;
+    if (compensated && anchor.rowKey) {
+      const anchorIndex = groupedRef.current.findIndex((item, itemIndex) =>
+        measuredRowKey(currentSessionIdRef.current, item, itemIndex) === anchor.rowKey,
+      );
+      if (anchorIndex >= 0 && compensated.has(anchorIndex)) return false;
+    }
 
     let row = anchor.identity
       ? findRenderedRowByMessageIdentity(
@@ -933,6 +1092,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       if (resolved && !historyLoadingRef.current && stableFrames >= quietLimit) {
         paginationAnchorRef.current = null;
         if (routeRestore) restoreRef.current = null;
+        return;
+      }
+      // Active-input handover. Once the prepend has landed (the anchored row is
+      // rendered and measurable) and no further page is in flight, a live wheel
+      // or touch gesture owns `scrollTop`: `shouldAdjustScrollPositionOnItemSizeChange`
+      // is the single writer for the rows it re-measures this frame, and keeping
+      // this restore alive would revert its compensation (the residual
+      // overshoot-then-snap pair measured after the first guard). Release the
+      // anchor instead of re-pinning it under the reader's finger — the anchor is
+      // only re-armed by a later genuine prepend. Route restores are excluded:
+      // they must pin through the whole multi-page jump regardless of input.
+      if (resolved && !routeRestore && !historyLoadingRef.current && userScrollStateRef.current.active) {
+        paginationAnchorRef.current = null;
         return;
       }
       if (resolved && !routeRestore && frameCount >= 30) {
