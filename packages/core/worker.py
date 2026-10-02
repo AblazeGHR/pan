@@ -2205,9 +2205,10 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     """Commit the exact provider hand-off, then remove the durable rows."""
     if not all(any(existing is item for existing in s.queue_pending) for item in items):
         return False
-    # sent_to_cli 同样把行移出待处理计数集：版本推进与状态变更在同一次落盘
-    # （首个 sent_to_cli 保存）提交，HTTP 快照与广播补丁之间不产生“同版本不同
-    # 计数”的窗口；该保存失败则回退版本并把行放回队列。
+    # sent_to_cli 同样把行移出待处理计数集：版本推进与 sent_to_cli 状态在同一次
+    # 落盘（首个保存）提交。首存失败时行会回 queued（重新计入待处理）——该回队
+    # 不复用旧版本，而是以本轮推进的新版本保存（见下方 except 分支），否则会与
+    # 已持久化的 reserved 快照形成“同版本不同计数”。
     old_queue_revision = getattr(s, "queue_revision", 0)
     s.queue_revision = old_queue_revision + 1
     for item in items:
@@ -2222,7 +2223,11 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         _remove_queue_items_by_identity(s, items)
         raise
     except Exception as exc:
-        s.queue_revision = old_queue_revision
+        # 首存失败说明 sent_to_cli 从未落盘（磁盘仍是 reserved，计数 0，revR）。
+        # 这里把行回 queued 会重新计入待处理，因此不能把版本回退到 old：回退后
+        # 的第二次保存会与已持久化的 reserved 快照构成“同版本不同计数”。保持
+        # 本轮推进的版本，与回队状态在同一次保存提交——与 _requeue_queue_unit
+        # 的规则一致。
         _log.warning(
             "[Worker %s] handoff receipt save failed; retrying item(s): %s",
             w.worker_id, exc,
