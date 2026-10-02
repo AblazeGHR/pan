@@ -230,6 +230,29 @@ function normalizedUnreadCount(value: unknown): number {
 }
 
 /**
+ * Queue summary triple (queuePendingCount / queueAllLocked / queueRevision) is
+ * versioned by the durable queueRevision alone — it deliberately does NOT ride
+ * summaryRevision (queue mutations do not bump the projection revision), so a
+ * list snapshot fetched before a queue event must not overwrite the newer WS
+ * patch, and vice versa.  Equal revisions accept the incoming payload (same
+ * durable state); missing versions on either side fall back to incoming.
+ */
+function preserveNewerQueue(current: Session, incoming: Session): Session {
+  const currentRevision = current.queueRevision;
+  const incomingRevision = incoming.queueRevision;
+  if (typeof currentRevision !== 'number' || typeof incomingRevision !== 'number') {
+    return incoming;
+  }
+  if (currentRevision <= incomingRevision) return incoming;
+  return {
+    ...incoming,
+    queuePendingCount: current.queuePendingCount,
+    queueAllLocked: current.queueAllLocked,
+    queueRevision: currentRevision,
+  };
+}
+
+/**
  * The unread-done cursor pair (generation, read generation) is a logical
  * clock: both components only grow. A snapshot or WS payload whose pair is
  * older than the local pair (e.g. a list response fetched before an ack and
@@ -675,13 +698,13 @@ function preserveNewerSummary(current: Session, incoming: Session): Session {
   const incomingRevision = incoming.summaryRevision;
   if (typeof currentRevision !== 'number'
       || currentRevision <= (typeof incomingRevision === 'number' ? incomingRevision : -1)) {
-    return preserveNewerUnread(current, incoming);
+    return preserveNewerQueue(current, preserveNewerUnread(current, incoming));
   }
   const preserved = { ...incoming, summaryRevision: currentRevision };
   for (const field of SUMMARY_PROJECTION_FIELDS) {
     if (field in current) Object.assign(preserved, { [field]: current[field] });
   }
-  return preserveNewerUnread(current, preserved);
+  return preserveNewerQueue(current, preserveNewerUnread(current, preserved));
 }
 
 // ── Transcript helpers ──────────────────────────────────────────────────────
@@ -3611,7 +3634,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // ack 边界 = min(意图, 当前显示 generation)：只推进调用方已观察的代，
         // 在途期间新到的 generation 不会被旧意图超量吞掉。
         const ackBoundary = Math.min(wanted, currentGeneration);
-        if (!current || ackBoundary <= 0 || ackBoundary <= currentRead) break;
+        if (!current || ackBoundary <= 0) break;
+        if (ackBoundary <= currentRead) {
+          // 意图已无新代可清（例如其它路径已完成同一 ack）→ 清理后结束。
+          unreadAckWanted.delete(id);
+          break;
+        }
         unreadAckWanted.delete(id);
         // 乐观清零只改显示计数，不动游标：服务端真源与版本比较会把状态收敛
         // 回来，不会把未确认的游标写进本地版本时钟。
@@ -3641,15 +3669,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               };
             }),
           }));
-          if (responseCount <= 0) break;
         } catch (error) {
-          // 失败时以服务端为真源恢复（乐观清零可能掩盖了真实未读数）。
+          // 失败：清掉本次意图（不按旧响应忙重试），以服务端为真源回源恢复；
+          // 后续是否重试由列表/WS 状态变化重新触发。
+          unreadAckWanted.delete(id);
           console.warn('[sessionStore] ackSessionUnread failed', id, error);
           try {
             await get().loadSessions();
           } catch {
             // 列表也拉取失败时保留乐观清零；下一次列表/WS 快照会重新对齐。
           }
+          break;
+        }
+        // 是否续作由“最新 wanted + 当前 store 游标”决定，而不是旧响应的
+        // count：ack 在途期间到达的更大 generation（其旧响应会被版本保护
+        // 跳过）必须在此继续收敛，否则意图滞留。
+        const nextWanted = unreadAckWanted.get(id) ?? 0;
+        const latest = get().sessions.find((item) => item.id === id);
+        const latestGeneration = normalizedUnreadCount(latest?.unreadDoneGeneration);
+        const latestRead = normalizedUnreadCount(latest?.unreadDoneReadGeneration);
+        if (Math.min(nextWanted, latestGeneration) <= latestRead) {
+          // 没有新的已观察代：清理滞留意图后结束。
+          if (nextWanted > 0) unreadAckWanted.delete(id);
           break;
         }
       }

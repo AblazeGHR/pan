@@ -2134,15 +2134,20 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
             _sess.append_history(s, entry)
             history_added = True
 
+        # 保留（reserved）会把行移出待处理计数集：版本与状态在同一次落盘提交，
+        # 防止 HTTP 快照与广播补丁之间出现“同版本不同计数”的窗口。
+        old_queue_revision = getattr(s, "queue_revision", 0)
         for item in items:
             item["deliveryState"] = _DELIVERY_RESERVED
             item["reservedBy"] = w.worker_id
             item["reservedGeneration"] = w.generation
             item["reservedAt"] = time.time()
             _remember_queue_item(s, item, _DELIVERY_RESERVED)
+        s.queue_revision = old_queue_revision + 1
         try:
             await _save_receipt(s)
         except Exception:
+            s.queue_revision = old_queue_revision
             if history_added and s.history and set(s.history[-1].get("delivered_keys") or ()) == {
                 _delivery_key(item) for item in history_items
             }:
@@ -2164,13 +2169,19 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
 async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
                               history_added: bool = False) -> None:
     """Put an unfinished hand-off back, with bounded retry backoff."""
+    requeued = False
     for item in items:
         if _delivery_state(item) == _DELIVERY_SENT:
             continue
         _queue_item_backoff(item, reason)
         _remember_queue_item(s, item, _DELIVERY_QUEUED)
+        requeued = True
         if item.get("type") == "task":
             _task_status_queued(w, item)
+    # 回到 queued 会把行重新计入待处理：版本随状态一起推进（保存失败时内存
+    # 状态保持 requeued，版本不回退也保持单调）。
+    if requeued:
+        s.queue_revision = getattr(s, "queue_revision", 0) + 1
     if history_added:
         for index in range(len(s.history) - 1, -1, -1):
             entry = s.history[index]
@@ -2194,6 +2205,11 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     """Commit the exact provider hand-off, then remove the durable rows."""
     if not all(any(existing is item for existing in s.queue_pending) for item in items):
         return False
+    # sent_to_cli 同样把行移出待处理计数集：版本推进与状态变更在同一次落盘
+    # （首个 sent_to_cli 保存）提交，HTTP 快照与广播补丁之间不产生“同版本不同
+    # 计数”的窗口；该保存失败则回退版本并把行放回队列。
+    old_queue_revision = getattr(s, "queue_revision", 0)
+    s.queue_revision = old_queue_revision + 1
     for item in items:
         _set_delivery_state(s, item, _DELIVERY_SENT)
         _clear_delivery_reservation(item)
@@ -2206,6 +2222,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         _remove_queue_items_by_identity(s, items)
         raise
     except Exception as exc:
+        s.queue_revision = old_queue_revision
         _log.warning(
             "[Worker %s] handoff receipt save failed; retrying item(s): %s",
             w.worker_id, exc,
@@ -2222,7 +2239,6 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         return False
 
     w._current_handoff_acked = True
-    s.queue_revision = getattr(s, "queue_revision", 0) + 1
     _remove_queue_items_by_identity(s, items)
     try:
         await _save_receipt(s)
@@ -4070,9 +4086,14 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     item["reservedGeneration"] = w.generation
     item["reservedAt"] = time.time()
     _remember_queue_item(s, item, _DELIVERY_RESERVED)
+    # 保留（reserved）会把行移出待处理计数集：版本与状态在同一次落盘提交，
+    # 防止 HTTP 快照与广播补丁之间出现“同版本不同计数”的窗口。
+    old_queue_revision = getattr(s, "queue_revision", 0)
+    s.queue_revision = old_queue_revision + 1
     try:
         await _save_receipt(s)
     except Exception:
+        s.queue_revision = old_queue_revision
         _queue_item_backoff(item, "task reservation save failed")
         _remember_queue_item(s, item, _DELIVERY_QUEUED)
         return None
