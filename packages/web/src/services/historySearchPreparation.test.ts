@@ -4,6 +4,29 @@ import { prepareHistorySearch } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each([404, 405])('identifies an unavailable preparation endpoint (%s) without claiming completion', async (status) => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status,
+    json: async () => ({ detail: 'Not Found' }) })));
+  const progress = vi.fn();
+  await expect(prepareHistorySearch('needle', ['user'], 50, new AbortController().signal, progress))
+    .rejects.toMatchObject({ status, message: expect.stringContaining(`updated backend`) });
+  expect(progress).not.toHaveBeenCalled();
+});
+
+it.each([422, 500, 503])('retains the actual failure status and server detail (%s)', async (status) => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status,
+    json: async () => ({ detail: 'Preparation query rejected' }) })));
+  await expect(prepareHistorySearch('needle', ['user'], 50, new AbortController().signal, vi.fn()))
+    .rejects.toMatchObject({ status, message: expect.stringContaining(`HTTP ${status}): Preparation query rejected`) });
+});
+
+it('handles non-JSON proxy errors without losing the HTTP status', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502,
+    json: async () => { throw new SyntaxError('HTML'); } })));
+  await expect(prepareHistorySearch('needle', ['user'], 50, new AbortController().signal, vi.fn()))
+    .rejects.toMatchObject({ status: 502, message: expect.stringContaining('HTTP 502') });
+});
+
 function transport(events: object[]) {
   const bytes = new TextEncoder().encode(events.map((event) => JSON.stringify(event)+'\n').join(''));
   const chunks = [bytes.slice(0, 17), bytes.slice(17, 63), bytes.slice(63)];

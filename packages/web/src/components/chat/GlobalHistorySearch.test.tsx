@@ -143,6 +143,19 @@ it('keeps results explicitly incomplete on preparation failure', async () => {
   expect(view.getByRole('button', { name: 'Retry search' })).toBeTruthy();
 });
 
+it('keeps already found results but never exposes complete pagination when the preparation endpoint is unavailable', async () => {
+  fetchSearch.mockResolvedValueOnce({ ...searchPage([hit()], true, 'not-complete'), totalMatches: 9 });
+  prepareSearch.mockRejectedValueOnce(new ApiRequestError(404,
+    'Old-history preparation is unavailable on this server (HTTP 404). Check that the updated backend is running. Results are incomplete.'));
+  const view = renderSearch();
+  await enterQuery(view.getByTestId('global-history-search-input'), 'needle');
+  expect(view.getByText(/updated backend/)).toBeTruthy();
+  expect(view.getByText(/Results are incomplete/)).toBeTruthy();
+  expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
+  expect(view.getByRole('button', { name: 'Retry search' })).toBeTruthy();
+  expect(view.getByText('needle in this Session')).toBeTruthy();
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();

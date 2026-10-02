@@ -424,7 +424,19 @@ export async function prepareHistorySearch(
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ q: query, roles: roles.join(','), limit }),
   });
-  if (!response.ok) throw new ApiRequestError(response.status, 'Could not prepare old history.');
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const body = await response.json() as { detail?: unknown; error?: { message?: unknown } };
+      const candidate = body.detail ?? body.error?.message;
+      if (typeof candidate === 'string') detail = candidate;
+    } catch { /* An older server or reverse proxy may return an HTML error. */ }
+    const status = `HTTP ${response.status}`;
+    const message = response.status === 404 || response.status === 405
+      ? `Old-history preparation is unavailable on this server (${status}). Check that the updated backend is running and the request is routed to it. Results are incomplete.`
+      : `Old-history preparation failed (${status})${detail ? `: ${detail}` : '.'} Results are incomplete. Retry search.`;
+    throw new ApiRequestError(response.status, message);
+  }
   if (!response.body) throw new Error('Search preparation stream is unavailable.');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
