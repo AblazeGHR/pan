@@ -113,11 +113,33 @@ function jobRetentionResponse(rules = defaultJobRetentionRules) {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   document.body.innerHTML = '';
 });
 
 describe('AppSettingsModal', () => {
   beforeEach(() => {
+    // McpRemoteSettings uses fetch directly rather than the mocked API module.
+    // Keep the real panel mounted without adding an unrelated network-error alert.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input !== '/api/remote/mcp' || init?.method !== 'GET') {
+        throw new Error(`Unexpected settings fetch: ${init?.method} ${String(input)}`);
+      }
+      return new Response(JSON.stringify({
+        config: {
+          enabled: false,
+          port: 8769,
+          public_hostname: '',
+          access_issuer: '',
+          access_audience: '',
+          config_path: '',
+          binary_path: '',
+        },
+        publicUrl: '',
+        gateway: { listening: false },
+        tunnel: { running: false },
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }));
     localStorage.clear();
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
     fetchCodexModelsMock.mockResolvedValue({
