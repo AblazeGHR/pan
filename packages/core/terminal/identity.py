@@ -270,9 +270,17 @@ def open_process_for_probe(pid: int) -> int | None:
 
 
 def probe_process(pid: int) -> ProcessProbe:
-    """``IdentityProbe`` 实现：按 PID 打开**新 handle** 后做三态判定。
+    """诊断探针（**非清理放行证据**，r3 §13.4）：按 PID 打开新 handle 判定存活。
 
-    打不开（含 PID 不存在/权限不足）一律 ``UNKNOWN``——**不得**当作 dead。
+    - 打开成功且 ``WAIT_TIMEOUT``（存活）且能读 FILETIME -> ``ALIVE`` + identity；
+    - 其它（**含打开成功但 signaled**、打不开）-> ``UNKNOWN``。
+
+    为什么 signaled 也返回 UNKNOWN：新开的陌生 handle 的 signaled 结果无法绑定到
+    “spawn 时记录的我们的进程”——PID 复用会让“陌生进程已退出”冒充“我们的进程已
+    退出”。``DEAD`` 放行证据**必须**来自 spawn 时同一 retained handle
+    （:func:`probe_handle`）或 Job 对象层面证据（见 ``guard.JobObjectGuard``）。
+    需要给 runtime 接线的场景请用后端自己的绑定探针（如
+    ``ConPtyBackend.probe``），而不是本函数。
     """
     k = kernel32()
     h = k.OpenProcess(
@@ -285,10 +293,18 @@ def probe_process(pid: int) -> ProcessProbe:
             f"OpenProcess 失败（{format_last_error()}）：查不到/打不开 = unknown，不等于 dead",
         )
     try:
-        return probe_handle(int(h), pid=int(pid))
+        probe = probe_handle(int(h), pid=int(pid))
     finally:
         # 只读探针句柄：关闭返回值检查；失败不回滚结论，由句柄计数回归测试发现。
         close_handle_checked(int(h))
+    if probe.status is ProcessStatus.DEAD:
+        return ProcessProbe(
+            ProcessStatus.UNKNOWN,
+            probe.identity,
+            "现查陌生 PID 的 signaled 结果不作为 DEAD 证据（r3 §13.4）："
+            "请用 spawn 时同一 retained handle / Job 证据",
+        )
+    return probe
 
 
 # ---------------------------------------------------------------------------

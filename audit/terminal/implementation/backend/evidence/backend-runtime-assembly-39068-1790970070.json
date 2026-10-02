@@ -8,7 +8,7 @@
     "output_complete": false,
     "drain_stop_reason": "eof-timeout",
     "reason": "process-exit",
-    "observed_at": 55342.812,
+    "observed_at": 56124.234,
     "channel_error": null,
     "bytes_at_stop": 108
   },
@@ -35,10 +35,10 @@
     "ok": true
   },
   "gate": {
-    "pid": 39388,
+    "pid": 13280,
     "identity": {
-      "pid": 39388,
-      "created_at_filetime": "134354428880958181"
+      "pid": 13280,
+      "created_at_filetime": "134354436695413944"
     },
     "assigned": true,
     "atomic_with_spawn": true,
@@ -59,10 +59,10 @@
     "resume_previous_suspend_count": 1,
     "resumed": true,
     "timings": {
-      "create_pipes_ms": 0.023,
-      "create_pseudo_console_ms": 6.267,
-      "create_process_ms": 3.323,
-      "assign_ms": 0.016
+      "create_pipes_ms": 0.02,
+      "create_pseudo_console_ms": 4.476,
+      "create_process_ms": 4.725,
+      "assign_ms": 0.023
     },
     "detail": "CREATE_SUSPENDED -> assign(guard) -> IsProcessInJob 证明 -> ResumeThread(prev==1)；身份由保留句柄读取（raw64 FILETIME）"
   }

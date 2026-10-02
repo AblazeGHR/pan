@@ -1,0 +1,6 @@
+{
+  "test": "probe_dead_bound_to_retained_handle",
+  "stranger_pid": "UNKNOWN",
+  "retained_after_release": "DEAD (cached from retained/Job evidence)",
+  "fresh_pid_probe": "UNKNOWN (never DEAD)"
+}

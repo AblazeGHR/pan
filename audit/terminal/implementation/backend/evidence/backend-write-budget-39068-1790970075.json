@@ -1,0 +1,7 @@
+{
+  "test": "write_budget_bounds_blocked_pipe",
+  "budget_s": 0.6,
+  "write_seconds": 0.607,
+  "written": 983040,
+  "payload": 33554432
+}

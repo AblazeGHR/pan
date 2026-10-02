@@ -41,7 +41,7 @@
 | `packages/core/terminal/guard.py` | `JobObjectGuard`：`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` + **禁 breakaway**（回读 LimitFlags 自证）；`member_pids`（`JobObjectBasicProcessIdList` 有界扩容）；`terminate_tree`（先枚举 → `TerminateJobObject` → 轮询 active==0 双证据）；`remaining` 按 Job 成员核对；句柄关闭后查询抛 `GuardQueryError`（fail-closed） |
 | `packages/core/terminal/spawn_win.py` | `spawn_conpty_suspended`：CreatePipe×2 → CreatePseudoConsole → 属性表 → `CreateProcessW(CREATE_SUSPENDED\|EXTENDED_STARTUPINFO_PRESENT)` → 释放 pty 侧两管道句柄 → 保留句柄读 FILETIME → assign → `IsProcessInJob` 证明 + active≥1 → `ResumeThread`（先前挂起计数必须恰为 1）；`SpawnEvidence`/`SpawnDenied`；`ConPtySpawn` 分阶段释放（失败保留、重试幂等）；`build_command_line/build_environment_block` |
 | `packages/core/terminal/backend.py` | `ConPtyBackend`（`PtyBackend` 协议）：pump 线程 + 有界缓冲；`read`（阻塞/有界；真实 EOF≠进程退出）；`write`（串行、partial、有界预算、可取消）；`resize`；`alive`（三态，unknown 抛 `BackendProbeError`）；`exit_code`（仅 signaled，含 259）；`terminate`（只经保留句柄 + 有界 signaled 确认）；`close`（stop/CancelSynchronousIo/join → writer 收敛 → 官方顺序释放 → 自持 guard 最后关闭；失败抛 `BackendCloseError` 保留 owner，重复幂等）；`gate`（`UnverifiedOwnershipGate`）；`WinptyBackend` 占位（非生产依赖，构造即拒绝） |
-| `tests/test_terminal_windows_backend.py` | 14 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
+| `tests/test_terminal_windows_backend.py` | 18 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、**阻塞读不阻塞 write/terminate/close**、**写预算 watchdog**、**interrupt 有界（输入锁被占）**、**DEAD 绑定 retained handle**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
 | `tests/test_terminal_spawn_gate.py` | 10 项（纯逻辑 env/命令行 + 挂起无副作用/exactly-one resume、assign/成员/查询/异常 resume 门禁、清理重试、门禁装配、失败不发布） |
 | `tests/test_terminal_guard.py` | 6 项（flags/describe、成员与 remaining、根死枚举孙进程、idle terminate/idempotent、close 后 fail-closed、holder 硬杀） |
 | `tests/test_terminal_identity.py` | 8 项（平台守卫、ALIVE/DEAD 证据、UNKNOWN 不等于 dead、259 歧义、kill_verified 拒绝/成功、FILETIME 字符串、CloseHandle 检查、取消原语） |
@@ -80,6 +80,21 @@
 
 ---
 
+## 2.5 r3 对齐（核心窄修 `b5017d1d`，集成树 `pr6-terminal-20261002`；本工作树按指示**不 cherry-pick/不改 core**）
+
+读取集成树最新 `contracts.py`/`runtime.py` 与 CORE_INTERFACES **§13** 后，本后端在自身范围内逐条满足
+四类新约束（不改方法签名）：
+
+| r3 约束 | 本后端的落点 | 锚点用例/证据 |
+|---|---|---|
+| `PtyBackend` 句柄级并发：read/write/resize/terminate/close 必须由后端内部串行化；close 与在途 write/terminate 不得竞态 | read 走 `_cv`（等待期间不持锁）；write 走**有界** `_input_lock` + writer 注册表；resize 与句柄释放走 `_op_lock`；close = 关门（`_closing`）→ CancelSynchronousIo+join 读线程 → writer 收敛（注册表空 + 输入锁可得）→ 才释放句柄。“读阻塞不持全局锁”：write/terminate/alive/探针都不需要 `_cv` | `backend-read-nonblocking`（阻塞 read 时 write<1s、alive/探针<0.5s、close 有界收敛） |
+| 输入门后的**已接纳输入有界收敛**（runtime `input_drain_timeout`=2.0s） | write 总预算默认 **1.5s**（<2.0s）；**预算计时器**到期即对写线程 `CancelSynchronousIo`，单次被堵塞 WriteFile 也按期返回 partial；写锁同样有界获取（不可得 → `BackendBusyError`） | `backend-write-budget`（32MiB 堵塞写 0.6s 预算内返回；`timeout=0` 立即 partial(0)） |
+| runtime.close **interrupt 阶段**直接 `backend.write(b"\x03")`/alive/探针，必须自身有界 | interrupt 用**短预算 0.5s**；alive/`backend.probe` 是 `WaitForSingleObject(0)`+`GetProcessTimes` 快速查询；`terminate(True)` 的有界确认 ≤1.0s（runtime 给 1.5s worker 预算） | `backend-interrupt-bounded`（在途写持锁时 interrupt <1.5s 返回且 close 收敛） |
+| `ProcessProbe(DEAD)` 只能绑定 spawn 时**同一 retained handle**或 Job 证据；不得用现查陌生 PID 的 signaled 放行 | 新增 `ConPtyBackend.probe(pid)`：非本终端 PID 一律 UNKNOWN；本终端根 PID 走 retained handle（释放后走保留的 retained/Job 死亡缓存）；`identity.probe_process` 改为只给 ALIVE/UNKNOWN（fresh-handle signaled 不再作为 DEAD）；runtime 装配统一改用 `backend.probe` | `backend-probe-binding`、identity `test_probe_unknown_is_not_dead`（retained=DEAD vs fresh=UNKNOWN 对拍） |
+| `TreeGuard` 每个操作自身有界、快速返回 | `owned_pids`/`remaining` 单次 `QueryInformationJobObject`（成员列表扩容循环有界）；`terminate_tree` = 单次 `TerminateJobObject` + 受 `timeout` 约束的轮询，上限钳制 `MAX_TERMINATE_TREE_TIMEOUT=30s`；无阻塞等待 | `test_terminate_tree_idle_and_repeatable`、`test_guard_query_fail_closed_after_close` |
+
+---
+
 ## 3. 本机实测事实（build 26200，供后续校准）
 
 | # | 事实 | 证据 |
@@ -108,12 +123,12 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
 ```
 
 结果（2026-10-03 本机，Windows 11 build 26200）：
-**38 passed in 14.18s**（identity 8 / guard 6 / spawn_gate 10 / windows_backend 14），`pytest.ini` 的
-`timeout=300` 作为看门狗兜底；所有等待均有显式上界。证据 JSON（14 份，机器生成）位于
+**42 passed in 16.72s**（identity 8 / guard 6 / spawn_gate 10 / windows_backend 18），`pytest.ini` 的
+`timeout=300` 作为看门狗兜底；所有等待均有显式上界。证据 JSON（18 份，机器生成）位于
 `audit/terminal/implementation/backend/evidence/`；原 spawn spike 证据
 （`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
 
-全量 `tests/`（回归参照，串行运行）：**7 failed, 1941 passed, 15 skipped in 123.41s**；
+全量 `tests/`（回归参照，串行运行）：**7 failed, 1945 passed, 15 skipped in 126.15s**；
 失败集与逐项归因见 §6。并发运行（两份 pytest 同时跑）时会额外出现性能类波动
 （如 `test_session_incremental.py` 在并发下超阈、串行复跑通过）——本报告以**串行**结果为口径。
 
@@ -156,6 +171,11 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
 5. 真实 OS 故障（CloseHandle 真实失败、旧 build 阻塞）未覆盖；清理失败重试分别用
    “真实收敛预算耗尽”与“包装层注入（已标注非真实 OS 失败）”两路覆盖。
 6. POSIX：本模块在非 Windows 明确拒绝；无 POSIX 后端。
+7. **r3 输入门端到端**：runtime 的 `_enter_input_gate`/`_close_input_gate`/`_wait_input_settled`
+   行为锚定在集成树（r3 core）的 runtime 测试；本工作树按指示未 cherry-pick core（仍为 r2 runtime），
+   因此本地只验证**后端侧**保证：写自身有界、interrupt 有界、close 与在途写不竞态、read 不持全局锁。
+   集成后建议在集成树复跑 `backend-read-nonblocking` / `backend-write-budget` / `backend-interrupt-bounded`
+   三个场景（可直接复用本工作树测试文件）。
 
 ---
 

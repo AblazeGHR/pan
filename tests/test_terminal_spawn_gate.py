@@ -346,7 +346,7 @@ def test_gate_wiring_and_runtime_start(tmp_path):
             backend,
             ownership=policy,
             identity=backend.identity,
-            identity_probe=identity.probe_process,
+            identity_probe=backend.probe,  # r3：绑定 spawn 时 retained handle
             eof_grace=1.0,
         )
         runtime.start(rows=30, cols=100, gate=backend.gate)

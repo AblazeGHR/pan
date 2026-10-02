@@ -33,6 +33,28 @@
   worker + 超时保留 HPCON 可重试；已实测机器（build 26200）立即返回，
   旧 build 未真机验证。
 
+**r3 对齐（核心窄修 b5017d1d；本后端不改 core、直接满足其契约）**：
+
+- **句柄级并发契约（``PtyBackend`` r3）**：read/write/resize/terminate/close 的
+  同句柄并发由本后端内部串行化——read 走 ``_cv``（等待期间不持锁、不占全局锁）；
+  write 走有界 ``_input_lock`` + writer 注册表；resize/释放走 ``_op_lock``；
+  close 与在途 write/terminate 通过“关门（``_closing``）+ 收敛（CancelSynchronousIo
+  + 注册表空/输入锁可得）”串行，**先收敛后释放**，杜绝句柄复用/释放竞态。
+  `read` 阻塞**不会**阻止 write/terminate/取消：三者都不需要 ``_cv``。
+- **已接纳输入有界收敛（runtime r3 输入门）**：write 的总预算（默认 1.5s <
+  ``DEFAULT_INPUT_DRAIN_TIMEOUT``=2.0s）由**预算计时器**强制——到期即对写线程
+  发起 `CancelSynchronousIo`，即使单次 WriteFile 被管道堵死也**按期返回 partial**；
+  串行锁同样有界获取（不可得 -> ``BackendBusyError``）。因此 close 的
+  interrupt 阶段（直接调 ``backend.write``）与“已接纳输入等待”都不会被无界
+  WriteFile 卡死。
+- **DEAD 证据绑定（``ProcessProbe`` r3 §13.4）**：``backend.probe(pid)`` 只对
+  本终端根 PID 用 spawn 时**同一 retained handle** 判定；非本终端 PID 一律
+  ``UNKNOWN``（不现查陌生 PID）。``identity.probe_process`` 也只给
+  ALIVE/UNKNOWN（fresh-handle signaled 不作为 DEAD 放行证据）。
+- **guard 自界（``TreeGuard`` r3）**：JobObjectGuard 的每个操作都是单次内核
+  查询或受 ``timeout`` 约束的有界轮询（上限钳制 30s），无阻塞等待；runtime 侧
+  的 ``_BoundedCall`` 只是外层兜底。
+
 边界（不得宣称）：
 
 - detach 宿主可行性**不在本模块**（无 DetachHandler 实现；见计划 §5.1）；
@@ -78,18 +100,26 @@ __all__ = [
     "ConPtyError",
     "BackendClosedError",
     "BackendProbeError",
+    "BackendBusyError",
     "BackendCloseError",
     "WinptyBackend",
     "DEFAULT_PUMP_BUFFER_BYTES",
     "DEFAULT_WRITE_BUDGET_SECONDS",
+    "DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS",
 ]
 
 #: pump 内部缓冲上限：超出则 pump 暂停读（有界、不丢弃、不泄洪）。
 DEFAULT_PUMP_BUFFER_BYTES = 4 * 1024 * 1024
 #: 单次 read() 默认拉取上限。
 DEFAULT_PUMP_READ_SIZE = 64 * 1024
-#: write() 的默认总预算（秒）：预算耗尽返回 partial。
-DEFAULT_WRITE_BUDGET_SECONDS = 5.0
+#: write() 的默认总预算（秒）：**含单次被堵塞的 WriteFile**（预算计时器到期时
+#: 对写线程发起 ``CancelSynchronousIo`` 并返回 partial）。取 1.5s < runtime 的
+#: ``DEFAULT_INPUT_DRAIN_TIMEOUT``（2.0s，r3 输入门），让“已接纳输入有界收敛”
+#: 在正常路径上能于 runtime 的等待窗口内清空；超时仍保 owner（fail-closed）。
+DEFAULT_WRITE_BUDGET_SECONDS = 1.5
+#: interrupt（``terminate(force=False)`` 写 ``\\x03``）的预算：runtime.close 的
+#: interrupt 阶段直接调用 backend.write，必须自身有界，不得被无界 WriteFile 卡死。
+DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS = 0.5
 #: 单次 WriteFile 分块上限。
 DEFAULT_WRITE_CHUNK_BYTES = 64 * 1024
 #: 进程已退出且静默该窗口后，read() 返回空字节（不给 runtime 永久阻塞）。
@@ -134,6 +164,10 @@ class BackendProbeError(ConPtyError):
     """存活/身份探针无结论：调用方必须 fail-closed，不得据此认为已死。"""
 
 
+class BackendBusyError(ConPtyError):
+    """输入串行锁在有界预算内不可得（另有在途写入未收敛）：拒绝排队等待。"""
+
+
 class BackendCloseError(ConPtyError):
     """close() 失败：未释放的资源保留在 ``report["retained"]`` 中，可重试。"""
 
@@ -152,6 +186,10 @@ class ConPtyBackend:
     一个后端对象 = 一次原子 spawn 的会话：自有 pump 线程持续读输出（有界
     缓冲），read() 从缓冲消费；write/resize 与 close 串行化；清理经
     :meth:`close`，失败保留 owner 可重试。
+
+    并发契约（r3）：同一批句柄上的 read/write/resize/terminate/close 由本对象
+    内部串行化；read 阻塞不持全局锁（write/terminate/probe/取消均不依赖它）。
+    runtime 只负责“关门后不再发起新输入 + 有界等待已接纳输入收敛”。
     """
 
     def __init__(
@@ -425,18 +463,31 @@ class ConPtyBackend:
     def write(self, data: bytes, *, timeout: float | None = None) -> int:
         """写入输入；返回**实际写入**字节数（partial 明确返回）。
 
-        - 串行：同一 backend 的写互相串行；与 close 的句柄释放通过注册表 +
-          收敛协议互斥，杜绝句柄复用竞态；
-        - 有界预算：总预算（默认 5s）内尽力写完；预算耗尽返回 partial（不抛）；
-        - close 并发：``CancelSynchronousIo`` 中止进行中的写 -> 抛
-          ``BackendClosedError``（携带部分写入计数）；管道断链 -> ``OSError``。
+        - 串行（r3 句柄级并发契约）：同一 backend 的写互相串行；与 close 的
+          句柄释放通过注册表 + 收敛协议互斥，杜绝句柄复用/释放竞态；
+        - **总预算有界（默认 1.5s，含单次被堵塞的 WriteFile）**：预算计时器到期
+          时对**本线程**发起 ``CancelSynchronousIo``，中止进行中的同步写，返回
+          partial（不抛）——不会让一次无界 WriteFile 把 close/取消拖死；
+        - 串行锁也有界获取：另一个写者堵塞时不把本调用（含 interrupt 的
+          ``\\x03``）无限拖住，锁不可得 -> ``BackendBusyError``；
+        - close 并发：close 的取消优先，抛 ``BackendClosedError``（携带部分写入
+          计数）；管道断链 -> ``OSError``。
+
+        诚实边界：预算计时器按“本调用”计时；若取消恰好落在两次 WriteFile 之间，
+        下一次 WriteFile（同一调用内）不会再发起（``timer_fired`` 检查），write
+        直接返回 partial。极窄的延迟窗口内取消若落空，本调用仍在预算内返回。
         """
         payload = bytes(data)
         if not payload:
             return 0
         budget = self._write_budget if timeout is None else max(0.0, float(timeout))
         deadline = time.monotonic() + budget
-        with self._input_lock:
+        # 有界获取输入串行锁（r3：句柄级并发安全 + 输入不拖 close）。
+        if not self._input_lock.acquire(timeout=max(0.05, budget)):
+            raise BackendBusyError(
+                "input 串行锁在预算内不可得：另有在途写入未收敛（不无限等待）"
+            )
+        try:
             with self._lifecycle_lock:
                 if self._closed or self._closing:
                     raise BackendClosedError("backend 已关闭/正在关闭：write 拒绝")
@@ -446,6 +497,18 @@ class ConPtyBackend:
             tid = threading.get_ident()
             with self._io_lock:
                 self._writer_threads[tid] = thread_handle
+            budget_state = {"timer_fired": False, "finished": False}
+
+            def _on_budget_timeout() -> None:
+                # 预算到期强制点：取消本线程上可能仍在阻塞的同步 WriteFile。
+                if budget_state["finished"]:
+                    return
+                budget_state["timer_fired"] = True
+                cancel_synchronous_io(thread_handle)
+
+            timer = threading.Timer(max(0.02, budget), _on_budget_timeout)
+            timer.daemon = True
+            timer.start()
             total = 0
             try:
                 while total < len(payload):
@@ -458,13 +521,24 @@ class ConPtyBackend:
                                 written=total,
                             )
                     chunk = payload[total : total + self._write_chunk]
+                    if budget_state["timer_fired"]:
+                        break  # 预算已触发：不再发起新的 WriteFile（返回 partial）
                     try:
                         written = self._spawn.write_raw(chunk)
                     except OSError as exc:
                         err = _win_err(exc)
                         if err == ERROR_OPERATION_ABORTED:
+                            with self._lifecycle_lock:
+                                closing = self._closing
+                            if closing:
+                                raise BackendClosedError(
+                                    "write 被 close 中止（ERROR_OPERATION_ABORTED）",
+                                    written=total,
+                                ) from exc
+                            if budget_state["timer_fired"]:
+                                break  # 预算自取消：返回 partial（诚实语义）
                             raise BackendClosedError(
-                                "write 被 close 中止（ERROR_OPERATION_ABORTED）",
+                                "write 被取消（非预算路径的 ERROR_OPERATION_ABORTED）",
                                 written=total,
                             ) from exc
                         raise
@@ -476,11 +550,15 @@ class ConPtyBackend:
                         continue
                     total += written
             finally:
+                budget_state["finished"] = True
+                timer.cancel()
                 with self._io_lock:
                     self._writer_threads.pop(tid, None)
                 if not close_handle_checked(thread_handle):
                     self._orphan_handles.append(thread_handle)
             return total
+        finally:
+            self._input_lock.release()
 
     # ------------------------------------------------------------------ resize
     def resize(self, rows: int, cols: int) -> None:
@@ -545,17 +623,33 @@ class ConPtyBackend:
             self._exit_code_known = True
         return code
 
+    def probe(self, pid: int) -> ProcessProbe:
+        """``IdentityProbe``（**r3 §13.4 绑定版**）：DEAD 只来自 spawn 时同一 retained handle。
+
+        - ``pid`` 非本终端根 PID -> ``UNKNOWN``（不现查陌生 PID，PID 复用不得冒充）；
+        - 本终端根 PID -> retained handle 三态；句柄已释放但有 retained/Job 层面
+          的死亡证据（释放前已确认 signaled）-> ``DEAD``；否则 ``UNKNOWN``。
+        """
+        if self.pid is None or int(pid) != int(self.pid):
+            return ProcessProbe(
+                ProcessStatus.UNKNOWN,
+                None,
+                "非本终端根 PID：不查陌生 PID（r3）；DEAD 证据必须绑定 spawn 时 retained handle/Job",
+            )
+        return self.probe_retained()
+
     def probe_retained(self) -> ProcessProbe:
         """retained-handle 三态探针（供 runtime/诊断；不重开 PID）。"""
         handle = self._spawn.h_process
         if not handle:
             with self._lifecycle_lock:
-                if self._dead_proven:
-                    return ProcessProbe(
-                        ProcessStatus.DEAD,
-                        self.identity,
-                        "cached: 释放前已确认 signaled",
-                    )
+                dead = self._dead_proven
+            if dead or self._spawn.death_confirmed:
+                return ProcessProbe(
+                    ProcessStatus.DEAD,
+                    self.identity,
+                    "retained/Job 证据：释放前已确认 signaled（不依赖现查 PID）",
+                )
             return ProcessProbe(
                 ProcessStatus.UNKNOWN, None, "进程句柄已释放且无死亡证据：unknown"
             )
@@ -595,8 +689,10 @@ class ConPtyBackend:
             if self._closed:
                 raise BackendClosedError("backend 已关闭：terminate 拒绝")
         if not force:
+            # interrupt 路径（runtime.close 直接调用）：短预算 + 有界锁获取，
+            # 自身有界，绝不阻塞 close 的 interrupt 阶段。
             try:
-                self.write(b"\x03")
+                self.write(b"\x03", timeout=DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS)
             except (ConPtyError, OSError):
                 pass
             return

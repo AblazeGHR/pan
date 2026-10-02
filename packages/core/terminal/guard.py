@@ -12,6 +12,12 @@
 - ``describe()["os_level_guard"]`` 如实标注 ``True``（本实现是内核级 Job 句柄，
   不是测试观察方案）。
 
+r3 纪律（核心窄修 b5017d1d）：**guard 的每个操作自身有界、快速返回**——
+``owned_pids``/``remaining`` 是单次 ``QueryInformationJobObject``（成员列表
+扩容循环有界），``terminate_tree`` 只做单次 ``TerminateJobObject`` + 受
+``timeout`` 约束的轮询（上限见 :data:`MAX_TERMINATE_TREE_TIMEOUT`），不存在
+阻塞等待；runtime 的 ``_BoundedCall`` 只是外层兜底，不代替本模块的 deadline。
+
 成员不得 breakaway：Job 只设置 ``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE``，
 **不设置** ``BREAKAWAY_OK`` / ``SILENT_BREAKAWAY_OK``（创建后立刻回读
 ``LimitFlags`` 自证；若发现 breakaway 位被置位则关闭并 fail-closed）。
@@ -42,7 +48,7 @@ from .identity import (
     kernel32,
 )
 
-__all__ = ["GuardQueryError", "JobObjectGuard"]
+__all__ = ["GuardQueryError", "JobObjectGuard", "MAX_TERMINATE_TREE_TIMEOUT"]
 
 # --------------------------------------------------------------------------- constants
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
@@ -55,6 +61,10 @@ JobObjectExtendedLimitInformation = 9
 
 ERROR_MORE_DATA = 234
 ERROR_ACCESS_DENIED = 5
+
+#: ``terminate_tree`` 接受的最大终止预算（r3：guard 每个操作必须自身有界、
+#: 快速返回；更大预算一律钳制，超时按“残留未知”fail-closed）。
+MAX_TERMINATE_TREE_TIMEOUT = 30.0
 
 
 class GuardQueryError(RuntimeError):
@@ -356,8 +366,12 @@ class JobObjectGuard:
         - ``root_pid`` 仅用于诊断；终止只经 Job 句柄（根已死也能清孙进程）；
         - 返回 ``(owned_after, remaining_after)``；``remaining_after`` 为空 = 
           已证明整树无活跃成员；非空 = 未确认（调用方 fail-closed）；
-        - 查询失败抛 :class:`GuardQueryError`。
+        - 查询失败抛 :class:`GuardQueryError`；
+        - **自身有界（r3）**：函数内只做单次内核调用 + 受 ``timeout`` 约束的
+          轮询（钳制上限 :data:`MAX_TERMINATE_TREE_TIMEOUT`），无阻塞等待；
+          到期即返回（active 非 0 => ``remaining_after`` 非空，fail-closed）。
         """
+        budget = min(max(0.0, float(timeout)), MAX_TERMINATE_TREE_TIMEOUT)
         with self._lock:
             owned_after = self.member_pids()
             k = _api()
@@ -366,7 +380,7 @@ class JobObjectGuard:
             ctypes.set_last_error(0)
             ok = bool(k.TerminateJobObject(wintypes.HANDLE(self._handle), 1))
             self._last_terminate_error = None if ok else int(ctypes.get_last_error())
-            deadline = time.monotonic() + max(0.0, float(timeout))
+            deadline = time.monotonic() + budget
             active: int | None = None
             while True:
                 active = self.active_processes()

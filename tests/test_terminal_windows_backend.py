@@ -36,6 +36,7 @@ from packages.core.terminal.contracts import (
     BackendUnavailableError,
     OwnershipMode,
     OwnershipPolicy,
+    ProcessStatus,
     PtyBackend,
     RuntimeState,
 )
@@ -143,7 +144,7 @@ def test_runtime_assembly_tail_cjk_exit7(tmp_path):
             b,
             ownership=policy,
             identity=b.identity,
-            identity_probe=identity.probe_process,
+            identity_probe=b.probe,  # r3：DEAD 只来自 spawn 时同一 retained handle
             eof_grace=1.0,
         )
         runtime.start(rows=30, cols=100, gate=b.gate)
@@ -295,7 +296,7 @@ def test_large_output_bounded_log(tmp_path):
             b,
             ownership=policy,
             identity=b.identity,
-            identity_probe=identity.probe_process,
+            identity_probe=b.probe,  # r3：DEAD 只来自 spawn 时同一 retained handle
             eof_grace=1.0,
             output_cap=CAP,
         )
@@ -482,6 +483,175 @@ def test_read_cancel_join_on_close(tmp_path):
         )
     finally:
         stop_backend(b)
+
+
+def test_probe_dead_bound_to_retained_handle(tmp_path):
+    """r3 §13.4：DEAD 只来自 spawn 时同一 retained handle；陌生 PID 一律 UNKNOWN。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+    try:
+        probe = b.probe(b.pid)
+        assert probe.status is ProcessStatus.ALIVE and probe.identity is not None
+        # 陌生 PID：不现查（系统进程与任意 pid 都必须是 UNKNOWN）
+        assert b.probe(4).status is ProcessStatus.UNKNOWN
+        assert b.probe(int(b.pid) + 1).status is ProcessStatus.UNKNOWN
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        assert b.probe(b.pid).status is ProcessStatus.DEAD  # retained handle signaled
+        report = b.close()
+        assert report["closed"] is True
+        # 释放后：缓存自 retained/Job 证据 -> 仍 DEAD；fresh PID 探针 -> UNKNOWN
+        assert b.probe(b.pid).status is ProcessStatus.DEAD
+        assert identity.probe_process(b.pid).status is ProcessStatus.UNKNOWN
+        emit_evidence(
+            "backend-probe-binding",
+            {
+                "test": "probe_dead_bound_to_retained_handle",
+                "stranger_pid": "UNKNOWN",
+                "retained_after_release": "DEAD (cached from retained/Job evidence)",
+                "fresh_pid_probe": "UNKNOWN (never DEAD)",
+            },
+        )
+    finally:
+        stop_backend(b)
+
+
+def test_blocked_read_does_not_block_write_terminate_close(tmp_path):
+    """r3 句柄级并发：阻塞的 read 不持全局锁，write/terminate/close 全部有界。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+    state: dict = {"blocked": threading.Event(), "done": threading.Event(), "exc": None}
+
+    def reader() -> None:
+        try:
+            while True:
+                chunk = b.read(65536, timeout=0.2)
+                if chunk:
+                    continue  # 先排空 pty 初始序列
+                state["blocked"].set()
+                try:
+                    b.read(65536)  # 阻塞读（无 timeout）
+                except BackendClosedError:
+                    raise
+                time.sleep(0.02)  # 进程死亡后的软空读：等 close 取消
+        except BackendClosedError:
+            state["exc"] = "BackendClosedError"
+        except Exception as exc:  # noqa: BLE001
+            state["exc"] = f"{type(exc).__name__}: {exc}"
+        state["done"].set()
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    try:
+        assert state["blocked"].wait(5.0), "reader 应进入阻塞读"
+        # 1) write 不被阻塞的 read 拖住
+        t0 = time.perf_counter()
+        assert b.write(b"\r") == 1
+        assert time.perf_counter() - t0 < 1.0
+        # 2) alive / 身份探针为快速内核查询
+        t0 = time.perf_counter()
+        assert b.alive() is True
+        assert b.probe(b.pid).status is ProcessStatus.ALIVE
+        assert time.perf_counter() - t0 < 0.5
+        # 3) terminate 有界
+        t0 = time.perf_counter()
+        b.terminate(True)
+        assert time.perf_counter() - t0 < 3.0
+        assert b.wait_dead(5.0) is True
+        # 4) close 有界：取消 / join 阻塞读并完成释放
+        t0 = time.perf_counter()
+        report = b.close()
+        elapsed = time.perf_counter() - t0
+        assert report["closed"] is True and elapsed < 5.0
+        assert report["reader"].get("thread_exited") is True or report["reader"].get(
+            "reader"
+        ) in ("already-exited", "not-started")
+        assert state["done"].wait(3.0) is True
+        assert state["exc"] == "BackendClosedError", state["exc"]
+        thread.join(2.0)
+        emit_evidence(
+            "backend-read-nonblocking",
+            {
+                "test": "blocked_read_does_not_block_write_terminate_close",
+                "close_seconds": round(elapsed, 3),
+                "reader": report["reader"],
+            },
+        )
+    finally:
+        stop_backend(b)
+        thread.join(2.0)
+
+
+def test_write_budget_bounds_blocked_pipe(tmp_path):
+    """写预算强制点：单次被堵塞 WriteFile 也不得超预算；预算耗尽返回 partial。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path), write_budget=0.6)
+    try:
+        # 预算 0：立即返回 partial(0)，不抛、不无限等
+        t0 = time.perf_counter()
+        assert b.write(b"x" * 4096, timeout=0.0) == 0
+        assert time.perf_counter() - t0 < 0.5
+        # 大输入被 conhost 节流：必须在上界内返回（watchdog 生效；partial 合法）
+        t0 = time.perf_counter()
+        written = b.write(b"x" * (32 * 1024 * 1024))
+        elapsed = time.perf_counter() - t0
+        assert elapsed < 3.0, f"write 超出预算上界（watchdog 未生效？）：{elapsed:.2f}s"
+        assert 0 <= written <= 32 * 1024 * 1024
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        t0 = time.perf_counter()
+        report = b.close()
+        assert report["closed"] is True and time.perf_counter() - t0 < 5.0
+        emit_evidence(
+            "backend-write-budget",
+            {
+                "test": "write_budget_bounds_blocked_pipe",
+                "budget_s": 0.6,
+                "write_seconds": round(elapsed, 3),
+                "written": written,
+                "payload": 32 * 1024 * 1024,
+            },
+        )
+    finally:
+        stop_backend(b)
+
+
+def test_interrupt_write_bounded_when_input_busy(tmp_path):
+    """runtime.close interrupt 阶段：输入锁被在途写占用时 terminate(False) 仍自身有界。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path), write_budget=30.0)
+    state: dict = {"done": threading.Event(), "result": None}
+
+    def writer() -> None:
+        try:
+            state["result"] = ("ok", b.write(b"x" * (64 * 1024 * 1024)))
+        except Exception as exc:  # noqa: BLE001
+            state["result"] = (type(exc).__name__, getattr(exc, "written", None))
+        state["done"].set()
+
+    thread = threading.Thread(target=writer, daemon=True)
+    thread.start()
+    try:
+        time.sleep(0.8)
+        assert thread.is_alive(), "writer 应在途（持串行锁 + 被 conhost 节流）"
+        t0 = time.perf_counter()
+        b.terminate(False)  # interrupt：\x03 使用短预算 + 有界锁获取
+        elapsed = time.perf_counter() - t0
+        assert elapsed < 1.5, f"interrupt 路径被在途写拖住：{elapsed:.2f}s"
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        t0 = time.perf_counter()
+        report = b.close()
+        assert report["closed"] is True and time.perf_counter() - t0 < 5.0
+        assert state["done"].wait(5.0) is True
+        thread.join(2.0)
+        emit_evidence(
+            "backend-interrupt-bounded",
+            {
+                "test": "interrupt_write_bounded_when_input_busy",
+                "interrupt_seconds": round(elapsed, 3),
+                "writer_result": str(state["result"]),
+            },
+        )
+    finally:
+        stop_backend(b)
+        thread.join(2.0)
 
 
 def test_close_failure_retry_deadline(tmp_path):

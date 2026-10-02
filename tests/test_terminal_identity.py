@@ -117,26 +117,45 @@ def test_probe_alive_identity_and_retained_dead():
 
 
 def test_probe_unknown_is_not_dead():
-    """查不到/打不开一律 UNKNOWN，绝不当 dead（fail-closed 核心断言）。"""
+    """查不到/打不开/以及“现查陌生 PID 的 signaled”一律 UNKNOWN，绝不当 dead（r3 §13.4）。"""
     # PID 4（System）不可打开：open 失败 -> UNKNOWN
     probe = identity.probe_process(4)
     assert probe.status is ProcessStatus.UNKNOWN
     # 非法 handle：wait_state -> UNKNOWN
     assert identity.wait_state(0) is ProcessStatus.UNKNOWN
-    # 已完全回收的子进程（进程对象释放后 PID 查无）-> UNKNOWN（绝不伪造 dead）。
-    # 对象仍被父侧句柄持有期间 -> DEAD 是合法真实证据；释放后必须转为 UNKNOWN。
-    proc = spawn_child("pass")
-    pid = proc.pid
-    proc.wait(timeout=10)
-    del proc  # 关闭 CPython 持有的进程句柄
-    import gc
 
-    gc.collect()
-    gone = identity.probe_process(pid)
+    # 已退出但对象仍被我们持有：retained handle 给 DEAD（合法证据）；
+    # 现查同 PID 的 fresh handle 即使 signaled 也只能给 UNKNOWN（不得放行）
+    proc = spawn_child("import time; time.sleep(30)")
+    handle = open_handle(
+        proc.pid,
+        identity.SYNCHRONIZE
+        | identity.PROCESS_QUERY_LIMITED_INFORMATION
+        | identity.PROCESS_TERMINATE,
+    )
+    try:
+        assert identity.kernel32().TerminateProcess(wintypes.HANDLE(handle), 7)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and identity.wait_state(handle) is not ProcessStatus.DEAD:
+            time.sleep(0.02)
+        retained = identity.probe_handle(handle, pid=proc.pid)
+        assert retained.status is ProcessStatus.DEAD  # retained handle：允许
+        fresh = identity.probe_process(proc.pid)
+        assert fresh.status is ProcessStatus.UNKNOWN  # fresh handle signaled：不放行
+        assert "retained" in fresh.detail or "DEAD 证据" in fresh.detail
+        proc.wait(timeout=5)
+    finally:
+        identity.close_handle_checked(handle)
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+
+    # 对象彻底释放后同样 UNKNOWN（有界轮询等待对象释放）
+    gone = identity.probe_process(proc.pid)
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline and gone.status is not ProcessStatus.UNKNOWN:
         time.sleep(0.05)
-        gone = identity.probe_process(pid)
+        gone = identity.probe_process(proc.pid)
     assert gone.status is ProcessStatus.UNKNOWN
     assert gone.status is not ProcessStatus.DEAD
 
