@@ -183,6 +183,8 @@ _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _PROCESS_TERMINATE = 0x0001
 _SYNCHRONIZE = 0x00100000
 _WAIT_OBJECT_0 = 0x00000000
+_WAIT_TIMEOUT = 0x00000102
+_WAIT_FAILED = 0xFFFFFFFF
 _FILETIME_UNIX_DELTA = 11644473600  # seconds between 1601-01-01 and 1970-01-01
 
 
@@ -216,6 +218,23 @@ def raw_identity(pid: int) -> dict | None:
         return {"pid": pid, "filetime": _ft_value(creation)}
     finally:
         _kernel32.CloseHandle(handle)
+
+
+def handle_is_exited(handle) -> tuple[bool | None, int]:
+    """Authoritative same-handle liveness probe: (exited, raw_wait_result).
+
+    ``WaitForSingleObject(handle, 0)`` is used instead of ``GetExitCodeProcess``
+    because 259 (STILL_ACTIVE) is also a legal exit code, so the exit code alone
+    cannot distinguish "running" from "exited with 259". A wait result other
+    than WAIT_OBJECT_0 / WAIT_TIMEOUT means liveness is unknown; callers must
+    treat that as fail-closed (refuse), which safe_stop does.
+    """
+    rc = _kernel32.WaitForSingleObject(handle, 0)
+    if rc == _WAIT_OBJECT_0:
+        return True, rc
+    if rc == _WAIT_TIMEOUT:
+        return False, rc
+    return None, rc  # unknown -> caller refuses
 
 
 def protected_pids() -> set[int]:
@@ -287,6 +306,29 @@ def safe_stop(pid: int, expected_filetime: int | None, *, label: str = "",
                                   "recorded identity (exact integer compare)"})
             return rec
         rec["identity_verified"] = True
+        # Same-handle liveness gate BEFORE TerminateProcess. An exited process
+        # stays addressable (OpenProcess/GetProcessTimes still succeed) while
+        # any handle to it is open (e.g. the parent's retained Popen handle),
+        # so pid_exists/OpenProcess cannot distinguish running from exited.
+        # handle_is_exited() uses WaitForSingleObject(0) on the same handle:
+        # signaled -> already exited -> report, never kill; unknown -> refuse.
+        # GetExitCodeProcess is NOT the gate: 259 (STILL_ACTIVE) is also a legal
+        # exit code; it is only recorded as informational output below.
+        exited, wait0 = handle_is_exited(handle)
+        rec["handle_wait_before_terminate"] = wait0
+        if exited is True:
+            code0 = wintypes.DWORD()
+            _kernel32.GetExitCodeProcess(handle, ctypes.byref(code0))
+            rec.update({"running": False, "gone": True,
+                        "observed_exit_code": code0.value,
+                        "reason": "already signaled on the same handle (exited); "
+                                  "no TerminateProcess attempted"})
+            return rec
+        if exited is None:
+            rec.update({"refused": True,
+                        "reason": f"WaitForSingleObject(0) returned 0x{wait0:08X}; "
+                                  "cannot confirm liveness, refusing to terminate"})
+            return rec
         rec["terminate_attempted"] = True
         if not _kernel32.TerminateProcess(handle, 1):
             rec.update({"terminate_failed": True,
@@ -1407,6 +1449,14 @@ def mode_selftest_cleanup() -> dict:
                                                     refused child; all_gone MUST be
                                                     False and the child listed as
                                                     residual; then truly cleaned
+    T11 exited child with RETAINED Popen handle  -> end-to-end negative: no
+                                                    Terminate attempted, gone True
+                                                    (note: on this host psutil's
+                                                    259-based liveness already
+                                                    reports False for the zombie)
+    T12 same-handle gate primitive on a zombie  -> handle_is_exited() returns
+                                                    (True, WAIT_OBJECT_0) on a real
+                                                    exited-but-addressable process
     """
     root, cfg, ws = new_workdirs("selftest")
     env = iso_env(cfg)
@@ -1573,6 +1623,79 @@ def mode_selftest_cleanup() -> dict:
         res["T10_refused_child_negative"]["post_cleanup"] = cleaned
         res["T10_refused_child_negative"]["residual_gone_after_cleanup"] = [
             pid for pid in residual_child if not psutil.pid_exists(pid)]
+
+        # --- T11: exited child while THIS probe still holds the Popen handle.
+        # The process object stays addressable (OpenProcess / GetProcessTimes
+        # succeed, pid_exists True) until every handle is closed, so the
+        # pre-open pid_exists check alone cannot see the exit; only the
+        # same-handle WaitForSingleObject(0) gate can.
+        t11_marker = ws / "t11-done.txt"
+        retained = subprocess.Popen(
+            [sys.executable, "-c",
+             "import sys,time; open(sys.argv[1],'w').write('done'); time.sleep(0.2)",
+             str(t11_marker)],
+            cwd=str(ws), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        spawned.append(retained)
+        retained_ft = (raw_identity(retained.pid) or {}).get("filetime")
+        deadline = time.time() + 15
+        while time.time() < deadline and not t11_marker.exists():
+            time.sleep(0.1)
+        time.sleep(0.5)  # let the process fully exit; Popen handle NOT polled/waited
+        raw_after_exit = raw_identity(retained.pid)
+        pid_exists_before = psutil.pid_exists(retained.pid)
+        t11 = safe_stop(retained.pid, retained_ft, label="exited-retained-handle",
+                        basis="negative: exited while this probe still holds the Popen handle")
+        res["T11_exited_with_retained_handle"] = {
+            "pid_exists_before_stop": pid_exists_before,
+            "raw_identity_after_exit_still_readable": raw_after_exit is not None,
+            "scenario_reproduced": bool(pid_exists_before and raw_after_exit),
+            "path_taken": ("same_handle_gate" if pid_exists_before else
+                           "psutil_early_exit (psutil 259-based liveness already False)"),
+            "stop_result": t11,
+            "outcome": _stop_outcome(t11, retained.pid),
+            "terminate_attempted_false_ok": t11.get("terminate_attempted") is False,
+            "gone_true_ok": t11.get("gone") is True,
+            "note": "end-to-end contract holds either way; the raw handle gate "
+                    "primitive itself is exercised in T12",
+        }
+        # release the retained handle only after assertions are recorded
+        retained.poll()
+
+        # --- T12: same-handle gate primitive on a real zombie (exited but still
+        # addressable). Verifies handle_is_exited() == (True, WAIT_OBJECT_0) and
+        # documents the GetExitCodeProcess 259 ambiguity without using it.
+        t12_marker = ws / "t12-done.txt"
+        zombie = subprocess.Popen(
+            [sys.executable, "-c",
+             "import sys,time; open(sys.argv[1],'w').write('done'); time.sleep(0.2)",
+             str(t12_marker)],
+            cwd=str(ws), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        spawned.append(zombie)
+        deadline = time.time() + 15
+        while time.time() < deadline and not t12_marker.exists():
+            time.sleep(0.1)
+        time.sleep(0.5)
+        h = _kernel32.OpenProcess(
+            _PROCESS_QUERY_LIMITED_INFORMATION | _PROCESS_TERMINATE | _SYNCHRONIZE,
+            False, zombie.pid)
+        t12: dict = {"pid": zombie.pid, "handle_opened": bool(h),
+                     "pid_exists_via_psutil": psutil.pid_exists(zombie.pid)}
+        if h:
+            try:
+                exited, wait_rc = handle_is_exited(h)
+                code = wintypes.DWORD()
+                _kernel32.GetExitCodeProcess(h, ctypes.byref(code))
+                t12.update({
+                    "exited": exited,
+                    "wait_rc": wait_rc,
+                    "is_wait_object_0": wait_rc == _WAIT_OBJECT_0,
+                    "observed_exit_code": code.value,
+                    "exit_code_is_259_ambiguous": code.value == 259,
+                })
+            finally:
+                _kernel32.CloseHandle(h)
+        res["T12_same_handle_gate_on_zombie"] = t12
+        zombie.poll()
     finally:
         for p in spawned:
             if p.poll() is None:

@@ -1,5 +1,10 @@
 # Pan Terminal：CBC 无中断网页原生 TUI 可行性（TA 探索报告）
 
+> 修订 r4（2026-10-03）：MA 复核 `6e6e5066` 后补**同 handle 存活门禁**——`safe_stop` 在读 FILETIME
+> 之后、`TerminateProcess` 之前用同一 handle 的 `WaitForSingleObject(0)` 判定（signaled→只报告退出；
+> TIMEOUT→继续；其它→拒绝），`GetExitCodeProcess` 仅作信息记录（259 歧义不作为门禁）；
+> 新增 T11（保留 Popen handle 的已退出负例）与 T12（门禁原语在真实僵尸进程上的直测）（§3.1、§4.7）。
+>
 > 修订 r3（2026-10-03）：MA 复核 `ec0dd04f` 后最小 follow-up——清理身份改为**原始整数 FILETIME
 > 精确比较**（去掉 float 反算与容差；原始身份缺失即拒绝；已退出仅报告不终止），`safe_stop_tree.all_gone`
 > 不再把 refused 视作已清理（新增 `residual_pids`/`refused_or_unverified`）并补 T10 拒杀负例（§3.1、§4.7）。
@@ -183,9 +188,13 @@ daemon 宿主；但“从一开始运行 native TUI，同时供 Pan 使用结构
 3. **Handle 即身份**：终止与等待都通过这个已验证 handle（`TerminateProcess` + `WaitForSingleObject`），
    handle 指向进程对象本身，PID 复用无法重定向；结束后 `GetExitCodeProcess` 记录退出码。
    结果中显式记录 `terminate_attempted`，只有走到核验通过的终止分支才为 True。
-4. **已退出只报告、不终止**：进程已不在时返回 `running=false, gone=true, terminate_attempted=false`，
-   说明“not running at stop time; no TerminateProcess attempted”，绝不调用 TerminateProcess
-   （T3 断言该字段为 False）。
+4. **同 handle 存活门禁**：`psutil.pid_exists` 只作为快速前置检查（本机 psutil 的 Windows 存活判定
+   基于 `GetExitCodeProcess == 259`，对“已退出但仍有 handle 打开”的进程会返回 False，无法区分运行与退出）。
+   真正门禁在打开 handle、读完 FILETIME 之后、`TerminateProcess` 之前：用**同一 handle** 调
+   `WaitForSingleObject(handle, 0)`——`WAIT_OBJECT_0`（已 signaled）→ 只报告 `running=false, gone=true,
+   terminate_attempted=false`；`WAIT_TIMEOUT` → 继续终止；其它返回值 → 无法确认存活，**拒绝终止**。
+   `GetExitCodeProcess` 仅作信息记录：259（STILL_ACTIVE）也是合法退出码，因此**不用它做门禁**。
+   已退出进程不会被 Terminate（T3/T11/T12 覆盖）。
 5. **子树必须自证**：`collect_own_descendants` 要求 (a) 扫描时刻的 parent 链属于本次自建 root，
    (b) 创建时间不早于 root，(c) cmdline 或 cwd 含本次隔离临时根路径，(d) 能读到原始 FILETIME——
    四项全过才纳入；否则跳过并记录原因。
@@ -316,10 +325,10 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
   - `DELETE /api/v1/acp` → 200 断开。
 - `--serve --acp` 与普通 `--serve` 行为一致（ACP over HTTP 本就默认开启）。
 
-### 4.7 清理安全故障自测 T1–T10（`evidence/20261003-012008/selftest-cleanup.json`）
+### 4.7 清理安全故障自测 T1–T12（`evidence/20261003-012547/selftest-cleanup.json`）
 
 `probe_cbc_feasibility.py selftest-cleanup` 全部为自建进程，不调用 CBC、无模型请求；
-身份基准为**原始整数 FILETIME**，比较为精确相等（无容差）。
+身份基准为**原始整数 FILETIME**，比较为精确相等（无容差）；终止前有**同 handle 存活门禁**。
 
 | 用例 | 场景 | 期望 | 实测结果 |
 |---|---|---|---|
@@ -333,12 +342,15 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
 | T8 | 当前进程自身 + 其父进程（祖先） | 拒绝（自链保护） | ✅ 两者 `refused`，父进程仍存活 |
 | T9 | marker 出现在执行命令 argv 中（子进程运行 `cleanup-leftovers`） | 不自杀、正常完成 | ✅ 子进程 rc=0、父进程存活；子进程证据 `evidence/20261003-012025/cleanup-leftovers.json` |
 | T10 | **拒杀 child 负例**：`identity_overrides` 把 child 的 raw FILETIME 改成 +1 | 子进程被拒、**`all_gone` 必须为 False** 且列为残留 | ✅ `all_gone=false`；`residual_pids=[child]`、`refused_or_unverified=[child]`、child 存活；随后用真实 raw 身份清理并确认消失 |
+| T11 | 保留 Popen handle 的**已退出**子进程（Popen 句柄不 poll/wait，PID 仍可寻址） | 只报告 not-running/gone，`terminate_attempted=false` | ✅ `terminate_attempted=false`、`gone=true`、outcome=`gone`；`raw_identity_after_exit_still_readable=true`。**附注**：本机 psutil 用 259 语义判定，`pid_exists` 对该僵尸已返回 False，因此该场景由前置快速检查命中（`path_taken=psutil_early_exit`），端到端契约成立；门禁原语本身由 T12 直测 |
+| T12 | **门禁原语直测**：对真实僵尸进程（已退出但 OpenProcess 仍成功）调用 `handle_is_exited` | 返回 `(exited=True, WAIT_OBJECT_0)`；退出码仅信息记录 | ✅ `handle_opened=true, exited=true, wait_rc=0, observed_exit_code=0, exit_code_is_259_ambiguous=false`；活跃分支由 T2 覆盖（`handle_wait_before_terminate=258`→`terminate_attempted=true`→gone） |
 
 附注（历史）：首轮自测 `evidence/20261003-010736/selftest-cleanup.json` 暴露出真实缺陷——FILETIME
 容差过紧（±1 单位）导致正确的 identity 也被拒绝（T2/T7 失败，并留下 2 个待清理 ping 进程）；
 改为 ±10 000 单位后 `010837` 复跑通过，残留进程由 `safe_stop_leftovers` 兜底清除。
 **第二轮审查后已彻底移除容差与 float 反算**：现有实现为原始整数精确比较；若原始身份缺失一律拒绝。
-自测运行 `012008` 为当前实现的最终结果。
+**第四轮审查后补同 handle 存活门禁**：`012435` 为 T11 首跑（前缀检查命中，记录了该现象），
+`012547` 为含 T11/T12 的当前实现最终结果。
 
 ### 4.8 返工后冒烟复跑（验证新清理路径不回归）
 
@@ -349,6 +361,9 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
   `all_gone=true`、`residual=[]`。
 - `daemon`（第二轮实现，`evidence/20261003-011225/daemon.json`）：`daemon stop` 后兜底扫描 0 候选、
   `all_gone=true`、端口释放、`daemon status=stopped`。
+- 第四轮（同 handle 门禁）**未重跑 CBC 模式**（按 MA“不重复 CBC 探索”要求）：活跃进程“WAIT_TIMEOUT→
+  TerminateProcess”分支由自测 T2 覆盖（`handle_wait_before_terminate=258`、`terminate_attempted=true`、
+  `gone=true`）；已退出分支由 T11/T12 覆盖。
 
 ## 5. 代码/机制推断（源码与 bundle 阅读，非直接实测结论）
 
@@ -421,6 +436,8 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
   `all_gone` 不再把 refused 当 gone。`selftest-cleanup` T1–T10 全过并留证：
   `evidence/20261003-012008/selftest-cleanup.json`（含 T9 子进程证据 `evidence/20261003-012025/cleanup-leftovers.json`）；
   第三轮冒烟 `evidence/20261003-012039/headless.json`（精确匹配、`all_gone=true`、`residual=[]`）。
+- 第四轮（同 handle 存活门禁）：`evidence/20261003-012435/selftest-cleanup.json`（T11 首跑）、
+  `evidence/20261003-012547/selftest-cleanup.json`（T1–T12 全过，最终）；未新增 CBC 模式运行。
 - 第一轮（提交 `f081484b`/`8e2be41c`）运行（当时使用 `taskkill`）：核验进程消失、端口释放：
   serve 52648 ✅、daemon 53373 ✅、daemon-job 63242 ✅、ACP-HTTP 57739 ✅、ACP 变体 56709/57759 ✅、
   headless 4040 ✅、bg/observe 相关 job PID 均不在 ✅；无误杀事件的旁证（全部操作对象均为自建进程）。
@@ -515,6 +532,9 @@ uv run --no-project --python E:/software/miniforge/python.exe `
 - 返工新增（2026-10-03 第三轮，raw FILETIME）：`evidence/20261003-012008/selftest-cleanup.json`（T1–T10 全过）、
   `evidence/20261003-012025/cleanup-leftovers.json`（T9 子进程自证运行）、
   `evidence/20261003-012039/headless.json`（raw 身份冒烟：精确匹配、`all_gone=true`、`residual=[]`）
+- 返工新增（2026-10-03 第四轮，同 handle 存活门禁）：`evidence/20261003-012435/selftest-cleanup.json`（T11 首跑）、
+  `evidence/20261003-012547/selftest-cleanup.json`（T1–T12 全过），以及两次 T9 子进程自证
+  `evidence/20261003-012454|012605/cleanup-leftovers.json`
 
 ### 11.1 证据日志映射（`.log` → `.txt`，读者定位用）
 
@@ -535,8 +555,8 @@ uv run --no-project --python E:/software/miniforge/python.exe `
 
 ### 11.2 凭证扫描结果（只列文件/键/是否脱敏，不打印值）
 
-扫描范围：全部已提交树（`f081484b`、`8e2be41c`、`ec0dd04f`）+ 第三轮工作区 `evidence/`
-（`20261003-012008|012025|012039`）。
+扫描范围：全部已提交树（`f081484b`、`8e2be41c`、`ec0dd04f`、`6e6e5066`）+ 第四轮工作区 `evidence/`
+（`20261003-012435|012547`）。
 
 | 项 | 结果 |
 |---|---|
