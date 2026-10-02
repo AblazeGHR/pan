@@ -484,7 +484,7 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 | Job 布局选择与生产落地 | 生命周期 TA 布局 B 已被 MA 接受为探索成果；句柄移交 C 已实测可行（`9bd858e2`）。落地还需生产 backend 加固（挂起式 spawn/原子入组、ACL 控制端点） | 方向已定，待实施 |
 | ConPTY host/IO 是否可迁移 | 需要专门探针（生命周期 TA 与契约均未测） | 未决 |
 | 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：实际用到的模式（鼠标/粘贴/键盘协议/滚动） | 未决 |
-| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | CBC TA / Codex TA（当前无可 bind 的 TUI 证据，见 §6A.2） | 未决 |
+| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | Codex 被测目标 turn 在 TUI 退出后中断；CBC 未证实同 Agent 切换 | MA 已定：首版普通持久 PTY/Web 终端优先，原生无中断 TUI 延后 |
 | `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA 只覆盖 runner 自持布局，外部所有者语义未定义 | 未决 |
 | 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 | 未决 |
 | 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 | 未决 |
