@@ -1264,6 +1264,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
         markUserScrollInput();
       }
     };
+    const markScrollbarInput = (event: MouseEvent) => {
+      if (event.button !== 0 || event.target !== el) return;
+      const rect = el.getBoundingClientRect();
+      // Native thumb drags emit scroll events but can suppress pointermove.
+      // Claim only the scrollbar gutter, never an ordinary message/body click.
+      const gutter = el.offsetWidth - el.clientWidth;
+      if (gutter > 0 && (
+        event.clientX >= rect.left + el.clientLeft + el.clientWidth ||
+        event.clientX < rect.left + el.clientLeft
+      )) {
+        markUserScrollInput(event, 'older');
+      }
+    };
     const handler = () => {
       const previousTop = lastScrollTopRef.current;
       const movedOlder = previousTop !== null && el.scrollTop < previousTop;
@@ -1337,6 +1350,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     el.addEventListener('touchstart', markUserScrollInput, { passive: true });
     el.addEventListener('touchmove', markUserScrollInput, { passive: true });
     el.addEventListener('pointermove', markPointerScrollInput, { passive: true });
+    el.addEventListener('mousedown', markScrollbarInput, { passive: true });
     el.addEventListener('keydown', markUserScrollKey);
     el.addEventListener('scroll', handler);
     el.addEventListener('scrollend', handleScrollEnd);
@@ -1344,7 +1358,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
       el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('touchstart', markUserScrollInput);
       el.removeEventListener('touchmove', markUserScrollInput);
-      el.removeEventListener('pointermove', markPointerScrollInput);
+    el.removeEventListener('pointermove', markPointerScrollInput);
+    el.removeEventListener('mousedown', markScrollbarInput);
       el.removeEventListener('keydown', markUserScrollKey);
       el.removeEventListener('scroll', handler);
       el.removeEventListener('scrollend', handleScrollEnd);

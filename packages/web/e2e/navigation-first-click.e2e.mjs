@@ -1,4 +1,4 @@
-/* global window, setTimeout, process, fetch, console */
+/* global window, document, setTimeout, process, fetch, console */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { chromium } from '@playwright/test';
 // Production bundle + disposable HTTP fixture; never use a running Pan service.
 const root = path.resolve(process.env.PAN_NAV_CHECKOUT || path.resolve(import.meta.dirname, '../../..'));
 const port = 8797;
+const scrollbar = process.env.PAN_NAV_SCROLLBAR === '1' || process.argv.includes('--scrollbar');
 const base = `http://127.0.0.1:${port}`;
 const output = path.resolve(import.meta.dirname, '../test-results', `navigation-first-click-${Date.now()}`);
 await fs.mkdir(output, { recursive: true });
@@ -50,7 +51,7 @@ function assertLocated(value) {
 }
 try {
   await poll(async () => { try { return (await fetch(`${base}/api/sessions?summary=1`)).ok; } catch { return false; } }, Boolean);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ignoreDefaultArgs: scrollbar ? ['--hide-scrollbars'] : [], args: scrollbar ? ['--disable-features=OverlayScrollbar,FluentOverlayScrollbar'] : [] });
   report.chromium = browser.version();
   const api = await browser.newContext();
   const sessions = await (await api.request.get(`${base}/api/sessions?summary=1`)).json();
@@ -78,6 +79,44 @@ try {
     await page.locator('[data-session-card-id]').filter({ hasText: 'Alpha Session' }).first().click();
     await page.waitForFunction(() => !window.__panSessionStore.getState().historyLoading && window.__panSessionStore.getState().currentMessages.length > 0);
     const scroller = page.locator('.chat-view-stage .overflow-auto').first();
+    if (scrollbar) {
+      // Headless Chromium uses overlay bars. Give the fixture a visible native
+      // gutter so mouse coordinates hit the browser thumb, not message text.
+      await page.addStyleTag({ content: '.chat-view-stage .overflow-auto::-webkit-scrollbar { width: 17px; } .chat-view-stage .overflow-auto::-webkit-scrollbar-thumb { background: #888; min-height: 30px; } .chat-view-stage .overflow-auto::-webkit-scrollbar-button { display: none; }' });
+      await page.waitForTimeout(200);
+      const initial = await scroller.evaluate(el => {
+        window.__scrollbarEvents = [];
+        for (const name of ['pointerdown', 'pointermove', 'mousedown', 'mousemove', 'scroll']) document.addEventListener(name, e => {
+          window.__scrollbarEvents.push({ name, target: e.target === el ? 'scroller' : e.target?.tagName, buttons: e.buttons, top: el.scrollTop });
+        }, true);
+        const r = el.getBoundingClientRect();
+        return { x: r.right - 7, y: r.bottom - 10, destination: r.top + r.height * 0.4, gutter: el.offsetWidth - el.clientWidth, top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight };
+      });
+      await page.mouse.move(initial.x, initial.y);
+      await page.mouse.down();
+      await page.mouse.move(initial.x, initial.destination, { steps: 40 });
+      await page.waitForTimeout(250);
+      await page.mouse.up();
+      await page.waitForTimeout(1000);
+      const afterDrag = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight, events: window.__scrollbarEvents }));
+      await context.request.post(`${base}/__e2e/append-history`, { data: { sessionId: session.id, messages: [{ role: 'assistant', content: 'New tail while reading older history', messageId: `scrollbar-tail-${merge}` }] } });
+      // Drive the view update explicitly: append-history only persists fixture
+      // rows and does not emit a Worker event. This is a store/render test.
+      await page.evaluate(() => {
+        const store = window.__panSessionStore, state = store.getState();
+        store.setState({ currentMessages: [...state.currentMessages, { role: 'assistant', content: 'New tail while reading older history', messageId: 'scrollbar-visible-tail' }] });
+      });
+      await page.waitForTimeout(500);
+      const afterAppend = await scroller.evaluate(el => ({ top: el.scrollTop, height: el.scrollHeight, viewport: el.clientHeight }));
+      const scenario = { merge, initial, afterDrag, afterAppend };
+      report.scenarios.push(scenario);
+      console.log(JSON.stringify(scenario));
+      assert.ok(initial.gutter > 0, 'test must use a real non-overlay native scrollbar');
+      assert.ok(afterDrag.top < afterDrag.height - afterDrag.viewport - 100, 'native thumb drag must leave the bottom');
+      assert.ok(afterAppend.top < afterAppend.height - afterAppend.viewport - 100, 'tail updates must not undo thumb browsing');
+      await context.close();
+      continue;
+    }
     await page.locator('[data-testid="message-navigation-dock"]').hover();
     await page.locator('.message-navigation-rail[data-index-status="ready"]').waitFor();
     const scenario = { merge, clicks: [] };
