@@ -1,0 +1,74 @@
+{
+  "scenario": "s2_resize",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s2_resize-rrn2q_22",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "resize_call": {
+    "ok": true,
+    "hresult": "0x00000000",
+    "cols": 132,
+    "rows": 43
+  },
+  "pty_output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HCHILD_STARTED pid=34644\r\n\u001b]0;E:\\software\\miniforge\\python.exe\u0007\u001b[?25hUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\r\nCONSOLE_SIZE 100x30\r\n\u001b[?25l\u001b[8;43;132t\u001b[HCHILD_STARTED pid=34644\u001b[K\r\nUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\u001b[K\r\nCONSOLE_SIZE 100x30\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\r\n\u001b[K\u001b[4;1H\u001b[?25hCONSOLE_SIZE 132x43\r\n",
+  "exit_code": 0,
+  "close": {
+    "already_closed": false,
+    "reader_cancel": {
+      "thread_handle_obtained": true,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "reader_converged": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "reader_stopped": true,
+    "pty_closed": true,
+    "close_seconds": 0.0
+  },
+  "survivors_after_guard_close": [],
+  "sweep": [
+    {
+      "pid": 34644,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "sweep": true
+    }
+  ],
+  "checks": [
+    {
+      "check": "initial_size_seen_by_child",
+      "ok": true,
+      "detail": [
+        "CONSOLE_SIZE 100x30"
+      ]
+    },
+    {
+      "check": "resize_call_succeeded",
+      "ok": true,
+      "detail": "0x00000000"
+    },
+    {
+      "check": "child_observed_new_size",
+      "ok": true,
+      "detail": [
+        "CONSOLE_SIZE 100x30",
+        "CONSOLE_SIZE 100x30\u001b[K",
+        "\u001b[K\u001b[4;1H\u001b[?25hCONSOLE_SIZE 132x43"
+      ]
+    },
+    {
+      "check": "no_survivors_after_guard_close",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 9.11,
+  "log": [
+    "[sweep] {'pid': 34644, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'sweep': True}"
+  ],
+  "temp_removed": true
+}

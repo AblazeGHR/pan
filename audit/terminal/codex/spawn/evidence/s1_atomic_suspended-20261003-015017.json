@@ -1,0 +1,158 @@
+{
+  "scenario": "s1_atomic_suspended",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s1_atomic_suspended-ktu90y8d",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "ambient_job_before_spawn": true,
+  "spawn_record": {
+    "pid": 46020,
+    "creation_filetime": 134354370138654871,
+    "creation_filetime_iso": "2026-10-03 01:50:13",
+    "command_line": "\"E:\\software\\miniforge\\python.exe\" \"D:\\project\\pan-worktrees\\terminal-codex-explore-20261003\\audit\\terminal\\codex\\spawn\\child_probe.py\" --marker \"C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s1_atomic_suspended-ktu90y8d\\child_marker.txt\" --exit-code 7",
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s1_atomic_suspended-ktu90y8d",
+    "cols": 100,
+    "rows": 30,
+    "assign_ok": true,
+    "assign_last_error": 0,
+    "assign_last_error_name": "ERROR_SUCCESS",
+    "resumed": true,
+    "resume_previous_suspend_count": 1,
+    "child_in_guard_job": true,
+    "child_in_ambient_job": true,
+    "ambient_job_before_spawn": true,
+    "guard_active_after_assign": 1,
+    "timings": {
+      "create_pipes_ms": 0.03,
+      "create_pseudo_console_ms": 7.84,
+      "create_process_ms": 3.07,
+      "assign_ms": 0.03
+    }
+  },
+  "guard_active_after_assign": 1,
+  "marker_exists_while_suspended": false,
+  "process_alive_while_suspended": true,
+  "resume": {
+    "ok": true,
+    "previous_suspend_count": 1
+  },
+  "pty_output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HCHILD_STARTED pid=46020\r\nUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\r\nCONSOLE_SIZE 100x30\r\nTAIL_MARKER end-of-output\r\n\u001b]0;E:\\software\\miniforge\\python.exe\u0007\u001b[?25h",
+  "exit_code": 7,
+  "marker_exists_after_resume": true,
+  "guard_active_after_exit": 0,
+  "close": {
+    "already_closed": false,
+    "reader_cancel": {
+      "thread_handle_obtained": true,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "reader_converged": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "reader_stopped": true,
+    "pty_closed": true,
+    "close_seconds": 0.0
+  },
+  "survivors_after_guard_close": [],
+  "sweep": [
+    {
+      "pid": 46020,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "sweep": true
+    }
+  ],
+  "checks": [
+    {
+      "check": "identity_captured_from_retained_handle",
+      "ok": true,
+      "detail": {
+        "pid": 46020,
+        "creation_filetime": 134354370138654871
+      }
+    },
+    {
+      "check": "assigned_to_guard_before_resume",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "guard_job_reports_member",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "check": "still_suspended_after_spawn",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "no_execution_while_suspended",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "process_alive_but_not_running",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "resume_reports_previous_suspend_count_1",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "check": "resume_succeeded",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "executed_after_resume",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "pty_utf8_roundtrip",
+      "ok": true,
+      "detail": [
+        "UNICODE 中文测试 ✓ αβγ — utf8-roundtrip"
+      ]
+    },
+    {
+      "check": "pty_tail_output_present",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "exit_code_preserved",
+      "ok": true,
+      "detail": 7
+    },
+    {
+      "check": "child_saw_pty_size_100x30",
+      "ok": true,
+      "detail": [
+        "CONSOLE_SIZE 100x30"
+      ]
+    },
+    {
+      "check": "guard_drained_after_exit",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "no_survivors_after_guard_close",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 3.61,
+  "log": [
+    "[sweep] {'pid': 46020, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'sweep': True}"
+  ],
+  "temp_removed": true
+}

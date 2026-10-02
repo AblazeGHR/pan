@@ -1,0 +1,62 @@
+{
+  "scenarios": {
+    "s1_atomic_suspended": {
+      "passed": true,
+      "checks": 15,
+      "failed": [],
+      "seconds": 3.61,
+      "evidence": "s1_atomic_suspended-20261003-015017.json",
+      "temp_removed": true
+    },
+    "s2_resize": {
+      "passed": true,
+      "checks": 4,
+      "failed": [],
+      "seconds": 9.11,
+      "evidence": "s2_resize-20261003-015026.json",
+      "temp_removed": true
+    },
+    "s3_assign_failure": {
+      "passed": true,
+      "checks": 7,
+      "failed": [],
+      "seconds": 2.52,
+      "evidence": "s3_assign_failure-20261003-015029.json",
+      "temp_removed": true
+    },
+    "s4_holder_hardkill": {
+      "passed": true,
+      "checks": 7,
+      "failed": [],
+      "seconds": 3.81,
+      "evidence": "s4_holder_hardkill-20261003-015032.json",
+      "temp_removed": true
+    },
+    "s5_reader_cancel": {
+      "passed": true,
+      "checks": 9,
+      "failed": [],
+      "seconds": 11.71,
+      "evidence": "s5_reader_cancel-20261003-015044.json",
+      "temp_removed": true
+    },
+    "s6_ambient_breakaway": {
+      "passed": true,
+      "checks": 6,
+      "failed": [],
+      "seconds": 0.81,
+      "evidence": "s6_ambient_breakaway-20261003-015045.json",
+      "temp_removed": true
+    },
+    "s7_ctypes_traps": {
+      "passed": true,
+      "checks": 4,
+      "failed": [],
+      "seconds": 0.01,
+      "evidence": "s7_ctypes_traps-20261003-015045.json",
+      "temp_removed": true
+    }
+  },
+  "started_at": "2026-10-03 01:50:13",
+  "finished_at": "2026-10-03 01:50:45"
+}
