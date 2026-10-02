@@ -8,6 +8,8 @@
 - 交付物：`audit/terminal/contract/`（契约原型 + 可运行探针 + JSON 证据）、本文档
 - 性质：**探索阶段交付**。未修改 `packages/` 下任何正式模块，未改正式依赖锁，未合入/推送，未重启任何服务。
 - 版本：首轮 `e70543da`；本文件为 MA 追加修正（结束原因分类 / reader 回收 / lease 撤销 / 输出边界 / 所有权工厂）后的 follow-up 版本。
+- **首版范围（MA 已定，§6A.3）**：普通持久 PTY / Web 终端优先；原生 Adapter 无中断 TUI 与 Codex `stdio→ws`
+  改造均**不作前置**；TUI 只保留后续探索接口，不承诺能力。本契约的核心范围与该决定对齐。
 
 ---
 
@@ -31,6 +33,7 @@
 | C14 | **清理身份核验可拒杀**：注入"身份不匹配"时清理拒绝终止（`refused-identity-mismatch`、`identity_check=mismatch`、owner 保留），**真实进程仍然存活**；换回真实身份重试才收敛且进程消失。FILETIME 精确比较，无可比字段视为不匹配 | 实测（R8.4–R8.9）+ 确定性测试（M17） |
 | C15 | **所有权布局中立 + fail-closed 工厂**：`lifecycle_owner` 仅声明性数据，`pan-service`/`runner`/`external-host` 三者行为一致；无策略/声明守卫却给 None/detach/external 四种情形全部被拒；`assigned`/`atomic_with_spawn`/`identity`/`handle_bound` 四要素缺一即拒绝进入 `running`（状态保持 `created`） | 确定性测试（M16.1–M16.11）+ 真实探针经工厂构造（R0） |
 | C16 | **输出边界是字节流不是序列流**（纠正先前过强表述）：跨块 UTF-8/CSI/OSC 会被切割；保留窗口起点可落在 `[38;5;196m` 内部并返回 gap。序列重组归仿真器/快照负责 | 确定性测试（M15.1–M15.7） |
+| C17 | **首版范围已定（MA）**：普通持久 PTY/Web 终端优先；原生 Adapter 无中断 TUI 与 Codex `stdio→ws` 改造均不作前置；TUI 只保留探索接口不承诺能力。Codex 实测显示 TUI 退出会打断被 resume 的目标，因此**不得**写成"已实现无中断 TUI" | 决定（§6A.3）+ 跨 TA 证据（§6A.2） |
 
 ---
 
@@ -202,6 +205,9 @@ def wait_for(predicate, timeout, *, quiet_ms=0.0) -> WaitOutcome  # matched/time
 `send_text / send_keys / screen_text / wait_for`。公共核心**不含**任何 CBC 菜单字面量（M11.3 断言：
 `pty_contract.py` 中不存在 `"Restore and fork the conversation"` / `"Never Mind"`）。
 `navigate_to_anchor`、`_settled_selected_row`、`_await_restore` 这类业务状态机整体留在 driver 层。
+
+该边界同时是**后续 TUI 探索的保留接口**：契约只保证接口形状（driver 能经 lease 写终端、能读快照、
+能等稳定），**不承诺**任何 adapter 的无中断 TUI 能力——首版范围见 §6A.3，Codex/CBC 首轮证据见 §6A.2。
 
 ### 2.8 所有权策略与 fail-closed 工厂（**布局中立，不绑死服务持 Job / runner 布局**）
 
@@ -426,14 +432,42 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
   所以**当前真实探针显式 `acknowledge_unowned_tree=True` 且 `require_startup_gate=False`**，
   并在证据里标注该门禁未满足。
 
-### 6A.2 CBC 首轮报告边界（供后续整理，不改变本契约方向）
+### 6A.2 CBC / Codex 首轮报告边界（供边界收敛；不改变本契约方向）
+
+**CBC**（供后续整理）
 
 - CBC `--serve` 的 PowerShell PTY 输入/SSE/resize/DELETE 与 ACP `initialize`/`session/new` **分别成功**，
   但**没有**同一个 CBC Agent/backend/turn 与原生 TUI 绑定的证据；当前 headless CLI attach 失败
   **不能排除**其它途径。原 TA 正在 review/纠正。
-- 因此本公共 PTY/Terminal core **保持 adapter-independent**：核心接口不出现任何 adapter 专属概念，
-  不把 CBC daemon/ACP 列为必选依赖，也不写成"已实现无中断 TUI"。
-- 若未来采用 CBC daemon/ACP，它是 **adapter runtime 扩展**（在 driver/扩展层实现），不是核心前提。
+
+**Codex**（MA 转述的首轮关键证据；原报告正在做**有界措辞校准**，此处按"边界收敛"引用，不作最终结论）
+
+- 真实 Codex `0.159.2` TUI 能 `--remote ws` resume 目标 thread；blackhole 模型下目标保持 `inProgress`。
+- **被 resume 的目标在 TUI 退出后变为 `interrupted`**（Ctrl-C 与直接 close 两种退出方式都观测到）；
+  对照：普通 JSON-RPC resume 断开**不**导致中断。
+- **未测**：实时模型输出 / 审批 / 输入控制权；被测的第二客户端路径**没有 turn/item**。
+
+这些事实的含义（写入契约边界，避免误用）：
+
+1. **存在原生 TUI 路径，但不能据此说"无中断/Turn 保持"**：TUI 退出会打断被 resume 的目标，
+   与"保留原 turn 的接管"相反。契约不得写成"已实现无中断 TUI"，也不得把该路径当核心前提。
+2. 输入权 / 审批 / 实时输出未测 ⇒ 不能承诺控制权转交语义（本契约 §2.5 的 lease 只描述
+   进程内单 writer，不代表 provider 侧输入权）。
+
+**由上述事实得到的共同边界**：本公共 PTY/Terminal core **保持 adapter-independent**：核心接口不出现
+任何 adapter 专属概念，不把 CBC daemon/ACP 或 Codex `stdio→ws` 改造列为必选依赖。若未来采用，
+它们是 **adapter runtime 扩展**（在 driver/扩展层实现），不是核心前提。
+
+### 6A.3 首版范围决定（MA，已定）
+
+- **首版优先"普通持久 PTY / Web 终端"**——这正是本契约 §2 的核心范围（backend / runtime / registry /
+  lease / observer / 屏幕快照边界），与 adapter 能力解耦。
+- **不以前置条件**：原生 Adapter 的无中断 TUI、Codex `stdio→ws` 改造均**不**作为首版前置。
+- **TUI 扩展只保留后续探索接口，不承诺能力**：契约层保留的接入点是 `AutomationDriver`
+  （§2.7，业务菜单留在 driver）、`ScreenObserver`、以及 `AttachmentRegistry` 的控制权模型；
+  它们只保证"接口形状可用"，不保证任何 provider 能做到无中断 TUI。
+- 因此 §7 决定表中"是否提供保留原进程的无中断 TUI 切换"一项**不再是开放产品问题**：
+  已定为后置探索，本契约不作承诺。
 
 ---
 
@@ -484,13 +518,15 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 | Job 布局选择与生产落地 | 生命周期 TA 布局 B 已被 MA 接受为探索成果；句柄移交 C 已实测可行（`9bd858e2`）。落地还需生产 backend 加固（挂起式 spawn/原子入组、ACL 控制端点） | 方向已定，待实施 |
 | ConPTY host/IO 是否可迁移 | 需要专门探针（生命周期 TA 与契约均未测） | 未决 |
 | 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：实际用到的模式（鼠标/粘贴/键盘协议/滚动） | 未决 |
-| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | Codex 被测目标 turn 在 TUI 退出后中断；CBC 未证实同 Agent 切换 | MA 已定：首版普通持久 PTY/Web 终端优先，原生无中断 TUI 延后 |
+| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | **已定**（MA）：首版以普通持久 PTY/Web 终端优先；不以前置，TUI 扩展只保留接口不承诺能力（§6A.3） | 已决定 |
 | `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA 只覆盖 runner 自持布局，外部所有者语义未定义 | 未决 |
 | 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 | 未决 |
 | 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 | 未决 |
 
-> 已由用户决定、本契约**不再重复索要**的语义：默认终端随 Pan 服务生死；浏览器/面板隐藏或断连只释放连接；
-> 显式关闭终端才终止；显式 runtime detach 后保留原 PTY/进程并可重连。这些已固化进 §2.8 的策略形状。
+> 已由用户/MA 决定、本契约**不再重复索要**的语义：默认终端随 Pan 服务生死；浏览器/面板隐藏或断连只释放连接；
+> 显式关闭终端才终止；显式 runtime detach 后保留原 PTY/进程并可重连（§2.8 的策略形状）；
+> **首版范围＝普通持久 PTY / Web 终端优先，原生 Adapter 无中断 TUI 与 Codex `stdio→ws` 改造均不作前置，
+> TUI 只保留探索接口不承诺能力**（§6A.3）。
 
 ---
 
@@ -516,8 +552,9 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 1. MA 归档本报告 + `audit/terminal/contract/`；生命周期 TA `9bd858e2` 已获接受，剩余需列入明确验证的只有
    **ConPTY host/IO 接管可迁移性**（双方均未测）与生产 backend 加固项（挂起式 spawn/原子入组、ACL 控制端点）。
-2. 实施阶段先落地 `PtyBackend + OutputLog + PtyRuntime + build_runtime`（无 UI），把 PR #6 回滚接到公共核心
-   并跑回滚测试；同时按 §2.9 接入门禁（真机 Job 赋值 + 身份核验）。
+2. 首版范围已定（§6A.3）：先落地**普通持久 PTY / Web 终端**——`PtyBackend + OutputLog + PtyRuntime +
+   build_runtime`（无 UI），把 PR #6 回滚接到公共核心并跑回滚测试；同时按 §2.9 接入门禁（真机 Job 赋值 + 身份核验）。
+   原生 TUI 相关（`AutomationDriver` 接入具体 adapter、控制权转交、双通道）一律后置探索，不作为首版前置。
 3. 快照引擎选型前不承诺"网页 TUI 状态恢复"；`fidelity` 字段已为降级留出表达空间。
 4. 终端 registry / lease 落地后再做 WS 与 xterm.js 前端；浏览器侧与权威快照（serialize addon）都属未验证项。
 5. 所有权布局一律经 `OwnershipPolicy` 注入；`JobObjectTreeTerminator` 实现前不放开 DETACHED/EXTERNAL。
