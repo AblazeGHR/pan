@@ -1,0 +1,140 @@
+{
+  "probe": "job_object_probe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "repoRoot": "D:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003",
+  "startedAt": 1790959261.8079457,
+  "results": [
+    {
+      "name": "A_no_extraction",
+      "pass": true,
+      "facts": {
+        "child": {
+          "pid": 45196,
+          "createTimeFiletime": 134354328597942792,
+          "createTime": 1790959259.794279,
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "exitCode": 259,
+          "running": true
+        },
+        "ambientJob": true,
+        "assignToKillOnCloseJob": true,
+        "assignToKillOnCloseJobError": 0,
+        "inK": true,
+        "assignToSecondJob": true,
+        "assignToSecondJobError": 0,
+        "inXAfterSecondAssign": true,
+        "inKAfterSecondAssign": true,
+        "childDiedAfterClosingKHandle": true,
+        "childDiedAfterSeconds": 0.0,
+        "secondJobStillOpen": true
+      }
+    },
+    {
+      "name": "B_breakaway_birth_only",
+      "pass": true,
+      "facts": {
+        "holderReadyLine": "HOLDER_READY",
+        "assignHolderToBreakawayOkJob": true,
+        "assignError": 0,
+        "holderInJob": true,
+        "childLine": "CHILD 46676",
+        "child": {
+          "pid": 46676,
+          "createTimeFiletime": 134354328601314236,
+          "createTime": 1790959260.131424,
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "exitCode": 259,
+          "running": true
+        },
+        "childInBreakawayJob": false,
+        "childInAnyJob": true,
+        "assignExistingChildToSameJob": true,
+        "assignExistingChildError": 0
+      }
+    },
+    {
+      "name": "C_owner_death_kills_tree",
+      "pass": true,
+      "facts": {
+        "holderLine": "GRANDCHILD 33760",
+        "child": {
+          "pid": 33760,
+          "createTimeFiletime": 134354328605011263,
+          "createTime": 1790959260.5011272,
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "exitCode": 259,
+          "running": true
+        },
+        "holderExitCode": 0,
+        "childDiedAfterHolderExit": true,
+        "childDiedAfterSeconds": 0.0
+      }
+    },
+    {
+      "name": "D1_takeover_production_stop",
+      "pass": true,
+      "facts": {
+        "holderLine": "TAKEOVER_CHILD 44188",
+        "child": {
+          "pid": 44188,
+          "createTimeFiletime": 134354328605481785,
+          "createTime": 1790959260.5481796,
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "exitCode": 259,
+          "running": true
+        },
+        "stoppedLine": "STOPPED",
+        "inJobBeforeStop": true,
+        "holderExitCode": 0,
+        "childDied": true,
+        "childDiedAfterSeconds": 0.0
+      }
+    },
+    {
+      "name": "D2_takeover_production_holder_crash",
+      "pass": true,
+      "facts": {
+        "holderLine": "TAKEOVER_CHILD 41804",
+        "child": {
+          "pid": 41804,
+          "createTimeFiletime": 134354328612979650,
+          "createTime": 1790959261.297964,
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "exitCode": 259,
+          "running": true
+        },
+        "holderExitCode": 0,
+        "childDied": true,
+        "childDiedAfterSeconds": 0.0
+      }
+    },
+    {
+      "name": "E_api_surface",
+      "pass": true,
+      "facts": {
+        "kernel32ExportCount": 1697,
+        "kernel32JobExports": [
+          "AssignProcessToJobObject",
+          "CreateJobObjectA",
+          "CreateJobObjectW",
+          "CreateJobSet",
+          "FreeMemoryJobObject",
+          "IsProcessInJob",
+          "OpenJobObjectA",
+          "OpenJobObjectW",
+          "QueryInformationJobObject",
+          "QueryIoRateControlInformationJobObject",
+          "SetInformationJobObject",
+          "SetIoRateControlInformationJobObject",
+          "TerminateJobObject"
+        ],
+        "removalLikes": [],
+        "assignPresent": true,
+        "isInJobPresent": true,
+        "terminateJobPresent": true,
+        "openJobPresent": true
+      }
+    }
+  ],
+  "passed": true
+}
