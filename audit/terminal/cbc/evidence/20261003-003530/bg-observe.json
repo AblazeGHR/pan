@@ -1,0 +1,82 @@
+{
+  "mode": "bg-observe",
+  "run_id": "20261003-003530",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgobs-f6dzgpx3",
+  "job_name": "panobs20261003003530",
+  "marker": "panobs20261003003530",
+  "launcher_pid": 47120,
+  "parsed": {
+    "short_id": "88adb216",
+    "display_name": "panobs20261003003530",
+    "pid": 21212,
+    "log_path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgobs-f6dzgpx3\\cfg\\logs\\exec-88adb216.log"
+  },
+  "timeline": [
+    {
+      "t": 0.0,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 0.2,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 0.4,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 0.6,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 0.8,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 1.0,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 1.2,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 1.41,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 1.61,
+      "launcher_alive": true,
+      "job_pid": null,
+      "job_alive": false
+    },
+    {
+      "t": 1.81,
+      "launcher_alive": false,
+      "job_pid": 21212,
+      "job_alive": false
+    }
+  ],
+  "processes_seen": [],
+  "launcher_exit_rc": 0,
+  "launcher_alive_at_end": false,
+  "job_identity_at_end": null,
+  "log_size_at_end": 0,
+  "log_head_at_end": ""
+}

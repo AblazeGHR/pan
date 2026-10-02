@@ -1,0 +1,31 @@
+{
+  "mode": "acp",
+  "run_id": "20261003-003836",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acp-d5ezuh2x",
+  "pid": 30224,
+  "create_time": 1790959116.556029,
+  "alive_after_8s": true,
+  "cleanup": {
+    "label": "acp",
+    "pid": 30224,
+    "before": {
+      "pid": 30224,
+      "create_time": 1790959116.556029,
+      "name": "node.exe",
+      "cmdline": [
+        "node",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "--acp"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acp-d5ezuh2x\\ws",
+      "alive": true
+    },
+    "taskkill_rc": 255,
+    "taskkill_out": "�ɹ�: ����ֹ PID 40100 (���� PID 46676 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 47224 (���� PID 46676 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 46676 (���� PID 30224 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 30224 (���� PID 45240 �ӽ���)�Ľ��̡�\n����: �޷���ֹ PID 38716 (���� PID 47224 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n",
+    "gone": true
+  },
+  "stdout_lines": [
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{\"promptCapabilities\":{\"image\":true,\"embeddedContext\":true},\"mcpCapabilities\":{\"http\":true,\"sse\":true},\"loadSession\":true,\"delegateToolsSupport\":true,\"mainAgentSupport\":false,\"multitaskSupport\":true,\"metaPromptSupport\":true},\"authMethods\":[{\"id\":\"iOA\",\"name\":\"Login with iOA\",\"description\":null},{\"id\":\"external\",\"name\":\"Login with Google/Github\",\"description\":null},{\"id\":\"internal\",\"name\":\"Login with WeChat\",\"description\":null},{\"id\":\"selfhosted\",\"name\":\"Login with Enterprise Domain\",\"description\":null}]}}"
+  ],
+  "stderr_lines": []
+}

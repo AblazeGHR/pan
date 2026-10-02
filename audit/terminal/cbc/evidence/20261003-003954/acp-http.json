@@ -1,0 +1,60 @@
+{
+  "mode": "acp-http",
+  "run_id": "20261003-003954",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acphttp-zjba8edw",
+  "port": 61095,
+  "pid": 3936,
+  "create_time": 1790959194.1224933,
+  "health": {
+    "status": 200,
+    "body": "{\"data\":{\"status\":\"ok\",\"uptime\":2.1241431,\"platforms\":[\"generic\",\"wecom\",\"wechat-kf\"],\"pid\":3936}}"
+  },
+  "web_ui_served": 200,
+  "acp_connect": {
+    "status": 200,
+    "connectionId_present": true,
+    "sessionToken_present": true,
+    "note": "sessionToken value intentionally not recorded"
+  },
+  "connection_id_present": true,
+  "acp_initialize": {
+    "status": 406,
+    "error": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+  },
+  "acp_session_new": {
+    "status": 406,
+    "error": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+  },
+  "acp_disconnect": {
+    "status": 200,
+    "body": ""
+  },
+  "alive_at_end": true,
+  "cleanup": {
+    "label": "acp-http",
+    "pid": 3936,
+    "before": {
+      "pid": 3936,
+      "create_time": 1790959194.1224933,
+      "name": "node.exe",
+      "cmdline": [
+        "node",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "--serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "61095",
+        "--auth",
+        "none"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acphttp-zjba8edw\\ws",
+      "alive": true
+    },
+    "taskkill_rc": 0,
+    "taskkill_out": "�ɹ�: ����ֹ PID 3936 (���� PID 49824 �ӽ���)�Ľ��̡�\n",
+    "gone": true
+  },
+  "port_free_after": true,
+  "stderr_tail": ""
+}

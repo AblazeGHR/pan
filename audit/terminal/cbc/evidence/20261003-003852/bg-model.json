@@ -1,0 +1,66 @@
+{
+  "mode": "bg-model",
+  "run_id": "20261003-003852",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgmodel-_wyjac7g",
+  "job_name": "panprobeM20261003003852",
+  "launch": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "--bg",
+      "--name",
+      "panprobeM20261003003852",
+      "--model",
+      "deepseek-v4.1-flash",
+      "Reply with the single word: ok"
+    ],
+    "returncode": 0,
+    "stdout": "backgrounded · 01a0fd7b · panprobeM20261003003852\n  codebuddy agents             list sessions\n  codebuddy attach 01a0fd7b    open in this terminal\n  codebuddy logs 01a0fd7b      show recent output\n  codebuddy stop 01a0fd7b      stop this session\n\n  PID:  1292\n  Log:  C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgmodel-_wyjac7g\\cfg\\logs\\panprobeM20261003003852.log\n",
+    "stderr": "",
+    "seconds": 3.29
+  },
+  "registry": [
+    {
+      "file": "46032.json",
+      "data": {
+        "_parse_error": "Expecting value: line 1 column 1 (char 0)"
+      }
+    }
+  ],
+  "ps_json": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.009
+  },
+  "logs": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "logs",
+      "panprobeM20261003003852"
+    ],
+    "returncode": 1,
+    "stdout": "Error: Session not found: panprobeM20261003003852\n",
+    "stderr": "",
+    "seconds": 1.074
+  },
+  "kill_rc": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "kill",
+      "panprobeM20261003003852"
+    ],
+    "returncode": 1,
+    "stdout": "Error: Session not found: panprobeM20261003003852\n",
+    "stderr": "",
+    "seconds": 1.036
+  }
+}

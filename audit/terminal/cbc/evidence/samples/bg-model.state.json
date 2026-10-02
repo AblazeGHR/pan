@@ -1,0 +1,32 @@
+{
+  "state": "working",
+  "detail": "starting…",
+  "tempo": "active",
+  "output": null,
+  "children": null,
+  "intent": "Reply with the single word: ok",
+  "initialPrompt": "Reply with the single word: ok",
+  "name": "panprobeM20261003003852",
+  "nameSource": "user",
+  "sessionId": "01a0fd7b-a493-705c-b337-8fd3ae3bca32",
+  "shortId": "01a0fd7b",
+  "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgmodel-_wyjac7g\\ws",
+  "createdAt": "2026-10-02T16:38:53.843Z",
+  "updatedAt": "2026-10-02T16:38:55.836Z",
+  "firstTerminalAt": null,
+  "respawnArgs": [
+    "--bg",
+    "--name",
+    "panprobeM20261003003852",
+    "--model",
+    "deepseek-v4.1-flash",
+    "Reply with the single word: ok",
+    "--session-id",
+    "01a0fd7b-a493-705c-b337-8fd3ae3bca32"
+  ],
+  "pid": 1292,
+  "workerGeneration": 1292,
+  "procStart": "2026-10-02T16:38:53.961Z",
+  "procStartFt": "134354327339610000",
+  "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgmodel-_wyjac7g\\cfg\\logs\\panprobeM20261003003852.log"
+}

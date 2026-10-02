@@ -1,0 +1,232 @@
+{
+  "mode": "serve",
+  "run_id": "20261003-003807",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew",
+  "port": 52648,
+  "port_free_before": true,
+  "spawn": {
+    "stdout_path": "D:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-003807\\serve.stdout.log",
+    "stderr_path": "D:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-003807\\serve.stderr.log",
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "--serve",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "52648",
+      "--auth",
+      "none",
+      "--model",
+      "deepseek-v4.1-flash",
+      "--permission-mode",
+      "bypassPermissions"
+    ],
+    "pid": 40548,
+    "create_time": 1790959087.9652052
+  },
+  "pid_create_time": 1790959087.9652052,
+  "health": {
+    "status": 200,
+    "content_type": "application/json;charset=UTF-8",
+    "json": {
+      "data": {
+        "status": "ok",
+        "uptime": 2.0586524,
+        "platforms": [
+          "generic",
+          "wecom",
+          "wechat-kf"
+        ],
+        "pid": 40548
+      }
+    }
+  },
+  "alive_after_health": true,
+  "info": {
+    "status": 200,
+    "content_type": "application/json;charset=UTF-8",
+    "json": {
+      "data": {
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew\\ws",
+        "version": "2.161.1",
+        "os": "win32",
+        "arch": "x64",
+        "nodeVersion": "v24.15.0",
+        "gatewayMode": "local",
+        "tunnelUrl": null,
+        "uptime": 2.0740141,
+        "userName": "ablaze",
+        "busEnabled": true,
+        "autoUpdate": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "workers": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": [
+        {
+          "pid": 40548,
+          "lastHeartbeat": 1790959089517,
+          "sessionId": "interactive-40548",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew\\ws",
+          "startedAt": 1790959089514,
+          "kind": "interactive",
+          "url": "http://127.0.0.1:52648",
+          "endpoint": "http://127.0.0.1:52648",
+          "mode": "local",
+          "version": "2.161.1",
+          "os": "win32",
+          "arch": "x64",
+          "hostname": "ablaze",
+          "updatedAt": 1790959089864,
+          "isCurrent": true
+        }
+      ]
+    }
+  },
+  "sessions": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {
+        "sessions": []
+      }
+    }
+  },
+  "jobs": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {
+        "jobs": []
+      }
+    }
+  },
+  "root_html": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_head": "<!DOCTYPE html>\n<html lang=\"zh\" class=\"dark\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content\">\n    <title>CodeBuddy Code Remote Control</title>\n    <link rel=\"icon\" type=\"image/svg+xml\" href=\"/logo.svg\">\n    <!-- 初始使用深色顶栏；应用启动后会随当前主题同步更新。 -->\n    <meta name=\"theme-color\" content=\"#1f1f1f\">\n    <meta name=\"description\" content=\"CodeBuddy Code - AI-powered coding assistant\">\n    <!-- PWA / Standalone：隐藏浏览器导航栏 -->\n    <meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n    <meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">\n    <meta name=\"mobile-web-app-capable\" content=\"yes\">\n    <link rel=\"apple-touch-icon\" href=\"/pwa-icon.svg\">\n    <style id=\"cb-boot-bg\">html,body{background:#000;color-scheme:dark}</style>\n    <script>\n        // 防白屏：必须在 head 里跑。iframe 首帧是 about:blank（白），\n        // 文档一到就要带上主题底色；等 body / CSS 再设已经晚了。\n        // `theme` 由宿主 iframe URL 注入（独立 origin 无法共享宿主 localStorage）。\n        (function () {\n            try {\n                var theme = new URLSearchParams(window.location.search).get('theme');\n                var resolved = theme === 'light' ? 'light' : 'dark';\n                var bg = resolved === 'dark' ? '#000000' : '#ffffff';\n                document.documentElement.setAttribute('data-theme', resolved);\n                document.documentElement.style.colorScheme = resolved;\n                document.documentElement.style.backgroundColor = bg;\n                var boot = document.getElementById('cb-boot-bg');\n                if (boot) {\n                    boot.textContent = 'html,body{background:' + bg + ';color-scheme:' + resolved + '}';\n                }\n            } catch (e) {\n                /* ignore */\n            }\n        })();\n    </script>\n  <script type=\"module\" crossorigin src=\"/assets/index-BtMp20L0.js\"></script>\n  <link rel=\"modulepreload\" crossorigin href=\"/assets/rolldown-runtime-Dd_uD",
+    "body_len": 3336
+  },
+  "openapi": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_len": 230191
+  },
+  "openapi_note": "truncated in evidence; see openapi.json",
+  "pty_create": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {
+        "sessionId": "cc9447a7-3d3c-46fe-8d2d-cf44d496fd7f",
+        "cols": 120,
+        "rows": 40,
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew\\ws",
+        "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell"
+      }
+    }
+  },
+  "pty_session_id": "cc9447a7-3d3c-46fe-8d2d-cf44d496fd7f",
+  "pty_input": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {}
+    }
+  },
+  "pty_sse_head": "event: output\ndata: {\"data\":\"\\u001b[?9001h\\u001b[?1004h\"}\n\nevent: output\ndata: {\"data\":\"\\u001b[?25l\\u001b[2J\\u001b[m\\u001b[HWindows PowerShell\\r\\nCopyright (C) Microsoft Corporation. All rights reserved.\\u001b]0;C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.EXE\\u0007\\u001b[?25h\\u001b[?25l\\u001b[4;1H\\u001b[?25h\"}\n\nevent: output\ndata: {\"data\":\"加载个人及系统配置文件用了 930 毫秒。\\r\\n\"}\n\nevent: output\ndata: {\"data\":\"PS C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pan-cbc-probe-serve-w65wneew\\\\ws> \"}\n\nevent: output\ndata: {\"data\":\"\\u001b[?25l\\u001b[93mecho \\u001b[37mPAN-CBC-PROBE-20261003-003807\\u001b[m\\r\\nPAN-CBC-PROBE-20261003-003807\\r\\n\\u001b[?25h\"}\n",
+  "pty_sse_marker_found": true,
+  "pty_resize": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {}
+    }
+  },
+  "pty_list": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {
+        "sessions": [
+          {
+            "id": "cc9447a7-3d3c-46fe-8d2d-cf44d496fd7f",
+            "cols": 200,
+            "rows": 50,
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew\\ws",
+            "createdAt": 1790959090203,
+            "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell",
+            "hasClient": false
+          }
+        ]
+      }
+    }
+  },
+  "pty_delete": {
+    "status": 204,
+    "content_type": "",
+    "body_head": "",
+    "body_len": 0
+  },
+  "pty_list_after_delete": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "json": {
+      "data": {
+        "sessions": []
+      }
+    }
+  },
+  "cfg_dir_after": [
+    "app",
+    "app\\plugin-status-daily.json",
+    "local_storage",
+    "local_storage\\entry_3bab4ce61838088127d444e4cc042d6d.info",
+    "local_storage\\entry_4348632e75ae0692960c04ccaf0a17df.info",
+    "local_storage\\entry_933d5543e80177622c17a73869c0fad7.info",
+    "local_storage\\entry_d43e96994f944cfb77961c2ea7d04605.info",
+    "local_storage\\entry_d4a0c2fea11846c8db0c1a765ab095a9.info",
+    "plugins",
+    "plugins\\marketplaces",
+    "sessions",
+    "sessions\\40548.json",
+    "shell-snapshots",
+    "shell-snapshots\\snapshot-bash-1790959090930-zk0f1k.sh"
+  ],
+  "cleanup": {
+    "label": "serve",
+    "pid": 40548,
+    "before": {
+      "pid": 40548,
+      "create_time": 1790959087.9652052,
+      "name": "node.exe",
+      "cmdline": [
+        "node",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "--serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "52648",
+        "--auth",
+        "none",
+        "--model",
+        "deepseek-v4.1-flash",
+        "--permission-mode",
+        "bypassPermissions"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-serve-w65wneew\\ws",
+      "alive": true
+    },
+    "taskkill_rc": 255,
+    "taskkill_out": "�ɹ�: ����ֹ PID 28900 (���� PID 14748 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 49440 (���� PID 14748 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 14748 (���� PID 40548 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 40548 (���� PID 49632 �ӽ���)�Ľ��̡�\n����: �޷���ֹ PID 14460 (���� PID 49440 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n",
+    "gone": true
+  },
+  "port_free_after": true
+}

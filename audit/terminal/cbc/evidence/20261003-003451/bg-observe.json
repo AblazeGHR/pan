@@ -1,0 +1,69 @@
+{
+  "mode": "bg-observe",
+  "run_id": "20261003-003451",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bgobs-s1ngj_ji",
+  "job_name": "panobs20261003003451",
+  "marker": "panobs20261003003451",
+  "launcher_pid": 40840,
+  "samples": [
+    {
+      "t": 8.46,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 8.98,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 9.31,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 9.65,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 9.99,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 10.35,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 10.66,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 10.98,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 11.28,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 11.68,
+      "launcher_alive": false,
+      "matches": 0
+    },
+    {
+      "t": 12.02,
+      "launcher_alive": false,
+      "matches": 0
+    }
+  ],
+  "processes_seen": [],
+  "launcher_exit_rc": 0,
+  "launcher_alive_at_end": false,
+  "processes_alive_at_end": []
+}

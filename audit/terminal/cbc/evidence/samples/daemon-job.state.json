@@ -1,0 +1,22 @@
+{
+  "state": "stopped",
+  "detail": "running",
+  "tempo": "idle",
+  "output": null,
+  "children": null,
+  "intent": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\"",
+  "name": "cmd /c \"echo PANMARK-20261003-003705 > p",
+  "nameSource": "auto",
+  "sessionId": "54f5305c-d20c-499e-887d-bd36f528ce6c",
+  "shortId": "54f5305c",
+  "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+  "createdAt": "2026-10-02T16:37:08.665Z",
+  "updatedAt": "2026-10-02T16:37:27.448Z",
+  "firstTerminalAt": "2026-10-02T16:37:27.439Z",
+  "exec": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\"",
+  "pid": 4032,
+  "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\cfg\\logs\\exec-54f5305c.log",
+  "procStart": "2026-10-02T16:37:08.6880330Z",
+  "procStartFt": "134354326286880330",
+  "idleSince": "2026-10-02T16:37:27.439Z"
+}

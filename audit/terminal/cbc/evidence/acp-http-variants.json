@@ -1,0 +1,131 @@
+{
+  "plain_serve": {
+    "label": "plain",
+    "args": [],
+    "port": 56878,
+    "pid": 49984,
+    "health": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"uptime\":1.0869341,\"platforms\":[\"generic\",\"wecom\",\"wechat-kf\"],\"pid\":49984}}"
+    },
+    "connect": {
+      "status": 200,
+      "body": "<redacted: token omitted>",
+      "connectionId_present": true,
+      "sessionToken_present": true
+    },
+    "connection_id": true,
+    "variants": {
+      "both": {
+        "status": 200,
+        "body_head": ":ok\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{\"promptCapabilities\":{\"image\":true,\"embeddedContext\":true},\"mcpCapabilities\":{\"http\":true,\"sse\":true},\"loadSession\":true,\"delegateToolsSupport\":true,\"mainAgentSupport\":false,\"multitaskSupport\":true,\"metaPromptSupport\":true},\"authMethods\":[{\"id\":\"iOA\",\"name\":\"Login with iOA\",\"description\":null},{\"id"
+      },
+      "sse_only": {
+        "status": 406,
+        "body_head": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+      },
+      "json_only": {
+        "status": 406,
+        "body_head": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+      }
+    },
+    "get_sse": {
+      "status": null,
+      "body_head": "TimeoutError('timed out')"
+    },
+    "cleanup": {
+      "label": "plain",
+      "pid": 49984,
+      "before": {
+        "pid": 49984,
+        "create_time": 1790959272.0356152,
+        "name": "node.exe",
+        "cmdline": [
+          "node",
+          "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+          "--serve",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "56878",
+          "--auth",
+          "none"
+        ],
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acpv-plain-cgtbz709\\ws",
+        "alive": true
+      },
+      "taskkill_rc": 128,
+      "taskkill_out": "�ɹ�: ����ֹ PID 12624 (���� PID 43540 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 41168 (���� PID 43540 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 43540 (���� PID 49984 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 49984 (���� PID 48944 �ӽ���)�Ľ��̡�\n����: �޷���ֹ PID 46708 (���� PID 33836 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n����: �޷���ֹ PID 33836 (���� PID 41168 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n",
+      "gone": true
+    },
+    "port_free_after": true,
+    "stderr_tail": "",
+    "stdout_tail": "\n  CodeBuddy Code HTTP Server\n\n  Endpoint  http://127.0.0.1:56878\n  Web UI    http://127.0.0.1:56878/\n\n  ⚠  Authentication is DISABLED.\n     Any local process can execute commands and read/write files\n     through this server. Remove --auth none to re-enable.\n\n  Press Ctrl+C to stop the server\n\n"
+  },
+  "serve_with_acp": {
+    "label": "withacp",
+    "args": [
+      "--acp"
+    ],
+    "port": 49391,
+    "pid": 37080,
+    "health": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"uptime\":1.5359052,\"platforms\":[\"generic\",\"wecom\",\"wechat-kf\"],\"pid\":37080}}"
+    },
+    "connect": {
+      "status": 200,
+      "body": "<redacted: token omitted>",
+      "connectionId_present": true,
+      "sessionToken_present": true
+    },
+    "connection_id": true,
+    "variants": {
+      "both": {
+        "status": 200,
+        "body_head": ":ok\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{\"promptCapabilities\":{\"image\":true,\"embeddedContext\":true},\"mcpCapabilities\":{\"http\":true,\"sse\":true},\"loadSession\":true,\"delegateToolsSupport\":true,\"mainAgentSupport\":false,\"multitaskSupport\":true,\"metaPromptSupport\":true},\"authMethods\":[{\"id\":\"iOA\",\"name\":\"Login with iOA\",\"description\":null},{\"id"
+      },
+      "sse_only": {
+        "status": 406,
+        "body_head": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+      },
+      "json_only": {
+        "status": 406,
+        "body_head": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+      }
+    },
+    "get_sse": {
+      "status": null,
+      "body_head": "TimeoutError('timed out')"
+    },
+    "cleanup": {
+      "label": "withacp",
+      "pid": 37080,
+      "before": {
+        "pid": 37080,
+        "create_time": 1790959278.7111619,
+        "name": "node.exe",
+        "cmdline": [
+          "node",
+          "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+          "--serve",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "49391",
+          "--auth",
+          "none",
+          "--acp"
+        ],
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acpv-withacp-wq_mj46a\\ws",
+        "alive": true
+      },
+      "taskkill_rc": 128,
+      "taskkill_out": "�ɹ�: ����ֹ PID 40144 (���� PID 48900 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 50088 (���� PID 48900 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 48900 (���� PID 37080 �ӽ���)�Ľ��̡�\n�ɹ�: ����ֹ PID 37080 (���� PID 48944 �ӽ���)�Ľ��̡�\n����: �޷���ֹ PID 6308 (���� PID 47740 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n����: �޷���ֹ PID 47740 (���� PID 50088 �ӽ���)�Ľ��̡�\nԭ��: ��������֧�֡�\n\n",
+      "gone": true
+    },
+    "port_free_after": true,
+    "stderr_tail": "",
+    "stdout_tail": "\n  CodeBuddy Code HTTP Server\n\n  Endpoint  http://127.0.0.1:49391\n  Web UI    http://127.0.0.1:49391/\n\n  ⚠  Authentication is DISABLED.\n     Any local process can execute commands and read/write files\n     through this server. Remove --auth none to re-enable.\n\n  Press Ctrl+C to stop the server\n\n"
+  }
+}
