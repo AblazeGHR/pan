@@ -3005,8 +3005,17 @@ def _history_idempotency_rows(s) -> list[dict]:
                 if isinstance(row, dict)]
     history_path = _sess._history_path(s.id)
     if history_path.exists():
+        # Queue GET runs during Session selection. Use the validated summary
+        # count to parse only the bounded recovery tail, instead of decoding
+        # every JSONL row on the event loop. Stale/incomplete projections still
+        # take the history reader's compatibility path.
+        projection = getattr(s, "summary_projection", None)
+        known_total = (
+            projection.get("history_total")
+            if _sess.is_complete_summary_projection(projection) else None
+        )
         rows, _ = _sess._history_page_from_jsonl(
-            history_path, before=0, limit=limit,
+            history_path, before=0, limit=limit, known_total=known_total,
         )
         return [row for row in rows if isinstance(row, dict)]
     page = _sess.history_page(s.id, limit=limit)
