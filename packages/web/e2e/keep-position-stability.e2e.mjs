@@ -362,7 +362,9 @@ try {
       : index === 119
         ? 'Grouped history latest marker'
         : `Grouped history row ${index + 1}`,
-    messageId: `group-page-${index}`,
+    // append_history preserves only durable Pan IDs; non-Pan fixture IDs are
+    // intentionally reassigned by the current persistence boundary.
+    messageId: `pan:${(100000 + index).toString(16).padStart(32, '0')}`,
   }));
   const groupedFixture = await groupedPage.request.post(`${baseURL}/__e2e/append-history`, {
     data: { sessionId: bravoId, messages: groupedHistory },
@@ -400,14 +402,14 @@ try {
   await poll(() => groupedBeforeRequests.length, (count) => count > 0, 'group-boundary upward scroll loads older history');
   const groupedPendingAnchor = await poll(
     () => visibleAnchor(groupedScroller),
-    (anchor) => anchor?.text.includes('tools') && Number(anchor.identity.match(/group-page-(\d+)/)?.[1]) >= 70 && Number(anchor.identity.match(/group-page-(\d+)/)?.[1]) <= 100,
+    (anchor) => anchor?.text.includes('tools') && groupedHistory.slice(70, 101).some(row => anchor.identity.includes(row.messageId)),
     'the original tool-group message is the pagination anchor',
   );
   await groupedPage.waitForTimeout(1000);
   assert.equal(groupedBeforeRequests.length, 1, `grouped prepend does not self-chain: ${JSON.stringify(groupedBeforeRequests)}`);
   const groupedAfterAnchor = await poll(
     () => visibleAnchor(groupedScroller),
-    (anchor) => anchor?.identity.includes('group-page-40'),
+    (anchor) => anchor?.identity.includes(groupedHistory[40].messageId),
     'the reformed tool group is restored into view',
   );
   assert.notEqual(groupedAfterAnchor.rowKey, groupedPendingAnchor.rowKey, 'prepended group membership gives the display row a new key');

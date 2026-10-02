@@ -13,6 +13,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MessageNavigationRail } from './MessageNavigationRail';
 import type { ChatMessagesHandle } from './ChatMessages';
+import { useSessionStore } from '@/stores/sessionStore';
 
 export const MESSAGE_NAVIGATION_PANEL_ID = 'message-navigation-panel';
 
@@ -50,7 +51,11 @@ export function MessageNavigationDock({
   const [pointerWithin, setPointerWithin] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [keyboardDismissed, setKeyboardDismissed] = useState(false);
-  const [hasOpened, setHasOpened] = useState(false);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const [openedSession, setOpenedSession] = useState<{ id: string | null } | null>(null);
+  // Folding keeps this Session's index warm. A different Session must not
+  // start a complete history scan behind the folded dock on its first screen.
+  const hasOpened = openedSession !== null && openedSession.id === currentSessionId;
 
   const expanded = isMobile
     ? mobileExpanded
@@ -58,8 +63,8 @@ export function MessageNavigationDock({
   const label = children ? 'chat tools sidebar' : 'message navigation rail';
 
   useEffect(() => {
-    if (expanded) setHasOpened(true);
-  }, [expanded]);
+    if (expanded) setOpenedSession({ id: currentSessionId });
+  }, [expanded, currentSessionId]);
 
   useEffect(() => () => {
     if (collapseTimerRef.current !== null) {
@@ -106,7 +111,7 @@ export function MessageNavigationDock({
     }
     setKeyboardDismissed(false);
     setFocusWithin(true);
-    setHasOpened(true);
+    setOpenedSession({ id: currentSessionId });
   };
 
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
@@ -130,7 +135,7 @@ export function MessageNavigationDock({
     }
     cancelPendingCollapse();
     setPointerWithin(true);
-    setHasOpened(true);
+    setOpenedSession({ id: currentSessionId });
   };
 
   const handlePointerOut = (event: PointerEvent<HTMLDivElement>) => {
@@ -167,7 +172,7 @@ export function MessageNavigationDock({
       const keyboardActivation = event.detail === 0;
       setKeyboardDismissed(!keyboardActivation);
       setFocusWithin(keyboardActivation);
-      setHasOpened(true);
+      setOpenedSession({ id: currentSessionId });
     }
   };
 

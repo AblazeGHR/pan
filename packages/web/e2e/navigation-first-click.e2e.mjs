@@ -35,7 +35,12 @@ async function poll(read, check, timeout = 30000) {
 }
 async function geometry(scroller, target) {
   return scroller.evaluate((el, target) => {
-    const row = [...el.querySelectorAll('[data-scroll-anchor-key]')].find(r => r.dataset.scrollAnchorKey.includes(':nav-first-' + target + ':'));
+    // append_history now assigns durable Pan IDs. Resolve the seeded target
+    // from the current projection instead of assuming its fixture ID survived.
+    const message = window.__panSessionStore.getState().currentMessages.find(m =>
+      m.content === `JUMP row ${target}` || m.content.includes(`REPORT row ${target}\n`));
+    const row = message && [...el.querySelectorAll('[data-scroll-anchor-key]')].find(r =>
+      r.dataset.scrollAnchorKey.includes(':' + message.messageId + ':'));
     const v = el.getBoundingClientRect(), r = row?.getBoundingClientRect();
     return { target, found: Boolean(row), top: r ? r.top - v.top : null, height: r?.height,
       viewportHeight: v.height, scrollTop: el.scrollTop, contentHeight: el.scrollHeight,

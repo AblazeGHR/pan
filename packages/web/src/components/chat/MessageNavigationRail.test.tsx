@@ -149,6 +149,26 @@ describe('message navigation dock', () => {
     expect(mockedHistory).toHaveBeenCalledTimes(1);
   });
 
+  it('does not scan a newly selected Session behind a dock opened for the previous Session', async () => {
+    vi.useFakeTimers();
+    const { container } = render(<MessageNavigationDock chatRef={{ current: null }} dockRef={{ current: null }}
+      isMobile={false} mobileExpanded={false} onMobileClose={() => {}} onRestoreFocus={() => {}} />);
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
+    await act(async () => { vi.advanceTimersByTime(100); });
+    const previousRequests = mockedHistory.mock.calls.length;
+    act(() => { useSessionStore.setState({ currentSessionId: 'cold-next', currentMessages: [] }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector('.message-navigation-rail')).toBeNull();
+    expect(mockedHistory).toHaveBeenCalledTimes(previousRequests);
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector('.message-navigation-rail')).not.toBeNull();
+    expect(mockedHistory).toHaveBeenCalledTimes(previousRequests + 1);
+  });
+
   it('stays open within the dock, then collapses after pointer click focus leaves', async () => {
     vi.useFakeTimers();
     const dockRef = { current: null } as RefObject<HTMLDivElement | null>;

@@ -990,14 +990,38 @@ def _history_page_from_jsonl(
     # file has a crash tail, fall through to the compatibility scan below.
     if before <= 0 and _is_nonnegative_int(known_total):
         try:
-            raw = path.read_bytes()
+            # Validate the complete row count without retaining/copying the
+            # complete file. Only the requested tail plus one read chunk lives
+            # in memory, even for a cold, very large Session.
+            tail_chunks: deque[tuple[bytes, int]] = deque()
+            tail_newlines = 0
+            newline_count = 0
+            wanted = min(limit, known_total)
+            with path.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    chunk_newlines = chunk.count(b"\n")
+                    newline_count += chunk_newlines
+                    tail_newlines += chunk_newlines
+                    tail_chunks.append((chunk, chunk_newlines))
+                    while len(tail_chunks) > 1 and tail_newlines - tail_chunks[0][1] >= wanted + 1:
+                        _, removed_newlines = tail_chunks.popleft()
+                        tail_newlines -= removed_newlines
+            # Join once: a single multi-megabyte message must not make repeated
+            # chunk concatenations quadratic in its length.
+            tail = b"".join(chunk for chunk, _ in tail_chunks)
+            boundary = len(tail)
+            for _ in range(wanted + 1):
+                boundary = tail.rfind(b"\n", 0, boundary)
+                if boundary < 0:
+                    break
+            if boundary >= 0:
+                tail = tail[boundary + 1:]
         except OSError:
             return [], 0
-        if raw.endswith(b"\n") and raw.count(b"\n") == known_total:
-            lines = raw.rsplit(b"\n", min(limit, known_total) + 1)
-            tail = lines[-(min(limit, known_total) + 1):-1]
+        if tail.endswith(b"\n") and newline_count == known_total:
+            lines = tail.rsplit(b"\n", wanted + 1)[-(wanted + 1):-1]
             parsed: list[dict] = []
-            for line in tail:
+            for line in lines:
                 try:
                     value = json.loads(line.decode("utf-8"))
                 except (json.JSONDecodeError, UnicodeDecodeError):
