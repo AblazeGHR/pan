@@ -227,8 +227,10 @@ def build_runtime(terminal_id, backend, *, ownership, acknowledge_unowned_tree=F
 **布局中立性如何体现**：`lifecycle_owner` 只是声明性数据，公共核心**不按它分支**；`tree_guard` 是
 注入的 `TreeTerminator` 实现（Job Object / 进程组 / 其它都可以），接口不限定由谁持有句柄。
 实测（M16.5）：`lifecycle_owner` 取 `pan-service` / `runner` / `external-host` 三者行为一致，
-同一套 API 全部可用。所以布局 A（服务持 Job）、布局 B（runner 出生持 Job）、以及待验证的
-布局 C（A→B 句柄移交）都能用同一接口表达而不需要改契约。
+同一套 API 全部可用。因此三种布局都能用同一接口表达而不需要改契约：布局 A（服务持 Job）、
+布局 B（runner 出生持 Job，生命周期 TA 推荐并已实测满足默认终止/detach 语义）、
+布局 C（A→B Job 句柄所有权移交 —— 经 `DuplicateHandle` 移交**已由生命周期 TA 实测可行**，见 §6A.1；
+但 **ConPTY 宿主/IO 接管仍未测**，所以"服务先持 PTY 再整体 detach"中的 IO 归属问题没有答案）。
 
 **fail-closed 工厂拒绝条件**（任一条不过就抛错，绝不静默降级）：
 
@@ -236,12 +238,12 @@ def build_runtime(terminal_id, backend, *, ownership, acknowledge_unowned_tree=F
 |---|---|
 | `ownership is None`（无默认布局） | `OwnershipPolicyRequired` |
 | 声明了 `tree_guard_kind` 但 `tree_guard is None` 且未显式确认 | `UnownedTreeRejected` |
-| `mode=DETACHED`（同 PID 重连证据未验收） | `DetachedOwnershipNotImplemented` |
-| `mode=EXTERNAL`（外部所有者生死/重连语义未验收） | `ExternalOwnershipNotYetValidated` |
+| `mode=DETACHED`（本原型无内核级守卫实现；生产前置项未解决） | `DetachedOwnershipNotImplemented` |
+| `mode=EXTERNAL`（外部所有者语义未定义，探针只覆盖 runner 自持布局） | `ExternalOwnershipNotYetValidated` |
 | 声明了树守卫但 `start()` 未给启动所有权证据 | `OwnershipGateError` |
 
-`JobObjectTreeTerminator` 在本阶段**故意只声明不实现**（构造即抛 `NotImplementedError` 并列出待验收项），
-避免把公共契约钉在某一种 Job 布局上。`PsutilTreeTerminator` 与 `NullTreeTerminator` 是探针级实现，
+`JobObjectTreeTerminator` 在本阶段**故意只声明不实现**（构造即抛 `NotImplementedError` 并列出待定项），
+避免把公共契约钉在某一种 Job 布局上，也避免把探索探针当成生产安全实现（§6A.1）。`PsutilTreeTerminator` 与 `NullTreeTerminator` 是探针级实现，
 `NullTreeTerminator` 必须配 `acknowledge_unowned_tree=True` 才可用（真实探针就是这么标注的）。
 
 ### 2.9 启动所有权门禁与清理身份核验
@@ -384,43 +386,45 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 ## 6A. 跨 TA 引用、验收状态与 adapter 无关边界
 
-### 6A.1 生命周期 TA（首轮引用快照与集成校准）
-
-**MA 集成更新**：以下关于“待验收/返工中”的描述保留为 TA 当时的读取快照，不代表当前状态。
-生命周期 follow-up `9bd858e2` 已通过探索层审查并集成：Job 句柄跨进程移交 11/11、
-同句柄原始 FILETIME 身份核验 3/3、启动失败门禁等场景 67/67。
-推荐 runner 出生持有 PTY/guard + 默认 lease + 显式 durable detach；不是唯一可能布局。
-句柄移交不能证明 ConPTY host/IO 可迁移；生产原子 spawn、IPC 安全与真实服务接入仍待验证。
-原生 Adapter 无中断 TUI 已决定留后续探索，不作为首版或 PR6 接入前置。
+### 6A.1 生命周期 TA（`4b20683` → 返工 `9bd858e2`，**MA 已接受为探索成果**）
 
 引用其报告 `docs/design/PAN_TERMINAL_LIFECYCLE_JOBS_20261003.md`（只读树
-`D:/project/pan-worktrees/terminal-lifecycle-explore-20261003`）。该 TA 正在原 Session 返工，
-其工作树内还有未提交的 `job_handle_handoff.py` / `handoff_role.py` / `kill_identity_probe.py`，
-**未提交内容一律不作为证据引用**。
+`D:/project/pan-worktrees/terminal-lifecycle-explore-20261003`）。MA 已对返工提交 `9bd858e2`
+完成关键代码/证据审查并接受为探索成果，正纳入隔离集成。
 
-**实测（可引用）**：runner 出生即持有 PTY + 自持 kill-on-close Job + 服务 lease + 显式 durable，
-满足正常退出/崩溃/同 PID 重连（s1–s5 58/58）；Job 侧：无 API 可把已存在进程摘出
-kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄关闭即整树终止、breakaway 仅限出生
-（job_object_probe A–E 6/6）。
+**实测（可引用）**
 
-**推断（不可当结论）**：该报告 §4 规则 4 称"`DuplicateHandle` 只增加引用计数、不转移绑定"，
-并在 §6 据此得出"服务持 PTY → detach 迁移给独立 owner 在**本机内核语义下不可行**"。
+| 事实 | 证据 |
+|---|---|
+| Job **成员资格**只增不减：运行中进程可被 assign 加入（含嵌套），**无 Remove/Detach API**，逃脱只能出生时 breakaway | `job_object_probe` A/B/E |
+| kill-on-close 绑定**不能被"多加一个 Job"中和** | A |
+| **Job 句柄所有权可移交**：P→A→B 经 `DuplicateHandle` + IPC 传递；P 关闭自己的句柄后树存活（观察 2.0s）；A 移交后关闭并退出，C/G 的 PID 与 100ns 创建时间不变；**B 关闭最后一个句柄（B 仍存活）瞬间整树死亡 0.0s** | `job_handle_handoff` H0–H10（11/11） |
+| 启动 assign 失败 fail-closed：不发布 running 端点、不开控制端口、只清理自有后代后非零退出 | `s6_startup_assign_failure` 9/9 |
+| 终止路径改为**单 handle 原子核验 + 终止**（同一 handle 完成 FILETIME/退出码核验与 Terminate），TOCTOU 修复并有负例"核验失败不终止" | K1–K3 |
+| 推荐布局（runner 出生自持 PTY + 自持 kill-on-close Job 守卫 + lease 默认终止 + 显式 detach durable）满足正常退出/崩溃/同 PID 重连/整树清理 | s1–s6 67/67 |
 
-**必须区分两点**：
+**明确未测（不得当作已解决）**
 
-1. **"不能移除 Job 成员" ≠ "不能通过 DuplicateHandle 移交 Job 句柄所有权"**。前者有实测支撑；
-   后者是推断。句柄复制后由 B 持有、A 关闭自己的句柄，只要"最后一个句柄关闭才终止"成立，
-   所有权就完成了移交——MA 已要求 A→B 移交探针验证，**在探针结论出来之前，本契约不把任何一种
-   Job 布局写成唯一方案**。
-2. **即使句柄移交成功，也不自动证明 ConPTY host/IO 可迁移**。pseudoconsole 与 IO 管道随创建进程
-   存活（创建者死亡 → 伪控制台销毁）、ConPTY 宿主进程的归属关系，均**未验证**。
+1. **ConPTY host/IO 接管迁移**：未测，其报告不做任何可行性声明，本契约同样不声明。
+2. **spawn→assign 启动窗口未消除**：`pywinpty.spawn` 不暴露 creationflags，无法"挂起创建→assign→恢复"；
+   该报告自述其探针是"寿命/所有权语义探针，**不是 race-free 生产 spawn**"。
+3. **不得照搬探针为生产安全实现**（MA 明确要求）：控制端点在探针里是 loopback + 明文 token，
+   产品需要命名管道/ACL 或受限 token。
 
-因此契约只固化"所有权策略 + fail-closed 工厂"的形状（§2.8/§2.9），把布局作为数据；
-`JobObjectTreeTerminator` 显式不提供实现。
+**对本契约的直接影响**
 
-**接口影响（如实标注为待验收推断）**：若 A→B 移交成立，布局 C 可以用同一 `OwnershipPolicy` 表达
-（`lifecycle_owner` 变化 + 注入对应 `tree_guard`），**不需要改公共契约**；但 ConPTY IO 归属若无法
-迁移，"服务先持 PTY 再 detach"依然不可行，届时只能走"runtime 出生即拥有 PTY"的布局。
+- 我上一版 §6A.1 引用的是 `4b20683` §4 规则 4 的**推断**（"`DuplicateHandle` 只增引用计数、不转移绑定"）
+  并据此说布局 C 待验证。返工实测**推翻了该推断的结论部分**，已按 `9bd858e2` §4.3 修正版更新：
+  迁移必须分层表述 —— **成员资格迁移不可行 / 句柄所有权迁移可行且已实测 / PTY 宿主·IO 接管未测**。
+  （注：`9bd858e2` 的 §4.2 旧块仍保留该推断句，阅读时应以 §4.3 修正版为准。）
+- **接口无需改动**：布局 C 只是 `lifecycle_owner` + `tree_guard` 注入的不同取值，公共契约保持布局中立
+  （§2.8）。这正是把"谁持句柄"作为数据而非接口约束的收益。
+- 其"单 handle 原子核验 + 终止"与我的 `handle_bound_for_cleanup` + 清理前身份核验（§2.9）是同一要求；
+  但双方都**不再使用**"PID 复用不可能误杀"这类绝对措辞（其报告已撤下该措辞，本契约同样只声称
+  "身份不匹配即拒杀并保留 owner"）。
+- 其 §7.5"公共 backend 实现前置"与我的启动门禁一致：`atomic_with_spawn=False` 即拒绝 `running`，
+  所以**当前真实探针显式 `acknowledge_unowned_tree=True` 且 `require_startup_gate=False`**，
+  并在证据里标注该门禁未满足。
 
 ### 6A.2 CBC 首轮报告边界（供后续整理，不改变本契约方向）
 
@@ -437,8 +441,10 @@ kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄�
 
 **未验证（明确不做或无结论）**
 
-1. **显式 runtime detach / 同 PID 重连 / 父进程崩溃语义**：未实现（工厂直接拒绝 DETACHED/EXTERNAL）。
-   依赖生命周期 TA 的验收结论、MA 要求的 A→B Job 句柄移交探针、以及 ConPTY host/IO 可迁移性（§6A.1）。
+1. **显式 runtime detach 的生产实现**：语义侧证据已具备（生命周期 TA s3/s5 同 PID 保活+重连；Job 句柄
+   P→A→B 移交 H0–H10 实测；MA 已接受为探索成果，§6A.1）。本契约仍拒绝 `DETACHED`/`EXTERNAL` 的原因
+   不是产品决定未定，而是**本原型没有内核级树守卫实现**（`JobObjectTreeTerminator` 故意不实现），
+   且生产 backend 前置项未解决：挂起式 spawn/原子入组、命名管道或 ACL 控制端点、ConPTY host/IO 接管未测。
 2. **POSIX backend**：未实现、未测（仅 Windows/ConPTY 有实测证据）。
 3. **真实浏览器与权威快照**：xterm.js / fit / serialize addon、WS 协议、浏览器渲染均**未实现、未验证**；
    "权威仿真器快照"（能完整覆盖鼠标/粘贴/键盘协议/滚动历史的实现）也未验证——本阶段只有 pyte 的
@@ -449,8 +455,12 @@ kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄�
 6. **Agent takeover 与 held/生命周期锁的双 writer 问题**：未触碰。
 7. **真实 provider TUI（CBC / Codex）**：本探针刻意未启动 `cbc`/`codex`（避免触碰既有会话与认证）；
    R6 用的是本机真实 `less.exe`（真实备用屏 TUI），不是 provider 原生 TUI（§6A.2）。
-8. **Job Object 相关**：spawn→assign 原子性、assign 失败、同一 handle 清理只在契约层以四要素门禁固化
-   （M16）；**没有**在真实 Job 上验证（真实探针明确 `acknowledge_unowned_tree=True`）。
+8. **Job Object 相关**：spawn→assign 原子性、assign 失败、同一 handle 清理在契约层以四要素门禁固化
+   （M16）；生命周期 TA 已在**探针层**给出对应实测（s6 assign 失败 fail-closed 9/9；K1–K3 单 handle
+   原子核验+终止），但其自述为"寿命探针，非 race-free 生产 spawn"。**我的真实探针**未在 Job 上验证，
+   故显式 `acknowledge_unowned_tree=True` 且 `require_startup_gate=False`。
+9. **控制端点安全模型**：探针是 loopback + 明文 token；命名管道/ACL/受限 token 未实现（与生命周期 TA
+   §7.6 同一结论）。本契约只做进程内单 writer，**不做身份授权**（§2.5）。
 
 **已知失败/风险（如实记录）**
 
@@ -471,11 +481,11 @@ kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄�
 
 | 决定 | 依赖 | 状态 |
 |---|---|---|
-| Job 布局（服务持 / runner 出生持 / A→B 句柄移交） | 生命周期 follow-up 已验收 | 首版推荐 runner 出生持有；原子 spawn 尚需实现验证 |
-| ConPTY host/IO 是否可迁移 | 需要专门探针（本契约未测） | 未决 |
+| Job 布局选择与生产落地 | 生命周期 TA 布局 B 已被 MA 接受为探索成果；句柄移交 C 已实测可行（`9bd858e2`）。落地还需生产 backend 加固（挂起式 spawn/原子入组、ACL 控制端点） | 方向已定，待实施 |
+| ConPTY host/IO 是否可迁移 | 需要专门探针（生命周期 TA 与契约均未测） | 未决 |
 | 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：实际用到的模式（鼠标/粘贴/键盘协议/滚动） | 未决 |
-| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | Codex 被测目标 turn 在 TUI 退出后中断；CBC 未证实同 Agent 切换 | 已定：首版普通持久 PTY/Web 终端优先，原生无中断 TUI 延后 |
-| `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA（含崩溃与 reconcile） | 未决 |
+| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | CBC TA / Codex TA（当前无可 bind 的 TUI 证据，见 §6A.2） | 未决 |
+| `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA 只覆盖 runner 自持布局，外部所有者语义未定义 | 未决 |
 | 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 | 未决 |
 | 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 | 未决 |
 
@@ -504,8 +514,8 @@ kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄�
 
 **下一步建议（按依赖顺序）**
 
-1. MA 归档本报告 + `audit/terminal/contract/`；对生命周期 TA 的 `4b20683` 给出验收/返工结论，并把
-   MA 要求的 **A→B Job 句柄移交探针**与 **ConPTY host/IO 可迁移性**列入明确验证项（§6A.1）。
+1. MA 归档本报告 + `audit/terminal/contract/`；生命周期 TA `9bd858e2` 已获接受，剩余需列入明确验证的只有
+   **ConPTY host/IO 接管可迁移性**（双方均未测）与生产 backend 加固项（挂起式 spawn/原子入组、ACL 控制端点）。
 2. 实施阶段先落地 `PtyBackend + OutputLog + PtyRuntime + build_runtime`（无 UI），把 PR #6 回滚接到公共核心
    并跑回滚测试；同时按 §2.9 接入门禁（真机 Job 赋值 + 身份核验）。
 3. 快照引擎选型前不承诺"网页 TUI 状态恢复"；`fidelity` 字段已为降级留出表达空间。

@@ -1635,27 +1635,33 @@ class NullTreeTerminator:
 class JobObjectTreeTerminator:
     """Windows Job Object 树守卫的占位声明（本阶段**不实现**）。
 
-    故意不在这里提供实现，因为所有权布局尚未定型，且不应由公共契约绑死：
+    故意不在这里提供实现：公共契约不绑死所有权布局，也**不把探索探针当作生产安全实现**。
 
-    - 布局 A：Pan 服务持有 Job 句柄（服务生命周期 = 终端生命周期）；
-    - 布局 B：独立 runner 出生即持有 Job 句柄（runner 崩溃 = 整树死）；
-    - 布局 C：A→B 运行时移交 Job 句柄所有权（MA 已要求移交探针，**未验收**）。
+    布局形态（都可用同一 `OwnershipPolicy` 表达，接口无需改动）：
 
-    实测（生命周期 TA 4b20683，待验收）：无 API 可把已存在进程摘出
-    kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄关闭即整树终止。
-    注意区分：**"不能移除 Job 成员" ≠ "不能通过 DuplicateHandle 移交 Job 句柄所有权"**
-    —— 后者在该报告中是**推断**（只增引用计数），MA 已要求专门探针验证。
-    即使移交成立，也**不自动证明** ConPTY host/IO 可迁移（pseudoconsole 与 IO
-    管道随创建进程存活的约束未验证）。
+    - 布局 A：Pan 服务持有 Job 句柄；
+    - 布局 B：独立 runner 出生即持有 Job 句柄（生命周期 TA 推荐布局，其实测满足默认终止/detach/重连）；
+    - 布局 C：A→B 经 `DuplicateHandle` + IPC 移交 Job 句柄所有权。
 
-    因此本类只用于声明意图与记录证据，``__init__`` 直接抛错。
+    已实测（生命周期 TA `9bd858e2`，MA 已接受为探索成果）：
+
+    - 成员资格只增不减：运行中进程可 assign 加入（含嵌套），**无移除 API**，逃脱只能出生时 breakaway；
+    - kill-on-close 绑定不能被"多加一个 Job"中和；
+    - **句柄所有权可移交**：`DuplicateHandle` 移交给 A、再由 A 移交给 B；原持有者关闭句柄/退出不触发 kill，
+      **最后一个句柄关闭（含持有者崩溃）才 0.0s 整树终止**。
+
+    仍未测 / 未解决（不得当作已解决）：
+
+    - **ConPTY host/IO 接管迁移**：未测，双方都不做可行性声明；
+    - **spawn→assign 启动窗口未消除**（`pywinpty.spawn` 不暴露 creationflags），生产 backend 需另行加固；
+    - 探针控制端点为 loopback + 明文 token，非产品安全模型。
     """
 
     def __init__(self, *_: Any, **__: Any) -> None:
         raise NotImplementedError(
-            "Job Object 树守卫实现属生产层，且布局未定型：需先验收 (1) 生命周期 TA 的 "
-            "s1–s5 与 Job 探针；(2) MA 要求的 A→B Job 句柄移交探针；(3) ConPTY host/IO "
-            "可迁移性。公共契约不在此绑死服务持 Job 或 runner 布局。"
+            "Job Object 树守卫实现属生产层：需先落地挂起式 spawn/原子入组（消除 spawn→assign 窗口）、"
+            "命名管道或 ACL 控制端点，并确认 ConPTY host/IO 归属（未测）。"
+            "公共契约不在此绑死服务持 Job 或 runner 布局，也不照搬探索探针作为生产实现。"
         )
 
 
@@ -1722,7 +1728,7 @@ class UnverifiedOwnershipGate:
 class OwnershipMode(str, Enum):
     SERVICE = "service"  # 默认：随 Pan 服务生死
     DETACHED = "detached"  # 显式 runtime detach：独立所有者，保留原 PTY/进程
-    EXTERNAL = "external"  # 由外部 runner/宿主持有（布局中立，语义未验收）
+    EXTERNAL = "external"  # 由外部 runner/宿主持有（布局中立；语义未定义，探针只覆盖 runner 自持布局）
 
 
 @dataclass(frozen=True)
@@ -1756,11 +1762,16 @@ class OwnershipPolicy:
         }
 
     def on_service_shutdown(self, runtime: PtyRuntime) -> CleanupReport:
-        """默认寿命策略：SERVICE 随 Pan 结束；其它模式当前未定型 → 显式失败。"""
+        """默认寿命策略：SERVICE 随 Pan 结束；非 service 不由 Pan 在此终止。
+
+        非 service 被拒的原因**不是产品决定未定**（默认寿命与显式 detach 语义已由用户决定，且生命周期
+        TA 已有实测支撑），而是本原型没有可用的内核级守卫 / 外部所有者实现：静默按 service 处理会
+        违背"detach 后不随 Pan 终止"的既定语义，所以宁可 fail-closed。
+        """
         if self.detached or self.mode is not OwnershipMode.SERVICE:
             raise DetachedOwnershipNotImplemented(
-                "非 service 所有权在服务关闭时的语义未定型（需生命周期 TA 的同 PID 重连/"
-                "崩溃证据与 MA 验收）；不得用重启代替 detach。"
+                "非 service 所有权不能按 service 语义在服务关闭时终止：本原型没有内核级守卫/外部所有者"
+                "实现（生产前置项见 JobObjectTreeTerminator 文档）。"
             )
         return runtime.close(reason="service-shutdown")
 
@@ -1791,7 +1802,7 @@ def build_runtime(
 
     校验顺序（任何一条不过就抛错，绝不静默降级）：
     1. ``ownership`` 必须有值（无默认布局）；
-    2. DETACHED / EXTERNAL 的默认寿命语义未验收 → 拒绝；
+    2. DETACHED（本原型无内核级守卫实现）/ EXTERNAL（语义未定义）→ 拒绝；
     3. 声明了树守卫却给了 ``None`` 实现 → 必须显式 ``acknowledge_unowned_tree``；
     4. 有树守卫时默认要求启动所有权证据（``require_startup_gate`` 缺省为真）。
     """
@@ -1801,12 +1812,15 @@ def build_runtime(
         )
     if ownership.mode is OwnershipMode.DETACHED:
         raise DetachedOwnershipNotImplemented(
-            "显式 detach（保留原 PTY/进程 + 同 PID 重连）尚未验收：需生命周期 TA 的 "
-            "s3/s5 证据、MA 要求的 A→B Job 句柄移交探针，以及 ConPTY host/IO 可迁移性结论。"
+            "本原型没有内核级树守卫实现，无法满足 detach 语义（不随 Pan 终止 + 同 PID 重连）："
+            "生命周期 TA 已在探针层实测该语义可行（s3/s5 + Job 句柄 P→A→B 移交），"
+            "但生产落地前置项未解决（挂起式 spawn/原子入组、ACL 控制端点、ConPTY host/IO 归属未测）。"
+            "见 docs/design/PAN_TERMINAL_PTY_CONTRACT_20261003.md §6A.1。"
         )
     if ownership.mode is OwnershipMode.EXTERNAL:
         raise ExternalOwnershipNotYetValidated(
-            "外部所有者的默认寿命/崩溃/重连语义尚未验收：不得仅凭「外部进程持有」就放行。"
+            "外部所有者的默认寿命/崩溃/重连语义尚未定义（探针只覆盖 runner 自持布局）："
+            "不得仅凭「外部进程持有」就放行。"
         )
     if ownership.tree_guard is None and not acknowledge_unowned_tree:
         raise UnownedTreeRejected(
@@ -1831,9 +1845,9 @@ def build_runtime(
 
 
 def require_detached_ownership(policy: Any | None) -> None:
-    """显式失败的能力扩展点：未定型前不允许静默降级。"""
+    """显式失败的能力扩展点：本原型不提供实现前，不允许静默降级。"""
     raise DetachedOwnershipNotImplemented(
-        "显式 runtime detach（保留原 PTY/进程的独立所有者）尚未定型："
-        "需要 lifecycle TA 的同 PID 重连/父进程崩溃证据与 Windows Job Object 结论，"
-        "以及 MA 要求的 A→B Job 句柄移交探针。默认 managed 路径不需要该策略。"
+        "本原型不提供独立所有者实现：默认 managed 路径不需要该策略；detach 的生产实现见 "
+        "docs/design/PAN_TERMINAL_PTY_CONTRACT_20261003.md §6A.1（语义已被探针实测，"
+        "落地依赖内核级守卫 + 生产 backend 加固）。"
     )

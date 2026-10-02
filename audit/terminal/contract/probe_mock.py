@@ -353,9 +353,9 @@ def t_attachment_namespace_and_detach_point(h: Harness) -> None:
         h.check("M9.4 显式 detach 扩展点未定型时显式失败", False, "未报错")
     except DetachedOwnershipNotImplemented as exc:
         h.check(
-            "M9.4 显式 detach 扩展点未定型时显式失败",
-            "lifecycle" in str(exc),
-            "raised with dependency note",
+            "M9.4 detach 扩展点在无生产实现时显式失败",
+            ("6A.1" in str(exc)) or ("生产实现" in str(exc)),
+            "raised with pointer to production path",
         )
 
 
@@ -792,14 +792,14 @@ def t_ownership_policy_and_gate(h: Harness) -> None:
     for label, kw in (
         ("M16.1 无策略被拒", dict(ownership=None)),
         ("M16.2 声明守卫却给 None 被拒", dict(ownership=OwnershipPolicy(OwnershipMode.SERVICE, "pan-service", "job-object", None))),
-        ("M16.3 detach 未验收被拒", dict(ownership=OwnershipPolicy(OwnershipMode.DETACHED, "runner", "job-object", NullTreeTerminator(), detached=True))),
-        ("M16.4 external 未验收被拒", dict(ownership=OwnershipPolicy(OwnershipMode.EXTERNAL, "external-host", "job-object", NullTreeTerminator()))),
+        ("M16.3 detach 无守卫实现被拒", dict(ownership=OwnershipPolicy(OwnershipMode.DETACHED, "runner", "job-object", NullTreeTerminator(), detached=True))),
+        ("M16.4 external 语义未定义被拒", dict(ownership=OwnershipPolicy(OwnershipMode.EXTERNAL, "external-host", "job-object", NullTreeTerminator()))),
     ):
         expected = {
             "M16.1 无策略被拒": OwnershipPolicyRequired,
             "M16.2 声明守卫却给 None 被拒": UnownedTreeRejected,
-            "M16.3 detach 未验收被拒": DetachedOwnershipNotImplemented,
-            "M16.4 external 未验收被拒": ExternalOwnershipNotYetValidated,
+            "M16.3 detach 无守卫实现被拒": DetachedOwnershipNotImplemented,
+            "M16.4 external 语义未定义被拒": ExternalOwnershipNotYetValidated,
         }[label]
         try:
             build_runtime("term_m16", ScriptedBackend([]), **kw)

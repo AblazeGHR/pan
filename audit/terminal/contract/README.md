@@ -48,6 +48,6 @@ uv run --no-project --python E:/software/miniforge/python.exe \
   归因为 `cancelled`；且关句柄**会终止进程**，所以 `close()` 只在"终止 + 整树"都成功后才允许取消。
 - reader 回收必须被证明（自然结束或取消后结束）；取消无效时拒绝 `exited` 并保留 owner。
 - 所有权布局经 `OwnershipPolicy` 注入，公共核心不按布局分支；`build_runtime` 是 fail-closed 工厂，
-  没有策略/没有守卫/未验收的 detach 一律拒绝。
+  没有策略/没有守卫的树、以及本原型无守卫实现的 detach 一律拒绝。
 - 清理在任何终止动作**之前**核验身份（PID + 100ns FILETIME）；不匹配或探针失败即拒杀。
 - 输出边界是**字节流**：跨块与保留窗口起点都可能切断 UTF-8/CSI/OSC，序列重组归仿真器/快照。

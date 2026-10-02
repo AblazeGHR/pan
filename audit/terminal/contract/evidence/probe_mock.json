@@ -2,7 +2,7 @@
   "kind": "mock",
   "note": "确定性契约逻辑测试（ScriptedBackend）。不代表真实 CLI/PTY 行为。",
   "python": "3.12.12",
-  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmpaDw417\\Scripts\\python.exe",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmp0vCu51\\Scripts\\python.exe",
   "platform": "Windows-11-10.0.26200-SP0",
   "dependencies": {
     "pywinpty": null,
@@ -10,8 +10,8 @@
     "psutil": "7.2.2"
   },
   "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
-  "started_at": "2026-10-03T01:14:38",
-  "seconds": 5.609,
+  "started_at": "2026-10-03T01:21:00",
+  "seconds": 5.578,
   "passed": 145,
   "failed": 0,
   "results": [
@@ -379,9 +379,9 @@
       "detail": null
     },
     {
-      "name": "M9.4 显式 detach 扩展点未定型时显式失败",
+      "name": "M9.4 detach 扩展点在无生产实现时显式失败",
       "status": "pass",
-      "detail": "raised with dependency note"
+      "detail": "raised with pointer to production path"
     },
     {
       "name": "M10.1 私有模式需 <<5 还原（1049 可见）",
@@ -718,12 +718,12 @@
       "detail": "UnownedTreeRejected"
     },
     {
-      "name": "M16.3 detach 未验收被拒",
+      "name": "M16.3 detach 无守卫实现被拒",
       "status": "pass",
       "detail": "DetachedOwnershipNotImplemented"
     },
     {
-      "name": "M16.4 external 未验收被拒",
+      "name": "M16.4 external 语义未定义被拒",
       "status": "pass",
       "detail": "ExternalOwnershipNotYetValidated"
     },
@@ -828,7 +828,7 @@
     {
       "name": "M16.15 detach 策略不得在服务关闭时被终止",
       "status": "pass",
-      "detail": "非 service 所有权在服务关闭时的语义未定型（需生命周期 TA 的同 PID 重连/崩溃证据与"
+      "detail": "非 service 所有权不能按 service 语义在服务关闭时终止：本原型没有内核级守卫/外部所"
     },
     {
       "name": "M17.1 身份不匹配拒绝终止",
