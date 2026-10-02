@@ -1,5 +1,0 @@
-{
-  "test": "interrupt_write_bounded_when_input_busy",
-  "interrupt_seconds": 0.501,
-  "writer_result": "('BackendClosedError', 2293760)"
-}

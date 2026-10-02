@@ -1,0 +1,12 @@
+{
+  "test": "runtime_assembly_requires_retained_probe",
+  "fresh_probe_close": {
+    "ok": false,
+    "identity_check": "unknown",
+    "owner_retained": true
+  },
+  "retained_probe_close": {
+    "ok": true,
+    "state": "exited"
+  }
+}

@@ -26,6 +26,7 @@ import pytest
 
 from packages.core.terminal import identity
 from packages.core.terminal.backend import (
+    BackendBusyError,
     BackendCloseError,
     BackendClosedError,
     BackendProbeError,
@@ -636,10 +637,17 @@ def test_interrupt_write_bounded_when_input_busy(tmp_path):
     try:
         time.sleep(0.8)
         assert thread.is_alive(), "writer 应在途（持串行锁 + 被 conhost 节流）"
+        # R10：runtime interrupt 阶段直接 `write(b"\x03")`——必须与 terminate(False) 同预算
+        # （0.5s 而非默认 1.5s）；锁竞争下以 BackendBusyError 有界返回。
+        t0 = time.perf_counter()
+        with pytest.raises(BackendBusyError):
+            b.write(b"\x03")
+        runtime_elapsed = time.perf_counter() - t0
+        assert runtime_elapsed < 1.0, f"runtime interrupt 路径未按 0.5s 预算有界：{runtime_elapsed:.2f}s"
         t0 = time.perf_counter()
         b.terminate(False)  # interrupt：\x03 使用短预算 + 有界锁获取
         elapsed = time.perf_counter() - t0
-        assert elapsed < 1.5, f"interrupt 路径被在途写拖住：{elapsed:.2f}s"
+        assert elapsed < 1.0, f"interrupt 路径被在途写拖住：{elapsed:.2f}s"
         b.terminate(True)
         assert b.wait_dead(5.0) is True
         t0 = time.perf_counter()
@@ -651,7 +659,9 @@ def test_interrupt_write_bounded_when_input_busy(tmp_path):
             "backend-interrupt-bounded",
             {
                 "test": "interrupt_write_bounded_when_input_busy",
-                "interrupt_seconds": round(elapsed, 3),
+                "runtime_write_interrupt_seconds": round(runtime_elapsed, 3),
+                "terminate_false_seconds": round(elapsed, 3),
+                "note": "有界 ≠ 中断有效：Ctrl-C OS 语义负结论不变（报告 §2.6.1）",
                 "writer_result": str(state["result"]),
             },
         )
@@ -815,8 +825,18 @@ def test_write_timer_gap_canceller_retries(tmp_path):
 
 
 def test_write_budget_includes_lock_wait(tmp_path):
-    """R4：预算**含锁等待**——锁等待吃掉预算后，写阶段不得重新获得整份预算。"""
-    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path), write_budget=1.0)
+    """R9（审查 round-2 口径）：预算**含锁等待**——锁等待吃掉预算后，写阶段不得重新获得整份预算。
+
+    审查实测旧实现：锁等待 1.4s + 全额 timer 1.5s ≈ 总 2.867s（≈2×budget，> runtime
+    ``input_drain_timeout`` 2.0s）；修复后总上界 ≈ budget（1.5s）。本用例先失败（旧实现
+    ~2.9s）后通过（<1.9s）。
+    """
+    b = ConPtyBackend.spawn(
+        sleep_child(),
+        cwd=str(tmp_path),
+        write_budget=1.5,
+        write_chunk=16 * 1024 * 1024,  # 单块阻塞写：只有取消能让它按时返回（审查 probe7-B 同款）
+    )
     holder_started = threading.Event()
     holder_release = threading.Event()
 
@@ -832,7 +852,7 @@ def test_write_budget_includes_lock_wait(tmp_path):
     def writer() -> None:
         t0 = time.perf_counter()
         try:
-            state["result"] = b.write(b"x" * (8 * 1024 * 1024))
+            state["result"] = b.write(b"x" * (16 * 1024 * 1024))
         except Exception as exc:  # noqa: BLE001
             state["result"] = (type(exc).__name__, getattr(exc, "written", None))
         state["seconds"] = round(time.perf_counter() - t0, 3)
@@ -842,12 +862,12 @@ def test_write_budget_includes_lock_wait(tmp_path):
     try:
         assert holder_started.wait(5.0)
         thread.start()
-        time.sleep(0.6)  # 锁等待 0.6s（预算 1.0s）
+        time.sleep(1.4)  # 锁等待 1.4s（预算 1.5s）
         holder_release.set()
         holder.join(3.0)
         assert state["done"].wait(5.0) is True
-        # 含锁等待的预算：~1.0s 返回（旧实现会得到第二份预算 -> ~1.6s）
-        assert state["seconds"] is not None and state["seconds"] < 1.4, state
+        # 含锁等待的预算：总时长 ≈ 1.5s（旧实现会拿到第二份预算 -> ~2.9s）
+        assert state["seconds"] is not None and state["seconds"] < 1.9, state
         b.terminate(True)
         assert b.wait_dead(5.0) is True
         report = b.close()
@@ -856,9 +876,10 @@ def test_write_budget_includes_lock_wait(tmp_path):
             "backend-write-budget-lockwait",
             {
                 "test": "write_budget_includes_lock_wait",
-                "budget_s": 1.0,
-                "lock_wait_s": 0.6,
+                "budget_s": 1.5,
+                "lock_wait_s": 1.4,
                 "write_seconds": state["seconds"],
+                "old_impl_reference_s": 2.867,
                 "result": str(state["result"]),
             },
         )
@@ -867,6 +888,161 @@ def test_write_budget_includes_lock_wait(tmp_path):
         holder.join(2.0)
         stop_backend(b)
         thread.join(2.0)
+
+
+def test_write_cancel_worker_joined_before_handle_close(tmp_path, monkeypatch):
+    """R8（审查 round-2）：取消 worker 必须**先真 join**，再释放 writer 的线程句柄——
+    陈旧句柄不得被回调用（审查实测旧实现回调在句柄关闭后发起 CancelSynchronousIo ->
+    ERROR_INVALID_HANDLE(6)）。
+
+    确定性构造：预算 0.02s + 8MiB 节流写 -> timer 在写中途触发；把 cancel 原语替换为
+    “先睡 0.35s、再执行真实取消”的观察版；断言：
+    (a) 真实取消执行时句柄仍有效（err != 6）；
+    (b) writer 的 thread handle 关闭时间 >= 取消 worker 的最后返回时间。
+    """
+    import packages.core.terminal.backend as backend_module
+
+    real_cancel = backend_module.cancel_synchronous_io
+    real_close = backend_module.close_handle_checked
+    record: dict = {"cancel_enter": None, "cancel_leave": None, "cancel_err": None, "closes": []}
+    armed = {"on": True}
+
+    def slow_cancel(handle):
+        if armed["on"] and record["cancel_enter"] is None:
+            record["cancel_enter"] = time.monotonic()
+            time.sleep(0.35)
+            ok, err = real_cancel(handle)
+            record["cancel_err"] = err
+            record["cancel_leave"] = time.monotonic()
+            return ok, err
+        return real_cancel(handle)
+
+    def spy_close(handle):
+        record["closes"].append(time.monotonic())
+        return real_close(handle)
+
+    monkeypatch.setattr(backend_module, "cancel_synchronous_io", slow_cancel)
+    monkeypatch.setattr(backend_module, "close_handle_checked", spy_close)
+    # 子进程持续 drain stdin：写会在回调醒来（0.35s）之前自然完成（预算 0.02s 到期即 partial），
+    # 从而在旧实现上确定性产生“先关句柄、后回调取消（陈旧句柄 -> err=6）”。
+    drain_child = write_script(
+        tmp_path,
+        "drain_child.py",
+        "import sys\n"
+        "while True:\n"
+        "    data = sys.stdin.buffer.read(65536)\n"
+        "    if not data:\n"
+        "        break\n",
+    )
+    b = ConPtyBackend.spawn([PYTHON, drain_child], cwd=str(tmp_path), write_budget=0.02)
+    try:
+        written = b.write(b"x" * (8 * 1024 * 1024))
+        assert record["cancel_enter"] is not None, "预算 timer 必须触发取消 worker"
+        # 有界等待取消 worker 返回（旧实现会在句柄关闭后仍发起真实取消 -> err=6）
+        wait_deadline = time.monotonic() + 3.0
+        while record["cancel_leave"] is None and time.monotonic() < wait_deadline:
+            time.sleep(0.02)
+        assert record["cancel_leave"] is not None, "取消 worker 未在有界时间内返回"
+        assert record["cancel_err"] != 6, (
+            f"取消执行时句柄已被关闭（陈旧句柄，R8）：err={record['cancel_err']}"
+        )
+        closes_after = [t for t in record["closes"] if t >= record["cancel_enter"]]
+        assert closes_after, "writer 线程句柄必须被关闭（或转 orphan 保留）"
+        assert min(closes_after) >= record["cancel_leave"] - 1e-6, (
+            "句柄在取消 worker 返回前被关闭（R8 竞态）："
+            f"first_close={min(closes_after):.4f} cancel_leave={record['cancel_leave']:.4f}"
+        )
+        assert 0 <= written <= 8 * 1024 * 1024
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        emit_evidence(
+            "backend-cancel-join",
+            {
+                "test": "write_cancel_worker_joined_before_handle_close",
+                "cancel_err": record["cancel_err"],
+                "handle_closed_after_cancel_return": True,
+                "written": written,
+            },
+        )
+    finally:
+        armed["on"] = False
+        stop_backend(b)
+
+
+def test_runtime_assembly_requires_retained_probe(tmp_path):
+    """R11（审查 round-2，集成约束）：runtime 装配必须接 ``backend.probe``。
+
+    反例：接 fresh ``identity.probe_process``（对 signaled 的现查句柄只给 UNKNOWN）时，
+    根已死会让清理被 identity-unknown **永久拒绝**（owner retained、无法自行收敛）；
+    正确接线 ``b.probe``（spawn 时 retained handle）时同一场景收敛 EXITED。
+    """
+    script = write_script(
+        tmp_path, "exit_child.py", "import sys; print('done', flush=True); sys.exit(0)"
+    )
+
+    def _policy(backend: ConPtyBackend) -> OwnershipPolicy:
+        return OwnershipPolicy(
+            mode=OwnershipMode.SERVICE,
+            lifecycle_owner="runner",
+            tree_guard_kind="job-object",
+            tree_guard=backend.guard,
+        )
+
+    # 反例：fresh probe 接线 -> 清理被拒（先失败）
+    bad = ConPtyBackend.spawn([PYTHON, script], cwd=str(tmp_path))
+    try:
+        rt_bad = build_runtime(
+            "term_r11_bad",
+            bad,
+            ownership=_policy(bad),
+            identity=bad.identity,
+            identity_probe=identity.probe_process,  # 错误接线（fresh）
+            eof_grace=1.0,
+        )
+        rt_bad.start(rows=30, cols=100, gate=bad.gate)
+        assert rt_bad.wait_exit(15.0).process_exit_seen is True
+        rep_bad = rt_bad.close(reason="r11-bad-probe")
+        assert rep_bad.ok is False
+        assert rep_bad.identity_check.value == "unknown"
+        assert rep_bad.owner_retained is True
+        assert bad.closed is False
+        # 直接 backend.close（进程已死）仍可收敛释放（恢复路径存在）
+        assert bad.close()["closed"] is True
+    finally:
+        stop_backend(bad)
+
+    # 正例：retained 绑定 -> 收敛 EXITED（后通过）
+    good = ConPtyBackend.spawn([PYTHON, script], cwd=str(tmp_path))
+    try:
+        rt_good = build_runtime(
+            "term_r11_good",
+            good,
+            ownership=_policy(good),
+            identity=good.identity,
+            identity_probe=good.probe,  # 正确接线（spawn 时 retained handle）
+            eof_grace=1.0,
+        )
+        rt_good.start(rows=30, cols=100, gate=good.gate)
+        assert rt_good.wait_exit(15.0).process_exit_seen is True
+        rep_good = rt_good.close(reason="r11-good-probe")
+        assert rep_good.ok is True
+        assert rt_good.state is RuntimeState.EXITED
+        emit_evidence(
+            "backend-probe-assembly",
+            {
+                "test": "runtime_assembly_requires_retained_probe",
+                "fresh_probe_close": {
+                    "ok": rep_bad.ok,
+                    "identity_check": rep_bad.identity_check.value,
+                    "owner_retained": rep_bad.owner_retained,
+                },
+                "retained_probe_close": {"ok": rep_good.ok, "state": rt_good.state.value},
+            },
+        )
+    finally:
+        stop_backend(good)
 
 
 def test_pump_handle_failure_visible_and_drained(tmp_path, monkeypatch):

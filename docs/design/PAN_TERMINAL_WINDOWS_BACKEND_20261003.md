@@ -41,7 +41,7 @@
 | `packages/core/terminal/guard.py` | `JobObjectGuard`：`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` + **禁 breakaway**（回读 LimitFlags 自证）；`member_pids`（`JobObjectBasicProcessIdList` 有界扩容）；`terminate_tree`（先枚举 → `TerminateJobObject` → 轮询 active==0 双证据）；`remaining` 按 Job 成员核对；句柄关闭后查询抛 `GuardQueryError`（fail-closed） |
 | `packages/core/terminal/spawn_win.py` | `spawn_conpty_suspended`：CreatePipe×2 → CreatePseudoConsole → 属性表 → `CreateProcessW(CREATE_SUSPENDED\|EXTENDED_STARTUPINFO_PRESENT)` → 释放 pty 侧两管道句柄 → 保留句柄读 FILETIME → assign → `IsProcessInJob` 证明 + active≥1 → `ResumeThread`（先前挂起计数必须恰为 1）；`SpawnEvidence`/`SpawnDenied`；`ConPtySpawn` 分阶段释放（失败保留、重试幂等）；`build_command_line/build_environment_block` |
 | `packages/core/terminal/backend.py` | `ConPtyBackend`（`PtyBackend` 协议）：pump 线程 + 有界缓冲；`read`（阻塞/有界；真实 EOF≠进程退出）；`write`（串行、partial、有界预算、可取消）；`resize`；`alive`（三态，unknown 抛 `BackendProbeError`）；`exit_code`（仅 signaled，含 259）；`terminate`（只经保留句柄 + 有界 signaled 确认）；`close`（stop/CancelSynchronousIo/join → writer 收敛 → 官方顺序释放 → 自持 guard 最后关闭；失败抛 `BackendCloseError` 保留 owner，重复幂等）；`gate`（`UnverifiedOwnershipGate`）；`WinptyBackend` 占位（非生产依赖，构造即拒绝） |
-| `tests/test_terminal_windows_backend.py` | 23 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、阻塞读不阻塞 write/terminate/close、写预算 watchdog、interrupt 有界、DEAD 绑定 retained handle、**close 活进程前置拒绝且 IO 存活（R3）**、**writer 收敛需输入锁（R4 门控先失败后通过）**、**写 timer 空隙取消重试（R4）**、**预算含锁等待（R4）**、**pump 句柄失败可见可收敛（R6/R5）**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
+| `tests/test_terminal_windows_backend.py` | 25 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、阻塞读不阻塞 write/terminate/close、写预算 watchdog、interrupt 有界（含 R10 直接 write 路径）、DEAD 绑定 retained handle、close 活进程前置拒绝且 IO 存活（R3）、writer 收敛需输入锁（R4）、写 timer 空隙取消重试（R7）、**取消 worker 先 join 再关句柄（R8）**、预算含锁等待（R9）、pump 句柄失败可见可收敛（R6/R5）、**装配必须接 backend.probe（R11）**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
 | `audit/terminal/implementation/backend/repro/` | 返工复现与探针脚本：`repro_converge_failopen.py`（R4 先失败/后通过）、`repro_write_timer_gap.py`（Timer 空隙先失败/后通过）、`probe_ctrl_c_candidates.py`（Ctrl-C 四候选 A/B/C/C3） |
 | `audit/terminal/implementation/backend/evidence/r2/` | 本轮（r2）新证据：先失败/后通过 JSON、探针 JSON、48 项测试证据（旧证据目录未动） |
 | `tests/test_terminal_spawn_gate.py` | 10 项（纯逻辑 env/命令行 + 挂起无副作用/exactly-one resume、assign/成员/查询/异常 resume 门禁、清理重试、门禁装配、失败不发布） |
@@ -141,6 +141,24 @@
 **R1 保持未验收**，交 MA 在「挂起验收 / 明示 best-effort 并同步计划与用户文档 / 换环境再验」间决策；
 本后端维持 `terminate(force=False)` 的 best-effort 语义（短预算 `\x03`，注明不承诺 OS 级语义）。
 
+### 2.6.2 审查 round-2（`21fdb236`/`536b4a1f`，对 `430ba7f5` 的窄复核）增量
+
+审查 round-2 已提交证据（只读引用，未改他树）：`probe7`（写预算竞态 R7/R8/R9/R10）、`probe8`
+（DEAD 绑定 + R11 组合）、`probe9`（R2 撤回）与 `supplement-r2`（uv+pyte 137/137）。本轮逐项处理：
+
+| # | round-2 事实（审查实测） | 处置 | 本树先失败证据 |
+| --- | --- | --- | --- |
+| R7 | 单次取消在“检查后/WriteFile 前”落空：3.5s（>2×预算）仍未返回，**外部 cancel 才解除（未证明永久堵塞，不夸大）** | 已在 `3b83f939` 修复（取消者**重试**至本次调用结束） | `repro-write-timer-gap-pre-*.json`：>5s 仍阻塞、且**close 外部取消后解除**（`writer_done_after_close=true`）——与“未证明永久堵塞”一致 |
+| R8 | `timer.cancel()` 不 join：回调在 thread_handle 关闭后仍 `CancelSynchronousIo` → **err=6**（陈旧句柄；复用窗口真实） | 已在 `3b83f939` 修复（`timer.join(1.0)` 先于关句柄；未收敛转 orphan 不当作已回收） | 430 归档**测试级重放**：`err=6`（`repro-r8-r9-r10-pre-tests.json`）；修复后 `test_write_cancel_worker_joined_before_handle_close`（断言 err≠6 且 close ≥ cancel 返回） |
+| R9 | 锁等待 1.4s + 全额 timer → 总 **2.867s ≈2×budget**（> input_drain_timeout 2.0s） | 已在 `3b83f939` 修复（timer 只拿**剩余**时间） | 430 重放：**2.923s**；修复后 `test_write_budget_includes_lock_wait`（1.4s 锁 + 1.5s 预算 → <1.9s）。**新口径**：单次 `write` 总上界 ≈ budget（默认 1.5s < 2.0s），旧的 2×budget 已消除 |
+| R10 | runtime interrupt 直接 `write(b"\x03")` 用**默认预算 1.5s**，与 `terminate(False)` 的 0.5s 不同；**有界≠有效** | 本轮修复：`write` 对孤字节 `b"\x03"`（timeout 未给出）自动使用 interrupt 预算 0.5s，与 `terminate(False)` 统一 | 430 重放：`DID NOT RAISE BackendBusyError`（>1.0s；审查 probe7-E 1.501s vs 0.511s）；修复后同用例断言 runtime 路径 <1.0s。**Ctrl-C 负结论不变**（§2.6.1）：此处仅统一上界，不宣称中断有效 |
+| R11 | 宿主接 `identity.probe_process` → 根已死时清理**永久 refusal**；必须接 `backend.probe`（probe8 组合验证 26/26） | 本轮：§5 装配说明改为 `backend.probe`（含原因）；新增 `test_runtime_assembly_requires_retained_probe`（fresh→refused/owner retained；retained→EXITED；直接 `backend.close` 可恢复） | 测试内两路对拍（fresh 先失败、retained 后通过），证据 `backend-probe-assembly` |
+| R4 | probe6 round-2 仍复现 `converged=True`（430 未含修复） | 已在 `3b83f939` 修复（判定 = 注册表空 **且** 取得输入锁） | `repro-converge-failopen-{pre,post}-*.json`（pre 重放于 430） |
+| R2 | **审查 round-2 已撤回**（probe9：精确注入实测原异常原样传播、finally 正常关句柄、目标未被触碰） | 与本报告 §2.6 的核验结论一致；保留注入测试与防误修注释 | `test_kill_verified_original_exception_not_masked` |
+
+口径补充（round-2 probe4）：pump 缓冲峰值口径为 `len(buf) ≤ buffer_cap + 单块（≤ read_size）`
+（实测 32810 = 32KiB cap + 42），不是严格 `≤cap`。
+
 ---
 
 ## 3. 本机实测事实（build 26200，供后续校准）
@@ -170,11 +188,12 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
   tests/test_terminal_spawn_gate.py tests/test_terminal_windows_backend.py -q -p no:cacheprovider
 ```
 
-结果（2026-10-03 本机，Windows 11 build 26200；返工 r2 口径）：
-**48 passed in 19.15s**（identity 9 / guard 6 / spawn_gate 10 / windows_backend 23），`pytest.ini` 的
+结果（2026-10-03 本机，Windows 11 build 26200；审查返工 r2+round-2 口径）：
+**50 passed in 22.99s**（identity 9 / guard 6 / spawn_gate 10 / windows_backend 25），`pytest.ini` 的
 `timeout=300` 作为看门狗兜底；所有等待均有显式上界。旧证据 14 份保持原样；本轮（r2）新证据在
-`audit/terminal/implementation/backend/evidence/r2/`（含先失败/后通过 JSON、Ctrl-C 候选探针、48 项测试证据）。
-原 spawn spike 证据（`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
+`audit/terminal/implementation/backend/evidence/r2/`（31 份：25 份测试证据 + 6 份手工证据，
+含 R4/R7/R8/R9/R10 的 pre/post 对、Ctrl-C 四候选探针、430 归档测试级重放）。原 spawn spike 证据
+（`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
 
 全量 `tests/`（回归参照）：**7 failed, 1945 passed, 15 skipped**（`430ba7f5` 时点串行口径）；
 失败集与逐项归因见 §6。按 MA 指示本轮**不重复全库**（审查 TA 已独立复跑 38+137 与 6 项既有失败）；
@@ -186,8 +205,12 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
 
 1. `ConPtyBackend.spawn(...)` 的 `backend.gate` 必须作为 `runtime.start(gate=...)` 传入；缺 gate 时
    runtime 自身 fail-closed（`OwnershipGateError`）。
-2. `backend.identity` 与 `identity.probe_process` 一起装配 `build_runtime`（前者供证据/记录，后者供
-   清理前核验；两者 FILETIME 精确一致）。
+2. `build_runtime(..., identity=backend.identity, identity_probe=backend.probe)` ——**必须**接
+   `ConPtyBackend.probe`（r3 §13.4 绑定版：DEAD 只来自 spawn 时同一 retained handle / 保留的
+   retained-Job 证据）。**不得**接 `identity.probe_process`：它对现查 PID 的 signaled 结果只给
+   UNKNOWN（r3 §13.4 的反向保护），会让“根已死”的终端的清理被 identity-unknown **永久拒绝**
+   （owner retained、无法自行收敛；审查 probe8 + 本树
+   `test_runtime_assembly_requires_retained_probe` 均实证）。正确/错误接线的行为差异见 §2.6.2。
 3. `runtime.close()` 的 `terminate` 步骤会调用 `backend.terminate(True)`（有界确认）；`backend.close`
    只能在其后（根确认退出后）被调用——直接对存活进程调用会得到 `BackendCloseError`
    （`process_not_confirmed_dead`），这是**有意**的 fail-closed，不是缺陷。

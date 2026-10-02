@@ -1,0 +1,7 @@
+{
+  "test": "interrupt_write_bounded_when_input_busy",
+  "runtime_write_interrupt_seconds": 0.515,
+  "terminate_false_seconds": 0.502,
+  "note": "有界 ≠ 中断有效：Ctrl-C OS 语义负结论不变（报告 §2.6.1）",
+  "writer_result": "('BackendClosedError', 3145728)"
+}

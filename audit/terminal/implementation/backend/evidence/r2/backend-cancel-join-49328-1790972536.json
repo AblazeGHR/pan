@@ -1,0 +1,6 @@
+{
+  "test": "write_cancel_worker_joined_before_handle_close",
+  "cancel_err": 1168,
+  "handle_closed_after_cancel_return": true,
+  "written": 65536
+}

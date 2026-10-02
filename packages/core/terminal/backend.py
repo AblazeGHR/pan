@@ -514,6 +514,11 @@ class ConPtyBackend:
           ``\\x03``）无限拖住，锁不可得 -> ``BackendBusyError``；
         - close 并发：close 的取消优先，抛 ``BackendClosedError``（携带部分写入
           计数）；管道断链 -> ``OSError``。
+        - **interrupt 预算统一（R10）**：当 ``timeout`` 未给出且 payload 恰为
+          ``b"\\x03"``（终端侧 Ctrl-C 编码，runtime 的 interrupt 阶段正是这样调用）
+          时，使用 :data:`DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS`（0.5s）而不是完整
+          写预算——与 ``terminate(force=False)`` 同一上界。注意这**不等于**“中断
+          有效”：Ctrl-C 的 OS 级语义在本机仍不可投递（见报告 §2.6.1，负结论不变）。
 
         诚实边界：预算计时器按“本调用”计时；若取消恰好落在两次 WriteFile 之间，
         下一次 WriteFile（同一调用内）不会再发起（``timer_fired`` 检查），write
@@ -522,7 +527,14 @@ class ConPtyBackend:
         payload = bytes(data)
         if not payload:
             return 0
-        budget = self._write_budget if timeout is None else max(0.0, float(timeout))
+        if timeout is None:
+            budget = (
+                DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS
+                if payload == b"\x03"
+                else self._write_budget
+            )
+        else:
+            budget = max(0.0, float(timeout))
         deadline = time.monotonic() + budget
         # 有界获取输入串行锁（r3：句柄级并发安全 + 输入不拖 close）。
         if not self._input_lock.acquire(timeout=max(0.05, budget)):

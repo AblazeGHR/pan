@@ -1,6 +1,6 @@
 {
   "test": "blocked_read_does_not_block_write_terminate_close",
-  "close_seconds": 0.0,
+  "close_seconds": 0.001,
   "reader": {
     "cancel_attempts": 1,
     "cancel_last": {
