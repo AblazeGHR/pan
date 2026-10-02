@@ -1,5 +1,11 @@
 # Pan Terminal：常驻 Node headless-xterm 权威快照候选 Spike（P1 门禁）
 
+> MA 验收边界（2026-10-03）：接受 r2 为候选引擎探索成果，已纳入隔离集成；不是生产权威恢复或真实浏览器保真验收。MA 只读独立运行 16 用例，expectations 零失败；实际 case.status 为 14 pass + 2 pass-partial，C12 虽 case 通过，其 snapshot.fidelity 仍为 partial。下方 TA 的 13+3 计数不作为最终统计口径。
+>
+> 正式实现门禁：采用协议 A（从 parsed_cursor 拉原始日志，不预喂 pending_tail），禁止混用双游标。未知能力、检测缺口与未验证隐藏状态默认 partial；分类器没有报告缺口不等于完整恢复证明。真实浏览器验收仍必做。
+>
+> 不照搬的剩余问题：scanStream 的 4096 事件上限不得静默漏检；未知/拒绝区间诊断必须有界；feed 执行异常必须粘滞降级并记录空洞；reset 必须按命令入队时的 frontier 建立新基线，并明确关闭旧 gap（当前 rejectedRanges 未清导致 cursor 持续 null），不得跳过排队中的后续 feed。上述为生产实现前置，不追加无界探索轮次，不改写已保存证据。
+
 > 修订 r2（2026-10-03，MA 审查返工）：修复五项可复现缺陷——sticky parser-dirty（D1）、
 > 检测优先于声明（D2）、parsed/resume 双游标协议（D3）、绝对偏移与 gap 粘滞（D4）、
 > 控制 op 有界/过期不执行/异常恢复（D5）；新增 4 个用例（C13–C16），矩阵 16 用例 =
