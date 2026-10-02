@@ -616,9 +616,16 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 <>
                   {/* Click-away backdrop */}
                   <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
+                  {/* z-40：本层必须压在 WorkspaceRail 之上。rail 外壳是 `relative z-30`
+                      的兄弟堆叠上下文，而 <aside> 是 `relative` + z-auto（不成堆叠上下文），
+                      于是两者同落在 App 的 `relative z-30` 外壳里；同为 30 时按 DOM 顺序
+                      决胜，后出现的 rail 面板（bg-bg-secondary，不透明）会盖住本层伸入
+                      rail 的右半部分（w-64 从筛选按钮左沿起算，宽于侧栏）。提到 40 即可
+                      在该上下文内胜出，且仍受该上下文约束，不会盖住挂在 <body> 的
+                      z-40/z-50 portal Modal。 */}
                   <div
                     role="menu"
-                    className="absolute left-0 top-full mt-1 z-30 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
+                    className="absolute left-0 top-full mt-1 z-40 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
                   >
                     {SPECIAL_FILTERS.map((f) => (
                       <label
