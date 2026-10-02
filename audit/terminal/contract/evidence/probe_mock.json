@@ -1,0 +1,497 @@
+{
+  "kind": "mock",
+  "note": "确定性契约逻辑测试（ScriptedBackend）。不代表真实 CLI/PTY 行为。",
+  "python": "3.12.12",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmpivesJK\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "dependencies": {
+    "pywinpty": null,
+    "pyte": "0.8.2",
+    "psutil": "7.2.2"
+  },
+  "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
+  "started_at": "2026-10-03T00:43:11",
+  "seconds": 3.078,
+  "passed": 73,
+  "failed": 0,
+  "results": [
+    {
+      "name": "M1.1 保留量不超过上界",
+      "status": "pass",
+      "detail": {
+        "retained": 60
+      }
+    },
+    {
+      "name": "M1.2 序号是绝对字节偏移",
+      "status": "pass",
+      "detail": {
+        "total": 120
+      }
+    },
+    {
+      "name": "M1.3 驱逐量可核对",
+      "status": "pass",
+      "detail": {
+        "dropped": 60
+      }
+    },
+    {
+      "name": "M1.4 落后游标返回明确 gap",
+      "status": "pass",
+      "detail": {
+        "gap": [
+          0,
+          60
+        ]
+      }
+    },
+    {
+      "name": "M1.5 gap 后从保留窗口起点继续",
+      "status": "pass",
+      "detail": {
+        "first_seq": 60
+      }
+    },
+    {
+      "name": "M1.6 游标推进到已产生字节数",
+      "status": "pass",
+      "detail": {
+        "next": 120
+      }
+    },
+    {
+      "name": "M1.7 游标追平后无 gap 无数据",
+      "status": "pass",
+      "detail": {
+        "gap": null,
+        "chunks": 0
+      }
+    },
+    {
+      "name": "M1.8 命中保留窗口内不报 gap",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M1.9 超过已产生字节的游标被拒绝",
+      "status": "pass",
+      "detail": "cursor 121 > produced 120"
+    },
+    {
+      "name": "M2.1 单块超容量仍保持有界",
+      "status": "pass",
+      "detail": {
+        "retained": 16
+      }
+    },
+    {
+      "name": "M2.2 溢出的字节计入 dropped",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M2.3 单块截断产生 gap",
+      "status": "pass",
+      "detail": {
+        "gap": [
+          0,
+          24
+        ]
+      }
+    },
+    {
+      "name": "M2.4 保留的是尾部且长度正确",
+      "status": "pass",
+      "detail": {
+        "next": 40
+      }
+    },
+    {
+      "name": "M3.1 持续写入后有界",
+      "status": "pass",
+      "detail": {
+        "retained": 4000
+      }
+    },
+    {
+      "name": "M3.2 total 记录全部产出",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M3.3 dropped = total - retained 恒等",
+      "status": "pass",
+      "detail": {
+        "dropped": 196000
+      }
+    },
+    {
+      "name": "M3.4 从正确游标读满保留窗口",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M3.5 first_retained_seq == dropped_bytes",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M3.6 分页读取收敛到末尾",
+      "status": "pass",
+      "detail": {
+        "cursor": 200000,
+        "pages": 8
+      }
+    },
+    {
+      "name": "M4.1 reader 到达通道 EOF",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M4.2 EOF 后 output_complete 置位",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M4.3 尾部输出在 alive()==False 之后仍然入账",
+      "status": "pass",
+      "detail": {
+        "captured": "head:TAIL-AFTER-EXIT"
+      }
+    },
+    {
+      "name": "M4.4 根进程退出被单独公布",
+      "status": "pass",
+      "detail": {
+        "code": 7
+      }
+    },
+    {
+      "name": "M4.5 对照组证明该控制流会丢尾部",
+      "status": "pass",
+      "detail": {
+        "pr_flow": "",
+        "contract": "head:TAIL-AFTER-EXIT"
+      }
+    },
+    {
+      "name": "M4.6 正常清理进入 exited",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M5.1 初始状态 created",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M5.2 非法跃迁被拒绝",
+      "status": "pass",
+      "detail": "created -> exited"
+    },
+    {
+      "name": "M5.2b 未启动即可安全 close",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "M5.3 启动后 running",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M5.4 禁止回退到 created",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M5.5 关闭后 exited",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "M5.6 退出后写入被拒绝",
+      "status": "pass",
+      "detail": "write in state exited"
+    },
+    {
+      "name": "M5.7 退出后 resize 返回 False（迟到 resize 明确语义）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M5.8 重复 close 幂等",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M6.1 终止失败进入 cleanup-failed",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed",
+        "error": "terminate=error; terminate_error=RuntimeError('terminate failed (injected)')"
+      }
+    },
+    {
+      "name": "M6.2 owner_retained 置位",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M6.3 失败时不移除/不关闭后端句柄",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M6.4 报告不可当作成功",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M6.5 终止结果被记录",
+      "status": "pass",
+      "detail": {
+        "t": "error"
+      }
+    },
+    {
+      "name": "M6.6 重试成功才进入 exited",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "M6.7 成功后句柄关闭",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M7.1 registry 保留失败终端记录",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed"
+      }
+    },
+    {
+      "name": "M7.2 失败状态禁止移除",
+      "status": "pass",
+      "detail": "cannot remove terminal in state cleanup-failed"
+    },
+    {
+      "name": "M7.3 成功清理后可移除",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M7.4 未知 terminal id 报错",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.1 控制权 generation 从 1 开始",
+      "status": "pass",
+      "detail": {
+        "gen": 1
+      }
+    },
+    {
+      "name": "M8.2 observer 与控制者同 generation（只读）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.3 send 走控制权",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.4 resize 走控制权",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.5 尺寸跟随当前控制客户端",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.6 observer 不能写入",
+      "status": "pass",
+      "detail": "observer lease cannot write to the terminal"
+    },
+    {
+      "name": "M8.7 observer 不能改尺寸",
+      "status": "pass",
+      "detail": "observer lease cannot resize the terminal"
+    },
+    {
+      "name": "M8.8 控制权转交 generation 自增",
+      "status": "pass",
+      "detail": {
+        "gen": 2
+      }
+    },
+    {
+      "name": "M8.9 旧客户端写入被拒绝",
+      "status": "pass",
+      "detail": "lease generation 1 != current 2"
+    },
+    {
+      "name": "M8.10 旧客户端 resize 被拒绝",
+      "status": "pass",
+      "detail": "lease generation 1 != current 2"
+    },
+    {
+      "name": "M8.11 新控制者可用",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.12 control_holder 指向新控制者",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M8.13 detach 后控制者为空",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M9.1 terminal id 唯一",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M9.2 terminal id 有独立前缀",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M9.3 与 session/worker 命名空间不同前缀",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M9.4 显式 detach 扩展点未定型时显式失败",
+      "status": "pass",
+      "detail": "raised with dependency note"
+    },
+    {
+      "name": "M10.1 私有模式需 <<5 还原（1049 可见）",
+      "status": "pass",
+      "detail": {
+        "decoded": [
+          7,
+          25,
+          1004,
+          1049,
+          9001
+        ]
+      }
+    },
+    {
+      "name": "M10.2 raw 位保留原始编码",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M10.3 备用屏标志由模式位给出",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M10.4 光标位置属于快照",
+      "status": "pass",
+      "detail": {
+        "cursor": [
+          2,
+          28
+        ]
+      }
+    },
+    {
+      "name": "M10.5 无滚动历史（pyte 限制）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M10.6 保真度显式声明 partial",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M10.7 pyte 不支持备用屏缓冲（能力声明）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M10.8 反例：尾部文本不含任何模式/备用屏信息",
+      "status": "pass",
+      "detail": {
+        "tail": "shell prompt line|RED-TUI-LINE|needs restore point"
+      }
+    },
+    {
+      "name": "M11.1 driver 只能通过 lease 写终端",
+      "status": "pass",
+      "detail": {
+        "writes": [
+          "b'\\x1b\\x1b'",
+          "b'\\r'"
+        ]
+      }
+    },
+    {
+      "name": "M11.2 driver 不含终端生命周期 API",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M11.3 公共核心不含 CBC 菜单字面量",
+      "status": "pass",
+      "detail": null
+    }
+  ],
+  "measurements": [
+    {
+      "name": "M4.contrast PR 控制流(先判 alive)捕获字节数",
+      "pr_flow_bytes": 0,
+      "contract_flow_bytes": 20,
+      "note": "同为 mock 后端；真实 PTY 对照见 probe_real.py R1"
+    },
+    {
+      "name": "M8.runtime pid (mock 非真实进程)",
+      "pid": [
+        4242
+      ]
+    },
+    {
+      "name": "M10.9 快照 vs 尾部文本信息量",
+      "snapshot_modes": [
+        7,
+        25,
+        1004,
+        1049,
+        9001
+      ],
+      "snapshot_cursor": [
+        2,
+        28
+      ],
+      "tail_text_only": true,
+      "alt_modes": [
+        47,
+        1047,
+        1049
+      ]
+    }
+  ],
+  "psutil_terminator_available": true
+}

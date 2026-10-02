@@ -1,0 +1,800 @@
+{
+  "kind": "real",
+  "note": "真实 pywinpty/ConPTY PTY + 真实子进程（cmd.exe/less.exe/ping.exe）；注入故障已标注 injected。",
+  "python": "3.12.12",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmptj9xVJ\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "dependencies": {
+    "pywinpty": "3.0.5",
+    "pyte": "0.8.2",
+    "psutil": "7.2.2"
+  },
+  "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
+  "started_at": "2026-10-03T00:47:56",
+  "seconds": 106.813,
+  "passed": 56,
+  "failed": 0,
+  "results": [
+    {
+      "name": "R1.A1 读到通道 EOF",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R1.A2 output_complete 置位",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R1.A3 捕获到完整标记行",
+      "status": "pass",
+      "detail": {
+        "tail": "AAE-FINAL-MARKER-7 0123456789 \n"
+      }
+    },
+    {
+      "name": "R1.A4 退出码来自真实进程",
+      "status": "pass",
+      "detail": {
+        "code": 7
+      }
+    },
+    {
+      "name": "R1.A5 根进程退出被单独公布",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R1.A6 reader 线程收敛",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R1.B1 复现条件成立：开始读之前进程已退出",
+      "status": "pass",
+      "detail": {
+        "runs": [
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "name": "R1.B2 PR 控制流（先判 alive）捕获 0 字节，之后仍可读到输出",
+      "status": "pass",
+      "detail": {
+        "pr_flow_bytes": [
+          0,
+          0
+        ],
+        "after_alive_false": [
+          65,
+          65
+        ]
+      }
+    },
+    {
+      "name": "R1.B3 丢失的正是真实输出（标记只在 EOF 读取阶段出现）",
+      "status": "pass",
+      "detail": {
+        "marker_in_post": [
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "name": "R2.1 输入被真实 cmd 执行（变量已展开）",
+      "status": "pass",
+      "detail": {
+        "marker_seen": true
+      }
+    },
+    {
+      "name": "R2.2 回显的未展开形式也在流中（可区分回显与执行）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R2.3 屏幕观察者看到执行结果",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R2.4 真实退出码被读回",
+      "status": "pass",
+      "detail": {
+        "code": 5
+      }
+    },
+    {
+      "name": "R2.5 正常清理成功",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R3.1 启动尺寸在子控制台可见",
+      "status": "pass",
+      "detail": {
+        "mode_con": [
+          24,
+          80
+        ]
+      }
+    },
+    {
+      "name": "R3.2 resize 传到子控制台",
+      "status": "pass",
+      "detail": {
+        "mode_con": [
+          40,
+          132
+        ]
+      }
+    },
+    {
+      "name": "R3.3 旧客户端 resize 被拒绝",
+      "status": "pass",
+      "detail": "lease generation 1 != current 2"
+    },
+    {
+      "name": "R3.4 迟到 resize 未影响真实终端",
+      "status": "pass",
+      "detail": {
+        "mode_con": [
+          40,
+          132
+        ]
+      }
+    },
+    {
+      "name": "R3.5 清理成功",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "R4.1 无消费者时 PTY 仍被持续 drain（进程结束）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R4.2 读到通道 EOF",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R4.3 真实产出量超过保留上界",
+      "status": "pass",
+      "detail": {
+        "total": 1240033
+      }
+    },
+    {
+      "name": "R4.4 保留量有界",
+      "status": "pass",
+      "detail": {
+        "retained": 262136
+      }
+    },
+    {
+      "name": "R4.5 dropped = total - retained",
+      "status": "pass",
+      "detail": {
+        "dropped": 977897
+      }
+    },
+    {
+      "name": "R4.6 落后游标返回明确 gap",
+      "status": "pass",
+      "detail": {
+        "gap": [
+          0,
+          977897
+        ],
+        "dropped": 977897
+      }
+    },
+    {
+      "name": "R4.7 gap 之后可继续追平且无 gap",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R4.8 退出码正确",
+      "status": "pass",
+      "detail": {
+        "code": 0
+      }
+    },
+    {
+      "name": "R4.11 清理成功",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R5.1 建立真实后代进程",
+      "status": "pass",
+      "detail": {
+        "children": [
+          6548
+        ]
+      }
+    },
+    {
+      "name": "R5.2 整树清理后无遗留（owned pids）",
+      "status": "pass",
+      "detail": {
+        "remaining": []
+      }
+    },
+    {
+      "name": "R5.3 后代进程确实消失",
+      "status": "pass",
+      "detail": {
+        "recorded": [
+          6548
+        ],
+        "still_alive": []
+      }
+    },
+    {
+      "name": "R5.4 清理进入 exited",
+      "status": "pass",
+      "detail": {
+        "error": null
+      }
+    },
+    {
+      "name": "R5b.2 终止失败进入 cleanup-failed",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed",
+        "error": "terminate=error; terminate_error=RuntimeError('injected terminate failure (probe fault injection)')"
+      }
+    },
+    {
+      "name": "R5b.3 owner_retained 置位",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R5b.4 失败后后端句柄未关闭（保留 owner）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R5b.5 真实进程仍然存活（没有谎报退出）",
+      "status": "pass",
+      "detail": {
+        "alive": [
+          37760,
+          31520
+        ]
+      }
+    },
+    {
+      "name": "R5b.7 重试后进入 exited",
+      "status": "pass",
+      "detail": {
+        "error": null
+      }
+    },
+    {
+      "name": "R5b.8 重试后真实进程消失",
+      "status": "pass",
+      "detail": {
+        "alive": []
+      }
+    },
+    {
+      "name": "R6.2 进入 TUI 前的屏幕标记可见（经 echo 显示）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R6.3 真实 TUI 进入备用屏（less 实测）",
+      "status": "pass",
+      "detail": {
+        "needle": "ESC[?1049h"
+      }
+    },
+    {
+      "name": "R6.4 快照记录备用屏状态",
+      "status": "pass",
+      "detail": {
+        "modes": [
+          1,
+          7,
+          25,
+          1004,
+          1049,
+          9001
+        ]
+      }
+    },
+    {
+      "name": "R6.5 快照给出 TUI 屏幕文本（真实样本行）",
+      "status": "pass",
+      "detail": {
+        "sample_lines_on_screen": 23,
+        "first": [
+          "LINE-0002 lorem ipsum dolor sit amet consectetur adipiscing elit",
+          "LINE-0003 lorem ipsum dolor sit amet consectetur adipiscing elit"
+        ]
+      }
+    },
+    {
+      "name": "R6.6 快照含 TUI 私有模式（应用光标键等）",
+      "status": "pass",
+      "detail": {
+        "modes": [
+          1,
+          7,
+          25,
+          1004,
+          1049,
+          9001
+        ]
+      }
+    },
+    {
+      "name": "R6.8 从流中间解析无法得知备用屏状态（需要快照）",
+      "status": "pass",
+      "detail": {
+        "mid_stream_alt": false,
+        "true_state": true
+      }
+    },
+    {
+      "name": "R6.9 无滚动历史：400 行样本只剩一屏（pyte 限制）",
+      "status": "pass",
+      "detail": {
+        "scrollback": 0,
+        "nonblank": 24
+      }
+    },
+    {
+      "name": "R6.11 resize 触发真实 TUI 重绘且仿真器同步尺寸",
+      "status": "pass",
+      "detail": {
+        "resize_bytes": 1938,
+        "snapshot_size": [
+          30,
+          100
+        ]
+      }
+    },
+    {
+      "name": "R6.12 退出 TUI 时恢复主屏序列出现",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R6.13 退出备用屏后模式位被复位",
+      "status": "pass",
+      "detail": {
+        "modes": [
+          7,
+          25,
+          1004,
+          9001
+        ]
+      }
+    },
+    {
+      "name": "R6.15 尾部文本既无备用屏/模式也无光标信息（控制序列全被剥掉）",
+      "status": "pass",
+      "detail": {
+        "tail_head": "psum dolor sit amet consectetur adipiscing elit|LINE-0049 lo"
+      }
+    },
+    {
+      "name": "R6.17 尾部重建的屏幕文本与完整解析不一致",
+      "status": "pass",
+      "detail": {
+        "tail_only_first": [
+          "psum dolor sit amet consectetur adipiscing elit",
+          "LINE-0049 lorem ipsum dolor sit amet consectetur adipiscing elit"
+        ],
+        "full_first": [
+          "LINE-0026 lorem ipsum dolor sit amet consectetur adipiscing elit",
+          "LINE-0027 lorem ipsum dolor sit amet consectetur adipiscing elit"
+        ]
+      }
+    },
+    {
+      "name": "R6.19 清理成功",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "R7.1 重连客户端收到明确 gap",
+      "status": "pass",
+      "detail": {
+        "gap": [
+          0,
+          150585
+        ]
+      }
+    },
+    {
+      "name": "R7.2 gap 之后仍能读到尾部标记（尾部未被丢弃）",
+      "status": "pass",
+      "detail": {
+        "retained": 65475,
+        "total": 216060
+      }
+    },
+    {
+      "name": "R7.4 清理成功",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "C1 所有自建进程已清理",
+      "status": "pass",
+      "detail": {
+        "leftover": []
+      }
+    },
+    {
+      "name": "C2 探针临时目录已删除",
+      "status": "pass",
+      "detail": {
+        "removed": [
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx"
+        ]
+      }
+    }
+  ],
+  "measurements": [
+    {
+      "name": "R0 环境",
+      "python": "3.12.12",
+      "python_executable": "D:\\uv\\cache\\builds-v0\\.tmptj9xVJ\\Scripts\\python.exe",
+      "probe_pid": 49532,
+      "probe_process": {
+        "pid": 49532,
+        "exists": true,
+        "name": "python.exe",
+        "created_at": "2026-10-03T00:46:10",
+        "cmdline": "E:\\software\\miniforge\\python.exe audit/terminal/contract/probe_real.py --json-out audit/terminal/contract/evidence/probe_real.json"
+      },
+      "tmp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx",
+      "cmd": "C:\\Windows\\system32\\cmd.EXE",
+      "less": "E:\\Git\\usr\\bin\\less.EXE",
+      "network_ports_opened": []
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 37432,
+      "exists": true,
+      "created_at": "2026-10-03T00:46:10",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /c echo AAE-FINAL-MARKER-7 0123456789 & exit /b 7"
+    },
+    {
+      "name": "R1.B1.1 退出后才开始读（确定性）",
+      "attempt": 1,
+      "pid": 47240,
+      "child_created_at": "2026-10-03T00:46:18",
+      "alive_before_first_read": false,
+      "pr_flow_bytes": 0,
+      "bytes_read_after_alive_false": 65,
+      "marker_in_pr_flow": false,
+      "marker_in_post": true
+    },
+    {
+      "name": "R1.B1.2 退出后才开始读（确定性）",
+      "attempt": 2,
+      "pid": 4184,
+      "child_created_at": "2026-10-03T00:46:26",
+      "alive_before_first_read": false,
+      "pr_flow_bytes": 0,
+      "bytes_read_after_alive_false": 65,
+      "marker_in_pr_flow": false,
+      "marker_in_post": true
+    },
+    {
+      "name": "R1.B2.1 持续读取（时序相关）",
+      "attempt": 1,
+      "pid": 45684,
+      "child_created_at": "2026-10-03T00:46:34",
+      "pr_flow_bytes": 65,
+      "bytes_read_after_alive_false": 0,
+      "marker_in_pr_flow": true,
+      "drain_finished": true
+    },
+    {
+      "name": "R1.B2.2 持续读取（时序相关）",
+      "attempt": 2,
+      "pid": 49708,
+      "child_created_at": "2026-10-03T00:46:42",
+      "pr_flow_bytes": 65,
+      "bytes_read_after_alive_false": 0,
+      "marker_in_pr_flow": true,
+      "drain_finished": true
+    },
+    {
+      "name": "R1.B3 结论",
+      "deterministic_pr_flow_bytes": [
+        0,
+        0
+      ],
+      "deterministic_after_alive_false": [
+        65,
+        65
+      ],
+      "timing_dependent_after_alive_false": [
+        0,
+        0
+      ],
+      "note": "进程先退出再开始读时可 100% 复现尾部丢失；持续读取时是否命中取决于时序，所以契约要求「读到 EOF」而不是「靠时序碰对」"
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 49760,
+      "exists": true,
+      "created_at": "2026-10-03T00:46:50",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe"
+    },
+    {
+      "name": "R3.1 启动尺寸",
+      "requested": [
+        24,
+        80
+      ],
+      "child_reports": [
+        24,
+        80
+      ],
+      "backend_winsize": [
+        24,
+        80
+      ]
+    },
+    {
+      "name": "R3.2 resize 实测",
+      "requested": [
+        40,
+        132
+      ],
+      "child_reports": [
+        40,
+        132
+      ],
+      "runtime_rows_cols": [
+        40,
+        132
+      ],
+      "backend_winsize": [
+        40,
+        132
+      ]
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 13684,
+      "exists": true,
+      "created_at": "2026-10-03T00:47:03",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx\\bulk.cmd"
+    },
+    {
+      "name": "R4.9 真实吞吐与内存上界",
+      "total_bytes": 1240033,
+      "retained_bytes": 262136,
+      "dropped_bytes": 977897,
+      "cap": 262144,
+      "seconds_to_exit": 28.75,
+      "note": "客户端全程不读，PTY/进程未被拖死；内存上界由保留了 256KiB 证明"
+    },
+    {
+      "name": "R4.10 仅靠保留窗口中继重建屏幕的可行性",
+      "retained_bytes": 262136,
+      "screen_bytes": 1920,
+      "retained_covers_screen": true,
+      "note": "保留窗口远大于一屏是必要的，但不是充分条件（需要快照恢复颜色/备用屏/模式）"
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 49612,
+      "exists": true,
+      "created_at": "2026-10-03T00:47:31",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
+    },
+    {
+      "name": "R5.1 后代进程身份",
+      "children": [
+        {
+          "pid": 6548,
+          "exists": true,
+          "name": "PING.EXE",
+          "created_at": "2026-10-03T00:47:34",
+          "cmdline": "ping -n 60 127.0.0.1"
+        }
+      ]
+    },
+    {
+      "name": "R5.5 清理报告",
+      "owned": [
+        49612,
+        6548
+      ],
+      "remaining": [],
+      "terminate": "returned",
+      "seconds": 0.25,
+      "interrupt_sent": true
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 37760,
+      "exists": true,
+      "created_at": "2026-10-03T00:47:35",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
+    },
+    {
+      "name": "R5b.1 后代进程身份",
+      "children": [
+        {
+          "pid": 31520,
+          "exists": true,
+          "name": "PING.EXE",
+          "created_at": "2026-10-03T00:47:38",
+          "cmdline": "ping -n 60 127.0.0.1"
+        }
+      ]
+    },
+    {
+      "name": "R5b.6 失败注入结果",
+      "injected": true,
+      "terminate_result": "error",
+      "terminate_error": "RuntimeError('injected terminate failure (probe fault injection)')",
+      "owner_retained": true,
+      "alive_pids": [
+        37760,
+        31520
+      ]
+    },
+    {
+      "name": "R5b.9 重试清理报告",
+      "owned": [],
+      "remaining": [],
+      "seconds": 0.266
+    },
+    {
+      "name": "R6.0 TUI 程序",
+      "less": "E:\\Git\\usr\\bin\\less.EXE",
+      "vim": "E:\\Git\\usr\\bin\\vim.EXE",
+      "term": "xterm-256color"
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 42956,
+      "exists": true,
+      "created_at": "2026-10-03T00:47:38",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe"
+    },
+    {
+      "name": "R6.7 TUI 快照实测",
+      "engine": "pyte (single-buffer, no alt-screen, no scrollback)",
+      "fidelity": "partial",
+      "cursor": [
+        23,
+        1
+      ],
+      "private_modes": [
+        1,
+        7,
+        25,
+        1004,
+        1049,
+        9001
+      ],
+      "scrollback_lines": 0,
+      "observed_bytes": 2501,
+      "nonblank_lines": 24,
+      "sample_lines": 400
+    },
+    {
+      "name": "R6.9 结论：快照必须来自仿真器状态",
+      "alternate_screen_buffer_supported": false,
+      "scrollback_supported": false,
+      "mid_stream_alt_screen": false,
+      "mode_bits_in_tail_only_parse": [
+        1,
+        7,
+        25
+      ],
+      "note": "流中间加入的客户端既拿不到备用屏标志，也拿不到滚动历史"
+    },
+    {
+      "name": "R6.10 TUI 翻页产生的重绘字节",
+      "bytes_after_page": 1526
+    },
+    {
+      "name": "R6.11 resize 实测（TUI 运行中）",
+      "resize_bytes": 1938,
+      "snapshot_size": [
+        30,
+        100
+      ],
+      "private_modes": [
+        1,
+        7,
+        25,
+        1004,
+        1049,
+        9001
+      ],
+      "note": "PTY 与客户端仿真器必须同步 resize，否则重绘换行错位"
+    },
+    {
+      "name": "R6.14 退出备用屏后主屏是否由 ConPTY 重绘（观察值，不设断言）",
+      "pyte_shows_pre_tui_line": false,
+      "pyte_alt_buffer_supported": false,
+      "first_lines": [
+        "LINE-0026 lorem ipsum dolor sit amet consectetur adipiscing elit",
+        "LINE-0027 lorem ipsum dolor sit amet consectetur adipiscing elit",
+        "LINE-0028 lorem ipsum dolor sit amet consectetur adipiscing elit"
+      ],
+      "note": "True 表示 ConPTY 在 ?1049l 后重发了主屏可见内容；False 表示 pyte 单缓冲保留了 TUI 残留，文本恢复必须依赖快照/重绘"
+    },
+    {
+      "name": "R6.16 只用尾部 512B 重建的观察者状态",
+      "tail_bytes": 512,
+      "full_stream_bytes": 6094,
+      "tail_alt_screen": false,
+      "full_alt_screen": false,
+      "tail_first_lines": [
+        "psum dolor sit amet consectetur adipiscing elit",
+        "LINE-0049 lorem ipsum dolor sit amet consectetur adipiscing elit"
+      ]
+    },
+    {
+      "name": "R6.18 TUI 前后游标",
+      "cursor_before_tui": 402,
+      "cursor_after": 6094
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 23536,
+      "exists": true,
+      "created_at": "2026-10-03T00:47:48",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx\\reconnect.cmd"
+    },
+    {
+      "name": "R7.3 重连窗口实测",
+      "total_bytes": 216060,
+      "retained_bytes": 65475,
+      "dropped_bytes": 150585,
+      "exit_code": 0,
+      "note": "序号是绝对字节偏移，跨重连可复用；gap 段必须用屏幕快照恢复而非补零"
+    },
+    {
+      "name": "C3 资源清单",
+      "runtimes": 8,
+      "runtimes_created": [
+        "term_probe_00",
+        "term_probe_01",
+        "term_probe_02",
+        "term_probe_03",
+        "term_probe_04",
+        "term_probe_05",
+        "term_probe_06",
+        "term_probe_07"
+      ],
+      "recorded_extra_pids": [
+        6548,
+        31520
+      ],
+      "tmp_dirs": [
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx"
+      ]
+    }
+  ],
+  "hard_timeout": 300.0,
+  "only": null
+}
