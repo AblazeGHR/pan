@@ -720,10 +720,13 @@ body {
   position: absolute;
   z-index: 9;
   top: 8px;
+  bottom: 8px;
   right: 92px;
   width: min(430px, calc(100% - 104px));
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
+  pointer-events: none;
   color: var(--color-text-primary);
 }
 
@@ -731,6 +734,7 @@ body {
 .session-history-search__controls button,
 .global-history-search__toggle,
 .global-history-search__controls button {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -763,9 +767,12 @@ body {
 
 .session-history-search__popup {
   position: absolute;
-  top: 0;
+  top: 36px;
   right: 0;
   width: 100%;
+  max-height: max(0px, calc(100% - 52px));
+  overflow-y: auto;
+  pointer-events: auto;
   padding: 7px;
   border: 1px solid var(--color-border-default);
   border-radius: 7px;
@@ -850,12 +857,12 @@ body {
 
 .global-history-search__popup {
   position: absolute;
-  top: 0;
+  top: 36px;
   right: 0;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-height: calc(100% - 16px);
+  max-height: max(0px, calc(100% - 52px));
   pointer-events: auto;
   padding: 7px;
   border: 1px solid var(--color-border-default);
@@ -1355,3 +1362,15 @@ body {
   .message-navigation-marker { width: 44px; min-height: 40px; }
   .message-navigation-tooltip { width: min(240px, 72vw); }
 }
+.history-search-word { background: #facc15; color: #171717; border-radius: 2px; }
+.history-search-word-active { background: #fb923c; outline: 2px solid #f97316; }
+.history-search-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 6px 10px;
+  font-size: 11px;
+  border: 0;
+  min-width: 0;
+}
+.history-search-roles label { display: inline-flex; align-items: center; gap: 4px; }

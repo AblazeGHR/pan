@@ -115,14 +115,16 @@ describe('GlobalHistorySearch', () => {
 
     await enterQuery(getByTestId('global-history-search-input'), 'needle');
     await waitFor(() => expect(fetchSearch).toHaveBeenCalledTimes(1));
-    expect(fetchSearch).toHaveBeenCalledWith('needle', 50, undefined, expect.any(AbortSignal));
+    expect(fetchSearch).toHaveBeenCalledWith('needle', 50, undefined, expect.any(AbortSignal),
+      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle in this Session/ })).not.toBeNull();
     expect(getByTestId('global-history-search').textContent).toContain('1 messages shown');
     expect(queryByText(/total matches/i)).toBeNull();
 
     fireEvent.click(getByTestId('global-history-search-load-more'));
     await waitFor(() => expect(fetchSearch).toHaveBeenCalledTimes(2));
-    expect(fetchSearch).toHaveBeenLastCalledWith('needle', 50, 'cursor-next', expect.any(AbortSignal));
+    expect(fetchSearch).toHaveBeenLastCalledWith('needle', 50, 'cursor-next', expect.any(AbortSignal),
+      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle second/ })).not.toBeNull();
     expect(getByTestId('global-history-search').textContent).toContain('2 messages shown');
   });
@@ -211,7 +213,7 @@ describe('GlobalHistorySearch', () => {
 
   it('switches Session, loads an old page, relocates by ID, then scrolls and highlights the mounted target', async () => {
     const target: Message = { role: 'assistant', content: 'needle target', messageId: 'target' };
-    fetchSearch.mockResolvedValue(searchPage([hit()]));
+    fetchSearch.mockResolvedValueOnce(searchPage([hit()])).mockResolvedValueOnce(searchPage([hit({ messageIndex: 3 })]));
     fetchHistory
       .mockResolvedValueOnce(historyPage([
         { role: 'user', content: 'before', messageId: 'before' },
@@ -250,8 +252,10 @@ describe('GlobalHistorySearch', () => {
     expect(useSessionStore.getState().selectSession).toHaveBeenCalledWith('s2', expect.any(AbortSignal));
     expect(ensureMessageLoaded).toHaveBeenNthCalledWith(1, 2, 5, expect.any(AbortSignal));
     expect(ensureMessageLoaded).toHaveBeenNthCalledWith(2, 1, 5, expect.any(AbortSignal));
-    expect(fetchHistory).toHaveBeenCalledWith('s2', 0, 200, expect.any(AbortSignal));
-    expect(onHighlightMessage).toHaveBeenLastCalledWith('s2', 'target');
+    expect(fetchSearch).toHaveBeenLastCalledWith('needle', 1, undefined, expect.any(AbortSignal),
+      { sessionId: 's2', roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content', messageId: 'target' });
+    expect(fetchHistory).not.toHaveBeenCalled();
+    expect(onHighlightMessage).toHaveBeenLastCalledWith('s2', 'target', 'needle');
   });
 
   it('reports an expired target when the ID is missing from the fresh Session history', async () => {

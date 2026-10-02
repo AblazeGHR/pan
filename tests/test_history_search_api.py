@@ -106,6 +106,42 @@ def test_content_query_parameters_through_asgi_without_pan_lifespan():
         assert client.get('/api/history/search', params={'q': 'needle', 'roles': 'error'}).status_code == 422
 
 
+def test_content_cold_scan_no_index_and_stable_id_relocation():
+    subject = _append_matching_messages('read-only cold scan', 237)
+    original = (sess.SESSION_DIR / f'{subject.id}.history.jsonl').read_bytes()
+    sess._cache.pop(subject.id, None)
+    params = dict(q='PageNeedle', sessionId=subject.id, countMode='content', limit=67)
+    first = _search(**params)
+    assert first['totalMatches'] == 474
+    assert not _index_path().exists()
+    target = first['hits'][12]['messageId']
+    relocated = _search(**params, messageId=target)
+    assert relocated['hits'][0]['messageIndex'] == 12
+    assert relocated['totalMatches'] == 474
+    hits = first['hits'][:]
+    page = first
+    while page['nextCursor']:
+        page = _search(**params, cursor=page['nextCursor'])
+        hits.extend(page['hits'])
+    assert len(hits) == 237
+    assert not _index_path().exists()
+    assert (sess.SESSION_DIR / f'{subject.id}.history.jsonl').read_bytes() == original
+
+
+def test_content_scan_failure_is_controlled_and_never_blocks_history_save(monkeypatch):
+    subject = _append_session('scan fault isolation', 'user', 'needle')
+    def failed_source(_):
+        raise history_search_index.HistorySearchError('synthetic unavailable history source')
+    monkeypatch.setattr(server, '_history_search_scan_source', failed_source)
+    with pytest.raises(HTTPException) as error:
+        _search(q='needle', sessionId=subject.id, countMode='content')
+    assert error.value.status_code == 503
+    sess.append_history(subject, {'role': 'assistant', 'content': 'normal chat still works'})
+    sess.save(subject)
+    assert subject.history[-1]['content'] == 'normal chat still works'
+    assert sess.is_pan_message_id(subject.history[-1]['messageId'])
+
+
 def test_api_supports_current_session_and_global_scope_and_rebuilds_deleted_index(
 ):
     first = _append_session("search first", "user", "Global keyword in first")

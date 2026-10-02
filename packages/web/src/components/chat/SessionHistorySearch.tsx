@@ -1,383 +1,198 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { ChevronDown, ChevronUp, Loader2, Search, X } from 'lucide-react';
-import { fetchSessionHistory } from '@/services/api';
+import { ApiRequestError, fetchHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
-import type { Message } from '@/types';
+import type { ApiHistorySearchHit, ApiHistorySearchResponse, HistorySearchRole } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
-import {
-  scanSessionHistory,
-  StaleSessionHistoryError,
-  type HistoryVersion,
-  type SessionSearchHit,
-  type SessionSearchScan,
-} from './sessionSearchIndex';
+import { HistorySearchRoles } from './HistorySearchRoles';
+import { ALL_SEARCH_ROLES } from './searchRoleOptions';
 
 interface SessionHistorySearchProps {
   chatRef: RefObject<ChatMessagesHandle | null>;
   isMobile: boolean;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-  onHighlightMessage: (messageId: string | null) => void;
+  onHighlightMessage: (messageId: string | null, query?: string, occurrence?: number) => void;
 }
 
-type SearchStatus = 'idle' | 'loading' | 'ready' | 'stale' | 'error';
+type Status = 'idle' | 'loading' | 'ready' | 'stale' | 'error';
+const paint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const countOf = (hit: ApiHistorySearchHit) => hit.matchCount ?? 1;
+const startOf = (hit: ApiHistorySearchHit, index: number) => hit.matchStart ?? index;
 
-interface SearchState {
-  status: SearchStatus;
-  scan: SessionSearchScan | null;
-}
-
-function readSessionVersion(sessionId: string): HistoryVersion {
-  const session = useSessionStore.getState().sessions.find((candidate) => candidate.id === sessionId);
-  return {
-    total: session?.historyTotal,
-    historyEpoch: session?.historyEpoch,
-    historyRevision: session?.historyRevision,
-  };
-}
-
-function versionChanged(scan: SessionSearchScan, current: HistoryVersion): boolean {
-  return (
-    (typeof current.total === 'number' && current.total !== scan.total) ||
-    (current.historyEpoch != null && scan.historyEpoch != null && current.historyEpoch !== scan.historyEpoch) ||
-    (typeof current.historyRevision === 'number' && typeof scan.historyRevision === 'number' &&
-      current.historyRevision !== scan.historyRevision)
-  );
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (
-    target.isContentEditable ||
-    Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
-  );
-}
-
-function nextPaint(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-}
-
-export function SessionHistorySearch({
-  chatRef,
-  isMobile,
-  isOpen,
-  onOpenChange,
-  onHighlightMessage,
-}: SessionHistorySearchProps) {
-  const currentSessionId = useSessionStore((state) => state.currentSessionId);
-  const summaryTotal = useSessionStore((state) => {
-    const session = state.sessions.find((candidate) => candidate.id === state.currentSessionId);
-    return session?.historyTotal;
+export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, onHighlightMessage }: SessionHistorySearchProps) {
+  const sessionId = useSessionStore((state) => state.currentSessionId);
+  const sessionVersion = useSessionStore((state) => {
+    const session = state.sessions.find((item) => item.id === state.currentSessionId);
+    return `${session?.historyEpoch}:${session?.historyRevision}:${session?.historyTotal}`;
   });
-  const summaryEpoch = useSessionStore((state) =>
-    state.sessions.find((candidate) => candidate.id === state.currentSessionId)?.historyEpoch,
-  );
-  const summaryRevision = useSessionStore((state) =>
-    state.sessions.find((candidate) => candidate.id === state.currentSessionId)?.historyRevision,
-  );
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = isOpen ?? uncontrolledOpen;
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = isOpen ?? localOpen;
   const [query, setQuery] = useState('');
-  const [search, setSearch] = useState<SearchState>({ status: 'idle', scan: null });
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [roles, setRoles] = useState<HistorySearchRole[]>(ALL_SEARCH_ROLES);
+  const [response, setResponse] = useState<ApiHistorySearchResponse | null>(null);
+  const [status, setStatus] = useState<Status>('idle');
+  const [occurrence, setOccurrence] = useState(0);
   const [navigating, setNavigating] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-  const generationRef = useRef(0);
-  const jumpAbortRef = useRef<AbortController | null>(null);
+  const [retry, setRetry] = useState(0);
+  const input = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const generation = useRef(0);
+  const searchController = useRef<AbortController | null>(null);
+  const jumpController = useRef<AbortController | null>(null);
+  const highlight = useRef(onHighlightMessage);
+  highlight.current = onHighlightMessage;
 
-  const setOpen = useCallback((nextOpen: boolean) => {
-    if (isOpen === undefined) setUncontrolledOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  }, [isOpen, onOpenChange]);
-
-  const stopJump = useCallback(() => {
-    generationRef.current += 1;
-    jumpAbortRef.current?.abort();
-    jumpAbortRef.current = null;
+  const cancel = useCallback(() => {
+    generation.current += 1;
+    searchController.current?.abort();
+    jumpController.current?.abort();
     setNavigating(false);
+    highlight.current(null);
   }, []);
-
-  const closeSearch = useCallback(() => {
-    stopJump();
-    setOpen(false);
-    setSearch({ status: 'idle', scan: null });
-    onHighlightMessage(null);
-  }, [onHighlightMessage, setOpen, stopJump]);
+  const setOpen = useCallback((value: boolean) => {
+    if (isOpen === undefined) setLocalOpen(value);
+    onOpenChange?.(value);
+  }, [isOpen, onOpenChange]);
+  const close = useCallback(() => { cancel(); setOpen(false); setResponse(null); setStatus('idle'); }, [cancel, setOpen]);
 
   useEffect(() => {
-    const handleShortcut = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && open) {
-        event.preventDefault();
-        closeSearch();
-        return;
-      }
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return;
-      if (event.defaultPrevented) return;
-      const targetIsSearch = popupRef.current?.contains(event.target as Node) ?? false;
-      if (!targetIsSearch && isEditableTarget(event.target)) return;
+    const shortcut = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && open) { event.preventDefault(); close(); return; }
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && !popup.current?.contains(target) &&
+          (target.isContentEditable || target.closest('input,textarea,select,[contenteditable="true"]'))) return;
       event.preventDefault();
       setOpen(true);
     };
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
-  }, [closeSearch, open, setOpen]);
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, [open, close, setOpen]);
+  useEffect(() => { if (open) { input.current?.focus(); input.current?.select(); } }, [open]);
+  useEffect(() => () => {
+    generation.current += 1;
+    searchController.current?.abort();
+    jumpController.current?.abort();
+    highlight.current(null);
+  }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !currentSessionId || !query.trim()) {
-      setSearch({ status: 'idle', scan: null });
-      setActiveIndex(0);
-      setNavigating(false);
-      onHighlightMessage(null);
-      return;
-    }
-
-    const sessionId = currentSessionId;
+  const navigate = useCallback(async (ordinal: number, page: ApiHistorySearchResponse, token: number) => {
+    if (!sessionId || generation.current !== token) return;
     const controller = new AbortController();
-    const generation = ++generationRef.current;
-    const expectedVersion = {
-      total: summaryTotal,
-      historyEpoch: summaryEpoch,
-      historyRevision: summaryRevision,
-    };
-    setSearch({ status: 'loading', scan: null });
-    setActiveIndex(0);
-    onHighlightMessage(null);
-    jumpAbortRef.current?.abort();
-    setNavigating(false);
-
-    void scanSessionHistory(fetchSessionHistory, sessionId, query, {
-      signal: controller.signal,
-      expectedVersion,
-    }).then(async (scan) => {
-      if (controller.signal.aborted || generationRef.current !== generation) return;
-      const latest = useSessionStore.getState();
-      if (latest.currentSessionId !== sessionId || versionChanged(scan, readSessionVersion(sessionId))) {
-        setSearch({ status: 'stale', scan: null });
-        return;
-      }
-      setSearch({ status: 'ready', scan });
-      if (scan.hits.length > 0) {
-        await navigateToResult(scan.hits[0]!, 0, scan, query, generation);
-      }
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted || generationRef.current !== generation || isAbortError(error)) return;
-      setSearch({
-        status: error instanceof StaleSessionHistoryError ? 'stale' : 'error',
-        scan: null,
-      });
-    });
-
-    return () => {
-      controller.abort();
-      if (generationRef.current === generation) generationRef.current += 1;
-      jumpAbortRef.current?.abort();
-      jumpAbortRef.current = null;
-    };
-    // `summaryVersion` is deliberately a primitive snapshot from the active
-    // Session. Any epoch/revision/total update cancels this scan and starts a
-    // fresh one against the new history version.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, query, currentSessionId, summaryTotal, summaryEpoch, summaryRevision]);
-
-  const navigateToResult = useCallback(async (
-    initialHit: SessionSearchHit,
-    resultIndex: number,
-    initialScan: SessionSearchScan,
-    activeQuery: string,
-    generation: number,
-  ) => {
-    const sessionId = currentSessionId;
-    if (!sessionId || generationRef.current !== generation) return;
-    const controller = new AbortController();
-    jumpAbortRef.current?.abort();
-    jumpAbortRef.current = controller;
-    setNavigating(true);
-
-    const stillCurrent = () => !controller.signal.aborted &&
-      generationRef.current === generation &&
+    jumpController.current?.abort();
+    jumpController.current = controller;
+    const valid = () => !controller.signal.aborted && generation.current === token &&
       useSessionStore.getState().currentSessionId === sessionId;
-
+    setNavigating(true);
     try {
-      let target = initialHit;
-      let total = initialScan.total;
-      let scan = initialScan;
-      let activeResultIndex = resultIndex;
-      let needsRelocation = versionChanged(scan, readSessionVersion(sessionId));
-      let message: Message | null = null;
-
-      const loadTarget = async (hit: SessionSearchHit, historyTotal: number) => {
-        if (!stillCurrent()) return null;
-        const alreadyLoaded = useSessionStore.getState().currentMessages.find(
-          (candidate) => candidate.messageId === hit.messageId,
-        );
-        if (alreadyLoaded) return alreadyLoaded;
-        const fromEnd = historyTotal - 1 - hit.messageIndex;
-        return fromEnd < 0 ? null : useSessionStore.getState().ensureMessageLoaded(fromEnd, historyTotal);
-      };
-
-      if (!needsRelocation) {
-        message = await loadTarget(target, total);
-        if (!stillCurrent()) return;
-        needsRelocation = !message || message.messageId !== target.messageId || target.messageId.startsWith('legacy:');
+      let result = page;
+      let hit = page.hits.find((item, index) => startOf(item, index) <= ordinal && startOf(item, index)+countOf(item) > ordinal);
+      if (!hit) {
+        result = await fetchHistorySearch(query, 100, undefined, controller.signal,
+          { sessionId, roles, countMode: 'content', matchIndex: ordinal });
+        if (!valid()) return;
+        hit = result.hits[0];
+        setResponse(result);
       }
-
-      if (needsRelocation) {
-        scan = await scanSessionHistory(fetchSessionHistory, sessionId, activeQuery, {
-          signal: controller.signal,
-        });
-        if (!stillCurrent()) return;
-        const relocatedIndex = scan.hits.findIndex((hit) => hit.messageId === initialHit.messageId);
-        if (relocatedIndex < 0) {
-          setSearch({ status: 'stale', scan: null });
-          onHighlightMessage(null);
-          return;
-        }
-        const relocated = scan.hits[relocatedIndex]!;
-        target = relocated;
-        activeResultIndex = relocatedIndex;
-        total = scan.total;
-        message = await loadTarget(target, total);
-        if (!stillCurrent()) return;
+      if (!hit) { setStatus('stale'); highlight.current(null); return; }
+      const originalHit = hit;
+      const load = (target: ApiHistorySearchHit) => useSessionStore.getState().ensureMessageLoaded(
+        target.historyTotal-1-target.messageIndex, target.historyTotal, controller.signal);
+      let message = useSessionStore.getState().currentMessages.find((item) => item.messageId === hit!.messageId) ?? await load(hit);
+      if (!valid()) return;
+      if (!message || message.messageId !== hit.messageId) {
+        const relocated = await fetchHistorySearch(query, 1, undefined, controller.signal,
+          { sessionId, roles, countMode: 'content', messageId: hit.messageId });
+        if (!valid()) return;
+        hit = relocated.hits[0];
+        if (!hit) { setStatus('stale'); highlight.current(null); return; }
+        ordinal = (hit.matchStart ?? 0) + Math.min(countOf(hit)-1, Math.max(0, ordinal-(originalHit.matchStart ?? 0)));
+        message = await load(hit);
+        if (!valid()) return;
+        setResponse(relocated);
       }
-
-      if (!message || message.messageId !== target.messageId || target.messageId.startsWith('legacy:')) {
-        setSearch({ status: 'stale', scan: null });
-        onHighlightMessage(null);
-        return;
-      }
-
-      onHighlightMessage(target.messageId);
-      await nextPaint();
-      if (!stillCurrent()) return;
-      const currentTarget = useSessionStore.getState().currentMessages.find(
-        (candidate) => candidate.messageId === target.messageId,
-      );
-      if (!currentTarget) {
-        setSearch({ status: 'stale', scan: null });
-        onHighlightMessage(null);
-        return;
-      }
-      message = currentTarget;
-      let didScroll = chatRef.current?.scrollToMessage(message, target.messageIndex) ?? false;
-      if (!didScroll) {
-        await nextPaint();
-        if (!stillCurrent()) return;
-        didScroll = chatRef.current?.scrollToMessage(message, target.messageIndex) ?? false;
-      }
-      if (!didScroll) {
-        setSearch({ status: 'stale', scan: null });
-        onHighlightMessage(null);
-        return;
-      }
-      if (scan !== initialScan) setSearch({ status: 'ready', scan });
-      setActiveIndex(activeResultIndex);
+      if (!message || message.messageId !== hit.messageId) { setStatus('stale'); highlight.current(null); return; }
+      highlight.current(hit.messageId, query.trim(), ordinal-(hit.matchStart ?? 0));
+      await paint();
+      if (!valid()) return;
+      let scrolled = chatRef.current?.scrollToMessage(message, hit.messageIndex) ?? false;
+      if (!scrolled) { await paint(); if (!valid()) return; scrolled = chatRef.current?.scrollToMessage(message, hit.messageIndex) ?? false; }
+      if (!scrolled) { setStatus('stale'); highlight.current(null); return; }
+      setOccurrence(ordinal);
     } catch (error) {
-      if (!stillCurrent() || isAbortError(error)) return;
-      if (error instanceof StaleSessionHistoryError) {
-        setSearch({ status: 'stale', scan: null });
-        onHighlightMessage(null);
-      } else {
-        setSearch({ status: 'error', scan: null });
-        onHighlightMessage(null);
-      }
-    } finally {
-      if (generationRef.current === generation && useSessionStore.getState().currentSessionId === sessionId) {
-        setNavigating(false);
-      }
-    }
-  }, [chatRef, currentSessionId, onHighlightMessage]);
+      if (!valid()) return;
+      setStatus(error instanceof ApiRequestError && error.status === 409 ? 'stale' : 'error');
+      highlight.current(null);
+    } finally { if (valid()) setNavigating(false); }
+  }, [chatRef, query, roles, sessionId]);
 
-  const hits = search.scan?.hits ?? [];
+  useEffect(() => {
+    cancel();
+    setResponse(null);
+    setOccurrence(0);
+    if (!open || !sessionId || !query.trim() || roles.length === 0) { setStatus('idle'); return; }
+    const controller = new AbortController();
+    searchController.current = controller;
+    const token = generation.current;
+    setStatus('loading');
+    const timer = window.setTimeout(() => {
+      void fetchHistorySearch(query, 100, undefined, controller.signal, { sessionId, roles, countMode: 'content' })
+        .then(async (page) => {
+          if (controller.signal.aborted || generation.current !== token) return;
+          setResponse(page);
+          setStatus('ready');
+          if (page.hits.length) await navigate(0, page, token);
+        }).catch((error: unknown) => {
+          if (controller.signal.aborted || generation.current !== token) return;
+          setStatus(error instanceof ApiRequestError && error.status === 409 ? 'stale' : 'error');
+        });
+    }, 120);
+    return () => { clearTimeout(timer); controller.abort(); jumpController.current?.abort(); };
+  }, [open, sessionId, sessionVersion, query, roles, retry, cancel, navigate]);
+
+  const total = response?.totalMatches ?? response?.hits.reduce((sum, hit) => sum+countOf(hit), 0) ?? 0;
   const move = (delta: number) => {
-    if (hits.length === 0 || !search.scan) return;
-    const nextIndex = (activeIndex + delta + hits.length) % hits.length;
-    setActiveIndex(nextIndex);
-    void navigateToResult(hits[nextIndex]!, nextIndex, search.scan, query, generationRef.current);
+    if (!response || !total) return;
+    const next = (occurrence+delta+total)%total;
+    setOccurrence(next);
+    void navigate(next, response, generation.current);
   };
-
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      move(event.shiftKey ? -1 : 1);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      closeSearch();
-    }
+  const keyboard = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') { event.preventDefault(); move(event.shiftKey ? -1 : 1); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
   };
-
-  const resultCount = hits.length > 0 ? `${activeIndex + 1} / ${hits.length}` : '0 / 0';
-  const statusText = search.status === 'loading'
-    ? 'Searching full Session history…'
-    : search.status === 'stale'
-      ? 'Results expired. Search again.'
-      : search.status === 'error'
-        ? 'History search failed.'
-        : search.status === 'ready' && hits.length === 0
-          ? 'No results in searchable history'
-          : !currentSessionId
-            ? 'Select a Session to search.'
-            : '';
-
+  const text = status === 'loading' ? 'Searching full Session history…'
+    : status === 'stale' ? 'Results expired. Search again.'
+      : status === 'error' ? 'History search failed.'
+        : status === 'ready' && !total ? 'No results in searchable history'
+          : roles.length === 0 ? 'Select content types to search.' : '';
   return (
-    <div
-      className={`session-history-search${isMobile ? ' is-mobile' : ''}`}
-      data-testid="session-history-search"
-      data-layout={isMobile ? 'mobile-below-session-title' : 'desktop-chat-top-right'}
-    >
-      <button
-        type="button"
-        className="session-history-search__toggle"
-        aria-label={open ? 'Close Session history search' : 'Search Session history'}
-        title="Search Session history (Ctrl+F)"
-        data-testid="session-history-search-toggle"
-        onClick={() => open ? closeSearch() : setOpen(true)}
-      >
-        <Search size={16} />
-      </button>
-      {open && (
-        <div ref={popupRef} className="session-history-search__popup" role="search" aria-label="Session history search">
-          <div className="session-history-search__controls">
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={handleInputKeyDown}
-              placeholder="Search this Session…"
-              aria-label="Search this Session's history"
-              data-testid="session-history-search-input"
-            />
-            <span className="session-history-search__count" aria-live="polite" data-testid="session-history-search-count">
-              {search.status === 'loading' ? <Loader2 size={13} className="animate-spin" /> : resultCount}
-            </span>
-            <button type="button" aria-label="Previous result" title="Previous result (Shift+Enter)" disabled={hits.length === 0 || navigating} onClick={() => move(-1)}>
-              <ChevronUp size={15} />
-            </button>
-            <button type="button" aria-label="Next result" title="Next result (Enter)" disabled={hits.length === 0 || navigating} onClick={() => move(1)}>
-              <ChevronDown size={15} />
-            </button>
-            <button type="button" aria-label="Close search" title="Close (Esc)" onClick={closeSearch}>
-              <X size={15} />
-            </button>
-          </div>
-          {statusText && <div className="session-history-search__status" role="status">{statusText}</div>}
-          {hits[activeIndex] && (
-            <div className="session-history-search__snippet" data-testid="session-history-search-snippet">
-              {hits[activeIndex]!.snippet}
-            </div>
-          )}
+    <div className={`session-history-search${isMobile ? ' is-mobile' : ''}`} data-testid="session-history-search"
+      data-layout={isMobile ? 'mobile-below-session-title' : 'desktop-chat-top-right'}>
+      <button type="button" className="session-history-search__toggle" data-testid="session-history-search-toggle"
+        aria-label={open ? 'Close Session history search' : 'Search Session history'} title="Search Session history (Ctrl+F)"
+        onClick={() => open ? close() : setOpen(true)}><Search size={16} /></button>
+      {open && <div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
+        <div className="session-history-search__controls">
+          <Search size={16} />
+          <input ref={input} data-testid="session-history-search-input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={keyboard}
+            aria-label="Search Session history" placeholder="Search history…" maxLength={512} />
+          <span data-testid="session-history-search-count" className="session-history-search__count" aria-live="polite">{total ? occurrence+1 : 0} / {total}</span>
+          <button type="button" aria-label="Previous result" disabled={!total || navigating || status !== 'ready'} onClick={() => move(-1)}><ChevronUp size={16} /></button>
+          <button type="button" aria-label="Next result" disabled={!total || navigating || status !== 'ready'} onClick={() => move(1)}><ChevronDown size={16} /></button>
+          <button type="button" aria-label="Close search" onClick={close}><X size={16} /></button>
         </div>
-      )}
+        <HistorySearchRoles roles={roles} onChange={setRoles} />
+        {status === 'ready' && total > 0 && <div data-testid="session-history-search-snippet" className="session-history-search__snippet">
+          {response?.hits.find((hit) => occurrence >= (hit.matchStart ?? 0) && occurrence < (hit.matchStart ?? 0)+countOf(hit))?.snippet}
+        </div>}
+        {(text || navigating) && <div className="session-history-search__status" role="status">
+          {(status === 'loading' || navigating) && <Loader2 size={14} className="animate-spin" />}
+          {navigating ? 'Opening result…' : text}
+          {(status === 'stale' || status === 'error') && <button type="button" onClick={() => setRetry((value) => value+1)}>Search again</button>}
+        </div>}
+      </div>}
     </div>
   );
 }

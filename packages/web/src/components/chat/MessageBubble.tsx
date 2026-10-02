@@ -124,6 +124,7 @@ export function groupMessages(
   messages: Message[],
   mergeConsecutiveNonBodyBlocks = false,
   timestampFlashMessages?: ReadonlySet<Message>,
+  searchTargetMessageId?: string | null,
 ): GroupedItem[] {
   const grouped: GroupedItem[] = [];
 
@@ -142,6 +143,11 @@ export function groupMessages(
     let currentNonBodyGroup: Message[] | null = null;
 
     for (const msg of messages) {
+      if (searchTargetMessageId && msg.messageId === searchTargetMessageId) {
+        currentNonBodyGroup = null;
+        grouped.push(msg);
+        continue;
+      }
       if (msg.role === 'tool' || msg.role === 'thinking') {
         if (!currentNonBodyGroup) {
           currentNonBodyGroup = [];
@@ -161,6 +167,12 @@ export function groupMessages(
   let currentThinkingGroup: Message[] | null = null;
 
   for (const msg of messages) {
+    if (searchTargetMessageId && msg.messageId === searchTargetMessageId) {
+      currentToolGroup = null;
+      currentThinkingGroup = null;
+      grouped.push(msg);
+      continue;
+    }
     if (msg.role === 'tool') {
       currentThinkingGroup = null;
       if (!currentToolGroup) {
@@ -189,13 +201,22 @@ interface MessageDisplayItemProps {
   item: GroupedItem;
   prevRole?: PrevRole;
   onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
+  searchTargetMessageId?: string | null;
 }
 
 export const MessageDisplayItem = memo(function MessageDisplayItem({
   item,
   prevRole = null,
   onTimestampFlashConsumed,
+  searchTargetMessageId,
 }: MessageDisplayItemProps) {
+  if (!('type' in item) && item.messageId === searchTargetMessageId &&
+      (item.role === 'tool' || item.role === 'thinking')) {
+    return <div className="px-3 sm:px-6 lg:px-8 py-2" data-search-expanded-role={item.role}>
+      <div className="text-xs text-text-tertiary">{item.role}</div>
+      <MarkdownRenderer content={item.content} />
+    </div>;
+  }
   if ('type' in item) {
     if (item.type === 'non_body_group') {
       const firstRole = item.items[0]?.role === 'thinking' ? 'thinking' : 'tool';

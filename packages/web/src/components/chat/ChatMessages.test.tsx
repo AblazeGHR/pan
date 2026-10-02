@@ -338,6 +338,17 @@ it('scopes a global search highlight to its target Session', () => {
   expect(view.container.querySelector('[data-search-target="true"]')?.textContent).toContain('needle target');
 });
 
+it('removes the navigation flash immediately when search unmounts', () => {
+  const target: Message = { role: 'assistant', content: 'needle target', messageId: 'target' };
+  useSessionStore.setState({ currentSessionId: 's1', currentMessages: [target] });
+  m.setVirtualItems([{ index: 0, start: 0, size: 100 }]);
+  const handle = createRef<ChatMessagesHandle>();
+  const view = render(<ChatMessages ref={handle} searchTarget={{ sessionId: 's1', messageId: 'target', query: 'needle' }} />);
+  act(() => { expect(handle.current?.scrollToMessage(target, 0)).toBe(true); });
+  view.rerender(<ChatMessages ref={handle} searchTarget={null} />);
+  expect(view.container.querySelector('.chat-message-search-target, .chat-message-jump-highlight')).toBeNull();
+});
+
 it('merges each adjacent tool/thinking run only when the preference is enabled', () => {
   const messages: Message[] = [
     { role: 'thinking', content: 'thought 1' },

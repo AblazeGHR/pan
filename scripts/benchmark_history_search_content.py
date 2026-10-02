@@ -7,6 +7,7 @@ Temporary JSONL/SQLite files are automatically removed. Output is JSON stdout.
 This is not HTTP/E2E evidence or a claim about production latency.
 """
 import argparse
+from contextlib import contextmanager
 import ast
 import hashlib
 import functools
@@ -24,6 +25,8 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from packages.core.history_search_index import search_history
 from packages.core import history_search_index
+from packages.core.history_search_scan import scan_history
+from packages.core import history_search_scan
 
 PR_HEAD = 'bf811a7cc2f0271023b459729b7fb0079591ebaf'
 _stage_samples = {}
@@ -59,6 +62,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compare-pr', action='store_true')
     parser.add_argument('--rows', type=int, default=10_000)
+    parser.add_argument('--engine', choices=('index', 'scan'), default='index')
     parser.add_argument('--profile-stages', action='store_true',
                         help='Report inclusive loader/snapshot/index/cache stage timings, not additive costs')
     args = parser.parse_args()
@@ -82,7 +86,7 @@ def main():
               'platform': platform.platform(), 'rows': args.rows,
               'method': 'File-backed cold Session loader; cached OS files; core functions only; '
                         '100 message references/page, exact full occurrence totals; seven warm rounds.',
-              'prHead': PR_HEAD if helper else None,
+              'engine': args.engine, 'prHead': PR_HEAD if helper else None,
               'prHelperSha256': hashlib.sha256(helper.encode()).hexdigest() if helper else None}
     with tempfile.TemporaryDirectory(prefix='pan-search-content-bench-') as temporary:
         directory = Path(temporary)
@@ -109,7 +113,28 @@ def main():
         if args.profile_stages:
             loader = record_stage(loader, 'canonicalLoader')
         path = directory / 'index.sqlite3'
+        @contextmanager
+        def source(_):
+            with history_path.open('rb') as handle:
+                def iterate():
+                    index = 0
+                    offset = 0
+                    while True:
+                        line = handle.readline()
+                        if not line:
+                            break
+                        position = offset
+                        offset += len(line)
+                        yield index, json.loads(line.decode('utf-8')), position
+                        index += 1
+                def read(offset):
+                    handle.seek(offset)
+                    return json.loads(handle.readline().decode('utf-8'))
+                stat = history_path.stat()
+                yield iterate(), read, (str(history_path), stat.st_size, stat.st_mtime_ns)
         def ours(query, roles=('user', 'assistant', 'tool', 'thinking'), after=None, target=path):
+            if args.engine == 'scan':
+                return scan_history([meta], query, roles=roles, limit=100, after=after, source=source)
             return search_history(target, [meta], ['bench'], query, limit=100,
                                   load_session=loader, roles=roles, content_counts=True, after=after)
         pr = None
@@ -124,8 +149,16 @@ def main():
         def cold():
             nonlocal counter
             counter += 1
+            if args.engine == 'scan':
+                with history_search_scan._cache_lock:
+                    history_search_scan._matches_cache.clear()
+                    history_search_scan._cache_references = 0
             return ours('selectiveterm', target=directory / f'cold-{counter}.sqlite3')
         report['coldIndexAndFirstQuery'], _ = measure(cold, 3)
+        if args.engine == 'scan':
+            with history_search_scan._cache_lock:
+                history_search_scan._matches_cache.clear()
+                history_search_scan._cache_references = 0
         report['queries'] = {}
         for query in ('selectiveterm', 'commonterm', '\u4e2d', '!?+@'):
             initial, result = measure(lambda: ours(query), 1)
@@ -156,7 +189,7 @@ def main():
             assert messages == args.rows
             return pages
         report['allDensePages'], report['pageCount'] = measure(paginate, 3)
-        report['sqliteBytes'] = path.stat().st_size
+        report['sqliteBytes'] = path.stat().st_size if path.exists() else 0
         report['jsonlBytes'] = history_path.stat().st_size
         assert hashlib.sha256(history_path.read_bytes()).hexdigest() == original
         append_ours, append_pr, append_stages = [], [], []

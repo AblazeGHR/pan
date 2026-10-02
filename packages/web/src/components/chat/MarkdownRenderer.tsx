@@ -1,4 +1,4 @@
-import React, { createContext, memo, useContext, useRef, useState } from 'react';
+import React, { createContext, memo, useContext, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,6 +15,7 @@ import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
 import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
 import 'highlight.js/styles/github-dark.css';
+import { SearchTextContext, searchTextPlugin } from './searchText';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
 type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
@@ -245,6 +246,7 @@ interface MarkdownRendererProps {
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [rehypeBoundCodeHighlight, rehypeHighlight, rehypeKatex];
 
+
 /** Recursively extract plain text from React nodes (handles hljs spans). */
 function extractCodeText(node: React.ReactNode): string {
   if (typeof node === 'string') return node;
@@ -300,6 +302,7 @@ function CodeBlock({
   ...props
 }: CodeProps) {
   const isInPre = useContext(PreContext);
+  const search = useContext(SearchTextContext);
   // Support hyphenated language names (e.g. "shell-session")
   const match = /language-([\w-]+)/.exec(className || '');
   const language = match ? match[1] : null;
@@ -325,9 +328,9 @@ function CodeBlock({
         </span>
         <CopyButton codeText={codeText} />
       </div>
-      {needsCodeWindow(codeText) ? (
+      {needsCodeWindow(codeText) && !search.query ? (
         <CodeWindow text={codeText} language={langLabel} />
-      ) : language === 'diff' ? (
+      ) : language === 'diff' && !search.query ? (
         <DiffLines codeText={codeText} {...props} />
       ) : (
         <pre className="p-3 overflow-x-auto m-0">
@@ -348,6 +351,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
+  const search = useContext(SearchTextContext);
+  const plugins = useMemo(() => search.query ? [...REHYPE_PLUGINS, searchTextPlugin(search.query, search.occurrence)] : REHYPE_PLUGINS, [search.query, search.occurrence]);
   if (!content) return null;
   const renderedContent = normalizeLegacyAttachmentLinks(content, sessionId ?? undefined);
   let attachmentIndex = 0;
@@ -356,7 +361,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     <div className={`prose-kimi max-w-none break-words ${className}`}>
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
+        rehypePlugins={plugins}
         components={{
           code: CodeBlock,
           pre: PreBlock,
