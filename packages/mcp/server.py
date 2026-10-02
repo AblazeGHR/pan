@@ -12,7 +12,10 @@ Tools exposed:
     - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get session details (optional history limit)
     - session_usage: Get persisted session input/output/cache usage
-    - session_update: Update session settings (model/effort/mcp etc.)
+    - session_update: Update session settings (model/effort/mcp/workspace etc.)
+    - workspace_list: List durable Workspaces (name/id/order/dirs/member count)
+    - workspace_create: Create a Workspace (same rules as the Dashboard)
+    - workspace_delete: Delete a Workspace (detaches its members; no dangling ids)
     - session_delete: Delete a session
     - session_batch_delete: Delete multiple sessions at once
     - session_claim: Claim a session (establish managed relationship; auto-subscribes reports)
@@ -999,6 +1002,7 @@ def session_update(
     model_auto_compact_token_limit: int | None = None,
     clear_model_context_window: bool = False,
     clear_model_auto_compact_token_limit: bool = False,
+    workspace_ids: list[str] | None = None,
 ) -> dict:
     """Update session-level settings without spawning a worker.
 
@@ -1033,9 +1037,19 @@ def session_update(
             positive Codex overrides. Omitted values preserve the current
             setting. Use the matching clear_* flag to persistently remove it
             and delegate to Codex/model defaults.
+        workspace_ids: Move the Session to a Workspace, or to ungrouped.
+            Workspace 成员关系只存于 **management-tree 根** session：
+            列表至多一个 id（``[]`` = 取消分组/ungrouped，省略 = 保持不变）。
+            Workspace 必须已存在（workspace_list 查看）。**继承语义（硬约束）**：
+            被管理的子 session 通过 managedBy 链继承根的 workspace，**不能**
+            被单独放到另一个 workspace（会造成管理树跨 workspace 分裂）。
+            因此若目标 session 已被管理（managedBy 非空），本工具会拒绝并
+            要求先 ``session_unclaim`` 分离（与 Dashboard 拖拽「先分离再移动」
+            的既有行为一致）；对根 session 设置则会随管理树向下传播给全体后代。
 
     权限边界：_check_access 管理隔离——受限 caller（restrictToManaged）只能
-    更新自己管理的 session。
+    更新自己管理的 session；workspace 变更复用 Dashboard 使用的同一后端端点
+    （PUT /api/sessions/{id}/workspaces），规则、校验、权限边界完全一致。
 
     完整编排流程见 /pan skill。
     """
@@ -1065,7 +1079,144 @@ def session_update(
         body["modelAutoCompactTokenLimit"] = model_auto_compact_token_limit
     elif clear_model_auto_compact_token_limit:
         body["modelAutoCompactTokenLimit"] = None
-    return _strip_usage(_api("PATCH", f"/api/sessions/{session_id}", body))
+    # No workspace change requested → preserve the original single-PATCH path.
+    if workspace_ids is None:
+        return _strip_usage(_api("PATCH", f"/api/sessions/{session_id}", body))
+    settings_result = None
+    if body:
+        settings_result = _strip_usage(_api("PATCH", f"/api/sessions/{session_id}", body))
+        if isinstance(settings_result, dict) and settings_result.get("error"):
+            return settings_result
+    workspace_result = _move_session_workspace(session_id, workspace_ids)
+    if (not isinstance(workspace_result, dict)
+            or workspace_result.get("error") or workspace_result.get("ok") is False):
+        return workspace_result
+    if isinstance(settings_result, dict) and settings_result.get("requireRestart"):
+        workspace_result = dict(workspace_result)
+        workspace_result["requireRestart"] = True
+    return workspace_result
+
+
+def _workspace_public_view(workspace: dict) -> dict:
+    """Project a Workspace API dict to stable, non-internal fields.
+
+    Keeps id/name/order/dirs/timestamps plus a member count; drops the member
+    id list (callers use session_list / workspace_list when they need it) so a
+    large Workspace does not bloat the MCP response.
+    """
+    return {
+        "id": workspace.get("id"),
+        "name": workspace.get("name"),
+        "order": workspace.get("order"),
+        "dirs": list(workspace.get("dirs") or []),
+        "createdAt": workspace.get("createdAt"),
+        "updatedAt": workspace.get("updatedAt"),
+        "sessionCount": workspace.get("sessionCount"),
+    }
+
+
+def _move_session_workspace(session_id: str, workspace_ids: list[str]) -> dict:
+    """Move a Session to a Workspace via the Dashboard's own HTTP endpoint.
+
+    Reuses PUT /api/sessions/{id}/workspaces so validation, membership rules
+    and the managed-tree hard constraint are identical to the UI. Local
+    pre-checks only mirror the endpoint's cheap shape checks; existence of the
+    target Workspace and the managed-session refusal stay server-authoritative.
+    """
+    if (not isinstance(workspace_ids, list)
+            or not all(isinstance(wid, str) and wid for wid in workspace_ids)
+            or len(set(workspace_ids)) != len(workspace_ids)):
+        return {"ok": False, "error": {"code": "invalid_workspace_ids",
+                "message": "workspace_ids must be a unique array of workspace ids"}}
+    if len(workspace_ids) > 1:
+        return {"ok": False, "error": {"code": "invalid_workspace_ids",
+                "message": "A Session can belong to at most one Workspace"}}
+    return _api("PUT", f"/api/sessions/{session_id}/workspaces",
+                {"workspaceIds": list(workspace_ids)})
+
+
+# ---------------------------------------------------------------------------
+# Workspace tools (durable named Session groups)
+#
+# 继承/约束语义（与 Dashboard 完全一致，MCP 不额外放宽）：
+#   - Workspace 是命名容器，成员关系只持久化在 management-tree 根 session 的
+#     workspace_ids（0 或 1 个）；被管理后代通过 managedBy 链继承，不单独存值。
+#   - 一个 Session 至多属于一个 Workspace；[]（空）= ungrouped，无 "default" 分区。
+#   - 删除 Workspace 会从各根 session 清除该 id，后代自动跟随——不会留下
+#     dangling workspace id，也不会产生跨 Workspace 的 managed 关系。
+#   - 这些工具与 UI 共用同一组后端端点，权限边界一致（本机 loopback、无额外
+#     鉴权）；MCP 不获得 UI 没有的能力。
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def workspace_list() -> dict:
+    """List durable Workspaces (named Session groups).
+
+    Returns ``{"ok": true, "workspaces": [{id, name, order, dirs, createdAt,
+    updatedAt, sessionCount}]}``. ``id`` is what session_update's
+    ``workspace_ids`` and workspace_delete take; ``name`` is the human label.
+
+    Membership model (hard constraint, identical to the Dashboard):
+    一个 Workspace 的成员关系只存储在 **management-tree 根** session 上，
+    被管理的后代通过 managedBy 链**继承**，不单独持有 workspace id。因此同一
+    管理树的根与全部后代始终落在同一个 Workspace；不存在跨 Workspace 的管理
+    关系。``[]`` 表示 ungrouped（不属于任何 Workspace，没有 "default" 分区）。
+
+    完整编排流程见 /pan skill。
+    """
+    result = _api("GET", "/api/workspaces")
+    if not isinstance(result, dict):
+        return result
+    workspaces = result.get("workspaces")
+    if not isinstance(workspaces, list):
+        return result
+    return {"ok": True,
+            "workspaces": [_workspace_public_view(w)
+                           for w in workspaces if isinstance(w, dict)]}
+
+
+@mcp.tool()
+def workspace_create(name: str) -> dict:
+    """Create a durable Workspace (named Session group).
+
+    Behaves exactly like the Dashboard's "new workspace": name is required,
+    trimmed, ≤128 chars, and must be unique. Validation and the
+    ``workspace.created`` broadcast are performed by the shared backend
+    endpoint, so MCP cannot create a Workspace the UI could not. The new
+    Workspace starts empty; move Sessions into it with
+    ``session_update(session_id, workspace_ids=[<id>])``.
+
+    Args:
+        name: Workspace name (trimmed, non-empty, ≤128 chars, unique)
+
+    Error codes mirror the UI: ``invalid_name`` (empty/too long),
+    ``name_taken`` (duplicate). 完整编排流程见 /pan skill。
+    """
+    result = _api("POST", "/api/workspaces", {"name": name})
+    if isinstance(result, dict) and result.get("ok") and isinstance(result.get("workspace"), dict):
+        result = dict(result)
+        result["workspace"] = _workspace_public_view(result["workspace"])
+    return result
+
+
+@mcp.tool()
+def workspace_delete(workspace_id: str) -> dict:
+    """Delete a Workspace and detach all of its members.
+
+    Matches the Dashboard delete exactly: every root Session that persisted
+    this Workspace id has it removed (managed descendants follow the root and
+    immediately become ungrouped with it), then the Workspace metadata is
+    deleted. No dangling workspace id and no cross-Workspace managed link can
+    result — a management tree is either fully inside or fully outside the
+    Workspace before and after deletion. Sessions themselves are never deleted.
+
+    Args:
+        workspace_id: Workspace id from workspace_list
+
+    Returns ``{"ok": true, "workspaceId": <id>}`` or ``workspace_not_found``.
+    完整编排流程见 /pan skill。
+    """
+    return _api("DELETE", f"/api/workspaces/{quote(workspace_id, safe='')}")
 
 
 @mcp.tool()

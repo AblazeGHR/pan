@@ -107,6 +107,22 @@ Codex 的 live 增量游标仍由 adapter 的 `codex_prev_usage` 负责；本查
 
 > Dashboard 拖拽的管理变更（把卡片拖到另一 manager 卡片正中）复用既有端点，不需要新排序端点：`POST /api/claim`（`managerId`=被拖入的 manager，`sessionId`=被拖动的 session），随后 `POST /api/unclaim` 解除旧 manager 关系。`GET /api/sessions?summary=1` 返回的精简字段含 `order`。
 
+### Workspace（会话分组，2026-10-02 补录）
+
+> Workspace 是命名容器。**成员关系只持久化在 management-tree 根 session 的 `workspaceIds`（0 或 1 个）**，被管理后代通过 managedBy 链继承（`effective_workspace_ids`）；同一管理树整体落在同一个 Workspace。`[]` = ungrouped，没有 "default" 分区。MCP 等价工具：`workspace_list` / `workspace_create` / `workspace_delete`，移动成员用 `session_update(workspace_ids=[...])`（复用下表 `PUT /api/sessions/{id}/workspaces`）。
+
+| 方法 | URL | Body / 参数 | 返回 |
+|------|-----|------------|------|
+| `GET` | `/api/workspaces` | — | `{"workspaces":[view]}`；view 含 `id/name/order/dirs/createdAt/updatedAt/sessionCount/sessionIds`（MCP `workspace_list` 去掉成员 id 列表，仅保留 `sessionCount`）。等价 MCP：`workspace_list` |
+| `POST` | `/api/workspaces` | `{"name":"Inbox"}` | `{"ok":true,"workspace":view}`；name 必填/trim/≤128/唯一，否则 `invalid_name` / `name_taken`。广播 `workspace.created`。等价 MCP：`workspace_create` |
+| `GET` | `/api/workspaces/{id}` | — | `{"ok":true,"workspace":view}` 或 `workspace_not_found` |
+| `PATCH` | `/api/workspaces/{id}` | `{"name"?:"...", "dirs"?:[...]}` | 改名 / 改共享目录（`dirs` 必须是已存在的绝对目录，仅元数据不落盘）。广播 `workspace.updated` |
+| `POST` | `/api/workspaces/order` | `{"workspaceIds":[...]}` | 重排 Workspace 显示顺序（部分重排允许）；广播 `workspace.orderUpdated` |
+| `DELETE` | `/api/workspaces/{id}` | — | 从各根 session 清除该 id（后代跟随→变 ungrouped）后删除元数据，**不删 session**；无 dangling id / 跨 Workspace managed 关系。广播 `workspace.deleted`。等价 MCP：`workspace_delete` |
+| `PUT` | `/api/workspaces/{id}/sessions` | `{"sessionIds":[...], "actorSessionId"?:"..."}` | 设置该 Workspace 的成员集合（**move 语义**：成员被移入、移出的根变 ungrouped）；被管理的 session 返回 `managed_session`，须先分离；可选 `actorSessionId` 触发 managed 写权限校验。广播 `workspace.membershipUpdated` |
+| `PUT` | `/api/sessions/{id}/workspaces` | `{"workspaceIds":[...], "actorSessionId"?:"..."}` | 移动单个 session 到至多一个 Workspace（`[]` = ungrouped）。`workspaceIds` 必须唯一且都存在（`invalid_workspace_ids` / `workspace_not_found`）；**`managed_by` 非空的 session 返回 `managed_session`**（硬约束：先 `POST /api/unclaim` 分离，与 Dashboard 拖拽一致）。广播 `session.workspaceUpdated`。**MCP：`session_update(session_id, workspace_ids=[...])`** |
+
+
 ### 导入 / 设置 / Manifest（排查 / 维护用，2026-08-27 补录）
 
 | 方法 | URL | 说明 |
