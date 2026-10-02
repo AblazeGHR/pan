@@ -10,18 +10,27 @@
 ## 0. 结论摘要
 
 **传输层可行**（已实测）：原生 Codex TUI 可以作为一个普通客户端连接到 Pan 正在使用的同一个
-app-server，且 attach/detach 期间后端进程 PID、运行中 turn 与 Pan 侧结构化事件流全部保持。
-昨天"无法切换"的假设不成立。
+app-server。昨天"无法切换"的假设不成立。
 
-**但"无中断"在 0.159.2 上不成立**（已实测，关键限制）：
-原生 TUI 一旦 `resume` 了某个 thread，**它退出时该 thread 上正在运行的 turn 会被中断**
-（`turn/completed` → `status: "interrupted"`），而后端进程本身不受影响。
-对照实测显示：同样的 `thread/resume` + 断开，普通 JSON-RPC 客户端**不会**造成中断。
-即中断与"原生 TUI 的附着生命周期"绑定，与 Ctrl-C 无关（有/无 Ctrl-C 两种退出都中断）。
+**但必须把两条 thread 分开说，不能合并成"无中断"**（已实测）：
 
-**当前 Pan 拓扑无法接入原生 TUI**（源码 + help 实测）：Pan 用
+| thread 角色 | attach/detach 期间 | TUI 退出后 |
+|---|---|---|
+| **未被 TUI resume 的对照 thread** | 后端 PID 不变、turn 保持 `inProgress`、Pan 侧连接收到通知数继续增长 | 仍 `inProgress`（观测窗口内 65.7s） |
+| **被 TUI resume 的目标 thread** | 后端 PID 不变、turn 保持 `inProgress` | **`interrupted`** |
+
+也就是说：**"原 backend 进程存活"对两种情况都成立；"运行中 turn 不被 attach 打断"目前只对
+未被 resume 的对照 thread 成立。** 目标 thread 一旦被原生 TUI `resume`，TUI 退出（有/无
+Ctrl-C 皆然）会使其运行中的 turn 变为 `interrupted`。
+
+**中断归因仍是推断，不是已证结论**：同一进程内的对照 thread 存活；而普通 JSON-RPC 客户端
+做同样的 `thread/resume` 后断开**不会**造成中断。据此**推断**中断与"原生 TUI 附着生命周期"
+相关、且与 Ctrl-C 无关，但具体机制未定位（详见 §3.5）。
+
+**当前 Pan 拓扑接入原生 TUI 需要改传输**（源码 + 传输定义实测）：Pan 用
 `[node, codex.js] app-server --stdio`，stdio 是父子进程之间的私有管道，没有可供第二个客户端
-连接的监听端点。要接入必须改为 `--listen ws://127.0.0.1:PORT` 或 `unix://`。
+连接的监听端点。**若将来要接原生 TUI**，需要改为 `--listen ws://127.0.0.1:PORT` 或
+`unix://`；这项改造**不是首版普通持久 PTY / Web 终端的前置条件**（见 §1 范围决定）。
 
 **能力差异不在版本上**（实测）：本机 npm 安装版 `0.159.2` 与本机已有上游构建 `0.160.0`
 在 7 条命令路径上的 `--help` 输出**逐字节相同**；`--remote`、`--listen ws://`、
@@ -42,6 +51,12 @@ brief 要求的验收：**保留原 backend、运行中 turn、输入控制权�
 | **实测** | 由本工作树内探针真实运行产生，证据文件在 `audit/terminal/codex/evidence/` |
 | **推断** | 由实测结果或官方文档推导，尚未直接观测 |
 | **未验证** | 本轮没有做，或有明确理由不能做；给出原因与下一步实验 |
+
+**本轮范围与首版决定（MA，2026-10-03）**：首版范围以**普通持久 PTY / Web 终端**优先；
+**原生 Adapter 无中断 TUI 作为后续探索**。因此本轮**不继续**做中断机制定位、真实模型请求
+与审批实验；§4 的 `--stdio` → `--listen ws://` 改造**不作为首版前置**，
+仅在未来重启原生 TUI 方向时才需要。本文的负结果按"后续探索的输入"来读，
+不构成对首版普通终端方案的阻塞。
 
 ---
 
@@ -137,27 +152,41 @@ got   : ['01a0fd85-006c-7251-bded-608e7fc6b1d8']
 ```
 
 同一次运行中：TUI 渲染成功、后端 PID 不变、目标 turn 在 attach 期间仍是 `inProgress`。
-另外 TUI 全程 **`turn/interrupt` 发送次数 = 0**。
+**在接了中继的这次运行里**，TUI 发出的 `turn/interrupt` 次数为 **0**（该计数只对
+"中继覆盖到的这段连接"有效；`exit-force` 场景未接中继，见 §3.5）。
 证据：`evidence/tap-20261003-004937.json`（`attach_tui_resumed_pan_thread`、
 `attach_tui_sent_no_interrupt`）。
 
 ### 3.3 后端进程与运行中 turn 的连续性（实测）
 
-两次独立运行（`main-20261003-005121.json`、`tap-20261003-004937.json`）结果一致：
+两次独立运行（`main-20261003-005121.json`、`tap-20261003-004937.json`）结果一致。
+**注意下表区分了"对照 thread"与"被 resume 的 thread"**：
 
 | 观测点 | 值 |
 |---|---|
-| 后端 node PID | 26900 / 3796，attach 前 = attach 中 = detach 后（**同一 PID**） |
-| 后端身份 | `create_time` 与子进程 `codex.exe` 创建时间一致（node → codex.exe 两跳） |
-| Pan 侧 turn（未被 TUI resume 的 thread） | attach 前 / 中 / 后均 `inProgress`，运行 65.7s 时仍 `inProgress` |
-| Pan 侧事件流 | 11 → 24 → 26 条（attach 期间继续增长） |
+| 后端 node PID | 26900（main）/ 3796（tap）；attach 前 = attach 中 = detach 后（**同一 PID**） |
+| 进程身份记录 | 每个进程各自记录 `create_time`（FILETIME 换算）并**前后比较**，两次运行均未变 |
+| **对照 thread**（未被 TUI resume）的 turn | attach 前 / 中 / 后均 `inProgress`；运行 65.7s 时仍 `inProgress` |
+| **被 resume 的目标 thread** 的 turn | attach 期间 `inProgress`；**TUI 退出后 `interrupted`**（§3.5） |
+| Pan 侧收到的通知条数 | 11 → 24 → 26（attach 期间继续增长） |
 | Pan 侧连接 | 全程未断 |
 
-**这是"保留原 backend 进程 + 运行中 turn + 结构化事件不被 attach 打断"的直接证据。**
+关于"11 → 24 → 26"的准确含义：**它是 Pan 侧连接收到的 JSON-RPC 通知/响应条数增长，
+即"连接仍然活着且仍在收消息"，不是模型流式 token 产出。** 本轮用本地黑洞提供方，
+模型请求始终挂起，因此**没有测到任何模型输出，也没有验证真实任务的连续性**（见 §5 未验证项 1）。
+
+**可以下的结论**：attach/detach 期间**后端进程本身**（PID 与身份记录不变）与
+**未被 resume 的对照 thread 的运行中 turn**保持存活，Pan 侧连接未被 attach 打断。
+**不能下的结论**：被 resume 的目标 thread 上的 turn 也能无中断保持。
 
 ### 3.4 第二个客户端的结构化事件订阅（实测，负结果）
 
-这条很重要，且是负面的：**第二个客户端拿不到 thread 的实时 turn/item 事件流。**
+**被测量的范围**：安装版 `0.159.2`、`websockets` 传输、客户端 B 走
+`thread/resume` 这一条路径。**本轮没有测其他 provider、其他传输（`unix://`）、
+其他订阅路径（如先 `thread/unsubscribe` 再接管、或 `experimentalApi` 能力差异），
+也没有测 0.160.0。** 下面的结论只在这个范围内成立。
+
+在该范围内：**第二个客户端拿不到该 thread 的实时 turn/item 事件流。**
 
 - 客户端 B `thread/resume` 成功后（返回正常），在**后续**由 A 发起的 turn 上，
   收到的 turn/item 事件数为 **0**。
@@ -171,14 +200,17 @@ got   : ['01a0fd85-006c-7251-bded-608e7fc6b1d8']
 `subscriber_before_turn_receives_turn_events`），以及
 `second_client_received_methods` 字段。
 
-**含义**：官方文档说 `thread/start` 会自动订阅该 thread 的 turn/item 事件、
-`thread/unsubscribe` 解除订阅，但实测在"已有另一个连接在驱动该 thread"时，
-第二个连接只拿到 thread 级通知，拿不到 turn/item 流。
-原生 TUI 也是靠 `thread/read` / `thread/turns/list` / `thread/items/list` **轮询历史**来补屏，
-这与"它收不到实时流"一致。
+与官方文档的关系：文档说 `thread/start` 会自动订阅该 thread 的 turn/item 事件、
+`thread/unsubscribe` 解除订阅。实测在"已有另一个连接在驱动该 thread"时，
+第二个连接只拿到 thread 级通知。**这是文档未覆盖的行为差异，不是"多客户端方案不可能"
+的证明** —— 需要区分"这条 resume 路径拿不到"与"所有 provider 多客户端方案都不行"。
+原生 TUI 自己也是靠 `thread/read` / `thread/turns/list` / `thread/items/list` **轮询历史**
+来补屏，这与"它在这条路径上收不到实时流"一致。
 
-因此：**"原生 TUI 与结构化旁路各拿一份实时事件"这条路线在 0.159.2 上不成立**，
-必须由 Pan 侧做事件中转/扇出。
+**据此给出的建议（推荐策略，未被证明是唯一可行方案）**：在把 provider 事件当成
+多客户端可共享的广播之前，先假定**每个 thread 的实时事件只有一个接收者**，由 Pan 作为
+该接收者并自行向 Web 客户端扇出。若后续要依赖 provider 广播，需要先补做
+§5 未验证项 9 的实验。
 
 ### 3.5 attach 结束后 turn 的命运（实测，关键限制）
 
@@ -192,24 +224,33 @@ got   : ['01a0fd85-006c-7251-bded-608e7fc6b1d8']
 
 证据：`evidence/exit-ctrl-c-20261003-010604.json`、`evidence/exit-force-20261003-010634.json`。
 
-配合两组对照：
+两组对照（来自**另外的运行**，与上面两个 exit 场景不是同一次实验，因此是旁证而非同批对照）：
 
 - **同一进程内的对照 thread**（从未被 TUI `resume`）：在同一时间窗口结束时仍 `inProgress`
-  （65.7s）。→ 不是"黑洞 turn 自己会超时"。
+  （65.7s，`main-20261003-005121.json`）。→ 说明"黑洞 turn 自己会超时"不足以解释该中断。
 - **普通 JSON-RPC 客户端**做同样的 `thread/resume` 再断开：目标 turn **没有被中断**，
-  对照 thread 也没有。证据：`evidence/subscriber-20261003-010508.json`。
+  对照 thread 也没有。证据：`evidence/subscriber-20261003-010508.json`、`subscriber-20261003-010751.json`。
 
-**推断**：中断由"原生 TUI 附着到该 thread 之后的退出"触发，与传输方式（ws）、
-与 Ctrl-C 按键无关，也与"任意第二个客户端断开"无关。
-可能与 app-server 对该 TUI 连接的 thread 归属/订阅生命周期处理有关。
+**推断（范围受限）**：在"安装版 0.159.2 + ws 传输 + 该 resume 路径"范围内，
+中断与"原生 TUI 附着到该 thread 之后的退出"相关，与 Ctrl-C 按键无关，
+也与"任意第二个客户端断开"无关。
 
-**未验证**：具体机制。TUI 退出瞬间中继里**没有**任何 `turn/interrupt`（计数 0），
-强关 PTY 时 TUI 也没有机会发包，因此不是"TUI 显式发了中断请求"这一条简单路径。
-需要 app-server 侧 debug 日志，或对 force-kill 分支加中继，才能定位。
+**未验证 —— 机制与归因都还没有定位，不要当成已证结论**：
 
-**对产品的直接含义**：按现有语义，用户在网页里 attach 原生 TUI、操作完再交还 Pan，
-会让 Pan 正在跑的那一轮 turn 被判为 `interrupted`。这与 brief 的
-"保留运行中任务、无中断切换"直接冲突。
+- **`exit-force` 场景没有接中继**（该场景直接 `terminate(force=True)` + `close()` 关掉 PTY）。
+  因此**不能**对 force 分支宣称"`turn/interrupt` 计数为 0"，也**不能**宣称
+  "TUI 没有机会发包" —— 该场景根本没有观测通道。
+  "计数为 0" 这个观测**只对 `--scenario tap` 的中继覆盖窗口有效**。
+- **`terminate(force=True)` / `close()` 的具体生效路径未确认**：不知道 TUI 是立即被杀、
+  还是在 ConPTY 关闭过程中跑了一部分关闭逻辑；这直接影响归因。
+- 因此"是不是 TUI 显式发了中断请求"这一条**尚未排除**；只能说在中继覆盖的那次运行里
+  没看到。需要 app-server 侧 debug 日志，或给 force 分支补上中继，才能定位。
+- exit 两个场景各自**没有内置同批对照 thread**，且各自只运行一次，未做重复性统计。
+
+**在已测范围内的产品含义**：若用户 attach 原生 TUI 并 `resume` Pan 正在驱动的 thread，
+然后交还 Pan，则**在该安装版上**观察到 Pan 那一轮 turn 被判为 `interrupted`。
+这与 brief 的"保留运行中任务、无中断切换"存在冲突；是否在所有版本/所有路径上如此，
+未经测试（见 §5）。
 
 ### 3.6 审批（文档 + 未验证）
 
@@ -223,7 +264,9 @@ got   : ['01a0fd85-006c-7251-bded-608e7fc6b1d8']
 使用真实凭据；没有找到不依赖模型的审批触发路径
 （`thread/shellCommand` 实测文档说明其**在沙箱外直接执行、不继承 thread 沙箱策略**，
 因此不产生审批）。
-关联风险：§3.4 已证明第二个客户端收不到 turn/item 事件流，审批路由同样不能假设对称。
+关联风险（**风险假设，本轮未观测到双应答或抢占**）：在被测路径上第二个客户端收不到
+turn/item 事件流（§3.4，范围见 §5 未验证项 9），因此审批路由也不应当默认对称；
+这是需要后续实验验证的假设，不是已发现的故障。
 
 ---
 
@@ -246,7 +289,8 @@ self.process = subprocess.Popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE, .
   `self.thread_id` + `state["turn_id"]` 发 `turn/interrupt`（同文件 `:860-874`）。
   即 Pan 侧本就假设一个 thread 同时只有一个活跃 turn / 一个写者。
 
-**改造点（推断，未实现）**：把 app-server 从 `--stdio` 换成
+**改造点（推断，未实现；仅适用于"后续想把原生 TUI 接进来"这一目标，不是首版普通
+持久 PTY / Web 终端的前置条件）**：把 app-server 从 `--stdio` 换成
 `--listen ws://127.0.0.1:<port>`，Pan 作为其中一个 ws 客户端，原生 TUI 作为另一个
 （`codex --remote ws://127.0.0.1:<port> resume <id>`）。需要新增：端口分配与回收、
 listener 存活探测（`GET /readyz`）、非回环时的鉴权
@@ -267,51 +311,64 @@ daemon 由 `app-server daemon start` / `remote-control start` 管理，控制套
 **实测**
 - 原生 TUI 可作为第二个客户端连上同一个 ws app-server，并渲染真实 TUI。
 - 裸 `--remote` 会自建新 thread；`--remote … resume <id>` 会 attach 到指定 thread。
-- attach / detach 期间后端 PID 不变，Pan 侧运行中 turn 与事件流保持。
-- 第二个客户端 `thread/resume` 后收不到该 thread 的实时 turn/item 事件。
-- 原生 TUI 退出（有无 Ctrl-C 皆然）会让其 resume 过的 thread 上运行中的 turn 变为
-  `interrupted`；TUI 未发送 `turn/interrupt`。
-- 普通 JSON-RPC 客户端 resume + 断开不会造成该中断。
-- 安装版 0.159.2 与本机 0.160.0 上述命令帮助文本逐字节一致。
+- attach / detach 期间**后端进程 PID 与身份记录不变**（两次运行各自前后比较）。
+- **未被 TUI `resume` 的对照 thread**：其运行中 turn 在 attach 前/中/后保持 `inProgress`
+  （观测窗口 65.7s）；Pan 侧连接收到的通知条数继续增长（11→24→26）。
+- **被 TUI `resume` 的目标 thread**：attach 期间 `inProgress`，TUI 退出后 `interrupted`
+  （Ctrl-C 与 force 两种退出各观测到一次）。
+- 第二个客户端走 `thread/resume` 后收不到该 thread 的实时 turn/item 事件
+  （安装版 0.159.2 + ws 范围内）。
+- 普通 JSON-RPC 客户端 `resume` + 断开**没有**造成该中断。
+- 安装版 0.159.2 与本机 0.160.0 上述七条命令路径的 help 文本逐字节一致。
 
-**推断**
-- 中断源于原生 TUI 附着生命周期（thread 归属/订阅），而非传输或按键。
-- Pan 当前 `--stdio` 私有管道在架构上就无法被第二个客户端接入。
-- 改造的最低形态是 `--listen ws://` + Pan 与 TUI 双客户端。
+**推断（未直接观测）**
+- 目标 thread 的中断与"原生 TUI 附着生命周期"相关，而非 ws 传输或 Ctrl-C 按键
+  ——依据是对照 thread 存活、普通客户端断开不中断；但机制未定位。
+- Pan 当前 `--stdio` 私有管道在架构上无法被第二个客户端接入（据传输定义）。
+- 若将来要做原生 TUI attach，最低形态是 `--listen ws://` + Pan 与 TUI 双客户端。
 
 **未验证（含原因）**
-1. **真实模型请求**：本轮全程隔离（临时 home + 合成占位 key + 本地黑洞），
-   未使用真实凭据，因此没有跑通"真实模型产出 + 原生 TUI 展示"。原因见 §2.3。
+1. **真实模型请求 / 真实任务连续性**：本轮用本地黑洞提供方，模型请求始终挂起，
+   因此**没有测到任何模型输出，也没有验证真实任务在 attach/detach 期间的连续性**；
+   未使用真实凭据（隔离要求，见 §2.3）。
 2. **审批多客户端路由**：需要一个会请求执行命令的模型；无低成本的免模型触发路径。
-3. **中断的确切机制**：需要 app-server debug 日志或对 force-kill 分支加中继。
-4. **`unix://` 传输、`wss://`/TLS、非回环鉴权**：未测（本机 `unix://` 被既有 daemon 占用，
-   不去碰）。
-5. **共享 daemon + `app-server proxy` 路线**：只读了 help，未运行。
-6. **0.160.0 运行期行为**：只对比了 help；未在该版本上跑探针。
-7. **`resume` 时输入控制权**：本轮没有在 TUI 里真正键入内容提交（只读屏），
-   "谁拿到输入权"未测。
-8. **长时运行**：单次观测窗口约 66s；更长时间下 TUI attach 的稳定性未测。
+3. **中断的确切机制与归因**：需要 app-server debug 日志，或给 force 分支补中继。
+   `exit-force` 未接中继，该分支无观测通道（§3.5）。
+4. **exit 场景的重复性与同批对照**：两个 exit 场景各只运行一次，且各自没有内置对照 thread。
+5. **`unix://` 传输、`wss://`/TLS、非回环鉴权**：未测（本机 `unix://` 被既有 daemon 占用，不去碰）。
+6. **共享 daemon + `app-server proxy` 路线**：只读了 help，未运行。
+7. **0.160.0 运行期行为**：只对比了 help；未在该版本上跑探针。
+8. **`resume` 时输入控制权**：本轮没有在 TUI 里真正键入内容提交（只读屏），"谁拿到输入权"未测。
+9. **多客户端事件订阅的普适性**：§3.4 的负结果只覆盖"安装版 + ws + `thread/resume`"这一条路径。
+   其它传输、其它订阅/接管路径（例如先 `unsubscribe`、或 `experimentalApi` 能力差异）、
+   其它 provider 均未测，**因此不能由它推出"所有 provider 多客户端方案都不可能"**。
+10. **长时运行**：单次观测窗口约 66s；更长时间下 TUI attach 的稳定性未测。
 
 ---
 
 ## 6. 接口影响与下一步建议
 
-对 Pan Terminal 公共契约（另由 contract TA 负责）的影响：
+对 Pan Terminal 公共契约（另由 contract TA 负责）的影响。
+下面 2、3 两条是**基于本轮负结果的推荐策略**，不是已被证明的唯一可行做法；
+若要改成"依赖 provider 侧广播/多点应答"，先补做 §5 未验证项 2 与 9。
 
-1. **Terminal 与 Agent Session 的所有权必须能表达"同一个 provider 后端、两个客户端"**，
-   不能假设一个 provider 会话只有一个连接。
-2. **输出必须以 Pan 侧为唯一权威扇出点**：原生 TUI 拿不到实时 turn/item 流（§3.4），
-   所以"网页 xterm 显示"与"原生 TUI 显示"必须由 Pan 从自己那一路事件派生，
-   不能依赖 provider 广播给多个订阅者。
-3. **审批必须以 Pan 为唯一应答方**：否则存在双应答/抢占风险；原生 TUI 侧的审批
-   应被显式禁用或代理（未验证，须先做实验）。
-4. **turn 生命周期需要保护**：在 §3.5 的中断语义被解决前，"切到原生 TUI 再切回"会
-   牺牲正在跑的那一轮 turn。建议把该场景的验收口径明确为"要么不中断，要么显式告警"，
-   而不是默认可用。
+1. **Terminal 与 Agent Session 的所有权应当能表达"同一个 provider 后端、可能有多个客户端"**。
+   本轮实测到同一后端确实能接受第二个客户端连接（ws 范围），
+   所以"一个 provider 会话只有一个连接"这个前提不成立。
+2. **推荐：输出以 Pan 侧为权威扇出点**。在本轮被测的路径上，原生 TUI 拿不到实时
+   turn/item 流（§3.4，范围见 §5 未验证项 9），所以让 Pan 从自己那一路事件派生
+   "网页显示"与"原生 TUI 显示"是当前更稳妥的做法；作为推荐，不排除将来发现
+   provider 广播可用的路径。
+3. **推荐：审批尽量由 Pan 单点应答**。本轮**没有**测到多客户端审批路由（§3.6），
+   双应答/抢占是**未经证实的风险假设**，不是已观测到的故障。之所以推荐单点，
+   是因为 §3.4 已表明本路径下事件分发并非对称，审批同样不应默认对称。
+4. **turn 生命周期需要保护**：在 §3.5 的中断语义被解决前，"切到原生 TUI 再切回"
+   在已测条件下会牺牲正在跑的那一轮 turn。建议把该场景的验收口径明确为
+   "要么不中断，要么显式告警"，而不是默认可用。
 5. Windows 下 TUI 需要真实 ConPTY；探针用的是 `pywinpty==3.0.5` 装在**临时 target 目录**，
    未改动全局环境。
 
-**建议的下一步实验（按性价比排序）**
+**建议的下一步实验（按性价比排序；本轮已决定不做，仅记录）**
 1. 给 `exit-force` 分支加 WebSocket 中继 + app-server debug 日志，定位 §3.5 机制。
 2. 用受控的、可回答 Responses API 的**本地 stub 模型**（只 stub 上游模型这一层，
    CLI/app-server/TUI 全真）触发一次真实审批，测多客户端路由。需明确标注为 stub。
@@ -375,8 +432,18 @@ turn 状态、TUI 屏文本、中继帧、teardown 各步耗时与结果、清�
 | 临时 pywinpty target 目录 | 收尾已删除 |
 | 被停止的进程 | 仅本探针自己创建的：smoke server PID 43532；一次卡死运行的 PID 36932(node 48260 → codex.exe 25544) |
 | **从未被发信号的进程** | 共享 daemon PID 32480、VS Code 扩展 codex、Pan Worker codex 进程 |
-| 共享 daemon 收尾核对 | PID 32480 与创建时间 2026-10-02 20:47:42 **未变** |
+| 共享 daemon 收尾核对 | PID 32480 仍存在，其 `CreationDate` 仍为 2026-10-02 20:47:42 **未变** |
 | 真实 `~/.codex` | 全程未读写（探针只用临时 home） |
+
+**进程身份断言的口径（避免误读）**：探针记录的是 **PID + 该进程自己的 `create_time`**
+（psutil 把 Windows FILETIME 换算成 Unix 秒），断言方式是
+**"同一个 PID 在 attach 前 / attach 中 / detach 后的记录值互相比对是否未变"**。
+
+- 这验证的是**同一个进程没有换人**（PID 复用/重启会被时间戳变化暴露），
+  不是"node 与它的 `codex.exe` 子进程创建时间相等"——它们是**两个不同进程，
+  各自记录、各自比较**，两者时间戳数值本来就不要求相等（实测中常只相差不到 1 秒，
+  但这是巧合而非断言内容）。
+- 表中所写"后端身份记录未变"一律指上述**各自前后比对**的含义。
 
 备注：会话期间观察到探索开始时的两个 Pan Worker codex 进程（00:12 / 00:17 创建）在结束时
 已不存在。**本探针从未向任何非自建进程发送过信号**；它们的退出与本轮探针没有已知因果，
