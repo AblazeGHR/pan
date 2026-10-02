@@ -371,6 +371,27 @@ runner **生命周期**（PTY/Job/lease/detach/stop）不在本层：本层只�
    长时间 churn 压测。
 8. **P1 其余门禁（原子 spawn/Job guard/权威仿真器）不在本 TA**：本层不声称任何
    “running 终端”语义。
+9. **`wait_response` 超时 ≠ 放弃（R2B，语义说明，非缺陷）**：
+   `wait_response(request_id, timeout=…)` 超时抛 `RequestTimeout` 但**保留**该请求的
+   响应槽与 pending 登记；随后到达的响应仍会投递进槽位，可被后续 `wait_response` 取回
+   （因此超时后不要再把同一 request_id 当成“新请求”等待）。`call()` 路径不同：超时即
+   清槽，迟到响应计入 `late_responses`。槽位有界：≤ `DEFAULT_MAX_PENDING_REQUESTS = 32`
+   （登记处超限抛 `OperationQueueFull`）。
+10. **`accept()` 的补池假设（R2C，API 语义，非缺陷）**：实例池只在 `accept()` /
+    `cancel_accept()` 内按 `min(max_active_connections, max_instances)` 补齐。若服务循环
+    长时间**不调用** `accept()`，池被活动连接耗尽后，新客户端要等到下一次 accept 才被
+    接起（客户端侧有界重试）。正常服务循环持续 accept，故这是模型说明。
+11. **保留的低危观察（R2D/R2E，本次窄任务不做生产改动）**：
+    - R2D：`PipeServer.close()` 重复调用时 `detail` 恒为 ``"closed"``（幂等成功、未伪造），
+      与 `PipeConnection.close()` 的 “already closed” 早退属 API 表面差异；
+    - R2E：`named_mutex` 在 `finally` 中抛 `ReleaseMutex` 失败、`write_file_owner_only` /
+      `create_file_exclusive_owner_only` 在 `finally` 中抛 `CloseHandle` 失败，可能遮蔽体内
+      原异常（关闭语义本身已如实上报）。以上仅列为后续整理项。
+12. **R2A（测试可观测性，已修复）**：impostor 用例改为「可观测见证」——库记录的
+    `ERROR_NO_DATA` 瞬时事件与真实 accept+读取**分开记录**，“零凭据字节”只在**有见证**
+    的前提下断言（旧“精确计数”断言在瞬时路径下必然失败、且零字节结论会空集假通过）；
+    并有字节级反空集锚点：身份匹配时必须**读到** hello。新增确定性回归
+    `test_impostor_transient_connect_is_recorded_separately_from_reads`。
 
 ---
 
@@ -419,12 +440,17 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_secret_store.py -
 - **秘密存储层**：加解密往返与密文不含明文、ACL 从创建时生效与外部 ACE 负例、
   损坏/缺失/身份不匹配 fail-closed、64 位身份精确、reparse/越界名拒绝、删除约束、
   bootstrap 闭环、跨进程解密、registry 不带 token。
+- **r3 回归（1 项，R2A）**：`test_impostor_transient_connect_is_recorded_separately_from_reads`
+  ——确定性构造 ``ERROR_NO_DATA`` 瞬时路径，断言「瞬时事件」与「真实读取」分开记录、
+  读取观测可捕获字节（反空集）；配合 impostor 用例的 `_ImpostorWitness` / `_SendFrameCounter`
+  见证（每次身份拒绝各自可证、客户端零帧发送、字节级 hello 锚点）。
 - **r2 回归（34 项，`test_f1_*` … `test_f12_*`）**：F1/F2/F12 纯逻辑；F3/F4/F5/F6
   真实命名管道 + 句柄注入；F7/F8 真实 DACL（object/未知/AUDIT 类型）与注入（callback）；
   F9 真实并发 + CREATE_NEW 独占据名；F10 真实/伪造/探针不可用；F11 子进程自证身份 +
   核验清理 + 不广杀 decoy。
-- 计数（r2）：两份文件合计 **114 项**（原 80 + 新 34）；直连与 uv 隔离均全绿
-  （`evidence/r2/post_fix/*.log` 与 `r2_runs.json`）。
+- 计数（r3）：两份文件合计 **115 项**（原 80 + r2 新 34 + r3 新 1）；直连与 uv 隔离
+  均全绿（`evidence/r2/post_fix/*.log` 与 `r2_runs.json`；r3 见
+  `evidence/r3/README.md`、`r3_freeze.json` 与 `post_fix/` 日志）。
 - 证据：首轮 `audit/terminal/implementation/ipc/evidence/*.json`（未改动）；
   r2 在 `evidence/r2/`（pre-fix 失败阶段 + post-fix 六个变体 + 闭环矩阵 + 清理扫描），
   由 `audit/terminal/implementation/ipc/collect_r2_evidence.py` 重跑生成。

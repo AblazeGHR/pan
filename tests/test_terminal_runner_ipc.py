@@ -1331,12 +1331,92 @@ def test_expired_mutating_request_is_not_executed_late(tmp_path, child_runner):
     assert child.wait_exit(timeout=15.0) == 0
 
 
-@windows_only
-def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
-    """冒充者持有同名管道时：身份不符 → 客户端**一个字节凭据都不发**。
+class _ImpostorWitness:
+    """冒充者侧**可观测见证**（R2A）：三类事实分开记录，杜绝空集合假通过。
 
-    同时给出对照：身份精确匹配（PID + raw FILETIME）时才进入认证交换，
-    证明拒绝来自身份核验而不是“无条件拒连”。
+    - ``accepted``：``accept()`` 真实返回连接对象的次数（随后必须有一次“读取见证”）；
+    - ``transient``：库诊断记录的 ``ERROR_NO_DATA`` 瞬时事件（客户端连上即断、服务端
+      尚未 arm → 实例被丢弃重建，**不产生读取**）；
+    - ``reads``：只对**已 accept 的连接**记录读取结果（含 0 字节）。
+
+    断言口径：每次客户端身份拒绝都必须满足 ``witnesses() >= 1``（瞬时事件或真实读取），
+    “零凭据字节”只在**有见证**的前提下成立；对照用例必须能读到 hello，证明读取观测
+    真的能捕获数据（零字节断言不是空集假通过）。
+    """
+
+    TRANSIENT_MARK = "client left before connect"
+
+    def __init__(self, server, monkeypatch):
+        self.server = server
+        self.accept_calls = 0
+        self.accepted = 0
+        self.accept_errors = 0
+        self.reads: list[bytes] = []
+        self._real_accept = type(server).accept
+
+        witness = self
+
+        def counting_accept(instance, **kwargs):  # noqa: ANN001 - 测试 spy（只观测）
+            witness.accept_calls += 1
+            connection = witness._real_accept(instance, **kwargs)
+            if connection is not None:
+                witness.accepted += 1
+            return connection
+
+        monkeypatch.setattr(type(server), "accept", counting_accept)
+
+    @property
+    def transient(self) -> int:
+        """库记录的“客户端连上即断”瞬时事件数（与真实读取分开）。"""
+        errors = self.server.diagnostics.as_dict().get("errors") or []
+        return sum(1 for entry in errors if self.TRANSIENT_MARK in str(entry))
+
+    def record_read(self, chunk: bytes) -> None:
+        """只允许对真实 accept 到的连接记录读取（0 字节也要记）。"""
+        self.reads.append(bytes(chunk))
+
+    def witnesses(self) -> int:
+        return self.accepted + self.transient
+
+    def credential_bytes(self) -> int:
+        return sum(len(chunk) for chunk in self.reads)
+
+    def describe(self) -> dict:
+        return {
+            "accept_calls": self.accept_calls,
+            "accepted": self.accepted,
+            "transient": self.transient,
+            "accept_errors": self.accept_errors,
+            "read_lens": [len(chunk) for chunk in self.reads],
+        }
+
+
+class _SendFrameCounter:
+    """客户端侧证据：``PipeConnection.send_frame`` 调用计数（证明“一个字节都没发”）。"""
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        real_send = win_pipe.PipeConnection.send_frame
+
+        counter = self
+
+        def counting_send(instance, message, **kwargs):  # noqa: ANN001 - 测试 spy
+            counter.calls += 1
+            return real_send(instance, message, **kwargs)
+
+        monkeypatch.setattr(win_pipe.PipeConnection, "send_frame", counting_send)
+
+
+@windows_only
+def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, monkeypatch):
+    """冒充者持有同名管道时：身份不符 → 客户端**一个字节凭据都不发**（可观测见证）。
+
+    R2A 修复口径（不是删断言）：
+    - 两次身份拒绝**各自**要有服务端可证观测：真实 accept+读取 或 ERROR_NO_DATA 瞬时事件
+      （两类分开记录；瞬时事件不产生读取，因此不再要求“每拒绝一条读取”）；
+    - “零凭据字节”只在**有见证**的前提下断言，且客户端侧并发计数 ``send_frame`` 必须为 0；
+    - 对照用例（身份精确匹配）必须能读到 hello —— 证明读取观测真能捕获数据，
+      零字节结论不是空集合假通过。
     """
     from packages.core.terminal import secret_store
 
@@ -1361,7 +1441,8 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
         # 冒充者：本进程创建同名管道（本进程 ≠ 预期 runner）
         impostor = win_pipe.PipeServer(terminal_id, max_instances=2)
         impostor.create()
-        received: list = []
+        witness = _ImpostorWitness(impostor, monkeypatch)
+        sends = _SendFrameCounter(monkeypatch)
         stop = threading.Event()
 
         def impostor_loop():
@@ -1370,64 +1451,123 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
                     connection = impostor.accept(timeout=1.0)
                 except (win_pipe.PipeCancelled, win_pipe.PipeClosed):
                     return
-                except win_pipe.PipeError as exc:  # 瞬时错误：重试而不是打死循环
-                    received.append(b"<accept-error:%s>" % type(exc).__name__.encode("ascii"))
+                except win_pipe.PipeError:  # 其它 accept 错误分开计数（不得混进读取见证）
+                    witness.accept_errors += 1
                     continue
                 if connection is None:
                     continue
                 try:
-                    received.append(connection.recv_bytes(4096, timeout=1.5))
+                    witness.record_read(connection.recv_bytes(4096, timeout=1.5))
                 except win_pipe.PipeTimeout:
-                    received.append(b"")
+                    witness.record_read(b"")
                 except (win_pipe.PipeClosed, win_pipe.PipeError, ipc.FrameTruncatedError):
-                    received.append(b"")
+                    witness.record_read(b"")
                 finally:
                     connection.close(timeout=1.0)
 
         worker = threading.Thread(target=impostor_loop, name="impostor-server", daemon=True)
         worker.start()
 
-        def wait_received(count: int, timeout: float = 6.0) -> list:
+        def wait_witness(index: int, *, timeout: float = 10.0) -> None:
+            """有界等待“第 index 次拒绝”的服务端观测（瞬时事件或真实读取）。"""
             deadline = time.time() + timeout
-            while time.time() < deadline and len(received) < count:
+            while time.time() < deadline:
+                if witness.witnesses() >= index:
+                    return
                 time.sleep(0.02)
-            return list(received)
+            raise AssertionError(
+                f"第 {index} 次身份拒绝缺少服务端可证观测（不靠空集合）：{witness.describe()}"
+            )
 
-        def credential_bytes() -> int:
-            """冒充者实际收到的字节数（0 = 一个凭据字节都没发出去）。"""
-            return sum(len(chunk) for chunk in received if isinstance(chunk, bytes))
+        def assert_rejection_is_provable(label: str) -> None:
+            assert witness.witnesses() >= 1, f"{label}: 必须有服务端观测 {witness.describe()}"
+            assert witness.credential_bytes() == 0, (
+                f"{label}: 绝不能把凭据发给冒充者: {witness.describe()}"
+            )
+            assert not any(b"hello" in chunk for chunk in witness.reads), witness.describe()
+            assert witness.accept_errors == 0, witness.describe()
 
-        # 1) PID 不符（冒充者 PID 与秘密中的 runner PID 不同）→ 拒绝，零字节
+        # 1) PID 不符（冒充者 PID 与秘密中的 runner PID 不同）→ 客户端身份核验阶段拒绝
+        sends_before = sends.calls
         session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
-        with pytest.raises(ipc.AuthenticationError):
+        with pytest.raises(ipc.AuthenticationError) as first_error:
             session.handshake()
-        connection.close(timeout=1.0)
-        wait_received(1, timeout=2.0)  # 给冒充者一点时间记录（可能因连上即断而没记录）
-        assert credential_bytes() == 0, f"绝不能把凭据发给冒充者: {received!r}"
-        assert all(b"hello" not in chunk for chunk in received if isinstance(chunk, bytes))
-
-        # 2) PID 相同但 raw FILETIME 不符（模拟 PID 复用）→ 同样拒绝、零字节
-        store.update_runner_identity(terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime + 1)
-        session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
-        with pytest.raises(ipc.AuthenticationError):
-            session.handshake()
-        connection.close(timeout=1.0)
-        wait_received(2, timeout=2.0)
-        assert credential_bytes() == 0, f"FILETIME 不符时必须拒绝: {received!r}"
-        assert all(b"hello" not in chunk for chunk in received if isinstance(chunk, bytes))
-
-        # 对照：身份精确匹配 → 客户端进入凭据交换；冒充者不持有 token ⇒ 服务器侧认证失败
-        store.update_runner_identity(
-            terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime
+        assert "pid mismatch" in str(first_error.value), (
+            f"必须是 PID 身份核验拒绝（而非其它认证失败）: {first_error.value!r}"
         )
-        # 先**停干净**冒充者循环（否则它可能抢走对照用例的连接，造成竞态）
+        connection.close(timeout=1.0)
+        wait_witness(1)
+        assert sends.calls == sends_before, "身份核验通过前客户端不得发送任何帧"
+        assert_rejection_is_provable("PID 不符")
+
+        # 2) PID 相同但 raw FILETIME 不符（模拟 PID 复用）→ 同样拒绝
+        store.update_runner_identity(
+            terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime + 1
+        )
+        sends_before = sends.calls
+        session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
+        with pytest.raises(ipc.AuthenticationError) as second_error:
+            session.handshake()
+        assert "identity mismatch" in str(second_error.value), (
+            f"必须是 PID+FILETIME 身份核验拒绝（而非其它认证失败）: {second_error.value!r}"
+        )
+        connection.close(timeout=1.0)
+        wait_witness(2)
+        assert sends.calls == sends_before, "身份核验通过前客户端不得发送任何帧"
+        assert_rejection_is_provable("FILETIME 不符")
+
+        # 两次拒绝**各自**有观测（瞬时事件与真实读取分开记录，加起来必须 ≥ 2）
         stop.set()
         impostor.cancel_accept()
         worker.join(5)
         assert not worker.is_alive(), "冒充者线程必须收敛退出"
-        assert received == [b"", b""], f"前两个用例必须零字节: {received!r}"
+        assert witness.witnesses() >= 2, f"两次拒绝各自要有观测: {witness.describe()}"
+        assert witness.credential_bytes() == 0, witness.describe()
 
-        # 每条连接用各自独立的对象（真实拓扑：客户端侧与服务器侧是两个 handle）
+        # 对照 1（字节级反空集锚点）：身份**精确匹配**时客户端会真正发出 hello，
+        # 读取见证必须能捕获这些字节——证明“零字节”结论不是空集合假通过。
+        store.update_runner_identity(
+            terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime
+        )
+        sends_before = sends.calls
+        anchor_client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0)
+        anchor_connection = anchor_client.connect()
+        anchor_server = impostor.accept(timeout=5.0)
+        assert anchor_server is not None
+        anchor_session = ipc.IpcSession(
+            anchor_connection,
+            role="client",
+            token=token,
+            terminal_id=terminal_id,
+            expected_peer_identity=own_identity,
+            identity_probe=win_pipe.default_identity_probe,
+            timeout=3.0,
+        )
+        anchor_result: dict = {}
+        anchor_thread = threading.Thread(
+            target=lambda: anchor_result.setdefault("r", _capture(anchor_session.handshake))
+        )
+        anchor_thread.start()
+        # 冒充者只需发一个 challenge（它真的持有服务器端连接）即可换到客户端凭据证明
+        anchor_server.send_frame(ipc.build_challenge(ipc.generate_nonce()))
+        hello_bytes = b""
+        try:
+            hello_bytes = anchor_server.recv_bytes(4096, timeout=3.0)
+        except (win_pipe.PipeTimeout, win_pipe.PipeClosed, win_pipe.PipeError):
+            hello_bytes = b""
+        witness.record_read(hello_bytes)
+        anchor_thread.join(6)
+        assert b"hello" in hello_bytes, (
+            f"对照：读取见证必须能捕获 hello（否则零字节断言是空集假通过）: {witness.describe()}"
+        )
+        assert sends.calls > sends_before, "对照：身份匹配时客户端应发出凭据交换帧"
+        assert isinstance(
+            anchor_result.get("r"), (ipc.AuthenticationError, ipc.HandshakeTimeout)
+        ), "冒充者无法回出正确 ack，客户端必须拒绝"
+        anchor_server.close(timeout=1.0)
+        anchor_connection.close(timeout=1.0)
+
+        # 对照 2：身份精确匹配时进入凭据交换，冒充者不持有 token ⇒ 服务器侧 MAC 校验失败
         client_session, client_connection, _ = _client_session(tmp_path, terminal_id, token=token)
         client_session.expected_peer_identity = own_identity
         server_connection = impostor.accept(timeout=5.0)
@@ -1456,6 +1596,70 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
         assert impostor.close(timeout=2.0).converged is True
     finally:
         _cleanup_sleeper(expected_process, expected_identity)
+
+
+@windows_only
+def test_impostor_transient_connect_is_recorded_separately_from_reads(tmp_path, monkeypatch):
+    """R2A 确定性形态：客户端先连上再断（服务端尚未 arm）→ 瞬时事件单独记录。
+
+    本用例不依赖时序运气：
+    ① 冒充者实例池已建但**未 arm**；客户端连上后在身份核验阶段被拒并立即断开；
+    ② 之后才 ``accept()`` → 内核返回 ``ERROR_NO_DATA``（库记为瞬时时事件、丢弃实例重建）；
+    ③ 断言 ``accepted == 0`` 且 ``transient >= 1`` 且 ``reads == []``（两类**分开**记录）；
+    ④ 随后一条**真实**连接：``accepted == 1``，读取能捕获字节 —— 证明读取观测有效、
+       瞬时事件与读取不是同一类事实（旧“精确计数”断言在此形态下必然失败）。
+    """
+    terminal_id = "term_r2a_transient"
+    token = _sentinel_token()
+    own_identity = win_pipe.current_process_identity()
+    wrong_identity = ProcessIdentity(
+        pid=int(own_identity.pid), created_at_filetime=int(own_identity.created_at_filetime) + 1
+    )
+
+    impostor = win_pipe.PipeServer(terminal_id, max_active_connections=2)
+    impostor.create()
+    witness = _ImpostorWitness(impostor, monkeypatch)
+    sends = _SendFrameCounter(monkeypatch)
+    try:
+        # ① 连上 → 身份拒绝 → 立即断开（此时实例尚未 arm）
+        client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0)
+        connection = client.connect()
+        session = ipc.IpcSession(
+            connection,
+            role="client",
+            token=token,
+            terminal_id=terminal_id,
+            expected_peer_identity=wrong_identity,
+            identity_probe=win_pipe.default_identity_probe,
+            timeout=3.0,
+        )
+        with pytest.raises(ipc.AuthenticationError) as error:
+            session.handshake()
+        assert "identity mismatch" in str(error.value)
+        connection.close(timeout=2.0)
+        assert sends.calls == 0, "身份核验通过前客户端不得发送任何帧"
+
+        # ② 客户端已离开后才 arm → ERROR_NO_DATA 瞬时路径（确定性）
+        assert impostor.accept(timeout=1.0) is None
+        assert witness.transient >= 1, f"瞬时事件必须被记录: {witness.describe()}"
+        assert witness.accepted == 0 and witness.reads == [], (
+            f"瞬时路径不得伪造读取见证: {witness.describe()}"
+        )
+
+        # ③ 真实连接：accepted 增加，读取捕获字节（两类事实可分辨）
+        client2 = win_pipe.PipeClient(terminal_id, connect_timeout=5.0)
+        connection2 = client2.connect()
+        accepted2 = impostor.accept(timeout=5.0)
+        assert accepted2 is not None
+        connection2.send_frame({"v": 1, "type": "ping"})
+        data = accepted2.recv_bytes(4096, timeout=3.0)
+        assert data, "真实 accept 的连接必须能读到字节（读取观测有效）"
+        assert witness.accepted >= 1
+        assert witness.transient >= 1, "瞬时事件计数不得被读取覆盖/清零"
+        accepted2.close(timeout=1.0)
+        connection2.close(timeout=1.0)
+    finally:
+        assert impostor.close(timeout=2.0).converged is True
 
 
 @windows_only

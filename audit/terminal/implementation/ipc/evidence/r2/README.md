@@ -41,6 +41,11 @@ uv run --no-project --python E:/software/miniforge/python.exe \
 > `test_close_never_converges_after_cancel_accept_rearms_pending` 断言 close 不收敛）。
 > 按要求它们不原样保留为回归，而是转换为上表的正向期望；其源码在复核树中**只读保留**。
 
+> **R2F 改名映射（复核 round2 提出，证据卫生）**：pre-fix 日志中的
+> `test_f7_unknown_ace_type_and_unparsable_allow_are_rejected` 在最终树中改名为
+> `test_f7_unknown_and_non_allow_ace_types_are_rejected`（同一用例：真实 DACL 的
+> 未知类型 / AUDIT 类 fail-closed）。29 个失败 nodeid 中 28 个与最终名一致，仅此 1 项改名。
+
 > pre-fix 的 5 项“当时已通过”是**正向对照**（F4 re-arm 的占名检测、F5 已 issued 的 close、
 > F10 真实自证、F11 两条），与缺陷断言无关；修复后它们仍通过。
 

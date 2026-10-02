@@ -1,0 +1,321 @@
+{
+  "task": "T-TERMINAL-PTY-20261003 / P1 IPC+秘密存储 —— r3 窄任务（R2A 修复 + R2B–R2F 处置）",
+  "started_from": "85d7650375c2fe702be620485dec314e0f904755（本级起点，核对 clean）",
+  "review_input": {
+    "round2_report": "terminal-ipc-review-20261003/docs/design/PAN_TERMINAL_IPC_SECURITY_REVIEW_20261003_ROUND2.md（只读）",
+    "round2_evidence_commit": "21d287c1b7a20f60d96b041452080205b04e6db5",
+    "audit2_report_commit": "48c15231（已接受 F1–F12 安全子集）",
+    "integration_commit": "8af9b0f9（e018+85d765 纳入隔离集成）"
+  },
+  "scope": "只改 tests/test_terminal_runner_ipc.py、接口文档、audit 自有 r3 目录/工具；生产 3 模块（ipc/win_pipe/secret_store）零改动（git diff 可核）。",
+  "generated_at": "2026-10-03T05:28:29+0800",
+  "counts": {
+    "full_direct": "115 passed in 55.80s",
+    "full_uv": [
+      "115 passed in 55.97s",
+      "115 passed in 56.06s"
+    ],
+    "targeted_pass_ratio": "20/20"
+  },
+  "items": {
+    "R2A": {
+      "severity": "测试健壮性（唯一套件偶发失败根因）",
+      "status": "fixed（仅测试与文档；生产 3 模块未改）",
+      "root_cause": "冒充者 accept 在“客户端连上即断”时走 ERROR_NO_DATA 瞬时路径：实例被丢弃重建、不产生读取观测；用例的精确计数断言 `received == [b'', b'']` 在该路径下必然失败，而 `sum(len(...)) == 0` 之类断言会因集合为空而**假通过**。",
+      "reproduction_natural": "本树复跑 uv 全量 3 次：run1 114 passed、run2 114 passed、run3 1 failed/113 passed（同 R2A：`assert [b''] == [b'', b'']`）",
+      "reproduction_deterministic": "audit/terminal/implementation/ipc/r3_repro_r2a_transient.py：客户端连上→身份拒绝→断开后才 arm，稳定得到 transient=1、accepted=0；旧断言 FAILED（received==[]，零字节结论空集假通过），新见证逻辑 PASSED",
+      "fix": "impostor 用例改为 `_ImpostorWitness`（accepted / transient / reads 三类分开记录）+ `_SendFrameCounter`（客户端零帧发送）：两次身份拒绝各自要有服务端观测（瞬时事件或真实读取），零凭据字节只在有见证前提下断言；对照段加字节级 anchor（身份匹配时**读到** hello，证明读取观测有效），另加确定性回归用例（瞬时路径 vs 真实读取）。",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_impostor_pipe_server_identity_is_rejected_before_credentials",
+        "tests/test_terminal_runner_ipc.py::test_impostor_transient_connect_is_recorded_separately_from_reads"
+      ],
+      "stability": "定向 impostor 直连 10/10、uv 10/10 全绿；全量直连 115/115、uv 115/115 ×2",
+      "not_vacuous": "断言口径：`witnesses() = accepted + transient ≥ 1` 每拒绝各自成立、`credential_bytes() == 0`、`accept_errors == 0`、客户端 `send_frame` 计数不变；对照段必须 `b\"hello\" in hello_bytes`（字节级锚点）。"
+    },
+    "R2B": {
+      "severity": "文档/语义观察",
+      "status": "documented（不动生产）",
+      "note": "wait_response(timeout) 超时≠放弃：保留响应槽与 pending，迟到响应仍投递、可被后续 wait_response 取回；call 超时清槽并把迟到响应计入 late_responses；槽位有界 ≤32（DEFAULT_MAX_PENDING_REQUESTS）。已写入接口文档 §7-9。"
+    },
+    "R2C": {
+      "severity": "API 语义观察（非缺陷）",
+      "status": "documented（不动生产）",
+      "note": "实例池只在 accept()/cancel_accept() 内按 min(max_active_connections, max_instances) 补齐；服务循环长时间不 accept 时新客户端等到下一次 accept（客户端有界重试）。已写入接口文档 §7-10。"
+    },
+    "R2D": {
+      "severity": "表面一致性（低）",
+      "status": "retained-observation（不扩生产修复）",
+      "note": "PipeServer.close 重复调用 detail 恒为 \"closed\"（幂等成功、未伪造）；PipeConnection.close 有 already-closed 早退。已记录于接口文档 §7-11。"
+    },
+    "R2E": {
+      "severity": "防御性卫生（低）",
+      "status": "retained-observation（不扩生产修复）",
+      "note": "named_mutex 的 ReleaseMutex 失败在 finally 抛出、write/create 的 CloseHandle 失败在 finally 抛出，可能遮蔽体内原异常（关闭语义本身已如实上报）。已记录于接口文档 §7-11。"
+    },
+    "R2F": {
+      "severity": "证据卫生",
+      "status": "fixed（文档）",
+      "note": "pre-fix 日志中 test_f7_unknown_ace_type_and_unparsable_allow_are_rejected 在最终树改名为 test_f7_unknown_and_non_allow_ace_types_are_rejected；已在 r2 README 标注改名映射。"
+    }
+  },
+  "runs": {
+    "pre_fix_natural_uv_repro": [
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/pre_fix/uv_full_run_1.log",
+        "exists": true,
+        "sha256_16": "e911036d0557cfa2",
+        "lines": 3,
+        "summary": "114 passed in 52.15s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/pre_fix/uv_full_run_2.log",
+        "exists": true,
+        "sha256_16": "ef093e4a27194435",
+        "lines": 3,
+        "summary": "114 passed in 52.07s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/pre_fix/uv_full_run_3.log",
+        "exists": true,
+        "sha256_16": "634bade2e6592ff9",
+        "lines": 12,
+        "summary": "1 failed, 113 passed in 50.85s",
+        "failed": [
+          "FAILED tests/test_terminal_runner_ipc.py::test_impostor_pipe_server_identity_is_rejected_before_credentials"
+        ],
+        "cases": []
+      }
+    ],
+    "pre_fix_deterministic_repro": {
+      "log": "audit/terminal/implementation/ipc/evidence/r3/pre_fix/r2a_transient_repro.json",
+      "exists": true,
+      "sha256_16": "d4553ff8f6ebec32",
+      "lines": 30,
+      "summary": "}",
+      "failed": [],
+      "cases": []
+    },
+    "post_fix_full_direct": {
+      "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_all.log",
+      "exists": true,
+      "sha256_16": "8b5b3a2a1640d789",
+      "lines": 3,
+      "summary": "115 passed in 55.80s",
+      "failed": [],
+      "cases": []
+    },
+    "post_fix_full_uv": [
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_all_1.log",
+        "exists": true,
+        "sha256_16": "c7ff419beed1d2f0",
+        "lines": 3,
+        "summary": "115 passed in 55.97s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_all_2.log",
+        "exists": true,
+        "sha256_16": "ad699dd5ff7d7325",
+        "lines": 3,
+        "summary": "115 passed in 56.06s",
+        "failed": [],
+        "cases": []
+      }
+    ],
+    "post_fix_targeted_direct": [
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_1.log",
+        "exists": true,
+        "sha256_16": "76fb57616d581ac8",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.26s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_2.log",
+        "exists": true,
+        "sha256_16": "76fb57616d581ac8",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.26s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_3.log",
+        "exists": true,
+        "sha256_16": "450e25eaf689811f",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.22s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_4.log",
+        "exists": true,
+        "sha256_16": "367914a88d7e04c3",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.23s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_5.log",
+        "exists": true,
+        "sha256_16": "367914a88d7e04c3",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.23s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_6.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_7.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_8.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_9.log",
+        "exists": true,
+        "sha256_16": "76fb57616d581ac8",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.26s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/direct_impostor_10.log",
+        "exists": true,
+        "sha256_16": "bcb82305a32685b5",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.20s",
+        "failed": [],
+        "cases": []
+      }
+    ],
+    "post_fix_targeted_uv": [
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_1.log",
+        "exists": true,
+        "sha256_16": "a2d953b54d1d7c34",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.25s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_2.log",
+        "exists": true,
+        "sha256_16": "101683ad8b64e9c4",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.27s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_3.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_4.log",
+        "exists": true,
+        "sha256_16": "a2d953b54d1d7c34",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.25s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_5.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_6.log",
+        "exists": true,
+        "sha256_16": "a2d953b54d1d7c34",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.25s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_7.log",
+        "exists": true,
+        "sha256_16": "450e25eaf689811f",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.22s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_8.log",
+        "exists": true,
+        "sha256_16": "b2502b0be98a8b7c",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.24s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_9.log",
+        "exists": true,
+        "sha256_16": "101683ad8b64e9c4",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.27s",
+        "failed": [],
+        "cases": []
+      },
+      {
+        "log": "audit/terminal/implementation/ipc/evidence/r3/post_fix/uv_impostor_10.log",
+        "exists": true,
+        "sha256_16": "450e25eaf689811f",
+        "lines": 2,
+        "summary": "2 passed, 77 deselected in 9.22s",
+        "failed": [],
+        "cases": []
+      }
+    ]
+  },
+  "environment": {
+    "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+    "python_executable": "E:\\software\\miniforge\\python.exe",
+    "platform": "win32"
+  }
+}
