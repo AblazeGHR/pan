@@ -4,6 +4,8 @@ import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markd
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
+import { CodeWindow } from './CodeWindow';
+import { needsCodeWindow, rehypeBoundCodeHighlight, diffLineClass } from './codePresentation';
 import { Copy, Check, File as FileIcon } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
@@ -241,7 +243,7 @@ interface MarkdownRendererProps {
 // Keep plugin identity stable so react-markdown does not rebuild its unified
 // pipeline when an unrelated message or sidebar state changes.
 const REMARK_PLUGINS = [remarkGfm];
-const REHYPE_PLUGINS = [rehypeHighlight, rehypeKatex];
+const REHYPE_PLUGINS = [rehypeBoundCodeHighlight, rehypeHighlight, rehypeKatex];
 
 /** Recursively extract plain text from React nodes (handles hljs spans). */
 function extractCodeText(node: React.ReactNode): string {
@@ -266,6 +268,7 @@ function CopyButton({ codeText }: { codeText: string }) {
   return (
     <button
       onClick={handleCopy}
+      aria-label="Copy code"
       className="text-[10px] text-text-tertiary hover:text-text-primary cursor-pointer transition-colors"
     >
       {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
@@ -278,12 +281,7 @@ function DiffLines({ codeText, node: _node, ...rest }: { codeText: string; node?
     <pre className="p-3 overflow-x-auto m-0">
       <code className="text-xs font-mono leading-relaxed block" {...rest}>
         {codeText.split('\n').map((line: string, i: number) => {
-          let lineClass = '';
-          if (line.startsWith('+') && !line.startsWith('+++')) {
-            lineClass = 'bg-green-500/10 border-l-2 border-green-500 pl-2 -ml-2';
-          } else if (line.startsWith('-') && !line.startsWith('---')) {
-            lineClass = 'bg-red-500/10 border-l-2 border-red-500 pl-2 -ml-2';
-          }
+          const lineClass = diffLineClass(line);
           return (
             <div key={i} className={lineClass} style={{ minHeight: '1.25em' }}>
               {line || '\u00A0'}
@@ -327,7 +325,9 @@ function CodeBlock({
         </span>
         <CopyButton codeText={codeText} />
       </div>
-      {language === 'diff' ? (
+      {needsCodeWindow(codeText) ? (
+        <CodeWindow text={codeText} language={langLabel} />
+      ) : language === 'diff' ? (
         <DiffLines codeText={codeText} {...props} />
       ) : (
         <pre className="p-3 overflow-x-auto m-0">

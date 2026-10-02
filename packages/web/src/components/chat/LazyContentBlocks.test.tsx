@@ -89,6 +89,25 @@ beforeEach(() => {
 });
 
 describe('lazy long chat blocks', () => {
+  it('lets users read older thinking during deltas and resumes following at the bottom', () => {
+    const initial: Message = { role: 'thinking', content: 'initial', blockId: 'thought' };
+    const { rerender } = render(<ThinkingGroup items={[initial]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'thinking' }));
+    const viewport = screen.getByTestId('thinking-content-window').firstElementChild as HTMLDivElement;
+    Object.defineProperties(viewport, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 160 },
+    });
+    viewport.scrollTop = 300;
+    fireEvent.wheel(viewport, { deltaY: -100 });
+    rerender(<ThinkingGroup items={[{ ...initial, content: 'initial extended' }]} />);
+    expect(viewport.scrollTop).toBe(300);
+    viewport.scrollTop = 840;
+    fireEvent.scroll(viewport);
+    rerender(<ThinkingGroup items={[{ ...initial, content: 'initial extended again' }]} />);
+    expect(viewport.scrollTop).toBe(1000);
+  });
+
   it('defers thinking Markdown of any length until expanded', () => {
     const short = render(<ThinkingBlock message={{ role: 'thinking', content: 'short plan' }} />);
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();

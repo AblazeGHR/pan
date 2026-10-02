@@ -341,6 +341,15 @@ export async function syncSessionLegalWorkerState(
   );
 }
 
+export async function setSessionLegalWorkerStateRunning(
+  id: string,
+): Promise<ApiSessionLegalStateSyncResult> {
+  return request<ApiSessionLegalStateSyncResult>(
+    `${BASE}/sessions/${encodeURIComponent(id)}/legal-state/running`,
+    { method: 'POST' },
+  );
+}
+
 export async function fetchSessionUsage(id: string, signal?: AbortSignal): Promise<SessionUsageView> {
   const data = await request<SessionUsageView>(`${BASE}/sessions/${encodeURIComponent(id)}/usage`, { signal });
   if (data.ok === false) throw new Error(data.error?.message || 'Failed to load session usage');

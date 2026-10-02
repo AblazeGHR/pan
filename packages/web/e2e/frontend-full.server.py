@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 spec = importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))
 fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture)
-assert fixture.PORT in (8765, 8767), 'use only isolated test ports'
+assert fixture.PORT == 8765, 'use only the isolated full-chain test port'
 
 from packages.core.adapters.cbc.adapter import CbcAdapter
 from packages.core.adapters.claude.adapter import ClaudeAdapter

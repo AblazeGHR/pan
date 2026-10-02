@@ -261,12 +261,13 @@ describe('AppSettingsModal', () => {
   it('renders the settings sections, including Session history search, plus Reset', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
-    expect(card.textContent).toContain('Default group by');
+    expect(card.textContent).not.toContain('Default group by');
     expect(document.getElementById('app-settings-tab-preferences')?.textContent)
       .toContain('Preferences');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(8);
+    expect(card.textContent).toContain('Default group by');
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(9);
     expect(card.textContent).toContain('Notification');
     expect(card.textContent).toContain('Enable Session and global history search');
   });
@@ -653,7 +654,7 @@ describe('AppSettingsModal', () => {
         .toContain('catalog unavailable'),
     );
     fireEvent.click(document.getElementById('app-settings-tab-general')!);
-    expect(cardEl().textContent).toContain('Default group by');
+    expect(cardEl().textContent).toContain('Worker configuration');
   });
 
   it('loads disabled retention policies, edits days, saves, and shows recent scan counts', async () => {
@@ -1034,7 +1035,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(8);
+    expect(switches).toHaveLength(9);
     // meta-agent is on by default; toggle it off.
     const metaSwitch = switches.find((element) => element.textContent?.includes('Show meta-agent info'))!;
     expect(metaSwitch.getAttribute('aria-checked')).toBe('true');
@@ -1064,22 +1065,59 @@ describe('AppSettingsModal', () => {
     expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: false });
   });
 
-  it('exposes Show Group by in Preferences and persists the toggle', () => {
+  it('exposes the group-by settings only on the Appearance tab without duplicates', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
+
+    // General tab: Default group by moved out.
+    expect(cardEl().textContent).not.toContain('Default group by');
+    expect(document.getElementById('app-settings-default-group-by')).toBeNull();
+
+    // Preferences tab: Show Group by moved out.
     fireEvent.click(document.getElementById('app-settings-tab-preferences')!);
+    expect(cardEl().textContent).not.toContain('Show Group by');
+    expect(cardEl().textContent).not.toContain('Default group by');
+    expect(document.getElementById('app-settings-default-group-by')).toBeNull();
+
+    // Appearance tab: both controls present, each exactly once.
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+    expect(cardEl().textContent).toContain('Show Group by');
+    expect(cardEl().textContent).toContain('Default group by');
+    const groupBySwitches = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).filter((element) => element.textContent?.includes('Show Group by'));
+    expect(groupBySwitches).toHaveLength(1);
+    expect(document.body.querySelectorAll('#app-settings-default-group-by')).toHaveLength(1);
+  });
+
+  it('toggles Show Group by on the Appearance tab and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const groupSwitch = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'))
       .find((element) => element.textContent?.includes('Show Group by'))!;
     expect(groupSwitch.getAttribute('aria-checked')).toBe('false');
+
     fireEvent.click(groupSwitch);
     expect(useAppSettingsStore.getState().showGroupBy).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ showGroupBy: true });
     expect(groupSwitch.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(groupSwitch);
+    expect(useAppSettingsStore.getState().showGroupBy).toBe(false);
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showGroupBy: false });
+    expect(groupSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
-  it('changes default group by via the select', () => {
+  it('changes Default group by on the Appearance tab and persists the selection', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
-    const select = document.body.querySelector<HTMLSelectElement>('select')!;
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+    const select = document.body.querySelector<HTMLSelectElement>(
+      '#app-settings-default-group-by',
+    )!;
+    expect(select).toBeTruthy();
     fireEvent.change(select, { target: { value: 'workdir' } });
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ defaultGroupBy: 'workdir' });
+    expect(select.value).toBe('workdir');
   });
 
   it('resets all settings to defaults', () => {

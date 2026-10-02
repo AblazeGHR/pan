@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { McpRemoteSettings } from './McpRemoteSettings';
 import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -1407,6 +1408,43 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Session list
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show Group by"
+                    hint="When hidden, the Session list always uses Manager grouping."
+                    checked={showGroupBy}
+                    onChange={setShowGroupBy}
+                  />
+                  <div className="px-3 py-2">
+                    <label
+                      htmlFor="app-settings-default-group-by"
+                      className="block text-xs text-text-secondary mb-1"
+                    >
+                      Default group by
+                    </label>
+                    <select
+                      id="app-settings-default-group-by"
+                      value={defaultGroupBy}
+                      onChange={(e) => setDefaultGroupBy(e.target.value as GroupMode)}
+                      className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
+                    >
+                      {GROUP_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                      Applies to the session list as the default grouping. You can still cycle
+                      grouping per view with the group button.
+                    </p>
+                  </div>
+                </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   Message visibility
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
@@ -1501,19 +1539,6 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             <>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Session list
-                </h3>
-                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                  <SwitchRow
-                    label="Show Group by"
-                    hint="When hidden, the Session list always uses Manager grouping."
-                    checked={showGroupBy}
-                    onChange={setShowGroupBy}
-                  />
-                </div>
-              </section>
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   New Sessions
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
@@ -1546,29 +1571,6 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             />
           ) : (
             <>
-              {/* Session list grouping */}
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Session list
-                </h3>
-                <label className="block text-xs text-text-secondary mb-1">Default group by</label>
-                <select
-                  value={defaultGroupBy}
-                  onChange={(e) => setDefaultGroupBy(e.target.value as GroupMode)}
-                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
-                >
-                  {GROUP_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Applies to the session list as the default grouping. You can still cycle grouping
-                  per view with the group button.
-                </p>
-              </section>
-
               {/* Worker settings are edited and hot-applied here. Adapter
               reload feedback is shown with adapter controls on the Adapter tab. */}
               <section>
@@ -2032,6 +2034,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </section>
               )}
 
+              <McpRemoteSettings />
               {/* Reset */}
               <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-start gap-3">
                 <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-[32rem]">

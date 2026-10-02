@@ -14,7 +14,7 @@ Pan 把 CLI Agent 的长期身份和临时进程分开管理。**Session** 保�
 | 名称 | 含义 |
 |---|---|
 | Session | 持久会话身份；也承载 MA 或 TA 角色 |
-| Worker | 运行某个 Session 的临时 CLI 进程；停止 Worker 不会删除 Session |
+| Worker | 运行某个 Session 的临时 CLI 进程；既有 MA Worker 也有 TA Worker。停止 Worker 不会删除 Session |
 | Adapter | cbc、kimi、opencode、claude 或 codex 等 CLI 的连接适配器；可用性取决于本机安装与 PATH |
 | MA / TA | MA（meta-agent）负责拆解、派发与验收；TA（task-agent）承接具体工作。二者都是 Session 的职责角色 |
 | Workspace / workdir | Workspace 用来整理 Sessions 与共享目录；`workdir` 是该 Session 的实际工作目录，两者用途不同 |

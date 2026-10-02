@@ -99,6 +99,10 @@ function targetSummary(job: Job): string {
   if (job.action?.api === 'resume_legal_running') {
     return 'dynamic: legal running Sessions without a live Worker';
   }
+  if (job.action?.api === 'send_qq') {
+    const { targetType, targetId, botUin } = job.action.args;
+    return `QQ ${targetType} ${targetId} · ${botUin ? `bot ${botUin}` : 'default bot'}`;
+  }
   return job.target.sessionId ?? 'no target';
 }
 
@@ -234,6 +238,7 @@ function JobRow({
   const hasTarget = !!job.target.sessionId;
   const canRunNow = job.action?.api === 'shell'
     || job.action?.api === 'resume_legal_running'
+    || job.action?.api === 'send_qq'
     || hasTarget;
   return (
     <div

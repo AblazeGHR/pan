@@ -291,10 +291,15 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
   refresh: async () => {
     const refreshSeq = get().refreshSeq + 1;
     const touchedAtStart = { ...get().workerTouchedSeq };
+    // A Pan restart while this request is in flight invalidates the response:
+    // the previous process's worker list must not resurrect stale workers
+    // after the client accepted the new server epoch.
+    const epochAtStart = get().runtimeEpoch;
     set({ refreshSeq });
     try {
       const workers = await listWorkers();
       if (get().refreshSeq !== refreshSeq) return;
+      if (epochAtStart !== null && get().runtimeEpoch !== epochAtStart) return;
       const map: Record<string, WorkerInfo> = {};
       for (const w of workers) {
         const previous = useWorkerStore.getState().workers[w.sessionId];

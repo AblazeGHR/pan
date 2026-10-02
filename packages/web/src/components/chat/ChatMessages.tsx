@@ -344,6 +344,25 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const virtualItems = virtualizer.getVirtualItems();
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
+  // Rows use normal document flow to prevent overlap during streaming. While
+  // scrolling, TanStack defers a new row's first measurement to ResizeObserver.
+  // Its actual DOM height can therefore move later rows before the estimated
+  // prefix/scroll compensation catches up. Measure only these newly mounted
+  // rows in the layout phase, so both changes settle before the first paint.
+  // Previously measured rows retain the library's normal resize policy (in
+  // particular, growth below the reading point in a tall row does not scroll).
+  useLayoutEffect(() => {
+    const instance = virtualizerRef.current;
+    if (!instance.itemSizeCache || !parentRef.current) return;
+    for (const node of parentRef.current.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
+      const index = Number(node.dataset.index);
+      const key = instance.options.getItemKey(index);
+      if (!instance.itemSizeCache.has(key)) {
+        const height = instance.options.measureElement(node, undefined, instance);
+        if (height > 0) instance.resizeItem(index, height);
+      }
+    }
+  }, [virtualItems, currentSessionId]);
   const [isUnderfilled, setIsUnderfilled] = useState(false);
   const refreshUnderfilled = useCallback(() => {
     const el = parentRef.current;
@@ -617,37 +636,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     }, PROGRAMMATIC_SETTLE_TIMEOUT_MS);
   }, [clearProgrammaticSuppression]);
 
-  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
-    const identity = getMessageIdentity(message);
-    const itemIndex = grouped.findIndex((item) => {
-      if ('type' in item && item.type === 'tool_group') return false;
-      return getMessageIdentity(item as import('@/types').Message) === identity;
-    });
-    if (itemIndex < 0) return false;
-
-    // Search navigation changes the reading position deliberately. Keep later
-    // history/layout updates from treating the previous bottom position as an
-    // instruction to pull the reader back down.
-    shouldFollowBottomRef.current = false;
-    initialScrollPendingRef.current = false;
-    markProgrammaticChange();
-    virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-    setHighlightedTarget({ identity, historyIndex });
-    // A jump moves the viewport without touching the scroll listener (and may
-    // not even change totalSize), so refresh the round-trip anchor once the
-    // targeted row has landed. Otherwise leaving right after a jump would
-    // remember the position from before it.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = parentRef.current;
-        if (el) rememberScrollPosition(el);
-      });
-    });
-    return true;
-  }, [grouped, virtualizer, rememberScrollPosition, markProgrammaticChange]);
-
-  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
-
   const clearUserScrollActivity = useCallback(() => {
     const state = userScrollStateRef.current;
     if (state.timer !== null) clearTimeout(state.timer);
@@ -655,6 +643,41 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     state.active = false;
     upwardPaginationArmedRef.current = false;
   }, []);
+
+  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
+    const identity = getMessageIdentity(message);
+    const itemIndex = findDisplayItemIndexByMessageIdentity(groupedRef.current, identity);
+    if (itemIndex < 0) return false;
+
+    // Navigation owns this position. A cold jump measures new rows and changes
+    // totalSize; bottom-follow and a previous reading/pagination anchor must
+    // not undo the virtualizer's first positioning/reconciliation.
+    clearUserScrollActivity();
+    shouldFollowBottomRef.current = false;
+    initialScrollPendingRef.current = false;
+    restoreRef.current = null;
+    isRestoringRef.current = false;
+    sessionAnchorRef.current = null;
+    paginationAnchorRef.current = null;
+    for (const pending of [sessionBottomRafRef, sessionAnchorRestoreRafRef, paginationRestoreRafRef]) {
+      if (pending.current !== null) cancelAnimationFrame(pending.current);
+      pending.current = null;
+    }
+    markProgrammaticChange();
+    setIsNearBottom(false);
+    const sessionAtJump = currentSessionIdRef.current;
+    virtualizerRef.current.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
+    setHighlightedTarget({ identity, historyIndex });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = parentRef.current;
+        if (el && currentSessionIdRef.current === sessionAtJump) rememberScrollPosition(el);
+      });
+    });
+    return true;
+  }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition]);
+
+  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
     const state = userScrollStateRef.current;
@@ -840,7 +863,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       !anchor ||
       anchor.sessionId !== currentSessionIdRef.current ||
       sessionSwitchWaitingForSettingsRef.current ||
-      shouldFollowBottomRef.current
+      shouldFollowBottomRef.current ||
+      (userScrollStateRef.current.active && !paginationAnchorRef.current && !restoreRef.current)
     ) return false;
 
     let row = anchor.identity
@@ -888,6 +912,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   }, [markProgrammaticChange]);
 
   const scheduleSessionAnchorRestore = useCallback(() => {
+    // A measurement-triggered render must not re-arm the restore that explicit
+    // wheel/touch input just cancelled. Genuine prepend/route restores retain
+    // their own anchor until the requested content has landed.
+    if (userScrollStateRef.current.active && !paginationAnchorRef.current && !restoreRef.current) return;
     if (sessionAnchorRestoreRafRef.current !== null) return;
     let frameCount = 0;
     let stableFrames = 0;
@@ -1261,6 +1289,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         markUserScrollInput();
       }
     };
+    const markScrollbarInput = (event: MouseEvent) => {
+      if (event.button !== 0 || event.target !== el) return;
+      const rect = el.getBoundingClientRect();
+      // Native thumb drags emit scroll events but can suppress pointermove.
+      // Claim only the scrollbar gutter, never an ordinary message/body click.
+      const gutter = el.offsetWidth - el.clientWidth;
+      if (gutter > 0 && (
+        event.clientX >= rect.left + el.clientLeft + el.clientWidth ||
+        event.clientX < rect.left + el.clientLeft
+      )) {
+        markUserScrollInput(event, 'older');
+      }
+    };
     const handler = () => {
       const previousTop = lastScrollTopRef.current;
       const movedOlder = previousTop !== null && el.scrollTop < previousTop;
@@ -1334,6 +1375,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     el.addEventListener('touchstart', markUserScrollInput, { passive: true });
     el.addEventListener('touchmove', markUserScrollInput, { passive: true });
     el.addEventListener('pointermove', markPointerScrollInput, { passive: true });
+    el.addEventListener('mousedown', markScrollbarInput, { passive: true });
     el.addEventListener('keydown', markUserScrollKey);
     el.addEventListener('scroll', handler);
     el.addEventListener('scrollend', handleScrollEnd);
@@ -1341,7 +1383,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('touchstart', markUserScrollInput);
       el.removeEventListener('touchmove', markUserScrollInput);
-      el.removeEventListener('pointermove', markPointerScrollInput);
+    el.removeEventListener('pointermove', markPointerScrollInput);
+    el.removeEventListener('mousedown', markScrollbarInput);
       el.removeEventListener('keydown', markUserScrollKey);
       el.removeEventListener('scroll', handler);
       el.removeEventListener('scrollend', handleScrollEnd);

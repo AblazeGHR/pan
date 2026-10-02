@@ -67,6 +67,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [directoryCreationPath, setDirectoryCreationPath] = useState<string | null>(null);
   const directoryCreationWorkspaceIds = useRef<string[] | null>(null);
+  const directoryCreationIncludesAdvanced = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const cliStatus = useAdapterStore((s) => s.cliStatus);
@@ -131,18 +132,19 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setSubmitting(false);
       setDirectoryCreationPath(null);
       directoryCreationWorkspaceIds.current = null;
+      directoryCreationIncludesAdvanced.current = false;
       let cancelled = false;
       Promise.all([
         fetchSessionTemplates().catch(() => [] as SessionTemplate[]),
         fetchSessionTemplateTargets().catch((error: unknown) => {
-          if (!cancelled) setTargetsLoadError(error instanceof Error ? error.message : '未知错误');
-          if (!cancelled) showToast(`读取可保存目标失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
+          if (!cancelled) setTargetsLoadError(error instanceof Error ? error.message : 'Unknown error');
+          if (!cancelled) showToast(`Failed to load template targets: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
           return [] as SessionTemplateManifestTarget[];
         }),
         fetchMcpServers().catch(() => [] as McpServerInfo[]),
         fetchNewSessionDefaults().catch((error: unknown) => {
           if (!cancelled) showToast(
-            `读取 New Session 默认配置失败：${error instanceof Error ? error.message : '未知错误'}`,
+            `Failed to load New Session defaults: ${error instanceof Error ? error.message : 'Unknown error'}`,
             'error',
           );
           return null;
@@ -157,7 +159,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         setSessionTemplate(templateExists ? savedTemplate : '');
         setMcpMode(templateExists && savedTemplate ? '' : 'optional');
         if (savedTemplate && !templateExists) {
-          showToast(`已保存的 Session Template「${savedTemplate}」不可用，已清除该预填项`, 'error');
+          showToast(`Saved Session Template “${savedTemplate}” is unavailable. The prefilled value has been cleared.`, 'error');
         }
         setAdapter(defaults?.adapter ?? '');
         setOutputMode(defaults?.outputMode ?? '');
@@ -254,10 +256,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         setAdapter('');
       } else if (availableAdapterNames.has(tpl.adapter)) {
         setAdapter(tpl.adapter);
-        showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
+        showToast(`The selected template uses adapter ${tpl.adapter}; the adapter is now locked.`, 'info');
       } else {
         setAdapter('');
-        showToast(`模板要求的 adapter ${tpl.adapter} 当前不可用，无法创建此 session`, 'error');
+        showToast(`The template requires adapter ${tpl.adapter}, which is unavailable. This Session cannot be created.`, 'error');
       }
     } else if (value === '') {
       setAdapter(
@@ -271,20 +273,23 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const createSession = async (
     requestedWorkdir: string | null,
     workspaceIds: string[],
+    includeAdvancedSettings: boolean,
   ) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
     const createSettings = {
       outputMode: outputMode || undefined,
       workspaceIds,
-      model: model || undefined,
-      permissionMode: permissionMode || undefined,
-      effort: effort || undefined,
-      modelContextWindow: modelContextWindow ? Number(modelContextWindow) : undefined,
-      modelAutoCompactTokenLimit: modelAutoCompactTokenLimit ? Number(modelAutoCompactTokenLimit) : undefined,
-      alwaysThinkingEnabled: thinking,
-      systemPrompt: systemPromptOverride ? systemPrompt : undefined,
-      mcpServers: mcpServerOverride === null ? undefined : mcpServerOverride,
-      panAccess: Object.keys(panAccess).length ? panAccess : undefined,
+      ...(includeAdvancedSettings ? {
+        model: model || undefined,
+        permissionMode: permissionMode || undefined,
+        effort: effort || undefined,
+        modelContextWindow: modelContextWindow ? Number(modelContextWindow) : undefined,
+        modelAutoCompactTokenLimit: modelAutoCompactTokenLimit ? Number(modelAutoCompactTokenLimit) : undefined,
+        alwaysThinkingEnabled: thinking,
+        systemPrompt: systemPromptOverride ? systemPrompt : undefined,
+        mcpServers: mcpServerOverride === null ? undefined : mcpServerOverride,
+        panAccess: Object.keys(panAccess).length ? panAccess : undefined,
+      } : {}),
     };
     await createNewSession(
       finalName,
@@ -301,10 +306,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           sessionTemplate: sessionTemplate || '',
           workdir: requestedWorkdir || '',
         });
-        showToast('Session 已创建，默认配置已保存', 'info');
+        showToast('Session created and defaults saved.', 'info');
       } catch (error: unknown) {
         showToast(
-          `Session 已创建，但默认配置未保存：${error instanceof Error ? error.message : '未知错误'}`,
+          `Session created, but defaults were not saved: ${error instanceof Error ? error.message : 'Unknown error'}`,
           'error',
         );
       }
@@ -316,28 +321,29 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     e?.preventDefault();
     if (submitting) return;
     if (cliStatusLoading) {
-      showToast('正在检测 Agent CLI 可用性，请稍候', 'error');
+      showToast('Checking Agent CLI availability. Please wait.', 'error');
       return;
     }
     if (cliStatusError) {
-      showToast(`无法检测 Agent CLI 可用性：${cliStatusError}`, 'error');
+      showToast(`Unable to check Agent CLI availability: ${cliStatusError}`, 'error');
       return;
     }
     if (!hasAvailableAdapter) {
-      showToast('当前没有可用的 Agent CLI，无法创建 session', 'error');
+      showToast('No Agent CLI is available. A Session cannot be created.', 'error');
       return;
     }
     if (lockedAdapterUnavailable) {
-      showToast(`模板要求的 adapter ${lockedAdapter} 当前不可用，请更换模板`, 'error');
+      showToast(`The template requires adapter ${lockedAdapter}, which is unavailable. Choose another template.`, 'error');
       return;
     }
     if (!selectedAdapterAvailable) {
-      showToast('请选择一个当前可用的 adapter', 'error');
+      showToast('Select an available adapter.', 'error');
       return;
     }
     // Preserve the Workspace active when the user submits, even if a directory
     // check or the missing-directory confirmation takes time.
     const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const includeAdvancedSettings = activeTab === 'advanced';
     setSubmitting(true);
 
     const requestedWorkdir = workdir.trim() ? parseDirectoryInput(workdir).candidate : null;
@@ -350,11 +356,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         } catch (error: unknown) {
           if (!isMissingDirectoryError(error)) throw error;
           directoryCreationWorkspaceIds.current = workspaceIds;
+          directoryCreationIncludesAdvanced.current = includeAdvancedSettings;
           setDirectoryCreationPath(requestedWorkdir);
           return;
         }
       }
-      await createSession(requestedWorkdir, workspaceIds);
+      await createSession(requestedWorkdir, workspaceIds, includeAdvancedSettings);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to create session';
@@ -374,14 +381,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     const workspaceIds = directoryCreationWorkspaceIds.current
       ?? await getCreationWorkspaceIds(activeWorkspaceId);
+    const includeAdvancedSettings = directoryCreationIncludesAdvanced.current;
     directoryCreationWorkspaceIds.current = null;
+    directoryCreationIncludesAdvanced.current = false;
     setDirectoryCreationPath(null);
     setSubmitting(true);
     try {
       await createDirectory(path);
-      await createSession(path, workspaceIds);
+      await createSession(path, workspaceIds, includeAdvancedSettings);
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : '目录创建失败', 'error');
+      showToast(err instanceof Error ? err.message : 'Failed to create directory.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -400,15 +409,15 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     const cleanName = saveTemplateName.trim();
     const target = manifestTargets.find((item) => item.id === saveTemplateTarget);
     if (!cleanName) {
-      setSaveTemplateError('请输入 Template Name。');
+      setSaveTemplateError('Enter a template name.');
       return;
     }
     if (!target) {
-      setSaveTemplateError('请选择一个已加载的 manifest 目标。');
+      setSaveTemplateError('Select a loaded manifest target.');
       return;
     }
     if (!target.writable) {
-      setSaveTemplateError(target.reason || '此 manifest 当前不可写。');
+      setSaveTemplateError(target.reason || 'This manifest is not writable.');
       return;
     }
 
@@ -437,17 +446,17 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       try {
         const refreshed = await fetchSessionTemplates();
         if (!refreshed.some((item) => item.name === cleanName)) {
-          throw new Error('保存成功，但刷新结果中未找到新模板。');
+          throw new Error('The template was saved, but it was not found after refreshing the list.');
         }
         setTemplates(refreshed);
         setSaveTemplateOpen(false);
-        showToast(`Session Template「${cleanName}」已保存`, 'info');
+        showToast(`Session Template “${cleanName}” saved.`, 'info');
       } catch (refreshError) {
         setSaveTemplateOpen(false);
-        showToast(`模板已保存，但刷新模板列表失败，新模板暂时不可选：${refreshError instanceof Error ? refreshError.message : '未知错误'}`, 'error');
+        showToast(`Template saved, but the list could not be refreshed. The new template is not available yet: ${refreshError instanceof Error ? refreshError.message : 'Unknown error'}`, 'error');
       }
     } catch (error) {
-      setSaveTemplateError(error instanceof Error ? error.message : 'Session Template 保存失败');
+      setSaveTemplateError(error instanceof Error ? error.message : 'Failed to save Session Template.');
     } finally {
       setSavingTemplate(false);
     }
@@ -480,14 +489,14 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     lockedAdapterUnavailable;
 
   const directoryConfirmation = directoryCreationPath && (
-    <Modal open title="创建工作目录" onClose={() => setDirectoryCreationPath(null)} size="sm">
+    <Modal open title="Create Working Directory" onClose={() => setDirectoryCreationPath(null)} size="sm">
       <div className="flex flex-col gap-4">
         <p className="break-all text-sm text-text-primary">
-          目录不存在，是否创建？<br />{directoryCreationPath}
+          This directory does not exist. Create it?<br />{directoryCreationPath}
         </p>
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => setDirectoryCreationPath(null)}>取消</Button>
-          <Button type="button" variant="primary" onClick={() => void confirmDirectoryCreation()}>创建目录</Button>
+          <Button type="button" variant="ghost" onClick={() => setDirectoryCreationPath(null)}>Cancel</Button>
+          <Button type="button" variant="primary" onClick={() => void confirmDirectoryCreation()}>Create Directory</Button>
         </div>
       </div>
     </Modal>
@@ -503,16 +512,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">Target manifest <span className="text-danger">*</span></span>
           <select value={saveTemplateTarget} onChange={(event) => setSaveTemplateTarget(event.target.value)} disabled={manifestTargets.length === 0} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent disabled:opacity-60">
-            <option value="">{targetsLoadError ? '无法加载目标' : '选择 manifest'}</option>
-            {manifestTargets.map((target) => <option key={target.id} value={target.id}>{target.label} — {target.writable ? 'writable' : '不可写'}</option>)}
+            <option value="">{targetsLoadError ? 'Unable to load targets' : 'Select a manifest'}</option>
+            {manifestTargets.map((target) => <option key={target.id} value={target.id}>{target.label} — {target.writable ? 'Writable' : 'Not writable'}</option>)}
           </select>
         </label>
         {saveTemplateTarget && (() => {
           const target = manifestTargets.find((item) => item.id === saveTemplateTarget);
           if (!target) return null;
-          return <p className={`text-xs ${target.writable ? 'text-text-tertiary' : 'text-danger'}`}>{target.writable ? 'writable' : '不可写'}{target.reason ? `：${target.reason}` : ''}</p>;
+          return <p className={`text-xs ${target.writable ? 'text-text-tertiary' : 'text-danger'}`}>{target.writable ? 'Writable' : 'Not writable'}{target.reason ? `: ${target.reason}` : ''}</p>;
         })()}
-        {targetsLoadError && <p className="text-xs text-danger">读取目标失败：{targetsLoadError}</p>}
+        {targetsLoadError && <p className="text-xs text-danger">Failed to load targets: {targetsLoadError}</p>}
         {saveTemplateError && <p role="alert" className="text-sm text-danger">{saveTemplateError}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => setSaveTemplateOpen(false)} disabled={savingTemplate}>Cancel</Button>
@@ -527,9 +536,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         <fieldset disabled={!defaultsReady} className="contents">
         <div role="tablist" aria-label="New Session settings" className="flex border-b border-border-muted">
           <button type="button" role="tab" aria-selected={activeTab === 'basic'} onClick={() => setActiveTab('basic')} className={`border-b-2 px-3 py-2 text-sm ${activeTab === 'basic' ? 'border-accent text-accent' : 'border-transparent text-text-secondary'}`}>Basic</button>
-          <button type="button" role="tab" aria-selected={activeTab === 'advanced'} onClick={() => setActiveTab('advanced')} className={`border-b-2 px-3 py-2 text-sm ${activeTab === 'advanced' ? 'border-accent text-accent' : 'border-transparent text-text-secondary'}`}>Advanced Options</button>
+          <button type="button" role="tab" aria-selected={activeTab === 'advanced'} onClick={() => setActiveTab('advanced')} className={`border-b-2 px-3 py-2 text-sm ${activeTab === 'advanced' ? 'border-accent text-accent' : 'border-transparent text-text-secondary'}`}>Advanced</button>
         </div>
-        {activeTab === 'basic' && <>
         {/* Adapter select — availability comes from /api/cli/status. */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
@@ -542,9 +550,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cliStatusLoading ? (
-              <option value="">检测 CLI 可用性中…</option>
+              <option value="">Checking CLI availability…</option>
             ) : cliStatusError ? (
-              <option value="">无法加载可用 adapter</option>
+              <option value="">Unable to load available adapters</option>
             ) : hasAvailableAdapter ? (
               availableAdapters.map((a) => (
                 <option key={a.name} value={a.name}>
@@ -552,24 +560,24 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                 </option>
               ))
             ) : (
-              <option value="">没有可用 adapter</option>
+              <option value="">No adapters available</option>
             )}
           </select>
         </label>
 
         {cliStatusError && (
           <p className="-mt-2 text-[11px] leading-snug text-danger">
-            无法检测当前可用 adapter：{cliStatusError}。请检查 Pan 后端连接后重试。
+            Unable to check adapter availability: {cliStatusError}. Check the Pan backend connection and try again.
           </p>
         )}
         {!cliStatusLoading && !cliStatusError && !hasAvailableAdapter && (
           <p className="-mt-2 text-[11px] leading-snug text-danger">
-            当前没有可用的 Agent CLI。请安装对应 CLI 后重试；不会自动使用不可用的 cbc。
+            No Agent CLI is available. Install an adapter CLI and try again; an unavailable cbc will not be selected automatically.
           </p>
         )}
         {lockedAdapterUnavailable && (
           <p className="-mt-2 text-[11px] leading-snug text-danger">
-            当前模板要求 adapter <code>{lockedAdapter}</code>，但它不可用。请更换模板后再创建。
+            The selected template requires adapter <code>{lockedAdapter}</code>, which is unavailable. Choose another template to continue.
           </p>
         )}
 
@@ -612,7 +620,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
         {adapter === 'kimi' && (
           <p className="-mt-2 text-[11px] leading-snug text-text-tertiary">
-            kimi 的 MCP 通过隔离目录 data/kimi-homes 自动加载（KIMI_CODE_HOME），无需信任文件夹。
+            Kimi loads MCP servers automatically from an isolated data/kimi-homes directory (KIMI_CODE_HOME); no trusted folder is needed.
           </p>
         )}
 
@@ -655,47 +663,45 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             onChange={(e) => setSaveAsDefault(e.target.checked)}
             className="accent-accent"
           />
-          将本次配置设为默认（不含 Session Name）
+          Save these settings as the default (Session Name is excluded)
         </label>
-        </>}
-
         {activeTab === 'advanced' && <div className="flex flex-col gap-4">
-          <p className="text-xs text-text-tertiary">留空或选择“继承”表示沿用所选模板或后端默认；显式输入的值只用于本次创建。</p>
+          <p className="text-xs text-text-tertiary">Leave a field blank or choose “Inherit” to use the selected template or backend default. Explicit values apply only to this Session.</p>
           {showModel && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Model</span>
             <select value={model} onChange={(event) => { setModel(event.target.value); setEffort(''); }} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="">继承模板 / 默认</option>{config!.models.map((item) => <option key={item} value={item}>{item}</option>)}
+              <option value="">Inherit template / default</option>{config!.models.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>}
           {showPermission && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Permission Mode</span>
             <select value={permissionMode} onChange={(event) => setPermissionMode(event.target.value)} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="">继承模板 / 默认</option>{config!.permissionModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              <option value="">Inherit template / default</option>{config!.permissionModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>}
           {showEffort && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Effort / Thinking Level</span>
             <select value={effort} onChange={(event) => setEffort(event.target.value)} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="">继承模板 / 默认</option>{(config!.modelEfforts?.[model] ?? config!.effortValues).map((item) => <option key={item} value={item}>{item}</option>)}
+              <option value="">Inherit template / default</option>{(config!.modelEfforts?.[model] ?? config!.effortValues).map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>}
           {showThinking && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Always Thinking</span>
             <select value={thinking === undefined ? '' : String(thinking)} onChange={(event) => setThinking(event.target.value === '' ? undefined : event.target.value === 'true')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="">继承模板 / 默认</option><option value="true">开启</option><option value="false">关闭</option>
+              <option value="">Inherit template / default</option><option value="true">On</option><option value="false">Off</option>
             </select>
           </label>}
           {showContextWindow && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Model Context Window</span>
-            <input type="number" min={1} value={modelContextWindow} onChange={(event) => setModelContextWindow(event.target.value)} placeholder="继承默认" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+            <input type="number" min={1} value={modelContextWindow} onChange={(event) => setModelContextWindow(event.target.value)} placeholder="Inherit default" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
           </label>}
           {showAutoCompactLimit && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Auto Compact Token Limit</span>
-            <input type="number" min={1} value={modelAutoCompactTokenLimit} onChange={(event) => setModelAutoCompactTokenLimit(event.target.value)} placeholder="继承默认" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+            <input type="number" min={1} value={modelAutoCompactTokenLimit} onChange={(event) => setModelAutoCompactTokenLimit(event.target.value)} placeholder="Inherit default" className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
           </label>}
           <label className="flex items-center gap-2 text-sm text-text-secondary">
             <input type="checkbox" checked={systemPromptOverride} onChange={(event) => setSystemPromptOverride(event.target.checked)} className="accent-accent" />
-            显式覆盖 System Prompt（空白内容也会作为空字符串提交）
+            Override System Prompt (an empty value is submitted as an empty string)
           </label>
           {systemPromptOverride && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">System Prompt</span>
@@ -704,11 +710,11 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">MCP Servers</span>
             <select value={mcpServerOverride === null ? 'inherit' : 'custom'} onChange={(event) => setMcpServerOverride(event.target.value === 'inherit' ? null : [])} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="inherit">继承模板 / 默认 MCP 设置</option><option value="custom">显式指定服务器</option>
+              <option value="inherit">Inherit template / default MCP settings</option><option value="custom">Choose servers explicitly</option>
             </select>
           </label>
           {mcpServerOverride !== null && <div className="flex flex-col gap-2 rounded border border-border-muted p-3">
-            {mcpServers.length === 0 ? <p className="text-xs text-text-tertiary">当前没有已加载的 MCP server。提交空列表会显式关闭 MCP。</p> : mcpServers.map((server) => <label key={server.name} className="flex items-center gap-2 text-sm text-text-secondary">
+            {mcpServers.length === 0 ? <p className="text-xs text-text-tertiary">No MCP servers are loaded. Submitting an empty list will explicitly disable MCP.</p> : mcpServers.map((server) => <label key={server.name} className="flex items-center gap-2 text-sm text-text-secondary">
               <input type="checkbox" checked={mcpServerOverride.includes(server.name)} onChange={(event) => setMcpServerOverride((current) => {
                 const list = current ?? [];
                 return event.target.checked ? [...list, server.name] : list.filter((item) => item !== server.name);
@@ -718,18 +724,18 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Saved template MCP policy</span>
             <select value={mcpMode} onChange={(event) => setMcpMode(event.target.value as '' | 'always' | 'optional' | 'never')} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              {sessionTemplate && <option value="">继承原模板{selectedTemplate?.mcpMode ? ` (${selectedTemplate.mcpMode})` : ''}</option>}
+              {sessionTemplate && <option value="">Inherit from template{selectedTemplate?.mcpMode ? ` (${selectedTemplate.mcpMode})` : ''}</option>}
               <option value="optional">Optional</option><option value="always">Always — lock selected servers</option><option value="never">Never — lock MCP off</option>
             </select>
-            <span className="text-xs text-text-tertiary">{sessionTemplate ? '默认继承原模板；只有选择其他 policy 才覆盖。' : '未选择模板时默认写入 optional。'}</span>
+            <span className="text-xs text-text-tertiary">{sessionTemplate ? 'The template policy is inherited unless you choose another option.' : 'When no template is selected, optional is saved by default.'}</span>
           </label>
-          {selectedTemplate && <p className="text-xs text-text-tertiary">如模板将 MCP 锁定为 always 或 never，后端会校验显式服务器列表；冲突时会显示拒绝原因。</p>}
+          {selectedTemplate && <p className="text-xs text-text-tertiary">If the template locks MCP to always or never, the backend validates the explicit server list and reports any conflicts.</p>}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Pan access</span>
             {([
-              ['restrictToManaged', '仅操作已管理的 Session'],
-              ['canClaimUnmanaged', '允许认领未管理的 Session'],
-              ['autoClaimCreated', '自动认领新建的 Session'],
+              ['restrictToManaged', 'Only operate on managed Sessions'],
+              ['canClaimUnmanaged', 'Allow claiming unmanaged Sessions'],
+              ['autoClaimCreated', 'Automatically claim new Sessions'],
             ] as const).map(([key, label]) => <label key={key} className="flex items-center justify-between gap-3 text-sm text-text-secondary">
               <span>{label}</span>
               <select value={panAccess[key] === undefined ? '' : String(panAccess[key])} onChange={(event) => setPanAccess((current) => {
@@ -740,7 +746,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                 }
                 return { ...current, [key]: event.target.value === 'true' };
               })} className="rounded border border-border-muted bg-bg-primary px-2 py-1 text-xs text-text-primary">
-                <option value="">继承</option><option value="true">开启</option><option value="false">关闭</option>
+                <option value="">Inherit</option><option value="true">On</option><option value="false">Off</option>
               </select>
             </label>)}
           </div>
@@ -751,7 +757,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             associated with the form via the HTML `form` attribute. */}
         {!isMobile && (
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>
+            {activeTab === 'advanced' && <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>}
             <Button
               type="button"
               variant="ghost"
@@ -802,7 +808,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{formBody}</div>
         <footer className="flex shrink-0 justify-end gap-2 border-t border-border-muted bg-bg-primary px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2">
-          <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>
+          {activeTab === 'advanced' && <Button type="button" variant="ghost" onClick={openSaveTemplate} disabled={!defaultsReady || submitting}>Save as Template</Button>}
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>

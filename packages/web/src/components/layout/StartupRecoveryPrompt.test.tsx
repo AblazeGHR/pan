@@ -19,6 +19,17 @@ vi.mock('@/services/api', async (importOriginal) => {
 });
 
 import { StartupRecoveryPrompt } from './StartupRecoveryPrompt';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useWorkerStore } from '@/stores/workerStore';
+
+// The convergence refresh fired when a recovery decision completes is the fix
+// for the stale post-restart indicator: legal-state writes are silent on the
+// WebSocket, so without it the sidebar keeps the pre-decision snapshot and a
+// Session synchronized to its idle runtime keeps the mismatch red forever.
+const { loadSessionsMock, workerRefreshMock } = vi.hoisted(() => ({
+  loadSessionsMock: vi.fn(async () => {}),
+  workerRefreshMock: vi.fn(async () => {}),
+}));
 
 const candidate = {
   id: 'session-1',
@@ -55,6 +66,14 @@ beforeEach(() => {
     decision: null,
     candidates: [candidate],
   });
+  loadSessionsMock.mockClear();
+  workerRefreshMock.mockClear();
+  useSessionStore.setState({
+    loadSessions: loadSessionsMock,
+  } as unknown as Partial<ReturnType<typeof useSessionStore.getState>>);
+  useWorkerStore.setState({
+    refresh: workerRefreshMock,
+  } as unknown as Partial<ReturnType<typeof useWorkerStore.getState>>);
 });
 
 afterEach(() => cleanup());
@@ -152,5 +171,51 @@ describe('StartupRecoveryPrompt', () => {
     render(<StartupRecoveryPrompt />);
     await waitFor(() => expect(claimMock).toHaveBeenCalled());
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('converges the Session list after this tab submits a sync-actual decision', async () => {
+    decideMock.mockResolvedValue(record('completed', 'sync-actual'));
+    render(<StartupRecoveryPrompt />);
+
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('radio', { name: /Update legal state to current Worker state/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() => expect(decideMock).toHaveBeenCalled());
+    await waitFor(() => expect(loadSessionsMock).toHaveBeenCalledTimes(1));
+    expect(workerRefreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('converges when the claim observes another tab already completed the decision', async () => {
+    claimMock.mockResolvedValue({
+      ok: true,
+      claimed: false,
+      state: 'completed',
+      decision: 'sync-actual',
+      candidates: [candidate],
+    });
+    render(<StartupRecoveryPrompt />);
+
+    await waitFor(() => expect(claimMock).toHaveBeenCalled());
+    await waitFor(() => expect(loadSessionsMock).toHaveBeenCalledTimes(1));
+    expect(workerRefreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('converges exactly once when the record is already completed on mount', async () => {
+    fetchMock.mockResolvedValue(record('completed', 'preserve-running'));
+    render(<StartupRecoveryPrompt />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(loadSessionsMock).toHaveBeenCalledTimes(1));
+    expect(workerRefreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not converge while the decision is still pending', async () => {
+    render(<StartupRecoveryPrompt />);
+    await waitFor(() => expect(claimMock).toHaveBeenCalled());
+    // Give the effect's promise chain a tick to settle.
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeTruthy());
+    expect(loadSessionsMock).not.toHaveBeenCalled();
+    expect(workerRefreshMock).not.toHaveBeenCalled();
   });
 });

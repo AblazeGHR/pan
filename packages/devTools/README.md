@@ -6,6 +6,26 @@ The recorder does not start, stop, or restart Pan. It launches a separate browse
 
 ## Quick start
 
+### Open a browser for Codex control and performance inspection
+
+Double-click [Start-Pan-Debug-Chrome.cmd](Start-Pan-Debug-Chrome.cmd) to open a visible Chrome window on `http://127.0.0.1:8768/react/?panE2E=1`. Pan must already be running. This launcher does not manage Pan services or automatically record a trace.
+
+The browser uses debugging port `9222` and a persistent, dedicated profile at `%USERPROFILE%\.codex\browser-profiles\pan-debug`. Configure Codex Chrome DevTools MCP with `--browser-url=http://127.0.0.1:9222`. Reload the MCP connection or restart Codex if the tools are not available in the current chat. The MCP can then inspect and control this window; keep this debugging profile dedicated to Pan.
+
+For another URL, Chrome executable, or port:
+
+```powershell
+& '.\packages\devTools\Start-Pan-Debug-Chrome.ps1' `
+  -PanUrl 'http://127.0.0.1:8765/react/?panE2E=1' `
+  -DebugPort 9223
+```
+
+When changing `-DebugPort`, update the MCP `--browser-url` to match. The launcher stops with an error if the chosen port is already occupied; it does not terminate the existing process. Closing the browser preserves its dedicated profile for the next run.
+
+The separate browser trace recorder below uses a randomly assigned debugging port. To connect MCP to that recorder's window, use the port printed by the recorder (also saved in that run's `active.json`) instead of `9222`.
+
+### Record Pan message flow
+
 Requirements: Windows, Node.js 24 or newer, and Google Chrome. Edge can be used by passing its executable path as described below.
 
 1. Make sure Pan is already running and open at the address you want to observe.

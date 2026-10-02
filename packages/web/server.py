@@ -214,6 +214,7 @@ async def lifespan(app: FastAPI):
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
+    background_jobs.register_scheduled_tasks(qq_send=_send_scheduled_qq)
     background_jobs.start_recovery_loop()
     global _DATA_RETENTION_LOOP
     _DATA_RETENTION_LOOP = asyncio.get_running_loop()
@@ -3103,7 +3104,26 @@ def _apply_output_mode(s: sess.Session, mode):
     s.set_adapter_field("output_mode", mode)
 
 
-def _open_terminal(cmd: str, cwd: str | Path) -> int:
+async def _open_takeover_terminal(w, cmd, cwd, generation):
+    # Opening the TUI belongs to the same lifecycle lock as Restart/Kill.
+    lock = await worker._session_spawn_lock(w.session_id)
+    async with lock:
+        if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
+            raise OSError("Takeover superseded by another lifecycle operation")
+        if sys.platform == "win32" and w.adapter.name == "codex":
+            from packages.core.takeover_job import TakeoverJob
+            job = TakeoverJob()
+            w.takeover_job = job
+            try:
+                w.takeover_pid = _open_terminal(cmd, cwd, takeover_job=job)
+            except BaseException:
+                await worker._kill_takeover_terminal(w)
+                raise
+        else:
+            w.takeover_pid = _open_terminal(cmd, cwd)
+
+
+def _open_terminal(cmd: str, cwd: str | Path, *, takeover_job=None) -> int:
     """Open a new terminal window running `cmd` in `cwd` (cross-platform)."""
     cwd = str(cwd) if cwd else str(Path.cwd())
     if sys.platform == "win32":
@@ -3114,6 +3134,10 @@ def _open_terminal(cmd: str, cwd: str | Path) -> int:
         env.pop("TERM", None)
         env.pop("NO_COLOR", None)
         env.pop("COLORTERM", None)
+        if takeover_job is not None:
+            return takeover_job.launch(
+                ["powershell.exe", "-NoExit", "-Command", cmd], cwd=cwd, env=env,
+            )
         proc = subprocess.Popen(
             ["powershell.exe", "-NoExit", "-Command", cmd],
             cwd=cwd,
@@ -5887,6 +5911,29 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
 
 
+@app.post("/api/sessions/{session_id}/legal-state/running")
+async def api_set_session_legal_worker_state_running(session_id: str):
+    """Explicitly persist running without changing or inspecting Worker runtime."""
+    try:
+        result = await worker.set_session_legal_worker_state_running(
+            session_id, source="session-details/set-running",
+        )
+    except Exception as exc:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": str(exc),
+        }
+    if result.get("status") == "updated":
+        try:
+            await broadcast({"type": "session.updated", "sessionId": session_id})
+        except Exception as exc:
+            # The metadata is already durable. A transient websocket fan-out
+            # failure must not report the successful write as a failed action.
+            _log(f"[Session {session_id}] legal-state broadcast failed: {exc}")
+    return result
+
+
 @app.get("/api/sessions/{session_id}/usage")
 async def api_get_session_usage(session_id: str):
     """Return the stable persisted input/output/cache usage projection.
@@ -8641,6 +8688,41 @@ async def api_remote_restart():
 
 # ── Config hot-reload ──
 
+@app.get("/api/remote/mcp")
+async def api_mcp_remote_status():
+    from packages.remote.mcp_runtime import status
+    return {**await asyncio.to_thread(status, _PROJECT_DIR),
+            "config": load_config().get("mcp_remote") or {}}
+
+
+@app.put("/api/remote/mcp")
+async def api_mcp_remote_config(request: Request):
+    payload = await request.json()
+    allowed = {"enabled", "port", "public_hostname", "access_issuer", "access_audience", "config_path", "binary_path"}
+    if not isinstance(payload, dict) or set(payload) - allowed:
+        raise HTTPException(status_code=400, detail="Invalid MCP configuration fields")
+    if "enabled" in payload and not isinstance(payload["enabled"], bool):
+        raise HTTPException(status_code=400, detail="enabled must be boolean")
+    if "port" in payload and (type(payload["port"]) is not int or not 1024 <= payload["port"] <= 65535):
+        raise HTTPException(status_code=400, detail="Invalid MCP port")
+    if any(not isinstance(value, str) for key, value in payload.items() if key not in {"enabled", "port"}):
+        raise HTTPException(status_code=400, detail="MCP text fields must be strings")
+    raw = read_config_file()
+    raw["mcp_remote"] = {**(load_config().get("mcp_remote") or {}), **payload}
+    save_config(raw)
+    return {"ok": True}
+
+
+@app.post("/api/remote/mcp/{action}")
+async def api_mcp_remote_control(action: str):
+    from packages.remote.mcp_runtime import control
+    if action not in {"start", "stop", "restart"}:
+        raise HTTPException(status_code=400, detail="Unknown MCP action")
+    try:
+        return await asyncio.to_thread(control, _PROJECT_DIR, action)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
 def _reload_adapter_models() -> tuple[list[dict], list[str]]:
     """Invalidate adapter model caches and return count diffs and errors."""
     adapters_out = []
@@ -9554,6 +9636,45 @@ async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
         return {"ok": False, "error": {
             "code": "connection_error",
             "message": f"{type(e).__name__}: {e}"}}
+
+
+async def _qq_plugin_post(path: str, body: dict) -> dict:
+    """POST through the existing isolated QQ plugin HTTP process boundary."""
+    plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    try:
+        response = await _qq_plugin_client_get().post(
+            f"{plugin_url}{path}", json=body)
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {
+            "ok": False, "error": {"code": "invalid_response",
+                                    "message": "QQ plugin returned a non-object response"}}
+    except httpx.HTTPStatusError as exc:
+        try:
+            payload = exc.response.json()
+            if isinstance(payload, dict) and payload.get("error"):
+                return payload
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": exc.response.status_code,
+            "message": exc.response.text[:300]}}
+    except httpx.HTTPError as exc:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(exc).__name__}: {exc}"}}
+
+
+async def _send_scheduled_qq(*, target_type: str, target_id: str,
+                             text: str, bot_uin: str | None = None) -> dict:
+    """Send only fixed text through the QQ plugin's registered send route."""
+    if target_type not in {"private", "group"}:
+        return {"ok": False, "error": {
+            "code": "invalid_target_type", "message": "invalid QQ target type"}}
+    body = {"target_type": target_type, "target_id": target_id, "text": text}
+    if bot_uin:
+        body["bot_uin"] = bot_uin
+    return await _qq_plugin_post("/api/qq/send", body)
 
 
 _wechat_plugin_client: httpx.AsyncClient | None = None
@@ -10574,6 +10695,7 @@ async def api_takeover(worker_id: str):
     if err:
         return {"error": err}
 
+    generation = w.generation
     await broadcast({
         "type": "worker.status",
         "sessionId": w.session_id,
@@ -10583,11 +10705,11 @@ async def api_takeover(worker_id: str):
     })
 
     try:
-        w.takeover_pid = _open_terminal(
+        await _open_takeover_terminal(w,
             # 逐参数引号转义：takeover 命令含 --resume <cli_session_id>，裸 join
             # 会把其特殊字符拆成额外参数，导致 takeover 终端 cbc 启动失败。
             subprocess.list2cmdline(adapter_cmd),
-            s.workdir or Path.cwd(),
+            s.workdir or Path.cwd(), generation,
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
@@ -10629,6 +10751,7 @@ async def api_session_takeover(session_id: str):
     if result is None:
         return {"workerId": None, "sessionId": session_id, "status": "offline"}
     w = result
+    generation = w.generation
     await broadcast({
         "type": "worker.status",
         "sessionId": session_id,
@@ -10637,8 +10760,8 @@ async def api_session_takeover(session_id: str):
         "status": "held",
     })
     try:
-        w.takeover_pid = _open_terminal(
-            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(),
+        await _open_takeover_terminal(w,
+            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(), generation,
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}

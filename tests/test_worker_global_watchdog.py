@@ -415,7 +415,10 @@ def test_wake_worker_auto_spawn_registered_dead_process(monkeypatch):
 def test_wake_worker_auto_spawn_skips_live_worker(monkeypatch):
     """有活 worker + auto_spawn=True → 只发信号不 spawn。"""
     _cleanup()
-    _setup_session("ses_qq")
+    _setup_session("ses_qq", queue_pending=[{
+        "type": "task", "id": "task-1", "text": "queued work",
+        "source": "user", "deliveryState": "queued",
+    }])
     w = _setup_worker("ses_qq")
     spawned = []
 

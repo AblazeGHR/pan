@@ -241,6 +241,7 @@ class Worker:
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
+    takeover_job: object | None = None  # Windows Codex descendants, including orphans
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     # ── 活性探测（watchdog 用）──
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
@@ -574,7 +575,16 @@ async def _record_legal_worker_state(
             )
             return False
     else:
-        s.last_legal_worker_state = state
+        # Terminal result preparation batches this metadata change with the
+        # surrounding Session save. Serialize the in-memory transition with
+        # durable legal-state helpers so concurrent transitions have a clear
+        # per-Session order.
+        lock = _legal_state_locks.setdefault(w.session_id, asyncio.Lock())
+        async with lock:
+            s = _session(w)
+            if s is None:
+                return False
+            s.last_legal_worker_state = state
     _log.info(
         "[Worker %s] legal state=%s source=%s session=%s",
         w.worker_id, state, source, w.session_id,
@@ -611,6 +621,45 @@ async def _persist_session_legal_worker_state(
         )
         return False
     return True
+
+
+async def set_session_legal_worker_state_running(
+    session_id: str, *, source: str = "session-details/set-running",
+) -> dict:
+    """Explicitly record running without observing or changing Worker runtime.
+
+    This shares the per-Session legal-state lock with runtime synchronization
+    and every other legal-state writer.  The value is intentionally fixed so
+    callers cannot turn this Details action into an arbitrary state update.
+    """
+    lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+    async with lock:
+        if _sess.get(session_id) is None:
+            return {
+                "sessionId": session_id,
+                "status": "error",
+                "error": f"Session {session_id} not found",
+            }
+        if not await _persist_session_legal_worker_state(
+                session_id, "running", source, _locked=True):
+            # The Session may have been removed between the first lookup and
+            # the persistence helper's own lookup.
+            if _sess.get(session_id) is None:
+                return {
+                    "sessionId": session_id,
+                    "status": "error",
+                    "error": f"Session {session_id} not found",
+                }
+            return {
+                "sessionId": session_id,
+                "status": "error",
+                "error": "failed to persist Session legal state",
+            }
+    return {
+        "sessionId": session_id,
+        "status": "updated",
+        "legalWorkerState": "running",
+    }
 
 
 def _terminal_enrichment_key(
@@ -5482,6 +5531,12 @@ async def _create_worker(session_id: str) -> Worker | str:
 
 async def _kill_takeover_terminal(w: Worker) -> bool:
     """杀掉 takeover 模式打开的终端及子进程树。异步版，不阻塞事件循环。"""
+    if w.takeover_job is not None:
+        # Keep ownership on failure so Restart/Kill can retry safely.
+        await asyncio.to_thread(w.takeover_job.stop)
+        w.takeover_job = None
+        w.takeover_pid = None
+        return True
     if not w.takeover_pid:
         return False
     pid = w.takeover_pid
@@ -5623,6 +5678,12 @@ async def _kill_worker_unlocked(
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    if w.takeover_job is not None:
+        try:
+            await _kill_takeover_terminal(w)
+        except Exception as exc:
+            return f"Takeover stop failed: {exc}"
 
     abnormal = w.status in {"running", "queued"}
 
@@ -5893,6 +5954,14 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    # Stop the takeover owner before changing generation/state or spawning.
+    # A failed stop leaves a held worker retryable and cannot create a writer.
+    if w.takeover_job is not None:
+        try:
+            await _kill_takeover_terminal(w)
+        except Exception as exc:
+            return f"Takeover stop failed: {exc}"
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was restarted")
 

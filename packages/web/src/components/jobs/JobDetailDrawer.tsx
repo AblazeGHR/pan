@@ -203,13 +203,15 @@ export function JobDetailDrawer({
   const hasTarget = !!job.target.sessionId;
   const canRunNow = job.action?.api === 'shell'
     || job.action?.api === 'resume_legal_running'
+    || job.action?.api === 'send_qq'
     || hasTarget;
   const terminalMessage = (
     (job.kind === 'session-message' || job.kind === 'session-broadcast')
     && ['completed', 'failed', 'cancelled'].includes(job.status)
   );
   const canChangeTarget = (job.kind === 'scheduled-task'
-    && job.action?.api !== 'resume_legal_running')
+    && job.action?.api !== 'resume_legal_running'
+    && job.action?.api !== 'send_qq')
     || (job.kind === 'session-message' && !terminalMessage)
     || job.kind === 'background-process';
   const canEdit = !terminalMessage;
@@ -338,6 +340,9 @@ export function JobDetailDrawer({
                   <span className="font-mono">
                     {job.action?.api === 'resume_legal_running'
                       ? 'dynamic: legal running Sessions without a live Worker'
+                      : job.action?.api === 'send_qq'
+                      ? `QQ ${job.action.args.targetType} ${job.action.args.targetId} · ${job.action.args.botUin
+                        ? `bot ${job.action.args.botUin}` : 'default bot'}`
                       : job.target.sessionIds?.length
                       ? job.target.sessionIds.join(', ')
                       : job.target.sessionId ?? 'no target'}
@@ -397,7 +402,11 @@ export function JobDetailDrawer({
                   ) : (
                     <>
                       <KV label="Mode">
-                        {job.action?.api === 'send_session' ? 'Session message' : 'Assign task to Session'}
+                        {job.action?.api === 'send_session'
+                          ? 'Session message'
+                          : job.action?.api === 'send_qq'
+                          ? 'Scheduled QQ text message'
+                          : 'Assign task to Session'}
                       </KV>
                       <div className="text-[11px] text-text-tertiary">Text</div>
                       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 text-text-secondary">

@@ -31,9 +31,9 @@ function appendSeparator(path: string): string {
 
 function invalidDirectoryMessage(error: unknown): string {
   if (error instanceof Error && /HTTP 403\b/.test(error.message)) {
-    return '无权读取当前目录';
+    return 'You do not have permission to read this directory.';
   }
-  return '当前目录非法';
+  return 'Invalid directory.';
 }
 
 /**
@@ -137,13 +137,13 @@ export function DirectoryInput({
   return (
     <div className="flex flex-col gap-3" data-testid="directory-input-panel">
       <label className="flex flex-col gap-1 text-xs text-text-secondary">
-        <span>目录路径</span>
+        <span>Directory path</span>
         <input
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="D:\\project\\app\\文件名"
-          aria-label="目录路径"
+          placeholder="D:\\project\\app"
+          aria-label="Directory path"
           data-testid={inputTestId}
           className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
         />
@@ -151,15 +151,15 @@ export function DirectoryInput({
       {error && <p className="text-sm text-danger" data-testid="directory-error">{error}</p>}
       {!error && parts.search && data && (
         <p className="text-xs text-text-tertiary">
-          在 {data.current || parts.directory || '服务器根位置'} 中检索“{parts.search}”
+          Searching for “{parts.search}” in {data.current || parts.directory || 'the server root'}
         </p>
       )}
-      {loading && <div className="flex items-center gap-2 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />加载中…</div>}
+      {loading && <div className="flex items-center gap-2 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />Loading…</div>}
       {!loading && !error && data && data.entries.length > 0 && visibleEntries.length === 0 && (
-        <div className="p-3 text-sm text-text-tertiary">没有匹配的条目</div>
+        <div className="p-3 text-sm text-text-tertiary">No matching entries</div>
       )}
       {!loading && !error && data && data.entries.length === 0 && (
-        <div className="p-3 text-sm text-text-tertiary">空目录</div>
+        <div className="p-3 text-sm text-text-tertiary">This directory is empty</div>
       )}
       {!error && data && visibleEntries.length > 0 && (
         <div data-testid="directory-entries" className="dir-scroll max-h-64 overflow-y-auto rounded border border-border-muted bg-bg-primary">
@@ -180,21 +180,21 @@ export function DirectoryInput({
       {!error && data?.current && !parts.search && !fileMode && (
         <div className="flex justify-end">
           <Button type="button" variant="primary" onClick={() => onSelect?.(data.current)}>
-            选择当前目录
+            Use current directory
           </Button>
         </div>
       )}
       {!error && data?.current && parts.search && !fileMode && selectDirectories && (
         <div className="flex justify-end">
           <Button type="button" variant="secondary" onClick={() => onSelect?.(data.current)}>
-            使用检索目录
+            Use searched directory
           </Button>
         </div>
       )}
       {!error && data?.parent && !parts.search && !selectDirectories && (
         <div className="flex justify-start">
           <Button type="button" size="sm" variant="secondary" onClick={() => onChange(appendSeparator(data.parent!))}>
-            <ChevronUp size={14} /> 上一级
+            <ChevronUp size={14} /> Up one level
           </Button>
         </div>
       )}

@@ -5,6 +5,8 @@ import {
   decideStartupRecovery,
   fetchStartupRecovery,
 } from '@/services/api';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import type {
   ApiStartupRecoveryChoice,
   ApiStartupRecoveryRecord,
@@ -37,6 +39,22 @@ function makeTabId(): string {
     ?? `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * Converge the Session list after a recovery decision completes.
+ *
+ * Legal-state writes (`sync-actual`, the durable preserve/restart outcomes)
+ * are deliberately silent on the WebSocket — the Session list learns about
+ * them exclusively through the HTTP snapshot. `restart` converges on its own
+ * through worker spawn/status events, but the other choices fire no event at
+ * all, so without this refresh the sidebar keeps the pre-decision snapshot
+ * and a Session whose legal state was just synchronized to the (idle) runtime
+ * keeps rendering the legal-running mismatch indicator indefinitely.
+ */
+export function convergeAfterStartupRecovery(): void {
+  void useSessionStore.getState().loadSessions();
+  void useWorkerStore.getState().refresh();
+}
+
 export function StartupRecoveryPrompt() {
   const tabId = useRef(makeTabId());
   const [record, setRecord] = useState<ApiStartupRecoveryRecord | null>(null);
@@ -44,6 +62,11 @@ export function StartupRecoveryPrompt() {
   const [selected, setSelected] = useState<ApiStartupRecoveryChoice | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // A decision can complete through this tab's submit, another tab, or the
+  // automatic startup preference. Converge exactly once per mount when the
+  // record is first observed as completed, so the sidebar cannot keep a stale
+  // legal-running red (or a stale running status) from before the decision.
+  const convergedRef = useRef(false);
 
   useEffect(() => {
     if (isMockMode()) return;
@@ -57,6 +80,10 @@ export function StartupRecoveryPrompt() {
         if (!active) return;
         setRecord(status);
         if (status.state === 'no_candidates' || status.state === 'completed') {
+          if (status.state === 'completed' && !convergedRef.current) {
+            convergedRef.current = true;
+            convergeAfterStartupRecovery();
+          }
           setClaimed(false);
           setLoadError(null);
           return;
@@ -74,6 +101,12 @@ export function StartupRecoveryPrompt() {
           error: claim.error ?? status.error,
           candidateSnapshot: claim.candidates ?? status.candidateSnapshot,
         }));
+        // The claim can observe another tab's (or the automatic preference's)
+        // completed decision; the convergence requirement is identical.
+        if (claim.state === 'completed' && !convergedRef.current) {
+          convergedRef.current = true;
+          convergeAfterStartupRecovery();
+        }
         if (claim.decision) setSelected(claim.decision);
         setLoadError(null);
       } catch (error) {
@@ -97,6 +130,10 @@ export function StartupRecoveryPrompt() {
     try {
       const next = await decideStartupRecovery(record.generation, tabId.current, selected);
       setRecord(next);
+      if (next.state === 'completed') {
+        if (!convergedRef.current) convergedRef.current = true;
+        convergeAfterStartupRecovery();
+      }
       if (next.state === 'failed') setLoadError(next.error || 'Startup recovery failed.');
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : String(error));

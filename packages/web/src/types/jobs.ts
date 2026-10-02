@@ -100,6 +100,15 @@ export interface JobDelivery {
 export type ScheduledTaskAction =
   | { api: 'assign' | 'send_session' }
   | { api: 'resume_legal_running' }
+  | {
+    api: 'send_qq';
+    args: {
+      targetType: 'user' | 'group';
+      targetId: string;
+      /** Empty/default channel is represented by omitting botUin. */
+      botUin?: string;
+    };
+  }
   | { api: 'shell'; args: { command: string; cwd: string } };
 
 /** epoch 秒（新记录）或本地朴素 ISO（兼容旧读路径）。 */

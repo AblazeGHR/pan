@@ -5,11 +5,11 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import process from 'node:process';
-import { Buffer } from 'node:buffer';
 import { setTimeout } from 'node:timers';
 import { chromium } from '@playwright/test';
 
@@ -49,10 +49,10 @@ async function start() {
   server = spawn(python, [path.join(import.meta.dirname, 'frontend-full.server.py')], {
     cwd: root, windowsHide: true, env: { ...process.env, PAN_PORT: String(port), PAN_E2E_RUNTIME: runtime }, stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const logs = [];
-  server.stdout.on('data', b => logs.push(b));
-  server.stderr.on('data', b => logs.push(b));
-  server.on('exit', () => fs.writeFile(path.join(runtime, `server-${server?.pid}.log`), Buffer.concat(logs)));
+  const serverLog = createWriteStream(path.join(runtime, `server-${server.pid}.log`));
+  server.stdout.on('data', b => serverLog.write(b));
+  server.stderr.on('data', b => serverLog.write(b));
+  server.on('exit', () => serverLog.end());
   await poll(async () => { try { return await api('/api/sessions?summary=1'); } catch { return null; } }, x => !!x, 'server ready', 30000);
   const identity = JSON.parse(await fs.readFile(path.join(runtime, 'server-identity.json')));
   assert.equal(path.resolve(identity.checkout), root);
@@ -431,7 +431,7 @@ try {
   // assistant text must remain after its own tool blocks in both the store and
   // the rendered virtual rows.
   await select('E2E-A');
-  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  await page.getByTitle('Scroll to bottom').click({ timeout: 2000 }).catch(() => {});
   await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'switch-delta before stream');
   faults.historyDelay = 650;
   const switchVisualSnapshots = [];
@@ -493,7 +493,7 @@ try {
   await select('E2E-A');
 
   const assertSingleBackgroundReply = async () => {
-    const sample = await page.evaluate(({ sessionId, label }) => {
+    const sample = await page.evaluate(({ label }) => {
       const store = window.__panSessionStore.getState();
       const rows = store.currentMessages.filter(message => message.role === 'assistant'
         && String(message.content).includes(`answer:${label}`));
@@ -501,7 +501,7 @@ try {
         .filter(element => element.textContent.includes(`answer:${label}`))
         .map(element => ({ index: Number(element.dataset.index), text: element.textContent }));
       return { sessionId: store.currentSessionId, rows, dom };
-    }, { sessionId: ids['E2E-A'], label: backgroundLiveLabel });
+    }, { label: backgroundLiveLabel });
     assert.equal(sample.sessionId, ids['E2E-A'], 'the streaming Session is selected');
     assert.equal(sample.rows.length, 1, `store has one ${backgroundLiveLabel} assistant row`);
     assert.equal(sample.dom.length, 1, `DOM has one ${backgroundLiveLabel} assistant row`);
@@ -609,7 +609,8 @@ try {
   await select('E2E-A');
   await page.bringToFront();
   await poll(() => page.evaluate(() => document.visibilityState), s => s === 'visible', 'page foreground before background stream');
-  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  console.log('BACKGROUND selected A');
+  await page.getByTitle('Scroll to bottom').click({ timeout: 2000 }).catch(() => {});
   await send('background-resume');
   await poll(state, s => s.rows.some(m => m.role === 'tool' && m.content.includes('background-resume')), 'background stream tool visible');
   assert.ok(socketRoute, 'background test needs the live WebSocket route');
@@ -626,11 +627,17 @@ try {
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     document.dispatchEvent(new window.Event('visibilitychange'));
   });
-  await pageLifecycle.send('Page.setWebLifecycleState', { state: 'frozen' });
+  console.log('BACKGROUND visibility signaled');
   assert.equal(await page.evaluate(() => document.visibilityState), 'hidden', 'page enters browser background');
+  // A frozen renderer cannot execute page.evaluate. Assert before freezing;
+  // only the test process's HTTP polling runs until the page is made active.
+  await pageLifecycle.send('Page.setWebLifecycleState', { state: 'frozen' });
+  console.log('BACKGROUND frozen');
   await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:background-resume'), 'background worker completes while page hidden');
+  console.log('BACKGROUND worker completed');
   await sleep(500);
   await pageLifecycle.send('Page.setWebLifecycleState', { state: 'active' });
+  console.log('BACKGROUND activated');
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });

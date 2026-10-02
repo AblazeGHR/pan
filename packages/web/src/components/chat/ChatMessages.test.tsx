@@ -259,6 +259,29 @@ afterEach(() => {
   cleanup();
 });
 
+it('keeps an explicit navigation jump when cold-row measurement changes total size without a wheel gesture', () => {
+  vi.useFakeTimers();
+  const messages = msgs(20, 'navigation-cold');
+  useSessionStore.setState({ currentSessionId: 'navigation-cold', currentMessages: messages });
+  m.setTotalSize(2000);
+  m.setVirtualItems(messages.map((_, index) => ({ index, start: index * 100, size: 100 })));
+  const ref = createRef<ChatMessagesHandle>();
+  const view = render(<ChatMessages ref={ref} />);
+  act(() => { vi.advanceTimersByTime(10); });
+  const scroller = view.container.querySelector<HTMLElement>('.overflow-auto')!;
+  act(() => {
+    expect(ref.current!.scrollToMessage(messages[4]!)).toBe(true);
+    // The mock virtualizer records scrollToIndex without performing layout.
+    // Supply its navigation offset; no wheel input accompanies a rail click.
+    scroller.scrollTop = 400;
+    programmaticScroll(scroller);
+  });
+  m.setTotalSize(3500);
+  view.rerender(<ChatMessages ref={ref} />);
+  act(() => { vi.advanceTimersByTime(10); });
+  expect(scroller.scrollTop).toBe(400);
+});
+
 it('groups only adjacent thinking blocks and keeps semantic boundaries', () => {
   const messages: Message[] = [
     { role: 'thinking', content: 'thought 1' },
@@ -892,6 +915,25 @@ describe('ChatMessages scroll positioning', () => {
     });
 
     expect(scrollEl.scrollTop).toBe(2400);
+  });
+
+  it.each([[995, 600], [500, 2400]])('handles native scrollbar press at x=%i without treating body clicks as scrolling', (clientX, expectedTop) => {
+    useSessionStore.setState({ currentSessionId: 'scrollbar-input', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    Object.defineProperties(scrollEl, {
+      offsetWidth: { configurable: true, value: 1000 },
+      clientWidth: { configurable: true, value: 983 },
+      clientLeft: { configurable: true, value: 0 },
+    });
+    vi.spyOn(scrollEl, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 1000, top: 0, bottom: 400, width: 1000, height: 400, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.mouseDown(scrollEl, { button: 0, clientX });
+    scrollEl.scrollTop = 600;
+    fireEvent.scroll(scrollEl);
+    m.setTotalSize(2400);
+    act(() => { useSessionStore.setState({ currentMessages: [...msgs(4), { role: 'assistant', content: 'tail update' }] }); });
+    expect(scrollEl.scrollTop).toBe(expectedTop);
   });
 
   it('lets a pressed mouse pointer drag opt out of follow mode', () => {

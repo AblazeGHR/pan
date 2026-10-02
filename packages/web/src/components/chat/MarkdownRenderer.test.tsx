@@ -20,6 +20,7 @@ vi.mock('@/services/api', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -46,6 +47,49 @@ beforeEach(() => {
 });
 
 describe('MarkdownRenderer', () => {
+  it('bounds giant highlighted code and copies the entire latest payload', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const text = Array.from({ length: 2000 }, (_, i) => `const value${i} = ${i};`).join('\n');
+    const { container, rerender } = render(<MarkdownRenderer content={`\`\`\`typescript\n${text}\n\`\`\``} />);
+    expect(screen.getByRole('region', { name: 'typescript code' })).toBeTruthy();
+    expect(container.querySelectorAll('[data-code-line]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-code-line]').length).toBeLessThan(100);
+    expect(container.querySelector('.hljs-keyword')).toBeNull();
+    expect(container.textContent).not.toContain('value1999');
+    const latest = `${text}\nconst finalDelta = true;`;
+    rerender(<MarkdownRenderer content={`\`\`\`typescript\n${latest}\n\`\`\``} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(latest));
+  });
+
+  it('keeps addition and deletion colors in a bounded diff without coloring file headers', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const text = ['+++ file.ts', '--- file.ts', '+added', '-removed', ...Array(250).fill(' context')].join('\n');
+    const { container } = render(<MarkdownRenderer content={`\`\`\`diff\n${text}\n\`\`\``} />);
+    expect(container.querySelector('[data-code-line="0"]')?.className).toBe('');
+    expect(container.querySelector('[data-code-line="1"]')?.className).toBe('');
+    expect(container.querySelector('[data-code-line="2"]')?.className).toContain('bg-green');
+    expect(container.querySelector('[data-code-line="3"]')?.className).toContain('bg-red');
+    expect(container.querySelectorAll('[data-code-line]').length).toBeLessThan(100);
+  });
+
+  it('bounds a huge single line without requiring a language annotation', () => {
+    render(<MarkdownRenderer content={`\`\`\`\n${'x'.repeat(20_000)}\n\`\`\``} />);
+    expect(screen.getByRole('region', { name: 'code code' })).toBeTruthy();
+  });
+
+  it('keeps the code window mounted when a streamed fence closes', () => {
+    const text = Array(250).fill('const value = 1;').join('\n');
+    const { rerender } = render(<MarkdownRenderer content={`\`\`\`js\n${text}`} />);
+    const viewport = screen.getByTestId('large-code-window');
+    rerender(<MarkdownRenderer content={`\`\`\`js\n${text}\n\`\`\``} />);
+    expect(screen.getByTestId('large-code-window')).toBe(viewport);
+  });
+
   it('does not reparse historical Markdown when another message streams', () => {
     const commits = vi.fn();
     render(<Profiler id="historical-markdown" onRender={commits}>
