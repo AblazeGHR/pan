@@ -25,6 +25,19 @@ export interface Message {
   queueItemIds?: string[];
   /** Stable server receipt keys shared by queue delivery events and history. */
   deliveryKeys?: string[];
+  /**
+   * Durable row origin written by the worker history receipt
+   * (backend `worker.SOURCE_TYPES`): `user` = 前端发送、`agent` = MCP 编排注入、
+   * `report` = 报告/通知通道、`system_prompt` = 系统提示词注入、
+   * `automation` = 定时/后台 Job。旧数据缺失该字段。
+   */
+  source?: string;
+  /** 派发方的 Session id（`agent` 来源行的调用方身份）；旧数据缺失。 */
+  sourceSessionId?: string;
+  /** 任务行携带的 taskId（正式派发或继承的活动任务号）；旧数据缺失。 */
+  taskId?: string;
+  /** `assign` = 正式派发幂等键；`active` = 仅继承活动 taskId 的后续消息。 */
+  taskIdSource?: 'assign' | 'active';
 }
 
 export type MessagePart =

@@ -2222,11 +2222,31 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         )
     delivered_ids = [_queue_item_id(item) for item in items]
     delivered_keys = [_delivery_key(item) for item in items]
+    delivered_is_task = _queue_item_kind(items[0]) == "task"
     delivered_text = (
-        items[0].get("text", "")
-        if _queue_item_kind(items[0]) == "task"
+        items[0].get("text", "") if delivered_is_task
         else _format_report_batch(items)
     )
+    # A delivered task row carries the same source metadata its history receipt
+    # gets, so the live projection can classify the row (agent dispatch vs
+    # user/report/automation) before the canonical history refresh lands.  The
+    # report channel keeps its header marker and stays untouched.
+    delivered_message = {
+        "role": "user",
+        "content": delivered_text,
+        "queueItemIds": delivered_ids,
+        "deliveryKeys": delivered_keys,
+    }
+    if delivered_is_task:
+        delivered_message["source"] = _task_source(items[0]) or "user"
+        if items[0].get("sourceSessionId") is not None:
+            delivered_message["sourceSessionId"] = items[0].get("sourceSessionId")
+        if items[0].get("taskId") is not None:
+            delivered_message["taskId"] = items[0].get("taskId")
+            if items[0].get("taskIdSource") is not None:
+                delivered_message["taskIdSource"] = items[0].get("taskIdSource")
+        if isinstance(items[0].get("parts"), list):
+            delivered_message["parts"] = public_message_parts(items[0].get("parts"))
     await _bcast({
         "type": "queue.item_delivered",
         "sessionId": s.id,
@@ -2236,15 +2256,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         # post-removal revision so a delayed GET /queue cannot overwrite the
         # delivered snapshot with an older response.
         "queueRevision": getattr(s, "queue_revision", 0),
-        "messages": [{
-            "role": "user",
-            "content": delivered_text,
-            "queueItemIds": delivered_ids,
-            "deliveryKeys": delivered_keys,
-            **({"parts": public_message_parts(items[0].get("parts"))}
-               if _queue_item_kind(items[0]) == "task" and isinstance(items[0].get("parts"), list)
-               else {}),
-        }],
+        "messages": [delivered_message],
     })
     await _bcast({
         "type": "queue.snapshot",

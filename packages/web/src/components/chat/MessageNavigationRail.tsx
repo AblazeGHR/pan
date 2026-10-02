@@ -416,7 +416,7 @@ export function MessageNavigationRail({
             left: hovered.left,
           }}
         >
-          <strong>{hovered.target.kind === 'user' ? USER_LABEL : 'Worker report'}</strong>
+          <strong>{hovered.target.kind === 'user' ? USER_LABEL : 'TA report'}</strong>
           <span>{hovered.target.preview || PREVIEW_FALLBACK}</span>
         </div>,
         document.body,
@@ -431,7 +431,7 @@ export function MessageNavigationRail({
         onLostPointerCapture={(event) => finishScrub(event, true)}
       >
         {targets.map((target) => {
-          const label = target.kind === 'user' ? USER_LABEL : 'Worker report';
+          const label = target.kind === 'user' ? USER_LABEL : 'TA report';
           return (
             <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.fromEnd}`}>
               <button

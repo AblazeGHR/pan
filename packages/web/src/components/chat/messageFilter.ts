@@ -61,6 +61,45 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   return null;
 }
 
+/** Durable source tag rendered next to a message body. */
+export type MessageSourceTag = 'ta-report' | 'ma-assign';
+
+/**
+ * Classify the source tag for a message body, or null when it carries none.
+ *
+ * - `ta-report` — the task-agent completion report marker (`@@@@by agent`).
+ *   Kept exactly as the rail rule above: prefix-based and role-independent
+ *   because some adapters serialize reports as user rows.
+ * - `ma-assign` — a task dispatched into this Session by the orchestrating
+ *   agent (MCP `agent_assign` / `agent_task`).  Classification is strictly
+ *   structural: the worker history receipt writes `source: "agent"`
+ *   (编排注入) on exactly those rows.  Browser messages (`user`),
+ *   scheduler/background jobs (`automation`), prompt injection
+ *   (`system_prompt`) and report/notice rows (`report`) fail the source
+ *   check.  Two row families are excluded by the backend's own markers:
+ *   `agent_send` / `agent_send_force` text carries the orchestration identity
+ *   prefix (`////by agent`), and a follow-up row that merely inherited the
+ *   active task id carries `taskIdSource: "active"` (backend
+ *   `_is_formal_task_item` treats only non-active ids as formal dispatches).
+ *   Literal `////by agent` text is therefore never treated as provenance.
+ *
+ * History persisted before the structured fields existed stays unlabelled on
+ * purpose: the current managed relation is never used to guess an old origin.
+ */
+export function getMessageSourceTag(message: Message): MessageSourceTag | null {
+  const content = message.content.trimStart();
+  if (content.startsWith(TASK_AGENT_PREFIX)) return 'ta-report';
+  if (
+    message.role === 'user'
+    && message.source === 'agent'
+    && message.taskIdSource !== 'active'
+    && !content.startsWith(META_AGENT_PREFIX)
+  ) {
+    return 'ma-assign';
+  }
+  return null;
+}
+
 /** Remove transport/source headers before showing a compact hover preview. */
 export function getQuickJumpPreview(content: string, maxLength = 120): string {
   const trimmed = content.trimStart();

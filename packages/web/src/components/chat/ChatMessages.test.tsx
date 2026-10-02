@@ -618,7 +618,7 @@ describe('worker report message treatment', () => {
 
     expect(container.querySelectorAll('.worker-report-label')).toHaveLength(1);
     expect(container.querySelector('.message-row-worker-report')?.textContent).toContain('finished');
-    expect(container.querySelector('.message-row-worker-report')?.textContent).toContain('Worker report');
+    expect(container.querySelector('.message-row-worker-report')?.textContent).toContain('TA report');
   });
 });
 
@@ -666,7 +666,7 @@ describe('view mode layering', () => {
       const row = container.querySelector('.message-row-worker-report');
       expect(row).not.toBeNull();
       expect(row?.classList.contains('message-row-assistant')).toBe(true);
-      expect(row?.textContent).toContain('Worker report');
+      expect(row?.textContent).toContain('TA report');
 
       cleanup();
     }
