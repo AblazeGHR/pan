@@ -8,6 +8,8 @@ import { formatMessageTs, groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
+import { createRef } from 'react';
+import type { ChatMessagesHandle } from './ChatMessages';
 
 // ── Mock @tanstack/react-virtual ──
 // The real virtualizer needs real layout / ResizeObserver, which jsdom does not
@@ -256,6 +258,29 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   cleanup();
+});
+
+it('keeps an explicit navigation jump when cold-row measurement changes total size without a wheel gesture', () => {
+  vi.useFakeTimers();
+  const messages = msgs(20, 'navigation-cold');
+  useSessionStore.setState({ currentSessionId: 'navigation-cold', currentMessages: messages });
+  m.setTotalSize(2000);
+  m.setVirtualItems(messages.map((_, index) => ({ index, start: index * 100, size: 100 })));
+  const ref = createRef<ChatMessagesHandle>();
+  const view = render(<ChatMessages ref={ref} />);
+  act(() => { vi.advanceTimersByTime(10); });
+  const scroller = view.container.querySelector<HTMLElement>('.overflow-auto')!;
+  act(() => {
+    expect(ref.current!.scrollToMessage(messages[4]!)).toBe(true);
+    // The mock virtualizer records scrollToIndex without performing layout.
+    // Supply its navigation offset; no wheel input accompanies a rail click.
+    scroller.scrollTop = 400;
+    programmaticScroll(scroller);
+  });
+  m.setTotalSize(3500);
+  view.rerender(<ChatMessages ref={ref} />);
+  act(() => { vi.advanceTimersByTime(10); });
+  expect(scroller.scrollTop).toBe(400);
 });
 
 it('groups only adjacent thinking blocks and keeps semantic boundaries', () => {

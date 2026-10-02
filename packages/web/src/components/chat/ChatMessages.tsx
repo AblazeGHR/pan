@@ -416,30 +416,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     // session switch (where it used to write a snapshot for the wrong session).
   }, []);
 
-  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
-    const identity = getMessageIdentity(message);
-    const itemIndex = grouped.findIndex((item) => {
-      if ('type' in item && item.type === 'tool_group') return false;
-      return getMessageIdentity(item as import('@/types').Message) === identity;
-    });
-    if (itemIndex < 0) return false;
-    virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-    setHighlightedTarget({ identity, historyIndex });
-    // A jump moves the viewport without touching the scroll listener (and may
-    // not even change totalSize), so refresh the round-trip anchor once the
-    // targeted row has landed. Otherwise leaving right after a jump would
-    // remember the position from before it.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = parentRef.current;
-        if (el) rememberScrollPosition(el);
-      });
-    });
-    return true;
-  }, [grouped, virtualizer, rememberScrollPosition]);
-
-  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
-
   useEffect(() => {
     if (!highlightedTarget) return;
     const timer = window.setTimeout(() => setHighlightedTarget(null), 1400);
@@ -642,6 +618,41 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, { hideScrollToBottom?
     state.active = false;
     upwardPaginationArmedRef.current = false;
   }, []);
+
+  const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
+    const identity = getMessageIdentity(message);
+    const itemIndex = findDisplayItemIndexByMessageIdentity(groupedRef.current, identity);
+    if (itemIndex < 0) return false;
+
+    // Navigation owns this position. A cold jump measures new rows and changes
+    // totalSize; bottom-follow and a previous reading/pagination anchor must
+    // not undo the virtualizer's first positioning/reconciliation.
+    clearUserScrollActivity();
+    shouldFollowBottomRef.current = false;
+    initialScrollPendingRef.current = false;
+    restoreRef.current = null;
+    isRestoringRef.current = false;
+    sessionAnchorRef.current = null;
+    paginationAnchorRef.current = null;
+    for (const pending of [sessionBottomRafRef, sessionAnchorRestoreRafRef, paginationRestoreRafRef]) {
+      if (pending.current !== null) cancelAnimationFrame(pending.current);
+      pending.current = null;
+    }
+    markProgrammaticChange();
+    setIsNearBottom(false);
+    const sessionAtJump = currentSessionIdRef.current;
+    virtualizerRef.current.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
+    setHighlightedTarget({ identity, historyIndex });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = parentRef.current;
+        if (el && currentSessionIdRef.current === sessionAtJump) rememberScrollPosition(el);
+      });
+    });
+    return true;
+  }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition]);
+
+  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
     const state = userScrollStateRef.current;
