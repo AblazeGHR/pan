@@ -77,15 +77,30 @@ describe('TopBar compact worker presentation', () => {
     expect(topbar.querySelector('.message-navigation-mobile-toggle')).toBeTruthy();
   });
 
-  it('keeps its chat style action synchronized with the persistent app setting', () => {
+  it('offers TUI, Bubble and Raw chat views, kept synchronized with the persistent app setting', () => {
     render(<TopBar />);
-    const toggle = screen.getByRole('button', { name: 'Switch to Bubble view' });
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    const tui = screen.getByRole('button', { name: 'Switch to TUI view' });
+    const bubble = screen.getByRole('button', { name: 'Switch to Bubble view' });
+    const raw = screen.getByRole('button', { name: 'Switch to Raw view' });
 
-    fireEvent.click(toggle);
+    expect(tui.getAttribute('aria-pressed')).toBe('true');
+    expect(bubble.getAttribute('aria-pressed')).toBe('false');
+    expect(raw.getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(bubble);
     expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
-    expect(toggle.getAttribute('aria-label')).toBe('Switch to TUI view');
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(bubble.getAttribute('aria-pressed')).toBe('true');
+    expect(tui.getAttribute('aria-pressed')).toBe('false');
+    expect(raw.getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(raw);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('raw');
+    expect(raw.getAttribute('aria-pressed')).toBe('true');
+    expect(bubble.getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(tui);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('tui');
+    expect(tui.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('hides model/status/worker text while retaining the dot and worker actions', () => {

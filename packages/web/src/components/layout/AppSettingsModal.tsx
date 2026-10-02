@@ -185,6 +185,54 @@ function SwitchRow({
   );
 }
 
+const CHAT_VIEW_OPTIONS = [
+  { value: 'tui', label: 'TUI', hint: 'Full-width role-bar rows with rendered Markdown (default).' },
+  { value: 'bubble', label: 'Bubble', hint: 'Shrink-to-fit bubbles with rendered Markdown.' },
+  { value: 'raw', label: 'Raw', hint: 'TUI rows, but each message body shows its original text, unrendered.' },
+] as const;
+
+/**
+ * Explicit three-mode picker for the chat presentation. Persisted through the
+ * same `setChatViewStyle`/config.json path as the TopBar selector, so the two
+ * surfaces always agree and Raw is never confused with Bubble.
+ */
+function ChatViewSelect({
+  value,
+  onChange,
+}: {
+  value: 'tui' | 'bubble' | 'raw';
+  onChange: (v: 'tui' | 'bubble' | 'raw') => void;
+}) {
+  const activeHint = CHAT_VIEW_OPTIONS.find((option) => option.value === value)?.hint ?? '';
+  return (
+    <div className="px-3 py-3">
+      <div
+        role="radiogroup"
+        aria-label="Chat view"
+        className="flex gap-1 rounded border border-border-default bg-bg-tertiary p-1"
+      >
+        {CHAT_VIEW_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={`flex-1 rounded px-2 py-1.5 text-xs transition-colors ${
+              value === option.value
+                ? 'bg-bg-primary text-text-primary shadow-sm'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">{activeHint}</p>
+    </div>
+  );
+}
+
 function ReloadRow({
   label,
   hint,
@@ -1398,12 +1446,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   Chat view
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                  <SwitchRow
-                    label="Use Bubble chat view"
-                    hint="Off by default: TUI rows remain the standard chat presentation."
-                    checked={chatViewStyle === 'bubble'}
-                    onChange={(enabled) => setChatViewStyle(enabled ? 'bubble' : 'tui')}
-                  />
+                  <ChatViewSelect value={chatViewStyle} onChange={setChatViewStyle} />
                 </div>
               </section>
               <section>

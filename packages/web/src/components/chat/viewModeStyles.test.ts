@@ -145,21 +145,26 @@ describe('worker-report treatment is shared by both views', () => {
 });
 
 describe('the view toggle and its naming', () => {
-  it('exposes the TUI/Bubble toggle instead of hiding it', () => {
+  it('exposes all three chat views instead of hiding one behind a binary toggle', () => {
     const topBar = read('src/components/layout/TopBar.tsx');
-    expect(topBar).toContain("setChatViewStyle(tuiViewEnabled ? 'bubble' : 'tui')");
-    expect(topBar).toContain("title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}");
+    expect(topBar).toContain("'Switch to TUI view'");
+    expect(topBar).toContain("'Switch to Bubble view'");
+    expect(topBar).toContain("'Switch to Raw view'");
     expect(topBar).not.toContain('Deprecated Bubble view');
   });
 
-  it('describes the two presentations consistently and defaults to TUI', () => {
+  it('describes the three presentations consistently and defaults to TUI', () => {
     const settingsStore = read('src/stores/appSettingsStore.ts');
     expect(settingsStore).toContain("chatViewStyle: 'tui'");
     expect(settingsStore).toContain("parsed.chatViewStyle === 'bubble'");
+    expect(settingsStore).toContain("parsed.chatViewStyle === 'raw'");
 
     const chatMessages = read('src/components/chat/ChatMessages.tsx');
-    expect(chatMessages).toContain("!tuiViewEnabled ? 'bubble-mode' : ''");
-    expect(chatMessages).toContain("s.chatViewStyle === 'tui'");
+    // Raw reuses the TUI rows, so `.bubble-mode` must be keyed on the Bubble
+    // value itself — a `!tui` guard would leak the bubble geometry onto Raw.
+    expect(chatMessages).toContain("chatViewStyle === 'bubble'");
+    expect(chatMessages).toContain("bubbleViewEnabled ? 'bubble-mode' : ''");
+    expect(chatMessages).not.toContain("!tuiViewEnabled ? 'bubble-mode' : ''");
     expect(chatMessages).not.toContain('deprecated Bubble branch');
   });
 });

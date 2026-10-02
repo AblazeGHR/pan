@@ -13,12 +13,27 @@ import type { CodexQuotaProjection } from '@/types';
 import {
   MessageSquare,
   Monitor,
+  Code,
   Copy,
   RotateCw,
   Ban,
   Download,
   X,
 } from 'lucide-react';
+
+/**
+ * Chat presentations available from the TopBar. Kept here (rather than in the
+ * store) because the accessible names are this button's concern; the store only
+ * owns the persisted value. The three modes are:
+ *   tui    — full-width role-bar rows with rendered Markdown (default)
+ *   bubble — shrink-to-fit bubbles with rendered Markdown
+ *   raw    — TUI rows, but each body shows the original text, unrendered
+ */
+const CHAT_VIEW_OPTIONS = [
+  { value: 'tui', label: 'Switch to TUI view', Icon: Monitor },
+  { value: 'bubble', label: 'Switch to Bubble view', Icon: MessageSquare },
+  { value: 'raw', label: 'Switch to Raw view', Icon: Code },
+] as const;
 
 function tokenCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -95,7 +110,6 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     chatViewStyle: s.chatViewStyle,
     setChatViewStyle: s.setChatViewStyle,
   })));
-  const tuiViewEnabled = chatViewStyle === 'tui';
   const { restart, killCurrent, interrupt, takeover } =
     useWorkerStore(useShallow((s) => ({
       restart: s.restart,
@@ -172,18 +186,32 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           >
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
-          {/* Toggle between the chat presentations: TUI rows (default) and the
-              Bubble view. */}
-          <button
-            type="button"
-            onClick={() => setChatViewStyle(tuiViewEnabled ? 'bubble' : 'tui')}
-            aria-label={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}
-            aria-pressed={!tuiViewEnabled}
-            className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-8 max-md:w-8 max-md:flex-none max-md:p-0 max-md:justify-center"
-            title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}
+          {/* Chat presentation: three explicit modes in one selector. The
+              active mode is marked with aria-pressed, so Raw is never confused
+              with Bubble (ChatMessages keys `.bubble-mode` on `=== 'bubble'`). */}
+          <div
+            role="group"
+            aria-label="Chat view"
+            className="flex items-center gap-0.5 rounded border border-border-default bg-bg-tertiary p-0.5"
           >
-            {tuiViewEnabled ? <Monitor size={16} /> : <MessageSquare size={16} />}
-          </button>
+            {CHAT_VIEW_OPTIONS.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setChatViewStyle(value)}
+                aria-label={label}
+                aria-pressed={chatViewStyle === value}
+                title={label}
+                className={`rounded p-0.5 transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0 ${
+                  chatViewStyle === value
+                    ? 'bg-bg-primary text-text-primary'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
