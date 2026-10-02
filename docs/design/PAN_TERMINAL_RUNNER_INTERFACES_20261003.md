@@ -223,7 +223,9 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
   以**共享总 deadline** join 连接线程（默认 3s，非 N×2s）、有界 join watchdog（3s），
   再由 `_finalize()` 在**从入口计时的总预算（12s）**内做最后一次关闭：
   - 预算**包含** lifecycle 锁的有界等待（`RLock.acquire(timeout=剩余)`）与 close worker
-    等待/全部 join；剩余预算逐段传递（`min(close_wait, remaining)`）；
+    等待；剩余预算逐段传递（`min(close_wait, remaining)`）；连接线程与 watchdog 的
+    join 位于此前的独立 3s + 3s 分段，不计入 `_finalize` 的 12s。状态文件写入在
+    finalize 之后，也不属于该预算；不能把 12s 当作整个 run 收尾的硬上界；
   - 锁忙（被其它关闭链持有）→ **不假 success、不丢 owner、不裸关在途句柄**：记录
     `finalize.outcome="lock-busy"` 与非零退出码（cleanup-failed），随后仍可重试；
   - 预算耗尽 → 不静默延长、不多次最低预算重试 → `budget-exhausted` + 未证明码（6）；
@@ -590,7 +592,8 @@ class RunnerClient:
     核验）+ `prior_record_identity_mismatch`（旧残留身份不同不当当前）；状态写串行、
     唯一自有 tmp、replace 失败只清自有不吞 cleanup。
   - **N4**（口径）：`_finalize` 总预算（入口起 12s）**包含** lifecycle 锁的有界等待与
-    全部 join/worker 等待；锁忙 → 非零（cleanup-failed）、不假 success、不丢 owner、
+    close worker 等待（此前连接/watchdog join 各自有 3s 分段预算）；锁忙 → 非零
+    （cleanup-failed）、不假 success、不丢 owner、
     不裸关在途句柄，`finalize` 结果入状态文件；预算耗尽不静默延长（未证明码 6）；
     在途 close 复用原 worker；声明为调用方侧有界等待，非 OS 原语硬 SLA。
   - 测试 31 → **38 项**（新增 7：N1×2、N2×1、N3×2、N4×2；直连 + uv 各一次，
