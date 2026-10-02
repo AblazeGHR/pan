@@ -1,0 +1,87 @@
+{
+  "environment": {
+    "collected_at": "2026-10-03 05:57:54",
+    "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "E:\\software\\miniforge\\python.exe",
+    "platform": "win32",
+    "git_head": "8af9b0f99767198d576452117559099fb7317b94",
+    "label": "final"
+  },
+  "probes": {
+    "ambient_constraint": {
+      "script": "probe_ambient_constraint.py",
+      "returncode": 0,
+      "seconds": 0.12
+    },
+    "dead_process_probe": {
+      "script": "probe_dead_process_unknown.py",
+      "returncode": 0,
+      "seconds": 1.2
+    },
+    "response_whitelist": {
+      "script": "probe_response_whitelist.py",
+      "returncode": 0,
+      "seconds": 0.08
+    }
+  },
+  "pytest": {
+    "returncode": 0,
+    "seconds": 75.23,
+    "tail": "PASSED tests/test_terminal_runner.py::test_blocked_write_does_not_stall_watchdog_or_other_connections\nPASSED tests/test_terminal_runner.py::test_new_process_reconnects_with_dpapi_secret\nPASSED tests/test_terminal_runner.py::test_no_token_leakage_in_argv_env_logs_and_files"
+  },
+  "cleanup": {
+    "tests_with_cleanup_evidence": 18,
+    "handles": 17,
+    "alive_before_cleanup": 0,
+    "terminated": 0,
+    "shell_traces": 0
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  },
+  "evidence_files": [
+    "ambient_constraint.json",
+    "binding_and_expired.json",
+    "blocked_write.json",
+    "bridge_unit.json",
+    "cleanup_failed_retry.json",
+    "cleanup_test_blocked_write_does_not_stall_watchdog_or_other_connections.json",
+    "cleanup_test_cleanup_failed_keeps_owner_and_retry_converges.json",
+    "cleanup_test_detach_refused_when_ambient_job_constrains_durability.json",
+    "cleanup_test_detach_semantics_same_pty_reconnect_and_shell_variable.json",
+    "cleanup_test_managed_lease_heartbeat_then_expiry_stops_tree.json",
+    "cleanup_test_new_process_reconnects_with_dpapi_secret.json",
+    "cleanup_test_no_token_leakage_in_argv_env_logs_and_files.json",
+    "cleanup_test_observer_rotation_does_not_change_runtime.json",
+    "cleanup_test_output_log_eviction_publishes_gap_and_exact_totals.json",
+    "cleanup_test_real_pty_roundtrip_read_input_and_close.json",
+    "cleanup_test_root_exit_with_live_grandchild_is_tree_cleaned.json",
+    "cleanup_test_runner_hard_kill_closes_guard_and_cleans_tree.json",
+    "cleanup_test_runner_refuses_token_in_environment.json",
+    "cleanup_test_snapshot_protocol_a_with_injected_emulator.json",
+    "cleanup_test_startup_refuses_identity_mismatch_without_listening.json",
+    "cleanup_test_terminal_binding_and_expired_deadline_never_execute.json",
+    "cleanup_test_wrong_token_handshake_rejected_without_touching_runtime.json",
+    "cross_process_reconnect.json",
+    "dead_process_probe.json",
+    "detach_refused.json",
+    "detach_semantics.json",
+    "durability_capability.json",
+    "managed_lease.json",
+    "observer_rotation.json",
+    "output_gap.json",
+    "pytest.log",
+    "response_whitelist.json",
+    "root_dead_grandchild_cleaned.json",
+    "roundtrip.json",
+    "runner_hard_kill.json",
+    "runner_runs.json",
+    "snapshot_protocol_a.json",
+    "startup_identity_mismatch.json",
+    "token_env_refusal.json",
+    "token_leakage_scan.json",
+    "wrong_token.json"
+  ]
+}

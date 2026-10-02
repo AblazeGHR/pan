@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "D:\\project\\pan-worktrees\\terminal-runner-implement-20261003\\audit\\terminal\\implementation\\runner\\probes\\probe_dead_process_unknown.py"
+  ],
+  "returncode": 0,
+  "seconds": 1.2,
+  "stdout": "{\n  \"with_popen_handle\": {\n    \"status\": \"dead\",\n    \"detail\": \"same-handle signaled\"\n  },\n  \"after_popen_handle_release\": {\n    \"status\": \"dead\",\n    \"detail\": \"same-handle signaled\"\n  },\n  \"pid_exists_after_release\": true,\n  \"guard_scenario\": {\n    \"runner_pid\": 35428,\n    \"shell_pid\": 47288,\n    \"shell_before_kill\": {\n      \"status\": \"alive\",\n      \"detail\": \"same-handle wait\"\n    },\n    \"runner_kill_terminated\": true,\n    \"shell_after_kill\": {\n      \"status\": \"unknown\",\n      \"detail\": \"OpenProcess/GetProcessTimes failed\"\n    },\n    \"shell_pid_exists_after_kill\": false,\n    \"runner_exit_code\": 1\n  },\n  \"conclusion\": \"死亡判定不得只看 probe 三态：引用保留=DEAD；完全回收=UNKNOWN；测试侧以 PID 存在性 + FILETIME 兜底\"\n}\n",
+  "stderr": ""
+}

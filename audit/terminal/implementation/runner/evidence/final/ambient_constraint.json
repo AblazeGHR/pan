@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "D:\\project\\pan-worktrees\\terminal-runner-implement-20261003\\audit\\terminal\\implementation\\runner\\probes\\probe_ambient_constraint.py"
+  ],
+  "returncode": 0,
+  "seconds": 0.12,
+  "stdout": "{\n  \"is_process_in_job_query_ok\": true,\n  \"in_any_job\": true,\n  \"normal_child\": \"{\\\"pid\\\": 13276, \\\"in_any_job\\\": true}\",\n  \"breakaway_child\": {\n    \"spawned\": false,\n    \"winerror\": 5,\n    \"error\": \"PermissionError\"\n  },\n  \"durability_capability\": {\n    \"capable\": false,\n    \"ambient_job\": true,\n    \"detail\": \"host ambient Job present: cannot prove runner survives the job's close (KILL_ON_JOB_CLOSE may kill the tree); detach refused (fail-closed)\"\n  },\n  \"conclusion\": \"host ambient Job present and breakaway refused: durable detach cannot be proven in this environment; runner must refuse detach (fail-closed)\"\n}\n",
+  "stderr": ""
+}

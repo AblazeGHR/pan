@@ -1,0 +1,15 @@
+{
+  "runner_pid": 34352,
+  "shell_pid": 34160,
+  "shell_dead": true,
+  "terminate_trace": {
+    "pid": 34352,
+    "requestedCreateTimeFiletime": 134354519192545234,
+    "opened": true,
+    "createTimeFiletime": 134354519192545234,
+    "filetimeMatch": true,
+    "running": true,
+    "terminated": true,
+    "detail": "terminated"
+  }
+}
