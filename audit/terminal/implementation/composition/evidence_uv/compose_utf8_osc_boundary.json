@@ -1,0 +1,10 @@
+{
+  "runner_fidelity": "partial",
+  "runner_recovery": "partial",
+  "engine_fidelity": "partial",
+  "engine_recovery": "partial",
+  "engine_reasons": [],
+  "no_upgrade": true,
+  "marker_intact": true,
+  "utf8_intact": true
+}

@@ -1,0 +1,51 @@
+{
+  "pre_spawn_error": "EmulatorStartupError",
+  "pre_spawn_owner_none": true,
+  "post_spawn_eof": {
+    "raised": false,
+    "engine_dead": true,
+    "engine_alive": false,
+    "snapshot_fidelity": "unavailable",
+    "snapshot_recovery": "none",
+    "honest_unavailable": true,
+    "finding": "F1: spawn 后、ready 前 EOF 不抛启动错误且无 owner/重试入口；构造出 dead engine（快照诚实 unavailable/none；与 fatal 路径不一致）",
+    "close_closed": true
+  },
+  "post_spawn_fatal": {
+    "error": "EmulatorStartupError",
+    "seconds": 0.094,
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "residual": {
+      "reason": "sidecar 不可用：injected-dependency-broken:test",
+      "pid": 14584,
+      "identity_filetime": "134354589381257042",
+      "process_exited": true,
+      "job_verified": true,
+      "guard_closed": true,
+      "cleanup_closed": true,
+      "cleanup_seconds": 0.015,
+      "cleanup_detail": "ok",
+      "cleanup_errors": [],
+      "stderr_digest": ""
+    },
+    "no_residue": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "total_bytes": 335041,
+  "eviction_triggered": true,
+  "cursor_at_snapshot": 335041,
+  "tail_single_consumption": true,
+  "checker_serialized_equal": true,
+  "fidelity": "partial",
+  "recovery": "partial",
+  "engine_backlog_observation": {
+    "feed_ops": 2418,
+    "queue_bytes_at_production_end": 331942,
+    "queue_ops_at_production_end": 2405,
+    "applied_cursor_at_production_end": "3099",
+    "note": "真实 ConPTY 小读块 + applier 单飞 → 生产端突发远超引擎排空速率；adapter 不阻塞 reader，积压可见（本套件等待追平，未假称即时）"
+  },
+  "emulator_close": {
+    "closed": true,
+    "graceful": true,
+    "forced": true,
+    "process_exited": true,
+    "guard_closed": true,
+    "reader_joined": true,
+    "stderr_joined": true,
+    "applier_joined": true,
+    "streams_closed": true,
+    "job_verified": true,
+    "detail": "ok",
+    "seconds": 0.0
+  }
+}

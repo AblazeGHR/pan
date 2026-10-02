@@ -1,0 +1,57 @@
+{
+  "collected_at": "2026-10-03 07:54:32",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "46af86d2fe07055342713fc4b3b5417f1e53a0ab",
+  "steps": {
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 87.14,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_composition.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_composition.py::test_composition_runner_hard_kill_leaves_no_sidecar_or_tree\nPASSED tests/test_terminal_composition.py::test_composition_detach_refused_under_constraint_zero_change",
+      "cleanup": {
+        "sessions_with_cleanup": 10,
+        "alive_before_cleanup": 0,
+        "forced_terminations": 0
+      }
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 89.34,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_composition.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_composition.py::test_composition_runner_hard_kill_leaves_no_sidecar_or_tree\nPASSED tests/test_terminal_composition.py::test_composition_detach_refused_under_constraint_zero_change"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "python_runners": 0,
+    "node_sidecars": 0,
+    "processes": []
+  }
+}
