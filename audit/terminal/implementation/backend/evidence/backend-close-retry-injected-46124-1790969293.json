@@ -1,0 +1,26 @@
+{
+  "test": "close_failure_retry_injected_release",
+  "first": {
+    "closed": false,
+    "retained": [
+      "input_write",
+      "output_read",
+      "hpc",
+      "h_process",
+      "h_thread",
+      "attr_list"
+    ],
+    "errors": [
+      "injected-release-failure(output_read)：包装层模拟，句柄保留可重试"
+    ]
+  },
+  "second_released": [
+    "output_read",
+    "pseudo_console",
+    "attr_list",
+    "input_write",
+    "leftover_pipes",
+    "h_thread",
+    "h_process"
+  ]
+}

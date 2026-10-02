@@ -1,0 +1,9 @@
+{
+  "test": "input_blocking_close_concurrency",
+  "close_seconds": 0.013,
+  "writer_result": [
+    "BackendClosedError",
+    1769472
+  ],
+  "writer_seconds": 1.034
+}

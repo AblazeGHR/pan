@@ -1,0 +1,4 @@
+{
+  "test": "close_idempotent_and_probe_failclosed",
+  "idempotent": true
+}
