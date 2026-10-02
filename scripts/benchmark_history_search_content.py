@@ -9,6 +9,7 @@ This is not HTTP/E2E evidence or a claim about production latency.
 import argparse
 import ast
 import hashlib
+import functools
 import json
 from pathlib import Path
 import platform
@@ -22,24 +23,50 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from packages.core.history_search_index import search_history
+from packages.core import history_search_index
 
 PR_HEAD = 'bf811a7cc2f0271023b459729b7fb0079591ebaf'
+_stage_samples = {}
+
+
+def record_stage(function, label):
+    @functools.wraps(function)
+    def timed(*args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _stage_samples.setdefault(label, []).append((time.perf_counter()-start)*1000)
+    return timed
 
 
 def measure(function, rounds=7):
     samples = []
+    stage_rounds = []
     for _ in range(rounds):
+        _stage_samples.clear()
         start = time.perf_counter()
         result = function()
         samples.append((time.perf_counter() - start) * 1000)
-    return {'medianMs': statistics.median(samples), 'samplesMs': samples}, result
+        stage_rounds.append({name: sum(values) for name, values in _stage_samples.items()})
+    stages = {name: statistics.median(round.get(name, 0) for round in stage_rounds)
+              for name in set().union(*(round.keys() for round in stage_rounds))}
+    return {'medianMs': statistics.median(samples), 'samplesMs': samples,
+            **({'inclusiveStageMedianMs': stages} if stages else {})}, result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compare-pr', action='store_true')
     parser.add_argument('--rows', type=int, default=10_000)
+    parser.add_argument('--profile-stages', action='store_true',
+                        help='Report inclusive loader/snapshot/index/cache stage timings, not additive costs')
     args = parser.parse_args()
+    if args.profile_stages:
+        for name in ('_snapshot', '_replace_session', '_append_session',
+                     '_insert_messages', '_index_inserted_rows',
+                     '_ensure_schema', 'cached_query_page'):
+            setattr(history_search_index, name, record_stage(getattr(history_search_index, name), name))
     if not 1 <= args.rows <= 100_000:
         parser.error('--rows must be between 1 and 100000')
     helper = None
@@ -79,6 +106,8 @@ def main():
             return SimpleNamespace(id='bench', history_epoch=meta.history_epoch,
                                    history_revision=meta.history_revision, _history_loaded=True,
                                    history=[json.loads(line) for line in history_path.read_text(encoding='utf-8').splitlines()])
+        if args.profile_stages:
+            loader = record_stage(loader, 'canonicalLoader')
         path = directory / 'index.sqlite3'
         def ours(query, roles=('user', 'assistant', 'tool', 'thinking'), after=None, target=path):
             return search_history(target, [meta], ['bench'], query, limit=100,
@@ -130,7 +159,7 @@ def main():
         report['sqliteBytes'] = path.stat().st_size
         report['jsonlBytes'] = history_path.stat().st_size
         assert hashlib.sha256(history_path.read_bytes()).hexdigest() == original
-        append_ours, append_pr = [], []
+        append_ours, append_pr, append_stages = [], [], []
         for i in range(3):
             with history_path.open('a', encoding='utf-8') as handle:
                 handle.write(json.dumps({'role': 'tool', 'content': 'selectiveterm appended',
@@ -139,12 +168,17 @@ def main():
             meta.summary_projection['history_total'] += 1
             sample, _ = measure(lambda: ours('selectiveterm'), 1)
             append_ours.extend(sample['samplesMs'])
+            append_stages.append(sample.get('inclusiveStageMedianMs', {}))
             if pr:
                 sample, _ = measure(lambda: pr('selectiveterm'), 1)
                 append_pr.extend(sample['samplesMs'])
         report['appendFirstQuery'] = {'oursMedianMs': statistics.median(append_ours),
                                      'oursSamplesMs': append_ours,
                                      'prMedianMs': statistics.median(append_pr) if append_pr else None}
+        if args.profile_stages:
+            report['appendFirstQuery']['inclusiveStageMedianMs'] = {
+                name: statistics.median(stage.get(name, 0) for stage in append_stages)
+                for name in set().union(*(stage.keys() for stage in append_stages))}
     report['temporaryDataRemoved'] = not directory.exists()
     print(json.dumps(report, ensure_ascii=True, indent=2))
 
