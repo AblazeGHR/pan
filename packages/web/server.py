@@ -6072,9 +6072,13 @@ def _history_search_versions_fingerprint(
 def _encode_history_search_cursor(
     *, query: str, session_id: str | None, limit: int, versions: list[dict],
     session_order: list[str], after: tuple[int, int], key: bytes,
+    roles: tuple[str, ...] = history_search_index.BODY_ROLES,
+    content_counts: bool = False,
 ) -> str:
     payload = {
-        "v": 1,
+        "v": 2,
+        "r": list(roles),
+        "c": content_counts,
         "q": _history_search_query_fingerprint(query),
         "s": session_id,
         "l": limit,
@@ -6107,10 +6111,13 @@ def _decode_history_search_cursor(cursor: str) -> dict:
             raise ValueError("signature size")
         raw_signature = decode_part(signature)
         payload = json.loads(decode_part(body).decode("utf-8"))
-        if not isinstance(payload, dict) or set(payload) != {"v", "q", "s", "l", "d", "a", "t"}:
+        if not isinstance(payload, dict) or set(payload) != {"v", "q", "s", "l", "d", "a", "t", "r", "c"}:
             raise ValueError("shape")
-        if type(payload["v"]) is not int or payload["v"] != 1:
+        if type(payload["v"]) is not int or payload["v"] != 2:
             raise ValueError("version")
+        if (type(payload['c']) is not bool or not isinstance(payload['r'], list)
+                or tuple(payload['r']) != history_search_index.normalize_roles(payload['r'])):
+            raise ValueError('roles or counting mode')
         if any(
             not isinstance(payload[key], str)
             or re.fullmatch(r"[0-9a-f]{64}", payload[key]) is None
@@ -6148,6 +6155,9 @@ def _history_search_request(
     query: str, session_id: str | None, limit: int,
     after: tuple[int, int] | None = None,
     cursor_auth: tuple[str, bytes] | None = None,
+    roles: tuple[str, ...] = history_search_index.BODY_ROLES,
+    content_counts: bool = False,
+    match_index: int | None = None,
 ) -> dict:
     """Run one lazy index/search operation against the current Session registry."""
     sessions = sess.list_all(load_history=False)
@@ -6168,6 +6178,9 @@ def _history_search_request(
         after=after,
         cursor_auth=cursor_auth,
         load_session=_load_history_search_snapshot,
+        roles=roles,
+        content_counts=content_counts,
+        match_index=match_index,
     )
 
     # A Session may be deleted while the index is loading/rebuilding. Recheck
@@ -6248,8 +6261,16 @@ async def api_history_search(
     sessionId: str | None = None,
     limit: int = history_search_index.DEFAULT_HISTORY_SEARCH_LIMIT,
     cursor: str | None = None,
+    roles: str | None = None,
+    countMode: str = 'messages',
+    matchIndex: int | None = None,
 ):
-    """Search indexed user/assistant bodies in one Session or across Sessions.
+    """Search lazily selected text partitions in one Session or globally.
+
+    roles is a comma-separated subset of user,assistant,tool,thinking; an
+    explicit empty subset searches nothing. Omission keeps old clients' body
+    scope. countMode=content reports non-overlapping literal occurrences and
+    matchIndex seeks to a zero-based occurrence without transferring history.
 
     The independent SQLite index is created only for a non-empty search
     request; canonical Session history remains the source for every rebuild.
@@ -6258,6 +6279,17 @@ async def api_history_search(
     in-scope history version changes; callers should then start a new search.
     """
     query = q.strip()
+    try:
+        selected_roles = history_search_index.normalize_roles(
+            None if roles is None else [role.strip() for role in roles.split(',') if role.strip()])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    if countMode not in ('messages', 'content'):
+        raise HTTPException(status_code=422, detail='countMode must be messages or content')
+    content_counts = countMode == 'content'
+    if matchIndex is not None and (not content_counts or type(matchIndex) is not int
+                                  or not 0 <= matchIndex <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
+        raise HTTPException(status_code=422, detail='matchIndex requires content mode and a non-negative bounded integer')
     bounded = history_search_index.bounded_limit(limit)
     decoded_cursor = _decode_history_search_cursor(cursor) if cursor is not None else None
     cursor_data = decoded_cursor["payload"] if decoded_cursor is not None else None
@@ -6271,15 +6303,18 @@ async def api_history_search(
             cursor_data["q"] != _history_search_query_fingerprint(query)
             or cursor_data["s"] != sessionId
             or cursor_data["l"] != bounded
+            or cursor_data['r'] != list(selected_roles)
+            or cursor_data['c'] != content_counts
         ):
             raise _history_search_cursor_error()
         after = (cursor_data["a"][0], cursor_data["a"][1])
-    if not query:
+    if not query or not selected_roles:
         if cursor_data is not None:
             raise _history_search_cursor_error()
         return {
             "hits": [], "versions": [], "limit": bounded,
             "hasMore": False, "nextCursor": None,
+            **({'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected_roles)} if content_counts else {}),
         }
     if len(query) > history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH:
         raise HTTPException(
@@ -6292,6 +6327,7 @@ async def api_history_search(
     try:
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
+            selected_roles, content_counts, matchIndex,
         )
     except _HistorySearchSnapshotChanged:
         if cursor_data is not None:
@@ -6340,6 +6376,8 @@ async def api_history_search(
             session_order=session_order,
             after=next_after,
             key=cursor_key,
+            roles=selected_roles,
+            content_counts=content_counts,
         )
     return result
 

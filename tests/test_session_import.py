@@ -487,10 +487,9 @@ def test_codex_import_assigns_pan_ids_and_preserves_native_metadata():
         "user", "assistant", "thinking",
     ]
     assert all(_sess.is_pan_message_id(row["messageId"])
-               for row in imported.history[:2])
+               for row in imported.history)
     assert all(row["messageId"] != row["nativeItemId"]
-               for row in imported.history[:2])
-    assert "messageId" not in imported.history[2]
+               for row in imported.history)
     assert imported.history[0]["parts"] == [
         {"type": "text", "text": "question"},
     ]
