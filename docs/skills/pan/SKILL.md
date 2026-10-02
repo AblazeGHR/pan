@@ -243,9 +243,9 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 55 个实际暴露工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。其中 48 个是一等工具，7 个 `worker_*` 是仅为兼容旧调用保留的别名，不应作为新编排 API 使用。可重复执行 `python scripts/check_pan_skill_tools.py` 自检数量和清单完整性。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 67 个实际暴露工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。其中 60 个是一等工具，7 个 `worker_*` 是仅为兼容旧调用保留的别名，不应作为新编排 API 使用。可重复执行 `python scripts/check_pan_skill_tools.py` 自检数量和清单完整性。
 >
-> **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Session，承载 MA/TA 身份，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。`agent_background_*` 管理的是独立于 Session Worker 的持久 Job，不会把后台进程误算成 Worker。当前共 55 个实际暴露工具；其中时间类 Session 消息 Job 与 OS 进程 Job 使用不同工具族。
+> **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Session，承载 MA/TA 身份，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。`agent_background_*` 管理的是独立于 Session Worker 的持久 Job，不会把后台进程误算成 Worker。当前共 67 个实际暴露工具；其中时间类 Session 消息 Job 与 OS 进程 Job 使用不同工具族。
 >
 > **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§10.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
 >
@@ -262,7 +262,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `manager_chain` | (无) | 返回调用方（`PAN_AGENT_SESSION_ID`）的**上级 manager 链**（从最近一级 manager 逐级向上，每级含 `level/id/name/workerStatus/lastResultStatus`）。需调用方身份；独立 MCP 进程（无身份）不可用 |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
 | `session_usage` | `session_id?` | 查询当前或显式 Pan Session 的持久化 input/output/cache 用量；显式目标复用 `_check_access` managed 隔离。返回 `input`、`output`、`cache.read/write`、`total.tokens/credit`、`source`、`updatedAt`；缺失字段为 `null`，持久化零为 `0`，cache 不重复计入 input/output；优先 `Session.rawUsage`，旧数据回退 `Session.totalUsage`，不返回历史 raw payload |
-| `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
+| `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?`, `workspace_ids?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。**`workspace_ids?` 移动会话到 Workspace**（0 或 1 个 id，`[]` = 取消分组/ungrouped，省略 = 保持不变；复用 Dashboard 同一个 `PUT /api/sessions/{id}/workspaces`）：成员关系只存于 **management-tree 根**，被管理后代通过 managedBy 链**继承**，因此根移动会传播给整棵子树；**目标 session 若已被管理则拒绝**（错误码 `managed_session`），须先 `session_unclaim` 分离——与 Dashboard 拖拽「先分离再移动」一致，杜绝跨 Workspace 的管理树分裂。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
 | `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
@@ -274,6 +274,16 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `session_qq_subscribe` | `target_type`, `target_id` | 给当前 agent session 订阅某 QQ 会话的 inbox 更新提醒（`@@@@by qq` 提醒入 `queue_pending`，§7.6）。走 `POST /api/qq/subscribe`，body sessionId=自己（无需 `_check_access`，但需 `PAN_AGENT_SESSION_ID`）。`target_type` 仅 `"user"`/`"group"`；`target_id` 为 QQ 号/群号（转 str） |
 | `session_qq_unsubscribe` | `target_type`, `target_id` | 退订 QQ inbox 更新提醒，走 `POST /api/qq/unsubscribe`，参数同上 |
 | `session_history` | `session_id`, `limit?`, `before?` | 分页历史 |
+
+**Workspace（会话分组）**：Workspace 是命名容器，与 Session 的显示排序解耦。成员关系只持久化在 **management-tree 根** session 的 `workspace_ids`（0 或 1 个）；被管理后代通过 managedBy 链**继承**，不单独持有值——同一管理树整体落在同一个 Workspace，不会跨 Workspace 分裂。`[]` = ungrouped（无 "default" 分区）。以下工具与 Dashboard 共用同一组后端端点，规则/校验/权限边界完全一致（MCP 不获得 UI 没有的能力）。
+
+| 工具 | 参数 | 说明 |
+|------|------|------|
+| `workspace_list` | (无) | 列出全部 Workspace，返回 `[{id, name, order, dirs, createdAt, updatedAt, sessionCount}]`；`id` 供 `session_update`/`workspace_delete` 使用，不返回成员 id 列表（用 `session_list`/`session_get`） |
+| `workspace_create` | `name` | 新建 Workspace（等价 Dashboard「新建工作区」）：name 必填、trim、≤128 字符、全局唯一；校验与 `workspace.created` 广播由共享后端端点执行，MCP 无法创建 UI 不能创建的工作区。新工作区为空，用 `session_update(session_id, workspace_ids=[<id>])` 移入会话。错误码 `invalid_name` / `name_taken` |
+| `workspace_delete` | `workspace_id` | 删除 Workspace 并使其成员变回 ungrouped：从各根 session 清除该 id，被管理后代跟随根一并脱离；**绝不删除 session 本身**。删除后不留 dangling workspace id、不产生跨 Workspace 的 managed 关系。返回 `{"ok":true,"workspaceId":<id>}` 或 `workspace_not_found` |
+
+> **如何把会话移入/移出 Workspace**：用 `session_update(session_id, workspace_ids=[...])`（不是独立工具）。根 session 移动会随管理树**传播**给全体后代；目标若已被管理则返回 `managed_session`，须先用 `session_unclaim` 分离再移动（等于 Dashboard 拖拽时的「分离确认」）。更多请求体细节见 [`references/http-api.md`](references/http-api.md)。
 
 > **复用已删除的 Pan session（2026-08-23 实测）**：Pan session 被 `session_delete`/`session_batch_delete` 删掉后，其底层 **CLI 会话（`~/.codebuddy/projects/` 或 `data/workdirs/<name>/`）仍保留**。可 `session_import(action="list_projects")` 找到对应 project_dir → `list_sessions` 找到该会话 → `import` 恢复成新 Pan session（含全部历史上下文）。**节省资源**：不用重建后重新探索/初始化，尤其适合「worker 已完成任务但需继续排查/跟进」的场景——把刚删的 worker session 恢复后继续派活，worker 带着全部上下文直接上手。
 
@@ -346,6 +356,22 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 `////by agent : <creatorSessionId> | <title>` 前缀和 `sourceSessionId`，不会被
 误分类为系统通知。旧 Job JSON 缺失 `creatorSessionId` 时按无创建者兼容读取。
+
+### 定时任务（Scheduler，闹钟式）
+
+> 像闹钟：设定「任务文本 + 触发时间 + 重复规则」，到点自动把 `text` 派发给目标 session 的 worker（等价到点替你发一次 `agent_assign`）。三种 schedule 用 `kind` 选择：`once`（`at` 本地朴素时间）/ `interval`（`interval_sec` >0）/ `cron`（5 段表达式如 `0 9 * * 1-5`）。目标必须是自己或自己 managed 的 session；写操作会自动 claim 未归属 session，受 `_check_access` 隔离。
+
+| 工具 | 参数 | 说明 |
+|------|------|------|
+| `scheduler_create` | `target_session_id`, `text`, `kind`, `name?`, `at?`, `interval_sec?`, `cron?`, `timezone?`, `enabled?`(默认 true), `max_runs?`, `misfire_policy?` | 创建定时任务。`kind` = `once`/`interval`/`cron`，各自必填参数见上；`timezone` 默认取配置（通常 `Asia/Shanghai`）；`max_runs` null = 无限；`misfire_policy` = `fire_now`/`skip`。返回 `{"ok":true,"task":{...含 nextFireAt}}` 或 `invalid_schedule`/`session_not_found` |
+| `scheduler_list` | `target_session_id?` | 列出定时任务（含 `nextFireAt`/`lastStatus`/`runCount`/`enabled`/`paused`）；按目标过滤在 MCP 层完成，省略 = 全部（只读） |
+| `scheduler_get` | `task_id`, `target_session_id?` | 读取单个任务（`sch_` 前缀 id） |
+| `scheduler_update` | `task_id`, `target_session_id?`, `name?`, `text?`, `schedule?`, `enabled?`, `max_runs?`, `misfire_policy?` | 部分更新；改 `schedule` 会重算 `nextFireAt` |
+| `scheduler_delete` | `task_id`, `target_session_id?` | 删除任务 |
+| `scheduler_pause` | `task_id`, `target_session_id?` | 挂起：跳过触发但时间锚点照常推进（与 `enabled=false` 总开关不同，后者停止推进） |
+| `scheduler_resume` | `task_id`, `target_session_id?` | 恢复挂起任务（不回补漏掉的触发） |
+| `scheduler_run_now` | `task_id`, `target_session_id?` | 立即手动触发一次（独立 dispatch_key 幂等，不影响后续节奏）；异步派发，结果看 `scheduler_runs` |
+| `scheduler_runs` | `task_id`, `target_session_id?`, `limit?`(默认 50) | 执行历史（新→旧）：`runId`/`fireAt`/`actualAt`/`status`(dispatched\|error\|skipped\|expired)/`sessionId`/`error` |
 
 ### 系统通知与提醒
 
