@@ -288,8 +288,9 @@ pipe 独占（`FILE_FLAG_FIRST_PIPE_INSTANCE`）+ registry 记录共同保证单
 3. runner/service 崩溃日志同样脱敏（runner 启动参数只含 `--secret-file` 路径）。
 4. 测试断言（`test_terminal_runner_ipc.py`）：以注入哨兵 token 反查 runner/service 日志、registry JSON、
    argv 快照（`Get-CimInstance`/`wmic` 不可用时用 spawn 侧记录）均无命中；解密失败路径不打印内容。
-5. 与撤销的关系：token 承载 lease 撤销/世代语义（`attachments.py`）；撤销后旧 token 的所有
-   `send/resize/transfer` 均 `StaleLeaseError`（契约 M14）。
+5. 凭证分层：runner IPC token 只用于 Pan↔runner 身份认证，**不是**浏览器 attachment lease。
+   `attachments.py` 的控制权 lease 使用独立 `revocation_id/generation`；撤销后旧 lease 的
+   `send/resize/transfer` 均 `StaleLeaseError`（契约 M14）。浏览器不得得到 IPC token。
 
 ### 6.3 Web 入口信任边界与授权（不能只靠“服务校验”）
 
@@ -339,7 +340,7 @@ pipe 独占（`FILE_FLAG_FIRST_PIPE_INSTANCE`）+ registry 记录共同保证单
 - PTY reader 永不因客户端阻塞：它只追加到有界日志。
 - **权威仿真器供料（与客户端背压无关）**：reader 每块在**同一临界区**内 ①追加 OutputLog、
   ②投递给仿真器（有界队列，默认 4 MiB / 8192 块）。仿真器只更新状态（内存有界：屏幕+滚动），
-  正常负载下永远跟得上；若队列打满（仿真器停滞）= `feed_lag` 置位，此时**禁止**声称权威状态完整
+  供料速度必须实测，不能假设仿真器永远跟得上；若队列打满（仿真器停滞）= `feed_lag` 置位，此时**禁止**声称权威状态完整
   （§8 降级语义），而不是阻塞 PTY reader 或悄悄丢字节。
 
 ### 7.3 gap 与 resize 同步
@@ -370,20 +371,24 @@ pipe 独占（`FILE_FLAG_FIRST_PIPE_INSTANCE`）+ registry 记录共同保证单
 
 - 供给路径：reader 临界区内 `OutputLog.append + emulator.feed`；两者同序。
 - **有界供给语义**：feed 队列有界（默认 4 MiB / 8192 块）。仿真器更新是纯状态计算（无网络），
-  正常负载下队列不积压；若打满 → `feed_lag=true`：
+  是否积压由实测与运行时观测决定；若打满 → `feed_lag=true`：
   - **不阻塞 PTY reader**（避免拖死终端）、**不静默丢字节**（不假装快照仍完整）；
   - 进入 `recovery=degraded`：此后所有快照声明“可能不含完整历史”；客户端收到后必须
     **显式重打基线**（`reset-baseline`：清屏后仅保证从此 cursor 起的未来输出），UI 明确提示；
   - `feed_lag` 恢复后不自动“补全”——需要人工/客户端显式请求新基线，避免伪造恢复。
 - **客户端 gap ≠ 权威 gap**：OutputLog 的 256 KiB 驱逐只影响游标拉取；权威状态不因驱逐丢失。
-  `gap` 出现时客户端取**当前权威快照**（cursor = 快照产生时的 `total_seq`），再从其后续接流，
-  中间不重放、不重复（gap 区间由快照覆盖）。
+  `gap` 出现时客户端取**当前权威快照**（cursor = 仿真器确认已应用的 `applied_seq`），再从其后续接流。
+  若该 cursor 已落在日志窗口之前，必须重取更新的快照或显式降级；不能直接跳到日志窗口起点。
 
 ### 8.3 快照原子性与跨 detach/Pan 重启
 
-- 快照 = `{serialized_screen, cursor(=total_bytes), rows, cols, fidelity, recovery}`，在 runner 内
-  **同一临界区**读取（与 feed/resize 互斥），因此 `cursor/rows/cols` 与屏幕内容严格一致；
-  客户端渲染完成后再 ack 该 cursor。
+- 快照 = `{serialized_screen, cursor(=applied_seq), rows, cols, fidelity, recovery}`。
+  **reader 入队不等于 Node sidecar 已解析**：Python 临界区只能保证投递顺序，不能证明跨进程屏幕一致。
+  feed、resize、snapshot/barrier 必须走同一有序命令通道；sidecar 在 xterm write 回调完成后确认
+  `applied_seq`，并在 barrier 上原子返回屏幕、已应用游标与实际尺寸。禁止用 producer 的
+  `total_bytes` 替换 snapshot cursor；等待 barrier 有界超时即返回明确不可恢复状态，不能阻塞 reader。
+  UTF-8 跨块、CSI/OSC 解析器残留也属快照一致性：须证明序列化包含状态，或选择安全解析边界，
+  未证明时不能报告 full。客户端渲染完成后再 ack 该 cursor。
 - detach、Pan 正常退出、Pan 崩溃重启：仿真器在 runner 内随 PTY 一起存活 → **新 Pan/新浏览器
   直接取得同一权威快照**；凭证恢复见 §6.1。runner 硬杀时树与仿真器一并消亡（记录转终态，不伪造恢复）。
 
@@ -393,6 +398,15 @@ pipe 独占（`FILE_FLAG_FIRST_PIPE_INSTANCE`）+ registry 记录共同保证单
 - 引擎未验证、sidecar 缺依赖、`feed_lag`、`cleanup-failed` 等任一情形 → 快照按
   `recovery=partial|none` 返回，客户端执行 **fresh-view/重打基线**，不得静默“看起来恢复了”。
 - 验收矩阵按 §11 T3/T7/T17/T19 执行；未覆盖的模式在 UI 与文档中列明。
+
+### 8.5 MA 接口冻结补充（2026-10-03）
+
+- P0 先冻结平台无关 Protocol 与公共数据结构；新增 `contracts.py` 由核心 TA 独占，
+  Windows backend 在接口冻结后实现它，不反向引入 Windows 依赖到纯逻辑核心。
+- 仿真器 spike 必须覆盖异步 feed 后立即 snapshot、feed/resize/barrier 交错、UTF-8/CSI/OSC
+  跨快照边界、日志窗口再次驱逐、溢出后显式基线重置；结果不足则明确 partial/none。
+- MCP 接线沿用既有 caller 解析及能力检查；`createdBy` 只能来自经过核验的调用上下文，
+  不从目标 `session_id` 推断调用者，也不以“同用户全局”绕过已有工具权限边界。
 
 ---
 
