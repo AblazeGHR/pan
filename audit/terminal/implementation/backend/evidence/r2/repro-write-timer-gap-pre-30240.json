@@ -1,0 +1,21 @@
+{
+  "repro": "write_budget_timer_gap",
+  "phase": "pre",
+  "budget_s": 0.3,
+  "gate_sleep_s": 0.9,
+  "checks": {
+    "reproduced_beyond_budget_block": true
+  },
+  "writer_still_blocked_after_5s": true,
+  "gate_used": true,
+  "cleanup": {
+    "close": true,
+    "seconds": 0.02
+  },
+  "writer_done_after_close": true,
+  "writer_result_final": [
+    "BackendClosedError",
+    0
+  ],
+  "all_checks_pass": true
+}

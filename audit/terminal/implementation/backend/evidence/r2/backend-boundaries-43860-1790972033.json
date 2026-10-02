@@ -1,0 +1,5 @@
+{
+  "test": "non_windows_and_winpty_boundaries",
+  "non_windows": "BackendUnavailableError",
+  "winpty": "not-a-production-dependency"
+}

@@ -1,0 +1,69 @@
+{
+  "test": "runtime_assembly_tail_cjk_exit7",
+  "exit": {
+    "code": 7,
+    "process_exit_seen": true,
+    "reader_done": true,
+    "channel_eof": false,
+    "output_complete": false,
+    "drain_stop_reason": "eof-timeout",
+    "reason": "process-exit",
+    "observed_at": 58077.781,
+    "channel_error": null,
+    "bytes_at_stop": 108
+  },
+  "cleanup": {
+    "terminal_id": "term_wb_assembly",
+    "requested_reason": "test-assembly",
+    "interrupt_sent": false,
+    "interrupt_error": null,
+    "terminate_result": "returned",
+    "terminate_error": null,
+    "tree_owned_pids": [],
+    "tree_remaining_pids": [],
+    "backend_closed": true,
+    "reader_joined": true,
+    "reader_converged": true,
+    "reader_cancelled": false,
+    "cancel_kind": "none",
+    "drain_stop_reason": "eof-timeout",
+    "identity_check": "dead-confirmed",
+    "state_after": "exited",
+    "owner_retained": false,
+    "error": null,
+    "seconds": 0.0,
+    "ok": true
+  },
+  "gate": {
+    "pid": 19880,
+    "identity": {
+      "pid": 19880,
+      "created_at_filetime": "134354456231097840"
+    },
+    "assigned": true,
+    "atomic_with_spawn": true,
+    "handle_bound_for_cleanup": true,
+    "guard_kind": "job-object",
+    "guard_detail": {
+      "kind": "job-object",
+      "os_level_guard": true,
+      "kill_on_close": true,
+      "breakaway_allowed": false,
+      "limit_flags": 8192,
+      "handle_open": true,
+      "name": null,
+      "note": "内核级 Job（KILL_ON_JOB_CLOSE + 无 breakaway 位）；枚举走 QueryInformationJobObject，不按 PID 扫描、不裸 PID 杀"
+    },
+    "membership_proof": "IsProcessInJob(child, guard)==True; active_processes=1; resumed=yes(prev=1)",
+    "suspended_created": true,
+    "resume_previous_suspend_count": 1,
+    "resumed": true,
+    "timings": {
+      "create_pipes_ms": 0.037,
+      "create_pseudo_console_ms": 10.766,
+      "create_process_ms": 5.882,
+      "assign_ms": 0.019
+    },
+    "detail": "CREATE_SUSPENDED -> assign(guard) -> IsProcessInJob 证明 -> ResumeThread(prev==1)；身份由保留句柄读取（raw64 FILETIME）"
+  }
+}

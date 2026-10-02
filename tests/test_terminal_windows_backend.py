@@ -29,6 +29,7 @@ from packages.core.terminal.backend import (
     BackendCloseError,
     BackendClosedError,
     BackendProbeError,
+    BackendPumpError,
     ConPtyBackend,
     WinptyBackend,
 )
@@ -471,6 +472,11 @@ def test_read_cancel_join_on_close(tmp_path):
         assert report["reader"].get("thread_exited") is True or report["reader"].get(
             "reader"
         ) in ("already-exited", "not-started")
+        # R5：reader/pump 诊断显式（stop/cancel/error/EOF 可区分）
+        reader = report["reader"]
+        assert reader.get("stop_requested") is True
+        assert reader.get("pump_exit") in ("cancelled", "stopped-requested", "eof")
+        assert reader.get("drain_done") is True
         assert state["done"].wait(3.0) is True
         assert state["exc"] == "BackendClosedError", state["exc"]
         thread.join(2.0)
@@ -654,17 +660,292 @@ def test_interrupt_write_bounded_when_input_busy(tmp_path):
         thread.join(2.0)
 
 
-def test_close_failure_retry_deadline(tmp_path):
-    """清理失败重试（真实条件）：读者收敛预算用尽 -> 抛错保留 owner -> 重试成功。"""
-    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+def test_close_refused_on_live_backend_io_survives(tmp_path):
+    """R3：close 先核验后拒绝（活进程），且**不破坏 IO**——read/write/resize 继续可用。"""
+    child = write_script(
+        tmp_path,
+        "echo_child.py",
+        "import sys\n"
+        "print('ALIVE-1', flush=True)\n"
+        "while True:\n"
+        "    line = sys.stdin.readline()\n"
+        "    if not line:\n"
+        "        continue\n"
+        "    if line.strip() == 'quit':\n"
+        "        break\n"
+        "    print('ECHO ' + line.strip(), flush=True)\n",
+    )
+    b = ConPtyBackend.spawn([PYTHON, child], cwd=str(tmp_path), rows=30, cols=100)
     try:
+        buf, why = read_until(b, b"ALIVE-1")
+        assert why == "found"
         with pytest.raises(BackendCloseError) as excinfo:
-            b.close(reader_wait_timeout=0.0)
+            b.close()
+        report = excinfo.value.report
+        assert report.get("io_untouched") is True
+        assert report.get("process_state") == "alive"
         assert excinfo.value.retryable is True
-        assert excinfo.value.report["retained"], "失败必须保留 owned 资源清单"
-        assert b.closed is False  # 不谎报 closed
+        assert b.closed is False
+        assert b._spawn.input_write, "input_write 不得提前释放"
+        assert b._spawn.h_process, "h_process 不得提前释放"
+        assert b._reader_thread.is_alive(), "pump 不得被停"
+        # IO 继续可用：write 回显、read 继续、resize 正常、进程仍活
+        assert b.write(b"ping\r\n") > 0
+        buf2, why2 = read_until(b, b"ECHO ping")
+        assert why2 == "found", buf2[-160:]
+        b.resize(rows=43, cols=132)
+        assert b.alive() is True
         b.terminate(True)
         assert b.wait_dead(5.0) is True
+        rep = b.close()
+        assert rep["closed"] is True
+        emit_evidence(
+            "backend-close-pregate",
+            {
+                "test": "close_refused_on_live_backend_io_survives",
+                "refusal": {"io_untouched": True, "process_state": "alive"},
+                "io_after_refusal": {"write": True, "read": True, "resize": True},
+            },
+        )
+    finally:
+        stop_backend(b)
+
+
+def test_writer_convergence_requires_input_lock(tmp_path):
+    """R4 门控负例：持锁未注册的写者存在 -> 收敛失败（先失败）；释放后重试成功（后通过）；
+    失败阶段句柄不得提前释放。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+    holder_started = threading.Event()
+    holder_release = threading.Event()
+
+    def _hold() -> None:
+        with b._input_lock:
+            holder_started.set()
+            holder_release.wait(5.0)
+
+    holder = threading.Thread(target=_hold, daemon=True)
+    try:
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        holder.start()
+        assert holder_started.wait(5.0)
+        got = b._input_lock.acquire(blocking=False)
+        if got:
+            b._input_lock.release()
+        assert got is False, "门控必须确证持有输入锁（未注册）"
+        with pytest.raises(BackendCloseError) as excinfo:
+            b.close(writer_wait_timeout=0.3)
+        writers = excinfo.value.report.get("writers") or {}
+        assert writers.get("input_lock_acquired") is False, excinfo.value.report
+        assert b.closed is False
+        assert b._spawn.input_write, "失败阶段不得提前释放 input_write"
+        assert b._spawn.h_process, "失败阶段不得提前释放 h_process"
+        # 释放门控 -> 重试收敛
+        holder_release.set()
+        holder.join(3.0)
+        report = b.close()
+        assert report["closed"] is True
+        assert report["writers"].get("input_lock_acquired") is True
+        emit_evidence(
+            "backend-writer-convergence-gate",
+            {
+                "test": "writer_convergence_requires_input_lock",
+                "first": {"input_lock_acquired": False, "closed": False, "retained_input_write": True},
+                "retry": {"input_lock_acquired": True, "closed": True},
+            },
+        )
+    finally:
+        holder_release.set()
+        holder.join(2.0)
+        stop_backend(b)
+
+
+def test_write_timer_gap_canceller_retries(tmp_path):
+    """R4/MA：预算 timer 在“检查后、WriteFile 前”落空也必须被**重试取消**——
+    写不得超出预算进入无界阻塞（复现脚本见 audit/.../repro/repro_write_timer_gap.py）。"""
+    budget = 0.3
+    payload = 64 * 1024 * 1024
+    b = ConPtyBackend.spawn(
+        sleep_child(), cwd=str(tmp_path), write_budget=budget, write_chunk=payload
+    )
+    state: dict = {"done": threading.Event(), "result": None}
+    real_write_raw = b._spawn.write_raw
+
+    def gated_write_raw(chunk: bytes) -> int:
+        if not state.get("gated"):
+            state["gated"] = True
+            time.sleep(0.9)  # > 预算：让 timer 在“无 I/O 挂起”时触发（落空窗口）
+        return real_write_raw(chunk)
+
+    b._spawn.write_raw = gated_write_raw  # type: ignore[method-assign]
+
+    def writer() -> None:
+        try:
+            state["result"] = ("ok", b.write(b"x" * payload))
+        except Exception as exc:  # noqa: BLE001
+            state["result"] = (type(exc).__name__, getattr(exc, "written", None))
+        state["done"].set()
+
+    thread = threading.Thread(target=writer, daemon=True)
+    thread.start()
+    try:
+        t0 = time.perf_counter()
+        finished = state["done"].wait(5.0)
+        elapsed = time.perf_counter() - t0
+        assert finished, "写超出预算进入无界阻塞：取消者未重试（R4）"
+        assert elapsed < 4.0, f"写入返回过慢：{elapsed:.2f}s"
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        assert state["result"][0] in ("ok", "BackendClosedError"), state["result"]
+        emit_evidence(
+            "backend-write-timer-gap",
+            {
+                "test": "write_timer_gap_canceller_retries",
+                "budget_s": budget,
+                "gate_sleep_s": 0.9,
+                "finished_within_5s": True,
+                "writer_result": str(state["result"]),
+            },
+        )
+    finally:
+        stop_backend(b)
+        thread.join(2.0)
+
+
+def test_write_budget_includes_lock_wait(tmp_path):
+    """R4：预算**含锁等待**——锁等待吃掉预算后，写阶段不得重新获得整份预算。"""
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path), write_budget=1.0)
+    holder_started = threading.Event()
+    holder_release = threading.Event()
+
+    def _hold() -> None:
+        with b._input_lock:
+            holder_started.set()
+            holder_release.wait(5.0)
+
+    holder = threading.Thread(target=_hold, daemon=True)
+    holder.start()
+    state: dict = {"done": threading.Event(), "result": None, "seconds": None}
+
+    def writer() -> None:
+        t0 = time.perf_counter()
+        try:
+            state["result"] = b.write(b"x" * (8 * 1024 * 1024))
+        except Exception as exc:  # noqa: BLE001
+            state["result"] = (type(exc).__name__, getattr(exc, "written", None))
+        state["seconds"] = round(time.perf_counter() - t0, 3)
+        state["done"].set()
+
+    thread = threading.Thread(target=writer, daemon=True)
+    try:
+        assert holder_started.wait(5.0)
+        thread.start()
+        time.sleep(0.6)  # 锁等待 0.6s（预算 1.0s）
+        holder_release.set()
+        holder.join(3.0)
+        assert state["done"].wait(5.0) is True
+        # 含锁等待的预算：~1.0s 返回（旧实现会得到第二份预算 -> ~1.6s）
+        assert state["seconds"] is not None and state["seconds"] < 1.4, state
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        emit_evidence(
+            "backend-write-budget-lockwait",
+            {
+                "test": "write_budget_includes_lock_wait",
+                "budget_s": 1.0,
+                "lock_wait_s": 0.6,
+                "write_seconds": state["seconds"],
+                "result": str(state["result"]),
+            },
+        )
+    finally:
+        holder_release.set()
+        holder.join(2.0)
+        stop_backend(b)
+        thread.join(2.0)
+
+
+def test_pump_handle_failure_visible_and_drained(tmp_path, monkeypatch):
+    """R6：pump 获取线程句柄失败不得静默死线程——read 抛脱敏错误、pump 诊断显式、
+    close 可收敛（R5 字段随报告公布）。"""
+    import packages.core.terminal.backend as backend_module
+
+    def boom() -> int:
+        raise OSError(6, "injected OpenThread failure")
+
+    monkeypatch.setattr(backend_module, "open_current_thread_handle", boom)
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+    try:
+        with pytest.raises(BackendPumpError) as excinfo:
+            b.read(65536, timeout=2.0)
+        assert "OSError" in str(excinfo.value)  # 脱敏：只含类型名
+        assert b._drain_done is True
+        assert b._pump_exit == "fatal:OSError"
+        assert b._pump_fatal == "OSError"
+        desc = b.describe()
+        assert desc["pump_exit"] == "fatal:OSError"
+        assert desc["drain_done"] is True
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        reader = report["reader"]
+        assert reader.get("pump_exit") == "fatal:OSError"
+        assert reader.get("pump_fatal") == "OSError"
+        # pump 已先于 close 死亡：无需 stop（显式区分，而非静默）
+        assert reader.get("stop_requested") is False
+        assert reader.get("thread_exited") is True
+        emit_evidence(
+            "backend-pump-fatal",
+            {
+                "test": "pump_handle_failure_visible_and_drained",
+                "read_error": "BackendPumpError",
+                "pump_exit": "fatal:OSError",
+                "close": {"closed": True, "reader": reader},
+            },
+        )
+    finally:
+        stop_backend(b)
+
+
+def test_close_failure_retry_deadline(tmp_path, monkeypatch):
+    """清理失败重试（确定性）：**取消落空** -> 读者未收敛 -> 抛错保 owner（句柄/线程不丢）
+    -> 取消恢复后重试成功。
+
+    注入说明（包装层模拟，非真实 OS 失败）：把 `cancel_synchronous_io` 换成“落空” stub，
+    模拟“取消未命中挂起 I/O”的真实语义（1168/ERROR_NOT_FOUND）；不注入时该路径为
+    亚毫秒竞态，无法确定性演示。进程先用自有句柄 terminate+wait_dead（R3 前置门禁之后
+    活进程会先在门禁处拒绝，不再走到 reader 收敛）。
+    """
+    import packages.core.terminal.backend as backend_module
+
+    real_cancel = backend_module.cancel_synchronous_io
+    fail_cancel = {"on": True}
+
+    def stubbed_cancel(handle):
+        if fail_cancel["on"]:
+            return False, 1168  # ERROR_NOT_FOUND：取消落空
+        return real_cancel(handle)
+
+    monkeypatch.setattr(backend_module, "cancel_synchronous_io", stubbed_cancel)
+    b = ConPtyBackend.spawn(sleep_child(), cwd=str(tmp_path))
+    try:
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        with pytest.raises(BackendCloseError) as excinfo:
+            b.close(reader_wait_timeout=0.2)
+        assert excinfo.value.retryable is True
+        assert excinfo.value.report["retained"], "失败必须保留 owned 资源清单"
+        reader = excinfo.value.report["reader"]
+        assert reader.get("thread_exited") is False, reader
+        assert reader.get("stop_requested") is True, reader
+        assert b.closed is False  # 不谎报 closed
+        assert b._spawn.output_read, "失败阶段不得提前释放 output_read"
+        fail_cancel["on"] = False  # 取消恢复（真实取消）
         report = b.close()
         assert report["closed"] is True
         assert b.closed is True
@@ -672,11 +953,12 @@ def test_close_failure_retry_deadline(tmp_path):
             "backend-close-retry",
             {
                 "test": "close_failure_retry_deadline",
-                "first_retained": excinfo.value.report["retained"],
+                "first": {"thread_exited": False, "retained": excinfo.value.report["retained"]},
                 "retry": {k: report[k] for k in ("closed", "already_closed")},
             },
         )
     finally:
+        fail_cancel["on"] = False
         stop_backend(b)
 
 

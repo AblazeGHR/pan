@@ -436,6 +436,11 @@ def kill_verified(
             expected_filetime=expected_ft,
             last_error=int(ctypes.get_last_error()),
         )
+    # 控制流说明（独立审查 R2 的"None AttributeError 掩盖"推断不成立，勿机械"修"）：
+    # 若 _kill_verified_with_handle 抛异常，`finally` 只负责关闭句柄，随后**原异常
+    # 直接从 try 语句传播**——`result.handle_closed = ...` 这一行根本不会执行，
+    # 因此不存在 NoneType 属性错误来掩盖原异常。注入测试：
+    # tests/test_terminal_identity.py::test_kill_verified_original_exception_not_masked。
     result: VerifiedKillResult | None = None
     try:
         result = _kill_verified_with_handle(

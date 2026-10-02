@@ -101,6 +101,7 @@ __all__ = [
     "BackendClosedError",
     "BackendProbeError",
     "BackendBusyError",
+    "BackendPumpError",
     "BackendCloseError",
     "WinptyBackend",
     "DEFAULT_PUMP_BUFFER_BYTES",
@@ -168,6 +169,10 @@ class BackendBusyError(ConPtyError):
     """输入串行锁在有界预算内不可得（另有在途写入未收敛）：拒绝排队等待。"""
 
 
+class BackendPumpError(ConPtyError):
+    """pump 线程级失败或非 EOF 结束：读通道不可用（脱敏诊断，不冒充 EOF）。"""
+
+
 class BackendCloseError(ConPtyError):
     """close() 失败：未释放的资源保留在 ``report["retained"]`` 中，可重试。"""
 
@@ -223,6 +228,9 @@ class ConPtyBackend:
         self._drain_error: Exception | None = None
         self._drain_cancelled = False
         self._drain_done = False
+        # R6/R5：pump 线程级诊断（脱敏 = 只记类型名；显式退出原因）。
+        self._pump_fatal: str | None = None
+        self._pump_exit: str = "not-started"
 
         self._lifecycle_lock = threading.Lock()
         self._close_lock = threading.Lock()
@@ -344,11 +352,19 @@ class ConPtyBackend:
         thread.start()
 
     def _pump_loop(self) -> None:
-        """持续读输出管道到有界缓冲（不丢弃、消费者慢时暂停读 = 背压）。"""
-        handle = open_current_thread_handle()
-        with self._lifecycle_lock:
-            self._reader_handle = handle
+        """持续读输出管道到有界缓冲（不丢弃、消费者慢时暂停读 = 背压）。
+
+        R6：**任何**线程级失败（含 ``open_current_thread_handle`` 抛错）都必须被
+        捕获、脱敏记录（类型名）并置 ``_drain_done``，绝不静默死线程——否则
+        ``read``/``close`` 会永远等一个已死的 pump。
+        R5：退出原因显式落 ``_pump_exit``（eof/cancelled/error:<Type>/fatal:<Type>/
+        stopped-requested），供 close 报告与 ``describe()`` 区分。
+        """
+        handle = 0
         try:
+            handle = open_current_thread_handle()
+            with self._lifecycle_lock:
+                self._reader_handle = handle
             while not self._reader_stop.is_set():
                 try:
                     data = self._spawn.read_raw(self._read_size)
@@ -385,8 +401,29 @@ class ConPtyBackend:
                         self._cv.wait(0.1)
                     if self._reader_stop.is_set():
                         break
+        except Exception as exc:  # noqa: BLE001 - 线程级失败必须可见（R6）
+            with self._cv:
+                self._pump_fatal = type(exc).__name__
+                if self._drain_error is None:
+                    self._drain_error = BackendPumpError(
+                        f"ConPTY pump 线程级失败（{type(exc).__name__}）：读通道不可用"
+                    )
+                self._cv.notify_all()
         finally:
             with self._cv:
+                if self._pump_exit == "not-started":
+                    if self._pump_fatal:
+                        self._pump_exit = f"fatal:{self._pump_fatal}"
+                    elif self._drain_eof:
+                        self._pump_exit = "eof"
+                    elif self._drain_cancelled:
+                        self._pump_exit = "cancelled"
+                    elif self._drain_error is not None:
+                        self._pump_exit = f"error:{type(self._drain_error).__name__}"
+                    elif self._reader_stop.is_set():
+                        self._pump_exit = "stopped-requested"
+                    else:
+                        self._pump_exit = "exited"
                 self._drain_done = True
                 self._cv.notify_all()
 
@@ -430,6 +467,11 @@ class ConPtyBackend:
                     raise BackendClosedError("backend 已关闭：read 拒绝")
                 if closing:
                     raise BackendClosedError("backend 正在关闭：read 被取消")
+                if self._drain_done:
+                    # pump 已结束但没有 eof/error 标志（fatal / stop）：不得静默等死线程
+                    raise BackendPumpError(
+                        f"ConPTY pump 已终止（{self._pump_exit}）：读通道不可用（非 EOF）"
+                    )
                 if self._process_dead_and_quiet_locked():
                     return b""
                 wait_for = 0.05
@@ -497,64 +539,97 @@ class ConPtyBackend:
             tid = threading.get_ident()
             with self._io_lock:
                 self._writer_threads[tid] = thread_handle
-            budget_state = {"timer_fired": False, "finished": False}
+            budget_state: dict[str, Any] = {
+                "lock": threading.Lock(),
+                "finished": False,
+                "timer_fired": False,
+                "cancel_attempts": 0,
+            }
+
+            def _budget_fired() -> bool:
+                with budget_state["lock"]:
+                    return bool(budget_state["timer_fired"])
 
             def _on_budget_timeout() -> None:
-                # 预算到期强制点：取消本线程上可能仍在阻塞的同步 WriteFile。
-                if budget_state["finished"]:
-                    return
-                budget_state["timer_fired"] = True
-                cancel_synchronous_io(thread_handle)
+                # 预算到期强制点：**重试**取消本线程上可能仍在阻塞/待发的同步
+                # WriteFile，直到本次写调用结束——覆盖“timer_fired 检查后、
+                # WriteFile 之前”的窗口：一次取消可能落空，不能只发一次（R4）。
+                cap = time.monotonic() + max(5.0, budget * 4.0)
+                while True:
+                    with budget_state["lock"]:
+                        if budget_state["finished"]:
+                            return
+                        budget_state["timer_fired"] = True
+                        budget_state["cancel_attempts"] += 1
+                    cancel_synchronous_io(thread_handle)
+                    with budget_state["lock"]:
+                        if budget_state["finished"]:
+                            return
+                    if time.monotonic() >= cap:
+                        return  # 极端兜底；close 的 _converge_writers 仍会取消注册句柄
+                    time.sleep(0.02)
 
-            timer = threading.Timer(max(0.02, budget), _on_budget_timeout)
-            timer.daemon = True
-            timer.start()
+            remaining_after_lock = max(0.0, deadline - time.monotonic())
+            timer: threading.Timer | None = None
+            if remaining_after_lock > 0:
+                # 预算**含锁等待**：计时器只拿剩余时间（R4）。
+                timer = threading.Timer(remaining_after_lock, _on_budget_timeout)
+                timer.daemon = True
+                timer.start()
             total = 0
             try:
-                while total < len(payload):
-                    if time.monotonic() >= deadline:
-                        break  # 有界预算：返回 partial
-                    with self._lifecycle_lock:
-                        if self._closing:
-                            raise BackendClosedError(
-                                "write 被 close 取消（CancelSynchronousIo 收敛）",
-                                written=total,
-                            )
-                    chunk = payload[total : total + self._write_chunk]
-                    if budget_state["timer_fired"]:
-                        break  # 预算已触发：不再发起新的 WriteFile（返回 partial）
-                    try:
-                        written = self._spawn.write_raw(chunk)
-                    except OSError as exc:
-                        err = _win_err(exc)
-                        if err == ERROR_OPERATION_ABORTED:
-                            with self._lifecycle_lock:
-                                closing = self._closing
-                            if closing:
+                try:
+                    while total < len(payload):
+                        if time.monotonic() >= deadline or _budget_fired():
+                            break  # 有界预算：返回 partial
+                        with self._lifecycle_lock:
+                            if self._closing:
                                 raise BackendClosedError(
-                                    "write 被 close 中止（ERROR_OPERATION_ABORTED）",
+                                    "write 被 close 取消（CancelSynchronousIo 收敛）",
+                                    written=total,
+                                )
+                        chunk = payload[total : total + self._write_chunk]
+                        try:
+                            written = self._spawn.write_raw(chunk)
+                        except OSError as exc:
+                            err = _win_err(exc)
+                            if err == ERROR_OPERATION_ABORTED:
+                                with self._lifecycle_lock:
+                                    closing = self._closing
+                                if closing:
+                                    raise BackendClosedError(
+                                        "write 被 close 中止（ERROR_OPERATION_ABORTED）",
+                                        written=total,
+                                    ) from exc
+                                if _budget_fired():
+                                    break  # 预算自取消：返回 partial（诚实语义）
+                                raise BackendClosedError(
+                                    "write 被取消（非预算路径的 ERROR_OPERATION_ABORTED）",
                                     written=total,
                                 ) from exc
-                            if budget_state["timer_fired"]:
-                                break  # 预算自取消：返回 partial（诚实语义）
-                            raise BackendClosedError(
-                                "write 被取消（非预算路径的 ERROR_OPERATION_ABORTED）",
-                                written=total,
-                            ) from exc
-                        raise
-                    if written <= 0:
-                        # 无进展：等待预算；不忙等、不谎报
-                        if time.monotonic() >= deadline:
-                            break
-                        time.sleep(0.005)
-                        continue
-                    total += written
+                            raise
+                        if written <= 0:
+                            # 无进展：等待预算；不忙等、不谎报
+                            if time.monotonic() >= deadline:
+                                break
+                            time.sleep(0.005)
+                            continue
+                        total += written
+                finally:
+                    # 先让取消者收敛（finished + join），句柄才可能安全关闭（R4：
+                    # 不 join 就可能在关闭线程句柄后仍被回调使用 -> 陈旧句柄）。
+                    with budget_state["lock"]:
+                        budget_state["finished"] = True
+                    if timer is not None:
+                        timer.cancel()
+                        timer.join(1.0)
             finally:
-                budget_state["finished"] = True
-                timer.cancel()
                 with self._io_lock:
                     self._writer_threads.pop(tid, None)
-                if not close_handle_checked(thread_handle):
+                if timer is not None and timer.is_alive():
+                    # 取消者未收敛：句柄保活，交由 close 重试（不得当作已回收）
+                    self._orphan_handles.append(thread_handle)
+                elif not close_handle_checked(thread_handle):
                     self._orphan_handles.append(thread_handle)
             return total
         finally:
@@ -682,8 +757,11 @@ class ConPtyBackend:
           ``last_terminate_confirmed=False``（terminate 仍是**请求**语义，
           最终确认由调用方的存活探针负责）；
         - ``force=False``：best-effort 写 ``\\x03``（Ctrl-C）请求优雅退出；
-          本机实测（build 26200）不会产生 OS 级 CTRL_C_EVENT，仅表现为
-          “阻塞中的控制台读被释放”——不承诺 Ctrl-C 语义（见文档边界）。
+          **不承诺 OS 级 CTRL_C_EVENT**：build 26200 有界定位（raw 0x03 /
+          helper attach+``GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)`` /
+          helper attach+``WriteConsoleInput(CONIN$)`` 键记录，含读取中与计算中两种
+          子进程形态）四候选均不可投递，仅表现为“阻塞中的控制台读被释放”——
+          R1 保持未验收，机制/证据见实现报告 §2.6.1。
         """
         with self._lifecycle_lock:
             if self._closed:
@@ -731,14 +809,17 @@ class ConPtyBackend:
     ) -> dict[str, Any]:
         """分阶段关闭（失败抛 :class:`BackendCloseError` 并保留 owned 资源）。
 
+        0. **死亡/所有权前置门禁（R3）**：先核验进程已退出（retained/Job 证据）；
+           活/unknown 一律拒绝，且**不停止 pump、不关输入门、不取消读、不释放任何
+           句柄**——不破坏仍存活的终端（拒绝后可继续 read/write/resize）；
         1. 读者收敛：置 stop -> ``CancelSynchronousIo`` 重试 -> join 线程；
-        2. 写者收敛：取消注册的 writer 线程 -> 取得 ``_input_lock`` 证明无写者；
+        2. 写者收敛：取消注册的 writer 线程 -> **且确实取得** ``_input_lock``
+           证明无写者（持有锁未注册的写者同样必须收敛，R4）；
         3. 释放资源（官方顺序）：output_read -> ClosePseudoConsole（有界 worker）
            -> 属性表 -> input_write -> 其余管道 -> 线程句柄 -> h_process；
         4. 若 guard 归 backend 自持：最后关闭 Job 句柄（kill-on-close 兜底）。
 
-        要求进程已确认退出（``wait_state == DEAD``）才释放清理绑定；否则
-        ``staged_release`` 拒绝释放（保留可重试）。重复 close 幂等。
+        重复 close 幂等。runtime 正常路径先 terminate 再 close（语义不变）。
         """
         started = time.perf_counter()
         with self._close_lock:
@@ -749,6 +830,19 @@ class ConPtyBackend:
                     "seconds": 0.0,
                 }
                 return report
+            # 0) 先核验、后破坏 IO（R3）：活/unknown -> 拒绝且不触碰任何 IO 状态。
+            state = self._liveness()
+            if state is not ProcessStatus.DEAD:
+                raise BackendCloseError(
+                    f"close refused: process not confirmed dead (state={state.value})："
+                    "先终止整树并确认退出；拒绝在存活终端上停止 pump/关输入门/释放句柄",
+                    {
+                        "retryable": True,
+                        "retained": self._retained_inventory(),
+                        "process_state": state.value,
+                        "io_untouched": True,
+                    },
+                )
             with self._lifecycle_lock:
                 self._closing = True
             with self._cv:
@@ -829,12 +923,26 @@ class ConPtyBackend:
                 "seconds": round(time.perf_counter() - started, 4),
             }
 
+    def _pump_diagnostics(self) -> dict[str, Any]:
+        """R5：显式 reader/pump 诊断（eof/cancelled/error/fatal/stop 可区分）。"""
+        return {
+            "stop_requested": self._reader_stop.is_set(),
+            "pump_exit": self._pump_exit,
+            "pump_fatal": self._pump_fatal,
+            "drain_done": self._drain_done,
+            "drain_eof": self._drain_eof,
+            "drain_cancelled": self._drain_cancelled,
+            "drain_error_type": None
+            if self._drain_error is None
+            else type(self._drain_error).__name__,
+        }
+
     def _converge_reader(self, timeout: float) -> tuple[bool, dict[str, Any]]:
         thread = self._reader_thread
         if thread is None:
-            return True, {"reader": "not-started"}
+            return True, {"reader": "not-started", "thread_exited": True, **self._pump_diagnostics()}
         if not thread.is_alive():
-            return True, {"reader": "already-exited"}
+            return True, {"reader": "already-exited", "thread_exited": True, **self._pump_diagnostics()}
         self._reader_stop.set()
         with self._cv:
             self._cv.notify_all()
@@ -860,6 +968,8 @@ class ConPtyBackend:
             if last_cancel
             else None,
             "thread_exited": converged,
+            # R5：显式 reader/pump 诊断（eof/cancelled/error/fatal/stop 可区分）
+            **self._pump_diagnostics(),
         }
         if converged:
             # 关闭读线程句柄（注册期间不再被使用；失败保留可重试）
@@ -873,40 +983,58 @@ class ConPtyBackend:
         return converged, detail
 
     def _converge_writers(self, timeout: float) -> tuple[bool, dict[str, Any]]:
+        """写者收敛（R4）：**注册表为空 且 确实取得 `_input_lock`** 才算收敛。
+
+        只满足其中一个都不算：处在“已持锁、尚未注册线程句柄”窗口的写者不在注册表
+        里，必须等它注册/退出到“拿得到锁”为止；否则 close 会与该写者即将发起的
+        WriteFile 竞态（提前释放 input_write）。锁不可得期间持续取消已注册写者。
+        """
         deadline = time.monotonic() + max(0.0, float(timeout))
         attempts = 0
+        lock_acquired = False
         while True:
             with self._io_lock:
                 handles = list(self._writer_threads.values())
-            if not handles:
-                break
-            for handle in handles:
-                cancel_synchronous_io(handle)
-                attempts += 1
+            if handles:
+                for handle in handles:
+                    cancel_synchronous_io(handle)
+                    attempts += 1
+            else:
+                # 注册表为空：唯一还要证明的是“没有写者持锁（含未注册窗口）”。
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    lock_acquired = self._input_lock.acquire(
+                        timeout=min(0.05, remaining)
+                    )
+                else:
+                    lock_acquired = self._input_lock.acquire(blocking=False)
+                if lock_acquired:
+                    # 持锁期间不可能有新注册；复查并取消后立即释放。
+                    with self._io_lock:
+                        still = list(self._writer_threads.values())
+                    for handle in still:
+                        cancel_synchronous_io(handle)
+                        attempts += 1
+                    with self._io_lock:
+                        leftovers_held = list(self._writer_threads.values())
+                    self._input_lock.release()
+                    detail = {
+                        "cancel_attempts": attempts,
+                        "input_lock_acquired": True,
+                        "registered_writers": len(leftovers_held),
+                    }
+                    return (not leftovers_held), detail
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.01)
-        remaining = max(0.0, deadline - time.monotonic())
-        if remaining > 0:
-            got = self._input_lock.acquire(timeout=remaining)
-        else:
-            got = self._input_lock.acquire(blocking=False)
-        if got:
-            # 持锁证明：无写者处于“已注册/写中”；随后复查注册表。
-            with self._io_lock:
-                still = list(self._writer_threads.values())
-            for handle in still:
-                cancel_synchronous_io(handle)
-                attempts += 1
-            self._input_lock.release()
         with self._io_lock:
             leftovers = list(self._writer_threads.values())
         detail = {
             "cancel_attempts": attempts,
-            "input_lock_acquired": bool(got),
+            "input_lock_acquired": lock_acquired,
             "registered_writers": len(leftovers),
         }
-        return (not leftovers), detail
+        return False, detail
 
     def _retained_inventory(self) -> list[str]:
         names = list(self._spawn.retained_resources())
@@ -955,6 +1083,9 @@ class ConPtyBackend:
             "drain_eof": self._drain_eof,
             "drain_error": None if self._drain_error is None else type(self._drain_error).__name__,
             "drain_cancelled": self._drain_cancelled,
+            "drain_done": self._drain_done,
+            "pump_exit": self._pump_exit,
+            "pump_fatal": self._pump_fatal,
         }
 
 

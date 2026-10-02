@@ -1,0 +1,5 @@
+{
+  "test": "natural_exit_is_not_eof",
+  "empty_read": true,
+  "eof_raised": false
+}

@@ -1,0 +1,7 @@
+{
+  "test": "write_budget_includes_lock_wait",
+  "budget_s": 1.0,
+  "lock_wait_s": 0.6,
+  "write_seconds": 1.012,
+  "result": "720896"
+}

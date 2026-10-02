@@ -1,0 +1,26 @@
+{
+  "repro": "write_budget_timer_gap",
+  "phase": "post",
+  "budget_s": 0.3,
+  "gate_sleep_s": 0.9,
+  "checks": {
+    "bounded_within_budget": true
+  },
+  "writer_still_blocked_after_5s": false,
+  "gate_used": true,
+  "writer_result": [
+    "ok",
+    0
+  ],
+  "writer_seconds": 0.957,
+  "cleanup": {
+    "close": true,
+    "seconds": 0.0
+  },
+  "writer_done_after_close": true,
+  "writer_result_final": [
+    "ok",
+    0
+  ],
+  "all_checks_pass": true
+}

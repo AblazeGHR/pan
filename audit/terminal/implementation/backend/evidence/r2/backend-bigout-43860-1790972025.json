@@ -1,0 +1,28 @@
+{
+  "test": "large_output_bounded_log",
+  "total_bytes": 1382787,
+  "retained_bytes": 261849,
+  "cap": 262144,
+  "close": {
+    "terminal_id": "term_wb_bigout",
+    "requested_reason": "test-bigout",
+    "interrupt_sent": false,
+    "interrupt_error": null,
+    "terminate_result": "returned",
+    "terminate_error": null,
+    "tree_owned_pids": [],
+    "tree_remaining_pids": [],
+    "backend_closed": true,
+    "reader_joined": true,
+    "reader_converged": true,
+    "reader_cancelled": false,
+    "cancel_kind": "none",
+    "drain_stop_reason": "eof-timeout",
+    "identity_check": "dead-confirmed",
+    "state_after": "exited",
+    "owner_retained": false,
+    "error": null,
+    "seconds": 0.0,
+    "ok": true
+  }
+}

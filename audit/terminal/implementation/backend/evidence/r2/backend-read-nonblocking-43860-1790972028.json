@@ -1,0 +1,19 @@
+{
+  "test": "blocked_read_does_not_block_write_terminate_close",
+  "close_seconds": 0.0,
+  "reader": {
+    "cancel_attempts": 1,
+    "cancel_last": {
+      "ok": true,
+      "err": 0
+    },
+    "thread_exited": true,
+    "stop_requested": true,
+    "pump_exit": "cancelled",
+    "pump_fatal": null,
+    "drain_done": true,
+    "drain_eof": false,
+    "drain_cancelled": true,
+    "drain_error_type": null
+  }
+}

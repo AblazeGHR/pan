@@ -197,6 +197,7 @@ def test_kill_verified_refusals_and_success():
         # 1) 期望身份缺失 -> 拒绝
         refused = identity.kill_verified(proc.pid, None)
         assert refused.killed is False and refused.reason == "expected_identity_missing"
+        assert refused.handle_closed is None  # 未打开句柄：不适用
 
         # 2) FILETIME 差 1 -> identity_mismatch，目标保持存活
         mismatch = identity.kill_verified(proc.pid, int(filetime) + 1)
@@ -213,6 +214,7 @@ def test_kill_verified_refusals_and_success():
         )
         assert killed.killed is True and killed.reason == "terminated"
         assert killed.signaled_after_terminate is True
+        assert killed.handle_closed is True  # CloseHandle 返回检查：成功
         assert killed.as_dict()["expected_filetime"] == str(filetime)
         assert killed.as_dict()["observed_filetime"] == str(filetime)
 
@@ -257,6 +259,39 @@ def test_close_handle_checked_and_handle_count():
         if proc.poll() is None:
             proc.kill()
         proc.wait(timeout=5)
+
+
+def test_kill_verified_original_exception_not_masked(monkeypatch):
+    """审查 R2 核验：句柄内主体抛错时，**原异常直接传播**（不被 NoneType 属性错误掩盖），
+    且 finally 的句柄关闭照常执行。
+
+    控制流：`_kill_verified_with_handle` 抛错 -> `finally` 关句柄 -> 原异常从 try 语句
+    传播；`result.handle_closed = ...`（在 try 之后）不会执行 —— 故 NoneType
+    AttributeError 掩盖原异常的推断不成立。本测试即该结论的证据。
+    """
+    proc = spawn_child("import time; time.sleep(30)")
+    closed_handles: list[int] = []
+    real_close = identity.close_handle_checked
+
+    def spy_close(handle: int) -> bool:
+        closed_handles.append(int(handle))
+        return real_close(handle)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("injected-body-failure")
+
+    monkeypatch.setattr(identity, "close_handle_checked", spy_close)
+    monkeypatch.setattr(identity, "_kill_verified_with_handle", boom)
+    try:
+        with pytest.raises(RuntimeError) as excinfo:
+            identity.kill_verified(proc.pid, 1)
+        assert "injected-body-failure" in str(excinfo.value)
+        assert not isinstance(excinfo.value, AttributeError)
+        assert closed_handles, "finally 仍必须尝试关闭句柄"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
 def test_cancel_synchronous_io_no_pending_returns_not_found():

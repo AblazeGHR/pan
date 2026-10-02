@@ -41,10 +41,12 @@
 | `packages/core/terminal/guard.py` | `JobObjectGuard`：`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` + **禁 breakaway**（回读 LimitFlags 自证）；`member_pids`（`JobObjectBasicProcessIdList` 有界扩容）；`terminate_tree`（先枚举 → `TerminateJobObject` → 轮询 active==0 双证据）；`remaining` 按 Job 成员核对；句柄关闭后查询抛 `GuardQueryError`（fail-closed） |
 | `packages/core/terminal/spawn_win.py` | `spawn_conpty_suspended`：CreatePipe×2 → CreatePseudoConsole → 属性表 → `CreateProcessW(CREATE_SUSPENDED\|EXTENDED_STARTUPINFO_PRESENT)` → 释放 pty 侧两管道句柄 → 保留句柄读 FILETIME → assign → `IsProcessInJob` 证明 + active≥1 → `ResumeThread`（先前挂起计数必须恰为 1）；`SpawnEvidence`/`SpawnDenied`；`ConPtySpawn` 分阶段释放（失败保留、重试幂等）；`build_command_line/build_environment_block` |
 | `packages/core/terminal/backend.py` | `ConPtyBackend`（`PtyBackend` 协议）：pump 线程 + 有界缓冲；`read`（阻塞/有界；真实 EOF≠进程退出）；`write`（串行、partial、有界预算、可取消）；`resize`；`alive`（三态，unknown 抛 `BackendProbeError`）；`exit_code`（仅 signaled，含 259）；`terminate`（只经保留句柄 + 有界 signaled 确认）；`close`（stop/CancelSynchronousIo/join → writer 收敛 → 官方顺序释放 → 自持 guard 最后关闭；失败抛 `BackendCloseError` 保留 owner，重复幂等）；`gate`（`UnverifiedOwnershipGate`）；`WinptyBackend` 占位（非生产依赖，构造即拒绝） |
-| `tests/test_terminal_windows_backend.py` | 18 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、**阻塞读不阻塞 write/terminate/close**、**写预算 watchdog**、**interrupt 有界（输入锁被占）**、**DEAD 绑定 retained handle**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
+| `tests/test_terminal_windows_backend.py` | 23 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、阻塞读不阻塞 write/terminate/close、写预算 watchdog、interrupt 有界、DEAD 绑定 retained handle、**close 活进程前置拒绝且 IO 存活（R3）**、**writer 收敛需输入锁（R4 门控先失败后通过）**、**写 timer 空隙取消重试（R4）**、**预算含锁等待（R4）**、**pump 句柄失败可见可收敛（R6/R5）**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
+| `audit/terminal/implementation/backend/repro/` | 返工复现与探针脚本：`repro_converge_failopen.py`（R4 先失败/后通过）、`repro_write_timer_gap.py`（Timer 空隙先失败/后通过）、`probe_ctrl_c_candidates.py`（Ctrl-C 四候选 A/B/C/C3） |
+| `audit/terminal/implementation/backend/evidence/r2/` | 本轮（r2）新证据：先失败/后通过 JSON、探针 JSON、48 项测试证据（旧证据目录未动） |
 | `tests/test_terminal_spawn_gate.py` | 10 项（纯逻辑 env/命令行 + 挂起无副作用/exactly-one resume、assign/成员/查询/异常 resume 门禁、清理重试、门禁装配、失败不发布） |
 | `tests/test_terminal_guard.py` | 6 项（flags/describe、成员与 remaining、根死枚举孙进程、idle terminate/idempotent、close 后 fail-closed、holder 硬杀） |
-| `tests/test_terminal_identity.py` | 8 项（平台守卫、ALIVE/DEAD 证据、UNKNOWN 不等于 dead、259 歧义、kill_verified 拒绝/成功、FILETIME 字符串、CloseHandle 检查、取消原语） |
+| `tests/test_terminal_identity.py` | 9 项（平台守卫、ALIVE/DEAD 证据、UNKNOWN 不等于 dead、259 歧义、kill_verified 拒绝/成功、**原异常不被掩盖（审查 R2 核验）**、FILETIME 字符串、CloseHandle 检查、取消原语） |
 
 协议兼容：`ConPtyBackend` 满足 `contracts.PtyBackend`（`isinstance` 校验）、`JobObjectGuard` 满足 `TreeGuard`；
 `read` 的 `timeout=` 为**可选扩展**（默认仍是契约的阻塞语义），供有界轮询与测试使用。
@@ -95,6 +97,52 @@
 
 ---
 
+---
+
+## 2.6 审查返工 r2（独立审查 `8112788c`；先复现/先核验，后修复）
+
+本轮从 `430ba7f5` 出发，按审查 §4（R1–R6）与 MA 补充分析逐项处理；故障类先做**确定性先失败复现**，
+证据在 `audit/terminal/implementation/backend/evidence/r2/`（旧证据目录未动）。
+先失败证据的出处：同一复现脚本在 `git archive 430ba7f5`（修复前代码）副本上重放生成（`*-pre-*.json`），
+后通过证据由当前代码同脚本生成（`*-post-*.json`）；两组 JSON 均含 `phase` 与判定字段。
+
+| 审查项 | 处理 | 证据（先失败 -> 后通过） | 用例/锚点 |
+| --- | --- | --- | --- |
+| R1 Ctrl-C（高，产品缺口） | **有界定位完成，机制在本机不可行：R1 保持未验收，交 MA 决策**（见 §2.6.1） | `probe-ctrl-c-candidates-*.json`（A/B/C/C3 四候选全负） | `test_ctrl_c_input_channel_and_survival`（不变：仍只声明“读被释放 + 通道可用”） |
+| R2 `kill_verified` “None AttributeError 掩盖” | **核验后不成立**：`_kill_verified_with_handle` 抛错时 finally 关句柄后**原异常直接从 try 传播**，`result.handle_closed = ...` 根本不会执行——不存在 NoneType 属性错误掩盖原异常。代码不做机械“修复”，仅补控制流注释防误修 | 新增注入测试 | `test_kill_verified_original_exception_not_masked` |
+| R3 直接 `close()` 对活进程先破坏 IO | **修复**：close 增加死亡/所有权**前置门禁**（step 0）——活/unknown 一律 `BackendCloseError` 拒绝，且不停 pump、不关输入门、不取消读、不释放句柄；拒绝后 read/write/resize 继续可用。runtime“先 terminate 后 close”语义不变 | 修复前 probe3 Part B（审查树）；修复后本树新用例 | `test_close_refused_on_live_backend_io_survives` |
+| R4 `_converge_writers` fail-open | **先复现**（持锁未注册的线程 -> `converged=True`）**后修复**：收敛 = 注册表为空 **且** 确实取得 `_input_lock`；持锁未注册的写者必须收敛到“拿得到锁”为止，否则失败保 owner（句柄不提前释放） | `repro-converge-failopen-{pre,post}-*.json` | `test_writer_convergence_requires_input_lock`（门控负例先失败后通过） |
+| R4'（MA 补充）write 预算 Timer 窗口 | **先复现**（取消落空在“检查后/WriteFile 前” -> 超出预算 5s 仍阻塞）**后修复**：取消者**重试**直到本次写调用结束；`timer.join(1.0)` 先于线程句柄关闭（未收敛 -> 句柄转 orphan，不当作已回收）；**预算含锁等待**（timer 只拿剩余时间） | `repro-write-timer-gap-{pre,post}-*.json` | `test_write_timer_gap_canceller_retries`、`test_write_budget_includes_lock_wait` |
+| R5 pump 诊断 | **修复**：`_pump_exit`（eof/cancelled/error:\<Type\>/fatal:\<Type\>/stopped-requested）+ `_pump_fatal` 显式公布；`_converge_reader` 所有返回路径与 `describe()`/close 报告均含这些字段 | 48 项测试证据 | `test_read_cancel_join_on_close`（新增断言）、`test_pump_handle_failure_visible_and_drained` |
+| R6 pump 句柄获取失败静默死线程 | **修复**：`_pump_loop` 全程 try/except/finally——任何线程级异常都被捕获、脱敏记录（类型名）并置 `_drain_done`；`read` 在“pump 已终止且无 eof/error”时抛 `BackendPumpError`（不静默、不冒充 EOF） | 注入 `open_current_thread_handle` 失败 | `test_pump_handle_failure_visible_and_drained` |
+
+### 2.6.1 Ctrl-C：有界定位结论（R1，保持未验收）
+
+官方原文（learn.microsoft.com）：
+- `GenerateConsoleCtrlEvent`：**CTRL_C_EVENT 无法定向到非零进程组**（"If dwProcessGroupId is nonzero,
+  this function will succeed, but the CTRL+C signal will not be received by processes within the
+  specified process group"）；`dwProcessGroupId=0` 向**调用者共享控制台**的所有进程投递；
+- `SetConsoleCtrlHandler(NULL, TRUE/FALSE)`：忽略/恢复 Ctrl+C（可继承），仅作自建诊断；
+- `WriteConsoleInput`：向控制台输入缓冲区写记录（需 GENERIC_WRITE 输入句柄；attach 后用 `CONIN$` 重开）。
+
+实测（build 26200；全部自建进程 + 真实 `SetConsoleCtrlHandler` 子进程；“不读 stdin 计算”与“读取中”
+两种形态；四个候选，证据 `probe-ctrl-c-candidates-*.json`）：
+
+| 候选 | 结果 |
+| --- | --- |
+| A `write(b"\x03")`（现状） | 无事件；阻塞中的控制台读被释放；子进程存活（负） |
+| B helper `FreeConsole -> AttachConsole(child) -> GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)` | attach 成功、目标在 `GetConsoleProcessList` 内、调用返回成功——**handler 仍不触发**（负；与审查 probe1b 一致） |
+| C helper attach + `WriteConsoleInput`（Ctrl+C 键 down/up，非读取子进程） | 初次 `GetStdHandle` 句柄无效（err=6）→ 改用 `CONIN$` 后**写入成功（2/2 记录）但无事件**（负） |
+| C3 同上，子进程正在 `readline` | 写入成功、读未被释放、无事件（负） |
+
+结论：**在本机/本 build 的安全接口集内，无法把 Ctrl-C 实现为真实 OS 级 CTRL_C_EVENT 中断**。
+正控制（审查 probe1c：`ClosePseudoConsole` 触发 CTRL_CLOSE_EVENT）证明 handler 通路本身可用，
+缺口在“输入 → 控制事件”的翻译路径。按指示：不自行降级产品、不做无界实验、不改计划承诺——
+**R1 保持未验收**，交 MA 在「挂起验收 / 明示 best-effort 并同步计划与用户文档 / 换环境再验」间决策；
+本后端维持 `terminate(force=False)` 的 best-effort 语义（短预算 `\x03`，注明不承诺 OS 级语义）。
+
+---
+
 ## 3. 本机实测事实（build 26200，供后续校准）
 
 | # | 事实 | 证据 |
@@ -122,15 +170,15 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
   tests/test_terminal_spawn_gate.py tests/test_terminal_windows_backend.py -q -p no:cacheprovider
 ```
 
-结果（2026-10-03 本机，Windows 11 build 26200）：
-**42 passed in 16.72s**（identity 8 / guard 6 / spawn_gate 10 / windows_backend 18），`pytest.ini` 的
-`timeout=300` 作为看门狗兜底；所有等待均有显式上界。证据 JSON（18 份，机器生成）位于
-`audit/terminal/implementation/backend/evidence/`；原 spawn spike 证据
-（`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
+结果（2026-10-03 本机，Windows 11 build 26200；返工 r2 口径）：
+**48 passed in 19.15s**（identity 9 / guard 6 / spawn_gate 10 / windows_backend 23），`pytest.ini` 的
+`timeout=300` 作为看门狗兜底；所有等待均有显式上界。旧证据 14 份保持原样；本轮（r2）新证据在
+`audit/terminal/implementation/backend/evidence/r2/`（含先失败/后通过 JSON、Ctrl-C 候选探针、48 项测试证据）。
+原 spawn spike 证据（`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
 
-全量 `tests/`（回归参照，串行运行）：**7 failed, 1945 passed, 15 skipped in 126.15s**；
-失败集与逐项归因见 §6。并发运行（两份 pytest 同时跑）时会额外出现性能类波动
-（如 `test_session_incremental.py` 在并发下超阈、串行复跑通过）——本报告以**串行**结果为口径。
+全量 `tests/`（回归参照）：**7 failed, 1945 passed, 15 skipped**（`430ba7f5` 时点串行口径）；
+失败集与逐项归因见 §6。按 MA 指示本轮**不重复全库**（审查 TA 已独立复跑 38+137 与 6 项既有失败）；
+并发运行两份 pytest 时会出现性能类波动（如 `test_session_incremental.py`），口径一律以串行为准。
 
 ---
 
@@ -157,15 +205,16 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
 
 | 测试 | 归因（含基线验证） |
 |---|---|
-| `tests/test_terminal_driver.py::test_core_has_no_adapter_menu_literals` | **因本任务新增 4 个核心模块**：该 P0 测试写死 `len(glob("*.py")) == 9`，现为 13。基线（`git archive HEAD` 纯净副本）该测试**通过**，加上本任务模块后失败——仅计数断言过期。已逐文件扫描：4 个新模块**不含**任何禁用字面量（`cbc/codex/never mind/restore and fork…`）。修复=其所有者把计数更新为 13（或改为集合断言）；`tests/test_terminal_driver.py` 不在本 TA 可写范围，未修改。 |
+| `tests/test_terminal_driver.py::test_core_has_no_adapter_menu_literals` | **已由 MA/审查侧修复（`80205bae`）**：原写死 `len(glob("*.py")) == 9`，现为「9 个 P0 模块必需 + rglob 全量子目录字面量扫描」；审查复跑确认通过。本任务曾在 `430ba7f5` 时点按“9→13 计数过期”如实上报（新模块不含任何禁用字面量），现已关账。 |
 | `tests/test_backend_perf_opt.py::test_result_flushes_debounced_blocks_through_read_stdout`、`tests/test_codex_adapter.py::test_cwd_matches_repository_root`、`tests/test_portability_paths.py::test_norm_path_posix_branch`、`tests/test_worker_branch.py::test_steer_worker_*`（3 项） | **既有失败（已基线验证）**：同一命令在 `git archive HEAD`（ed956bb9，不含本任务任何文件）的纯净副本上 **6 failed, 1 passed**（那 1 passed 即 driver 计数测试）——与全量回归失败集完全一致；且这些测试均不 import `core.terminal`。未在本任务引入、未在越界范围修改。 |
 
 **未测 / 未验证（不得当作已解决）**：
 
 1. 旧 build（<26100）`ClosePseudoConsole` 的“等待客户端 drain”行为——实现按官方建议先关输出 +
    有界 worker；该路径**未真机验证**。
-2. OS 级 CTRL_C_EVENT：本机实测 `\x03`/win32-input-mode 无效；本阶段只提供 best-effort 注入，
-   不声称 Ctrl-C 产品语义。
+2. OS 级 CTRL_C_EVENT：**有界定位已完成（§2.6.1）**——本机/本 build 的安全接口集内 A/B/C/C3 全部不可行；
+   R1 保持未验收，待 MA 决策（挂起 / 明示 best-effort 同步文档 / 换环境再验）。Ctrl-D 为 Windows shell
+   应用语义，不承诺通用 POSIX EOF。
 3. detach 宿主可行性（ambient Job 寿命、`DuplicateHandle` 移交）：不在本模块（计划 §5.1/§7 产品门）。
 4. 长时间稳定性、输出洪泛压测、并发多终端、跨 build/跨机型：未做。
 5. 真实 OS 故障（CloseHandle 真实失败、旧 build 阻塞）未覆盖；清理失败重试分别用

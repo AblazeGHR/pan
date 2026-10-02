@@ -1,0 +1,5 @@
+{
+  "test": "resize_reaches_child",
+  "initial": "100x30",
+  "resized": "132x43"
+}
