@@ -1,0 +1,11 @@
+{
+  "spawned": 1,
+  "handles": {
+    "term_04e5d9674d1e": {
+      "alive_before_cleanup": false,
+      "runner": {
+        "skipped": "not-alive"
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "collected_at": "2026-10-03 06:41:33",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "d48f967ea262e64ab7c77063b9ec08aeee67e285",
+  "steps": {
+    "pre_fix": {
+      "returncode": 0,
+      "seconds": 13.44
+    },
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 82.95,
+      "tail": "PASSED tests/test_terminal_runner.py::test_startup_refuse_uncleaned_reports_unproven_and_retains_owner\nPASSED tests/test_terminal_runner.py::test_accept_failure_is_not_exit_zero_and_observable",
+      "cleanup": {
+        "tests_with_cleanup_evidence": 21,
+        "handles": 20,
+        "alive_before_cleanup": 0,
+        "terminated": 0,
+        "shell_traces": 0
+      }
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 84.74,
+      "tail": "PASSED tests/test_terminal_runner.py::test_startup_refuse_uncleaned_reports_unproven_and_retains_owner\nPASSED tests/test_terminal_runner.py::test_accept_failure_is_not_exit_zero_and_observable"
+    },
+    "core137_uv": {
+      "returncode": 0,
+      "seconds": 9.42,
+      "tail": ".................................................................        [100%]",
+      "files": [
+        "tests/test_terminal_driver.py",
+        "tests/test_terminal_output.py",
+        "tests/test_terminal_runtime.py",
+        "tests/test_terminal_registry.py",
+        "tests/test_terminal_lease.py",
+        "tests/test_terminal_ownership.py",
+        "tests/test_terminal_broadcast.py"
+      ]
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  }
+}

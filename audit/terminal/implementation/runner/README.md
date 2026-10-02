@@ -99,12 +99,20 @@ E:/software/miniforge/python.exe audit/terminal/implementation/runner/collect_ru
 - 进程内 runner 的 Job 守卫为 `KILL_ON_JOB_CLOSE`：runner 硬死时由内核清理整树
   （用例 `test_runner_hard_kill_closes_guard_and_cleans_tree` 断言）。
 
-## 8. 验证记录（发布前）
+## 8. 验证记录（发布前）—— **含证据更正（O6）**
 
-| 项 | 结果 | 证据 |
+> **更正（r2，2026-10-03）**：下表首版引用的 `evidence/final/pytest.log`、
+> `evidence/final/stability_run_{1,2}.log` 与开发期 4 项失败阶段日志，
+> **未入库**（`.log` 被 `.gitignore:77` 拦截；审查树/提交物中不可见）——
+> **不可核，不再引为证据、不再声称其存在**；本工作树中同名未跟踪副本同样不作为证据
+> （r2 依据一律为 `r2/` 的 `.txt` + JSON）。其中"19 passed ×3、探针 exit 0、清理 0 残留"
+> 这些**结论**有独立审查复跑（`runner-review` 树）与 `runner_runs.json` 交叉支持；
+> 完整日志与失败阶段原文当时未保存，历史缺失如实记录。
+
+| 项 | 结果 | 证据（r2 复跑见 `r2/`） |
 | --- | --- | --- |
-| 本套件全量（隔离真机） | **19 passed / exit 0**（75.2 s） | `evidence/final/pytest.log`、`runner_runs.json` |
-| 发布前稳定复跑 ×2 | **19 passed / exit 0** ×2 | `evidence/final/stability_run_{1,2}.log` |
+| 本套件全量（隔离真机，d48 版 19 项） | **19 passed / exit 0**（75.2 s；独立审查复跑一致） | `runner_runs.json`、`evidence/final/*.json`（日志未入库，见更正） |
+| 发布前稳定复跑 ×2 | **19 passed / exit 0** ×2（结论有独立审查复跑佐证） | 日志未入库，见更正 |
 | 只读探针 ×3 | 全部 exit 0（ambient 限制 / 死进程三态 / 白名单拒绝） | `evidence/final/*.json` |
 | 资源清理 | 17 个句柄、0 个在清理时仍存活、0 个残留进程 | `cleanup_*.json`、`runner_runs.json` |
 | 相邻套件回归（非本 TA 交付，仅作不回归证据） | terminal core/driver：73 passed + 7 skipped（主环境缺 pyte）；IPC/secret/backend/guard/identity/broadcast：176 passed | 未随附日志（见下注） |

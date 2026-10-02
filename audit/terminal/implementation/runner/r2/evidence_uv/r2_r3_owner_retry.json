@@ -1,0 +1,19 @@
+{
+  "first": {
+    "attempted": true,
+    "terminate": "error:RuntimeError",
+    "close": "error:RuntimeError",
+    "close_attempts": 2,
+    "converged": false,
+    "retained": [
+      "backend"
+    ],
+    "errors": [
+      "terminate:RuntimeError",
+      "close:RuntimeError",
+      "close:RuntimeError"
+    ]
+  },
+  "second_converged": true,
+  "errors_are_type_only": true
+}

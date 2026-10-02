@@ -3,6 +3,9 @@
 - 任务：T-TERMINAL-PTY-20261003 的 **P1 独立 Terminal runner 生产实现**。
 - 工作树：`D:/project/pan-worktrees/terminal-runner-implement-20261003`
   （branch `implement/terminal-runner-20261003`，起点 `8af9b0f9`）。
+- 版本记录：首版对应 `d48f967e`（独立审查固定快照，报告
+  `PAN_TERMINAL_RUNNER_REVIEW_20261003.md` @ `a12a6bd6`，判定 **返工 Restricted**）；
+  本文件为 **r2 返工后版本**（闭环 R1/R2/R3+O1 与 O2..O7，见 §10 变更记录）。
 - 性质：**接口冻结文档**。P2（服务层）按本文与
   `packages/core/terminal/runner.py` / `runner_client.py` 的签名接线；
   变更走记录，不得反向修改 `contracts.py` / `runtime.py` / `ipc.py` /
@@ -73,6 +76,12 @@ Pan 服务（client，P2）                          runner（server，每终端
   **知道 terminal_id ≠ 权限**（服务层入口检查属 P2）。
 - 同用户边界（如实声明）：DPAPI 用户作用域 + owner-only DACL 只隔离其它 Windows
   用户；同用户进程理论上可解密秘密/连接管道；首版信任边界 = 同一 Pan 用户。
+- **浏览器不得直连 runner、不得持有 token**：浏览器/观察者权限属于服务层
+  attachment lease（`attachments.py`），由 P2 在入口执行授权与转发；runner 层的
+  `observer` 只是**消息级登记**，不构成连接级角色隔离。任何持有 DPAPI token 的
+  已认证连接都具备 input/stop/control 能力——这是**同用户信任模型内的设计事实**，
+  不是远程漏洞；跨用户/跨主机拒绝未实测（沿用 P1 IPC 边界）。
+- 若未来需要连接级角色强制，需协议版本升级（不在 P1 冻结 op 白名单能力内）。
 
 ---
 
@@ -91,7 +100,8 @@ Pan 服务（client，P2）                          runner（server，每终端
    `wait_for_bootstrap_identity(verify=True)`（内核探针 ALIVE + pid/FILETIME 精确
    匹配）→ 生成 `token=secrets.token_hex(32)` → `write_secret`。
 5. **runner 自检**：`verify_runner_identity(自身身份)`（不匹配 → fail-closed：
-   删除自己未完成的 hello、非零退出、不监听）。
+   **仅当失败发生在自检之前/之中时**删除自己未完成的 hello；自检通过后的失败
+   （pipe/门禁/运行期）**保留** hello，由 Pan 侧按事实回收——措辞口径见 §5）。
 6. **token 泄漏自检**：扫描自身环境变量，token 出现即 fail-closed 退出（4）。
 7. **FIRST 管道**：`PipeServer.create()`（`FILE_FLAG_FIRST_PIPE_INSTANCE`；
    名字被占 → `PipeBusyError` → 非零退出，绝不共用同名管道）。
@@ -121,14 +131,17 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 
 ### 3.2 矛盾报告（如实记录，不偷改共享文件）
 
+> 状态：I-1..I-4 是**本层内部提案/工作处置**，**未经 MA 接口冻结批准**；
+> P2 暂不按其接线。`ipc.py` 白名单与协议版本未改；独立 op 扩展应由 ipc 所有者决定。
+
 | # | 矛盾 | 事实 | 本层处置 |
 | --- | --- | --- | --- |
 | I-1 | 任务要求端点实现 `describe/close/detach/owner-heartbeat` 独立命令，但冻结 op 白名单只有 6 个 op，**无法为一个新命令新增 op**（`validate_message` 在传输边界拒绝未知 op，`win_pipe.recv_frame` 也走该校验） | `ipc.py` 属 P1 IPC TA 的冻结写范围；本 TA 只读 | 用**已冻结 op 的组合**承载：`owner-heartbeat → lease`；`close → stop`；`detach → stop(reason="detach")`（reason 是 ≤64 字符自由串，作为**生命周期命令词表**）；`describe → read` 探测（见 I-3）。P2 若需独立 op，应由 ipc.py 所有者扩展协议版本后再放开 |
 | I-2 | 快照协议 A 需要携带 serialized 屏幕，但响应字段 `snapshot` 上限 4096 字符（24×80 屏幕 + SGR 可能超界） | 白名单只约束单字段 | 用 `data_b64`（≤128 KiB 原始字节，base64 后 ≤ 白名单上界）+ `cursor` + `rows/cols` + `detail`（元数据 JSON）承载协议 A；`snapshot` 字符串字段不使用 |
-| I-3 | `describe` 无独立 op；响应白名单没有 pid/filetime/detached/durability 等字段 | 同上 | **所有响应**统一携带 `status` + `detail`（有界 JSON 摘要，含 pid/FILETIME/rows/cols/detached/durability/lease/exit/worker 状态）；`describe` 命令 = 一次 `read(cursor=0, max_bytes=1)` 探测（非 mutating、无 barrier、快速），从 `detail` 解析 |
+| I-3 | `describe` 无独立 op；响应白名单没有 pid/filetime/detached/durability 等字段 | 同上 | **所有响应**统一携带 `status` + `detail`（有界 JSON 摘要，含 pid/FILETIME/rows/cols/detached/durability/lease/lifecycle/exit/worker 状态）；`describe` 命令 = 一次 `read(cursor=0, max_bytes=1)` 探测（非 mutating、无 barrier、快速），从 `detail` 解析 |
 | I-4 | 任务要求"只有可信 Pan 所有者心跳续 lease"，而 `lease` op 的 payload（client_id/role/generation）本意是 attachment lease | 白名单固定 | runner 把 `lease` 解释为 **IPC 所有者租约**（与 `attachments.py` 的浏览器控制权 lease 是两套凭据，见 P1 IPC 文档 §1）：`role=control` 续/接管租约；`role=observer` 只登记连接，**不改变 runtime、不续约** |
 
-以上四条已同步给 P2/MA 的接线依据；本层不做协议版本升级。
+以上四条仅为内部处置口径；授权、身份与 Web/MCP 入口校验由 P2 与 ipc 所有者决定。
 
 ### 3.3 命令语义（端点层）
 
@@ -165,9 +178,21 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 | observer/浏览器 | 无影响 | observer 连接/断开**不改变 runtime、不续约**（浏览器从不直接连 runner；P2 只是转发） |
 
 - **只有已认证连接**（DPAPI token + 双向 HMAC）能续约；未认证帧在认证前不可达。
-- 死期触发 `close(reason="lease-expired")`；清理未收敛时有界重试（默认 3 次），
-  最后一次仍失败 → 记录 `cleanup-failed` 后退出（退出即关闭 guard 句柄 = 内核清整树，
-  **如实标注为内核兜底而非已确认清理**）。
+- **世代（epoch）与迟到 expiry（R2）**：每次已处理的续约/接管都自增 `_lease_epoch`；
+  expiry 判定携带检测时刻的世代，在取得关闭权之前**复核**（世代未变 + 仍未续约才继续）。
+  因此"迟到 expiry"不会误杀新 lease；检测后发生的任何续约都会作废旧判定。
+- **关闭权仲裁（R1/R2，同一生命周期门）**：
+  - `close(source="lease")` 在生命周期锁内复核 `detached` 与 lease 世代：
+    detach 已完成 → `lease-skipped-detached`（不杀）；世代已更新 → `lease-skipped-renewed`；
+  - 一旦 expiry 取得关闭权（`_expiry_in_progress`），`detach` **明确拒绝**
+    （`status=detach-refused`，detail.reason=`lease-close-in-progress`），零状态变化；
+  - 用户/服务**显式 close**（`source="explicit"`）不受上述跳过影响：detached 也照常终止。
+- **显式 close 未收敛/失败后 Pan 断开（R1）**：`_closing` **不再**永久豁免 lease 检查。
+  watchdog 仍负责：等待并**消费同一 close worker** 的结果（迟到成功 → 直接 `exited`，
+  不重复发起同一阻塞调用）；失败 → 有界重试（仅当上一 worker 已结束才另起，不叠加）；
+  耗尽 → 明确非零终态（退出码 3 + 状态文件）。输入门**不恢复**（`_closing` 一旦置位保持）。
+- 死期清理重试耗尽 → 记录 `cleanup-failed` 后退出。退出会关闭 guard 句柄（KILL_ON_JOB_CLOSE），
+  但**不得宣称该内核兜底已被普遍实测**：仅 r2 的特定场景做过端到端观测（见 §9 与审计 r2 证据）。
 - `detached=True` 后 lease 死期**不再**触发关闭；新 controller 重连后恢复心跳。
 
 ### 4.2 worker 纪律（冻结）
@@ -180,21 +205,29 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
   **不释放 owner、不谎报 exited**；重试收敛后才 `exited`。
 - close 开始时关闭 runner 输入门：此后新 `input` 立即 `rejected`（不触达 runtime）。
 - 看门狗线程独立：只读 lease 时间戳 + 触发 close worker；被执行中的 handler
-  阻塞不会拖死它（每个连接独立线程；handler 有界等待 ≤ 1s，见 §4.3）。
+  阻塞不会拖死它。**等待分层（O5 修正）**：仅 `input` handler 有 0.75s 的
+  ack 上限；`close` handler 等待 ≤ `close_wait`（默认 8s）；`snapshot` 等待由
+  客户端 `timeout_ms` 决定（上限 60s，见 §4.3）。
 - 清理报告只带**结构化字段**（state_after / terminate_result / 残留数 /
   identity_check / ok）；诊断文本只允许静态串与类型名，不落异常消息（防秘密泄漏）。
 - `write_hook`（构造参数）**仅测试/诊断**：生产不注入（默认 `runtime.write`）。
   本机实测：ConPTY 不会因输入量阻塞（2.7MB 输入被吸收），因此"阻塞写"的行为验证
   由注入门在真实 runner 进程的 write worker 内完成（证据见 `audit/.../runner/`）。
+- 收尾预算（R1/O3）：`run()` finally 会 `_close_pipe_server()`（不收敛保引用）、
+  以**共享总 deadline** join 连接线程（默认 3s，非 N×2s）、有界 join watchdog（3s），
+  再由 `_finalize()` 在总预算（12s）内做最后一次关闭；超预算或未收敛一律如实标注
+  （状态文件 + 退出码），不无限等待、不把未知当成功。
 
 ### 4.3 有界等待（默认）
 
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
-| `input_ack_wait` | 0.75 s | `input` handler 等待 write worker 的上限；超时回 `accepted-in-flight`（心跳不被拖过死期：0.75s < 2s） |
-| `write_budget`（backend 内） | 1.5 s | 单次写总预算（backend 契约），完成判定在 worker 内 |
-| `close_wait` | 8.0 s | `stop` handler 等待 close worker 的上限；超时回 `closing` |
+| `input_ack_wait` | 0.75 s | **input handler** 等待 write worker 的上限；超时回 `accepted-in-flight`（心跳不被拖过死期：0.75s < 2s） |
+| `write_budget`（backend 内） | 1.5 s | 写路径的**发起取消截止**（budget 到期即取消并返回 partial）；**不是完成硬 SLA**：正常路径另计 join，取消持续异常/预算耗尽时可能超出（沿用 backend 验收口径） |
+| `close_wait` | 8.0 s | **close handler** 等待 close worker 的上限（该 handler 持有生命周期锁 ≤ close_wait；describe/resize 不经该锁）；超时回 `closing` |
+| `snapshot` barrier | 客户端 `timeout_ms`（≤60 s） | 由客户端请求决定；超时/失败显式降级（不假 full） |
 | `lease_cleanup_retries` | 3 | 死期清理未收敛时的有界重试次数（0.5s 间隔） |
+| `watchdog_join` / `finalize_budget` | 3 s / 12 s | 收尾有界：watchdog join、`_finalize` 总预算（超出 → 未证明，非零退出码） |
 | `stop_confirm`（P2 侧） | 5 s | 计划 §13：服务等 runner 整树退出（P2 实现，本层提供 `close` 语义） |
 
 - **慢操作与 lease 的交互（如实声明）**：续约只由**已处理的** `lease` 请求承担。
@@ -214,15 +247,20 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
   "detached": false,
   "durability": {"capable": true, "ambient_job": false, "detail": "..."},
   "lease": {"established": true, "owner": "pan-1", "generation": 1, "age_ms": 120, "grace_ms": 2000},
+  "lifecycle": {"closing": false, "expiry_in_progress": false, "expiry_reason": null,
+                "exit_reason": "ok", "accept_failure": null, "startup_cleanup_converged": true},
   "exit": {"seen": false, "code": null, "reason": "..."},
   "cleanup": {"state_after": "exited", "ok": true, "seconds": 0.3},
   "consumer": {"failed": false, "count": 0, "gap_seen": false},
   "snapshot": {"engine": "injected|none", "fidelity": "...", "recovery": "...", "feed_lag": false},
   "input_worker": {"in_flight": false, "completed": 3, "last_status": "done"},
-  "close_worker": {"in_flight": false},
+  "close_worker": {"in_flight": false, "finished": true, "error_type": null},
   "connections": {"accepted": 2, "active": 1}
 }
 ```
+
+`detail` 的生成（O4 修正）：**字段级缩减**（嵌套长字符串逐级缩短 → 按可选块丢弃 →
+极简骨架），保证输出始终是**合法** JSON 且 ≤ 4096；**禁止**字符串截断。
 
 ### 4.5 快照协议 A（冻结）
 
@@ -244,7 +282,9 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
     **可选扩展**）否则 `feed(data)`；
   - 不连续（缺口）→ 粘滞 `gap_seen` + 有界 gap 记录（不丢失缺口事实）；有 `feed_at`
     时按真实偏移投递，否则仍 `feed(data)` 但**永久降级**（快照不允许 full）；
-  - 桥接异常由 runtime 的 `output_consumer` 隔离（只记类型名）；桥接自身不抛。
+  - **异常语义（O4 措辞对齐）**：桥**不吞异常**——feed/feed_at 的异常穿透到
+    runtime 的 `output_consumer` 隔离层（只记脱敏类型名 + 粘滞 `consumer_failed`），
+    随后快照显式降级；桥自身不额外抛包装异常、也不静默继续假装 full。
 - resize 与 feed 走**同一有序通道**：runner 调用 `emulator.resize(rows, cols)`；
   次序由仿真器内部通道保证（协议要求）；runner 不绕过、也不声称 PTY 与仿真器
   尺寸已同步（`detail` 如实分列）。
@@ -253,13 +293,32 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 
 ## 5. 生命周期命令与退出码（冻结）
 
-| 事件 | runner 行为 | 退出码 |
+| 码 | 常量 | 含义 |
 | --- | --- | --- |
-| `stop`（close/service-shutdown/lease-expired） | close worker：身份核验→所有权快照→中断→终止→整树→reader 收敛→句柄；成功 → 退出 | 0 |
-| 死期清理有界重试后仍未收敛 | 记录 `cleanup-failed`，退出（内核 guard 兜底） | 3 |
-| bootstrap/身份/管道/门禁失败（含 token 入 env） | fail-closed，删除未完成 hello，不监听 | 4 |
-| 正常运行中（含 detach 后） | 服务循环；不自行退出 | — |
+| 0 | `RUNNER_EXIT_OK` | 正常停止（显式 close / 死期自停且清理**已证明**收敛） |
+| 2 | `RUNNER_EXIT_USAGE` | 命令行/用法错误 |
+| 3 | `RUNNER_EXIT_CLEANUP_FAILED` | 死期清理有界重试耗尽仍未收敛（owner 保留证据在状态文件） |
+| 4 | `RUNNER_EXIT_BOOTSTRAP_FAILED` | bootstrap/身份/管道/门禁失败，且自有资源清理**已证明**收敛 |
+| 5 | `RUNNER_EXIT_INTERNAL` | 未预期内部错误（类型名脱敏） |
+| 6 | `RUNNER_EXIT_CLEANUP_UNPROVEN` | 启动失败或收尾时清理**未能证明收敛**（含 `runtime LOST`、finalize 超预算）；owner/引用保留 |
+| 7 | `RUNNER_EXIT_ACCEPT_FAILED` | accept 循环异常退出（即使后续清理收敛也**非** 0；清理状态见状态文件） |
 
+| 事件 | runner 行为 |
+| --- | --- |
+| `stop`（close/service-shutdown/lease-expired） | close worker：身份核验→所有权快照→中断→终止→整树→reader 收敛→句柄；成功 → 退出 0 |
+| 死期清理有界重试后仍未收敛 | `_lease_expired_close` 耗尽 → 退出 3 |
+| 启动失败（含 token 入 env；hello 删除仅限未通过自检） | fail-closed，不监听；按清理证据给 4 或 6 |
+| 正常运行中（含 detach 后） | 服务循环；不自行退出 |
+
+- **状态文件（R3：跨进程可观测的脱敏状态）**：
+  `<terminals_root>/runner-status/<terminal_id>.json`（原子写，无秘密、无异常消息；
+  字段：`phase` / `exit_code` / `reason` / `runner_pid` / `cleanup{converged, startup,
+  pipe, retained, close_ok...}` / `updated_at`）。启动失败、正常退出、cleanup-failed、
+  accept-failed 都会落盘；stderr 另有一行静态 `exit code=N reason=<静态串>`。
+  未收敛时 `cleanup.converged=false` 且 `retained` 列出仍持有的资源名（backend/pipe）。
+- **"已清理"与"未证明清理"必须区分**：退出码 4 vs 6 + 状态文件；**不得**把
+  "进程退出关闭 guard 句柄"当作已证明清理——该内核兜底只在 r2 特定场景被端到端观测过，
+  不作为通用保证，也不得在报告中泛化（见 §9）。
 - **Ctrl-C 不是已工作**：close 的中断只是 best-effort（`runtime.close(interrupt=True)`）；
   完成与否只看终止 + 整树 + 根确认 + reader 收敛的证据（CleanupReport）。
 - **不以 kill 替代 interrupt**：不把 `TerminateProcess` 当成优雅中断的替代品；
@@ -289,9 +348,12 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 
 ```python
 RUNNER_EXIT_OK = 0
+RUNNER_EXIT_USAGE = 2
 RUNNER_EXIT_CLEANUP_FAILED = 3
 RUNNER_EXIT_BOOTSTRAP_FAILED = 4
-RUNNER_EXIT_USAGE = 2
+RUNNER_EXIT_INTERNAL = 5
+RUNNER_EXIT_CLEANUP_UNPROVEN = 6
+RUNNER_EXIT_ACCEPT_FAILED = 7
 
 class RunnerBootstrapError(RuntimeError): ...
 
@@ -337,7 +399,16 @@ class TerminalRunner:
     def owner_heartbeat(self, client_id: str, *, generation: int | None = None) -> dict[str, Any]
     def register_observer(self, client_id: str) -> dict[str, Any]
     def detach(self, *, reason: str = "detach") -> dict[str, Any]
-    def close(self, *, reason: str = "explicit-close") -> dict[str, Any]
+    def close(self, *, reason: str = "explicit-close",
+              source: str = "explicit",                    # "explicit"|"lease"（内部仲裁；lease 需带世代）
+              lease_epoch: int | None = None, lease_established: bool | None = None,
+              wait: float | None = None) -> dict[str, Any]  # wait 覆盖本次有界等待
+    def retry_startup_cleanup(self) -> dict[str, Any]      # 启动失败清理同 owner 重试（诊断/测试）
+    def retry_pipe_cleanup(self, *, attempts: int = 2) -> dict[str, Any]
+    @property
+    def exit_reason(self) -> str
+    @property
+    def status_path(self) -> Path
     def handle(self, request: Mapping[str, Any]) -> dict[str, Any]   # ipc 端点分发
 
 def main(argv: Sequence[str] | None = None) -> int
@@ -351,6 +422,8 @@ def main(argv: Sequence[str] | None = None) -> int
 - 所有端点方法返回 JSON 安全 payload（供 `ipc.build_response` 校验），字段受 §3.1
   白名单限制；数值型 raw64（FILETIME/cursor/seq/total_bytes）由 ipc 层编码为十进制字符串。
 - `handle(request)` 是**唯一** IPC 分发点（`IpcSession.run_handler` 之内）。
+- 启动失败清理状态与退出原因经 §5 状态文件跨进程可观察；`retry_*` 仅同进程入口
+  （runner 即将退出时为诊断/测试提供，不改变退出语义）。
 
 ### 7.2 `runner_client.py`
 
@@ -412,14 +485,22 @@ class RunnerClient:
 
 ## 8. 测试与证据（本 TA）
 
-- `tests/test_terminal_runner.py`（Windows 真机 + 隔离临时数据根）覆盖：
+- `tests/test_terminal_runner.py`（Windows 真机 + 隔离临时数据根；**31 项**）覆盖：
   管理心跳保活 / 死期 2s 自停；观察者轮换不杀 runtime；detach 语义
   （能力覆盖注入下的同 PID/FILETIME + shell 变量保存 + 新 controller 重连）与
   受 ambient 限制时的显式拒绝；根死孙活整树清理；runner 硬死 → guard 内核清整树；
   startup/身份/认证拒绝；cleanup-failed 保 owner 重试；阻塞 write 不堵 watchdog；
   跨进程 secret 重连；token 无 argv/env/日志泄漏。
-- 证据：`audit/terminal/implementation/runner/`（pre-fix 失败日志、post-fix 全绿日志、
-  机器可读 JSON、清理扫描、README）；不覆盖旧证据目录。
+- **r2 门控新增（12 项）**：R1 close worker 迟成功/失败 + lease 丢失（消费同一 worker、
+  不叠加、耗尽非零）；R2 三种仲裁（expiry 先拒绝 detach；detach 先跳过迟到 expiry；
+  迟到心跳作废旧 expiry，含反向自停断言）；startup 清理双失败 owner 重试 + pipe 不收敛
+  保引用；连接线程回收与共享总 deadline join；detail 合法有界 JSON（字段级缩减）；
+  真机 startup-refuse（真实保 guard 清整树 + exit 4）、startup-uncleaned（exit 6 +
+  状态文件 retained）、accept-fail（exit 7 + 状态可观测）。
+- 证据：`audit/terminal/implementation/runner/`（d48 历史 + `r2/` 新证据：UTF-8 文本日志、
+  机器可读 JSON、源文件 blob 哈希锚定、清理/残留扫描）；**不覆盖旧证据**。
+  历史上未入库的 `pytest.log`/`stability_run_*.log`/4-fail 日志已在 r2 README 中
+  明确更正为"不可核（.log 被 gitignore 拦截），不再声称存在"。
 
 ## 9. 已知边界 / 未验证（不得当作已解决）
 
@@ -427,9 +508,44 @@ class RunnerClient:
    `fidelity=unavailable`（不承诺恢复）。`emulator.py` 与 sidecar 属并行 TA。
 2. **ambient Job 下的 durable detach 未实证**：本机宿主 Job 不可清除
    （breakaway 被拒），detach 语义在能力覆盖注入下验证，真实环境按 fail-closed 拒绝。
-3. **Pan 服务/浏览器/Web/MCP/registry 接线未实现**（P2/P3）。
-4. **跨用户/跨主机拒绝未实测**（同 P1 IPC 边界）；`PIPE_REJECT_REMOTE_CLIENTS`
-   仍只有结构性证据。
-5. **未做长稳压测**：lease 抖动、连接 churn、慢客户端背压只做有界重复；
-   `stop` 超时后的迟响应语义依赖 ipc 的 `late_responses` 计数。
-6. **旧 Windows build 的 ClosePseudoConsole/取消路径**未验证（沿用 backend 报告边界）。
+3. **内核退出兜底未泛化**：进程退出关闭 guard 句柄的清除，仅在 r2 的
+   startup-uncleaned 场景做过端到端观测（记录在案），**不作为通用保证**；
+   启动失败清理的"已清理/未证明"以状态文件与退出码 4/6 区分。
+4. **Pan 服务/浏览器/Web/MCP/registry 接线未实现**（P2/P3）；浏览器不得直连 runner
+   或持 token（§1），服务将来执行 attachment 授权。
+5. **跨用户/跨主机拒绝未实测**（同 P1 IPC 边界）；`PIPE_REJECT_REMOTE_CLIENTS`
+   仍只有结构性证据；同用户持 token 连接具备控制能力是信任模型内事实（非远程漏洞）。
+6. **未做长稳压测**：lease 抖动、连接 churn、慢客户端背压只做有界重复
+   （churn 方向性验证，不代表长稳）；`stop` 超时后的迟响应语义依赖 ipc 的
+   `late_responses` 计数。
+7. **旧 Windows build 的 ClosePseudoConsole/取消路径**未验证（沿用 backend 报告边界）。
+
+---
+
+## 10. 变更记录
+
+- `2026-10-03` 首版（`d48f967e`）：runner/client 与 19 项真机测试、审计证据。
+- `2026-10-03` **r2 返工（独立审查 `a12a6bd6` 后闭环；先失败后通过）**：
+  - **R1**：`_closing` 不再永久豁免 managed lease——watchdog 在显式 close 未收敛/失败
+    且 Pan 断开时，消费**同一** close worker 结果（迟到成功直通 `exited`）并有界重试
+    （仅 worker 结束后另起，不叠加）；耗尽 → 退出码 3；输入门不恢复。
+  - **R2**：detach 与 lease-expiry 在同一生命周期门仲裁（锁内复核 `detached` 与
+    lease 世代）；expiry 先取得关闭权 → detach 明确拒绝（`lease-close-in-progress`）；
+    detach 先完成 → 迟到 expiry 跳过；心跳世代（epoch）自增使迟到 expiry 作废；
+    显式 close（含 detached）仍可终止。
+  - **R3+O1**：启动失败清理保可重试 owner（backend/pipe 引用不丢、CloseReport 不丢弃）、
+    有界重试；新增跨进程状态文件 `<root>/runner-status/<tid>.json` 与退出码 6（未证明）
+    ——与 4（已清理）区分；`retry_startup_cleanup` / `retry_pipe_cleanup` 同 owner 重试；
+    内核退出兜底**不泛化**（仅 r2 场景实测记录）。
+  - **O2**：accept 异常即使清理收敛也非 0（退出码 7），公开脱敏原因（stderr + 状态文件）。
+  - **O3**：连接线程对象回收、join 共享总 deadline（3s，非 N×2s）、watchdog 有界 join（3s）
+    与 `_finalize` 总预算（12s）；不收敛如实标注。
+  - **O4**：detail 改为字段级缩减（始终合法 JSON，不截断）；桥接异常穿透语义与 runtime
+    隔离对齐（措辞修正）。
+  - **O5**：预算分层改写（input 0.75 / close 8 / snapshot 客户端 timeout；write budget
+    为发起取消截止、非硬 SLA）。
+  - **O6**：证据更正（r2 README：未入库 .log 不可核，不再声称存在；新证据 UTF-8 .txt + JSON
+    + 源文件 blob 锚定）。
+  - **O7**：`LOST` 不再映射为 exit 0（未证明 → 退出码 6）。
+  - 测试 19 → **31 项**（新增 12 项门控/真机；直连 + uv 各一次，core129+broadcast8
+    隔离 pyte 另列）。

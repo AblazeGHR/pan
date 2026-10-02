@@ -83,10 +83,24 @@ RUNNER_EXIT_OK = 0
 RUNNER_EXIT_USAGE = 2
 #: 死期清理有界重试后仍未收敛（退出即关闭 guard 句柄 = 内核兜底，不是"已确认清理"）。
 RUNNER_EXIT_CLEANUP_FAILED = 3
-#: bootstrap / 身份 / 管道 / 启动门禁失败（fail-closed，未发布 running）。
+#: bootstrap / 身份 / 管道 / 启动门禁失败，且自有资源清理已证明收敛。
 RUNNER_EXIT_BOOTSTRAP_FAILED = 4
 #: 未预期内部错误（类型名已脱敏记录）。
 RUNNER_EXIT_INTERNAL = 5
+#: 启动失败或收尾时清理**未能证明收敛**（owner/引用保留，跨进程见状态文件）。
+RUNNER_EXIT_CLEANUP_UNPROVEN = 6
+#: accept 循环异常退出（非正常 stop；清理状态见状态文件 ``cleanup.converged``）。
+RUNNER_EXIT_ACCEPT_FAILED = 7
+
+_EXIT_REASONS: dict[int, str] = {
+    RUNNER_EXIT_OK: "ok",
+    RUNNER_EXIT_USAGE: "usage",
+    RUNNER_EXIT_CLEANUP_FAILED: "cleanup-failed",
+    RUNNER_EXIT_BOOTSTRAP_FAILED: "bootstrap-failed",
+    RUNNER_EXIT_INTERNAL: "internal-error",
+    RUNNER_EXIT_CLEANUP_UNPROVEN: "cleanup-unproven",
+    RUNNER_EXIT_ACCEPT_FAILED: "accept-failed",
+}
 
 #: 默认 shell（计划 §13：cmd.exe /q /d；可配置为 pwsh 由后续接线负责）。
 DEFAULT_SHELL_ARGV: tuple[str, ...] = ("cmd.exe", "/q", "/d")
@@ -107,6 +121,15 @@ _LEASE_CLEANUP_RETRIES = 3
 _LEASE_CLEANUP_RETRY_INTERVAL = 0.5
 #: 关闭后留给连接写回响应的窗口（本地命名管道毫秒级；1.5s 是保险）。
 _SHUTDOWN_GRACE_SECONDS = 1.5
+#: 主循环收尾时等待 watchdog 线程退出的有界预算。
+_WATCHDOG_JOIN_SECONDS = 3.0
+#: ``run()`` 收尾（_finalize）的总预算：超过即按"未证明收敛"如实收场，不无限等锁。
+_FINALIZE_BUDGET_SECONDS = 12.0
+#: 启动失败路径清理的有界重试次数与单次等待（backend.close / pipe.close）。
+_STARTUP_CLEANUP_ATTEMPTS = 2
+_STARTUP_CLEANUP_TIMEOUT_SECONDS = 3.0
+#: 跨进程可观测的运行期状态文件目录（位于 terminals root 下；无秘密）。
+_STATUS_DIRNAME = "runner-status"
 #: 每个连接的有界操作队列（入队固化期限，见 ipc.RequestScheduler）。
 _CONNECTION_QUEUE = 8
 #: 连接 serve 循环的接收超时（保证能周期性检查 shutdown）。
@@ -134,6 +157,68 @@ _RESPONSE_FIELDS = frozenset(
         "ok",
     }
 )
+#: detail 字段级缩减时按序丢弃的可选块（先丢最不关键的）。
+_OPTIONAL_DETAIL_KEYS: tuple[str, ...] = (
+    "observers",
+    "connections",
+    "input_worker",
+    "close_worker",
+    "consumer",
+    "snapshot",
+    "cleanup",
+    "lease",
+    "durability",
+    "exit",
+    "reconnect_hint",
+    "events",
+    "detail",
+)
+
+
+def _shrink_strings(value: Any, limit: int) -> Any:
+    """递归缩短字符串（detail 字段级缩减用；绝不产生非法 JSON）。"""
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit]
+    if isinstance(value, dict):
+        return {key: _shrink_strings(item, limit) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_shrink_strings(item, limit) for item in value]
+    return value
+
+
+def _bounded_json(payload: Mapping[str, Any], budget: int = _DETAIL_BUDGET) -> str:
+    """把字典渲染为**合法且有界**的 JSON（字段级缩减，禁止字符串截断）。
+
+    缩减顺序：嵌套长字符串逐级缩短 → 按 ``_OPTIONAL_DETAIL_KEYS`` 丢弃可选项 →
+    极简骨架。任何一步的输出都可被 ``json.loads`` 解析。
+    """
+    def render(obj: Mapping[str, Any]) -> str:
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+    candidate: dict[str, Any] = dict(payload)
+    text = render(candidate)
+    if len(text) <= budget:
+        return text
+    for limit in (512, 256, 128, 64, 32):
+        candidate = _shrink_strings(candidate, limit)
+        text = render(candidate)
+        if len(text) <= budget:
+            return text
+    for key in _OPTIONAL_DETAIL_KEYS:
+        candidate.pop(key, None)
+        text = render(candidate)
+        if len(text) <= budget:
+            return text
+    minimal = {
+        key: candidate.get(key)
+        for key in ("schema_version", "terminal_id", "runner_state", "runtime_state", "detached")
+        if key in candidate
+    }
+    minimal["truncated_fields"] = True
+    text = render(_shrink_strings(minimal, 64))
+    if len(text) <= budget:
+        return text
+    return render({"schema_version": 1, "truncated_fields": True})
 
 
 class RunnerBootstrapError(RuntimeError):
@@ -290,18 +375,20 @@ class _TrackedCall:
         self._error_type: str | None = None
         self._started_at = 0.0
         self._finished_at: float | None = None
+        self._start_lock = threading.Lock()
 
     def reset(self, fn: Callable[[], Any] | None = None) -> None:
-        if self._worker is not None and self._worker.is_alive():
-            raise RuntimeError("cannot reset a tracked call while its worker is still running")
-        if fn is not None:
-            self._fn = fn
-        self._worker = None
-        self._done = threading.Event()
-        self._result = None
-        self._error_type = None
-        self._started_at = 0.0
-        self._finished_at = None
+        with self._start_lock:
+            if self._worker is not None and self._worker.is_alive():
+                raise RuntimeError("cannot reset a tracked call while its worker is still running")
+            if fn is not None:
+                self._fn = fn
+            self._worker = None
+            self._done = threading.Event()
+            self._result = None
+            self._error_type = None
+            self._started_at = 0.0
+            self._finished_at = None
 
     @property
     def started(self) -> bool:
@@ -324,6 +411,11 @@ class _TrackedCall:
         return self._error_type
 
     @property
+    def result(self) -> Any:
+        """已完成 worker 的结果（未完成返回 None；只读，供"消费迟到成功"）。"""
+        return self._result if self.finished else None
+
+    @property
     def started_at(self) -> float:
         return self._started_at
 
@@ -332,23 +424,28 @@ class _TrackedCall:
         return self._finished_at
 
     def run(self, timeout: float) -> tuple[bool, Any, str | None]:
-        """返回 ``(finished, result, error_type)``；``finished=False`` = 仍在执行。"""
-        if not self.started:
-            self._started_at = time.monotonic()
+        """返回 ``(finished, result, error_type)``；``finished=False`` = 仍在执行。
 
-            def _work() -> None:
-                try:
-                    self._result = self._fn()
-                except Exception as exc:  # noqa: BLE001 - 失败必须如实记录
-                    self._error_type = type(exc).__name__
-                finally:
-                    self._finished_at = time.monotonic()
-                    self._done.set()
+        并发调用安全：启动段在内部锁内完成（同一 worker 只启动一次），等待段
+        可多线程同时等同一 ``Event``（close 的 lifecycle 锁已串行化调用方）。
+        """
+        with self._start_lock:
+            if not self.started:
+                self._started_at = time.monotonic()
 
-            self._worker = threading.Thread(
-                target=_work, name="runner-tracked-call", daemon=True
-            )
-            self._worker.start()
+                def _work() -> None:
+                    try:
+                        self._result = self._fn()
+                    except Exception as exc:  # noqa: BLE001 - 失败必须如实记录
+                        self._error_type = type(exc).__name__
+                    finally:
+                        self._finished_at = time.monotonic()
+                        self._done.set()
+
+                self._worker = threading.Thread(
+                    target=_work, name="runner-tracked-call", daemon=True
+                )
+                self._worker.start()
         if not self._done.wait(max(0.0, timeout)):
             return False, None, None
         return True, self._result, self._error_type
@@ -481,7 +578,24 @@ class TerminalRunner:
         self._shutdown_flag = False
         self._shutdown_deadline: float | None = None
         self._watchdog_stop = threading.Event()
+        self._watchdog: threading.Thread | None = None
         self._events: list[tuple[float, str, str]] = []
+        #: 生命周期仲裁（R2）：lease-expiry 一旦取得关闭权，detach 明确拒绝。
+        self._expiry_in_progress = False
+        self._expiry_reason: str | None = None
+        #: 启动失败清理的可重试 owner（不收敛时保留引用）与报告（O1/R3）。
+        self._retained_backend: Any = None
+        self._retained_pipe_server: Any = None
+        self._startup_close_call: _TrackedCall | None = None
+        self._startup_cleanup: dict[str, Any] = {}
+        self._pipe_cleanup: dict[str, Any] = {}
+        #: 跨进程可观测的状态目录（terminals root/runner-status；无秘密）。
+        self._status_dir = self._secret_file.parent.parent / _STATUS_DIRNAME
+        #: accept 循环异常退出的事实（脱敏类型名）。
+        self._accept_failure: str | None = None
+        self._exit_reason: str = "ok"
+        #: lease 世代：每次心跳/接管自增 —— 旧 expiry 不得误杀新 lease。
+        self._lease_epoch = 0
 
     # ------------------------------------------------------------------ 诊断
     def _note(self, event: str, detail: str = "") -> None:
@@ -504,6 +618,16 @@ class TerminalRunner:
     @property
     def runner_state(self) -> str:
         return self._runner_state
+
+    @property
+    def exit_reason(self) -> str:
+        """退出原因（静态串；用于 stderr/状态文件，不含秘密）。"""
+        return self._exit_reason
+
+    @property
+    def status_path(self) -> Path:
+        """跨进程可观测状态文件路径（<root>/runner-status/<terminal_id>.json）。"""
+        return self._status_path()
 
     @property
     def detached(self) -> bool:
@@ -633,32 +757,206 @@ class TerminalRunner:
         self._lease_started_at = time.monotonic()
         self._note("running")
 
-    def _abort_backend(self, backend: Any) -> None:
-        """启动失败路径：只清理自有后代（尽力而为，失败如实记录）。"""
-        if backend is None:
-            return
-        try:
-            backend.terminate(True)
-        except Exception as exc:  # noqa: BLE001
-            self._note("abort-terminate-failed", type(exc).__name__)
-        try:
-            backend.close()
-        except Exception as exc:  # noqa: BLE001 - 保留 owner 由进程退出兜底
-            self._note("abort-close-failed", type(exc).__name__)
+    def _abort_backend(self, backend: Any) -> dict[str, Any]:
+        """启动失败路径：有界清理自有后代；**不收敛时保留引用**（R3）。
 
-    def _close_pipe_server(self) -> None:
+        返回可审计报告（写入状态文件）；``backend.close`` 的有界 worker 跨重试
+        复用（不重叠），必要时可经 :meth:`retry_startup_cleanup` 在同一进程内重试。
+        不冒称"内核退出兜底已验证"——未收敛即如实标注 ``converged=False``。
+        """
+        report: dict[str, Any] = {
+            "attempted": False,
+            "terminate": None,
+            "close": None,
+            "close_attempts": 0,
+            "converged": backend is None,
+            "retained": [] if backend is None else ["backend"],
+            "errors": [],
+        }
+        if backend is None:
+            self._startup_cleanup = report
+            return report
+        self._retained_backend = backend  # 保引用：不收敛时仍可重试/如实报告
+        report["attempted"] = True
+        for _ in range(_STARTUP_CLEANUP_ATTEMPTS):
+            try:
+                backend.terminate(True)
+                report["terminate"] = "returned"
+                break
+            except Exception as exc:  # noqa: BLE001 - 只记类型名
+                report["terminate"] = f"error:{type(exc).__name__}"
+                if f"terminate:{type(exc).__name__}" not in report["errors"]:
+                    report["errors"].append(f"terminate:{type(exc).__name__}")
+        for _ in range(_STARTUP_CLEANUP_ATTEMPTS):
+            report["close_attempts"] += 1
+            call = self._startup_close_call
+            if call is None or call.finished:
+                # 上一轮已结束（失败也算）：允许新一轮；未完成则复用同一 worker。
+                call = _TrackedCall(backend.close)
+                self._startup_close_call = call
+            finished, _result, error_type = call.run(_STARTUP_CLEANUP_TIMEOUT_SECONDS)
+            if not finished:
+                report["close"] = "timeout"
+                report["errors"].append("close:timeout")
+                break
+            if error_type is not None:
+                report["close"] = f"error:{error_type}"
+                report["errors"].append(f"close:{error_type}")
+                continue
+            closed_attr = getattr(backend, "closed", None)
+            if closed_attr is None or bool(closed_attr):
+                report["close"] = "returned"
+                break
+            report["close"] = "not-closed"
+        report["converged"] = report["close"] == "returned"
+        if report["converged"]:
+            self._retained_backend = None
+            report["retained"] = []
+        self._startup_cleanup = report
+        return report
+
+    def retry_startup_cleanup(self) -> dict[str, Any]:
+        """同一进程内重试启动失败清理（诊断/测试入口；runner 即将退出）。
+
+        未收敛的 backend 引用一直被持有（不丢 owner），本方法对同一引用重试；
+        ``backend.close`` worker 未完成时复用、已完成失败时另起（不重叠）。
+        """
+        backend = self._retained_backend
+        if backend is None:
+            return dict(self._startup_cleanup or {"converged": True, "retained": []})
+        if (
+            self._startup_close_call is not None
+            and self._startup_close_call.finished
+            and not self._startup_close_call.succeeded
+        ):
+            self._startup_close_call = None  # 上一轮失败：允许新一轮（不重叠）
+        return self._abort_backend(backend)
+
+    def _close_pipe_server(self, *, attempts: int = _STARTUP_CLEANUP_ATTEMPTS) -> dict[str, Any]:
+        """关闭 pipe server；**不收敛时保留引用**并如实报告（O1：不再零记录丢弃）。"""
         server = self._pipe_server
-        self._pipe_server = None
+        report: dict[str, Any] = {
+            "attempted": server is not None,
+            "converged": server is None,
+            "attempts": 0,
+            "detail": None,
+            "errors": [],
+        }
         if server is None:
-            return
+            self._pipe_cleanup = report
+            return report
+        self._pipe_server = None
+        last_report: Any = None
+        for _ in range(max(1, int(attempts))):
+            report["attempts"] += 1
+            try:
+                last_report = server.close(timeout=2.0)
+            except Exception as exc:  # noqa: BLE001 - 只记类型名
+                last_report = None
+                report["errors"].append(type(exc).__name__)
+                continue
+            if bool(getattr(last_report, "converged", False)):
+                report["converged"] = True
+                break
+        if report["converged"]:
+            self._retained_pipe_server = None
+        else:
+            self._retained_pipe_server = server  # 保引用：可重试收敛
+            report["detail"] = getattr(last_report, "detail", None)
+            self._note("pipe-close-not-converged")
+        self._pipe_cleanup = report
+        return report
+
+    def retry_pipe_cleanup(self, *, attempts: int = 2) -> dict[str, Any]:
+        """同一进程内重试 pipe server 关闭（诊断/测试入口；不丢引用）。"""
+        server = self._retained_pipe_server
+        if server is None:
+            return dict(self._pipe_cleanup or {"converged": True})
+        report = dict(self._pipe_cleanup or {})
+        for _ in range(max(1, int(attempts))):
+            report["attempts"] = int(report.get("attempts", 0)) + 1
+            try:
+                last_report = server.close(timeout=2.0)
+            except Exception as exc:  # noqa: BLE001
+                report.setdefault("errors", []).append(type(exc).__name__)
+                continue
+            if bool(getattr(last_report, "converged", False)):
+                report["converged"] = True
+                report["detail"] = getattr(last_report, "detail", None)
+                self._retained_pipe_server = None
+                break
+        self._pipe_cleanup = report
+        if report.get("converged"):
+            self._note("pipe-close-converged-retry")
+        return report
+
+    def _startup_cleanup_converged(self) -> bool:
+        """启动失败清理是否已被证明收敛（backend + pipe 两部分都算证据）。"""
+        backend_ok = bool(self._startup_cleanup.get("converged", self._retained_backend is None))
+        pipe_ok = bool(self._pipe_cleanup.get("converged", self._retained_pipe_server is None))
+        return backend_ok and pipe_ok
+
+    # ------------------------------------------------------------ 状态文件
+    def _status_path(self) -> Path:
+        return self._status_dir / f"{self.terminal_id}.json"
+
+    def _status_cleanup(self) -> dict[str, Any]:
+        cleanup: dict[str, Any] = {
+            "converged": self._startup_cleanup_converged(),
+            "startup": dict(self._startup_cleanup) if self._startup_cleanup else None,
+            "pipe": dict(self._pipe_cleanup) if self._pipe_cleanup else None,
+            "retained": [
+                name
+                for name, value in (
+                    ("backend", self._retained_backend),
+                    ("pipe", self._retained_pipe_server),
+                )
+                if value is not None
+            ],
+        }
+        report = self._last_cleanup
+        if report is not None:
+            cleanup["close_ok"] = bool(report.ok)
+            cleanup["terminate_result"] = report.terminate_result.value
+            cleanup["state_after"] = report.state_after.value
+            cleanup["tree_remaining"] = len(report.tree_remaining_pids)
+            cleanup["owner_retained"] = bool(report.owner_retained)
+        return cleanup
+
+    def _write_status(
+        self,
+        phase: str,
+        *,
+        exit_code: int | None = None,
+        reason: str | None = None,
+        cleanup: Mapping[str, Any] | None = None,
+    ) -> None:
+        """跨进程可观测的脱敏状态（原子写；失败只记类型名，绝不抛）。"""
+        payload = {
+            "schema_version": 1,
+            "terminal_id": self.terminal_id,
+            "phase": str(phase)[:32],
+            "exit_code": int(exit_code) if exit_code is not None else None,
+            "reason": str(reason or self._exit_reason)[:64],
+            "runner_pid": os.getpid(),
+            "cleanup": dict(cleanup if cleanup is not None else self._status_cleanup()),
+            "updated_at": round(time.time(), 3),
+        }
         try:
-            server.close(timeout=2.0)
-        except Exception as exc:  # noqa: BLE001
-            self._note("pipe-close-failed", type(exc).__name__)
+            self._status_dir.mkdir(parents=True, exist_ok=True)
+            path = self._status_path()
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            os.replace(tmp, path)
+        except Exception as exc:  # noqa: BLE001 - 状态可观测性失败不影响生命周期
+            self._note("status-write-failed", type(exc).__name__)
 
     # ------------------------------------------------------------ 主流程
     def run(self) -> int:
-        """同步主流程；返回退出码（见模块常量）。"""
+        """同步主流程；返回退出码（见模块常量与状态文件）。"""
         self._runner_state = "bootstrapping"
         try:
             self._bootstrap()
@@ -667,25 +965,75 @@ class TerminalRunner:
             self._note("bootstrap-refused", type(exc).__name__)
             self._cleanup_hello_on_failure()
             self._runner_state = "bootstrap-failed"
-            return RUNNER_EXIT_BOOTSTRAP_FAILED
+            return self._bootstrap_failed_exit("bootstrap-refused")
         except Exception as exc:  # noqa: BLE001 - 未预期错误也要 fail-closed
             self._note("bootstrap-error", type(exc).__name__)
             self._cleanup_hello_on_failure()
             self._runner_state = "bootstrap-failed"
-            return RUNNER_EXIT_BOOTSTRAP_FAILED
+            return self._bootstrap_failed_exit("bootstrap-error")
 
         watchdog = threading.Thread(
             target=self._watchdog_loop, name="runner-lease-watchdog", daemon=True
         )
+        self._watchdog = watchdog
         watchdog.start()
         try:
             self._accept_loop()
         finally:
             self._watchdog_stop.set()
             self._close_pipe_server()
-            self._join_connections()
+            join_info = self._join_connections()
+            self._note("connections-joined", f"{join_info['joined']}+{join_info['remaining']}")
+            watchdog.join(timeout=_WATCHDOG_JOIN_SECONDS)
+            if watchdog.is_alive():
+                # 看门狗深陷 close 等待链：不无限 join；退出码由 _finalize 依实际
+                # 清理状态决定（这里只如实记录，不单独改写退出码）。
+                self._note("watchdog-not-converged")
             self._finalize()
-        return int(self._exit_code if self._exit_code is not None else RUNNER_EXIT_OK)
+        self._set_exit_code(RUNNER_EXIT_OK)
+        self._write_status(
+            self._exit_status_phase(),
+            exit_code=int(self._exit_code),
+            reason=self._exit_reason,
+        )
+        self._announce_exit(int(self._exit_code))
+        return int(self._exit_code)
+
+    def _note_exit_reason(self, reason: str) -> None:
+        """记录退出原因：**首个原因优先**（后续成功/失败不覆盖已确立的异常原因）。"""
+        if self._exit_reason in ("", "ok"):
+            self._exit_reason = str(reason)
+
+    def _announce_exit(self, code: int) -> None:
+        """公开脱敏退出原因（静态串；细节见状态文件）。非零才输出。"""
+        if int(code) == RUNNER_EXIT_OK:
+            return
+        reason = self._exit_reason or _EXIT_REASONS.get(int(code), "unknown")
+        try:
+            print(f"pan-terminal-runner: exit code={int(code)} reason={reason}", file=sys.stderr)
+        except Exception:  # noqa: BLE001 - 通告失败不影响退出
+            pass
+
+    def _bootstrap_failed_exit(self, reason: str) -> int:
+        """启动失败：区分"已清理"与"未证明清理"（退出码 + 状态文件，R3）。"""
+        converged = self._startup_cleanup_converged()
+        code = RUNNER_EXIT_BOOTSTRAP_FAILED if converged else RUNNER_EXIT_CLEANUP_UNPROVEN
+        self._exit_reason = "bootstrap-failed" if converged else "bootstrap-cleanup-unproven"
+        self._note(reason, "converged" if converged else "cleanup-unproven")
+        self._write_status("bootstrap-failed", exit_code=code, reason=self._exit_reason)
+        self._announce_exit(code)
+        return code
+
+    def _exit_status_phase(self) -> str:
+        code = int(self._exit_code if self._exit_code is not None else RUNNER_EXIT_OK)
+        return {
+            RUNNER_EXIT_OK: "exited",
+            RUNNER_EXIT_CLEANUP_FAILED: "cleanup-failed",
+            RUNNER_EXIT_BOOTSTRAP_FAILED: "bootstrap-failed",
+            RUNNER_EXIT_CLEANUP_UNPROVEN: "cleanup-unproven",
+            RUNNER_EXIT_ACCEPT_FAILED: "accept-failed",
+            RUNNER_EXIT_INTERNAL: "internal",
+        }.get(code, "exit")
 
     def _accept_loop(self) -> None:
         server = self._pipe_server
@@ -694,10 +1042,16 @@ class TerminalRunner:
                 connection = server.accept(timeout=self._accept_timeout)
             except win_pipe.PipeCancelled:  # pragma: no cover - 本层不主动取消 accept
                 continue
-            except Exception as exc:  # noqa: BLE001 - 管道层失败：有界退出
-                self._note("accept-failed", type(exc).__name__)
+            except Exception as exc:  # noqa: BLE001 - 管道层失败：有界退出（非正常 stop）
+                self._accept_failure = type(exc).__name__
+                self._note("accept-failed", self._accept_failure)
+                self._exit_reason = "accept-failed"
+                # O2：accept 异常即使后续清理收敛也**不是**正常 exit 0。
+                self._set_exit_code(RUNNER_EXIT_ACCEPT_FAILED)
+                self._request_shutdown(RUNNER_EXIT_ACCEPT_FAILED)
                 break
             if connection is None:
+                self._reap_connection_threads()
                 continue
             thread = threading.Thread(
                 target=self._serve_connection,
@@ -709,36 +1063,73 @@ class TerminalRunner:
                 self._conn_threads.append(thread)
             thread.start()
 
-    def _join_connections(self) -> None:
+    def _reap_connection_threads(self) -> int:
+        """回收已结束的连接线程对象（O3：列表不随连接数无界增长）。"""
+        with self._conn_lock:
+            before = len(self._conn_threads)
+            self._conn_threads = [t for t in self._conn_threads if t.is_alive()]
+            return before - len(self._conn_threads)
+
+    def _join_connections(self, total_deadline: float = 3.0) -> dict[str, Any]:
+        """在**共享总 deadline** 内 join 连接线程（非 N×2s），如实报告未收敛数。"""
+        deadline = time.monotonic() + max(0.0, float(total_deadline))
         with self._conn_lock:
             threads = list(self._conn_threads)
+        joined = 0
+        remaining = 0
         for thread in threads:
-            thread.join(timeout=2.0)
+            budget = deadline - time.monotonic()
+            if budget <= 0.0:
+                remaining += 1
+                continue
+            thread.join(timeout=budget)
+            if thread.is_alive():
+                remaining += 1
+            else:
+                joined += 1
+        self._reap_connection_threads()
+        return {
+            "threads": len(threads),
+            "joined": joined,
+            "remaining": remaining,
+            "deadline_seconds": float(total_deadline),
+        }
 
     def _finalize(self) -> None:
-        """主循环退出后的收尾：未完成清理时再尝试一次（有界，如实记录）。"""
+        """主循环退出后的收尾（有界总预算；不收敛如实标 6，绝不把未知当成功）。"""
+        deadline = time.monotonic() + _FINALIZE_BUDGET_SECONDS
         runtime = self._runtime
         if runtime is None:
             return
-        if runtime.state in (RuntimeState.EXITED, RuntimeState.LOST):
-            if self._exit_code is None:
-                self._exit_code = RUNNER_EXIT_OK
+        if runtime.state is RuntimeState.EXITED:
+            self._set_exit_code(RUNNER_EXIT_OK)
+            return
+        if runtime.state is RuntimeState.LOST:
+            # LOST = 未知所有权：绝不当成功（旧代码把 LOST 映射为 exit 0 是死代码缺陷）。
+            self._note("runtime-lost")
+            self._set_exit_code(RUNNER_EXIT_CLEANUP_UNPROVEN)
             return
         worker = self._close_worker
         if worker is not None and worker.in_flight:
-            finished, result, error_type = worker.run(2.0)  # 有界等待同一 worker（不重叠）
-            if self._exit_code is not None:
-                return
+            budget = min(3.0, max(0.0, deadline - time.monotonic()))
+            finished, result, error_type = worker.run(budget)  # 同一 worker（不重叠）
             if finished and error_type is None and isinstance(result, CleanupReport) and result.ok:
-                self._exit_code = RUNNER_EXIT_OK
+                self._set_exit_code(RUNNER_EXIT_OK)
             else:
-                self._exit_code = RUNNER_EXIT_CLEANUP_FAILED
+                self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
             return
-        result = self.close(reason="runner-shutdown")
-        if self._exit_code is None:
-            self._exit_code = (
-                RUNNER_EXIT_OK if result.get("status") == "exited" else RUNNER_EXIT_CLEANUP_FAILED
-            )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.05:
+            self._note("finalize-budget-exhausted")
+            self._set_exit_code(RUNNER_EXIT_CLEANUP_UNPROVEN)
+            return
+        result = self.close(reason="runner-shutdown", wait=min(self._close_wait, remaining))
+        if result.get("status") == "exited":
+            self._set_exit_code(RUNNER_EXIT_OK)
+        elif result.get("status") == "closing":
+            self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
+        else:
+            self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
 
     # ------------------------------------------------------------ 关闭协调
     def _shutdown_due(self) -> bool:
@@ -748,50 +1139,118 @@ class TerminalRunner:
             deadline = self._shutdown_deadline
         return deadline is None or time.monotonic() >= deadline
 
+    def _set_exit_code(self, code: int) -> None:
+        """设置退出码：首个非零码优先（正常 0 不覆盖已记录的异常/未证明码）。"""
+        code = int(code)
+        with self._shutdown_lock:
+            if self._exit_code is None or (
+                self._exit_code == RUNNER_EXIT_OK and code != RUNNER_EXIT_OK
+            ):
+                self._exit_code = code
+
     def _request_shutdown(self, exit_code: int) -> None:
         """请求主循环退出；留出响应写回窗口（不立刻切断连接）。"""
+        self._set_exit_code(exit_code)
         with self._shutdown_lock:
-            if self._exit_code is None or exit_code != RUNNER_EXIT_OK:
-                self._exit_code = int(exit_code)
             self._shutdown_flag = True
             self._shutdown_deadline = time.monotonic() + _SHUTDOWN_GRACE_SECONDS
 
     # ------------------------------------------------------------ watchdog
+    def _lease_snapshot(self) -> tuple[bool, float | None, int, float]:
+        """读取 lease 状态快照（established, last_heartbeat, epoch, started_at）。"""
+        with self._lease_lock:
+            return (
+                bool(self._lease_established),
+                self._last_heartbeat,
+                int(self._lease_epoch),
+                float(self._lease_started_at),
+            )
+
+    def _lease_still_expired(self, epoch: int, *, established: bool) -> bool:
+        """仲裁复核：检测时刻的 expiry 是否仍然成立（世代未变 + 仍未续约）。
+
+        任何已处理的续约/接管都会自增 ``_lease_epoch``，因此"迟到 expiry"在取得
+        关闭权之前会被本复核作废——旧 expiry 不得误杀新 lease。
+        """
+        with self._lease_lock:
+            if int(self._lease_epoch) != int(epoch):
+                return False
+            if not self._lease_established:
+                return not established
+            last = self._last_heartbeat
+        return last is not None and (time.monotonic() - last) >= self._lease_grace
+
     def _watchdog_loop(self) -> None:
-        """lease 看门狗：只读时间戳 + 触发 close worker（与 handler 互不拖死）。"""
+        """lease 看门狗：只读时间戳 + 触发 close worker（与 handler 互不拖死）。
+
+        R1：**不再因 ``_closing`` 跳过**——显式 close 未收敛/失败后若 Pan 断开，
+        watchdog 仍负责消费/追踪**同一** close worker 的有界结果并重试；
+        R2：detach 由同一生命周期门仲裁（在 ``close(source="lease")`` 内复核）。
+        """
         while not self._watchdog_stop.wait(0.05):
-            if self._shutdown_flag or self._closing or self._detached:
-                continue
+            if self._shutdown_flag:
+                return
             if self._runtime is None:
                 continue
+            established, last, epoch, started = self._lease_snapshot()
             now = time.monotonic()
-            with self._lease_lock:
-                established = self._lease_established
-                last = self._last_heartbeat
-                started = self._lease_started_at
             if established:
-                if last is not None and (now - last) >= self._lease_grace:
-                    self._lease_expired_close()
-                    return
-            elif (now - started) >= self._bootstrap_grace:
-                self._note("owner-absent")
-                self._lease_expired_close()
+                expired = last is not None and (now - last) >= self._lease_grace
+            else:
+                expired = (now - started) >= self._bootstrap_grace
+                if expired:
+                    self._note("owner-absent")
+            if not expired or self._detached:
+                continue
+            outcome = self._lease_expired_close(epoch=epoch, established=established)
+            if outcome in ("exited", "exhausted"):
                 return
+            # "skipped"（迟到 detach/迟到心跳）：继续看门，等下一次判定。
 
-    def _lease_expired_close(self) -> None:
-        """死期自停：close worker 有界重试；未收敛则以退出（内核 guard）兜底。"""
-        result = self.close(reason="lease-expired")
-        if result.get("status") == "exited":
-            return
+    def _lease_expired_close(self, *, epoch: int, established: bool) -> str:
+        """死期自停（R1/R2 仲裁）：返回 ``exited`` / ``skipped`` / ``exhausted``。
+
+        - 与 detach 在同一生命周期门仲裁：expiry 先取得关闭权 → detach 拒绝；
+          detach 先完成 → 本路径在锁内复核后跳过（不杀 detached）；
+        - 显式 close 在途/失败时：等待并消费**同一** close worker（不叠加），
+          未收敛则有界重试（重试只在 worker 已结束时另起，不重叠）。
+        """
+        if not self._lease_still_expired(epoch, established=established):
+            return "skipped"
+        result = self.close(
+            reason="lease-expired",
+            source="lease",
+            lease_epoch=epoch,
+            lease_established=established,
+        )
+        status = result.get("status")
+        if status == "exited":
+            return "exited"
+        if status in ("lease-skipped-detached", "lease-skipped-renewed"):
+            return "skipped"
         for attempt in range(1, self._lease_cleanup_retries + 1):
             if self._watchdog_stop.wait(_LEASE_CLEANUP_RETRY_INTERVAL):
-                return
-            result = self.close(reason=f"lease-expired-retry{attempt}")
-            if result.get("status") == "exited":
-                return
+                return "skipped"
+            if self._detached:
+                return "skipped"
+            if not self._lease_still_expired(epoch, established=established):
+                return "skipped"  # 迟到心跳：旧 expiry 作废
+            result = self.close(
+                reason=f"lease-expired-retry{attempt}",
+                source="lease",
+                lease_epoch=epoch,
+                lease_established=established,
+            )
+            status = result.get("status")
+            if status == "exited":
+                return "exited"
+            if status in ("lease-skipped-detached", "lease-skipped-renewed"):
+                return "skipped"
         self._note("lease-cleanup-exhausted")
         self._runner_state = "cleanup-failed"
+        self._exit_reason = "lease-cleanup-exhausted"
         self._request_shutdown(RUNNER_EXIT_CLEANUP_FAILED)
+        return "exhausted"
 
     # ------------------------------------------------------------ 连接服务
     def _serve_connection(self, connection: Any) -> None:
@@ -927,6 +1386,10 @@ class TerminalRunner:
             }
             close_worker = {
                 "in_flight": bool(self._close_worker is not None and self._close_worker.in_flight),
+                "finished": bool(self._close_worker is not None and self._close_worker.finished),
+                "error_type": (
+                    self._close_worker.error_type if self._close_worker is not None else None
+                ),
             }
         with self._conn_lock:
             connections = {"accepted": self._conn_accepted, "active": self._conn_active}
@@ -963,6 +1426,14 @@ class TerminalRunner:
                     "remaining": len(report.tree_remaining_pids),
                 }
         snapshot_meta = snapshot_capability(self._emulator, self._bridge)
+        lifecycle = {
+            "closing": bool(self._closing),
+            "expiry_in_progress": bool(self._expiry_in_progress),
+            "expiry_reason": self._expiry_reason,
+            "exit_reason": self._exit_reason,
+            "accept_failure": self._accept_failure,
+            "startup_cleanup_converged": self._startup_cleanup_converged(),
+        }
         return {
             "schema_version": 1,
             "terminal_id": self.terminal_id,
@@ -979,6 +1450,7 @@ class TerminalRunner:
             "detached": bool(self._detached),
             "durability": capability.as_dict(),
             "lease": lease,
+            "lifecycle": lifecycle,
             "exit": exit_info,
             "cleanup": cleanup,
             "consumer": consumer,
@@ -991,19 +1463,10 @@ class TerminalRunner:
 
     def _detail_json(self) -> str:
         try:
-            text = json.dumps(self.describe(), ensure_ascii=False, separators=(",", ":"))
+            payload = self.describe()
         except Exception as exc:  # noqa: BLE001 - 序列化失败不允许拖死响应
-            return json.dumps({"status": "detail-error", "error_type": type(exc).__name__})
-        if len(text) <= _DETAIL_BUDGET:
-            return text
-        minimal = {
-            "schema_version": 1,
-            "terminal_id": self.terminal_id,
-            "runner_state": self._runner_state,
-            "detached": bool(self._detached),
-            "truncated": True,
-        }
-        return json.dumps(minimal, ensure_ascii=False, separators=(",", ":"))
+            payload = {"schema_version": 1, "status": "detail-error", "error_type": type(exc).__name__}
+        return _bounded_json(payload, _DETAIL_BUDGET)
 
     def _payload(
         self,
@@ -1042,10 +1505,11 @@ class TerminalRunner:
                 except json.JSONDecodeError:
                     base = {}
             base.update(folded)
-            detail_value = json.dumps(base, ensure_ascii=False, separators=(",", ":"))
+            detail_value = _bounded_json(base, _DETAIL_BUDGET)
         if detail_value is None:
             detail_value = self._detail_json()
-        out["detail"] = detail_value[:_DETAIL_BUDGET]
+        # detail 必须是**合法且有界**的 JSON：来源均已过 _bounded_json（字段级缩减）。
+        out["detail"] = detail_value
         return out
 
     # ---- read / describe
@@ -1342,6 +1806,8 @@ class TerminalRunner:
                     self._owner_generation = int(generation)
                 self._last_heartbeat = time.monotonic()
                 self._lease_established = True
+                # 世代自增：任何已处理的（续约/接管）心跳都让旧 expiry 判定作废。
+                self._lease_epoch += 1
                 status = "ok"
         if status == "closing":
             return self._payload("closing", ok=False)
@@ -1359,7 +1825,34 @@ class TerminalRunner:
             runtime = self._runtime
             if self._detached:
                 return self._payload("already-detached", ok=True)
-            if self._closing or runtime is None or runtime.state is not RuntimeState.RUNNING:
+            # R2 仲裁：lease-expiry 已取得关闭权（或正在关闭）时，detach 明确拒绝
+            # （零状态变化；不假装成功，也不与关闭路径竞态）。
+            if self._expiry_in_progress:
+                self._note("detach-refused-lease-close")
+                return self._payload(
+                    "detach-refused",
+                    ok=False,
+                    extra={
+                        "detail": self._detail_with(
+                            {
+                                "detach": "refused",
+                                "reason": "lease-close-in-progress",
+                                "expiry_reason": self._expiry_reason,
+                            }
+                        )
+                    },
+                )
+            if self._closing:
+                return self._payload(
+                    "detach-refused",
+                    ok=False,
+                    extra={
+                        "detail": self._detail_with(
+                            {"detach": "refused", "reason": "close-in-progress"}
+                        )
+                    },
+                )
+            if runtime is None or runtime.state is not RuntimeState.RUNNING:
                 return self._payload("rejected", ok=False)
             try:
                 capability = self._durability_probe()
@@ -1415,56 +1908,101 @@ class TerminalRunner:
             return self.detach(reason=str(reason))
         return self.close(reason=str(reason))
 
-    def close(self, *, reason: str = "explicit-close") -> dict[str, Any]:
+    def close(
+        self,
+        *,
+        reason: str = "explicit-close",
+        source: str = "explicit",
+        lease_epoch: int | None = None,
+        lease_established: bool | None = None,
+        wait: float | None = None,
+    ) -> dict[str, Any]:
+        """生命周期关闭（唯一 close worker；失败保 owner 可重试）。
+
+        ``source``：``"explicit"``（用户/服务显式关闭，**detached 也照常终止**）或
+        ``"lease"``（死期自停；在同一生命周期门内复核 detach 与 lease 世代，
+        见 ``_lease_expired_close``）。``lease_epoch``/``lease_established`` 是
+        expiry 检测时刻的世代快照（仅 lease 来源使用）。``wait`` 覆盖本次有界
+        等待（默认 ``close_wait``；收尾预算不足时用于收窄）。
+        """
         reason = str(reason or "explicit-close")[:64]
+        budget = self._close_wait if wait is None else max(0.0, float(wait))
         with self._lifecycle_lock:
+            if source == "lease":
+                # R2 仲裁点：与 detach 共用同一把生命周期锁。
+                if self._detached:
+                    return self._payload("lease-skipped-detached", ok=True)
+                if lease_epoch is not None and not self._lease_still_expired(
+                    int(lease_epoch), established=bool(lease_established)
+                ):
+                    return self._payload("lease-skipped-renewed", ok=True)
+                self._expiry_in_progress = True
+                self._expiry_reason = reason
             if self._runner_state == "exited":
                 return self._payload("exited", ok=True)
             self._closing = True
             runtime = self._runtime
             if runtime is None:
                 self._runner_state = "exited"
+                self._note_exit_reason("exited")
                 self._request_shutdown(RUNNER_EXIT_OK)
                 return self._payload("exited", ok=True)
             worker = self._close_worker
-            if worker is None or worker.finished:
-                self._close_worker = worker = _TrackedCall(
-                    lambda reason=reason: runtime.close(reason=reason)
-                )
-            finished, result, error_type = worker.run(self._close_wait)
+            late_success = (
+                worker is not None
+                and worker.finished
+                and worker.succeeded
+                and isinstance(worker.result, CleanupReport)
+                and worker.result.ok
+            )
+            if late_success:
+                # 消费迟到成功：worker 已完成且收敛，不重复发起同一阻塞调用
+                # （R1："追踪同一 close worker 结果"）。
+                finished, result, error_type = True, worker.result, None
+            else:
+                if worker is None or worker.finished:
+                    self._close_worker = worker = _TrackedCall(
+                        lambda reason=reason: runtime.close(reason=reason)
+                    )
+                finished, result, error_type = worker.run(budget)
         if not finished:
             self._runner_state = "closing"
             return self._payload("closing", ok=False)
         if error_type is not None:
             self._runner_state = "cleanup-failed"
+            self._note_exit_reason("cleanup-failed")
             self._note("close-worker-error", error_type)
+            return self._payload("cleanup-failed", ok=False)
+        if not isinstance(result, CleanupReport):
+            # 后端返回非法结果：按清理未证明处理（fail-closed，不假设成功）。
+            self._runner_state = "cleanup-failed"
+            self._note_exit_reason("cleanup-unproven")
+            self._note("close-result-invalid")
             return self._payload("cleanup-failed", ok=False)
         report: CleanupReport = result
         self._last_cleanup = report
         if report.ok:
             self._runner_state = "exited"
+            self._note_exit_reason("exited")
             self._note("exited")
             self._request_shutdown(RUNNER_EXIT_OK)
             return self._payload("exited", ok=True)
         # 失败不释放 owner：runtime 保 cleanup-failed、句柄/进程证据仍在，可重试。
         self._runner_state = "cleanup-failed"
+        self._note_exit_reason("cleanup-failed")
         self._note("cleanup-failed")
         return self._payload("cleanup-failed", ok=False)
 
     # ---- detail 辅助
     def _detail_with(self, extra: Mapping[str, Any]) -> str:
-        """在 describe 摘要之上叠加字段（仍是单个 JSON 字符串，≤4096）。"""
+        """在 describe 摘要之上叠加字段（**合法且有界** JSON：字段级缩减）。"""
         try:
-            base = json.loads(self._detail_json())
+            parsed = json.loads(self._detail_json())
+            base: dict[str, Any] = parsed if isinstance(parsed, dict) else {"schema_version": 1}
         except Exception:  # noqa: BLE001
             base = {"schema_version": 1}
         base.update(dict(extra))
-        text = json.dumps(base, ensure_ascii=False, separators=(",", ":"))
-        if len(text) <= _DETAIL_BUDGET:
-            return text
-        small = {"schema_version": 1, "truncated": True}
-        small.update(dict(extra))
-        return json.dumps(small, ensure_ascii=False, separators=(",", ":"))
+        return _bounded_json(base, _DETAIL_BUDGET)
 
 
 def _clamp_dimension(value: Any, fallback: int) -> int:
@@ -1528,10 +2066,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         cols=int(args.cols),
     )
     try:
-        return runner.run()
+        code = runner.run()
     except Exception as exc:  # noqa: BLE001 - 顶层兜底：只输出类型名
         print(f"pan-terminal-runner: internal error ({type(exc).__name__})", file=sys.stderr)
         return RUNNER_EXIT_INTERNAL
+    return int(code)
 
 
 if __name__ == "__main__":  # pragma: no cover - 由 -m 执行

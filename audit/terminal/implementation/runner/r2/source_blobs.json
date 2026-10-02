@@ -1,0 +1,27 @@
+{
+  "parent_head": "d48f967ea262e64ab7c77063b9ec08aeee67e285",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/runner/README.md": {
+      "blob": "ce7e4eb72dccd10d9c96cef4cd487310a5c33820",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_RUNNER_INTERFACES_20261003.md": {
+      "blob": "160395f111d92c828c33aa5f4511032abd4eb958",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner.py": {
+      "blob": "35914457d76ed40bc9cb5953d1acda5691ed86e9",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner_client.py": {
+      "blob": "5ca8b225a892c4df0e9f6706077c48e32ac70018",
+      "mode": "100644"
+    },
+    "tests/test_terminal_runner.py": {
+      "blob": "6e72e08455408dd5e2968effc6c90a8328e92fe5",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定对象为 r2 修复后源码/测试/文档的暂存 blob；runner.py 的 blob 与收集器运行时的 git hash-object 一致（35914457...），证明 31/31 复跑与提交内容同源；audit README 在收集器运行后有一次证据更正编辑（ce7e4eb7...），以本文件为准。"
+}

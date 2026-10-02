@@ -34,7 +34,14 @@ import pytest
 
 from packages.core.terminal import ipc, runner_client, secret_store, win_pipe
 from packages.core.terminal import runner as runner_module
-from packages.core.terminal.contracts import ProcessStatus
+from packages.core.terminal.contracts import (
+    CleanupReport,
+    DetachReport,
+    ExitInfo,
+    ProcessStatus,
+    RuntimeState,
+    TerminateOutcome,
+)
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -224,7 +231,63 @@ elif mode == "fake-emulator":
             return self.snapshot()
     kwargs["emulator"] = FakeEmulator(float(os.environ.get("PAN_TERMINAL_RUNNER_SNAPSHOT_DELAY", "0")))
 
-runner = TerminalRunner(terminal_id, secret_file, **kwargs)
+
+def _dump_backend(backend):
+    """测试取证：把真实 PTY 根进程身份写到文件（供父进程核验后代清理）。"""
+    import json as _json
+    identity = getattr(backend, "identity", None)
+    payload = {
+        "pid": getattr(backend, "pid", None),
+        "filetime": getattr(identity, "created_at_filetime", None),
+    }
+    with open(os.environ["PAN_TERMINAL_RUNNER_PID_FILE"], "w", encoding="utf-8") as fh:
+        _json.dump(payload, fh)
+
+
+if mode == "startup-refuse-real":
+    from packages.core.terminal.runner import RunnerBootstrapError
+
+    class RefusingRunner(TerminalRunner):
+        """真实 spawn 之后、发布 running 之前注入拒绝（真实 abort 清理路径）。"""
+        def _build_runtime(self, backend):
+            _dump_backend(backend)
+            raise RunnerBootstrapError("test-injected post-spawn refusal")
+
+    runner = RefusingRunner(terminal_id, secret_file, **kwargs)
+elif mode == "startup-refuse-uncleaned":
+    from packages.core.terminal.runner import RunnerBootstrapError
+
+    class UncleanedRunner(TerminalRunner):
+        """真实 spawn 后注入拒绝 + 清理双失败（退出码/状态文件须区分未证明）。"""
+        def _build_runtime(self, backend):
+            _dump_backend(backend)
+
+            def _term_failure(force):
+                raise RuntimeError("injected-terminate-failure")
+
+            def _close_failure():
+                raise RuntimeError("injected-close-failure")
+
+            backend.terminate = _term_failure
+            backend.close = _close_failure
+            raise RunnerBootstrapError("test-injected post-spawn refusal")
+
+    runner = UncleanedRunner(terminal_id, secret_file, **kwargs)
+elif mode == "accept-fail":
+    class AcceptFailRunner(TerminalRunner):
+        """真实 PTY 运行中注入 accept 异常（O2：不得 exit 0）。"""
+        def _accept_loop(self):
+            _dump_backend(self._backend)
+
+            def _accept_failure(*, timeout=None):
+                raise RuntimeError("injected-accept-failure")
+
+            self._pipe_server.accept = _accept_failure
+            super()._accept_loop()
+
+    runner = AcceptFailRunner(terminal_id, secret_file, **kwargs)
+else:
+    runner = TerminalRunner(terminal_id, secret_file, **kwargs)
 try:
     code = runner.run()
 except Exception as exc:
@@ -1259,5 +1322,583 @@ def test_no_token_leakage_in_argv_env_logs_and_files(spawn_runner):
             "checks": checks,
             "scanned_files": len(list(data_root.rglob("*"))) if data_root.exists() else 0,
             "command_line_available": command_line is not None,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r2 返工门控（R1 close/lease 仲裁、R2 detach 仲裁、R3+O1 启动清理、O3/O4）
+# 注入与真机分层：前 9 项为进程内注入（FakeRuntime/FakeBackend/替身），
+# 后 3 项为真实子进程（真实 ConPTY/Job/DPAPI，单点注入故障）。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class _FakeLogStub:
+    total_bytes = 0
+    first_retained_seq = 0
+
+
+class _GatedRuntime:
+    """runner 命令端点使用的 PtyRuntime 最小替身（行为可门控、可观测并发）。"""
+
+    def __init__(
+        self,
+        *,
+        close_behavior: str = "ok",
+        close_delay: float = 0.0,
+        detach_delay: float = 0.0,
+    ) -> None:
+        self.state = RuntimeState.RUNNING
+        self.identity = None
+        self.rows, self.cols = 24, 80
+        self.consumer_failed = False
+        self.consumer_failure_count = 0
+        self.log = _FakeLogStub()
+        self.close_behavior = close_behavior
+        self.close_delay = float(close_delay)
+        self.detach_delay = float(detach_delay)
+        self.close_calls: list[str] = []
+        self.detach_calls = 0
+        self._active = 0
+        self.max_active = 0
+        self._lock = threading.Lock()
+
+    def poll_exit(self) -> ExitInfo:
+        return ExitInfo()
+
+    def close(self, *, reason: str = "explicit-close", **_kw) -> CleanupReport:
+        with self._lock:
+            self.close_calls.append(str(reason))
+            self._active += 1
+            self.max_active = max(self.max_active, self._active)
+        try:
+            if self.close_delay:
+                time.sleep(self.close_delay)
+            if self.close_behavior == "error":
+                raise RuntimeError("injected-close-failure")
+            if self.close_behavior == "not-ok":
+                self.state = RuntimeState.CLEANUP_FAILED
+                return CleanupReport(
+                    terminal_id="term_gate",
+                    requested_reason=str(reason),
+                    terminate_result=TerminateOutcome.TIMED_OUT,
+                    state_after=RuntimeState.CLEANUP_FAILED,
+                    owner_retained=True,
+                    error="injected not-ok cleanup",
+                )
+            self.state = RuntimeState.EXITED
+            return CleanupReport(
+                terminal_id="term_gate",
+                requested_reason=str(reason),
+                terminate_result=TerminateOutcome.RETURNED,
+                state_after=RuntimeState.EXITED,
+            )
+        finally:
+            with self._lock:
+                self._active -= 1
+
+    def detach(self) -> DetachReport:
+        if self.detach_delay:
+            time.sleep(self.detach_delay)
+        self.detach_calls += 1
+        return DetachReport(
+            terminal_id="term_gate", detached_at=time.time(), durable_owner="runner"
+        )
+
+    def resize(self, rows: int, cols: int) -> bool:
+        return True
+
+
+def _make_runner(tmp_path, tid: str, **kwargs) -> Any:
+    secret_file = tmp_path / "gate-terminals" / "secrets" / f"{tid}.secret"
+    return runner_module.TerminalRunner(tid, secret_file, **kwargs)
+
+
+def _wire_gate(runner: Any, runtime: _GatedRuntime, *, expired: bool = True) -> None:
+    runner._runtime = runtime
+    runner._runner_state = "running"
+    if expired:
+        runner._lease_established = True
+        runner._last_heartbeat = time.monotonic() - 10.0
+
+
+def test_r1_watchdog_consumes_late_close_success_after_lease_loss(tmp_path):
+    """R1：显式 close 在途（未收敛）+ Pan 断开 → watchdog 追踪并**消费同一 worker**
+    的迟到成功；不重复发起同一阻塞调用、不恢复输入门。"""
+    runner = _make_runner(
+        tmp_path, "term_gate_r1a", lease_grace_seconds=0.2, close_wait=0.3,
+        lease_cleanup_retries=3,
+    )
+    runtime = _GatedRuntime(close_delay=1.0)
+    _wire_gate(runner, runtime)
+    first = runner.close(reason="explicit-close")
+    assert first["status"] == "closing", first  # worker 在途（1.0s > close_wait 0.3s）
+
+    thread = threading.Thread(target=runner._watchdog_loop, daemon=True)
+    thread.start()
+    thread.join(timeout=10.0)
+    assert not thread.is_alive()
+    assert runtime.close_calls == ["explicit-close"], "迟到成功必须被消费，不得重复发起"
+    assert runtime.max_active == 1, "close worker 不得并发叠加"
+    assert runner._exit_code == runner_module.RUNNER_EXIT_OK
+    assert runner._shutdown_flag is True
+    rejected = runner.input(b"echo should-not-run\r")
+    assert rejected["status"] in ("closing", "rejected"), rejected
+    record_evidence(
+        "r2_r1_late_success",
+        {
+            "injection": "FakeRuntime(close_delay=1.0) + close_wait=0.3 + lease 过期",
+            "first_close_status": first["status"],
+            "close_calls": runtime.close_calls,
+            "max_concurrent_close": runtime.max_active,
+            "exit_code": runner._exit_code,
+            "input_still_rejected": True,
+        },
+    )
+
+
+def test_r1_watchdog_retries_failed_close_and_exits_nonzero(tmp_path):
+    """R1：close worker 失败 + Pan 断开 → watchdog 有界重试（不叠加）；耗尽非零终态。"""
+    runner = _make_runner(
+        tmp_path, "term_gate_r1b", lease_grace_seconds=0.2, close_wait=0.3,
+        lease_cleanup_retries=2,
+    )
+    runtime = _GatedRuntime(close_behavior="error")
+    _wire_gate(runner, runtime)
+    first = runner.close(reason="explicit-close")
+    assert first["status"] == "cleanup-failed"
+
+    thread = threading.Thread(target=runner._watchdog_loop, daemon=True)
+    thread.start()
+    thread.join(timeout=15.0)
+    assert not thread.is_alive()
+    assert runner._exit_code == runner_module.RUNNER_EXIT_CLEANUP_FAILED
+    assert runner._shutdown_flag is True
+    assert runtime.max_active == 1, "重试不得并发叠加同一阻塞调用"
+    assert runtime.close_calls[0] == "explicit-close"
+    assert all(call.startswith("lease-expired") for call in runtime.close_calls[1:])
+    assert len(runtime.close_calls) <= 1 + (1 + runner._lease_cleanup_retries)
+    assert runner._closing is True and runner._expiry_in_progress is True
+    rejected = runner.input(b"echo nope\r")
+    assert rejected["status"] in ("closing", "rejected")
+    record_evidence(
+        "r2_r1_retry_exhausted",
+        {
+            "injection": "FakeRuntime(close_behavior=error) + retries=2",
+            "close_calls": runtime.close_calls,
+            "max_concurrent_close": runtime.max_active,
+            "exit_code": runner._exit_code,
+            "input_still_rejected": True,
+        },
+    )
+
+
+def test_r2_expiry_first_refuses_detach_zero_state(tmp_path):
+    """R2：lease-expiry 先取得关闭权 → detach 明确拒绝、零状态变化；显式 close 仍可终止。"""
+    runner = _make_runner(
+        tmp_path, "term_gate_r2a", lease_grace_seconds=0.2, close_wait=1.0,
+        durability_probe=lambda: runner_module.DurabilityCapability(True, False, "cap"),
+    )
+    runtime = _GatedRuntime(close_behavior="not-ok")
+    _wire_gate(runner, runtime)
+    epoch = runner._lease_epoch
+    outcome: dict[str, str] = {}
+    thread = threading.Thread(
+        target=lambda: outcome.update(
+            {"o": runner._lease_expired_close(epoch=epoch, established=True)}
+        ),
+        daemon=True,
+    )
+    thread.start()
+    time.sleep(0.3)  # 让 expiry 先进入生命周期门（not-ok → 有界重试中）
+    refused = runner.detach()
+    thread.join(timeout=8.0)
+    assert refused["status"] == "detach-refused" and refused["ok"] is False
+    refusal_detail = json.loads(refused["detail"])
+    assert refusal_detail["reason"] == "lease-close-in-progress"
+    assert runner._detached is False and runtime.detach_calls == 0
+    assert outcome.get("o") == "exhausted"
+    # 用户显式 close（detached 未成功）仍可终止整树。
+    runtime.close_behavior = "ok"
+    final = runner.close(reason="explicit-close")
+    assert final["status"] == "exited"
+    record_evidence(
+        "r2_r2_expiry_first",
+        {
+            "detach_status": refused["status"],
+            "detach_reason": refusal_detail.get("reason"),
+            "runtime_detach_calls": runtime.detach_calls,
+            "expiry_outcome": outcome.get("o"),
+            "explicit_close_after": final["status"],
+        },
+    )
+
+
+def test_r2_detach_first_skips_late_lease_expiry(tmp_path):
+    """R2：detach 先完成 → 迟到 expiry 在生命周期门内复核后跳过（不杀 detached）。"""
+    runner = _make_runner(
+        tmp_path, "term_gate_r2b", lease_grace_seconds=0.2, close_wait=1.0,
+        durability_probe=lambda: runner_module.DurabilityCapability(True, False, "cap"),
+    )
+    runtime = _GatedRuntime(detach_delay=0.5)
+    _wire_gate(runner, runtime)
+    epoch = runner._lease_epoch
+    result: dict[str, Any] = {}
+    thread = threading.Thread(target=lambda: result.update(runner.detach()), daemon=True)
+    thread.start()
+    time.sleep(0.15)  # detach 已持生命周期锁（runtime.detach 阻塞 0.5s）期间
+    outcome = runner._lease_expired_close(epoch=epoch, established=True)
+    thread.join(timeout=5.0)
+    assert result.get("status") == "detached" and result.get("ok") is True
+    assert outcome == "skipped"
+    assert runtime.close_calls == [], "detached 后的迟到 expiry 不得关闭整树"
+    assert runner._detached is True
+    assert runner._shutdown_flag is False
+    record_evidence(
+        "r2_r2_detach_first",
+        {
+            "detach_status": result.get("status"),
+            "expiry_outcome": outcome,
+            "close_calls": runtime.close_calls,
+            "shutdown_flag": runner._shutdown_flag,
+        },
+    )
+
+
+def test_r2_late_heartbeat_invalidates_stale_expiry(tmp_path):
+    """R2：检测到 expiry 后、取得关闭权前发生续约（世代自增）→ 旧 expiry 作废；
+    世代未变且仍未续约时仍会自停（双侧断言，防"永不触发"假绿）。"""
+    runner = _make_runner(tmp_path, "term_gate_r2c", lease_grace_seconds=0.2)
+    runtime = _GatedRuntime()
+    _wire_gate(runner, runtime)
+    epoch = runner._lease_epoch
+    assert runner.owner_heartbeat("pan-new")["status"] == "ok"
+    outcome = runner._lease_expired_close(epoch=epoch, established=True)
+    assert outcome == "skipped"
+    assert runtime.close_calls == []
+    assert runner._shutdown_flag is False
+    # 反向：世代未变 + 仍未续约 → 正常自停。
+    runner._last_heartbeat = time.monotonic() - 10.0
+    epoch2 = runner._lease_epoch
+    outcome2 = runner._lease_expired_close(epoch=epoch2, established=True)
+    assert outcome2 == "exited"
+    assert runtime.close_calls == ["lease-expired"]
+    record_evidence(
+        "r2_r2_heartbeat_race",
+        {
+            "stale_expiry_outcome": outcome,
+            "fresh_expiry_outcome": outcome2,
+            "close_calls": runtime.close_calls,
+        },
+    )
+
+
+class _FakeBackendCleanup:
+    """启动失败清理替身：terminate/close 可注入失败（先双失败后恢复）。"""
+
+    def __init__(self) -> None:
+        self.fail_terminate = True
+        self.fail_close = True
+        self.closed = False
+        self.calls: list[str] = []
+
+    def terminate(self, force: bool) -> None:
+        self.calls.append(f"terminate({force})")
+        if self.fail_terminate:
+            raise RuntimeError("injected-terminate-failure")
+
+    def close(self) -> dict[str, Any]:
+        self.calls.append("close")
+        if self.fail_close:
+            raise RuntimeError("injected-close-failure")
+        self.closed = True
+        return {"closed": True}
+
+
+def test_startup_cleanup_owner_retained_and_retry_converges(tmp_path):
+    """R3：启动失败清理双失败 → 保 owner/引用、报告未收敛；恢复后同 owner 重试收敛。"""
+    runner = _make_runner(tmp_path, "term_gate_r3")
+    backend = _FakeBackendCleanup()
+    first = runner._abort_backend(backend)
+    assert first["converged"] is False
+    assert first["retained"] == ["backend"]
+    assert runner._retained_backend is backend
+    assert runner._startup_cleanup_converged() is False
+    assert "injected-terminate-failure" not in json.dumps(first)
+    assert first["errors"] == ["terminate:RuntimeError", "close:RuntimeError", "close:RuntimeError"]
+    backend.fail_terminate = False
+    backend.fail_close = False
+    second = runner.retry_startup_cleanup()
+    assert second["converged"] is True
+    assert runner._retained_backend is None
+    assert runner._startup_cleanup_converged() is True
+    record_evidence(
+        "r2_r3_owner_retry",
+        {
+            "first": first,
+            "second_converged": second["converged"],
+            "errors_are_type_only": True,
+        },
+    )
+
+
+class _FakeCloseReport:
+    def __init__(self, converged: bool, detail: str = "") -> None:
+        self.converged = converged
+        self.detail = detail
+
+
+class _FakePipeServer:
+    def __init__(self) -> None:
+        self.fail = True
+        self.calls = 0
+
+    def close(self, *, timeout: float | None = None) -> _FakeCloseReport:
+        self.calls += 1
+        if self.fail:
+            return _FakeCloseReport(False, "injected-not-converged")
+        return _FakeCloseReport(True, "")
+
+
+def test_pipe_cleanup_non_convergence_keeps_reference_and_retries(tmp_path):
+    """O1：pipe CloseReport(converged=False) 不再被丢弃——保引用、如实报告、可重试。"""
+    runner = _make_runner(tmp_path, "term_gate_pipe")
+    server = _FakePipeServer()
+    runner._pipe_server = server  # type: ignore[assignment]
+    report = runner._close_pipe_server()
+    assert report["converged"] is False
+    assert report["attempts"] == 2
+    assert report["detail"] == "injected-not-converged"
+    assert runner._retained_pipe_server is server
+    assert runner._startup_cleanup_converged() is False
+    server.fail = False
+    retried = runner.retry_pipe_cleanup()
+    assert retried["converged"] is True
+    assert runner._retained_pipe_server is None
+    assert runner._startup_cleanup_converged() is True
+    record_evidence(
+        "r2_o1_pipe_cleanup",
+        {
+            "first": report,
+            "retried_converged": retried["converged"],
+            "total_close_calls": server.calls,
+        },
+    )
+
+
+def test_connection_threads_reclaimed_and_join_uses_shared_deadline(tmp_path):
+    """O3：连接线程对象及时回收；join 用共享总 deadline（非 N×2s），未收敛如实报告。"""
+    runner = _make_runner(tmp_path, "term_gate_join")
+    gate = threading.Event()
+
+    def _blocked() -> None:
+        gate.wait(8.0)
+
+    threads = [threading.Thread(target=_blocked, daemon=True) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    with runner._conn_lock:
+        runner._conn_threads.extend(threads)
+    started = time.monotonic()
+    info = runner._join_connections(total_deadline=0.5)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.5, f"join 必须是共享总 deadline（实测 {elapsed:.2f}s）"
+    assert info["remaining"] == 4 and info["joined"] == 0
+    gate.set()
+    for thread in threads:
+        thread.join(timeout=3.0)
+    assert runner._reap_connection_threads() == 4
+    with runner._conn_lock:
+        assert runner._conn_threads == []
+    record_evidence(
+        "r2_o3_join_deadline",
+        {
+            "elapsed_seconds": round(elapsed, 3),
+            "remaining_reported": info["remaining"],
+            "reaped": 4,
+        },
+    )
+
+
+class _HugeNoteEmulator:
+    """快照替身：engine/note 超大，驱动 detail 字段级缩减路径。"""
+
+    feed_lag = False
+
+    def feed(self, data: bytes) -> None:
+        pass
+
+    def feed_at(self, seq: int, data: bytes) -> None:
+        pass
+
+    def resize(self, rows: int, cols: int) -> None:
+        pass
+
+    def snapshot(self, *, timeout: float = 2.0):
+        from packages.core.terminal.contracts import AppliedSnapshot, Fidelity, Recovery
+
+        return AppliedSnapshot(
+            serialized_screen="SCREEN",
+            cursor=0,
+            rows=24,
+            cols=80,
+            fidelity=Fidelity.FULL,
+            recovery=Recovery.FULL,
+            engine="E" * 20000,
+            note="N" * 20000,
+        )
+
+    def reset_baseline(self):
+        return self.snapshot()
+
+
+def test_detail_generation_is_valid_bounded_json(tmp_path):
+    """O4：detail 超界必须字段级缩减为**合法** JSON（不截断字符串），各处路径可解析。"""
+    runner = _make_runner(tmp_path, "term_gate_detail")
+    runner._runtime = _GatedRuntime()
+    runner._runner_state = "running"
+
+    original_describe = runner.describe()
+
+    big = dict(original_describe)
+    big["note"] = "N" * 20000
+    big["durability"] = {"capable": False, "ambient_job": True, "detail": "D" * 30000}
+    runner.describe = lambda: big  # type: ignore[method-assign]
+    text = runner._detail_json()
+    assert len(text) <= runner_module._DETAIL_BUDGET
+    assert isinstance(json.loads(text), dict)
+
+    detail = runner._detail_with({"note": "X" * 20000, "reconnect_hint": {"blob": "Z" * 10000}})
+    assert len(detail) <= runner_module._DETAIL_BUDGET
+    parsed2 = json.loads(detail)
+    assert "note" in parsed2 or "reconnect_hint" in parsed2
+
+    # 快照响应路径：超大 engine/note 也必须产出可解析 detail。
+    runner.describe = original_describe  # type: ignore[method-assign]
+    runner._emulator = _HugeNoteEmulator()
+    payload = runner.snapshot(timeout_ms=100)
+    assert payload["status"] in ("running", "degraded", "unavailable")
+    assert isinstance(json.loads(payload["detail"]), dict)
+    assert len(payload["detail"]) <= runner_module._DETAIL_BUDGET
+    record_evidence(
+        "r2_o4_detail_json",
+        {
+            "detail_len": len(text),
+            "with_extra_len": len(detail),
+            "snapshot_detail_len": len(payload["detail"]),
+            "all_parseable": True,
+        },
+    )
+
+
+# --------------------------------------------------------------------------
+# r2 真机：启动失败/accept 失败的可观测性与真实后代清理证据
+# --------------------------------------------------------------------------
+
+
+def _read_status(handle: RunnerHandle) -> dict[str, Any]:
+    path = handle.data_root / runner_module._STATUS_DIRNAME / f"{handle.terminal_id}.json"
+    assert path.is_file(), f"状态文件缺失：{path}"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_startup_refuse_real_cleans_tree_and_reports_converged(spawn_runner, tmp_path):
+    """R3 真机：真实 spawn 后注入拒绝 → 真实 abort 清理**证明收敛**（exit 4 + 状态文件），
+    后代整树实测被清（保 guard 真实路径；非进程退出兜底）。"""
+    pid_file = tmp_path / "spawned.json"
+    handle = spawn_runner(
+        mode="startup-refuse-real",
+        env_extra={"PAN_TERMINAL_RUNNER_PID_FILE": str(pid_file)},
+    )
+    code = handle.wait_exit(timeout=30)
+    assert code == runner_module.RUNNER_EXIT_BOOTSTRAP_FAILED
+    status = _read_status(handle)
+    assert status["phase"] == "bootstrap-failed"
+    assert status["exit_code"] == runner_module.RUNNER_EXIT_BOOTSTRAP_FAILED
+    assert status["cleanup"]["converged"] is True
+    assert status["cleanup"]["retained"] == []
+    assert status["cleanup"]["startup"]["converged"] is True
+    spawned = json.loads(pid_file.read_text(encoding="utf-8"))
+    assert spawned["pid"] and int(spawned["filetime"]) > 0
+    assert wait_dead(int(spawned["pid"]), 8.0, int(spawned["filetime"])), (
+        "真实 abort 清理必须覆盖 spawn 出的整树（保 guard、非进程退出兜底）"
+    )
+    assert "exit code=4" in handle.stderr_text()
+    record_evidence(
+        "r2_startup_real_converged",
+        {
+            "exit_code": code,
+            "cleanup_converged": True,
+            "spawned_pid_dead": True,
+            "spawned_pid": spawned["pid"],
+        },
+    )
+
+
+def test_startup_refuse_uncleaned_reports_unproven_and_retains_owner(spawn_runner, tmp_path):
+    """R3 真机：清理双失败（注入）→ **区分未证明清理**：exit 6 + 状态文件 retained；
+    不冒称内核兜底已实测（进程退出后的清理由本场景实测记录与措辞限定）。"""
+    pid_file = tmp_path / "spawned.json"
+    handle = spawn_runner(
+        mode="startup-refuse-uncleaned",
+        env_extra={"PAN_TERMINAL_RUNNER_PID_FILE": str(pid_file)},
+    )
+    code = handle.wait_exit(timeout=30)
+    assert code == runner_module.RUNNER_EXIT_CLEANUP_UNPROVEN
+    status = _read_status(handle)
+    assert status["phase"] == "bootstrap-failed"
+    assert status["exit_code"] == runner_module.RUNNER_EXIT_CLEANUP_UNPROVEN
+    assert status["cleanup"]["converged"] is False
+    assert "backend" in status["cleanup"]["retained"]
+    assert status["cleanup"]["startup"]["converged"] is False
+    serialized = json.dumps(status, ensure_ascii=False)
+    assert "RuntimeError" in serialized and "injected-close-failure" not in serialized
+    stderr = handle.stderr_text()
+    assert "exit code=6" in stderr and "bootstrap-cleanup-unproven" in stderr
+    spawned = json.loads(pid_file.read_text(encoding="utf-8"))
+    assert spawned["pid"]
+    started = time.monotonic()
+    tree_dead = wait_dead(int(spawned["pid"]), 10.0, int(spawned["filetime"]))
+    observed_seconds = round(time.monotonic() - started, 3)
+    assert tree_dead, "进程退出应关闭 guard 句柄（本场景实测；不代表通用承诺）"
+    record_evidence(
+        "r2_startup_uncleaned",
+        {
+            "exit_code": code,
+            "cleanup_converged": False,
+            "retained": status["cleanup"]["retained"],
+            "startup_report": status["cleanup"]["startup"],
+            "tree_dead_after_exit": True,
+            "seconds_to_dead_after_exit": observed_seconds,
+            "note": "内核守卫随进程退出的清除为本场景实测；未泛化为通用保证",
+        },
+    )
+
+
+def test_accept_failure_is_not_exit_zero_and_observable(spawn_runner, tmp_path):
+    """O2 真机：accept 循环异常即使清理收敛也**非 exit 0**（7），原因公开且脱敏、
+    状态文件区分清理收敛；真实整树被关闭。"""
+    pid_file = tmp_path / "spawned.json"
+    handle = spawn_runner(
+        mode="accept-fail",
+        env_extra={"PAN_TERMINAL_RUNNER_PID_FILE": str(pid_file)},
+    )
+    code = handle.wait_exit(timeout=45)
+    assert code == runner_module.RUNNER_EXIT_ACCEPT_FAILED
+    status = _read_status(handle)
+    assert status["phase"] == "accept-failed"
+    assert status["exit_code"] == runner_module.RUNNER_EXIT_ACCEPT_FAILED
+    assert status["cleanup"]["converged"] is True
+    stderr = handle.stderr_text()
+    assert "exit code=7" in stderr and "accept-failed" in stderr
+    spawned = json.loads(pid_file.read_text(encoding="utf-8"))
+    assert wait_dead(int(spawned["pid"]), 8.0, int(spawned["filetime"]))
+    record_evidence(
+        "r2_accept_failed",
+        {
+            "exit_code": code,
+            "cleanup_converged": True,
+            "stderr_reason": "accept-failed",
+            "spawned_pid_dead": True,
         },
     )
