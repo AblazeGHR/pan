@@ -1,0 +1,10 @@
+{
+  "test": "pump_buffer_bound_cap_plus_block",
+  "cap": 32768,
+  "read_size": 65536,
+  "observed_peak": 32806,
+  "bound_max": 98304,
+  "lines_expected": 3000,
+  "lines_seen_B": 3000,
+  "not_strict_cap": true
+}

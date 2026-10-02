@@ -109,7 +109,9 @@ __all__ = [
     "DEFAULT_INTERRUPT_WRITE_BUDGET_SECONDS",
 ]
 
-#: pump 内部缓冲上限：超出则 pump 暂停读（有界、不丢弃、不泄洪）。
+#: pump 内部缓冲的**暂停阈值**（不是严格上限）：pump 每追加一个读块后才检查并暂停，
+#: 因此真实边界 = ``len(buf) ≤ cap + 单块（≤ read_size）``——默认上限 4MiB + 64KiB。
+#: （审查 round-2 probe4 实测口径：cap 32768 + read_size 65536 -> 最大 98304；见报告 §2.6.2）
 DEFAULT_PUMP_BUFFER_BYTES = 4 * 1024 * 1024
 #: 单次 read() 默认拉取上限。
 DEFAULT_PUMP_READ_SIZE = 64 * 1024
@@ -353,6 +355,10 @@ class ConPtyBackend:
 
     def _pump_loop(self) -> None:
         """持续读输出管道到有界缓冲（不丢弃、消费者慢时暂停读 = 背压）。
+
+        边界口径（不声称严格 cap）：pump 在**追加一个读块之后**才检查 `len(buf) > cap`
+        并暂停，因此 `len(buf) ≤ buffer_cap + 单块（≤ read_size）`；默认 4MiB + 64KiB。
+        暂停后仅消费（read/close）才会恢复推进；close 的 stop 标志可打断暂停。
 
         R6：**任何**线程级失败（含 ``open_current_thread_handle`` 抛错）都必须被
         捕获、脱敏记录（类型名）并置 ``_drain_done``，绝不静默死线程——否则

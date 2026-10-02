@@ -41,7 +41,7 @@
 | `packages/core/terminal/guard.py` | `JobObjectGuard`：`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` + **禁 breakaway**（回读 LimitFlags 自证）；`member_pids`（`JobObjectBasicProcessIdList` 有界扩容）；`terminate_tree`（先枚举 → `TerminateJobObject` → 轮询 active==0 双证据）；`remaining` 按 Job 成员核对；句柄关闭后查询抛 `GuardQueryError`（fail-closed） |
 | `packages/core/terminal/spawn_win.py` | `spawn_conpty_suspended`：CreatePipe×2 → CreatePseudoConsole → 属性表 → `CreateProcessW(CREATE_SUSPENDED\|EXTENDED_STARTUPINFO_PRESENT)` → 释放 pty 侧两管道句柄 → 保留句柄读 FILETIME → assign → `IsProcessInJob` 证明 + active≥1 → `ResumeThread`（先前挂起计数必须恰为 1）；`SpawnEvidence`/`SpawnDenied`；`ConPtySpawn` 分阶段释放（失败保留、重试幂等）；`build_command_line/build_environment_block` |
 | `packages/core/terminal/backend.py` | `ConPtyBackend`（`PtyBackend` 协议）：pump 线程 + 有界缓冲；`read`（阻塞/有界；真实 EOF≠进程退出）；`write`（串行、partial、有界预算、可取消）；`resize`；`alive`（三态，unknown 抛 `BackendProbeError`）；`exit_code`（仅 signaled，含 259）；`terminate`（只经保留句柄 + 有界 signaled 确认）；`close`（stop/CancelSynchronousIo/join → writer 收敛 → 官方顺序释放 → 自持 guard 最后关闭；失败抛 `BackendCloseError` 保留 owner，重复幂等）；`gate`（`UnverifiedOwnershipGate`）；`WinptyBackend` 占位（非生产依赖，构造即拒绝） |
-| `tests/test_terminal_windows_backend.py` | 25 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、阻塞读不阻塞 write/terminate/close、写预算 watchdog、interrupt 有界（含 R10 直接 write 路径）、DEAD 绑定 retained handle、close 活进程前置拒绝且 IO 存活（R3）、writer 收敛需输入锁（R4）、写 timer 空隙取消重试（R7）、**取消 worker 先 join 再关句柄（R8）**、预算含锁等待（R9）、pump 句柄失败可见可收敛（R6/R5）、**装配必须接 backend.probe（R11）**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
+| `tests/test_terminal_windows_backend.py` | 26 项（装配、259、resize、Ctrl-C 边界、≥1MiB 有界日志、**pump 缓冲边界 cap+单块**、自然退出≠EOF、真实 EOF、写堵塞并发、取消 join、阻塞读不阻塞 write/terminate/close、写预算 watchdog、interrupt 有界（含 R10 直接 write 路径）、DEAD 绑定 retained handle、close 活进程前置拒绝且 IO 存活（R3）、writer 收敛需输入锁（R4）、写 timer 空隙取消重试（R7）、**取消 worker 先 join 再关句柄（R8）**、预算含锁等待（R9）、pump 句柄失败可见可收敛（R6/R5）、**装配必须接 backend.probe（R11）**、清理失败重试×2、幂等/探针 fail-closed、句柄回归、平台边界） |
 | `audit/terminal/implementation/backend/repro/` | 返工复现与探针脚本：`repro_converge_failopen.py`（R4 先失败/后通过）、`repro_write_timer_gap.py`（Timer 空隙先失败/后通过）、`probe_ctrl_c_candidates.py`（Ctrl-C 四候选 A/B/C/C3） |
 | `audit/terminal/implementation/backend/evidence/r2/` | 本轮（r2）新证据：先失败/后通过 JSON、探针 JSON、48 项测试证据（旧证据目录未动） |
 | `tests/test_terminal_spawn_gate.py` | 10 项（纯逻辑 env/命令行 + 挂起无副作用/exactly-one resume、assign/成员/查询/异常 resume 门禁、清理重试、门禁装配、失败不发布） |
@@ -156,8 +156,10 @@
 | R4 | probe6 round-2 仍复现 `converged=True`（430 未含修复） | 已在 `3b83f939` 修复（判定 = 注册表空 **且** 取得输入锁） | `repro-converge-failopen-{pre,post}-*.json`（pre 重放于 430） |
 | R2 | **审查 round-2 已撤回**（probe9：精确注入实测原异常原样传播、finally 正常关句柄、目标未被触碰） | 与本报告 §2.6 的核验结论一致；保留注入测试与防误修注释 | `test_kill_verified_original_exception_not_masked` |
 
-口径补充（round-2 probe4）：pump 缓冲峰值口径为 `len(buf) ≤ buffer_cap + 单块（≤ read_size）`
-（实测 32810 = 32KiB cap + 42），不是严格 `≤cap`。
+口径补充（round-2 probe4）：pump 缓冲**不是严格 ≤cap**——pump 追加一个读块后才检查并暂停，
+真实边界为 `len(buf) ≤ buffer_cap + 单块（≤ read_size）`（审查配置：32768 + 65536 → 最大 98304；
+实测峰值 32810）。本树默认 cap=4MiB、read_size=64KiB（上限 4MiB+64KiB），并新增
+`test_pump_buffer_bound_cap_plus_block` 锚定该公式（不丢数据）。
 
 ---
 
@@ -189,9 +191,9 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_identity.py tests
 ```
 
 结果（2026-10-03 本机，Windows 11 build 26200；审查返工 r2+round-2 口径）：
-**50 passed in 22.99s**（identity 9 / guard 6 / spawn_gate 10 / windows_backend 25），`pytest.ini` 的
+**51 passed in 23.82s**（identity 9 / guard 6 / spawn_gate 10 / windows_backend 26），`pytest.ini` 的
 `timeout=300` 作为看门狗兜底；所有等待均有显式上界。旧证据 14 份保持原样；本轮（r2）新证据在
-`audit/terminal/implementation/backend/evidence/r2/`（31 份：25 份测试证据 + 6 份手工证据，
+`audit/terminal/implementation/backend/evidence/r2/`（32 份：26 份测试证据 + 6 份手工证据，
 含 R4/R7/R8/R9/R10 的 pre/post 对、Ctrl-C 四候选探针、430 归档测试级重放）。原 spawn spike 证据
 （`audit/terminal/codex/spawn/evidence/`）**未触碰、未覆盖**。
 

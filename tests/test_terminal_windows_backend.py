@@ -324,6 +324,73 @@ def test_large_output_bounded_log(tmp_path):
         stop_backend(b)
 
 
+def test_pump_buffer_bound_cap_plus_block(tmp_path):
+    """缓冲口径（审查 round-2 probe4）：pump 缓冲边界 = ``cap + 单块（≤ read_size）``，
+    **不是**严格 ``≤cap``；暂停（背压）期间不丢数据，消费恢复后全量到达。"""
+    cap = 32 * 1024
+    read_size = 64 * 1024  # 最大界 = 98304（审查同口径 32768+65536）
+    lines = 3000
+    child = write_script(
+        tmp_path,
+        "burst_child.py",
+        "import sys\n"
+        f"for i in range({lines}):\n"
+        "    sys.stdout.write('B%05d ' % i + 'z' * 40 + '\\n')\n"
+        "sys.stdout.write('ZEND\\n')\n"
+        "sys.stdout.flush()\n",
+    )
+    b = ConPtyBackend.spawn(
+        [PYTHON, child], cwd=str(tmp_path), buffer_cap=cap, read_size=read_size
+    )
+    try:
+        peak = 0
+        saw_overflow = False
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:  # 不消费：等 pump 暂停在块级峰值
+            with b._cv:
+                peak = max(peak, len(b._buf))
+                if b._drain_done:
+                    break
+            if peak > cap:
+                saw_overflow = True
+                break
+            time.sleep(0.01)
+        assert saw_overflow, f"未观察到超过 cap 的块级峰值（peak={peak}）"
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 0.5:  # 暂停期间持续采样，确认不越界
+            with b._cv:
+                peak = max(peak, len(b._buf))
+            time.sleep(0.01)
+        assert peak <= cap + read_size, f"缓冲超出 cap+read_size：{peak} > {cap + read_size}"
+        text = b""
+        deadline = time.monotonic() + 25.0
+        while time.monotonic() < deadline and b"ZEND" not in text:
+            chunk = b.read(65536, timeout=0.3)
+            if chunk:
+                text += chunk
+        assert b"ZEND" in text, text[-200:]
+        assert text.count(b"B") >= lines  # 逐行完整，无丢失
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        emit_evidence(
+            "backend-pump-buffer-bound",
+            {
+                "test": "pump_buffer_bound_cap_plus_block",
+                "cap": cap,
+                "read_size": read_size,
+                "observed_peak": peak,
+                "bound_max": cap + read_size,
+                "lines_expected": lines,
+                "lines_seen_B": text.count(b"B"),
+                "not_strict_cap": peak > cap,
+            },
+        )
+    finally:
+        stop_backend(b)
+
+
 def test_natural_exit_is_not_eof(tmp_path):
     """诚实性：子进程自然退出后输出通道不 EOF；read 返回 b"" 而非 EOFError。"""
     b = ConPtyBackend.spawn(

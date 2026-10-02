@@ -2,7 +2,7 @@
   "test": "write_budget_includes_lock_wait",
   "budget_s": 1.5,
   "lock_wait_s": 1.4,
-  "write_seconds": 1.533,
+  "write_seconds": 1.504,
   "old_impl_reference_s": 2.867,
   "result": "0"
 }
