@@ -1,0 +1,20 @@
+{
+  "source_log": "pre_fix/pytest_pre_fix.log",
+  "collected": 28,
+  "summary": {
+    "passed": 18,
+    "failed": [
+      "test_alternate_screen_matrix_and_recovery",
+      "test_engine_op_error_is_sticky_degraded",
+      "test_feed_overflow_is_sticky_degraded_and_bounded",
+      "test_holdback_split_csi_and_protocol_a_recovery",
+      "test_holdback_split_osc_degrades_partial_and_recovers",
+      "test_main_screen_matrix_and_recovery",
+      "test_reset_baseline_uses_execution_position_not_future_frontier",
+      "test_reset_clears_old_gap_and_never_fakes_full",
+      "test_snapshot_cursor_is_applied_not_producer_frontier",
+      "test_unknown_sequence_after_event_saturation_is_detected"
+    ],
+    "note": "10 failed / 18 passed（dots 行与摘要行一致）"
+  }
+}

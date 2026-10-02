@@ -1,0 +1,13 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collected 28 items
+
+tests\test_terminal_emulator.py ............................             [100%]
+
+============================= 28 passed in 35.88s =============================
