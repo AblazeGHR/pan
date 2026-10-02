@@ -10,10 +10,30 @@ import { getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
 import { getQuickJumpKind } from './messageFilter';
 import { MessageTimestamp } from './MessageTimestamp';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 export { formatMessageTs } from '@/utils/messageTimestamp';
 
 export type GroupedItem = Message | GroupDisplayItem;
 type PrevRole = Message['role'] | 'tool' | null;
+
+/**
+ * Raw view body: the message text is a plain React text node inside a
+ * `white-space: pre-wrap` block. Newlines, runs of spaces, Markdown markers,
+ * code fences and literal HTML are preserved verbatim — nothing is parsed,
+ * highlighted or injected as markup. Copying the block yields the original
+ * text, including its line breaks. Long unbreakable tokens wrap with
+ * `overflow-wrap: anywhere` instead of widening the virtualized row.
+ */
+function RawMessageText({ content, className = '' }: { content: string; className?: string }) {
+  return (
+    <div
+      data-raw-message-text=""
+      className={`whitespace-pre-wrap [overflow-wrap:anywhere] ${className}`.trim()}
+    >
+      {content}
+    </div>
+  );
+}
 
 /** Role used for spacing decisions. Groups use the role of their member blocks. */
 export function getItemRole(item: GroupedItem): PrevRole {
@@ -49,6 +69,10 @@ interface MessageBubbleProps {
 export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
   const role = message.role;
   const mt = marginTopClass(role, prevRole);
+  // Raw view keeps the TUI rows and role bars but swaps the rendered Markdown
+  // body for the message's original text. Read straight from the store so a
+  // mode switch re-renders only this body — no prop drilling, no new context.
+  const rawViewEnabled = useAppSettingsStore((s) => s.chatViewStyle === 'raw');
   const attachmentIds = useMemo(
     () => message.parts?.flatMap((part) => part.type === 'attachment' ? [part.attachmentId] : []),
     [message.parts],
@@ -90,11 +114,15 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       <div className={`message-row message-row-user ${isWorkerReport ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
         {workerReportLabel}
         <div className="msg user text-sm">
-          <MarkdownRenderer
-            content={message.content}
-            attachmentIds={attachmentIds}
-            className="text-sm"
-          />
+          {rawViewEnabled ? (
+            <RawMessageText content={message.content} className="text-sm" />
+          ) : (
+            <MarkdownRenderer
+              content={message.content}
+              attachmentIds={attachmentIds}
+              className="text-sm"
+            />
+          )}
         </div>
         <MessageTimestamp ts={message.ts} className="mt-0.5" />
       </div>
@@ -106,10 +134,14 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     <div className={`message-row message-row-assistant ${isWorkerReport ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
       {workerReportLabel}
       <div className="msg assistant text-sm leading-relaxed">
-        <MarkdownRenderer
-          content={message.content}
-          attachmentIds={attachmentIds}
-        />
+        {rawViewEnabled ? (
+          <RawMessageText content={message.content} />
+        ) : (
+          <MarkdownRenderer
+            content={message.content}
+            attachmentIds={attachmentIds}
+          />
+        )}
       </div>
       <MessageTimestamp ts={message.ts} className="mt-0.5" />
     </div>

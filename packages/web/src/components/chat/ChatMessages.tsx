@@ -158,11 +158,15 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const searchTargetMessageId = searchTarget?.sessionId === currentSessionId
     ? searchTarget.messageId
     : unscopedSearchTargetMessageId;
-  // Two chat presentations share this component. TUI (the default) lays out
-  // full-width role-bar rows; Bubble adds `.bubble-mode` on the scroll
-  // container, which is what the shrink-to-fit bubble rules are scoped to.
-  const tuiViewEnabled = useAppSettingsStore((s) => s.chatViewStyle === 'tui');
-  const lastTuiViewEnabledRef = useRef(tuiViewEnabled);
+  // Three chat presentations share this component. TUI (the default) and the
+  // Raw view both lay out full-width role-bar rows and differ only in the
+  // message body; Bubble only adds `.bubble-mode` on the scroll container,
+  // which is what the shrink-to-fit bubble rules are scoped to. Keying this on
+  // `=== 'bubble'` (rather than `!== 'tui'`) is what keeps Raw on the TUI rows
+  // instead of leaking the bubble geometry onto it.
+  const chatViewStyle = useAppSettingsStore((s) => s.chatViewStyle);
+  const bubbleViewEnabled = chatViewStyle === 'bubble';
+  const lastChatViewStyleRef = useRef(chatViewStyle);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);
@@ -1160,12 +1164,12 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
 
   useLayoutEffect(() => {
     if (sessionSwitchWaitingForSettingsRef.current) return;
-    const presentationChanged = lastTuiViewEnabledRef.current !== tuiViewEnabled;
-    lastTuiViewEnabledRef.current = tuiViewEnabled;
+    const presentationChanged = lastChatViewStyleRef.current !== chatViewStyle;
+    lastChatViewStyleRef.current = chatViewStyle;
     if (presentationChanged) {
-      // Row measurements are presentation-specific. Do not seed Bubble from
-      // TUI heights (or vice versa); measure the committed DOM before the
-      // session anchor correction loop settles.
+      // Row measurements are presentation-specific. Do not seed one view from
+      // another's heights (Bubble ≠ TUI ≠ Raw); measure the committed DOM
+      // before the session anchor correction loop settles.
       if (currentSessionId) measuredHeights.delete(currentSessionId);
       virtualizerRef.current.measure();
     }
@@ -1182,7 +1186,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     restoreSessionViewportAnchor,
     scheduleSessionAnchorRestore,
     settingsLoaded,
-    tuiViewEnabled,
+    chatViewStyle,
   ]);
 
   // Prepending first commits estimated rows, then the virtualizer measures
@@ -1605,7 +1609,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
       <div
         ref={parentRef}
-        className={`flex-1 min-h-0 overflow-auto ${!tuiViewEnabled ? 'bubble-mode' : ''}`}
+        className={`flex-1 min-h-0 overflow-auto ${bubbleViewEnabled ? 'bubble-mode' : ''}`}
         style={{ overflowAnchor: 'none' }}
       >
         <div

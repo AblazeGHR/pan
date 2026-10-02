@@ -848,25 +848,40 @@ describe('AppSettingsModal', () => {
     ).toBe('true');
   });
 
-  it('switches Bubble view on and off from Appearance and persists the selected style', () => {
+  it('selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
 
     expect(cardEl().textContent).toContain('Chat view');
-    const bubbleSwitch = Array.from(
-      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
-    ).find((element) => element.textContent?.includes('Use Bubble chat view'))!;
-    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('false');
+    const chatViewGroup = document.body.querySelector<HTMLElement>(
+      '[role="radiogroup"][aria-label="Chat view"]',
+    );
+    expect(chatViewGroup).toBeTruthy();
+    const option = (label: string) =>
+      Array.from(chatViewGroup!.querySelectorAll<HTMLElement>('[role="radio"]')).find(
+        (element) => element.textContent?.trim() === label,
+      )!;
 
-    fireEvent.click(bubbleSwitch);
+    expect(option('TUI').getAttribute('aria-checked')).toBe('true');
+    expect(option('Bubble').getAttribute('aria-checked')).toBe('false');
+    expect(option('Raw').getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(option('Bubble'));
     expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble');
     expect(updateUiSettingsMock).toHaveBeenCalledWith({ chatViewStyle: 'bubble' });
-    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('true');
+    expect(option('Bubble').getAttribute('aria-checked')).toBe('true');
+    expect(option('TUI').getAttribute('aria-checked')).toBe('false');
 
-    fireEvent.click(bubbleSwitch);
+    fireEvent.click(option('Raw'));
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('raw');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ chatViewStyle: 'raw' });
+    expect(option('Raw').getAttribute('aria-checked')).toBe('true');
+    expect(option('Bubble').getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(option('TUI'));
     expect(useAppSettingsStore.getState().chatViewStyle).toBe('tui');
     expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ chatViewStyle: 'tui' });
-    expect(bubbleSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(option('TUI').getAttribute('aria-checked')).toBe('true');
   });
 
   it('toggles the default new Session Workspace preference and persists it', () => {

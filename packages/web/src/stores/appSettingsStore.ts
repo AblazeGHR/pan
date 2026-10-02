@@ -3,8 +3,12 @@ import type { GroupMode } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
 export interface AppSettings {
-  /** Chat message presentation. Bubble is opt-in; TUI is the default. */
-  chatViewStyle: 'tui' | 'bubble';
+  /**
+   * Chat message presentation. TUI is the default; `bubble` is the opt-in
+   * shrink-to-fit view, and `raw` keeps the TUI rows while showing each body's
+   * original text instead of rendered Markdown.
+   */
+  chatViewStyle: 'tui' | 'bubble' | 'raw';
   /** Default session-list grouping (mirrors uiStore GroupMode options). */
   defaultGroupBy: GroupMode;
   /** Show the sidebar's interactive Group by cycle button. */
@@ -79,7 +83,9 @@ export function sanitizeSettings(
       : {};
   return {
     chatViewStyle:
-      parsed.chatViewStyle === 'bubble' || parsed.chatViewStyle === 'tui'
+      parsed.chatViewStyle === 'bubble' ||
+      parsed.chatViewStyle === 'tui' ||
+      parsed.chatViewStyle === 'raw'
         ? parsed.chatViewStyle
         : DEFAULT_SETTINGS.chatViewStyle,
     defaultGroupBy:
