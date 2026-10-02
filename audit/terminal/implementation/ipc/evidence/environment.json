@@ -1,0 +1,18 @@
+{
+  "task": "T-TERMINAL-PTY-20261003 / P1 IPC + secret store",
+  "worktree": "D:\\project\\pan-worktrees\\terminal-ipc-implement-20261003",
+  "branch": "implement/terminal-ipc-20261003",
+  "head_before_commit": "718567e43842beef19782bd34c7fc5d87b9ccebe",
+  "generated_at": "2026-10-03T03:21:28+0800",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "python_executable": "E:\\software\\miniforge\\python.exe",
+  "platform": "win32",
+  "cwd": "D:\\project\\pan-worktrees\\terminal-ipc-implement-20261003",
+  "temp_roots": {
+    "pytest_basetemp": "(pytest default under %TEMP%)"
+  },
+  "network": {
+    "listening_sockets_opened_by_this_ta": [],
+    "note": "本层只用本机命名管道；未打开任何监听端口，未运行任何服务"
+  }
+}

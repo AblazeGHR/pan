@@ -1,0 +1,237 @@
+{
+  "file": "tests/test_terminal_runner_ipc.py",
+  "exit_code": 0,
+  "seconds": 38.48,
+  "summary": "============================= 56 passed in 38.03s =============================",
+  "case_count": 56,
+  "counts": {
+    "PASSED": 56
+  },
+  "cases": [
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_token_is_256_bit_hex_and_compared_with_compare_digest",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_mac_binds_nonce_terminal_and_peer_identity",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_roundtrip_keeps_64bit_seq_exact_without_float_rounding",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_oversize_before_terminator_and_is_sticky",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"v\":1,\"type\":\"nope\"}\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"type\":\"ping\"}\\n-ProtocolVersionError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"v\":2,\"type\":\"ping\"}\\n-ProtocolVersionError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"v\":\"1\",\"type\":\"ping\"}\\n-ProtocolVersionError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"v\":1,\"type\":\"ping\",\"extra\":1}\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[[\"not\",\"an\",\"object\"]\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[{\"v\":1,\"type\":\"ping\"-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[\\xff\\xfe{\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_frame_decoder_rejects_malformed_lines[not-json\\n-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message0-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message1-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message2-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message3-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message4-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message5-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message6-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message7-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message8-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message9-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message10-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_message_schema_rejects_unknown_malformed_and_oversized[message11-MalformedFrameError]",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_oversized_payload_is_rejected_not_truncated",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_describe_and_redact_never_expose_secrets_or_payload",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_scheduler_rejects_expired_and_queue_full_without_dispatching",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_scheduler_caps_remote_deadline_by_local_timeout",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_pending_requests_is_bounded_and_drops_late_responses",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_handshake_succeeds_and_token_never_touches_the_wire",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_handshake_fails_closed_on_wrong_token_and_never_invokes_handler",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_handshake_refuses_when_server_identity_is_not_verifiable",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_server_requires_local_identity_and_verified_client_identity",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_session_refuses_business_frames_before_and_after_failed_auth",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_request_response_roundtrip_and_late_response_is_dropped",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_serve_never_dispatches_expired_request_and_survives_handler_errors",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_ipc_token_is_independent_from_attachment_lease",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_diagnostics_are_bounded",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_cross_process_pipe_roundtrip_with_dpapi_bootstrap",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_two_clients_disconnect_without_killing_the_server",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_wrong_token_rejected_and_handler_not_called",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_handshake_timeout_never_reaches_business_handler",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_malformed_oversized_and_truncated_frames_are_rejected",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_expired_mutating_request_is_not_executed_late",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_impostor_pipe_server_identity_is_rejected_before_credentials",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_pipe_name_squatting_detected_and_retryable",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_slow_reader_cancel_close_converges_and_is_retryable",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_blocking_read_is_cancelled_converged_and_joined",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_accept_timeout_cancel_and_capacity_are_bounded",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_client_that_leaves_before_connect_call_does_not_break_accept",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_verified_terminate_refuses_identity_mismatch",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_invalid_handle_values_are_detected",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_pipe_creation_parameters_carry_owner_only_dacl_and_reject_remote",
+      "outcome": "PASSED"
+    },
+    {
+      "nodeid": "tests/test_terminal_runner_ipc.py::test_owner_only_dacl_on_pipe_is_applied_to_current_user_only",
+      "outcome": "PASSED"
+    }
+  ],
+  "stderr_tail": ""
+}
