@@ -38,6 +38,8 @@ DEFAULT_LEASE_GRACE_SECONDS = 2.0
 DEFAULT_STOP_CONFIRM_SECONDS = 5.0
 #: 单次句柄关闭（取消读/释放）的有界等待：阻塞调用不得卡死 close 主线程。
 DEFAULT_HANDLE_CLOSE_TIMEOUT = 2.0
+#: 已接纳输入清空的有界等待（close 与输入操作门同步），见 ``PtyRuntime.close``。
+DEFAULT_INPUT_DRAIN_TIMEOUT = 2.0
 #: 输出消费者错误诊断保留的不同异常类型数上界（只记类型名，不记消息）。
 DEFAULT_CONSUMER_ERROR_TYPES = 8
 
@@ -256,7 +258,10 @@ class ProcessProbe:
 
     - ``ALIVE``：必须附带 ``identity`` 供比对；没有可比对身份 -> 调用方按
       ``unknown`` 处理（fail-closed）；
-    - ``DEAD``：明确已退出证据（retained handle/Job 层面）；
+    - ``DEAD``：明确已退出证据——**只能**来自 spawn/入组时记录的**同一**
+      retained handle（同 handle ``WaitForSingleObject`` 已 signaled）或 Job
+      对象层面的证据；**不得**用对现查陌生 PID（如重新 ``OpenProcess``）的
+      signaled 结果放行——PID 复用会让“陌生进程已退出”冒充“我们的进程已退出”；
     - ``UNKNOWN``：不可探测/无结论——**不等于 dead**。
     """
 
@@ -659,6 +664,11 @@ class PtyBackend(Protocol):
     - ``terminate`` 只请求终止，不确认整树退出；整树由 ``TreeGuard`` 负责；
     - ``close`` 关闭句柄；在 pywinpty 上它同时会终止进程，因此**只允许**在
       终止与整树都确认后进行（见 ``PtyRuntime.close``）。
+    - **最终句柄串行安全（r3 协议约束，不改方法签名）**：同一句柄上的
+      ``read``/``write``/``resize``/``terminate``/``close`` 并发调用必须由后端
+      内部串行化（自锁或文档化的事件序列），不得交错破坏句柄状态；``close``
+      与在途 ``write``/``terminate`` 尤其不得竞态。runtime 侧只保证“关门后不再
+      发起新输入 + 有界等待已接纳输入收敛”，句柄级并发安全由后端负责。
     """
 
     pid: int | None
@@ -696,6 +706,10 @@ class TreeGuard(Protocol):
       调用方应采用（可能比之前的快照更完整）；``remaining_after`` 非空表示树
       未确认死亡。
     - ``remaining`` 抛异常=残留未知：调用方必须 fail-closed。
+    - **每个操作必须自身有界（r3 协议约束）**：``owned_pids`` / ``remaining``
+      必须是快速查询，``terminate_tree`` 必须遵守 ``timeout`` 预算并及时返回；
+      runtime 侧另有外层有界等待兜底（超时按“未知”fail-closed、未完成的调用
+      跨重试复用不重叠），但不代替 guard 自身的 deadline 纪律。
 
     ``describe()`` 必须如实标注 ``os_level_guard``：psutil 兜底方案返回 False，
     它只用于测试观察，不是整树所有权证明。

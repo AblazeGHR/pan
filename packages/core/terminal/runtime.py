@@ -22,6 +22,14 @@
    禁止冒充连续/完整供料）；失败计数有界且只记脱敏类型名（不落消息/秘密）。
 8. ``detach()`` 需要真实宿主能力（``DetachHandler``）；没有注入时明确
    ``DetachUnsupportedError``，核心不伪造 detached 事实。
+9. 输入操作门（r3）：``write``/``resize`` 的“state 检查 + backend 调用”在
+   **每 runtime 的接纳门**内登记：检查与接纳同一临界区，close 关门前通过的输入
+   视为**已接纳**（有界等待清空后才继续清理）；关门后新输入立即拒绝且不触达
+   backend。已接纳输入在 ``input_drain_timeout`` 内未清空 -> 失败保 owner，
+   **不与关闭句柄/取消竞态**。
+10. TreeGuard 调用有界（r3）：生产 guard 的每个操作都必须自身有界；runtime 仍
+    用可复用的 ``_BoundedCall`` 兜底——超时按所有权/残留未知 fail-closed，
+    未完成 worker 跨重试复用（不重叠），坏 guard 不能把 close 主线程卡死。
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ from .contracts import (
     DEFAULT_CONSUMER_ERROR_TYPES,
     DEFAULT_EOF_GRACE_SECONDS,
     DEFAULT_HANDLE_CLOSE_TIMEOUT,
+    DEFAULT_INPUT_DRAIN_TIMEOUT,
     DEFAULT_OUTPUT_LOG_BYTES,
     DEFAULT_READ_SIZE,
     CleanupReport,
@@ -180,6 +189,16 @@ class PtyRuntime:
         # 有界清理 worker（跨 close 重试保留复用，保证重试不重叠）。
         self._terminate_call: _BoundedCall | None = None
         self._backend_close_call: _BoundedCall | None = None
+        # TreeGuard 调用的有界 worker（坏 guard 不守 deadline 时兜底；跨重试复用不重叠）。
+        self._guard_owned_call: _BoundedCall | None = None
+        self._guard_tree_call: _BoundedCall | None = None
+        self._guard_remaining_call: _BoundedCall | None = None
+        # 输入操作门（r3）：state 检查与 backend 调用之间不被 close 穿过。
+        self._io_gate_lock = threading.Lock()
+        self._io_accepting = True
+        self._io_inflight = 0
+        self._io_idle = threading.Event()
+        self._io_idle.set()
         # 清理身份核验：只用记录过的身份与新探针的显式三态结论，避免 PID 复用误杀。
         self.identity = identity
         self._identity_probe = identity_probe
@@ -350,6 +369,26 @@ class PtyRuntime:
         return self._eof_seen.wait(timeout)
 
     # -- 有界后端调用（取消 / 释放句柄） ---------------------------------
+    def _bounded_guard_call(
+        self, attr_name: str, fn: Callable[[], Any], timeout: float
+    ) -> tuple[bool, Any, str | None]:
+        """执行一个 TreeGuard 操作并有界等待（r3）。
+
+        guard 契约要求每个操作自身有界、尽快返回；本包装是 runtime 侧的最后
+        防线（坏 guard 不得把 close 主线程卡死）：
+
+        - ``finished=False``（超时）：worker 保留，调用方按“所有权/残留未知”
+          fail-closed 处理；**下次重试复用同一 worker 等待，不启动第二个调用**；
+        - 已完成（无论成败）：下次调用重新绑定参数执行（guard 查询/终止是幂等
+          操作；无并发即无重叠）。
+        """
+        call = getattr(self, attr_name)
+        if call is not None and not call.finished:
+            return call.run(timeout)
+        call = _BoundedCall(fn)
+        setattr(self, attr_name, call)
+        return call.run(timeout)
+
     def _bounded_backend_close(self, timeout: float) -> str | None:
         """有界关闭后端句柄（阻塞的 close 不占住 close 主线程）。
 
@@ -422,26 +461,66 @@ class PtyRuntime:
     def _reader_joined(self) -> bool:
         return self._reader is None or not self._reader.is_alive()
 
+    # -- 输入操作门（r3） -----------------------------------------------
+    def _close_input_gate(self) -> None:
+        """关闭输入接纳：此后任何新输入立即拒绝。幂等（重试 close 可重复调用）。"""
+        with self._io_gate_lock:
+            self._io_accepting = False
+
+    def _enter_input_gate(self) -> None:
+        """接纳一次输入：门状态 + state 检查 + 在途登记在同一临界区完成。
+
+        这就是“检查 -> 调用”间隙的封堵点：close 关门后，任何尚未登记的新输入
+        （包括刚做完 state 检查、还没调用 backend 的）都无法穿过去。
+        锁顺序固定为 gate -> state（close 侧不嵌套），不会死锁。
+        """
+        with self._io_gate_lock:
+            if not self._io_accepting:
+                raise IllegalStateTransition(
+                    "input rejected: terminal input gate closed (shutdown in progress)"
+                )
+            if self.state is not RuntimeState.RUNNING:
+                raise IllegalStateTransition(f"input in state {self.state.value}")
+            self._io_inflight += 1
+            self._io_idle.clear()
+
+    def _leave_input_gate(self) -> None:
+        with self._io_gate_lock:
+            self._io_inflight -= 1
+            if self._io_inflight == 0:
+                self._io_idle.set()
+
+    def _wait_input_settled(self, timeout: float) -> bool:
+        """有界等待已接纳输入清空（返回 False = 仍有输入在途）。"""
+        return self._io_idle.wait(max(0.0, timeout))
+
     # -- 读写 / 尺寸 ---------------------------------------------------
     def read_from(self, cursor: int, *, max_bytes: int | None = None):
         """按绝对游标读取输出：见 ``output.OutputLog.read_from``。"""
         return self.log.read_from(cursor, max_bytes=max_bytes)
 
     def write(self, data: bytes) -> int:
-        """输入只在 ``running`` 接受；``exiting``（清理进行中）一律拒绝。
+        """输入只在 ``running`` 接受；经输入门（r3）：检查与调用之间不被 close 穿过。
 
-        r2：允许 EXITING 会与 close 的终止/取消并行——迟到的写可能落在
-        已判定死亡的会话上，因此收紧为仅 RUNNING。
+        关门后（close 已开始）任何输入立即拒绝；已接纳的输入由 close 有界等待，
+        超时保 owner，不与关闭句柄竞态。
         """
-        if self.state is not RuntimeState.RUNNING:
-            raise IllegalStateTransition(f"write in state {self.state.value}")
-        return self._backend.write(data)
+        self._enter_input_gate()
+        try:
+            return self._backend.write(data)
+        finally:
+            self._leave_input_gate()
 
     def resize(self, rows: int, cols: int) -> bool:
-        """尺寸变更。仅 RUNNING；迟到 resize 返回 False（不抛异常）。"""
-        if self.state is not RuntimeState.RUNNING:
+        """尺寸变更。经同一输入门；非 RUNNING/门已关返回 ``False``（不抛异常）。"""
+        try:
+            self._enter_input_gate()
+        except IllegalStateTransition:
             return False
-        self._backend.resize(rows, cols)
+        try:
+            self._backend.resize(rows, cols)
+        finally:
+            self._leave_input_gate()
         self.rows, self.cols = int(rows), int(cols)
         return True
 
@@ -551,18 +630,23 @@ class PtyRuntime:
         tree_timeout: float = 2.0,
         reader_grace: float = 2.0,
         handle_close_timeout: float = DEFAULT_HANDLE_CLOSE_TIMEOUT,
+        input_drain_timeout: float = DEFAULT_INPUT_DRAIN_TIMEOUT,
         terminate: Callable[[bool], None] | None = None,
     ) -> CleanupReport:
         """清理契约：失败必须保留 owner。
 
         顺序（任何一步失败都会在报告里如实标注并保留 owner）：
 
+        0. 关闭输入接纳门（与状态转换同步；此后新输入立即拒绝且不触达 backend）；
         1. 身份核验（无结论/缺探针/不匹配即拒杀，不做任何终止/interrupt）；
-        2. 所有权快照（必须在终止**之前**取得；异常=所有权未知，fail-closed）；
-        3. 可选中断（Ctrl-C）；
+        1.5 已接纳输入收敛（有界 ``input_drain_timeout``；未清空 ->
+           失败保 owner，**不与关闭句柄/取消竞态**）；
+        2. 所有权快照（必须在终止**之前**取得；guard 调用有界，超时/异常=
+           所有权未知，fail-closed）；
+        3. 可选中断（Ctrl-C；此时在途输入已清空）；
         4. 终止（有界 worker；未完成则保留复用，重试不重叠）；
         5. 整树终止 + 残留核对（空快照也要调用——真实 guard 可依赖 Job 身份；
-           采用 guard 返回值；任何异常都 fail-closed）；
+           guard 调用有界、采用返回值；超时/异常都 fail-closed）；
         6. 根存活确认（terminate 返回 ≠ 根死）；
         7. reader 收敛（长时间不结束才取消——**且仅在终止成功、整树确认、
            根确认退出之后**）；
@@ -570,7 +654,9 @@ class PtyRuntime:
 
         ``terminate`` 允许注入替代终止实现（测试失败路径用）；``reader_grace``
         是 reader 收敛的两段等待上限；``handle_close_timeout`` 是取消/释放句柄
-        的单次有界等待。
+        的单次有界等待；``tree_timeout`` 同时是**每个 guard 操作**（owned_pids /
+        terminate_tree / remaining）的 runtime 侧有界等待；``input_drain_timeout``
+        是等待已接纳输入清空的单次有界预算。
         """
         started = time.monotonic()
         with self._close_lock:
@@ -580,6 +666,10 @@ class PtyRuntime:
                 report.backend_closed = True
                 report.seconds = round(time.monotonic() - started, 3)
                 return report
+
+            # 0) 关闭输入接纳门：与后续状态转换同步——此后新输入（包括刚做完
+            #    state 检查、尚未触达 backend 的）立即拒绝；已接纳输入单独等待。
+            self._close_input_gate()
 
             # 1) 身份核验先于任何终止动作：无结论/缺探针/不匹配时
             #    **拒绝任何终止/interrupt/取消**（防 PID 复用误杀与不可验证下手）。
@@ -606,15 +696,37 @@ class PtyRuntime:
             self._set_state(RuntimeState.EXITING)
             root_pid = self._backend.pid
 
-            # 2) 所有权快照必须在终止之前取得；异常=所有权未知（fail-closed）。
+            # 1.5) 已接纳输入收敛（有界）。未清空 -> 保 owner；绝不与关闭句柄/
+            #      取消竞态（不 terminate / 不取消 / 不关句柄）。
+            if not self._wait_input_settled(input_drain_timeout):
+                self._set_state(RuntimeState.CLEANUP_FAILED)
+                report.owner_retained = True
+                report.error = (
+                    "accepted input still in flight (bounded input_drain_timeout elapsed): "
+                    "refusing to terminate/cancel while an accepted input call is running"
+                )
+                report.state_after = self.state
+                report.seconds = round(time.monotonic() - started, 3)
+                return report
+
+            # 2) 所有权快照必须在终止之前取得；guard 调用有界，超时/异常=
+            #    所有权未知（fail-closed）。
             snapshot_error: str | None = None
             if self._terminator is not None:
-                try:
-                    report.tree_owned_pids = tuple(self._terminator.owned_pids(root_pid))
-                except Exception as exc:  # noqa: BLE001
+                finished, owned_result, guard_error = self._bounded_guard_call(
+                    "_guard_owned_call",
+                    lambda: self._terminator.owned_pids(root_pid),
+                    tree_timeout,
+                )
+                if not finished:
                     snapshot_error = (
-                        f"tree ownership snapshot failed: {type(exc).__name__}: {exc}"
+                        "tree ownership snapshot timed out "
+                        "(guard owned_pids exceeded tree_timeout): ownership unknown"
                     )
+                elif guard_error is not None:
+                    snapshot_error = f"tree ownership snapshot failed: {guard_error}"
+                else:
+                    report.tree_owned_pids = tuple(owned_result)
 
             # 3) 可选中断。
             if interrupt:
@@ -646,19 +758,24 @@ class PtyRuntime:
             else:
                 report.terminate_result = TerminateOutcome.RETURNED
 
-            # 5) 整树终止 + 残留核对。空快照也要调用 terminate_tree：真实 guard
-            #    可依赖 Job 身份枚举（根死仍能找到孙进程），不能按 root PID 扫。
+            # 5) 整树终止 + 残留核对（guard 调用均有界）。空快照也要调用
+            #    terminate_tree：真实 guard 可依赖 Job 身份枚举（根死仍能找到
+            #    孙进程），不能按 root PID 扫。
             tree_error: str | None = snapshot_error
             if self._terminator is not None and snapshot_error is None:
-                owned_after: Any = ()
-                remaining_from_terminate: Any = ()
-                try:
-                    owned_after, remaining_from_terminate = self._terminator.terminate_tree(
-                        root_pid, timeout=tree_timeout
+                finished, tree_result, guard_error = self._bounded_guard_call(
+                    "_guard_tree_call",
+                    lambda: self._terminator.terminate_tree(root_pid, timeout=tree_timeout),
+                    tree_timeout,
+                )
+                if not finished:
+                    tree_error = (
+                        "tree terminate timed out (guard terminate_tree exceeded tree_timeout)"
                     )
-                except Exception as exc:  # noqa: BLE001
-                    tree_error = f"tree terminate failed: {type(exc).__name__}: {exc}"
+                elif guard_error is not None:
+                    tree_error = f"tree terminate failed: {guard_error}"
                 else:
+                    owned_after, remaining_from_terminate = tree_result
                     if owned_after:
                         # 采用 guard 返回值：可能比我们的快照更完整（Job 枚举）。
                         report.tree_owned_pids = tuple(owned_after)
@@ -666,12 +783,18 @@ class PtyRuntime:
                     # 检查单独负责；“无 OS 级守卫”的显式降级实现不得被自动
                     # 塞入 PID 而误报残留。
                     verify = sorted(set(report.tree_owned_pids))
-                    try:
-                        remaining_now = self._terminator.remaining(verify)
-                    except Exception as exc:  # noqa: BLE001
+                    finished, remaining_now, guard_error = self._bounded_guard_call(
+                        "_guard_remaining_call",
+                        lambda: self._terminator.remaining(verify),
+                        tree_timeout,
+                    )
+                    if not finished:
                         tree_error = (
-                            f"tree remaining probe failed: {type(exc).__name__}: {exc}"
+                            "tree remaining probe timed out "
+                            "(guard remaining exceeded tree_timeout)"
                         )
+                    elif guard_error is not None:
+                        tree_error = f"tree remaining probe failed: {guard_error}"
                     else:
                         report.tree_remaining_pids = tuple(
                             sorted(set(remaining_now) | set(remaining_from_terminate))

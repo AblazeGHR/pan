@@ -86,6 +86,7 @@ class ScriptedBackend:
         terminate_delay: float = 0.0,
         close_gate: threading.Event | None = None,
         write_gate: threading.Event | None = None,
+        write_entered: threading.Event | None = None,
     ) -> None:
         self._chunks = list(chunks)
         self._alive_returns = alive_returns
@@ -111,6 +112,7 @@ class ScriptedBackend:
         self.terminate_delay = terminate_delay
         self.close_gate = close_gate
         self.write_gate = write_gate
+        self.write_entered = write_entered
         self._lock = threading.Lock()
 
     def _record(self, name: str) -> None:
@@ -140,6 +142,9 @@ class ScriptedBackend:
         raise EOFError
 
     def write(self, data: bytes) -> int:
+        if self.write_entered is not None:
+            # 确定性锚点：runtime 已接纳该输入并进入 backend 调用。
+            self.write_entered.set()
         if self.write_gate is not None:
             self.write_gate.wait(2.0)
         if self._write_error is not None:
@@ -187,7 +192,11 @@ class ScriptedBackend:
 
 
 class RecordingTreeGuard:
-    """记录调用顺序的测试树守卫（``os_level_guard=False``，不是生产证明）。"""
+    """记录调用顺序/次数的测试树守卫（``os_level_guard=False``，不是生产证明）。
+
+    ``*_gate`` 可让对应 guard 操作确定性阻塞（模拟“坏 guard 不遵守 deadline”）；
+    各方法最多阻塞 2s（防测试自身挂死）。
+    """
 
     def __init__(
         self,
@@ -200,6 +209,9 @@ class RecordingTreeGuard:
         remaining_error: str | None = None,
         terminate_owned: Iterable[int] | None = None,
         terminate_remaining: Iterable[int] | None = None,
+        owned_gate: threading.Event | None = None,
+        terminate_gate: threading.Event | None = None,
+        remaining_gate: threading.Event | None = None,
     ) -> None:
         self._owned = list(owned)
         self._remaining = list(remaining)
@@ -209,6 +221,12 @@ class RecordingTreeGuard:
         self.remaining_error = remaining_error
         self._terminate_owned = terminate_owned
         self._terminate_remaining = terminate_remaining
+        self.owned_gate = owned_gate
+        self.terminate_gate = terminate_gate
+        self.remaining_gate = remaining_gate
+        self.owned_calls = 0
+        self.terminate_calls = 0
+        self.remaining_calls = 0
         self._lock = threading.Lock()
 
     def _record(self, name: str) -> None:
@@ -221,12 +239,18 @@ class RecordingTreeGuard:
 
     def owned_pids(self, root_pid: int | None) -> list[int]:
         self._record("owned")
+        self.owned_calls += 1
+        if self.owned_gate is not None:
+            self.owned_gate.wait(2.0)
         if self.owned_error is not None:
             raise RuntimeError(self.owned_error)
         return list(self._owned)
 
     def remaining(self, pids: Iterable[int]) -> list[int]:
         self._record("remaining")
+        self.remaining_calls += 1
+        if self.remaining_gate is not None:
+            self.remaining_gate.wait(2.0)
         if self.remaining_error is not None:
             raise RuntimeError(self.remaining_error)
         return list(self._remaining)
@@ -235,6 +259,9 @@ class RecordingTreeGuard:
         self, root_pid: int | None, *, timeout: float
     ) -> tuple[list[int], list[int]]:
         self._record("terminate_tree")
+        self.terminate_calls += 1
+        if self.terminate_gate is not None:
+            self.terminate_gate.wait(2.0)
         if self.terminate_error is not None:
             raise RuntimeError(self.terminate_error)
         owned = list(self._terminate_owned if self._terminate_owned is not None else self._owned)
@@ -791,3 +818,166 @@ def test_no_consumer_is_fine_and_consumer_is_optional():
     assert runtime.consumer_errors == ()
     assert runtime.consumer_failure_count == 0
     assert runtime.consumer_failed is False
+
+
+# ---------------------------------------------------------------------------
+# r3 回归：输入操作门（检查+调用原子、close 有界等待在途输入）
+# ---------------------------------------------------------------------------
+
+
+def test_inflight_input_blocks_close_bounded_and_retry_converges():
+    """r3 回归：输入门与 close 同步。
+
+    - 已接纳（检查通过、backend 调用已开始）的输入：close 有界等待；超时则
+      保 owner 失败，**不与关闭句柄竞态**；
+    - 关门后（未开始的）新输入一律拒绝，且不得触达 backend；
+    - 释放后重试收敛。
+    """
+    entered = threading.Event()
+    gate = threading.Event()
+    backend = ScriptedBackend([], block_forever=True, write_gate=gate, write_entered=entered)
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+
+    def write_once() -> None:
+        runtime.write(b"payload")
+
+    writer = threading.Thread(target=write_once)
+    writer.start()
+    assert entered.wait(2.0)  # 确定性锚点：输入已通过接纳检查并开始 backend 调用
+
+    first = runtime.close(
+        interrupt=False, terminate_timeout=0.5, reader_grace=0.15, input_drain_timeout=0.2
+    )
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert "input still in flight" in (first.error or "")
+    assert backend.terminate_calls == []  # 未与在途输入竞态地终止
+    assert backend.closed is False  # 未与在途输入竞态地关句柄
+
+    writes_before = len(backend.writes)
+    with pytest.raises(IllegalStateTransition):
+        runtime.write(b"late")
+    assert len(backend.writes) == writes_before  # 未开始的输入未触达 backend
+
+    gate.set()
+    assert writer.join(2) is None
+    second = runtime.close(
+        interrupt=False, terminate_timeout=0.5, reader_grace=0.3, input_drain_timeout=0.5
+    )
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+    assert backend.writes == [b"payload"]
+
+
+def test_input_gate_rejects_new_input_while_close_in_progress():
+    """r3 回归：close 进行中（EXITING/门已关）新输入被拒、resize 返回 False。"""
+    backend = ScriptedBackend([b"x"], terminate_delay=0.3, alive_after_terminate=False)
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    closed = threading.Event()
+
+    def closer() -> None:
+        runtime.close(interrupt=False, terminate_timeout=2.0)
+        closed.set()
+
+    thread = threading.Thread(target=closer)
+    thread.start()
+    deadline = time.monotonic() + 2.0
+    while runtime.state is not RuntimeState.EXITING and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert runtime.state is RuntimeState.EXITING
+    writes_before = len(backend.writes)
+    with pytest.raises(IllegalStateTransition):
+        runtime.write(b"late")
+    assert runtime.resize(30, 90) is False
+    assert len(backend.writes) == writes_before
+    assert closed.wait(5.0)
+    thread.join(5)
+
+
+# ---------------------------------------------------------------------------
+# r3 回归：TreeGuard 操作有界（坏 guard 不遵守 deadline 不得卡死 close）
+# ---------------------------------------------------------------------------
+
+
+def test_blocked_guard_owned_is_bounded_and_retry_reuses_worker():
+    gate = threading.Event()
+    guard = RecordingTreeGuard(owned=(4242,), owned_gate=gate)
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    started = time.monotonic()
+    first = runtime.close(interrupt=False, tree_timeout=0.2, reader_grace=0.15)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.5  # 有界：阻塞的 guard 不把 close 主线程卡死
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert first.reader_cancelled is False
+    assert guard.owned_calls == 1
+
+    # 未放行 guard 时重试：复用同一未完成 worker，不新起第二个调用。
+    second = runtime.close(interrupt=False, tree_timeout=0.2, reader_grace=0.15)
+    assert second.state_after is RuntimeState.CLEANUP_FAILED
+    assert guard.owned_calls == 1
+
+    gate.set()
+    time.sleep(0.1)  # 放行后 worker 完成
+    third = runtime.close(interrupt=False, tree_timeout=0.5, reader_grace=0.3)
+    assert third.state_after is RuntimeState.EXITED
+    assert third.ok
+    assert guard.owned_calls == 2  # 上一次已完成：本次为新查询（无重叠）
+
+
+def test_blocked_guard_terminate_tree_is_bounded_and_retry_reuses_worker():
+    gate = threading.Event()
+    guard = RecordingTreeGuard(owned=(4242,), terminate_gate=gate)
+    backend = ScriptedBackend([b"x"], alive_after_terminate=False)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    started = time.monotonic()
+    first = runtime.close(interrupt=False, tree_timeout=0.2)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.5
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert guard.terminate_calls == 1
+
+    second = runtime.close(interrupt=False, tree_timeout=0.2)
+    assert second.state_after is RuntimeState.CLEANUP_FAILED
+    assert guard.terminate_calls == 1  # 复用未完成 worker：不重叠
+
+    gate.set()
+    time.sleep(0.1)
+    third = runtime.close(interrupt=False, tree_timeout=0.5, reader_grace=0.3)
+    assert third.state_after is RuntimeState.EXITED
+    assert third.ok
+
+
+def test_blocked_guard_remaining_is_bounded_and_retry_reuses_worker():
+    gate = threading.Event()
+    guard = RecordingTreeGuard(owned=(4242,), remaining_gate=gate)
+    backend = ScriptedBackend([b"x"], alive_after_terminate=False)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    started = time.monotonic()
+    first = runtime.close(interrupt=False, tree_timeout=0.2)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.5
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert first.tree_remaining_pids == (4242,)  # 残留未知：保守按仍存活
+    assert guard.remaining_calls == 1
+
+    second = runtime.close(interrupt=False, tree_timeout=0.2)
+    assert second.state_after is RuntimeState.CLEANUP_FAILED
+    assert guard.remaining_calls == 1  # 复用未完成 worker：不重叠
+
+    gate.set()
+    time.sleep(0.1)
+    third = runtime.close(interrupt=False, tree_timeout=0.5, reader_grace=0.3)
+    assert third.state_after is RuntimeState.EXITED
+    assert third.ok

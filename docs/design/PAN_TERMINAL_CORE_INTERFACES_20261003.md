@@ -496,3 +496,22 @@ uv run --no-project --python E:/software/miniforge/python.exe \
 `ProcessIdentity` 仍兼容按 ALIVE 处理；裸 `None` 现在按 UNKNOWN **拒绝**）；
 `OutputConsumer` 入参变为 `(seq, data)`；`write`/`resize` 在 `exiting` 状态不再
 接受操作；`close()` 新增 `handle_close_timeout` 参数。
+
+---
+
+## 13. r3 窄修（MA 二轮审查，2026-10-03；接口仍未冻结）
+
+先失败后通过：旧实现上新测试 **4 failed / 1 passed**（`/tmp/r3_pre_fix.log`），
+修复后 **137 passed / exit 0**（`/tmp/r3_post_fix.log`）。
+
+| # | 审查缺口 | 修订 |
+| --- | --- | --- |
+| 1 | `write`/`resize` 的 state 检查与 backend 调用不原子：检查通过后 close 可转 EXITING/terminate，再调用 backend | **每 runtime 输入接纳门**：state 检查 + 接纳登记在同一临界区（`_enter_input_gate`）；`close` 开头关门（`_close_input_gate`）与之同步——此后任何新输入（含刚过检查尚未触达 backend 的）立即 `IllegalStateTransition` 且不触达 backend；已接纳输入在 `input_drain_timeout`（新参数，默认 2.0s）内有界等待，超时保 owner、**不 terminate/不取消/不关句柄**（不与关闭句柄竞态）；阻塞 write 不能把 close 无限卡死。确定性锚点：backend 侧 `write_entered` + gate 测试 |
+| 2 | `TreeGuard` owned_pids/remaining 同步调用无 deadline；`terminate_tree` 的 timeout 只是参数，纯逻辑 close 仍可能无限卡死 | 协议约束：**生产 guard 每个操作必须自身有界**（见 `TreeGuard` docstring）；runtime 侧用可复用 `_BoundedCall` 对 owned_pids / terminate_tree / remaining 兜底——超时按“所有权/残留未知”fail-closed，未完成 worker 跨重试**复用不重叠**；`tree_timeout` 同时是每个 guard 操作的 runtime 侧有界等待。负例测试：guard 三个操作分别阻塞（`owned_gate`/`terminate_gate`/`remaining_gate`），close 有界返回且重试复用同一 worker |
+| 3 | `PtyBackend` 内部最终句柄并发安全未写明 | 协议约束（不改方法签名，见 `PtyBackend` docstring）：同一句柄上的 `read`/`write`/`resize`/`terminate`/`close` 并发调用必须由后端内部串行化；`close` 与在途 `write`/`terminate` 不得竞态。runtime 只负责“关门 + 有界等待已接纳输入收敛” |
+| 4 | `ProcessProbe(DEAD)` 不能把陌生 PID 的 signaled 查询当明确证据 | 文档明确（`ProcessProbe` docstring）：`DEAD` 只能来自 spawn/入组时记录的**同一** retained handle（`WaitForSingleObject` signaled）或 Job 对象层面的证据；**不得**用对现查陌生 PID（如重新 `OpenProcess`）的 signaled 结果放行（PID 复用会让“陌生进程已退出”冒充“我们的进程已退出”） |
+
+新增测试（`tests/test_terminal_runtime.py`）：
+`test_inflight_input_blocks_close_bounded_and_retry_converges`、
+`test_input_gate_rejects_new_input_while_close_in_progress`、
+`test_blocked_guard_{owned,terminate_tree,remaining}_is_bounded_and_retry_reuses_worker`。
