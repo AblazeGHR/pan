@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type RefObject,
+  type ReactNode,
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MessageNavigationRail } from './MessageNavigationRail';
@@ -22,6 +23,8 @@ interface MessageNavigationDockProps {
   onMobileClose: () => void;
   onRestoreFocus: () => void;
   dockRef: { current: HTMLDivElement | null };
+  children?: ReactNode;
+  showNavigation?: boolean;
 }
 
 const COLLAPSE_DELAY_MS = 90;
@@ -33,6 +36,8 @@ export function MessageNavigationDock({
   onMobileClose,
   onRestoreFocus,
   dockRef,
+  children,
+  showNavigation = true,
 }: MessageNavigationDockProps) {
   const handleRef = useRef<HTMLButtonElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -50,6 +55,7 @@ export function MessageNavigationDock({
   const expanded = isMobile
     ? mobileExpanded
     : pointerWithin || (focusWithin && !keyboardDismissed);
+  const label = children ? 'chat tools sidebar' : 'message navigation rail';
 
   useEffect(() => {
     if (expanded) setHasOpened(true);
@@ -186,10 +192,10 @@ export function MessageNavigationDock({
           ref={handleRef}
           type="button"
           className="message-navigation-dock__handle"
-          aria-label={expanded ? 'Close message navigation rail' : 'Open message navigation rail'}
+          aria-label={`${expanded ? 'Close' : 'Open'} ${label}`}
           aria-expanded={expanded}
           aria-controls={MESSAGE_NAVIGATION_PANEL_ID}
-          title={expanded ? 'Close message navigation rail' : 'Open message navigation rail'}
+          title={`${expanded ? 'Close' : 'Open'} ${label}`}
           onClick={handleDesktopToggle}
         >
           {expanded ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -201,12 +207,15 @@ export function MessageNavigationDock({
         aria-hidden={!expanded}
         inert={!expanded}
       >
-        {hasOpened && (
-          <MessageNavigationRail
-            chatRef={chatRef}
-            isMobile={isMobile}
-            mobileExpanded={mobileExpanded}
-          />
+        {children}
+        {showNavigation && hasOpened && (
+          <div className="chat-tools-sidebar__navigation">
+            <MessageNavigationRail
+              chatRef={chatRef}
+              isMobile={isMobile}
+              mobileExpanded={mobileExpanded}
+            />
+          </div>
         )}
       </div>
     </div>

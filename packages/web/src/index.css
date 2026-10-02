@@ -1057,6 +1057,9 @@ body {
 }
 
 .message-navigation-dock__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   position: absolute;
   inset-block: 0;
   right: 18px;
@@ -1367,14 +1370,17 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 0 0 52px;
-  width: 52px;
+  flex: 0 0 18px;
+  width: 18px;
   min-height: 0;
-  border-left: 1px solid var(--color-border-muted);
   background: var(--color-bg-primary);
   z-index: 8;
 }
-.chat-tools-sidebar.has-navigation:not(.is-mobile) { flex-basis: 70px; width: 70px; }
+.chat-tools-sidebar { transition: width .16s ease, flex-basis .16s ease; }
+.chat-tools-sidebar:has(.message-navigation-dock.is-open):not(.is-mobile) { flex-basis: 70px; width: 70px; }
+.chat-tools-sidebar.is-mobile { flex-basis: 0; width: 0; }
+.chat-tools-sidebar.is-mobile:has(.message-navigation-dock.is-open) { flex-basis: 52px; width: 52px; }
+.chat-tools-sidebar > .message-navigation-dock { right: 0; }
 .chat-tools-sidebar__search {
   display: flex;
   flex-direction: column;
@@ -1383,9 +1389,7 @@ body {
   padding: 8px 0;
   flex: 0 0 auto;
 }
-.chat-tools-sidebar.has-navigation:not(.is-mobile) .chat-tools-sidebar__search { padding-right: 18px; }
 .chat-tools-sidebar__navigation { position: relative; flex: 1 1 auto; min-height: 0; }
-.chat-tools-sidebar__navigation .message-navigation-dock { right: 0; }
 .chat-tools-sidebar__search .session-history-search,
 .chat-tools-sidebar__search .global-history-search {
   position: static;
@@ -1398,8 +1402,10 @@ body {
 .chat-tools-sidebar__search .global-history-search__toggle { width: 40px; height: 40px; }
 .chat-tools-sidebar.is-mobile .session-history-search__toggle,
 .chat-tools-sidebar.is-mobile .global-history-search__toggle { width: 44px; height: 44px; }
-.chat-view-stage { --chat-tools-width: 52px; }
-.chat-view-stage:has(.chat-tools-sidebar.has-navigation:not(.is-mobile)) { --chat-tools-width: 70px; }
+.chat-view-stage { --chat-tools-width: 18px; }
+.chat-view-stage:has(.chat-tools-sidebar.is-mobile) { --chat-tools-width: 0px; }
+.chat-view-stage:has(.chat-tools-sidebar:not(.is-mobile) .message-navigation-dock.is-open) { --chat-tools-width: 70px; }
+.chat-view-stage:has(.chat-tools-sidebar.is-mobile .message-navigation-dock.is-open) { --chat-tools-width: 52px; }
 .chat-view-stage > .session-history-search__popup,
 .chat-view-stage > .global-history-search__popup {
   z-index: 10;

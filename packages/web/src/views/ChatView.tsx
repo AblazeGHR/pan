@@ -34,10 +34,11 @@ export default function ChatView() {
   }, []);
   const dockRef = useRef<HTMLDivElement>(null);
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
-  // Unmounting (rather than hiding) the rail is the point of the switch: the
-  // dock (including its cached index) is removed when the master switch is off.
+  // Each feature switch unmounts its own content; the shared folding dock is
+  // removed only when both features are disabled.
   const showMessageNavigationRail = useAppSettingsStore((s) => s.showMessageNavigationRail);
   const showHistorySearch = useAppSettingsStore((s) => s.showHistorySearch);
+  const showChatTools = showMessageNavigationRail || showHistorySearch;
   const { isMobile } = useMediaQuery();
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [activeHistorySearch, setActiveHistorySearch] = useState<'session' | 'global' | null>(null);
@@ -46,7 +47,7 @@ export default function ChatView() {
   useEffect(() => {
     // Enabling the master switch and changing viewport modes both start folded.
     setMobileExpanded(false);
-  }, [showMessageNavigationRail, isMobile]);
+  }, [showChatTools, isMobile]);
 
   useEffect(() => {
     if (!showHistorySearch) {
@@ -95,15 +96,16 @@ export default function ChatView() {
     setMobileExpanded(true);
   };
 
-  const topBarRightAction = showMessageNavigationRail && isMobile ? (
+  const mobileLabel = showHistorySearch ? 'chat tools sidebar' : 'message navigation rail';
+  const topBarRightAction = showChatTools && isMobile ? (
     <button
       ref={mobileToggleRef}
       type="button"
       className="message-navigation-mobile-toggle"
-      aria-label={mobileExpanded ? 'Close message navigation rail' : 'Open message navigation rail'}
+      aria-label={`${mobileExpanded ? 'Close' : 'Open'} ${mobileLabel}`}
       aria-expanded={mobileExpanded}
       aria-controls={MESSAGE_NAVIGATION_PANEL_ID}
-      title={mobileExpanded ? 'Close message navigation rail' : 'Open message navigation rail'}
+      title={`${mobileExpanded ? 'Close' : 'Open'} ${mobileLabel}`}
       data-testid="mobile-message-navigation-toggle"
       onClick={toggleMobileNavigation}
     >
@@ -121,48 +123,46 @@ export default function ChatView() {
         <div ref={setChatStage} className="chat-view-stage flex flex-1 min-h-0 min-w-0" tabIndex={-1}>
           <ChatMessages
             ref={chatRef}
-            hideScrollToBottom={showMessageNavigationRail && isMobile && mobileExpanded}
+            hideScrollToBottom={showChatTools && isMobile && mobileExpanded}
             searchTarget={showHistorySearch ? searchTarget : null}
           />
-          {(showMessageNavigationRail || showHistorySearch) && (
+          {showChatTools && (
             <aside className={`chat-tools-sidebar${showMessageNavigationRail ? ' has-navigation' : ''}${isMobile ? ' is-mobile' : ''}`}
               data-testid="chat-tools-sidebar" aria-label="Chat search and navigation">
-          {showHistorySearch && (
-            <div className="chat-tools-sidebar__search">
-              <Suspense fallback={null}>
-                <SessionHistorySearch
-                  chatRef={chatRef}
-                  popupContainer={popupContainer}
-                  isMobile={isMobile}
-                  isOpen={activeHistorySearch === 'session'}
-                  onOpenChange={handleSessionSearchOpenChange}
-                  onHighlightMessage={handleSessionHighlight}
-                />
-              </Suspense>
-              <Suspense fallback={null}>
-                <GlobalHistorySearch
-                  chatRef={chatRef}
-                  popupContainer={popupContainer}
-                  isMobile={isMobile}
-                  open={activeHistorySearch === 'global'}
-                  onOpenChange={handleGlobalSearchOpenChange}
-                  onHighlightMessage={handleGlobalHighlight}
-                />
-              </Suspense>
-            </div>
-          )}
-          {showMessageNavigationRail && (
-            <div className="chat-tools-sidebar__navigation">
-            <MessageNavigationDock
-              chatRef={chatRef}
-              dockRef={dockRef}
-              isMobile={isMobile}
-              mobileExpanded={mobileExpanded}
-              onMobileClose={closeMobileNavigation}
-              onRestoreFocus={restoreChatFocus}
-            />
-            </div>
-          )}
+              <MessageNavigationDock
+                chatRef={chatRef}
+                dockRef={dockRef}
+                isMobile={isMobile}
+                mobileExpanded={mobileExpanded}
+                onMobileClose={closeMobileNavigation}
+                onRestoreFocus={restoreChatFocus}
+                showNavigation={showMessageNavigationRail}
+              >
+                {showHistorySearch && (
+                  <div className="chat-tools-sidebar__search">
+                    <Suspense fallback={null}>
+                      <SessionHistorySearch
+                        chatRef={chatRef}
+                        popupContainer={popupContainer}
+                        isMobile={isMobile}
+                        isOpen={activeHistorySearch === 'session'}
+                        onOpenChange={handleSessionSearchOpenChange}
+                        onHighlightMessage={handleSessionHighlight}
+                      />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                      <GlobalHistorySearch
+                        chatRef={chatRef}
+                        popupContainer={popupContainer}
+                        isMobile={isMobile}
+                        open={activeHistorySearch === 'global'}
+                        onOpenChange={handleGlobalSearchOpenChange}
+                        onHighlightMessage={handleGlobalHighlight}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+              </MessageNavigationDock>
             </aside>
           )}
         </div>

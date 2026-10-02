@@ -127,6 +127,24 @@ try {
   await toggle.click();
   await tab.getByRole('switch').filter({ hasText: 'Show QQ messages' }).click();
   await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  const ensureSidebarOpen = async () => {
+    const dock = tab.getByTestId('message-navigation-dock');
+    if (await dock.getAttribute('data-expanded') === 'true') return;
+    if (await dock.getAttribute('data-placement') === 'viewport-end') {
+      await tab.getByTestId('mobile-message-navigation-toggle').click();
+    } else {
+      // Escape may have folded the dock while the pointer is still over its
+      // handle. Re-enter it, just as a user would after dismissing the panel.
+      await tab.mouse.move(300, 300);
+      await dock.locator('.message-navigation-dock__handle').hover();
+    }
+    await tab.waitForFunction(() => document.querySelector('[data-testid="message-navigation-dock"]')?.dataset.expanded === 'true');
+    await tab.waitForTimeout(200); // let the shared width/panel transition settle
+  };
+  assert.equal(await tab.getByTestId('message-navigation-dock').getAttribute('data-expanded'), 'false');
+  assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), false);
+  assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), false);
+  await ensureSidebarOpen();
   await tab.getByTestId('session-history-search-toggle').waitFor({ state: 'visible' });
   await tab.getByTestId('global-history-search-toggle').waitFor({ state: 'visible' });
   const searchOnly = await tab.getByTestId('chat-tools-sidebar').evaluate((sidebar) => ({
@@ -138,6 +156,7 @@ try {
   await tab.locator('#app-settings-tab-appearance').click();
   await tab.getByRole('switch').filter({ hasText: 'Show message navigation rail' }).click();
   await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  await ensureSidebarOpen();
   const sidebarLayout = await tab.getByTestId('chat-tools-sidebar').evaluate((sidebar) => {
     const buttons = [...sidebar.querySelectorAll('.chat-tools-sidebar__search button')].map((b) => b.getBoundingClientRect().toJSON());
     return { buttons, navigation: sidebar.querySelector('.chat-tools-sidebar__navigation').getBoundingClientRect().toJSON() };
@@ -147,11 +166,22 @@ try {
   assert.ok(sidebarLayout.buttons[0].bottom <= sidebarLayout.buttons[1].top);
   assert.ok(sidebarLayout.buttons[1].bottom <= sidebarLayout.navigation.top);
   evidence.sidebarLayout = sidebarLayout;
+  // Escape folds the entire shared panel, not just the navigation below it.
+  await tab.locator('.message-navigation-dock__handle').focus();
+  await tab.keyboard.press('Escape');
+  await tab.waitForTimeout(200);
+  assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), false);
+  assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), false);
+  assert.equal(await tab.locator('.message-navigation-rail').isVisible(), false);
+  evidence.tests.push('One desktop dock folds both search buttons and navigation, search-only also starts folded');
+  await ensureSidebarOpen();
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Legacy Local' }).first().click();
+  await ensureSidebarOpen();
   await tab.getByTestId('session-history-search-toggle').click();
   await tab.getByTestId('session-history-search-input').fill('LegacyLocalNeedle');
   await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 8');
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
+  await ensureSidebarOpen();
   await tab.getByTestId('global-history-search-toggle').click();
   await tab.getByTestId('global-history-search-input').fill('LegacyGlobalNeedle');
   await tab.getByText(/1 occurrences found so far/).waitFor({ state: 'visible' });
@@ -183,6 +213,7 @@ try {
   await tab.getByRole('checkbox', { name: 'Search thinking messages' }).uncheck();
   await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 3');
   assert.equal(await tab.locator('[data-search-expanded-role]').count(), 0);
+  await ensureSidebarOpen();
   await tab.getByTestId('global-history-search-toggle').click();
   await tab.getByTestId('global-history-search-input').fill('SharedNeedle');
   await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
@@ -191,6 +222,7 @@ try {
   await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Remote, user/ }).first().click();
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Benchmark' }).first().click();
+  await ensureSidebarOpen();
   await tab.getByTestId('session-history-search-toggle').click();
   await tab.getByRole('checkbox', { name: 'Search tool messages' }).check();
   await tab.getByRole('checkbox', { name: 'Search thinking messages' }).check();
@@ -204,12 +236,24 @@ try {
   await input.fill('commonterm');
   await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 20000');
   await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
+  await ensureSidebarOpen();
   await tab.getByTestId('global-history-search-toggle').click();
   await tab.getByTestId('global-history-search-input').fill('SharedNeedle');
   await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
   await tab.screenshot({ path: path.join(evidenceDir, 'desktop.png') });
   await tab.setViewportSize({ width: 390, height: 560 });
   await tab.waitForTimeout(250);
+  assert.equal(await tab.getByTestId('message-navigation-dock').getAttribute('data-expanded'), 'false');
+  assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), false);
+  assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), false);
+  await ensureSidebarOpen();
+  assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), true);
+  assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), true);
+  await tab.getByTestId('mobile-message-navigation-toggle').click();
+  await tab.waitForTimeout(200);
+  assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), false);
+  assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), false);
+  evidence.tests.push('Mobile topbar toggles one whole shared panel; both search buttons fold together');
   const geometry = await tab.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, width: innerWidth,
     popup: document.querySelector('.global-history-search__popup')?.getBoundingClientRect().toJSON() }));
   assert.ok(geometry.scrollWidth <= geometry.width);
@@ -227,6 +271,14 @@ try {
   await tab.waitForTimeout(150);
   assert.equal(evidence.requests.length, requestsBefore);
   assert.equal(await tab.getByTestId('session-history-search-input').count(), 0);
+  assert.equal(await tab.getByTestId('message-navigation-dock').count(), 1);
+  assert.equal(await tab.getByTestId('session-history-search-toggle').count(), 0);
+  await tab.locator('[title="App settings"]').first().click();
+  await tab.locator('#app-settings-tab-appearance').click();
+  await tab.getByRole('switch').filter({ hasText: 'Show message navigation rail' }).click();
+  await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  assert.equal(await tab.getByTestId('chat-tools-sidebar').count(), 0);
+  assert.equal(await tab.getByTestId('message-navigation-dock').count(), 0);
   evidence.tests.push('Chromium default-off, occurrence navigation, tool/thinking expansion, filters, QQ hidden target, global count/jump and hot unload');
   assert.equal(evidence.consoleErrors.length, 0);
   assert.equal(evidence.pageErrors.length, 0);

@@ -93,8 +93,16 @@ describe('ChatView: message navigation rail switch', () => {
     expect(sidebar.contains(global)).toBe(true);
     expect(sidebar.querySelector('.chat-tools-sidebar__navigation')).toBeNull();
     act(() => useAppSettingsStore.setState({ showMessageNavigationRail: true }));
-    expect(sidebar.children[0]?.className).toBe('chat-tools-sidebar__search');
-    expect(sidebar.children[1]?.className).toBe('chat-tools-sidebar__navigation');
+    const dock = sidebar.querySelector('[data-testid="message-navigation-dock"]')!;
+    const panel = sidebar.querySelector('#message-navigation-panel')!;
+    expect(panel.contains(search)).toBe(true);
+    expect(panel.contains(global)).toBe(true);
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(panel.hasAttribute('inert')).toBe(true);
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(panel.children[0]?.className).toBe('chat-tools-sidebar__search');
+    expect(panel.children[1]?.className).toBe('chat-tools-sidebar__navigation');
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
     expect(chatStylesSource).toMatch(/\.chat-tools-sidebar__search\s*\{[^}]*flex-direction: column;/);
     fireEvent.click(search.querySelector('button')!);
     expect(container.querySelector('.session-history-search__popup')?.parentElement?.classList.contains('chat-view-stage')).toBe(true);
@@ -104,6 +112,50 @@ describe('ChatView: message navigation rail switch', () => {
     expect(container.querySelector('.chat-tools-sidebar__search')).toBeNull();
     act(() => useAppSettingsStore.setState({ showMessageNavigationRail: false }));
     expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
+  });
+  it('folds both search buttons inside the only desktop panel, including search-only mode', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { container, findByTestId, getByRole } = render(<ChatView />);
+    await findByTestId('global-history-search');
+    const panel = container.querySelector('#message-navigation-panel')!;
+    const dock = container.querySelector('[data-testid="message-navigation-dock"]')!;
+    expect(container.querySelectorAll('.message-navigation-dock__handle')).toHaveLength(1);
+    expect(panel.querySelectorAll('.chat-tools-sidebar__search button')).toHaveLength(2);
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(mockedHistory).not.toHaveBeenCalled();
+    fireEvent.click(getByRole('button', { name: 'Open chat tools sidebar' }));
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    fireEvent.keyDown(dock, { key: 'Escape' });
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(panel.hasAttribute('inert')).toBe(true);
+    expect(container.querySelector('.chat-tools-sidebar__navigation')).toBeNull();
+    // Ctrl+F remains usable while the buttons are folded: the popup is portaled.
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+    expect(await findByTestId('session-history-search-input')).not.toBeNull();
+  });
+
+  it('uses one mobile toggle to fold search-only and combined content without resetting on a feature change', async () => {
+    viewport.isMobile = true;
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { container, findByTestId, getByRole } = render(<ChatView />);
+    await findByTestId('global-history-search');
+    const panel = container.querySelector('#message-navigation-panel')!;
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    const toggle = getByRole('button', { name: 'Open chat tools sidebar' });
+    fireEvent.click(toggle);
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    act(() => useAppSettingsStore.setState({ showMessageNavigationRail: true }));
+    expect(panel.children[0]?.className).toBe('chat-tools-sidebar__search');
+    expect(panel.children[1]?.className).toBe('chat-tools-sidebar__navigation');
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    fireEvent.click(toggle);
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
+    expect(getByRole('button', { name: 'Open message navigation rail' })).not.toBeNull();
+    expect(panel.querySelector('.chat-tools-sidebar__search')).toBeNull();
+    act(() => useAppSettingsStore.setState({ showMessageNavigationRail: false }));
+    expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="mobile-message-navigation-toggle"]')).toBeNull();
   });
   it('does not mount the dock by default or request history', async () => {
     const { container } = render(<ChatView />);
@@ -216,6 +268,7 @@ describe('ChatView: message navigation rail switch', () => {
     expect(global.getAttribute('data-layout')).toBe('desktop-chat-top-right');
     expect(mockedGlobalSearch).not.toHaveBeenCalled();
 
+    fireEvent.click(getByRole('button', { name: 'Open chat tools sidebar' }));
     fireEvent.click(getByRole('button', { name: 'Search all Session history' }));
     const input = await findByTestId('global-history-search-input');
     expect(queryByTestId('session-history-search-input')).toBeNull();
