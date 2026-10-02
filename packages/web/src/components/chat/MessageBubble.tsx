@@ -8,7 +8,7 @@ import { NonBodyGroup } from './NonBodyGroup';
 import type { GroupDisplayItem } from '@/utils/messageIdentity';
 import { getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
-import { getQuickJumpKind } from './messageFilter';
+import { getMessageSourceTag, type MessageSourceTag } from './messageFilter';
 import { MessageTimestamp } from './MessageTimestamp';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 export { formatMessageTs } from '@/utils/messageTimestamp';
@@ -66,6 +66,12 @@ interface MessageBubbleProps {
   prevRole?: PrevRole;
 }
 
+/** User-facing copy for the durable source tags (classification: messageFilter). */
+const SOURCE_TAG_LABELS: Record<MessageSourceTag, string> = {
+  'ta-report': 'TA report',
+  'ma-assign': 'MA assign',
+};
+
 export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
   const role = message.role;
   const mt = marginTopClass(role, prevRole);
@@ -77,9 +83,15 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     () => message.parts?.flatMap((part) => part.type === 'attachment' ? [part.attachmentId] : []),
     [message.parts],
   );
-  const isWorkerReport = getQuickJumpKind(message) === 'worker';
-  const workerReportLabel = isWorkerReport ? (
-    <span className="worker-report-label" aria-label="Worker report">Worker report</span>
+  const sourceTag = getMessageSourceTag(message);
+  const sourceBadge = sourceTag ? (
+    <span
+      className="worker-report-label"
+      data-source-tag={sourceTag}
+      aria-label={SOURCE_TAG_LABELS[sourceTag]}
+    >
+      {SOURCE_TAG_LABELS[sourceTag]}
+    </span>
   ) : null;
 
   // Thinking blocks get their own component
@@ -111,8 +123,8 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
   // its full width without changing the measured wrapper's layout.
   if (role === 'user') {
     return (
-      <div className={`message-row message-row-user ${isWorkerReport ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
-        {workerReportLabel}
+      <div className={`message-row message-row-user ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
+        {sourceBadge}
         <div className="msg user text-sm">
           {rawViewEnabled ? (
             <RawMessageText content={message.content} className="text-sm" />
@@ -131,8 +143,8 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
 
   // Assistant messages — no bubble, left-aligned, full-width markdown flow
   return (
-    <div className={`message-row message-row-assistant ${isWorkerReport ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
-      {workerReportLabel}
+    <div className={`message-row message-row-assistant ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
+      {sourceBadge}
       <div className="msg assistant text-sm leading-relaxed">
         {rawViewEnabled ? (
           <RawMessageText content={message.content} />
