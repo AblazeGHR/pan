@@ -108,8 +108,8 @@ describe('quick-location classification', () => {
       ALL_SHOWN,
     );
     expect(targets).toEqual([
-      { fromEnd: 192, kind: 'user', sourceKind: 'user', preview: 'old user' },
-      { fromEnd: 190, kind: 'worker', sourceKind: 'report', preview: 'old report' },
+      { fromEnd: 192, kind: 'user', preview: 'old user' },
+      { fromEnd: 190, kind: 'worker', preview: 'old report' },
     ]);
   });
 
@@ -125,9 +125,7 @@ describe('quick-location classification', () => {
       0,
       { showMetaAgent: false, showTaskAgent: false, showQQ: false },
     );
-    expect(targets).toEqual([
-      { fromEnd: 0, kind: 'user', sourceKind: 'user', preview: 'plain user' },
-    ]);
+    expect(targets).toEqual([{ fromEnd: 0, kind: 'user', preview: 'plain user' }]);
   });
 
   it('honors visibility switches when building navigation targets', () => {

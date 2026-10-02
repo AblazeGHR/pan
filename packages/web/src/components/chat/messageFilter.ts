@@ -33,22 +33,24 @@ export function filterVisibleMessages(
 }
 
 
-export type QuickJumpKind = 'user' | 'worker';
-
 /**
- * Unified source kinds for sequential navigation markers (MA assign/msg
- * classification).  Kept separate from the legacy ``QuickJumpKind`` so the
- * report route keeps its existing `worker` kind untouched.
+ * Navigation marker kinds (the rail consumption contract).
+ *
+ * - `user`     — user-role rows without MA provenance.
+ * - `worker`   — TA report (`@@@@by agent`); existing value kept verbatim.
+ * - `maAssign` — MA assign: formal dispatch provenance (`source: "agent"`
+ *   without an inherited task id).
+ * - `maMsg`    — MA msg: orchestration identity prefix (`////by agent`,
+ *   written only by `agent_send` / `agent_send_force`) or an
+ *   inherited-task-id follow-up (`taskIdSource: "active"`).
  */
-export type MessageSourceKind = 'user' | 'report' | 'ma';
+export type QuickJumpKind = 'user' | 'worker' | 'maAssign' | 'maMsg';
 
 export interface QuickJumpMessage {
   message: Message;
   /** Index in the filtered message list used by ChatMessages. */
   index: number;
   kind: QuickJumpKind;
-  /** Unified source kind for icon selection (see getMessageSourceKind). */
-  sourceKind?: MessageSourceKind;
   preview: string;
 }
 
@@ -57,8 +59,6 @@ export interface QuickJumpMessage {
 export interface QuickJumpIndexItem {
   fromEnd: number;
   kind: QuickJumpKind;
-  /** Unified source kind for icon selection (see getMessageSourceKind). */
-  sourceKind?: MessageSourceKind;
   preview: string;
 }
 
@@ -68,8 +68,17 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   // A task-agent report wins over the role because reports can be serialized
   // as user messages by some adapters.
   if (content.startsWith(TASK_AGENT_PREFIX)) return 'worker';
-  if (message.role === 'user') return 'user';
-  return null;
+  if (message.role !== 'user') return null;
+  // The existing meta-agent判定 (agent_send / agent_send_force prepend this
+  // marker) takes priority over the structured provenance below.
+  if (content.startsWith(META_AGENT_PREFIX)) return 'maMsg';
+  if (message.source === 'agent') {
+    // An inherited task id marks a follow-up message; a formal dispatch
+    // carries the assign id (or none) — the same split the backend draws in
+    // _is_formal_task_item.
+    return message.taskIdSource === 'active' ? 'maMsg' : 'maAssign';
+  }
+  return 'user';
 }
 
 /** Durable source tag rendered next to a message body. */
@@ -78,70 +87,25 @@ export type MessageSourceTag = 'ta-report' | 'ma-assign';
 /**
  * Classify the source tag for a message body, or null when it carries none.
  *
- * - `ta-report` — the task-agent completion report marker (`@@@@by agent`).
- *   Kept exactly as the rail rule above: prefix-based and role-independent
- *   because some adapters serialize reports as user rows.
- * - `ma-assign` — a task dispatched into this Session by the orchestrating
- *   agent (MCP `agent_assign` / `agent_task`).  Classification is strictly
- *   structural: the worker history receipt writes `source: "agent"`
- *   (编排注入) on exactly those rows.  Browser messages (`user`),
- *   scheduler/background jobs (`automation`), prompt injection
- *   (`system_prompt`) and report/notice rows (`report`) fail the source
- *   check.  Two row families are excluded by the backend's own markers:
- *   `agent_send` / `agent_send_force` text carries the orchestration identity
- *   prefix (`////by agent`), and a follow-up row that merely inherited the
- *   active task id carries `taskIdSource: "active"` (backend
- *   `_is_formal_task_item` treats only non-active ids as formal dispatches).
- *   Literal `////by agent` text is therefore never treated as provenance.
+ * Derived from the navigation kind so the body pill can never drift from the
+ * rail classification: `worker` (TA report) → `ta-report`, `maAssign` →
+ * `ma-assign`.  `maMsg` rows deliberately carry no body tag — the
+ * `////by agent` marker text stays the provenance for sends, and a follow-up
+ * row that merely inherited the active task id (`taskIdSource: "active"`,
+ * backend `_is_formal_task_item`) is not an assign.  Browser messages
+ * (`user`), scheduler/background jobs (`automation`), prompt injection
+ * (`system_prompt`) and report/notice rows (`report`) fail the `maAssign`
+ * check, matching the backend source contract; literal `////by agent` text is
+ * therefore never treated as an assign.
  *
  * History persisted before the structured fields existed stays unlabelled on
  * purpose: the current managed relation is never used to guess an old origin.
  */
 export function getMessageSourceTag(message: Message): MessageSourceTag | null {
-  const content = message.content.trimStart();
-  if (content.startsWith(TASK_AGENT_PREFIX)) return 'ta-report';
-  if (
-    message.role === 'user'
-    && message.source === 'agent'
-    && message.taskIdSource !== 'active'
-    && !content.startsWith(META_AGENT_PREFIX)
-  ) {
-    return 'ma-assign';
-  }
+  const kind = getQuickJumpKind(message);
+  if (kind === 'worker') return 'ta-report';
+  if (kind === 'maAssign') return 'ma-assign';
   return null;
-}
-
-/**
- * Classify the origin of a navigation-visible body row as a unified source
- * kind, or null when the row is not a navigable marker.
- *
- * Kind contract (rail integration API):
- * - `report` — TA report (`@@@@by agent`).  The existing report rule is
- *   checked first and stays role-independent (some adapters serialize
- *   reports as user rows); report routing and the legacy `QuickJumpKind`
- *   `worker` marker are unchanged (`report` is its source-level name).
- * - `ma` — MA assign/msg.  The existing meta-agent判定 wins: the
- *   `////by agent` identity prefix that `agent_send` / `agent_send_force`
- *   prepend (same rule as `filterVisibleMessages`) classifies as `ma` first;
- *   otherwise the structured dispatch provenance written by the worker
- *   history receipt (`source: "agent"`, 编排注入) classifies as `ma`.  This
- *   deliberately includes msg follow-ups (`taskIdSource: "active"`) that the
- *   stricter body-label subset (`getMessageSourceTag` → `ma-assign`) leaves
- *   unlabelled.
- * - `user` — every other user-role row (browser sends, automation fills,
- *   prompt injection, QQ injections), matching the historical
- *   `getQuickJumpKind` fallback.
- *
- * The non-null domain is identical to `getQuickJumpKind`: user-role rows plus
- * report-prefixed rows of any role; everything else stays null.
- */
-export function getMessageSourceKind(message: Message): MessageSourceKind | null {
-  const content = message.content.trimStart();
-  if (content.startsWith(TASK_AGENT_PREFIX)) return 'report';
-  if (message.role !== 'user') return null;
-  if (content.startsWith(META_AGENT_PREFIX)) return 'ma';
-  if (message.source === 'agent') return 'ma';
-  return 'user';
 }
 
 /** Remove transport/source headers before showing a compact hover preview. */
@@ -171,14 +135,13 @@ export function getQuickJumpIndexItems(
       ? [{
           fromEnd: total - 1 - (start + index),
           kind,
-          sourceKind: getMessageSourceKind(message) ?? undefined,
           preview: getQuickJumpPreview(message.content),
         }]
       : [];
   });
 }
 
-/** Build the visible user/worker targets shown by the navigation rail. */
+/** Build the visible navigation targets shown by the navigation rail. */
 export function getQuickJumpMessages(
   messages: Message[],
   settings: MessageVisibilitySettings,
@@ -190,7 +153,6 @@ export function getQuickJumpMessages(
           message,
           index,
           kind,
-          sourceKind: getMessageSourceKind(message) ?? undefined,
           preview: getQuickJumpPreview(message.content),
         }]
       : [];
