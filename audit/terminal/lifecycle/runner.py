@@ -77,15 +77,33 @@ class Runtime:
             raise RuntimeError("PTY.spawn returned False")
         self.pty_root_pid = self.pty.pid
         members: list[dict] = []
+        failures: list[dict] = []
+        injections = [p.lower() for p in (getattr(args, "fail_inject_assign", None) or [])]
         for item in lib.descendants([os.getpid()]):
             info = lib.identity(item["pid"])
-            ok, err = self.job.assign(item["pid"])
-            members.append({
+            injected = any(pattern in item["exe"].lower() for pattern in injections)
+            if injected:
+                ok, err, note = False, 0, "injected_assign_failure"
+            else:
+                ok, err = self.job.assign(item["pid"])
+                note = None
+            entry = {
                 "pid": item["pid"], "exe": item["exe"],
                 "createTime": info["createTime"] if info else None,
-                "assigned": ok, "assignError": err,
-            })
+                "createTimeFiletime": info["createTimeFiletime"] if info else None,
+                "assigned": ok, "assignError": err, "note": note,
+            }
+            members.append(entry)
+            if not ok:
+                failures.append(entry)
         self.initial_members = members
+
+        # A guard-job assignment failure must never publish a running runtime:
+        # start-up fails closed, cleans only its own processes and exits.
+        if failures or not members:
+            if not members:
+                failures = [{"note": "no PTY descendants discovered after spawn"}]
+            self._startup_failure(failures)
 
         # 3. Loopback control endpoint (OS-assigned, guaranteed-free port).
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,6 +155,7 @@ class Runtime:
         root_info = lib.identity(self.pty_root_pid)
         payload = {
             "kind": "terminal-runtime",
+            "status": "running",
             "runtimeId": self.runtime_id,
             "pid": os.getpid(),
             "processCreatedAt": info["createTime"] if info else None,
@@ -164,6 +183,64 @@ class Runtime:
             payload.update(extra)
         with self.endpoint_lock:
             lib.write_json(self.data_root / "runtime.json", payload)
+
+    def _startup_failure(self, failures: list[dict]) -> None:
+        """Fail closed before any running endpoint is published.
+
+        The runtime record is written with status=startup_failed (no port, no
+        token), then only probe-owned descendants are terminated and the guard
+        job handle is closed.  Never returns.
+        """
+        info = lib.identity(os.getpid())
+        failure_at = time.time()
+        lib.write_json(self.data_root / "runtime.json", {
+            "kind": "terminal-runtime",
+            "status": "startup_failed",
+            "runtimeId": self.runtime_id,
+            "pid": os.getpid(),
+            "processCreatedAtFiletime": info["createTimeFiletime"] if info else None,
+            "port": None,
+            "error": "guard_job_assign_failed",
+            "failures": failures,
+            "members": self.initial_members,
+            "pty": {"rootPid": self.pty_root_pid},
+            "at": failure_at,
+        })
+        lib.write_json(self.data_root / "runner_startup_failure.json", {
+            "runtimeId": self.runtime_id,
+            "pid": os.getpid(),
+            "reason": "guard_job_assign_failed",
+            "failures": failures,
+            "members": self.initial_members,
+            "ptyRootPid": self.pty_root_pid,
+            "at": failure_at,
+        })
+        if self.job.active_processes():
+            self.job.terminate()
+        swept: list[dict] = []
+        for item in lib.descendants([os.getpid()]):
+            owned = lib.identity(item["pid"])
+            if owned and lib.kill_verified(item["pid"], owned["createTimeFiletime"]):
+                swept.append({"pid": item["pid"], "exe": item["exe"], "killed": True})
+            else:
+                swept.append({"pid": item["pid"], "exe": item["exe"], "killed": False})
+        try:
+            self.pty.cancel_io()
+        except Exception:
+            pass
+        job_active_before_close = self.job.active_processes()
+        self.job.close()
+        leftover = [item["pid"] for item in lib.descendants([os.getpid()])]
+        lib.write_json(self.data_root / "runner_startup_failure_final.json", {
+            "runtimeId": self.runtime_id,
+            "swept": swept,
+            "leftoverAfterSweep": leftover,
+            "jobActiveBeforeClose": job_active_before_close,
+            "finishedAt": time.time(),
+        })
+        print(json.dumps({"runner": "startup_failed", "failures": failures,
+                          "leftover": leftover}), flush=True)
+        os._exit(2)
 
     # ── PTY reader ──────────────────────────────────────────────────────────
     def _read_loop(self) -> None:
@@ -427,6 +504,9 @@ def main() -> int:
     parser.add_argument("--cols", type=int, default=120)
     parser.add_argument("--rows", type=int, default=30)
     parser.add_argument("--lease-grace", type=float, default=2.0)
+    parser.add_argument("--fail-inject-assign", action="append", default=None,
+                        help="probe-only: simulate guard-job assign failure for "
+                             "descendants whose exe name contains this substring")
     args = parser.parse_args()
     runtime = Runtime(args)
     return runtime.run()

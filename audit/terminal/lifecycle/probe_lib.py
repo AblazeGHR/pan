@@ -27,6 +27,7 @@ IS_WINDOWS = os.name == "nt"
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_TERMINATE = 0x0001
 PROCESS_SET_QUOTA = 0x0100
+PROCESS_DUP_HANDLE = 0x0040
 
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x0800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
@@ -210,7 +211,13 @@ def identity(pid: int | None) -> dict | None:
 
 
 def identity_matches(pid: int, raw_create_time: int | None) -> bool:
-    """Same process (PID + exact creation time) and still running."""
+    """Same process (PID + exact creation time) and still running.
+
+    Observation helper only: it opens the PID twice (create time, then exit
+    code), so it must not be used as the verification step of a kill.  The
+    termination path uses ``kill_verified``, which opens one handle and
+    verifies and terminates through that same handle.
+    """
     if raw_create_time is None:
         return False
     if process_create_time_raw(pid) != raw_create_time:
@@ -232,17 +239,55 @@ def is_process_in_job(pid: int, job_handle: int | None = None) -> bool | None:
         _k32.CloseHandle(handle)
 
 
-def kill_verified(pid: int, raw_create_time: int | None) -> bool:
-    """Terminate only when identity matches; never kill a reused PID blindly."""
-    if not identity_matches(pid, raw_create_time):
-        return False
-    handle = _k32.OpenProcess(PROCESS_TERMINATE, False, pid)
+def kill_verified_detail(pid: int, raw_create_time: int | None) -> dict:
+    """Single-handle atomic verify-then-terminate; returns the decision trail.
+
+    ``OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE)`` is
+    performed exactly once.  The creation-time and exit-code checks and the
+    ``TerminateProcess`` call all use that same handle, so the handle pins one
+    process object: if the PID were reused after the open, the pinned object is
+    still the one we verified, and a mismatching creation time is rejected
+    before any termination.  This removes the check-then-kill TOCTOU window
+    that a separate ``OpenProcess`` for termination would introduce.
+    """
+    result = {
+        "pid": pid, "requestedCreateTimeFiletime": raw_create_time,
+        "opened": False, "createTimeFiletime": None, "filetimeMatch": False,
+        "running": False, "terminated": False,
+    }
+    if raw_create_time is None:
+        return result
+    handle = _k32.OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, False, pid)
     if not handle:
-        return False
+        return result
+    result["opened"] = True
     try:
-        return bool(_k32.TerminateProcess(handle, 1))
+        created = wintypes.FILETIME()
+        empty = wintypes.FILETIME()
+        if not _k32.GetProcessTimes(
+                handle, ctypes.byref(created), ctypes.byref(empty),
+                ctypes.byref(empty), ctypes.byref(empty)):
+            return result
+        result["createTimeFiletime"] = _filetime_to_int(created)
+        result["filetimeMatch"] = (result["createTimeFiletime"] == raw_create_time)
+        if not result["filetimeMatch"]:
+            return result
+        code = wintypes.DWORD()
+        if not _k32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return result
+        result["running"] = (int(code.value) == STILL_ACTIVE)
+        if not result["running"]:
+            return result
+        result["terminated"] = bool(_k32.TerminateProcess(handle, 1))
+        return result
     finally:
         _k32.CloseHandle(handle)
+
+
+def kill_verified(pid: int, raw_create_time: int | None) -> bool:
+    """Terminate only when identity matches on the same handle; no blind kill."""
+    return kill_verified_detail(pid, raw_create_time)["terminated"]
 
 
 # ── Process tree enumeration ─────────────────────────────────────────────────
@@ -320,6 +365,54 @@ def tree_identity(root_pids: Iterable[int]) -> dict[int, dict]:
 
 
 # ── Job Object wrapper ───────────────────────────────────────────────────────
+
+_k32.DuplicateHandle.argtypes = (
+    wintypes.HANDLE, wintypes.HANDLE, wintypes.HANDLE,
+    ctypes.POINTER(wintypes.HANDLE), wintypes.DWORD, wintypes.BOOL, wintypes.DWORD,
+)
+_k32.DuplicateHandle.restype = wintypes.BOOL
+DUPLICATE_SAME_ACCESS = 0x00000002
+
+
+def current_process_handle() -> int:
+    return int(_k32.GetCurrentProcess())
+
+
+def open_process(pid: int, access: int) -> int | None:
+    handle = _k32.OpenProcess(access, False, pid)
+    return int(handle) if handle else None
+
+
+def close_handle(handle: int) -> bool:
+    return bool(_k32.CloseHandle(wintypes.HANDLE(handle)))
+
+
+def duplicate_handle(source_process_handle: int, source_handle: int,
+                     target_process_handle: int,
+                     desired_access: int = 0) -> tuple[bool, int, int]:
+    """Duplicate a handle into another process.
+
+    ``desired_access=0`` with the DUPLICATE_SAME_ACCESS option keeps the
+    original access rights.  The returned value is valid inside the *target*
+    process only; it must be passed there via IPC.
+    """
+    new_handle = wintypes.HANDLE()
+    ok = _k32.DuplicateHandle(
+        wintypes.HANDLE(source_process_handle), wintypes.HANDLE(source_handle),
+        wintypes.HANDLE(target_process_handle), ctypes.byref(new_handle),
+        desired_access, False, DUPLICATE_SAME_ACCESS)
+    if not ok:
+        return False, 0, ctypes.get_last_error()
+    return True, int(new_handle.value), 0
+
+
+def query_active_processes(handle: int) -> int | None:
+    info = _BasicAccounting()
+    ok = _k32.QueryInformationJobObject(
+        wintypes.HANDLE(handle), JobObjectBasicAccountingInformation,
+        ctypes.byref(info), ctypes.sizeof(info), None)
+    return int(info.active_processes) if ok else None
+
 
 class Job:
     """Minimal Job Object wrapper for probe evidence."""

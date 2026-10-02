@@ -36,6 +36,9 @@ def main() -> int:
     parser.add_argument("--lease-grace", type=float, default=2.0)
     parser.add_argument("--max-lifetime", type=float, default=300.0)
     parser.add_argument("--log", default=None)
+    parser.add_argument("--fail-inject-assign", action="append", default=None,
+                        help="probe-only passthrough to the runner (startup "
+                             "assign-failure injection)")
     args = parser.parse_args()
     root = Path(args.data_root)
     root.mkdir(parents=True, exist_ok=True)
@@ -45,9 +48,14 @@ def main() -> int:
     with open(log_path, "ab") as log:
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(
             subprocess, "DETACHED_PROCESS", 0)
+        runner_cmd = [
+            python, str(RUNNER), "--data-root", str(root), "--tag", args.tag,
+            "--lease-grace", str(args.lease_grace),
+        ]
+        for pattern in (args.fail_inject_assign or []):
+            runner_cmd += ["--fail-inject-assign", pattern]
         runner = subprocess.Popen(
-            [python, str(RUNNER), "--data-root", str(root), "--tag", args.tag,
-             "--lease-grace", str(args.lease_grace)],
+            runner_cmd,
             cwd=str(Path(__file__).resolve().parent),
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
             close_fds=True, creationflags=creationflags, env=py_env,
@@ -66,6 +74,20 @@ def main() -> int:
             "mode": "startup_failure", "error": "endpoint pid mismatch",
             "endpointPid": endpoint.get("pid"), "runnerPid": runner.pid,
         })
+        return 4
+    if endpoint.get("status") != "running":
+        # The runtime failed closed before publishing a running endpoint
+        # (e.g. guard-job assignment failure).  Never attach to it.
+        lib.write_json(root / "supervisor_exit.json", {
+            "mode": "startup_failed_assign", "exitCode": 4,
+            "runnerPid": runner.pid,
+            "endpointStatus": endpoint.get("status"),
+            "error": endpoint.get("error"),
+            "failures": endpoint.get("failures"),
+        })
+        lib.wait_until(
+            lambda: not lib.identity_matches(runner.pid, runner_identity["createTimeFiletime"]),
+            timeout=10.0)
         return 4
 
     conn, endpoint = lib.connect_runtime(root, endpoint["token"], "lease",

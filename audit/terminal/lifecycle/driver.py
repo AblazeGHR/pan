@@ -47,9 +47,10 @@ EVIDENCE = HERE / "evidence"
 
 
 class Scenario:
-    def __init__(self, name: str, keep: bool = False):
+    def __init__(self, name: str, keep: bool = False, evidence_dir: Path | None = None):
         self.name = name
         self.keep = keep
+        self.evidence_dir = Path(evidence_dir) if evidence_dir else EVIDENCE
         run_id = time.strftime("%Y%m%d-%H%M%S")
         self.root = Path(tempfile.gettempdir()) / f"pan-term-lifecycle-{run_id}" / name
         self.root.mkdir(parents=True, exist_ok=True)
@@ -106,11 +107,12 @@ class Scenario:
         return not self.alive_same(role)
 
     # ── process helpers ─────────────────────────────────────────────────────
-    def spawn_supervisor(self, tag: str, lease_grace: float = 2.0) -> subprocess.Popen:
+    def spawn_supervisor(self, tag: str, lease_grace: float = 2.0,
+                         extra_args: list[str] | None = None) -> subprocess.Popen:
         self.supervisor_log = open(self.root / "supervisor_console.log", "wb")
         self.supervisor = subprocess.Popen(
             [PYTHON, str(SUPERVISOR), "--data-root", str(self.root), "--tag", tag,
-             "--lease-grace", str(lease_grace)],
+             "--lease-grace", str(lease_grace), *(extra_args or [])],
             stdin=subprocess.PIPE, stdout=self.supervisor_log,
             stderr=subprocess.STDOUT, cwd=str(HERE), env=PY_ENV)
         self.record("supervisor", self.supervisor.pid)
@@ -245,8 +247,8 @@ class Scenario:
         self.evidence["notes"] = self.notes
         self.evidence["failedChecks"] = [
             c for c in self.checks if not c["ok"]]
-        EVIDENCE.mkdir(parents=True, exist_ok=True)
-        lib.write_json(EVIDENCE / f"{self.name}.json", self.evidence)
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        lib.write_json(self.evidence_dir / f"{self.name}.json", self.evidence)
         if not self.keep:
             shutil.rmtree(self.root.parent, ignore_errors=True)
         passed = passed and all(c["ok"] for c in self.checks)
@@ -271,8 +273,8 @@ def env_facts() -> dict:
 
 # ── scenarios ────────────────────────────────────────────────────────────────
 
-def scenario_default_normal_exit(keep: bool = False) -> dict:
-    sc = Scenario("s1_default_normal_exit", keep=keep)
+def scenario_default_normal_exit(keep: bool = False, evidence_dir: Path | None = None) -> dict:
+    sc = Scenario("s1_default_normal_exit", keep=keep, evidence_dir=evidence_dir)
     try:
         sc.spawn_supervisor("s1")
         sc.wait_supervisor_ready()
@@ -335,16 +337,18 @@ def scenario_default_normal_exit(keep: bool = False) -> dict:
     except Exception as exc:
         sc.check("scenario raised an unexpected exception", False,
                  f"{type(exc).__name__}: {exc}")
-    finally:
-        cleanup = sc.cleanup()
-        passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
-        sc.check("s1 cleanup left no owned process alive", not cleanup["survivors"],
-                 cleanup["survivors"])
-        return sc.finalize(passed)
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s1 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
 
 
-def scenario_default_crash(keep: bool = False) -> dict:
-    sc = Scenario("s2_default_crash", keep=keep)
+def scenario_default_crash(keep: bool = False, evidence_dir: Path | None = None) -> dict:
+    sc = Scenario("s2_default_crash", keep=keep, evidence_dir=evidence_dir)
     try:
         sc.spawn_supervisor("s2")
         sc.wait_supervisor_ready()
@@ -382,16 +386,18 @@ def scenario_default_crash(keep: bool = False) -> dict:
     except Exception as exc:
         sc.check("scenario raised an unexpected exception", False,
                  f"{type(exc).__name__}: {exc}")
-    finally:
-        cleanup = sc.cleanup()
-        passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
-        sc.check("s2 cleanup left no owned process alive", not cleanup["survivors"],
-                 cleanup["survivors"])
-        return sc.finalize(passed)
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s2 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
 
 
-def scenario_detach_normal_exit(keep: bool = False) -> dict:
-    sc = Scenario("s3_detach_normal_exit", keep=keep)
+def scenario_detach_normal_exit(keep: bool = False, evidence_dir: Path | None = None) -> dict:
+    sc = Scenario("s3_detach_normal_exit", keep=keep, evidence_dir=evidence_dir)
     try:
         sc.spawn_supervisor("s3")
         sc.wait_supervisor_ready()
@@ -471,16 +477,18 @@ def scenario_detach_normal_exit(keep: bool = False) -> dict:
     except Exception as exc:
         sc.check("scenario raised an unexpected exception", False,
                  f"{type(exc).__name__}: {exc}")
-    finally:
-        cleanup = sc.cleanup()
-        passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
-        sc.check("s3 cleanup left no owned process alive", not cleanup["survivors"],
-                 cleanup["survivors"])
-        return sc.finalize(passed)
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s3 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
 
 
-def scenario_controller_churn(keep: bool = False) -> dict:
-    sc = Scenario("s4_controller_churn", keep=keep)
+def scenario_controller_churn(keep: bool = False, evidence_dir: Path | None = None) -> dict:
+    sc = Scenario("s4_controller_churn", keep=keep, evidence_dir=evidence_dir)
     try:
         sc.spawn_supervisor("s4")
         sc.wait_supervisor_ready()
@@ -557,16 +565,18 @@ def scenario_controller_churn(keep: bool = False) -> dict:
     except Exception as exc:
         sc.check("scenario raised an unexpected exception", False,
                  f"{type(exc).__name__}: {exc}")
-    finally:
-        cleanup = sc.cleanup()
-        passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
-        sc.check("s4 cleanup left no owned process alive", not cleanup["survivors"],
-                 cleanup["survivors"])
-        return sc.finalize(passed)
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s4 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
 
 
-def scenario_detach_crash_tree(keep: bool = False) -> dict:
-    sc = Scenario("s5_detach_crash_tree", keep=keep)
+def scenario_detach_crash_tree(keep: bool = False, evidence_dir: Path | None = None) -> dict:
+    sc = Scenario("s5_detach_crash_tree", keep=keep, evidence_dir=evidence_dir)
     try:
         sc.spawn_supervisor("s5")
         sc.wait_supervisor_ready()
@@ -611,12 +621,79 @@ def scenario_detach_crash_tree(keep: bool = False) -> dict:
     except Exception as exc:
         sc.check("scenario raised an unexpected exception", False,
                  f"{type(exc).__name__}: {exc}")
-    finally:
-        cleanup = sc.cleanup()
-        passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
-        sc.check("s5 cleanup left no owned process alive", not cleanup["survivors"],
-                 cleanup["survivors"])
-        return sc.finalize(passed)
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s5 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
+
+
+def scenario_startup_assign_failure(keep: bool = False,
+                                    evidence_dir: Path | None = None) -> dict:
+    """Injected guard-job assignment failure must fail closed.
+
+    The runner is told to simulate AssignProcessToJobObject failing for the
+    PTY root (cmd.exe).  Expected: no running endpoint is published, the host
+    never attaches/leases, the runner exits non-zero, and only probe-owned
+    descendants are cleaned up.
+    """
+    sc = Scenario("s6_startup_assign_failure", keep=keep, evidence_dir=evidence_dir)
+    try:
+        sc.spawn_supervisor("s6", extra_args=["--fail-inject-assign", "cmd.exe"])
+        rc = sc.wait_supervisor_exit(timeout=40)
+        sc.check("s6 supervisor reports startup failure (rc=4)", rc == 4, rc)
+        exit_file = sc.root / "supervisor_exit.json"
+        sup_exit = lib.read_json(exit_file) if exit_file.exists() else None
+        sc.evidence["supervisorExit"] = sup_exit
+        sc.check("s6 supervisor exit mode is startup_failed_assign",
+                 bool(sup_exit) and sup_exit.get("mode") == "startup_failed_assign",
+                 sup_exit)
+        sc.check("s6 host never reached ready/lease state",
+                 not (sc.root / "supervisor_ready.json").exists())
+        endpoint = lib.read_json(sc.root / "runtime.json")
+        sc.evidence["runtimeEndpoint"] = endpoint
+        sc.check("s6 no running endpoint was published",
+                 endpoint.get("status") == "startup_failed"
+                 and endpoint.get("port") is None,
+                 {"status": endpoint.get("status"), "port": endpoint.get("port")})
+        failures = endpoint.get("failures") or []
+        sc.check("s6 failure record names the injected member",
+                 any("cmd.exe" in str(item.get("exe", "")).lower() for item in failures),
+                 failures)
+        runner_pid = endpoint.get("pid")
+        sc.known["runner"] = {
+            "pid": runner_pid,
+            "createTimeFiletime": endpoint.get("processCreatedAtFiletime"),
+        }
+        sc.all_recorded[runner_pid] = {
+            "pid": runner_pid,
+            "createTimeFiletime": endpoint.get("processCreatedAtFiletime"),
+        }
+        ok, waited = lib.wait_until(lambda: not sc.alive_same("runner"), timeout=10)
+        sc.check("s6 runner exited after failing closed", ok, f"{waited:.2f}s")
+        pty_root = (endpoint.get("pty") or {}).get("rootPid")
+        sc.check("s6 PTY root process is gone", not lib.process_running(pty_root),
+                 pty_root)
+        final_file = sc.root / "runner_startup_failure_final.json"
+        final = lib.read_json(final_file) if final_file.exists() else None
+        sc.evidence["runnerStartupFailureFinal"] = final
+        sc.check("s6 cleanup touched only runner-owned descendants and left none",
+                 bool(final) and not final.get("leftoverAfterSweep"),
+                 final)
+    except Exception as exc:
+        sc.check("scenario raised an unexpected exception", False,
+                 f"{type(exc).__name__}: {exc}")
+    except BaseException:
+        sc.cleanup()
+        raise
+    cleanup = sc.cleanup()
+    passed = all(c["ok"] for c in sc.checks) and not cleanup["survivors"]
+    sc.check("s6 cleanup left no owned process alive", not cleanup["survivors"],
+             cleanup["survivors"])
+    return sc.finalize(passed)
 
 
 SCENARIOS = {
@@ -625,6 +702,7 @@ SCENARIOS = {
     "s3_detach_normal_exit": scenario_detach_normal_exit,
     "s4_controller_churn": scenario_controller_churn,
     "s5_detach_crash_tree": scenario_detach_crash_tree,
+    "s6_startup_assign_failure": scenario_startup_assign_failure,
 }
 
 
@@ -633,24 +711,28 @@ def main() -> int:
     parser.add_argument("--scenario", default="all",
                         choices=["all", *SCENARIOS.keys()])
     parser.add_argument("--keep", action="store_true")
+    parser.add_argument("--evidence-dir", default=str(EVIDENCE),
+                        help="write evidence here (use a fresh directory to "
+                             "avoid overwriting an earlier committed run)")
     args = parser.parse_args()
+    evidence_dir = Path(args.evidence_dir)
 
-    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
     env = env_facts()
     print(json.dumps({"env": env}, indent=2), flush=True)
-    lib.write_json(EVIDENCE / "environment.json", env)
+    lib.write_json(evidence_dir / "environment.json", env)
 
     names = list(SCENARIOS) if args.scenario == "all" else [args.scenario]
     results = {}
     for name in names:
         print(f"--- scenario {name}", flush=True)
-        evidence = SCENARIOS[name](keep=args.keep)
+        evidence = SCENARIOS[name](keep=args.keep, evidence_dir=evidence_dir)
         results[name] = {
             "passed": evidence.get("passed"),
             "checks": len(evidence.get("checks", [])),
             "failed": len(evidence.get("failedChecks", [])),
         }
-    lib.write_json(EVIDENCE / "summary.json", {
+    lib.write_json(evidence_dir / "summary.json", {
         "env": env, "results": results,
         "commands": {"python": PYTHON, "driver": str(Path(__file__).resolve())},
     })

@@ -1,0 +1,135 @@
+{
+  "probe": "job_handle_handoff",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "startedAt": 1790960670.290724,
+  "docs": [
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle"
+  ],
+  "tree": {
+    "c": {
+      "pid": 35996,
+      "createTimeFiletime": 134354342702915160,
+      "createTime": 1790960670.2915173,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "g": {
+      "pid": 43532,
+      "createTimeFiletime": 134354342703716147,
+      "createTime": 1790960670.3716145,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    }
+  },
+  "hKA": 8,
+  "pClosedOwnHandle": true,
+  "hKB": 192,
+  "bIntrospection": "B_HOLDS active=2 member=True",
+  "identityAfterAExit": {
+    "35996": {
+      "pid": 35996,
+      "createTimeFiletime": 134354342702915160,
+      "createTime": 1790960670.2915173,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "43532": {
+      "pid": 43532,
+      "createTimeFiletime": 134354342703716147,
+      "createTime": 1790960670.3716145,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    }
+  },
+  "treeDeathAfterSeconds": 0.0,
+  "leftovers": [],
+  "results": [
+    {
+      "name": "H0 tree assigned to guard job",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "H0 grandchild inherited the job",
+      "ok": true,
+      "detail": {
+        "cMember": true,
+        "gPid": 43532
+      }
+    },
+    {
+      "name": "H1 duplicate job handle into holder A",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "err": 0,
+        "ack": "A_HOLDS"
+      }
+    },
+    {
+      "name": "H2 tree survives after original creator closes its handle",
+      "ok": true,
+      "detail": {
+        "survivedSeconds": 2.018
+      }
+    },
+    {
+      "name": "H3 A duplicated its handle into independent holder B",
+      "ok": true,
+      "detail": {
+        "hKB": 192
+      }
+    },
+    {
+      "name": "H4 B verifies membership through the duplicated handle",
+      "ok": true,
+      "detail": "B_HOLDS active=2 member=True"
+    },
+    {
+      "name": "H5 original holder A closed its handle and exited",
+      "ok": true,
+      "detail": {
+        "waited": 0.051
+      }
+    },
+    {
+      "name": "H6 tree keeps same PIDs/creation times with B as sole holder",
+      "ok": true,
+      "detail": {
+        "cPid": 35996,
+        "gPid": 43532,
+        "bAlive": true
+      }
+    },
+    {
+      "name": "H7 B closed the last handle while still alive",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "H8 whole tree dies exactly when the last owner disappears",
+      "ok": true,
+      "detail": {
+        "afterSeconds": 0.0
+      }
+    },
+    {
+      "name": "H9 tree death came from the handle close, not from B exiting",
+      "ok": true,
+      "detail": {
+        "bAliveAfterTreeDeath": true
+      }
+    },
+    {
+      "name": "H10 cleanup left no owned process alive",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true
+}
