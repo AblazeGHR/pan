@@ -47,6 +47,26 @@ def seed():
         store.append_history(bench, {'role': ('user', 'assistant', 'tool', 'thinking')[index % 4],
           'content': f'commonterm commonterm ordinary {index} ' + 'transcript evidence '*12 + (' RareNeedle' if index % 500 == 0 else '')})
     store.save_full(bench)
+    local_old = store.create('Search Legacy Local', adapter='cbc', workdir=str(fixture.WORKDIR))
+    global_old = store.create('Search Legacy Global', adapter='cbc', workdir=str(fixture.WORKDIR))
+    for old, phrase in ((local_old, 'LegacyLocalNeedle'), (global_old, 'LegacyGlobalNeedle')):
+        store.replace_history(old, [{'role': role, 'content': f'{phrase} {phrase}',
+                                     'source': 'qq' if role == 'user' else 'plugin', 'pluginField': 'preserve'}
+                                    for role in ('user', 'assistant', 'tool', 'thinking')])
+        store.save_full(old)
+    ready = store.create('Search Legacy Ready', adapter='cbc', workdir=str(fixture.WORKDIR))
+    store.append_history(ready, {'role': 'user', 'content': 'LegacyGlobalNeedle'})
+    store.save(ready)
+    # Artificial fixture delay makes incremental visibility observable; it is
+    # not a production performance measurement.
+    from packages.core import history_identity_backfill
+    import time
+    original_prepare = history_identity_backfill.prepare_history_identities
+    def delayed_prepare(session):
+        if session.id == global_old.id and not getattr(session, '_history_ids_ready', None):
+            time.sleep(0.8)
+        return original_prepare(session)
+    history_identity_backfill.prepare_history_identities = delayed_prepare
     live = sys.modules['packages.web.server']
     if os.environ.get('PAN_COMPARE_PR') == '1':
         source = subprocess.run(['gh', 'api', 'repos/Thelittlewinter233/pan/contents/packages/web/server.py?ref=bf811a7cc2f0271023b459729b7fb0079591ebaf',
@@ -63,7 +83,8 @@ def seed():
         store._cache.clear()
         store._all_loaded = False
         return {'ok': True}
-    (fixture.RUNTIME / 'seed-ids.json').write_text(json.dumps({'primary': primary.id, 'remote': remote.id, 'bench': bench.id}), encoding='utf-8')
+    (fixture.RUNTIME / 'seed-ids.json').write_text(json.dumps({'primary': primary.id, 'remote': remote.id, 'bench': bench.id,
+                                                           'legacyLocal': local_old.id, 'legacyGlobal': global_old.id}), encoding='utf-8')
 
 
 fixture._seed_sessions = seed

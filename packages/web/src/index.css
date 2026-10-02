@@ -1363,6 +1363,52 @@ body {
   .message-navigation-tooltip { width: min(240px, 72vw); }
 }
 .history-search-word { background: #facc15; color: #171717; border-radius: 2px; }
+.chat-tools-sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 52px;
+  width: 52px;
+  min-height: 0;
+  border-left: 1px solid var(--color-border-muted);
+  background: var(--color-bg-primary);
+  z-index: 8;
+}
+.chat-tools-sidebar.has-navigation:not(.is-mobile) { flex-basis: 70px; width: 70px; }
+.chat-tools-sidebar__search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  flex: 0 0 auto;
+}
+.chat-tools-sidebar.has-navigation:not(.is-mobile) .chat-tools-sidebar__search { padding-right: 18px; }
+.chat-tools-sidebar__navigation { position: relative; flex: 1 1 auto; min-height: 0; }
+.chat-tools-sidebar__navigation .message-navigation-dock { right: 0; }
+.chat-tools-sidebar__search .session-history-search,
+.chat-tools-sidebar__search .global-history-search {
+  position: static;
+  width: auto;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+.chat-tools-sidebar__search .session-history-search__toggle,
+.chat-tools-sidebar__search .global-history-search__toggle { width: 40px; height: 40px; }
+.chat-tools-sidebar.is-mobile .session-history-search__toggle,
+.chat-tools-sidebar.is-mobile .global-history-search__toggle { width: 44px; height: 44px; }
+.chat-view-stage { --chat-tools-width: 52px; }
+.chat-view-stage:has(.chat-tools-sidebar.has-navigation:not(.is-mobile)) { --chat-tools-width: 70px; }
+.chat-view-stage > .session-history-search__popup,
+.chat-view-stage > .global-history-search__popup {
+  z-index: 10;
+  top: 8px;
+  right: calc(var(--chat-tools-width) + 8px);
+  max-height: max(0px, calc(100% - 16px));
+  width: min(430px, calc(100% - var(--chat-tools-width) - 16px));
+}
+.chat-view-stage > .global-history-search__popup { width: min(560px, calc(100% - var(--chat-tools-width) - 16px)); }
 .history-search-word-active { background: #fb923c; outline: 2px solid #f97316; }
 .history-search-roles {
   display: flex;

@@ -33,7 +33,7 @@ from typing import Annotated, Any, Callable
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
-from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from packages.web.static_assets import ReactStaticFiles
@@ -6315,6 +6315,7 @@ async def api_history_search(
     countMode: str = 'messages',
     matchIndex: int | None = None,
     messageId: str | None = None,
+    prepareLegacy: bool = False,
 ):
     """Search lazily selected text partitions in one Session or globally.
 
@@ -6325,7 +6326,8 @@ async def api_history_search(
 
     Content mode scans canonical history and caches bounded row references;
     it does not create SQLite. Message mode retains the older lazy FTS index
-    for compatibility. Neither mode changes canonical history on search.
+    for compatibility. Reads remain unchanged unless prepareLegacy is explicitly
+    enabled for an initial scoped content query; then missing IDs are repaired.
     A nextCursor continues the same trimmed query, scope, and bounded limit.
     It expires after 15 minutes or when the ordered search scope or any
     in-scope history version changes; callers should then start a new search.
@@ -6378,6 +6380,20 @@ async def api_history_search(
                 f"{history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH} characters"
             ),
         )
+    prepared_identities = 0
+    if prepareLegacy:
+        if not content_counts or sessionId is None or cursor is not None:
+            raise HTTPException(status_code=422, detail='prepareLegacy requires an initial content search in one Session')
+        from packages.core.history_identity_backfill import prepare_history_identities
+        target = await _store_read(sess.get, sessionId, load_history=False)
+        if target is not None:
+            try:
+                prepared_identities = await _store_read(prepare_history_identities, target)
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail={
+                    'code': 'history_identity_preparation_failed',
+                    'message': 'Old history could not be prepared; retry search.',
+                }) from exc
     try:
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
@@ -6433,7 +6449,82 @@ async def api_history_search(
             roles=selected_roles,
             content_counts=content_counts,
         )
+    if prepared_identities:
+        result['preparedIdentities'] = prepared_identities
     return result
+
+
+@app.post('/api/history/search/prepare')
+async def api_prepare_history_search(request: Request, data: dict = Body(...)):
+    """Demand-driven NDJSON preparation; no worker or request polling.
+
+    Every event is a bounded preview, not a stable paginated snapshot. Only
+    the final successful event exposes a normal search cursor. Disconnecting
+    stops subsequent Sessions; a started atomic write safely finishes.
+    """
+    query = data.get('q', '')
+    roles = data.get('roles', 'user,assistant,tool,thinking')
+    limit = data.get('limit', 50)
+    if not isinstance(query, str) or not isinstance(roles, str) or type(limit) is not int:
+        raise HTTPException(status_code=422, detail='Invalid preparation query')
+    initial = await api_history_search(q=query, roles=roles, limit=limit, countMode='content')
+    if not query.strip() or not initial.get('roles'):
+        return initial
+    from packages.core.history_identity_backfill import prepare_history_identities
+    sessions = await _store_read(sess.list_all, load_history=False)
+    order = [s.id for s in sessions]
+    if [v['sessionId'] for v in initial['versions']] != order:
+        raise _history_search_cursor_error()
+
+    async def events():
+        failed = []
+        latest = initial
+        def event(completed, final=False):
+            preview = dict(latest)
+            if not final or failed:
+                preview.update(nextCursor=None, hasMore=False)
+            return (json.dumps({'result': preview, 'completed': completed,
+                               'total': len(sessions), 'done': final,
+                               'failedSessions': failed}, ensure_ascii=True) + '\n').encode()
+        yield event(0)
+        for position, session in enumerate(sessions):
+            if await request.is_disconnected():
+                return
+            try:
+                before = await _store_read(sess.list_all, load_history=False)
+                if [s.id for s in before] != order:
+                    raise _history_search_cursor_error()
+                previous = {v['sessionId']: v for v in latest['versions']}
+                for current in before:
+                    old = previous[current.id]
+                    epoch, revision, _, total = history_search_index.session_version(current)
+                    if (epoch != old['historyEpoch'] or revision != old['historyRevision']
+                            or (total is not None and total != old['historyTotal'])):
+                        raise _history_search_cursor_error()
+                try:
+                    await _store_read(prepare_history_identities, session)
+                except Exception:
+                    failed.append(session.id)
+                latest = await api_history_search(q=query, roles=roles, limit=limit, countMode='content')
+                if [v['sessionId'] for v in latest['versions']] != order:
+                    raise _history_search_cursor_error()
+                # A repair may change only its own version, not another Session.
+                for version in latest['versions']:
+                    if version['sessionId'] != session.id and version != previous[version['sessionId']]:
+                        raise _history_search_cursor_error()
+                yield event(position + 1, position + 1 == len(sessions))
+            except HTTPException as exc:
+                yield (json.dumps({'error': {'status': exc.status_code,
+                                            'message': 'History changed or search is unavailable; retry search.'}}) + '\n').encode()
+                return
+            except Exception:
+                yield (json.dumps({'error': {'status': 503,
+                                            'message': 'Search preparation failed; results are incomplete. Retry search.'}}) + '\n').encode()
+                return
+        if not sessions:
+            yield event(0, True)
+    return StreamingResponse(events(), media_type='application/x-ndjson',
+                             headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
 
 
 # ── Agent queue (session.queue_pending, normalized view) ──

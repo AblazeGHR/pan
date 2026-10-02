@@ -1,5 +1,41 @@
 # History search: content counting and selectable partitions
 
+## Current increment: legacy IDs and shared sidebar (2026-10-02)
+
+- Session UI explicitly requests `prepareLegacy=true` on initial content
+  searches. Missing Pan IDs are persisted for user/assistant/tool/thinking
+  without adapter reimport. Existing IDs, content, order, sources and plugin
+  metadata are retained. Empty queries/role selections do not prepare.
+- Global UI first presents existing-ID matches, then consumes one POST
+  `/api/history/search/prepare` NDJSON stream. It checks/prepares Sessions
+  sequentially, publishes bounded first-page previews and progress, and only
+  enables normal signed pagination after the final complete snapshot. Counts
+  during preparation are provisional. Failed Sessions are explicitly reported
+  as incomplete with retry; no partial result is labelled a complete search.
+- Closing/changing query/unmounting aborts the stream and stops subsequent
+  Sessions. A started filesystem operation finishes safely. There is no
+  resident migration job, polling loop or adapter import. Ordinary search API
+  calls without preparation remain read-only; API clients must opt in.
+- Repair uses the existing per-Session persistence tickets and summary lock.
+  Loaded histories are written to a same-directory temporary file outside the
+  short commit lock; concurrent suffix appends are included, prefix changes
+  cause retry. Cold JSONL is streamed without hydrating shared history; corrupt
+  lines are retained. Files are flushed/fsynced before atomic replacement.
+  History and metadata are separate files: a crash between their replacements
+  leaves canonical history intact; same-process metadata failures can retry.
+  Existing persistence is single-process; external concurrent writers are not
+  supported, and detected file changes cause retry rather than overwrite.
+- Ready checks are cached by file signature/history version in process. A
+  restart rechecks history but does not rewrite already-identified blocks.
+- ChatView mounts one sidebar when navigation OR search is enabled. Search
+  buttons are vertically stacked at its top; enabled ordinary navigation is
+  underneath and retains its folding behaviour. Either feature remains
+  independently unloadable. Popups portal to the chat stage rather than the
+  narrow sidebar, and remain clear of the composer on mobile and desktop.
+
+The sections below retain earlier implementation/benchmark history and do
+not override this increment's explicit preparation boundary.
+
 ## Scope and completion boundary
 
 This increment implements the backend contract, identity extension, bounded

@@ -401,10 +401,58 @@ export async function fetchHistorySearch(
   if (cursor) params.set('cursor', cursor);
   if (options?.sessionId) params.set('sessionId', options.sessionId);
   if (options?.roles) params.set('roles', options.roles.join(','));
-  if (options?.countMode) params.set('countMode', options.countMode);
+    if (options?.countMode) params.set('countMode', options.countMode);
+    if (options?.sessionId && options.countMode === 'content' && !cursor) params.set('prepareLegacy', 'true');
   if (options?.matchIndex !== undefined) params.set('matchIndex', String(options.matchIndex));
   if (options?.messageId) params.set('messageId', options.messageId);
   return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });
+}
+
+export interface HistorySearchPreparation {
+  result: ApiHistorySearchResponse;
+  completed: number;
+  total: number;
+  done: boolean;
+  failedSessions: string[];
+}
+
+export async function prepareHistorySearch(
+  query: string, roles: import('@/types').HistorySearchRole[], limit: number,
+  signal: AbortSignal, onProgress: (event: HistorySearchPreparation) => void,
+): Promise<void> {
+  const response = await fetch(`${BASE}/history/search/prepare`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: query, roles: roles.join(','), limit }),
+  });
+  if (!response.ok) throw new ApiRequestError(response.status, 'Could not prepare old history.');
+  if (!response.body) throw new Error('Search preparation stream is unavailable.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let completed = false;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      pending += decoder.decode(chunk.value, { stream: !chunk.done });
+      let end: number;
+      while ((end = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, end);
+        pending = pending.slice(end + 1);
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.error) throw new ApiRequestError(event.error.status, event.error.message);
+        if (!event.result || typeof event.done !== 'boolean') throw new Error('Invalid search preparation event.');
+        completed = event.done;
+        onProgress(event);
+      }
+      if (chunk.done) break;
+    }
+    if (!completed) throw new Error('Search preparation interrupted; results are incomplete.');
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 export interface CreateSessionSettings {

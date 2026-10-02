@@ -120,12 +120,49 @@ try {
   assert.equal(evidence.requests.filter((url) => /SessionHistorySearch|GlobalHistorySearch|HistorySearchRoles|\/api\/history\/search/.test(url)).length, 0);
   await tab.keyboard.press('Control+f');
   assert.equal(await tab.getByTestId('session-history-search-input').count(), 0);
+  assert.equal(await tab.getByTestId('chat-tools-sidebar').count(), 0);
   await tab.locator('[title="App settings"]').first().click();
   await tab.locator('#app-settings-tab-appearance').click();
   const toggle = tab.getByRole('switch').filter({ hasText: 'Enable Session and global history search' });
   await toggle.click();
   await tab.getByRole('switch').filter({ hasText: 'Show QQ messages' }).click();
   await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  await tab.getByTestId('session-history-search-toggle').waitFor({ state: 'visible' });
+  await tab.getByTestId('global-history-search-toggle').waitFor({ state: 'visible' });
+  const searchOnly = await tab.getByTestId('chat-tools-sidebar').evaluate((sidebar) => ({
+    search: sidebar.querySelectorAll('.chat-tools-sidebar__search button').length,
+    navigation: sidebar.querySelectorAll('.chat-tools-sidebar__navigation').length,
+  }));
+  assert.deepEqual(searchOnly, { search: 2, navigation: 0 });
+  await tab.locator('[title="App settings"]').first().click();
+  await tab.locator('#app-settings-tab-appearance').click();
+  await tab.getByRole('switch').filter({ hasText: 'Show message navigation rail' }).click();
+  await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  const sidebarLayout = await tab.getByTestId('chat-tools-sidebar').evaluate((sidebar) => {
+    const buttons = [...sidebar.querySelectorAll('.chat-tools-sidebar__search button')].map((b) => b.getBoundingClientRect().toJSON());
+    return { buttons, navigation: sidebar.querySelector('.chat-tools-sidebar__navigation').getBoundingClientRect().toJSON() };
+  });
+  assert.equal(sidebarLayout.buttons.length, 2);
+  assert.equal(sidebarLayout.buttons[0].x, sidebarLayout.buttons[1].x);
+  assert.ok(sidebarLayout.buttons[0].bottom <= sidebarLayout.buttons[1].top);
+  assert.ok(sidebarLayout.buttons[1].bottom <= sidebarLayout.navigation.top);
+  evidence.sidebarLayout = sidebarLayout;
+  await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Legacy Local' }).first().click();
+  await tab.getByTestId('session-history-search-toggle').click();
+  await tab.getByTestId('session-history-search-input').fill('LegacyLocalNeedle');
+  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 8');
+  await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
+  await tab.getByTestId('global-history-search-toggle').click();
+  await tab.getByTestId('global-history-search-input').fill('LegacyGlobalNeedle');
+  await tab.getByText(/1 occurrences found so far/).waitFor({ state: 'visible' });
+  assert.equal(await tab.getByTestId('global-history-search-load-more').count(), 0);
+  await tab.getByText(/9 occurrences/).waitFor({ state: 'visible' });
+  await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Legacy Global, assistant/ }).first().click();
+  await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
+  const legacyHistory = await api(`/api/sessions/${ids.legacyGlobal}/history?limit=50`);
+  assert.equal(legacyHistory.body.history.length, 4);
+  assert.ok(legacyHistory.body.history.every((row) => row.messageId.startsWith('pan:') && row.pluginField === 'preserve'));
+  evidence.tests.push('Legacy Session backfill/reload navigation and global provisional-to-complete streamed preparation (800ms fixture delay)');
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Acceptance' }).first().click();
   await tab.getByTestId('session-history-search-toggle').waitFor({ state: 'visible' });
   await tab.evaluate(() => document.activeElement?.blur());
@@ -149,9 +186,9 @@ try {
   await tab.getByTestId('global-history-search-toggle').click();
   await tab.getByTestId('global-history-search-input').fill('SharedNeedle');
   await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
-  assert.match(await tab.getByTestId('global-history-search').innerText(), /1202 occurrences/);
+  assert.match(await tab.getByRole('search', { name: 'Global history search' }).innerText(), /1202 occurrences/);
   await tab.getByTestId('global-history-search-load-more').click();
-  await tab.getByTestId('global-history-search').getByRole('button', { name: /Search Remote, user/ }).first().click();
+  await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Remote, user/ }).first().click();
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Benchmark' }).first().click();
   await tab.getByTestId('session-history-search-toggle').click();

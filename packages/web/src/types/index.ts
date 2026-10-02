@@ -612,6 +612,7 @@ export interface ApiHistorySearchHit {
 }
 
 export interface ApiHistorySearchResponse {
+  preparedIdentities?: number;
   hits: ApiHistorySearchHit[];
   versions: ApiHistorySearchVersion[];
   limit: number;

@@ -1978,14 +1978,17 @@ def _hydrate_cached_session(session_id: str, cached: Session) -> Session | None:
     path = _path(session_id)
     if not path.exists():
         return None
-    try:
-        loaded = _from_data_with_history(
-            session_id, json.loads(path.read_text(encoding="utf-8")),
-        )
-    except (json.JSONDecodeError, OSError):
-        return None
-    cached.__dict__.update(loaded.__dict__)
-    cached._history_loaded = True
+    with cached._summary_lock:
+        try:
+            loaded = _from_data_with_history(
+                session_id, json.loads(path.read_text(encoding="utf-8")),
+            )
+        except (json.JSONDecodeError, OSError):
+            return None
+        # Retain the synchronization object shared with append and ID repair.
+        loaded._summary_lock = cached._summary_lock
+        cached.__dict__.update(loaded.__dict__)
+        cached._history_loaded = True
     _cache[session_id] = cached
     return cached
 

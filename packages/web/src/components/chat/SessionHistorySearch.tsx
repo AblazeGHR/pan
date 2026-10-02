@@ -6,8 +6,10 @@ import type { ApiHistorySearchHit, ApiHistorySearchResponse, HistorySearchRole }
 import type { ChatMessagesHandle } from './ChatMessages';
 import { HistorySearchRoles } from './HistorySearchRoles';
 import { ALL_SEARCH_ROLES } from './searchRoleOptions';
+import { HistorySearchPopup } from './HistorySearchPopup';
 
 interface SessionHistorySearchProps {
+  popupContainer?: HTMLElement | null;
   chatRef: RefObject<ChatMessagesHandle | null>;
   isMobile: boolean;
   isOpen?: boolean;
@@ -20,7 +22,7 @@ const paint = () => new Promise<void>((resolve) => requestAnimationFrame(() => r
 const countOf = (hit: ApiHistorySearchHit) => hit.matchCount ?? 1;
 const startOf = (hit: ApiHistorySearchHit, index: number) => hit.matchStart ?? index;
 
-export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, onHighlightMessage }: SessionHistorySearchProps) {
+export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, onHighlightMessage, popupContainer }: SessionHistorySearchProps) {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const sessionVersion = useSessionStore((state) => {
     const session = state.sessions.find((item) => item.id === state.currentSessionId);
@@ -140,6 +142,10 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
       void fetchHistorySearch(query, 100, undefined, controller.signal, { sessionId, roles, countMode: 'content' })
         .then(async (page) => {
           if (controller.signal.aborted || generation.current !== token) return;
+          if (page.preparedIdentities) {
+            await useSessionStore.getState().refreshCurrentSessionHistory();
+            if (controller.signal.aborted || generation.current !== token) return;
+          }
           setResponse(page);
           setStatus('ready');
           if (page.hits.length) await navigate(0, page, token);
@@ -173,7 +179,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
       <button type="button" className="session-history-search__toggle" data-testid="session-history-search-toggle"
         aria-label={open ? 'Close Session history search' : 'Search Session history'} title="Search Session history (Ctrl+F)"
         onClick={() => open ? close() : setOpen(true)}><Search size={16} /></button>
-      {open && <div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
+      {open && <HistorySearchPopup container={popupContainer}><div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
         <div className="session-history-search__controls">
           <Search size={16} />
           <input ref={input} data-testid="session-history-search-input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={keyboard}
@@ -192,7 +198,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
           {navigating ? 'Opening result…' : text}
           {(status === 'stale' || status === 'error') && <button type="button" onClick={() => setRetry((value) => value+1)}>Search again</button>}
         </div>}
-      </div>}
+      </div></HistorySearchPopup>}
     </div>
   );
 }

@@ -27,6 +27,11 @@ const GlobalHistorySearch = lazy(() =>
 export default function ChatView() {
   const chatRef = useRef<ChatMessagesHandle>(null);
   const chatStageRef = useRef<HTMLDivElement>(null);
+  const [popupContainer, setPopupContainer] = useState<HTMLDivElement | null>(null);
+  const setChatStage = useCallback((element: HTMLDivElement | null) => {
+    chatStageRef.current = element;
+    setPopupContainer(element);
+  }, []);
   const dockRef = useRef<HTMLDivElement>(null);
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
   // Unmounting (rather than hiding) the rail is the point of the switch: the
@@ -113,17 +118,21 @@ export default function ChatView() {
         <UserInputBanner />
         <ElicitationBanner />
         <TerminalInteractionBanner />
-        <div ref={chatStageRef} className="chat-view-stage flex flex-1 min-h-0 min-w-0" tabIndex={-1}>
+        <div ref={setChatStage} className="chat-view-stage flex flex-1 min-h-0 min-w-0" tabIndex={-1}>
           <ChatMessages
             ref={chatRef}
             hideScrollToBottom={showMessageNavigationRail && isMobile && mobileExpanded}
             searchTarget={showHistorySearch ? searchTarget : null}
           />
+          {(showMessageNavigationRail || showHistorySearch) && (
+            <aside className={`chat-tools-sidebar${showMessageNavigationRail ? ' has-navigation' : ''}${isMobile ? ' is-mobile' : ''}`}
+              data-testid="chat-tools-sidebar" aria-label="Chat search and navigation">
           {showHistorySearch && (
-            <>
+            <div className="chat-tools-sidebar__search">
               <Suspense fallback={null}>
                 <SessionHistorySearch
                   chatRef={chatRef}
+                  popupContainer={popupContainer}
                   isMobile={isMobile}
                   isOpen={activeHistorySearch === 'session'}
                   onOpenChange={handleSessionSearchOpenChange}
@@ -133,15 +142,17 @@ export default function ChatView() {
               <Suspense fallback={null}>
                 <GlobalHistorySearch
                   chatRef={chatRef}
+                  popupContainer={popupContainer}
                   isMobile={isMobile}
                   open={activeHistorySearch === 'global'}
                   onOpenChange={handleGlobalSearchOpenChange}
                   onHighlightMessage={handleGlobalHighlight}
                 />
               </Suspense>
-            </>
+            </div>
           )}
           {showMessageNavigationRail && (
+            <div className="chat-tools-sidebar__navigation">
             <MessageNavigationDock
               chatRef={chatRef}
               dockRef={dockRef}
@@ -150,6 +161,9 @@ export default function ChatView() {
               onMobileClose={closeMobileNavigation}
               onRestoreFocus={restoreChatFocus}
             />
+            </div>
+          )}
+            </aside>
           )}
         </div>
         <InputRow />

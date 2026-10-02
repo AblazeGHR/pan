@@ -82,6 +82,29 @@ afterEach(() => {
 });
 
 describe('ChatView: message navigation rail switch', () => {
+  it('mounts the shared sidebar for either feature and stacks search above navigation', async () => {
+    const { container, findByTestId } = render(<ChatView />);
+    expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
+    act(() => useAppSettingsStore.setState({ showHistorySearch: true }));
+    const search = await findByTestId('session-history-search');
+    const global = await findByTestId('global-history-search');
+    const sidebar = container.querySelector('[data-testid="chat-tools-sidebar"]')!;
+    expect(sidebar.contains(search)).toBe(true);
+    expect(sidebar.contains(global)).toBe(true);
+    expect(sidebar.querySelector('.chat-tools-sidebar__navigation')).toBeNull();
+    act(() => useAppSettingsStore.setState({ showMessageNavigationRail: true }));
+    expect(sidebar.children[0]?.className).toBe('chat-tools-sidebar__search');
+    expect(sidebar.children[1]?.className).toBe('chat-tools-sidebar__navigation');
+    expect(chatStylesSource).toMatch(/\.chat-tools-sidebar__search\s*\{[^}]*flex-direction: column;/);
+    fireEvent.click(search.querySelector('button')!);
+    expect(container.querySelector('.session-history-search__popup')?.parentElement?.classList.contains('chat-view-stage')).toBe(true);
+    expect(sidebar.querySelector('.session-history-search__popup')).toBeNull();
+    act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
+    expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).not.toBeNull();
+    expect(container.querySelector('.chat-tools-sidebar__search')).toBeNull();
+    act(() => useAppSettingsStore.setState({ showMessageNavigationRail: false }));
+    expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
+  });
   it('does not mount the dock by default or request history', async () => {
     const { container } = render(<ChatView />);
     await act(async () => { await Promise.resolve(); });
@@ -215,7 +238,7 @@ describe('ChatView: message navigation rail switch', () => {
     const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
     const stage = container.querySelector('.chat-view-stage');
     const scrollContainer = container.querySelector('[data-testid="chat-scroll-container"]');
-    expect(dock.parentElement).toBe(stage);
+    expect(dock.closest('[data-testid="chat-tools-sidebar"]')?.parentElement).toBe(stage);
     expect(scrollContainer?.closest('.chat-view-stage')).toBe(stage);
     expect(scrollContainer?.classList.contains('overflow-auto')).toBe(true);
     expect(dock.getAttribute('data-placement')).toBe('viewport-end-before-scrollbar');

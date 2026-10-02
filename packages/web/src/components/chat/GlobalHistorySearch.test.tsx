@@ -8,15 +8,17 @@ import type { ApiHistorySearchHit, ApiHistorySearchResponse, Message } from '@/t
 import type { ChatMessagesHandle } from './ChatMessages';
 import { GlobalHistorySearch } from './GlobalHistorySearch';
 
-const { fetchSearch, fetchHistory } = vi.hoisted(() => ({
+const { fetchSearch, fetchHistory, prepareSearch } = vi.hoisted(() => ({
   fetchSearch: vi.fn(),
   fetchHistory: vi.fn(),
+  prepareSearch: vi.fn(),
 }));
 
 vi.mock('@/services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/api')>()),
   fetchHistorySearch: fetchSearch,
   fetchSessionHistory: fetchHistory,
+  prepareHistorySearch: prepareSearch,
 }));
 
 const hit = (overrides: Partial<ApiHistorySearchHit> = {}): ApiHistorySearchHit => ({
@@ -81,6 +83,11 @@ async function enterQuery(input: HTMLElement, query: string) {
 beforeEach(() => {
   fetchSearch.mockReset();
   fetchHistory.mockReset();
+  prepareSearch.mockReset();
+  prepareSearch.mockImplementation(async (_query, _roles, _limit, _signal, onProgress) => {
+    const result = await fetchSearch.mock.results.at(-1)?.value;
+    if (result) onProgress({ result, completed: 1, total: 1, done: true, failedSessions: [] });
+  });
   fetchSearch.mockResolvedValue(searchPage([hit()]));
   fetchHistory.mockResolvedValue(historyPage([], 0));
   useSessionStore.setState({
@@ -98,6 +105,42 @@ beforeEach(() => {
   globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) =>
     window.setTimeout(() => callback(Date.now()), 0)) as typeof requestAnimationFrame;
   globalThis.cancelAnimationFrame = ((id: number) => window.clearTimeout(id)) as typeof cancelAnimationFrame;
+});
+
+it('shows provisional matches during preparation and enables paging only at completion', async () => {
+  let report!: Parameters<typeof import('@/services/api').prepareHistorySearch>[4];
+  let finish!: () => void;
+  prepareSearch.mockImplementation((_q, _roles, _limit, _signal, progress) => {
+    report = progress;
+    return new Promise<void>((resolve) => { finish = resolve; });
+  });
+  const view = renderSearch();
+  await enterQuery(view.getByTestId('global-history-search-input'), 'needle');
+  expect(view.getByText(/occurrences found so far/)).toBeTruthy();
+  expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
+  act(() => report({ result: { ...searchPage([hit()], true, 'final-page'), totalMatches: 9 },
+    completed: 1, total: 2, done: false, failedSessions: [] }));
+  expect(view.getByText(/9 occurrences found so far/)).toBeTruthy();
+  expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
+  await act(async () => {
+    report({ result: { ...searchPage([hit()], true, 'final-page'), totalMatches: 12 },
+      completed: 2, total: 2, done: true, failedSessions: [] });
+    finish();
+  });
+  expect(view.getByText(/12 occurrences/)).toBeTruthy();
+  expect(view.getByTestId('global-history-search-load-more')).toBeTruthy();
+});
+
+it('keeps results explicitly incomplete on preparation failure', async () => {
+  prepareSearch.mockImplementation(async (_q, _roles, _limit, _signal, report) => {
+    report({ result: searchPage([hit()], true, 'must-not-use'), completed: 2, total: 2,
+      done: true, failedSessions: ['old'] });
+  });
+  const view = renderSearch();
+  await enterQuery(view.getByTestId('global-history-search-input'), 'needle');
+  expect(view.getByText(/Results incomplete/)).toBeTruthy();
+  expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
+  expect(view.getByRole('button', { name: 'Retry search' })).toBeTruthy();
 });
 
 afterEach(() => {

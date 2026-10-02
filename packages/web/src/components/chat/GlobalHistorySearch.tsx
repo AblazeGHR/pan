@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Globe, Loader2, X } from 'lucide-react';
-import { ApiRequestError, fetchHistorySearch } from '@/services/api';
+import { ApiRequestError, fetchHistorySearch, prepareHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, HistorySearchRole } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
 import { HistorySearchRoles } from './HistorySearchRoles';
 import { ALL_SEARCH_ROLES } from './searchRoleOptions';
+import { HistorySearchPopup } from './HistorySearchPopup';
 
 const GLOBAL_SEARCH_PAGE_SIZE = 50;
 const GLOBAL_SEARCH_DEBOUNCE_MS = 250;
 
 interface GlobalHistorySearchProps {
+  popupContainer?: HTMLElement | null;
   chatRef: RefObject<ChatMessagesHandle | null>;
   isMobile: boolean;
   open: boolean;
@@ -18,7 +20,7 @@ interface GlobalHistorySearchProps {
   onHighlightMessage: (sessionId: string | null, messageId: string | null, query?: string) => void;
 }
 
-type SearchStatus = 'idle' | 'loading' | 'loading-more' | 'ready' | 'expired' | 'error';
+type SearchStatus = 'idle' | 'loading' | 'preparing' | 'loading-more' | 'ready' | 'expired' | 'error';
 type NavigationStatus = 'idle' | 'loading' | 'ready' | 'expired' | 'error';
 
 interface ActiveSearch {
@@ -59,6 +61,7 @@ export function GlobalHistorySearch({
   open,
   onOpenChange,
   onHighlightMessage,
+  popupContainer,
 }: GlobalHistorySearchProps) {
   const sessions = useSessionStore((state) => state.sessions);
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
@@ -70,6 +73,7 @@ export function GlobalHistorySearch({
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<SearchStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [preparationProgress, setPreparationProgress] = useState('');
   const [navigationStatus, setNavigationStatus] = useState<NavigationStatus>('idle');
   const [navigationMessage, setNavigationMessage] = useState('');
   const [navigatingMessageId, setNavigatingMessageId] = useState<string | null>(null);
@@ -114,6 +118,26 @@ export function GlobalHistorySearch({
       setHasMore(response.hasMore && Boolean(response.nextCursor));
       setStatus('ready');
       setErrorMessage('');
+      if (!append) {
+        setStatus('preparing');
+        setPreparationProgress('Preparing old history…');
+        setCursor(null);
+        setHasMore(false);
+        await prepareHistorySearch(active.query, roles, GLOBAL_SEARCH_PAGE_SIZE,
+          active.controller.signal, (event) => {
+            if (!isCurrentSearch(active)) return;
+            setHits(event.result.hits);
+            setTotalMatches(event.result.totalMatches ?? null);
+            setPreparationProgress(`${event.completed}/${event.total} Sessions checked`);
+            if (event.done) {
+              const incomplete = event.failedSessions.length > 0;
+              setCursor(incomplete ? null : event.result.nextCursor);
+              setHasMore(!incomplete && event.result.hasMore && Boolean(event.result.nextCursor));
+              setStatus(incomplete ? 'error' : 'ready');
+              if (incomplete) setErrorMessage(`Results incomplete: ${event.failedSessions.length} Sessions could not be prepared. Retry search.`);
+            }
+          });
+      }
     } catch (error) {
       if (!isCurrentSearch(active) || isAbortError(error)) return;
       if (error instanceof ApiRequestError && error.status === 409) {
@@ -161,6 +185,7 @@ export function GlobalHistorySearch({
     setCursor(null);
     setHasMore(false);
     setStatus('loading');
+    setPreparationProgress('');
     setErrorMessage('');
     const timer = window.setTimeout(() => {
       void loadPage(active, null, false);
@@ -321,6 +346,10 @@ export function GlobalHistorySearch({
       if (!stillCurrent()) return;
 
       if (!message || message.messageId !== hit.messageId) {
+        if (message && (!message.messageId || message.messageId.startsWith('legacy:'))) {
+          await useSessionStore.getState().refreshCurrentSessionHistory();
+          if (!stillCurrent()) return;
+        }
         const relocated = await fetchHistorySearch(navigation.query, 1, undefined, signal,
           { sessionId: hit.sessionId, roles, countMode: 'content', messageId: hit.messageId });
         if (!stillCurrent()) return;
@@ -409,6 +438,8 @@ export function GlobalHistorySearch({
 
   const statusText = status === 'loading'
     ? 'Searching history…'
+    : status === 'preparing'
+      ? `${totalMatches ?? 0} occurrences found so far · ${preparationProgress} · still searching…`
     : status === 'loading-more'
       ? `${hits.length} messages shown · loading more…`
       : status === 'expired' || status === 'error'
@@ -453,7 +484,7 @@ export function GlobalHistorySearch({
       >
         <Globe size={16} />
       </button>
-      {open && (
+      {open && (<HistorySearchPopup container={popupContainer}>
         <div className="global-history-search__popup" role="search" aria-label="Global history search">
           <div className="global-history-search__controls">
             <input
@@ -466,7 +497,7 @@ export function GlobalHistorySearch({
               aria-label="Search all Session history"
               data-testid="global-history-search-input"
             />
-            {status === 'loading' || status === 'loading-more'
+            {status === 'loading' || status === 'preparing' || status === 'loading-more'
               ? <Loader2 size={14} className="animate-spin" aria-label="Searching" />
               : null}
             {query && (
@@ -547,7 +578,7 @@ export function GlobalHistorySearch({
             </button>
           )}
         </div>
-      )}
+      </HistorySearchPopup>)}
     </div>
   );
 }
