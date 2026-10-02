@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import uuid as _uuid
 from datetime import datetime
@@ -75,23 +76,32 @@ def _norm_path(p) -> str:
     Windows：casefold + 统一为反斜杠（NTFS 大小写不敏感、/ 与 \\ 等价）。
     POSIX：仅 normpath（大小写敏感，且反斜杠是合法文件名字符，不可当分隔符替换）。
     """
-    s = str(p or "").replace("\\\\?\\", "").replace("\\?\\", "")
+    s = str(p or "")
+    if not s:
+        return ""
+    if _IS_WINDOWS:
+        # Strip extended-path prefixes before normpath, including UNC and
+        # repeated separators, without changing POSIX filename semantics.
+        s = s.replace("/", "\\")
+        s = re.sub(r"^\\+\?\\+UNC\\+", r"\\\\", s, flags=re.IGNORECASE)
+        s = re.sub(r"^\\+\?\\+", "", s)
     try:
         s = os.path.normpath(s)
     except Exception:  # noqa: BLE001
         pass
     if _IS_WINDOWS:
-        return s.casefold().replace("/", "\\").rstrip("\\")
-    return s.rstrip("/")
+        normalized = s.casefold().replace("/", "\\")
+        return normalized.rstrip("\\") or "\\"
+    return s.rstrip("/") or "/"
 
 
 def _cwd_matches(thread_cwd, project_cwd) -> bool:
     """Return whether a Codex thread belongs to a requested workdir.
 
     Codex may persist the git repository root even when Pan launched it from a
-    nested workdir. Treat that stored root as an ancestor match, but keep a
-    separator boundary so similarly-prefixed directories do not leak into the
-    result (``repo`` must not match ``repo-other``).
+    nested workdir. Keep that stored-root ancestor match, and include threads
+    whose actual cwd is inside the selected directory. Keep separator
+    boundaries so ``repo`` must not match ``repo-other``.
     """
     thread = _norm_path(thread_cwd)
     project = _norm_path(project_cwd)
@@ -100,7 +110,10 @@ def _cwd_matches(thread_cwd, project_cwd) -> bool:
     if thread == project:
         return True
     separator = "\\" if _IS_WINDOWS else "/"
-    return project.startswith(thread + separator)
+    return (
+        project.startswith(thread.rstrip(separator) + separator)
+        or thread.startswith(project.rstrip(separator) + separator)
+    )
 
 
 def _rollout_full_path(rollout_path: str | None) -> Path | None:

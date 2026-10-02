@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
@@ -90,6 +90,7 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   const [codexCwd, setCodexCwd] = useState('');
   const [codexSessions, setCodexSessions] = useState<CodexSessionItem[]>([]);
   const [codexLoading, setCodexLoading] = useState(false);
+  const codexRequest = useRef(0);
 
   // ── Import state ──
   const [importingId, setImportingId] = useState<string | null>(null);
@@ -263,24 +264,37 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Load Codex sessions (filtered by optional cwd) ──
   const loadCodex = useCallback(
     (cwd: string) => {
+      const requestId = ++codexRequest.current;
       setCodexLoading(true);
+      setCodexSessions([]);
       fetchCodexSessions(cwd)
-        .then((list) => setCodexSessions(list))
+        .then((list) => {
+          if (requestId === codexRequest.current) setCodexSessions(list);
+        })
         .catch((e) => {
+          if (requestId !== codexRequest.current) return;
           showToast(
             e instanceof Error ? e.message : 'Failed to load Codex sessions',
             'error',
           );
         })
-        .finally(() => setCodexLoading(false));
+        .finally(() => {
+          if (requestId === codexRequest.current) setCodexLoading(false);
+        });
     },
     [showToast],
   );
 
   useEffect(() => {
-    if (open && adapter === 'codex') loadCodex(codexCwd);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, adapter]);
+    if (!open || adapter !== 'codex') return;
+    setCodexSessions([]);
+    setCodexLoading(true);
+    const timer = setTimeout(() => loadCodex(codexCwd), 200);
+    return () => {
+      clearTimeout(timer);
+      ++codexRequest.current;
+    };
+  }, [open, adapter, codexCwd, loadCodex]);
 
   // ── Import CBC session ──
   const handleImportCbc = async (item: CbcSessionItem) => {
