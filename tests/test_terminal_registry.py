@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
+from packages.core.terminal import registry as registry_module
 from packages.core.terminal.contracts import (
     IllegalStateTransition,
     RegistryCorruptError,
@@ -65,6 +67,19 @@ for index in range(3):
         record.rows = round_no + 1
         registry.save(record)
 print("OK-" + tag)
+"""
+
+
+_UPDATE_CHILD_SCRIPT = r"""
+import sys
+sys.path.insert(0, sys.argv[1])
+from packages.core.terminal.registry import TerminalRegistry
+
+registry = TerminalRegistry(sys.argv[2])
+tid = sys.argv[3]
+for _ in range(10):
+    registry.update(tid, lambda record: setattr(record, "rows", record.rows + 1))
+print("OK")
 """
 
 
@@ -241,3 +256,101 @@ def test_cross_process_contention(tmp_path):
         assert record.rows == 5
         assert (record.created_by or "").startswith("proc-")
     assert [p.name for p in root.glob("*.tmp")] == []
+
+
+# ---------------------------------------------------------------------------
+# r2 回归：锁内 update（同 record 并发不丢更新）、lock_key、损坏统一、tmp 清理
+# ---------------------------------------------------------------------------
+
+
+def test_update_is_locked_read_modify_write(tmp_path):
+    registry = TerminalRegistry(tmp_path)
+    registry.create(TerminalRecord(terminal_id="term_upd0000000000001", rows=0))
+    updated = registry.update(
+        "term_upd0000000000001", lambda record: setattr(record, "rows", record.rows + 1)
+    )
+    assert updated.rows == 1
+    updated = registry.update(
+        "term_upd0000000000001", lambda record: setattr(record, "status", RuntimeState.RUNNING)
+    )
+    assert updated.status is RuntimeState.RUNNING
+    reloaded = TerminalRegistry(tmp_path).get("term_upd0000000000001")
+    assert reloaded.rows == 1
+    assert reloaded.status is RuntimeState.RUNNING
+
+
+def test_update_unknown_terminal_raises(tmp_path):
+    registry = TerminalRegistry(tmp_path)
+    with pytest.raises(UnknownTerminalError):
+        registry.update("term_absent0000000001", lambda record: None)
+
+
+def test_cross_process_update_no_lost_update(tmp_path):
+    root = tmp_path / "terminals"
+    registry = TerminalRegistry(root)
+    registry.create(TerminalRecord(terminal_id="term_cas000000000001", rows=0))
+    procs = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                _UPDATE_CHILD_SCRIPT,
+                str(REPO_ROOT),
+                str(root),
+                "term_cas000000000001",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(REPO_ROOT),
+        )
+        for _ in range(4)
+    ]
+    for proc in procs:
+        out, err = proc.communicate(timeout=120)
+        assert proc.returncode == 0, err.decode("utf-8", "replace")
+        assert "OK" in out.decode("utf-8", "replace")
+    record = TerminalRegistry(root).get("term_cas000000000001")
+    assert record.rows == 40  # 4 进程 × 10 次锁内自增：无丢失更新
+
+
+def test_lock_key_case_insensitive_on_windows(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows 路径大小写等价性（命名 mutex 需同键）")
+    upper = Path(str(tmp_path).upper())
+    lower = Path(str(tmp_path).lower())
+    assert registry_module._lock_key(upper) == registry_module._lock_key(lower)
+
+
+def test_bad_utf8_record_raises_registry_corrupt(tmp_path):
+    registry = TerminalRegistry(tmp_path)
+    (tmp_path / "term_bad8byte000000001.json").write_bytes(b"\xff\xfe{\x00")
+    with pytest.raises(RegistryCorruptError):
+        registry.get("term_bad8byte000000001")
+    with pytest.raises(RegistryCorruptError):
+        registry.list()
+
+
+def test_bad_schema_record_raises_registry_corrupt(tmp_path):
+    registry = TerminalRegistry(tmp_path)
+    payload = {"terminal_id": "term_badschema0000001", "status": "not-a-state"}
+    (tmp_path / "term_badschema0000001.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+    with pytest.raises(RegistryCorruptError):
+        registry.get("term_badschema0000001")
+    with pytest.raises(RegistryCorruptError):
+        registry.list()
+
+
+def test_atomic_write_cleans_tmp_on_failure(tmp_path, monkeypatch):
+    registry = TerminalRegistry(tmp_path)
+    monkeypatch.setattr(registry_module, "_REPLACE_RETRIES", 2)
+    monkeypatch.setattr(registry_module, "_REPLACE_DELAY_SECONDS", 0.0)
+
+    def blocked_replace(src, dst):
+        raise PermissionError("locked (injected)")
+
+    monkeypatch.setattr(registry_module.os, "replace", blocked_replace)
+    with pytest.raises(PermissionError):
+        registry.create(TerminalRecord(terminal_id="term_tmpfail000000001"))
+    assert [p.name for p in tmp_path.glob("*.tmp")] == []  # finally 不残留 tmp

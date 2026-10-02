@@ -1,6 +1,7 @@
 # Pan Terminal 公共核心接口冻结（P0，2026-10-03）
 
 - 任务：T-TERMINAL-PTY-20261003 的 P0「契约落地」交付。
+- 版本：首版 `8edce70f`；**r2 修订（MA 审查后）见 §12**（接口仍未冻结）。
 - 工作树：`D:/project/pan-worktrees/terminal-core-implement-20261003`
   （branch `implement/terminal-core-20261003`，起点 `9e7e0c2f`）。
 - 性质：**接口冻结文档**。后续 TA（Windows backend / runner / service / 前端）
@@ -58,8 +59,9 @@
 
 - `RuntimeState`：`created / starting / running / exiting / exited / cleanup-failed / lost`
 - `DrainStopReason`：`unknown / eof / cancelled / channel-error / eof-timeout / stop-requested`
-- `IdentityCheck`：`not-required / verified / mismatch / probe-failed`
-- `TerminateOutcome`：`not-attempted / returned / error / timed-out / refused-identity-mismatch`
+- `IdentityCheck`：`not-required / verified / dead-confirmed / mismatch / probe-failed / unknown`（r2）
+- `ProcessStatus`（r2）：`alive / dead / unknown`——探针显式三态；`dead` 必须来自真实证据
+- `TerminateOutcome`：`not-attempted / returned / error / timed-out / refused-identity-mismatch / refused-identity-unknown`（r2）
 - `OwnershipMode`：`service / detached / external`
 - `Fidelity`：`full / partial / unavailable`
 - `Recovery`：`full / partial / degraded / none`
@@ -87,6 +89,9 @@
 - `ProcessIdentity(pid, created_at_filetime=None, created_at=None, image=None)`
   - `matches(other, *, tolerance=0.0)`：FILETIME 精确比较；只有 `created_at` 时给容差；
     无可比字段一律 False（fail-closed）。
+- `ProcessProbe(status, identity=None, detail="")`（r2）：探针显式三态结果；
+  `ALIVE` 必须附 `identity` 供比对，`DEAD` 必须来自真实证据（retained handle
+  signaled / Job 证据），`UNKNOWN` 不等于 dead。
 - `ProcessOwnershipEvidence(assigned, atomic_with_spawn, identity, handle_bound_for_cleanup, guard, detail="")`
 - `ExitInfo`：`code / process_exit_seen / reader_done / channel_eof / output_complete /
   drain_stop_reason / reason / observed_at / channel_error / bytes_at_stop`；
@@ -108,8 +113,10 @@
   - `lifecycle_owner`（如 `"pan-service" | "runner" | "external-host"`）是**纯数据**，
     核心不按其分支（布局 A/B/C 都可用同一接口表达）。
 
-类型别名：`IdentityProbe = Callable[[int], ProcessIdentity | None]`、
-`OutputConsumer = Callable[[bytes], None]`、`TerminalLookup = Callable[[str], TerminalChannel | None]`。
+类型别名（r2）：`IdentityProbe = Callable[[int], ProcessProbe | ProcessIdentity | ProcessStatus | None]`
+（裸 `ProcessIdentity` 按 ALIVE+身份兼容；裸 `None` 按 UNKNOWN 处理，**不得**表示已退出）、
+`OutputConsumer = Callable[[int, bytes], None]`（第一参数 = 该块首字节绝对偏移）、
+`TerminalLookup = Callable[[str], TerminalChannel | None]`。
 
 ### 1.5 Protocol（后续 TA 的实现目标）
 
@@ -201,14 +208,14 @@ CREATED ──> STARTING ──> RUNNING ──> EXITING ──> EXITED
 | 方法 | 返回 | 错误/语义 |
 | --- | --- | --- |
 | `start(*, rows, cols, gate=None)` | `None` | 门禁不过 -> `OwnershipGateError`，状态保持 `created`、reader 不启动；gate 证据身份被采用 |
-| `write(data)` | `int` | 非 running/exiting -> `IllegalStateTransition` |
-| `resize(rows, cols)` | `bool` | 非运行返回 `False`（迟到 resize 不抛异常） |
+| `write(data)` | `int` | **仅 `running`**（r2：`exiting` 一律拒绝，防迟到写与 close 并行） |
+| `resize(rows, cols)` | `bool` | **仅 `running`** 返回 `True`；迟到 resize 返回 `False` |
 | `read_from(cursor, *, max_bytes=None)` | `OutputPage` | 非法游标 -> `InvalidCursorError` |
 | `poll_exit()` / `wait_exit(timeout)` | `ExitInfo` | 四个退出事实分开公布 |
 | `wait_eof(timeout)` | `bool` | 只表示 reader 结束（原因看 `drain_stop_reason`） |
 | `request_drain_stop()` | `None` | 下一循环检查点停止；不打断阻塞读（取消归 close） |
 | `child_pids()` | `list[int]` | 由 `TreeGuard.owned_pids` 派生（不含根） |
-| `close(*, reason, interrupt=True, interrupt_delay=0.15, terminate_timeout=1.5, tree_timeout=2.0, reader_grace=2.0, terminate=None)` | `CleanupReport` | 失败保留 owner；重复 close 幂等；`terminate=` 只用于测试注入 |
+| `close(*, reason, interrupt=True, interrupt_delay=0.15, terminate_timeout=1.5, tree_timeout=2.0, reader_grace=2.0, handle_close_timeout=2.0, terminate=None)` | `CleanupReport` | 失败保留 owner；重复 close 幂等；超时/未完成的 terminate 与 close worker 跨重试复用（不重叠）；`terminate=` 只用于测试注入 |
 | `detach()` | `DetachReport` | 无宿主能力 -> `DetachUnsupportedError`；非 running -> `IllegalStateTransition`；不触碰 PTY |
 
 属性：`state` / `detached` / `identity` / `ownership` / `log` / `rows` / `cols` /
@@ -220,23 +227,37 @@ CREATED ──> STARTING ──> RUNNING ──> EXITING ──> EXITED
   结束条件；空读且进程已退出进入有界 `eof_grace`（超时 -> `eof-timeout`）；
 - `drain_stop_reason ∈ {eof, cancelled, channel-error, eof-timeout, stop-requested}`；
   **只有 `eof`** 置 `channel_eof=True` 与 `output_complete=True`；
-- `output_consumer`（可选）：在同一 reader 临界区内与 OutputLog 追加后**同序**调用；
-  必须快速返回；其异常不拖死 drain，记录到 `consumer_errors`。
+- `output_consumer`（可选，r2）：在同一 reader 临界区内与 OutputLog 追加后**同序**调用，
+  入参 `(绝对字节偏移, data)`；消费者必须按绝对偏移检测缺口并显式降级（**禁止**假设
+  连续供料或声称完整/`full`）；必须快速返回；异常不拖死 drain——失败只记**脱敏类型名**
+  （有界，≤ `DEFAULT_CONSUMER_ERROR_TYPES`）与 `consumer_failure_count`，**不记录异常
+  消息**（防秘密泄漏）；`consumer_failed` 是粘滞事实（可接线到 emulator 的降级判定）。
 
-### 3.5 close 顺序（失败保 owner）
+### 3.5 close 顺序（失败保 owner；r2）
 
 ```
-1 身份核验（mismatch/probe-failed -> refused-identity-mismatch + cleanup-failed，拒杀）
-2 所有权快照（owned_pids；必须在终止之前）
+1 身份核验（三态）：
+    UNKNOWN / PROBE_FAILED / MISMATCH -> refused-identity-* + cleanup-failed，
+    拒绝任何终止/interrupt/取消（None 只表示未知，不能证明 dead）；
+    有记录身份但探针缺失同样按 UNKNOWN 拒绝；
+    DEAD（retained handle / Job 证据）-> 允许继续整树清理
+2 所有权快照（owned_pids；必须在终止之前；异常=所有权未知 -> fail-closed）
 3 可选中断（Ctrl-C）
-4 终止（有界；超时/错误记录 terminate_result）
-5 整树终止 + remaining 核对（异常按 fail-closed 处理）
-6 reader 收敛：终止+整树都成功才允许取消（关句柄）；取消无效 -> cleanup-failed
-7 释放句柄（失败同样 cleanup-failed）
+4 终止（有界 worker；超时=worker 保留，重试复用不重叠；失败可重试一轮新 worker）
+5 整树终止 + 残留核对：
+    空快照也要调用 terminate_tree（真实 guard 可根死仍枚举整个 Job）；
+    采用 terminate_tree 返回值（可能是更完整的枚举）；
+    remaining 只核对 guard 枚举出的成员（root 存活由第 6 步单独负责）；
+    owned/remaining 任何异常 -> 所有权/残留未知 -> fail-closed
+6 根存活确认（terminate “返回” ≠ 根死；backend.alive() 异常按可能存活处理）
+7 reader 收敛：终止成功 + 整树确认 + 根确认退出，三者都满足才允许取消（关句柄，
+   有界等待）；取消无效/超时 -> cleanup-failed
+8 释放句柄（有界 worker，不阻塞主线程无限等待；失败/超时同样 cleanup-failed）
 ```
 
 - 任何失败：`state=cleanup-failed`、`owner_retained=True`、记录不删、可重试；
 - 取消原语（关句柄）在 pywinpty 会连带终止进程，因此**只在树确认死后**才取消；
+  `backend-close-timeout` / `backend-close-failed:*` 不算已关闭；
 - 成功才进入 `exited`；`drain_stop_reason=cancelled` 不阻止清理成功（`ok` 只描述清理）。
 
 ---
@@ -256,9 +277,14 @@ CREATED ──> STARTING ──> RUNNING ──> EXITING ──> EXITED
 
 - `JobObjectGuard` 实现 `TreeGuard`；句柄生命周期由 runner 持有；
   `describe()["os_level_guard"]` 必须如实（psutil 兜底=False，只做测试观察）；
-- `identity.py`：`IdentityProbe = (pid) -> ProcessIdentity | None`；
-  **存活判定 = 同一 handle 上 `WaitForSingleObject(h, 0)`**（`WAIT_OBJECT_0`=已退出 /
-  `WAIT_TIMEOUT`=存活）；FILETIME 取自 `GetProcessTimes`；`OpenProcess` 成功≠存活；
+- `identity.py`：`IdentityProbe = (pid) -> ProcessProbe`（r2 三态；见 §1.4/§1.5）。
+  **存活判定 = 同一 handle 上 `WaitForSingleObject(h, 0)`**（`WAIT_OBJECT_0`=已退出
+  -> `ProcessStatus.DEAD`；`WAIT_TIMEOUT`=存活 -> `ALIVE` + `ProcessIdentity`）；
+  FILETIME 取自 `GetProcessTimes`；`OpenProcess` 成功≠存活；
+  **查不到/打不开一律 `UNKNOWN`**——核心对 `UNKNOWN` fail-closed 拒绝终止，
+  因此“把未知当已退出”的旧写法会直接卡死清理路径；
+  `close()` 前核验所依赖的“明确已退出证据”就来自 retained handle（与 Job 证据），
+  不得用 `OpenProcess` 失败冒充；
 - `spawn_win.py` 的 `SpawnEvidence` 必须产出四要素，装配成
   `ProcessOwnershipEvidence` + `UnverifiedOwnershipGate`，作为
   `runtime.start(rows, cols, gate=...)` 的入参；**assign 失败/未原子入组一律拒绝
@@ -270,8 +296,10 @@ CREATED ──> STARTING ──> RUNNING ──> EXITING ──> EXITED
   **`cursor` = 仿真器确认已解析应用的绝对字节位置（applied_seq）**，
   **禁止**用 producer 的 `total_bytes` 冒充；等待超时/`feed_lag` 时按
   `recovery=degraded|partial|none` 降级，禁止阻塞 reader、禁止静默全恢复；
-- 供料接线：`build_runtime(..., output_consumer=emulator.feed)`——runtime 保证
-  同序投递与异常隔离；有界队列/`feed_lag` 判定在 emulator 内实现；
+- 供料接线（r2）：`build_runtime(..., output_consumer=emulator.feed)`——runtime
+  保证同序投递、异常隔离与**绝对偏移**入参（`feed(seq, data)`）；emulator 必须
+  用 seq 检测缺口（供料失败/跳块 -> 降级并把 `recovery` 置 degraded/none，禁止
+  继续声称 full）；有界队列/`feed_lag` 判定在 emulator 内实现；
 - `reset_baseline()` 返回新基线快照（供 gap 后显式重打基线）。
 
 ### 4.4 `runner.py` 装配顺序（建议）
@@ -316,15 +344,21 @@ close()`；detach 走注入的 `DetachHandler`，不通过 `close`。
 TerminalRegistry(root=None, *, lock_timeout=5.0)   # root 默认 PAN_TERMINALS_DIR 或 data/terminals
   .new_terminal_id() -> str                        # term_ + uuid4 hex16（静态）
   .create(record) -> TerminalRecord                # 已存在 -> TerminalExistsError
-  .save(record) -> TerminalRecord                  # upsert；刷新 updated_at
+  .save(record) -> TerminalRecord                  # 整条 upsert；刷新 updated_at（并发下有覆盖风险）
+  .update(terminal_id, mutator) -> TerminalRecord  # r2：锁内 read-modify-write（跨进程无丢失更新）
   .get(terminal_id) -> TerminalRecord              # 不存在 -> UnknownTerminalError
   .exists(terminal_id) -> bool
   .list() -> list[TerminalRecord]
   .remove(terminal_id) -> None                     # 仅 exited/lost；否则 IllegalStateTransition
 ```
 
-- 原子写（tmp + `os.replace` + 有界重试）；跨进程锁（Windows 命名内核 mutex /
-  POSIX flock）；损坏 JSON -> `RegistryCorruptError`（不静默丢弃）；
+- 原子写（tmp + `os.replace` + 有界重试；**任何异常路径 finally 清理 tmp**）；
+  跨进程锁（Windows 命名内核 mutex / POSIX flock；Windows 路径先 `normcase`——
+  同一目录的大小写等价写法必须映射到同一 mutex）；
+- 损坏统一暴露：坏 JSON、坏 UTF-8、schema 异常一律 `RegistryCorruptError`
+  （不静默丢弃）；
+- detach/reconcile 等需要跨进程原子更新的场景用 `update`（整条 `save` 会覆盖
+  并发写）；
 - 非法 id（路径穿越、非 `term_` 前缀）-> `ValueError`。
 
 ### 6.2 JSON schema（**无任何秘密/token 字段**）
@@ -353,28 +387,36 @@ AttachmentRegistry(lookup: TerminalLookup)
   .attach(terminal_id, client_id, *, role="observer", rows=0, cols=0) -> LeaseToken
   .transfer_control(token, *, to_client) -> LeaseToken
   .detach(token) -> None         # 连接级撤销（≠ runtime.detach，永不触碰进程寿命）
+  .forget(terminal_id) -> None   # r2：终态 terminal 资料回收；旧 token 一律失效、不可复活
   .is_revoked(token) -> bool
-  .validate(token) -> None       # 观察者级校验（存在性+撤销）
-  .send(token, data) -> int      # 需 control；校验+写同一临界区
+  .validate(token) -> None       # 存在性+撤销+“实际发出过”；观察者 token 同样受检
+  .send(token, data) -> int      # 需 control；校验+写同一（每终端）临界区
   .resize(token, rows, cols) -> bool
   .control_holder(terminal_id) -> LeaseToken | None
 ```
 
+- **每终端独立同步**（r2）：一个终端的慢写不阻塞其它终端的撤销/操作，不引入额外线程；
 - 撤销不可复活：`detach` 后该 token 与同代副本的 send/resize/transfer 全部
-  `StaleLeaseError`；控制权撤销同时自增 generation；
-- 伪造随机 `revocation_id` -> `NotControlLeaseError`；observer 越权 ->
-  `NotControlLeaseError`；observer 不因控制权更替/撤销而误失效；
-- 已知边界（如实声明）：复制 `revocation_id` 的 token 会被接受（M14.19）——
-  授权必须由 Pan 入口在先完成；本层只解决进程内单 writer + 撤销语义。
+  `StaleLeaseError`；控制权撤销同时自增 generation；按 `revocation_id` 精确撤销
+  （同一 client 的其它 observer token 不受影响）；
+- **已发出 lease 校验**（r2）：伪造随机 `revocation_id` 的 token（含 observer）
+  -> `NotControlLeaseError`；observer 越权 -> `NotControlLeaseError`；observer
+  不因控制权更替/撤销而误失效；
+- `forget` 后：旧 token `StaleLeaseError`、`control_holder=None`、新 attach 拒绝；
+  状态对象（含锁）保留为常量级墓碑，不随 token 数增长；
+- 已知边界（如实声明）：复制**已发出且仍有效** token 的 `revocation_id` 会被接受
+  （M14.19）——授权必须由 Pan 入口在先完成；本层只解决进程内单 writer + 撤销语义。
 
 ---
 
 ## 8. observer.py / driver.py
 
 - `PyteScreenObserver(rows, cols)`：延迟导入 pyte；`fidelity=partial`；
-  `decode_modes` 还原 `mode<<5`；`SUPPORTS_ALTERNATE_SCREEN_BUFFER=False`、
-  `SUPPORTS_SCROLLBACK=False`；`wait_for(predicate, timeout, *, quiet_ms)` 严格区分
-  `matched` / `timed_out`。**不是**权威快照引擎；
+  **增量 UTF-8 解码**（r2：跨 feed 块保留未完成多字节序列，split CJK 不被破坏；
+  非法字节以替换字符呈现）；`decode_modes` 还原 `mode<<5`；
+  `SUPPORTS_ALTERNATE_SCREEN_BUFFER=False`、`SUPPORTS_SCROLLBACK=False`；
+  `wait_for(predicate, timeout, *, quiet_ms)` 严格区分 `matched` / `timed_out`。
+  **不是**权威快照引擎；
 - `AutomationContext(terminal_id, runtime, observer, control, attachments, timeout=30.0)`：
   `send_text`（UTF-8）/ `send_keys`（ASCII 键序列）/ `screen_text` / `wait_for`；
   无 `proc`、无生命周期 API；公共核心零 adapter 菜单字面量（有测试守护）。
@@ -432,3 +474,25 @@ uv run --no-project --python E:/software/miniforge/python.exe \
 5. POSIX 只有接口与 flock 降级路径；PTY 后端未实现；
 6. 跨进程 registry 竞争测试覆盖 4 进程 × 3 记录；未做长稳压测；
 7. `AttachmentRegistry` 不做身份认证/网络授权；M14.19 已知边界如上。
+
+---
+
+## 12. r2 修订记录（MA 审查后，2026-10-03；接口仍未冻结）
+
+先失败后通过回归：旧实现上新测试 **23 failed / 78 passed / 1 collection error**，
+修复后 **124 passed**（`/tmp/r2_pre_fix_clean2.log` vs `/tmp/r2_post_fix3.log`）。
+
+| # | 审查缺口 | 修订（接口小改，全部在本核心范围内） |
+| --- | --- | --- |
+| 1 | 探针 `None` 被当“已退出”放行，且身份存在但探针缺失也放行 | `ProcessProbe`/`ProcessStatus` 三态契约；`None`/`UNKNOWN`/缺探针 -> `IdentityCheck.UNKNOWN` + `REFUSED_IDENTITY_UNKNOWN`，fail-closed 拒绝任何终止/interrupt/取消；`DEAD`（retained handle/Job 明确证据）放行——根死但 Job 孙进程仍活时仍清理整个 Job |
+| 2 | `owned_pids` 异常未捕获；空快照跳过 `terminate_tree`；忽略 `terminate_tree` 返回值；terminate 返回即认根死 | 快照异常=所有权未知（fail-closed）；**空快照也调用 `terminate_tree`**；采用其返回值；`remaining` 只核对 guard 枚举成员；新增根存活确认（`backend.alive()`）；owned/remaining 异常 -> `cleanup-failed` 且不取消 reader |
+| 3 | terminate 超时遗留 daemon worker、重试再起第二个；`write` 允许 EXITING；`backend.close` 可能无限阻塞主线程 | `_BoundedCall`：未完成 worker 跨重试**复用不重叠**（超时/失败/成功三态缓存）；`backend.close` 有界（取消与最终释放共用，`backend-close-timeout` 新 kind）；`write`/`resize` 收紧为**仅 RUNNING**（迟到操作与 close 的竞态被拒） |
+| 4 | `consumer_errors` 无界且存 `str(exc)`（可能泄密）；供料失败后位置缺口不可见 | `output_consumer(seq, data)` 绝对偏移契约（gap 可检测、禁止冒充 full）；失败计数 `consumer_failure_count` + `consumer_failed`（粘滞）；诊断只记**脱敏类型名**、有界（≤ `DEFAULT_CONSUMER_ERROR_TYPES`） |
+| 5 | 全局锁下慢写阻塞所有终端；撤销资料无界；validate 接受任意 non-revoked id | **每终端独立锁**（无额外线程）；`forget(terminal_id)`（旧 token 拒绝、不可复活、常量级墓碑）；`validate` 要求**实际发出过**的 lease；`detach` 按 `revocation_id` 精确撤销（同 client 多 observer 互不影响） |
+| 6 | `save` 整条 upsert 无法跨进程原子更新；路径大小写导致 mutex 不同键；坏 UTF-8/schema 未统一；tmp 可能残留 | 新增 `TerminalRegistry.update`（锁内 read-modify-write）；`_lock_key` 用 `normcase`（大小写等价目录同一 mutex）；损坏统一 `RegistryCorruptError`；`_atomic_write` finally 清理 tmp |
+| 7 | pyte 每块 `decode("replace")` 破坏跨块中文 | 增量 UTF-8 decoder（`codecs.getincrementaldecoder`）；split CJK 测试 |
+
+兼容性提示（TA-B/C 注意）：`IdentityProbe` 返回值升级为 `ProcessProbe`（裸
+`ProcessIdentity` 仍兼容按 ALIVE 处理；裸 `None` 现在按 UNKNOWN **拒绝**）；
+`OutputConsumer` 入参变为 `(seq, data)`；`write`/`resize` 在 `exiting` 状态不再
+接受操作；`close()` 新增 `handle_close_timeout` 参数。

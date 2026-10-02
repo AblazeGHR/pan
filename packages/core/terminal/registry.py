@@ -1,13 +1,18 @@
-"""全局 Terminal 注册表：原子持久化 + 跨进程锁（平台无关，P0）。
+"""全局 Terminal 注册表：原子持久化 + 跨进程锁（平台无关，P0；r2）。
 
 - 每终端一个 JSON 文件：``<root>/<terminal_id>.json``（默认 ``data/terminals/``，
   ``PAN_TERMINALS_DIR`` 可覆盖）；
 - **JSON 无任何秘密/token 字段**（记录结构白名单，见 ``TerminalRecord.to_dict``）；
   运行期对象（``PtyRuntime``、IPC 凭证）不属于本层；
 - 写路径原子：临时文件 + ``os.replace``（Windows 文件扫描器短暂占用时重试，
-  绝不回退为截断写）；
+  绝不回退为截断写；**任何异常路径 finally 清理 tmp**）；
 - 跨进程互斥：Windows 命名内核 mutex / POSIX ``flock``（独立实现，不复用
-  ``background_jobs`` 代码）；
+  ``background_jobs`` 代码）；Windows 路径先 ``normcase``（大小写等价目录必须
+  映射到同一 mutex，否则锁形同虚设）；
+- ``update`` 是**锁内 read-modify-write**：跨进程原子更新单条记录，供
+  detach/reconcile 等避免整条 upsert 互相覆盖；``save`` 仍是整条替换；
+- 损坏统一暴露：坏 JSON、坏 UTF-8、schema 异常一律 ``RegistryCorruptError``
+  （不静默丢弃、不猜测修复）；
 - ``remove`` 只允许 ``exited``/``lost``：清理失败的记录必须保留，供重试与
   reconcile 收敛（不删除失败事实）。
 """
@@ -23,7 +28,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from .contracts import (
     TERMINAL_ID_PREFIX,
@@ -41,6 +46,18 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_REGISTRY_ROOT = _PROJECT_ROOT / "data" / "terminals"
 
 _TERMINAL_ID_RE = re.compile(r"^term_[A-Za-z0-9_-]{1,64}$")
+# 原子替换的有界重试（测试可 monkeypatch 缩短）。
+_REPLACE_RETRIES = 20
+_REPLACE_DELAY_SECONDS = 0.01
+
+
+def _lock_key(root: Path) -> str:
+    """跨进程锁 key。
+
+    Windows 路径大小写不敏感：必须先 ``normcase`` 统一（否则同一目录的
+    ``D:\\X`` 与 ``d:\\x`` 会得到不同 mutex，互不排斥）。
+    """
+    return os.path.normcase(str(root.resolve()))
 
 
 def _validate_terminal_id(terminal_id: str) -> str:
@@ -62,7 +79,7 @@ def _windows_named_mutex(root: Path, timeout: float) -> Iterator[None]:
     import ctypes
     from ctypes import wintypes
 
-    digest = hashlib.sha256(str(root.resolve()).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(_lock_key(root).encode("utf-8")).hexdigest()
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
     kernel32.CreateMutexW.restype = wintypes.HANDLE
@@ -135,33 +152,39 @@ def _registry_lock(root: Path, timeout: float) -> Iterator[None]:
 
 def _atomic_write(path: Path, value: dict[str, Any]) -> None:
     tmp = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
-    tmp.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    # Windows 文件扫描器/并发关闭的 reader 会短暂拒绝 replace；有界重试，
-    # 绝不回退为截断写。
-    for attempt in range(20):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            if attempt == 19:
-                try:
-                    tmp.unlink()
-                except OSError:
-                    pass
-                raise
-            time.sleep(0.01 * (attempt + 1))
+    try:
+        tmp.write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        # Windows 文件扫描器/并发关闭的 reader 会短暂拒绝 replace；有界重试，
+        # 绝不回退为截断写。
+        for attempt in range(_REPLACE_RETRIES):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == _REPLACE_RETRIES - 1:
+                    raise
+                time.sleep(_REPLACE_DELAY_SECONDS * (attempt + 1))
+    finally:
+        # 任何异常路径都不残留 tmp（替换成功后 tmp 已不存在）。
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
-    """读取 JSON；不存在返回 None；损坏抛 ``RegistryCorruptError``（不静默丢弃）。"""
+    """读取 JSON；不存在返回 None；损坏（含坏 UTF-8）抛 ``RegistryCorruptError``。"""
     for attempt in range(20):
         try:
             text = path.read_text(encoding="utf-8")
             break
         except FileNotFoundError:
             return None
+        except UnicodeDecodeError as exc:
+            raise RegistryCorruptError(f"corrupt terminal record (bad utf-8): {path.name}") from exc
         except PermissionError:
             if attempt == 19:
                 raise RegistryError(f"cannot read terminal record: {path.name}")
@@ -175,6 +198,14 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         raise RegistryCorruptError(f"corrupt terminal record (not an object): {path.name}")
     return data
+
+
+def _record_from_data(data: dict[str, Any], name: str) -> TerminalRecord:
+    """把 schema 异常统一为 ``RegistryCorruptError``（不静默丢弃坏记录）。"""
+    try:
+        return TerminalRecord.from_dict(data)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise RegistryCorruptError(f"invalid terminal record schema: {name}") from exc
 
 
 class TerminalRegistry:
@@ -221,7 +252,12 @@ class TerminalRegistry:
         return record
 
     def save(self, record: TerminalRecord) -> TerminalRecord:
-        """upsert：写入完整记录并刷新 ``updated_at``（reconcile/状态更新用）。"""
+        """整条 upsert：写入完整记录并刷新 ``updated_at``。
+
+        并发警告（r2）：``save`` 是**整条替换**——两个进程各自 read-modify-save
+        同一记录时后者会覆盖前者。需要原子跨进程更新（detach/reconcile 等）请用
+        ``update``。
+        """
         self._ensure_root()
         with _registry_lock(self.root, self.lock_timeout):
             path = self._path(record.terminal_id)
@@ -232,6 +268,30 @@ class TerminalRegistry:
             _atomic_write(path, record.to_dict())
         return record
 
+    def update(
+        self,
+        terminal_id: str,
+        mutator: Callable[[TerminalRecord], TerminalRecord | None],
+    ) -> TerminalRecord:
+        """锁内 read-modify-write：跨进程原子更新单条记录（无丢失更新）。
+
+        ``mutator`` 可原地修改并返回 ``None``，或返回新记录；``updated_at`` 由
+        registry 统一刷新。记录不存在抛 ``UnknownTerminalError``。
+        """
+        self._ensure_root()
+        with _registry_lock(self.root, self.lock_timeout):
+            path = self._path(terminal_id)
+            data = _load_json(path)
+            if data is None:
+                raise UnknownTerminalError(terminal_id)
+            record = _record_from_data(data, path.name)
+            result = mutator(record)
+            if result is not None:
+                record = result
+            record.updated_at = time.time()
+            _atomic_write(path, record.to_dict())
+            return record
+
     def remove(self, terminal_id: str) -> None:
         """移除记录。**仅** ``exited``/``lost`` 允许；失败记录不删。"""
         self._ensure_root()
@@ -240,7 +300,7 @@ class TerminalRegistry:
             data = _load_json(path)
             if data is None:
                 raise UnknownTerminalError(terminal_id)
-            record = TerminalRecord.from_dict(data)
+            record = _record_from_data(data, path.name)
             if record.status not in (RuntimeState.EXITED, RuntimeState.LOST):
                 raise IllegalStateTransition(
                     f"cannot remove terminal in state {record.status.value}"
@@ -252,10 +312,11 @@ class TerminalRegistry:
 
     # -- 读路径 --------------------------------------------------------
     def get(self, terminal_id: str) -> TerminalRecord:
-        data = _load_json(self._path(terminal_id))
+        path = self._path(terminal_id)
+        data = _load_json(path)
         if data is None:
             raise UnknownTerminalError(terminal_id)
-        return TerminalRecord.from_dict(data)
+        return _record_from_data(data, path.name)
 
     def exists(self, terminal_id: str) -> bool:
         try:
@@ -273,5 +334,5 @@ class TerminalRegistry:
             data = _load_json(path)
             if data is None:  # 并发删除：跳过，不构造半记录
                 continue
-            records.append(TerminalRecord.from_dict(data))
+            records.append(_record_from_data(data, path.name))
         return records

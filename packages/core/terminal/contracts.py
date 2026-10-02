@@ -36,6 +36,10 @@ DEFAULT_EOF_GRACE_SECONDS = 8.0
 DEFAULT_LEASE_GRACE_SECONDS = 2.0
 #: 停止/关闭确认（runner 整树退出）有界等待默认值，见实施计划 §13。
 DEFAULT_STOP_CONFIRM_SECONDS = 5.0
+#: 单次句柄关闭（取消读/释放）的有界等待：阻塞调用不得卡死 close 主线程。
+DEFAULT_HANDLE_CLOSE_TIMEOUT = 2.0
+#: 输出消费者错误诊断保留的不同异常类型数上界（只记类型名，不记消息）。
+DEFAULT_CONSUMER_ERROR_TYPES = 8
 
 LEASE_ROLE_CONTROL = "control"
 LEASE_ROLE_OBSERVER = "observer"
@@ -74,12 +78,36 @@ class DrainStopReason(str, Enum):
 
 
 class IdentityCheck(str, Enum):
-    """清理前的身份核验结论。"""
+    """清理前的身份核验结论（r2 三态语义）。
+
+    - ``not-required``：没有记录身份（无核验对象）；
+    - ``verified``：存活且与记录身份匹配；
+    - ``dead-confirmed``：后端提供**明确已退出证据**（retained handle signaled /
+      Job 层面证据）——允许继续整树清理，不代表身份“匹配”；
+    - ``mismatch`` / ``probe-failed`` / ``unknown``：**fail-closed**，拒绝任何
+      终止/interrupt/取消，保 owner 可重试。``unknown`` 特别覆盖“探针返回无结论”
+      与“有记录身份却无探针”：None 只表示未知，**不能证明 dead**。
+    """
 
     NOT_REQUIRED = "not-required"
     VERIFIED = "verified"
+    CONFIRMED_DEAD = "dead-confirmed"
     MISMATCH = "mismatch"
     PROBE_FAILED = "probe-failed"
+    UNKNOWN = "unknown"
+
+
+class ProcessStatus(str, Enum):
+    """探针对单个 PID 的显式存活判定（r2 契约）。
+
+    ``DEAD`` 必须来自真实证据（retained handle ``WaitForSingleObject`` 已
+    signaled、Job 层面确认等），不得用“查不到/打不开”冒充；查不到一律
+    ``UNKNOWN``。
+    """
+
+    ALIVE = "alive"
+    DEAD = "dead"
+    UNKNOWN = "unknown"
 
 
 class TerminateOutcome(str, Enum):
@@ -90,6 +118,7 @@ class TerminateOutcome(str, Enum):
     ERROR = "error"
     TIMED_OUT = "timed-out"
     REFUSED_IDENTITY_MISMATCH = "refused-identity-mismatch"
+    REFUSED_IDENTITY_UNKNOWN = "refused-identity-unknown"
 
 
 class OwnershipMode(str, Enum):
@@ -219,6 +248,21 @@ class ProcessIdentity:
             "created_at": self.created_at,
             "image": self.image,
         }
+
+
+@dataclass(frozen=True)
+class ProcessProbe:
+    """探针的显式三态结果（r2 契约；``IdentityProbe`` 的返回类型）。
+
+    - ``ALIVE``：必须附带 ``identity`` 供比对；没有可比对身份 -> 调用方按
+      ``unknown`` 处理（fail-closed）；
+    - ``DEAD``：明确已退出证据（retained handle/Job 层面）；
+    - ``UNKNOWN``：不可探测/无结论——**不等于 dead**。
+    """
+
+    status: ProcessStatus
+    identity: ProcessIdentity | None = None
+    detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -586,10 +630,16 @@ class DetachReport:
 # 类型别名
 # --------------------------------------------------------------------------
 
-#: 身份探针：按 PID 取当前身份；不可探测/已退出返回 None。
-IdentityProbe = Callable[[int], ProcessIdentity | None]
-#: 输出消费回调（P1 用于喂权威仿真器）。必须快速返回，不得阻塞 reader。
-OutputConsumer = Callable[[bytes], None]
+#: 身份探针：按 PID 取显式三态结论。不可探测/无结论必须返回 ``ProcessProbe``
+#: (status=UNKNOWN) 或裸 ``None``（兼容旧探针，按 UNKNOWN 处理）——**不得**
+#: 用 None 表示“已退出”。为兼容过渡期，返回裸 ``ProcessIdentity`` 按
+#: ALIVE+该身份处理；返回裸 ``ProcessStatus`` 按对应状态处理。
+IdentityProbe = Callable[[int], "ProcessProbe | ProcessIdentity | ProcessStatus | None"]
+#: 输出消费回调（P1 用于喂权威仿真器）。
+#: 第一参数是**该块首字节的绝对偏移**（与 OutputLog 同源）：消费者据此检测
+#: gap（失败块/跳块的绝对位置）并显式降级，禁止用它冒充连续供料。
+#: 必须快速返回，不得阻塞 reader。
+OutputConsumer = Callable[[int, bytes], None]
 
 
 # --------------------------------------------------------------------------
@@ -632,8 +682,20 @@ class PtyBackend(Protocol):
 class TreeGuard(Protocol):
     """整树所有权守卫（Windows 生产实现 = Job Object）。
 
-    契约顺序：**先** ``owned_pids`` 快照所有权，**再**终止，**最后**用
-    ``remaining`` 核对残留；反过来（先杀再查）在根 PID 消失后必然返回空集。
+    契约（r2 修订）：
+
+    - 顺序：**先** ``owned_pids`` 快照所有权，**再** ``terminate_tree`` 终止，
+      **最后**用 ``remaining`` 核对残留；反过来（先杀再查）在根 PID 消失后
+      必然返回空集。
+    - ``owned_pids`` 失败=所有权未知：调用方必须 fail-closed（不得 EXITED、
+      不得取消 reader）。
+    - ``terminate_tree`` **即使快照为空也必须被调用**：真实 guard 可依赖 Job
+      身份（而不是 root PID 扫描）——根已死仍能枚举整个 Job 的孙进程；
+      ``timeout`` 是有界终止预算。
+    - ``terminate_tree`` 返回 ``(owned_after, remaining_after)`` 是**权威结果**，
+      调用方应采用（可能比之前的快照更完整）；``remaining_after`` 非空表示树
+      未确认死亡。
+    - ``remaining`` 抛异常=残留未知：调用方必须 fail-closed。
 
     ``describe()`` 必须如实标注 ``os_level_guard``：psutil 兜底方案返回 False，
     它只用于测试观察，不是整树所有权证明。

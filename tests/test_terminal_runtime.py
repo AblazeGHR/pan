@@ -1,13 +1,16 @@
 """Pan Terminal P0：PtyRuntime 生命周期、drain 与清理契约（跨平台）。
 
-覆盖契约报告 M4/M5/M6/M12/M13 与实施计划 §7.1/§13，并增补：
+覆盖契约报告 M4/M5/M6/M12/M13 与实施计划 §7.1/§13，并含 MA 审查返工 r2 的
+先失败后通过回归：
 
-- EOF 与 alive 分离（进程已退出的尾部输出仍然读全）；
-- 结束原因分类（eof / cancelled / channel-error / eof-timeout / stop-requested，
-  只有 eof 才 output_complete）；
-- 清理顺序（身份核验 -> 所有权快照 -> 中断 -> 终止 -> 整树 -> drain -> 关句柄）；
-- 失败与取消无效：保 owner、可重试、取消只在终止+整树成功后发生；
-- 输出消费者（P1 仿真器供料接线）同序投递、异常不拖死 drain。
+- 身份核验三态：probe 未知（None/UNKNOWN）或缺失 -> fail-closed 拒绝任何
+  终止/interrupt/取消（不得 EXITED）；明确 DEAD（retained handle/Job 证据）
+  才放行；根死但 Job 孙进程仍活时仍清理整个 Job；
+- 树所有权：owned 快照异常/remaining 异常 -> 不得 EXITED 或取消 reader；
+  空快照不跳过 terminate_tree；采用 terminate_tree 返回值；根仍活不得取消；
+- 有界清理：terminate 超时保留/复用 worker（重试不重叠）；backend.close 有界
+  （不阻塞 close 主线程）；迟到 write/resize 与 close 竞态被拒；
+- 输出消费者：绝对 seq 供料（gap 可检测）、失败计数有界且脱敏。
 
 本模块同时定义跨测试文件复用的确定性 support（``ScriptedBackend`` /
 ``RecordingTreeGuard``）：lease / ownership / driver 测试通过显式 importlib
@@ -59,8 +62,8 @@ def _load_support():
 class ScriptedBackend:
     """确定性测试后端（**不代表真实 CLI/PTY 行为**）。
 
-    能复现“``alive()=false`` 但通道里仍有尾部数据”、终止失败、通道错误、
-    阻塞读与取消、取消无效等分支。
+    能复现“``alive()=false`` 但通道里仍有尾部数据”、终止失败/超时、终止 no-op、
+    通道错误、阻塞读与取消、取消无效、close 阻塞等分支。
     """
 
     def __init__(
@@ -79,6 +82,10 @@ class ScriptedBackend:
         cancel_on_close: bool = True,
         abort_on_release: bool = False,
         events: list[str] | None = None,
+        alive_after_terminate: bool | None = None,
+        terminate_delay: float = 0.0,
+        close_gate: threading.Event | None = None,
+        write_gate: threading.Event | None = None,
     ) -> None:
         self._chunks = list(chunks)
         self._alive_returns = alive_returns
@@ -100,12 +107,20 @@ class ScriptedBackend:
         self.terminate_calls: list[bool] = []
         self.closed = False
         self.read_calls = 0
+        self.alive_after_terminate = alive_after_terminate
+        self.terminate_delay = terminate_delay
+        self.close_gate = close_gate
+        self.write_gate = write_gate
         self._lock = threading.Lock()
 
     def _record(self, name: str) -> None:
         if self._events is not None:
             with self._events_lock:
                 self._events.append(name)
+
+    def set_alive(self, value: bool) -> None:
+        """测试钩子：外部世界（进程后来退出/资料更新）改变存活事实。"""
+        self._alive_returns = value
 
     def read(self, size: int) -> bytes:
         with self._lock:
@@ -125,6 +140,8 @@ class ScriptedBackend:
         raise EOFError
 
     def write(self, data: bytes) -> int:
+        if self.write_gate is not None:
+            self.write_gate.wait(2.0)
         if self._write_error is not None:
             raise RuntimeError(self._write_error)
         self._record("write")
@@ -146,10 +163,16 @@ class ScriptedBackend:
     def terminate(self, force: bool) -> None:
         self._record("terminate")
         self.terminate_calls.append(force)
+        if self.terminate_delay:
+            time.sleep(self.terminate_delay)
+        if self.alive_after_terminate is not None:
+            self._alive_returns = self.alive_after_terminate
         if self.fail_terminate:
             raise RuntimeError("terminate failed (injected)")
 
     def close(self) -> None:
+        if self.close_gate is not None:
+            self.close_gate.wait(2.0)
         self._record("close")
         self.closed = True
         if self._cancel_on_close:
@@ -172,10 +195,20 @@ class RecordingTreeGuard:
         owned: Iterable[int] = (4242,),
         remaining: Iterable[int] = (),
         events: list[str] | None = None,
+        owned_error: str | None = None,
+        terminate_error: str | None = None,
+        remaining_error: str | None = None,
+        terminate_owned: Iterable[int] | None = None,
+        terminate_remaining: Iterable[int] | None = None,
     ) -> None:
         self._owned = list(owned)
         self._remaining = list(remaining)
         self._events = events
+        self.owned_error = owned_error
+        self.terminate_error = terminate_error
+        self.remaining_error = remaining_error
+        self._terminate_owned = terminate_owned
+        self._terminate_remaining = terminate_remaining
         self._lock = threading.Lock()
 
     def _record(self, name: str) -> None:
@@ -188,17 +221,27 @@ class RecordingTreeGuard:
 
     def owned_pids(self, root_pid: int | None) -> list[int]:
         self._record("owned")
+        if self.owned_error is not None:
+            raise RuntimeError(self.owned_error)
         return list(self._owned)
 
     def remaining(self, pids: Iterable[int]) -> list[int]:
         self._record("remaining")
+        if self.remaining_error is not None:
+            raise RuntimeError(self.remaining_error)
         return list(self._remaining)
 
     def terminate_tree(
         self, root_pid: int | None, *, timeout: float
     ) -> tuple[list[int], list[int]]:
         self._record("terminate_tree")
-        return list(self._owned), list(self._remaining)
+        if self.terminate_error is not None:
+            raise RuntimeError(self.terminate_error)
+        owned = list(self._terminate_owned if self._terminate_owned is not None else self._owned)
+        remaining = list(
+            self._terminate_remaining if self._terminate_remaining is not None else self._remaining
+        )
+        return owned, remaining
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +456,9 @@ def test_tree_remaining_blocks_cancel_and_keeps_owner():
 
 def test_close_order_identity_owned_interrupt_terminate_tree_close():
     events: list[str] = []
-    backend = ScriptedBackend([], block_forever=True, alive_returns=True, events=events)
+    backend = ScriptedBackend(
+        [], block_forever=True, alive_returns=True, alive_after_terminate=False, events=events
+    )
     guard = RecordingTreeGuard(owned=(4242,), remaining=(), events=events)
     identity = ProcessIdentity(pid=4242, created_at_filetime=777)
 
@@ -503,31 +548,239 @@ def test_wait_exit_reports_process_exit_and_code():
 
 
 # ---------------------------------------------------------------------------
-# 输出消费者（P1 仿真器供料接线）
+# r2 回归：树所有权与根存活（先失败后通过）
 # ---------------------------------------------------------------------------
 
 
-def test_output_consumer_receives_chunks_in_order():
-    seen: list[bytes] = []
-    backend = ScriptedBackend([b"a", b"bc", b"d"])
-    runtime = PtyRuntime(TID, backend, output_consumer=seen.append)
+def test_root_alive_after_noop_terminate_blocks_cancel_then_retry_converges():
+    backend = ScriptedBackend(
+        [], block_forever=True, alive_returns=True, alive_after_terminate=True
+    )
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    first = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.15)
+    assert first.terminate_result is TerminateOutcome.RETURNED  # terminate 返回 ≠ 根死
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert first.reader_cancelled is False  # 根仍活：不得取消 reader
+    assert backend.closed is False
+
+    backend.set_alive(False)  # 外部世界确认根退出后重试
+    second = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.3)
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+
+
+def test_empty_tree_snapshot_still_calls_terminate_tree_and_blocks_when_root_alive():
+    events: list[str] = []
+    guard = RecordingTreeGuard(owned=(), remaining=(), events=events)
+    backend = ScriptedBackend(
+        [b"x"], alive_returns=True, alive_after_terminate=True, events=events
+    )
+    runtime = PtyRuntime(TID, backend, terminator=guard)
     runtime.start(rows=10, cols=40)
     assert runtime.wait_eof(2.0)
-    assert seen == [b"a", b"bc", b"d"]
+    first = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.15)
+    # 空快照不再跳过整树终止：真实 guard 可（根死后）枚举整个 Job。
+    assert "terminate_tree" in events
+    assert first.tree_owned_pids == ()
+    assert first.state_after is RuntimeState.CLEANUP_FAILED  # 根仍活：不得 EXITED
+    assert first.reader_cancelled is False
+
+    backend.set_alive(False)
+    second = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.3)
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+
+
+def test_owned_snapshot_error_is_fail_closed():
+    events: list[str] = []
+    guard = RecordingTreeGuard(owned=(), events=events, owned_error="snapshot boom")
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    report = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.15)
+    assert report.state_after is RuntimeState.CLEANUP_FAILED
+    assert report.owner_retained is True
+    assert report.reader_cancelled is False
+    assert report.cancel_kind == "skipped-terminate-failed"
+    assert "snapshot failed" in (report.error or "")
+    assert "terminate_tree" not in events  # 所有权未知：不做基于 guard 的树终止
+    backend.release_blocked_read()
+    assert runtime.wait_eof(1.0)
+
+
+def test_remaining_probe_error_is_fail_closed():
+    guard = RecordingTreeGuard(owned=(4242,), remaining_error="remaining boom")
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    report = runtime.close(interrupt=False, terminate_timeout=0.5, reader_grace=0.15)
+    assert report.tree_remaining_pids == (4242,)  # 无法核对：保守按仍存活
+    assert report.state_after is RuntimeState.CLEANUP_FAILED
+    assert report.owner_retained is True
+    assert report.reader_cancelled is False
+    backend.release_blocked_read()
+    assert runtime.wait_eof(1.0)
+
+
+def test_terminate_tree_return_adopted():
+    guard = RecordingTreeGuard(
+        owned=(4242,), remaining=(), terminate_owned=(4242, 7001), terminate_remaining=()
+    )
+    backend = ScriptedBackend([b"x"], alive_after_terminate=False)
+    runtime = PtyRuntime(TID, backend, terminator=guard)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    report = runtime.close(interrupt=False, terminate_timeout=0.5)
+    # 采用 guard 返回值：根死后 guard 仍能枚举整个 Job（含孙进程）。
+    assert report.tree_owned_pids == (4242, 7001)
+    assert report.tree_remaining_pids == ()
+    assert report.state_after is RuntimeState.EXITED
+    assert report.ok
+
+
+# ---------------------------------------------------------------------------
+# r2 回归：有界清理 worker（重试不重叠、不阻塞主线程）
+# ---------------------------------------------------------------------------
+
+
+def test_blocked_terminate_worker_reused_across_retries():
+    backend = ScriptedBackend(
+        [], block_forever=True, terminate_delay=0.4, alive_after_terminate=False
+    )
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    first = runtime.close(interrupt=False, terminate_timeout=0.1, reader_grace=0.1)
+    assert first.terminate_result is TerminateOutcome.TIMED_OUT
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert len(backend.terminate_calls) == 1
+
+    second = runtime.close(interrupt=False, terminate_timeout=1.0, reader_grace=0.3)
+    assert len(backend.terminate_calls) == 1  # 复用同一 worker：重试不重叠
+    assert second.terminate_result is TerminateOutcome.RETURNED
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+
+
+def test_blocked_backend_close_is_bounded_then_retry_converges():
+    close_gate = threading.Event()
+    backend = ScriptedBackend([], block_forever=True, close_gate=close_gate)
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    first = runtime.close(
+        interrupt=False, terminate_timeout=0.5, reader_grace=0.15, handle_close_timeout=0.15
+    )
+    assert first.cancel_kind == "backend-close-timeout"  # 有界：未无限等待
+    assert first.reader_cancelled is True
+    assert first.reader_converged is False
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+
+    close_gate.set()  # 外部解除阻塞：close worker 完成并解除阻塞读
+    assert runtime.wait_eof(2.0)
+    second = runtime.close(
+        interrupt=False, terminate_timeout=0.5, reader_grace=0.3, handle_close_timeout=1.0
+    )
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+    assert backend.closed is True
+
+
+def test_late_write_and_resize_rejected_during_close():
+    backend = ScriptedBackend([b"x"], terminate_delay=0.3, alive_after_terminate=False)
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    closed = threading.Event()
+    reports = []
+
+    def closer() -> None:
+        reports.append(runtime.close(interrupt=False, terminate_timeout=2.0))
+        closed.set()
+
+    thread = threading.Thread(target=closer)
+    thread.start()
+    deadline = time.monotonic() + 2.0
+    while runtime.state is not RuntimeState.EXITING and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert runtime.state is RuntimeState.EXITING
+    with pytest.raises(IllegalStateTransition):
+        runtime.write(b"late")
+    assert runtime.resize(20, 60) is False
+    assert closed.wait(5.0)
+    thread.join(5)
+    assert reports[0].ok
+    assert all(write != b"late" for write in backend.writes)
+
+
+# ---------------------------------------------------------------------------
+# r2 回归：输出消费者（绝对 seq 供料、失败有界脱敏）
+# ---------------------------------------------------------------------------
+
+
+def test_output_consumer_receives_absolute_seq_in_order():
+    seen: list[tuple[int, bytes]] = []
+    backend = ScriptedBackend([b"a", b"bc", b"d"])
+    runtime = PtyRuntime(TID, backend, output_consumer=lambda seq, data: seen.append((seq, data)))
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    assert seen == [(0, b"a"), (1, b"bc"), (3, b"d")]  # 绝对 seq：emulator 可检测 gap
     assert b"".join(c.data for c in runtime.read_from(0).chunks) == b"abcd"
 
 
-def test_output_consumer_error_recorded_but_drain_continues():
-    def bad_consumer(data: bytes) -> None:
-        raise RuntimeError("consumer boom")
+def test_consumer_gap_visible_via_absolute_seq():
+    seen: list[int] = []
 
-    backend = ScriptedBackend([b"x", b"y"])
+    def failing_once(seq: int, data: bytes) -> None:
+        seen.append(seq)
+        if len(seen) == 1:
+            raise RuntimeError("feed hiccup")
+
+    backend = ScriptedBackend([b"aa", b"bb"])
+    runtime = PtyRuntime(TID, backend, output_consumer=failing_once)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    # 后续块仍带绝对 seq 投递：失败块留下的位置缺口对 emulator 可见（可降级/重对齐）。
+    assert seen == [0, 2]
+    assert runtime.consumer_failure_count == 1
+    assert runtime.consumer_failed is True
+
+
+def test_consumer_failures_bounded_and_redacted():
+    sentinel = "SENTINEL-DO-NOT-LEAK-9f3a"
+
+    def bad_consumer(seq: int, data: bytes) -> None:
+        raise RuntimeError(f"boom {sentinel}")
+
+    backend = ScriptedBackend([b"x"] * 20)
     runtime = PtyRuntime(TID, backend, output_consumer=bad_consumer)
     runtime.start(rows=10, cols=40)
     assert runtime.wait_eof(2.0)
-    assert runtime.consumer_errors and "consumer boom" in runtime.consumer_errors[0]
-    assert b"".join(c.data for c in runtime.read_from(0).chunks) == b"xy"
-    assert runtime.poll_exit().output_complete is True
+    assert runtime.consumer_failure_count == 20  # 计数完整
+    assert runtime.consumer_failed is True
+    assert len(runtime.consumer_errors) <= 8  # 有界
+    assert runtime.consumer_errors == ("RuntimeError",)  # 只有脱敏类型名
+    assert sentinel not in repr(runtime.consumer_errors)
+    assert sentinel not in repr(runtime.exit.as_dict())  # 诊断记录不落秘密
+
+
+def test_consumer_error_types_bounded_across_exception_kinds():
+    counter = {"n": 0}
+    error_types = [RuntimeError, ValueError, OSError, TypeError]
+
+    def bad_consumer(seq: int, data: bytes) -> None:
+        counter["n"] += 1
+        raise error_types[counter["n"] % 4]("x")
+
+    backend = ScriptedBackend([b"y"] * 12)
+    runtime = PtyRuntime(TID, backend, output_consumer=bad_consumer)
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    assert runtime.consumer_failure_count == 12
+    assert set(runtime.consumer_errors) == {"RuntimeError", "ValueError", "OSError", "TypeError"}
+    assert len(runtime.consumer_errors) <= 8
 
 
 def test_no_consumer_is_fine_and_consumer_is_optional():
@@ -536,3 +789,5 @@ def test_no_consumer_is_fine_and_consumer_is_optional():
     runtime.start(rows=10, cols=40)
     assert runtime.wait_eof(2.0)
     assert runtime.consumer_errors == ()
+    assert runtime.consumer_failure_count == 0
+    assert runtime.consumer_failed is False

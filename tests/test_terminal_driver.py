@@ -238,6 +238,28 @@ def test_pyte_observer_alt_screen_exit_limitation_is_declared():
     assert "TUI-CONTENT" in observer.text()
 
 
+@pyte_required
+def test_pyte_observer_incremental_utf8_across_feed_chunks():
+    """r2 回归：跨块增量 UTF-8 解码，不得按块 replace 破坏中文。"""
+    observer = PyteScreenObserver(rows=5, cols=20)
+    data = "中文".encode("utf-8")
+    observer.feed(data[:2])
+    observer.feed(data[2:4])
+    observer.feed(data[4:])
+    text = observer.text()
+    assert "中文" in text
+    assert "\ufffd" not in text  # 无替换字符残留
+
+
+@pyte_required
+def test_pyte_observer_incremental_utf8_replacement_on_invalid_bytes():
+    observer = PyteScreenObserver(rows=5, cols=20)
+    observer.feed(b"ok")
+    observer.feed(b"\xff")  # 非法字节：以替换字符呈现（不静默丢弃）
+    text = observer.text()
+    assert "ok" in text
+
+
 def test_pyte_observer_static_contract():
     assert ALT_SCREEN_DEC_MODES == (47, 1047, 1049)
     assert PyteScreenObserver.SUPPORTS_ALTERNATE_SCREEN_BUFFER is False

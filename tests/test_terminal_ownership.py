@@ -28,6 +28,8 @@ from packages.core.terminal.contracts import (
     OwnershipPolicyRequired,
     ProcessIdentity,
     ProcessOwnershipEvidence,
+    ProcessProbe,
+    ProcessStatus,
     RuntimeState,
     TerminateOutcome,
     UnownedTreeRejected,
@@ -231,6 +233,7 @@ def test_identity_probe_failure_refuses_termination():
     runtime.start(rows=10, cols=40)
     report = runtime.close(interrupt=False)
     assert report.identity_check is IdentityCheck.PROBE_FAILED
+    assert report.terminate_result is TerminateOutcome.REFUSED_IDENTITY_UNKNOWN
     assert report.state_after is RuntimeState.CLEANUP_FAILED
     assert backend.terminate_calls == []
     backend.release_blocked_read()
@@ -247,13 +250,96 @@ def test_verified_identity_converges():
     assert report.ok
 
 
-def test_probe_none_is_treated_as_gone():
+def test_probe_none_is_unknown_and_refuses_close_then_retry_after_dead_verdict():
+    """r2 回归：None 只表示未知，不能证明 dead —— fail-closed 拒绝任何终止/interrupt。"""
+    verdict = {"mode": "unknown"}
+
+    def probe(pid: int):
+        if verdict["mode"] == "unknown":
+            return None
+        return ProcessProbe(status=ProcessStatus.DEAD)
+
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(TID, backend, identity=IDENTITY, identity_probe=probe)
+    runtime.start(rows=10, cols=40)
+    first = runtime.close(interrupt=False, terminate_timeout=0.4, reader_grace=0.15)
+    assert first.identity_check is IdentityCheck.UNKNOWN
+    assert first.terminate_result is TerminateOutcome.REFUSED_IDENTITY_UNKNOWN
+    assert first.state_after is RuntimeState.CLEANUP_FAILED
+    assert first.owner_retained is True
+    assert backend.terminate_calls == []  # 未做任何终止
+    assert backend.closed is False
+
+    # retained handle / Job 后端随后给出明确已退出证据：重试收敛。
+    verdict["mode"] = "dead"
+    second = runtime.close(interrupt=False, terminate_timeout=0.4, reader_grace=0.3)
+    assert second.identity_check is IdentityCheck.CONFIRMED_DEAD
+    assert second.state_after is RuntimeState.EXITED
+    assert second.ok
+    assert backend.terminate_calls == [True]
+
+
+def test_identity_without_probe_is_unknown_and_refuses():
+    """r2 回归：有记录身份但探针缺失同样 fail-closed（不再放行）。"""
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(TID, backend, identity=IDENTITY)
+    runtime.start(rows=10, cols=40)
+    report = runtime.close(interrupt=False)
+    assert report.identity_check is IdentityCheck.UNKNOWN
+    assert report.terminate_result is TerminateOutcome.REFUSED_IDENTITY_UNKNOWN
+    assert backend.terminate_calls == []
+    backend.release_blocked_read()
+    assert runtime.wait_eof(1.0)
+
+
+def test_probe_alive_with_matching_identity_converges():
     backend = ScriptedBackend([b"x"])
-    runtime = PtyRuntime(TID, backend, identity=IDENTITY, identity_probe=lambda pid: None)
+    runtime = PtyRuntime(
+        TID,
+        backend,
+        identity=IDENTITY,
+        identity_probe=lambda pid: ProcessProbe(status=ProcessStatus.ALIVE, identity=IDENTITY),
+    )
     runtime.start(rows=10, cols=40)
     assert runtime.wait_eof(2.0)
     report = runtime.close(interrupt=False)
     assert report.identity_check is IdentityCheck.VERIFIED
+    assert report.ok
+
+
+def test_probe_alive_without_comparable_identity_is_unknown():
+    backend = ScriptedBackend([], block_forever=True)
+    runtime = PtyRuntime(
+        TID,
+        backend,
+        identity=IDENTITY,
+        identity_probe=lambda pid: ProcessProbe(status=ProcessStatus.ALIVE),
+    )
+    runtime.start(rows=10, cols=40)
+    report = runtime.close(interrupt=False)
+    assert report.identity_check is IdentityCheck.UNKNOWN
+    assert report.terminate_result is TerminateOutcome.REFUSED_IDENTITY_UNKNOWN
+    backend.release_blocked_read()
+    assert runtime.wait_eof(1.0)
+
+
+def test_root_dead_with_live_job_grandchildren_cleans_whole_job():
+    """r2 回归：根已明确退出、Job 孙进程仍活时，不得误拒 Job-owned 清理。"""
+    guard = RecordingTreeGuard(owned=(4242, 9001), remaining=())
+    backend = ScriptedBackend([b"x"], alive_returns=False)
+    runtime = PtyRuntime(
+        TID,
+        backend,
+        terminator=guard,
+        identity=IDENTITY,
+        identity_probe=lambda pid: ProcessProbe(status=ProcessStatus.DEAD),
+    )
+    runtime.start(rows=10, cols=40)
+    assert runtime.wait_eof(2.0)
+    report = runtime.close(interrupt=False)
+    assert report.identity_check is IdentityCheck.CONFIRMED_DEAD
+    assert report.tree_owned_pids == (4242, 9001)  # 根死仍枚举整个 Job（含孙进程）
+    assert report.state_after is RuntimeState.EXITED
     assert report.ok
 
 

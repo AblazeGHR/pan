@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -316,3 +317,104 @@ def test_send_on_exited_runtime_raises_illegal_state():
     assert runtime.close(interrupt=False).ok
     with pytest.raises(IllegalStateTransition):
         lease.send(token, b"x")
+
+
+# ---------------------------------------------------------------------------
+# r2 回归：每终端独立同步、forget、已发 lease 校验
+# ---------------------------------------------------------------------------
+
+
+def test_observer_validate_requires_issued_lease():
+    """r2 回归：validate 必须确认真实发出过的 lease，而非任意 non-revoked ID。"""
+    lease, _runtime, _backend = _make_lease()
+    observer = lease.attach(TID, "m1", role=LEASE_ROLE_OBSERVER)
+    lease.validate(observer)  # 真实发出的 observer：通过
+
+    forged = LeaseToken(
+        terminal_id=TID,
+        client_id="m1",
+        generation=1,
+        role=LEASE_ROLE_OBSERVER,
+        rows=0,
+        cols=0,
+        revocation_id="b" * 32,  # 从未由本 registry 发出
+    )
+    with pytest.raises(NotControlLeaseError):
+        lease.validate(forged)
+
+    lease.detach(observer)
+    with pytest.raises(StaleLeaseError):
+        lease.validate(observer)  # 已撤销：StaleLease
+
+
+def test_same_client_multiple_observers_revoke_isolated():
+    """r2 回归：同一 client 的多个 observer token 互不影响。"""
+    lease, _runtime, _backend = _make_lease()
+    first = lease.attach(TID, "viewer", role=LEASE_ROLE_OBSERVER)
+    second = lease.attach(TID, "viewer", role=LEASE_ROLE_OBSERVER)
+    lease.detach(first)
+    with pytest.raises(StaleLeaseError):
+        lease.validate(first)
+    lease.validate(second)  # 同 client 的另一个 token 不受影响
+
+
+def test_forget_terminal_keeps_old_tokens_rejected():
+    """r2 回归：终态 terminal 可安全 forget，旧 token 一律拒绝（不可复活）。"""
+    lease, _runtime, backend = _make_lease()
+    control = lease.attach(TID, "c1", role=LEASE_ROLE_CONTROL)
+    observer = lease.attach(TID, "m1", role=LEASE_ROLE_OBSERVER)
+    assert lease.send(control, b"x") == 1
+
+    lease.forget(TID)
+    assert lease.control_holder(TID) is None
+    assert lease.is_revoked(control) is True
+    with pytest.raises(StaleLeaseError):
+        lease.send(control, b"y")
+    with pytest.raises(StaleLeaseError):
+        lease.validate(observer)
+    with pytest.raises(StaleLeaseError):
+        lease.resize(control, 10, 10)
+    assert backend.writes == [b"x"]  # forget 不触碰 PTY
+
+
+def test_slow_write_on_one_terminal_does_not_block_another():
+    """r2 回归：A 终端慢写不得卡住 B 终端的操作（每终端独立同步）。"""
+    backend_a = ScriptedBackend([])
+    backend_b = ScriptedBackend([])
+    runtime_a = PtyRuntime("term_slowwrite00000001", backend_a)
+    runtime_a.start(rows=24, cols=80)
+    runtime_b = PtyRuntime("term_slowwrite00000002", backend_b)
+    runtime_b.start(rows=24, cols=80)
+    runtimes = {runtime_a.terminal_id: runtime_a, runtime_b.terminal_id: runtime_b}
+    lease = AttachmentRegistry(lambda terminal_id: runtimes.get(terminal_id))
+
+    gate = threading.Event()
+    backend_a.write_gate = gate
+    token_a = lease.attach(runtime_a.terminal_id, "a", role=LEASE_ROLE_CONTROL)
+    a_done = threading.Event()
+
+    def slow_send() -> None:
+        lease.send(token_a, b"slow")
+        a_done.set()
+
+    thread = threading.Thread(target=slow_send)
+    thread.start()
+    time.sleep(0.05)  # 让 A 的写进入被卡状态
+
+    done = threading.Event()
+
+    def operate_b() -> None:
+        token_b = lease.attach(runtime_b.terminal_id, "b", role=LEASE_ROLE_CONTROL)
+        lease.send(token_b, b"ok")
+        lease.detach(token_b)
+        done.set()
+
+    worker = threading.Thread(target=operate_b)
+    worker.start()
+    assert done.wait(1.0)  # 旧实现（全局锁）会被 A 的慢写卡住
+    gate.set()
+    assert a_done.wait(2.0)
+    thread.join(2)
+    worker.join(2)
+    assert backend_a.writes == [b"slow"]
+    assert backend_b.writes == [b"ok"]

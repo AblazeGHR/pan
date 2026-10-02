@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import codecs
 import threading
 import time
 from typing import Callable, Iterable
@@ -55,13 +56,15 @@ class PyteScreenObserver:
         self.cols = int(cols)
         self._screen = Screen(self.cols, self.rows)
         self._stream = Stream(self._screen)
+        # 增量 UTF-8 解码：跨块保留未完成的多字节序列（split CJK 不得被破坏）。
+        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
         self._bytes = 0
         self._lock = threading.Lock()
 
     def feed(self, data: bytes) -> None:
         with self._lock:
-            # 解码替换不保证跨块 UTF-8 正确；pyte 路径只承诺 partial。
-            text = data.decode("utf-8", "replace")
+            # 增量解码：跨块拼接完整码点；非法字节以替换字符呈现（不静默丢弃）。
+            text = self._decoder.decode(data)
             self._stream.feed(text)
             self._bytes += len(data)
 

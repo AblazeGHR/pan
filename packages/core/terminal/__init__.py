@@ -25,7 +25,9 @@ from __future__ import annotations
 
 from .attachments import AttachmentRegistry
 from .contracts import (
+    DEFAULT_CONSUMER_ERROR_TYPES,
     DEFAULT_EOF_GRACE_SECONDS,
+    DEFAULT_HANDLE_CLOSE_TIMEOUT,
     DEFAULT_LEASE_GRACE_SECONDS,
     DEFAULT_OUTPUT_LOG_BYTES,
     DEFAULT_READ_SIZE,
@@ -60,6 +62,8 @@ from .contracts import (
     OwnershipPolicyRequired,
     ProcessIdentity,
     ProcessOwnershipEvidence,
+    ProcessProbe,
+    ProcessStatus,
     PtyBackend,
     Recovery,
     RegistryCorruptError,
@@ -96,6 +100,8 @@ __all__ = [
     "DEFAULT_EOF_GRACE_SECONDS",
     "DEFAULT_LEASE_GRACE_SECONDS",
     "DEFAULT_STOP_CONFIRM_SECONDS",
+    "DEFAULT_HANDLE_CLOSE_TIMEOUT",
+    "DEFAULT_CONSUMER_ERROR_TYPES",
     "LEASE_ROLE_CONTROL",
     "LEASE_ROLE_OBSERVER",
     # contracts: 枚举
@@ -124,6 +130,8 @@ __all__ = [
     "TerminalExistsError",
     # contracts: 数据
     "ProcessIdentity",
+    "ProcessProbe",
+    "ProcessStatus",
     "ProcessOwnershipEvidence",
     "ExitInfo",
     "CleanupReport",
