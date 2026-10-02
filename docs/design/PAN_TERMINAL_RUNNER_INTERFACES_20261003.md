@@ -181,12 +181,18 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 - **世代（epoch）与迟到 expiry（R2）**：每次已处理的续约/接管都自增 `_lease_epoch`；
   expiry 判定携带检测时刻的世代，在取得关闭权之前**复核**（世代未变 + 仍未续约才继续）。
   因此"迟到 expiry"不会误杀新 lease；检测后发生的任何续约都会作废旧判定。
-- **关闭权仲裁（R1/R2，同一生命周期门）**：
-  - `close(source="lease")` 在生命周期锁内复核 `detached` 与 lease 世代：
-    detach 已完成 → `lease-skipped-detached`（不杀）；世代已更新 → `lease-skipped-renewed`；
-  - 一旦 expiry 取得关闭权（`_expiry_in_progress`），`detach` **明确拒绝**
-    （`status=detach-refused`，detail.reason=`lease-close-in-progress`），零状态变化；
-  - 用户/服务**显式 close**（`source="explicit"`）不受上述跳过影响：detached 也照常终止。
+- **N1 指令级线性化（`_acquire_lease_close_right`）**：expiry 的"复核 + 取得**不可撤销**
+  关闭权（`_expiry_in_progress=True`）"在 **lease 锁内原子完成**，与 `owner_heartbeat`
+  共用同一把锁，两条指令流严格线性化：
+  - hb 先被接受（世代自增）→ expiry 的取得返回 `renewed`（旧 expiry 作废，不关树）；
+  - expiry 先取得关闭权 → hb 在锁内看到该位，只能返回 **`closing`**（ok=False，
+    **不得假 ok**、不续约、不接管）；关闭权不可撤销，关闭链继续（失败仍走 R1 同 worker
+    消费/重试，输入门保持关闭）。
+- **关闭权仲裁（R1/R2）**：`close(source="lease")` 在生命周期锁内复核 `detached`
+  （detach 已完成 → `lease-skipped-detached`）；一旦 expiry 取得关闭权
+  （`_expiry_in_progress`），`detach` **明确拒绝**（`status=detach-refused`，
+  detail.reason=`lease-close-in-progress`），零状态变化；用户/服务**显式 close**
+  （`source="explicit"`）不受跳过影响：detached 也照常终止。
 - **显式 close 未收敛/失败后 Pan 断开（R1）**：`_closing` **不再**永久豁免 lease 检查。
   watchdog 仍负责：等待并**消费同一 close worker** 的结果（迟到成功 → 直接 `exited`，
   不重复发起同一阻塞调用）；失败 → 有界重试（仅当上一 worker 已结束才另起，不叠加）；
@@ -213,10 +219,18 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 - `write_hook`（构造参数）**仅测试/诊断**：生产不注入（默认 `runtime.write`）。
   本机实测：ConPTY 不会因输入量阻塞（2.7MB 输入被吸收），因此"阻塞写"的行为验证
   由注入门在真实 runner 进程的 write worker 内完成（证据见 `audit/.../runner/`）。
-- 收尾预算（R1/O3）：`run()` finally 会 `_close_pipe_server()`（不收敛保引用）、
+- 收尾预算（R1/O3/N4）：`run()` finally 会 `_close_pipe_server()`（不收敛保引用）、
   以**共享总 deadline** join 连接线程（默认 3s，非 N×2s）、有界 join watchdog（3s），
-  再由 `_finalize()` 在总预算（12s）内做最后一次关闭；超预算或未收敛一律如实标注
-  （状态文件 + 退出码），不无限等待、不把未知当成功。
+  再由 `_finalize()` 在**从入口计时的总预算（12s）**内做最后一次关闭：
+  - 预算**包含** lifecycle 锁的有界等待（`RLock.acquire(timeout=剩余)`）与 close worker
+    等待/全部 join；剩余预算逐段传递（`min(close_wait, remaining)`）；
+  - 锁忙（被其它关闭链持有）→ **不假 success、不丢 owner、不裸关在途句柄**：记录
+    `finalize.outcome="lock-busy"` 与非零退出码（cleanup-failed），随后仍可重试；
+  - 预算耗尽 → 不静默延长、不多次最低预算重试 → `budget-exhausted` + 未证明码（6）；
+  - 在途 close worker 复用原 worker（不重叠）；`finalize` 结果（outcome/lock/worker
+    追踪）进入状态文件 `cleanup.finalize`；
+  - 该预算是**调用方侧有界等待**，**不是 OS 原语硬 SLA**（锁获取/GIL/调度只保证
+    "尽力在预算内返回"）。
 
 ### 4.3 有界等待（默认）
 
@@ -310,12 +324,27 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 | 启动失败（含 token 入 env；hello 删除仅限未通过自检） | fail-closed，不监听；按清理证据给 4 或 6 |
 | 正常运行中（含 detach 后） | 服务循环；不自行退出 |
 
-- **状态文件（R3：跨进程可观测的脱敏状态）**：
-  `<terminals_root>/runner-status/<terminal_id>.json`（原子写，无秘密、无异常消息；
-  字段：`phase` / `exit_code` / `reason` / `runner_pid` / `cleanup{converged, startup,
-  pipe, retained, close_ok...}` / `updated_at`）。启动失败、正常退出、cleanup-failed、
-  accept-failed 都会落盘；stderr 另有一行静态 `exit code=N reason=<静态串>`。
-  未收敛时 `cleanup.converged=false` 且 `retained` 列出仍持有的资源名（backend/pipe）。
+- **状态文件（R3 + N2/N3：跨进程可观测的脱敏状态）**：
+  `<terminals_root>/runner-status/<terminal_id>.json`（**串行写 + 唯一自有 tmp + 原子
+  replace**；无秘密、无异常消息）。字段：`phase` / `exit_code` / `reason` /
+  `runner_pid` / `runner_identity` / `prior_record_identity_mismatch` / `cleanup
+  {converged, startup, pipe, retained, finalize, close_ok...}` / `updated_at`。
+  - **路径安全（N2）**：写入前 `validate_terminal_id` 并确认收敛在自有 `runner-status`
+    目录内；非法 id（分隔符/穿越/形状不符）→ **零派生文件**（bootstrap 失败路径同样
+    不逃逸），只记脱敏诊断 `status-path-rejected`（不回显 id）。`status_path` 属性对
+    非法 id 显式抛 `ValueError`。
+  - **身份绑定（N3）**：`runner_identity = {pid, process_created_at_filetime（十进制
+    **字符串**，跨 JS 不浮点）, verified, source, authority}`；来源为 bootstrap 时经
+    内核读取的自身身份；**未能核验时明确 `source="unknown"`（pid/filetime null），
+    不造身份**。旧残留记录身份不同 → 新记录标记 `prior_record_identity_mismatch=true`
+    （消费者**不得**把旧记录当"当前"）。
+  - **状态文件本身不是存活权威**：消费者必须与 bootstrap 记录 / DPAPI 秘密的
+    pid + raw FILETIME 交叉核验（`authority` 字段内亦写明）。
+  - 写入失败（含 replace 失败）只清**自有** tmp、不破坏旧文件、不吞 note
+    （`status-write-failed` / `status-tmp-cleanup-failed`）。
+  - 启动失败、正常退出、cleanup-failed、accept-failed 都会落盘；stderr 另有一行静态
+    `exit code=N reason=<静态串>`。未收敛时 `cleanup.converged=false` 且 `retained`
+    列出仍持有的资源名（backend/pipe）。
 - **"已清理"与"未证明清理"必须区分**：退出码 4 vs 6 + 状态文件；**不得**把
   "进程退出关闭 guard 句柄"当作已证明清理——该内核兜底只在 r2 特定场景被端到端观测过，
   不作为通用保证，也不得在报告中泛化（见 §9）。
@@ -549,3 +578,20 @@ class RunnerClient:
   - **O7**：`LOST` 不再映射为 exit 0（未证明 → 退出码 6）。
   - 测试 19 → **31 项**（新增 12 项门控/真机；直连 + uv 各一次，core129+broadcast8
     隔离 pyte 另列）。
+- `2026-10-03` **r3 窄修（独立窄验 ROUND2 `f0bcd6fd` 后闭环；先失败后通过）**：
+  - **N1**（中）：`_acquire_lease_close_right` 在 **lease 锁内原子**完成 expiry 复核 +
+    取得不可撤销关闭权，与 `owner_heartbeat` 线性化——hb 先 → 旧 expiry `renewed` 作废；
+    expiry 先 → hb 锁内必返 `closing`（**不假 ok**、不续约）。R1 同 worker 消费/重试、
+    输入门保持不回归。
+  - **N2**（低）：`_status_path` 先 `validate_terminal_id` + 目录收敛校验；非法 id
+    **零派生文件**（bootstrap 失败路径不逃逸），只记 `status-path-rejected`。
+  - **N3**（低）：状态绑定 `runner_identity`（真实 pid + raw FILETIME 字符串；未核验
+    明确 unknown 不造身份）+ `authority` 说明（非存活权威，须与 bootstrap/secret 交叉
+    核验）+ `prior_record_identity_mismatch`（旧残留身份不同不当当前）；状态写串行、
+    唯一自有 tmp、replace 失败只清自有不吞 cleanup。
+  - **N4**（口径）：`_finalize` 总预算（入口起 12s）**包含** lifecycle 锁的有界等待与
+    全部 join/worker 等待；锁忙 → 非零（cleanup-failed）、不假 success、不丢 owner、
+    不裸关在途句柄，`finalize` 结果入状态文件；预算耗尽不静默延长（未证明码 6）；
+    在途 close 复用原 worker；声明为调用方侧有界等待，非 OS 原语硬 SLA。
+  - 测试 31 → **38 项**（新增 7：N1×2、N2×1、N3×2、N4×2；直连 + uv 各一次，
+    不再运行 core129/8）。

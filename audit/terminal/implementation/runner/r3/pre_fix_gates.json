@@ -1,0 +1,61 @@
+{
+  "baseline": "a704abbb",
+  "baseline_tree": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-r3-baseline-6ssj0liw",
+  "runner_module_file": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-r3-baseline-6ssj0liw\\packages\\core\\terminal\\runner.py",
+  "injection_only": true,
+  "note": "a704 固定副本（git archive，只读）上的确定性门控复现；非 OS 实测",
+  "scenarios": {
+    "n1a_hb_after_close_right_acquired": {
+      "hb_status": "ok",
+      "hb_ok": true,
+      "lease_renewed_by_hb": true,
+      "expected_r3": "closing（不假 ok、不续约）",
+      "defect_present": true
+    },
+    "n1b_hb_first_voids_expiry": {
+      "hb_status": "ok",
+      "stale_expiry_status": "lease-skipped-renewed",
+      "close_calls": [],
+      "expected_r3": "skipped（两版本都应如此）",
+      "defect_present": false
+    },
+    "n2_illegal_id_status_escape": {
+      "escaped_file_written": true,
+      "escaped_path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-r3-prefix-w6ruq912\\n2-root\\escape.json",
+      "canonical_status_dir_exists": true,
+      "expected_r3": "零写（只 note status-path-rejected）",
+      "defect_present": true
+    },
+    "n3_status_identity_binding": {
+      "has_runner_identity_block": false,
+      "has_raw_filetime": false,
+      "has_prior_record_flag": false,
+      "expected_r3": "runner_identity（pid + raw FILETIME 字符串）+ authority + prior_record 辨认",
+      "defect_present": true
+    },
+    "n4_finalize_budget_excludes_lock_wait": {
+      "budget_seconds": 0.6,
+      "lock_held_seconds": 1.5,
+      "finalize_seconds": 1.453,
+      "close_calls": [
+        "runner-shutdown"
+      ],
+      "exit_code": 0,
+      "expected_r3": "≤预算内返回（锁忙→非零、不假 success、不关句柄）",
+      "defect_present": true
+    }
+  },
+  "verdict": {
+    "defects_present": {
+      "n1a_hb_after_close_right_acquired": true,
+      "n1b_hb_first_voids_expiry": false,
+      "n2_illegal_id_status_escape": true,
+      "n3_status_identity_binding": true,
+      "n4_finalize_budget_excludes_lock_wait": true
+    },
+    "n1_defect_reproduced": true,
+    "n2_defect_reproduced": true,
+    "n3_defect_reproduced": true,
+    "n4_defect_reproduced": true
+  }
+}

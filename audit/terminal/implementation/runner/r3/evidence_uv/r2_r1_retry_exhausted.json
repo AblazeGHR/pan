@@ -1,0 +1,12 @@
+{
+  "injection": "FakeRuntime(close_behavior=error) + retries=2",
+  "close_calls": [
+    "explicit-close",
+    "lease-expired",
+    "lease-expired-retry1",
+    "lease-expired-retry2"
+  ],
+  "max_concurrent_close": 1,
+  "exit_code": 3,
+  "input_still_rejected": true
+}

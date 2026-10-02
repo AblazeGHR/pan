@@ -1347,6 +1347,7 @@ class _GatedRuntime:
         close_behavior: str = "ok",
         close_delay: float = 0.0,
         detach_delay: float = 0.0,
+        close_gate: threading.Event | None = None,
     ) -> None:
         self.state = RuntimeState.RUNNING
         self.identity = None
@@ -1357,6 +1358,7 @@ class _GatedRuntime:
         self.close_behavior = close_behavior
         self.close_delay = float(close_delay)
         self.detach_delay = float(detach_delay)
+        self.close_gate = close_gate
         self.close_calls: list[str] = []
         self.detach_calls = 0
         self._active = 0
@@ -1372,6 +1374,8 @@ class _GatedRuntime:
             self._active += 1
             self.max_active = max(self.max_active, self._active)
         try:
+            if self.close_gate is not None:
+                self.close_gate.wait(15.0)
             if self.close_delay:
                 time.sleep(self.close_delay)
             if self.close_behavior == "error":
@@ -1900,5 +1904,266 @@ def test_accept_failure_is_not_exit_zero_and_observable(spawn_runner, tmp_path):
             "cleanup_converged": True,
             "stderr_reason": "accept-failed",
             "spawned_pid_dead": True,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r3 窄修门控（N1 lease 线性化 / N2 status 路径 / N3 status 身份 / N4 finalize 预算）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_n1_heartbeat_refused_when_expiry_holds_close_right(tmp_path):
+    """N1：expiry 已在 lease 锁内取得不可撤销关闭权 → hb 在锁内只能 closing（不假 ok），
+    且关闭链继续（同 worker 不叠加）；关闭权取得后的 hb 不续约（时间戳不变）。"""
+    runner = _make_runner(tmp_path, "term_gate_n1a", lease_grace_seconds=0.2, close_wait=5.0)
+    gate = threading.Event()
+    runtime = _GatedRuntime(close_gate=gate)
+    _wire_gate(runner, runtime)
+    outcome: dict[str, str] = {}
+    thread = threading.Thread(
+        target=lambda: outcome.update(
+            {"o": runner._lease_expired_close(epoch=runner._lease_epoch, established=True)}
+        ),
+        daemon=True,
+    )
+    thread.start()
+    entered = _wait_until(lambda: bool(runtime.close_calls), 3.0)
+    assert entered, "expiry close 链必须已启动"
+    assert runner._expiry_in_progress is True
+    heartbeat_before = runner._last_heartbeat
+    hb = runner.owner_heartbeat("late-owner")
+    assert hb["status"] == "closing" and hb.get("ok") is False, hb
+    assert runner._last_heartbeat == heartbeat_before, "关闭权取得后 hb 不得续约"
+    gate.set()
+    thread.join(timeout=10.0)
+    assert outcome.get("o") == "exited"
+    assert runtime.close_calls == ["lease-expired"], "close 链应继续且不叠加"
+    assert runtime.max_active == 1
+    assert runner._exit_code == runner_module.RUNNER_EXIT_OK
+    record_evidence(
+        "r3_n1_hb_after_grant",
+        {
+            "hb_status": hb["status"],
+            "hb_ok": hb.get("ok"),
+            "lease_not_renewed": True,
+            "close_calls": runtime.close_calls,
+            "outcome": outcome.get("o"),
+        },
+    )
+
+
+def test_n1_heartbeat_first_voids_stale_expiry_and_grant_is_atomic(tmp_path):
+    """N1 另一顺序：hb 先被接受 → 旧 expiry 取得权返回 renewed 作废；取得后重复取得为
+    already（不可撤销）。旁路断言：关闭权已置位时 hb 静态必为 closing。"""
+    runner = _make_runner(tmp_path, "term_gate_n1b", lease_grace_seconds=0.2)
+    runtime = _GatedRuntime()
+    _wire_gate(runner, runtime)
+    epoch = runner._lease_epoch
+    assert runner.owner_heartbeat("new-owner")["status"] == "ok"
+    # 旧 expiry 的取得尝试：世代已变 → renewed（不关闭）
+    assert runner._acquire_lease_close_right(epoch, established=True) == "renewed"
+    assert runner._expiry_in_progress is False
+    assert runner._lease_expired_close(epoch=epoch, established=True) == "skipped"
+    assert runtime.close_calls == []
+    # 静态判别：关闭权已置位（模拟"取得后、_closing 前"的线性化点状态）
+    runner._expiry_in_progress = True
+    hb = runner.owner_heartbeat("another-owner")
+    assert hb["status"] == "closing" and hb.get("ok") is False
+    assert runner._acquire_lease_close_right(epoch, established=True) == "already"
+    record_evidence(
+        "r3_n1_hb_first",
+        {
+            "stale_expiry_outcome": "skipped",
+            "reacquire": "already",
+            "hb_after_grant_status": hb["status"],
+            "close_calls": runtime.close_calls,
+        },
+    )
+
+
+def test_n2_illegal_terminal_id_never_writes_status_files(tmp_path):
+    """N2：非法 terminal_id 在 `_write_status`/bootstrap 失败路径下**零派生文件**，
+    只记脱敏诊断（不回显 id）；合法 id 写入自有 runner-status 目录内。"""
+    root = tmp_path / "n2-terminals"
+    (root / "secrets").mkdir(parents=True)
+    illegal = runner_module.TerminalRunner(
+        "term_x/../../escape", root / "secrets" / "term_x.secret"
+    )
+    before = sorted(str(p) for p in root.rglob("*"))
+    illegal._write_status("bootstrap-failed", exit_code=4)
+    illegal._bootstrap_failed_exit("bootstrap-refused")
+    after = sorted(str(p) for p in root.rglob("*"))
+    assert before == after, f"非法 id 不得写任何派生文件：{set(after) - set(before)}"
+    assert not (root / "escape.json").exists()
+    notes = [event for _, event, _ in illegal.events]
+    assert "status-path-rejected" in notes
+    assert not any("term_x" in detail for _, _, detail in illegal.events)
+    try:
+        illegal.status_path  # type: ignore[attr-defined]
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised, "status_path 属性对非法 id 必须显式拒绝"
+    legal = runner_module.TerminalRunner(
+        "term_n2_legal", root / "secrets" / "term_n2_legal.secret"
+    )
+    legal._write_status("bootstrap-failed", exit_code=4)
+    written = root / "runner-status" / "term_n2_legal.json"
+    assert written.is_file()
+    assert json.loads(written.read_text(encoding="utf-8"))["terminal_id"] == "term_n2_legal"
+    record_evidence(
+        "r3_n2_status_path",
+        {"illegal_zero_write": True, "status_path_raises": True, "legal_written_in_root": True},
+    )
+
+
+def test_n3_status_binds_runner_identity_with_raw_filetime(tmp_path):
+    """N3：状态绑定真实 runner pid + raw FILETIME（十进制字符串，跨 JS 不浮点）；
+    未能核验时明确 unknown 不造身份；旧残留记录身份不同 → 标记 mismatch。"""
+    runner = _make_runner(tmp_path, "term_gate_n3")
+    runner._write_status("bootstrap-failed", exit_code=4)
+    status_path = runner.status_path
+    first = json.loads(status_path.read_text(encoding="utf-8"))
+    identity = first["runner_identity"]
+    assert identity["pid"] is None and identity["process_created_at_filetime"] is None
+    assert identity["source"] == "unknown" and identity["verified"] is False
+    assert "liveness" in identity["authority"]
+
+    runner._own_identity = win_pipe.current_process_identity()
+    runner._secret_verified = True
+    runner._write_status("exited", exit_code=0)
+    second = json.loads(status_path.read_text(encoding="utf-8"))
+    identity2 = second["runner_identity"]
+    assert identity2["pid"] == os.getpid()
+    assert isinstance(identity2["process_created_at_filetime"], str)
+    assert identity2["process_created_at_filetime"].isdigit()
+    assert identity2["verified"] is True
+    assert second["runner_pid"] == os.getpid()
+    assert second["prior_record_identity_mismatch"] is True  # 前一条为 unknown 身份
+
+    runner._write_status("exited", exit_code=0)
+    third = json.loads(status_path.read_text(encoding="utf-8"))
+    assert third["prior_record_identity_mismatch"] is False  # 同身份再写
+    leftovers = [p.name for p in status_path.parent.iterdir() if p.name.endswith(".tmp")]
+    assert leftovers == []
+    record_evidence(
+        "r3_n3_identity",
+        {
+            "unknown_block": identity,
+            "real_identity": identity2,
+            "mismatch_then_match": [second["prior_record_identity_mismatch"], third["prior_record_identity_mismatch"]],
+        },
+    )
+
+
+def test_n3_status_tmp_failure_cleans_only_own_tmp(tmp_path, monkeypatch):
+    """N3：原子 replace 失败 → 只清自有 tmp、保留他人文件、旧状态不被破坏、note 如实。"""
+    runner = _make_runner(tmp_path, "term_gate_n3b")
+    runner._write_status("running", exit_code=None)
+    status_path = runner.status_path
+    original_text = status_path.read_text(encoding="utf-8")
+    foreign_tmp = status_path.parent / "foreign-other-writer.tmp"
+    foreign_tmp.write_text("not-ours", encoding="utf-8")
+
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def failing_replace(src, dst, *args, **kwargs):
+        calls["n"] += 1
+        raise OSError("injected-replace-failure")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+    runner._write_status("exited", exit_code=0)
+    monkeypatch.setattr(os, "replace", real_replace)
+
+    assert calls["n"] == 1
+    assert status_path.read_text(encoding="utf-8") == original_text, "旧状态不得被破坏"
+    assert foreign_tmp.is_file() and foreign_tmp.read_text(encoding="utf-8") == "not-ours"
+    our_tmp = [p.name for p in status_path.parent.iterdir() if p.name.endswith(".tmp")
+               and p.name != foreign_tmp.name]
+    assert our_tmp == [], f"自有 tmp 必须被清理：{our_tmp}"
+    notes = [event for _, event, _ in runner.events]
+    assert "status-write-failed" in notes
+    record_evidence(
+        "r3_n3_tmp_failure",
+        {"replace_attempts": calls["n"], "own_tmp_cleaned": True, "foreign_tmp_kept": True},
+    )
+
+
+def test_n4_finalize_budget_includes_lock_wait_and_owner_retry(tmp_path, monkeypatch):
+    """N4：finalize 总预算**包含** lifecycle 锁等待；锁忙 → 有界返回、非零、不假 success、
+    不丢 owner、不裸关在途句柄；释放后可重试收敛。"""
+    monkeypatch.setattr(runner_module, "_FINALIZE_BUDGET_SECONDS", 0.6)
+    runner = _make_runner(tmp_path, "term_gate_n4", close_wait=1.0)
+    runtime = _GatedRuntime()
+    runner._runtime = runtime
+    runner._runner_state = "running"
+
+    holding = threading.Event()
+
+    def hold_lifecycle():
+        runner._lifecycle_lock.acquire()
+        holding.set()
+        try:
+            time.sleep(1.5)
+        finally:
+            runner._lifecycle_lock.release()
+
+    holder = threading.Thread(target=hold_lifecycle, daemon=True)
+    holder.start()
+    assert holding.wait(2.0)
+    time.sleep(0.05)
+
+    started = time.monotonic()
+    runner._finalize()
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.0, f"锁等待必须计入预算（实测 {elapsed:.3f}s）"
+    assert runner._exit_code == runner_module.RUNNER_EXIT_CLEANUP_FAILED
+    assert runtime.close_calls == [], "锁忙时不得裸关/重复关闭"
+    assert runner._runtime is runtime, "owner 引用不得丢失"
+    report = dict(runner._finalize_report or {})
+    assert report.get("outcome") == "lock-busy"
+    assert "close_worker" in report
+    holder.join(timeout=5.0)
+
+    retry = runner.close(reason="runner-shutdown")
+    assert retry["status"] == "exited", retry
+    assert runtime.state is RuntimeState.EXITED
+    record_evidence(
+        "r3_n4_lock_busy",
+        {
+            "finalize_seconds": round(elapsed, 3),
+            "budget": 0.6,
+            "exit_code": runner._exit_code,
+            "finalize_report": report,
+            "retry_status": retry["status"],
+            "owner_kept": True,
+        },
+    )
+
+
+def test_n4_finalize_zero_budget_no_silent_extension(tmp_path, monkeypatch):
+    """N4：预算耗尽（=0）立即返回，不静默延长、不多次最低预算重试；未证明→非零。"""
+    monkeypatch.setattr(runner_module, "_FINALIZE_BUDGET_SECONDS", 0.0)
+    runner = _make_runner(tmp_path, "term_gate_n4b")
+    runtime = _GatedRuntime()
+    runner._runtime = runtime
+    runner._runner_state = "running"
+
+    for _ in range(2):
+        started = time.monotonic()
+        runner._finalize()
+        assert time.monotonic() - started < 0.2
+    assert runner._exit_code == runner_module.RUNNER_EXIT_CLEANUP_UNPROVEN
+    assert runtime.close_calls == [], "预算耗尽不得尝试关闭（无最低预算延长）"
+    assert (runner._finalize_report or {}).get("outcome") == "budget-exhausted"
+    record_evidence(
+        "r3_n4_zero_budget",
+        {
+            "exit_code": runner._exit_code,
+            "close_calls": runtime.close_calls,
+            "outcome": (runner._finalize_report or {}).get("outcome"),
+            "no_silent_extension": True,
         },
     )

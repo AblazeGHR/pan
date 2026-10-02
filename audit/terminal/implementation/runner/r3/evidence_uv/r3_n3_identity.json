@@ -1,0 +1,20 @@
+{
+  "unknown_block": {
+    "pid": null,
+    "process_created_at_filetime": null,
+    "verified": false,
+    "source": "unknown",
+    "authority": "not a liveness authority: identity unknown; cross-check the bootstrap record and the DPAPI secret before using this file"
+  },
+  "real_identity": {
+    "pid": 49440,
+    "process_created_at_filetime": "134354565622782996",
+    "verified": true,
+    "source": "current-process",
+    "authority": "not a liveness authority: cross-check with the bootstrap record / DPAPI secret (pid + raw FILETIME) before trusting this file"
+  },
+  "mismatch_then_match": [
+    true,
+    false
+  ]
+}

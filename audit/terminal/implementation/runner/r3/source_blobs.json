@@ -1,0 +1,27 @@
+{
+  "parent_head": "a704abbb3a74e71485493198ec31c75dcb8aa83c",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/runner/r3/README.md": {
+      "blob": "36e3db285464c0b1dfb5567e706e92f0bfb8ccd5",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_RUNNER_INTERFACES_20261003.md": {
+      "blob": "c1dba40bbf0dbbbb6c1f67bf1f92c15275534440",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner.py": {
+      "blob": "adc2170a845d0d46605e96e3b20bf785295817dc",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner_client.py": {
+      "blob": "5ca8b225a892c4df0e9f6706077c48e32ac70018",
+      "mode": "100644"
+    },
+    "tests/test_terminal_runner.py": {
+      "blob": "73b18cbb13023a0d0651f6aec4a435edf5032a53",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 r3 修复后的源码/测试/文档/证据 README；runner_client.py 本轮未改（blob 与 a704 相同）；证据的复跑结果（38/38 直连与 uv）见 r3/pytest_*.txt 与 r3/summary.json。"
+}

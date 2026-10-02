@@ -591,6 +591,10 @@ class TerminalRunner:
         self._pipe_cleanup: dict[str, Any] = {}
         #: 跨进程可观测的状态目录（terminals root/runner-status；无秘密）。
         self._status_dir = self._secret_file.parent.parent / _STATUS_DIRNAME
+        #: 状态写串行化 + 唯一自有 tmp（N3）。
+        self._status_lock = threading.RLock()
+        #: 收尾（N4）结果记录：outcome / lock_acquired / worker 追踪。
+        self._finalize_report: dict[str, Any] | None = None
         #: accept 循环异常退出的事实（脱敏类型名）。
         self._accept_failure: str | None = None
         self._exit_reason: str = "ok"
@@ -898,7 +902,56 @@ class TerminalRunner:
 
     # ------------------------------------------------------------ 状态文件
     def _status_path(self) -> Path:
-        return self._status_dir / f"{self.terminal_id}.json"
+        """状态文件路径（N2）：**先校验 terminal_id**并确认收敛在自有 status 目录内。
+
+        非法 id（路径穿越/分隔符/非 ``term_`` 形状）→ ``ValueError``，调用方只做脱敏
+        诊断、**不写任何派生文件**（bootstrap 失败路径同样适用，不逃逸 root）。
+        """
+        terminal_id = secret_store.SecretStore.validate_terminal_id(self.terminal_id)
+        path = self._status_dir / f"{terminal_id}.json"
+        try:
+            root = self._status_dir.resolve()
+            parent = Path(path).parent.resolve()
+        except OSError as exc:
+            raise ValueError(f"status path unresolvable: {type(exc).__name__}") from exc
+        if parent != root:
+            raise ValueError("status path escapes the runner status directory")
+        return path
+
+    def _status_identity(self) -> dict[str, Any]:
+        """N3：绑定 runner 自身**真实** pid + raw FILETIME（字符串，跨 JS 不浮点）。
+
+        来源 = bootstrap 时经内核读取的自身身份（``current_process_identity``）；
+        未读取到（如秘密文件路径校验失败等最早失败）→ 明确 ``unknown``，**不造身份**。
+        状态文件**不是存活权威**：消费者必须与 bootstrap 记录 / DPAPI 秘密交叉核验。
+        """
+        identity = self._own_identity
+        if identity is None or identity.pid is None:
+            return {
+                "pid": None,
+                "process_created_at_filetime": None,
+                "verified": False,
+                "source": "unknown",
+                "authority": (
+                    "not a liveness authority: identity unknown; cross-check the bootstrap "
+                    "record and the DPAPI secret before using this file"
+                ),
+            }
+        filetime = (
+            str(int(identity.created_at_filetime))
+            if identity.created_at_filetime is not None
+            else None
+        )
+        return {
+            "pid": int(identity.pid),
+            "process_created_at_filetime": filetime,
+            "verified": bool(self._secret_verified),
+            "source": "current-process",
+            "authority": (
+                "not a liveness authority: cross-check with the bootstrap record / DPAPI "
+                "secret (pid + raw FILETIME) before trusting this file"
+            ),
+        }
 
     def _status_cleanup(self) -> dict[str, Any]:
         cleanup: dict[str, Any] = {
@@ -921,7 +974,29 @@ class TerminalRunner:
             cleanup["state_after"] = report.state_after.value
             cleanup["tree_remaining"] = len(report.tree_remaining_pids)
             cleanup["owner_retained"] = bool(report.owner_retained)
+        if self._finalize_report is not None:
+            cleanup["finalize"] = dict(self._finalize_report)
         return cleanup
+
+    def _prior_record_identity_mismatch(self, path: Path) -> bool:
+        """N3：写前尽力辨认旧残留记录的 runner 身份（不同 → 标记，不可当"当前"）。"""
+        try:
+            if not path.is_file():
+                return False
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            prior = (existing or {}).get("runner_identity") or {}
+            prior_pid = prior.get("pid")
+            prior_filetime = prior.get("process_created_at_filetime")
+            current = self._status_identity()
+            if prior_pid is None and prior_filetime is None:
+                # 旧记录没有身份块（d48/a704 形状）：无法证明同源，按不同处理。
+                return True
+            return bool(
+                str(prior_pid) != str(current.get("pid"))
+                or str(prior_filetime) != str(current.get("process_created_at_filetime"))
+            )
+        except Exception:  # noqa: BLE001 - 辨认失败按"不可证明同源"
+            return True
 
     def _write_status(
         self,
@@ -931,28 +1006,50 @@ class TerminalRunner:
         reason: str | None = None,
         cleanup: Mapping[str, Any] | None = None,
     ) -> None:
-        """跨进程可观测的脱敏状态（原子写；失败只记类型名，绝不抛）。"""
-        payload = {
-            "schema_version": 1,
-            "terminal_id": self.terminal_id,
-            "phase": str(phase)[:32],
-            "exit_code": int(exit_code) if exit_code is not None else None,
-            "reason": str(reason or self._exit_reason)[:64],
-            "runner_pid": os.getpid(),
-            "cleanup": dict(cleanup if cleanup is not None else self._status_cleanup()),
-            "updated_at": round(time.time(), 3),
-        }
-        try:
-            self._status_dir.mkdir(parents=True, exist_ok=True)
-            path = self._status_path()
-            tmp = path.with_name(path.name + ".tmp")
-            tmp.write_text(
-                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                encoding="utf-8",
+        """跨进程可观测的脱敏状态（N2/N3）：串行、唯一自有 tmp、原子 replace。
+
+        - 路径先经 ``_status_path`` 校验（非法 id 零写，只记脱敏诊断）；
+        - 失败只清**自有** tmp，cleanup 结果不吞（note 如实记录）；
+        - 始终不抛（状态可观测性不影响生命周期）。
+        """
+        with self._status_lock:
+            try:
+                path = self._status_path()
+            except (ValueError, OSError) as exc:
+                # 非法 id / 不可解析路径：只脱敏诊断，不写任何派生文件。
+                self._note("status-path-rejected", type(exc).__name__)
+                return
+            payload = {
+                "schema_version": 1,
+                "terminal_id": self.terminal_id,
+                "phase": str(phase)[:32],
+                "exit_code": int(exit_code) if exit_code is not None else None,
+                "reason": str(reason or self._exit_reason)[:64],
+                "runner_pid": os.getpid(),
+                "runner_identity": self._status_identity(),
+                "prior_record_identity_mismatch": self._prior_record_identity_mismatch(path),
+                "cleanup": dict(cleanup if cleanup is not None else self._status_cleanup()),
+                "updated_at": round(time.time(), 3),
+            }
+            tmp = path.with_name(
+                f"{path.name}.{os.getpid()}.{threading.get_ident()}.{os.urandom(4).hex()}.tmp"
             )
-            os.replace(tmp, path)
-        except Exception as exc:  # noqa: BLE001 - 状态可观测性失败不影响生命周期
-            self._note("status-write-failed", type(exc).__name__)
+            try:
+                self._status_dir.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(
+                    json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                    encoding="utf-8",
+                )
+                os.replace(tmp, path)
+            except Exception as exc:  # noqa: BLE001 - 状态可观测性失败不影响生命周期
+                self._note("status-write-failed", type(exc).__name__)
+            finally:
+                # 只清理**自己**的 tmp；清理失败如实记录，不吞。
+                if tmp.exists():
+                    try:
+                        tmp.unlink()
+                    except OSError as exc:  # noqa: BLE001
+                        self._note("status-tmp-cleanup-failed", type(exc).__name__)
 
     # ------------------------------------------------------------ 主流程
     def run(self) -> int:
@@ -1095,18 +1192,48 @@ class TerminalRunner:
             "deadline_seconds": float(total_deadline),
         }
 
+    def _record_finalize(self, outcome: str, **fields: Any) -> None:
+        """记录收尾结果（N4：非零未收敛与可追踪 worker 状态必须可见）。"""
+        record: dict[str, Any] = {"outcome": str(outcome)}
+        record.update(fields)
+        worker = self._close_worker
+        if worker is None:
+            record["close_worker"] = {"present": False}
+        else:
+            record["close_worker"] = {
+                "present": True,
+                "in_flight": bool(worker.in_flight),
+                "finished": bool(worker.finished),
+                "error_type": worker.error_type,
+            }
+        self._finalize_report = record
+
     def _finalize(self) -> None:
-        """主循环退出后的收尾（有界总预算；不收敛如实标 6，绝不把未知当成功）。"""
-        deadline = time.monotonic() + _FINALIZE_BUDGET_SECONDS
+        """主循环退出后的收尾（N4）。
+
+        - 12s 预算是**从入口计时**的**总**预算：包含 lifecycle 锁的有界等待、
+          close worker 等待与全部 join（不是"不含锁等待的收尾预算"）；
+        - 有界取锁：锁忙（被其它关闭链持有）→ 不假 success、不丢 owner、
+          不裸关 in-flight 句柄，记录非零未收敛 + 可追踪 worker；随后仍可重试；
+        - 剩余预算逐段传递（`min(close_wait, remaining)`、worker `min(3s, remaining)`）；
+          预算耗尽立即返回，**不静默延长/多次最低预算重试**；
+        - 在途 close worker 复用原 worker（不重叠）。
+        预算是调用方侧的有界等待，**不是 OS 原语硬 SLA**（锁获取/GIL/调度只保证
+        "尽力在预算内返回"）。
+        """
+        started = time.monotonic()
+        deadline = started + float(_FINALIZE_BUDGET_SECONDS)
         runtime = self._runtime
         if runtime is None:
             return
         if runtime.state is RuntimeState.EXITED:
+            self._record_finalize("already-exited")
             self._set_exit_code(RUNNER_EXIT_OK)
             return
         if runtime.state is RuntimeState.LOST:
             # LOST = 未知所有权：绝不当成功（旧代码把 LOST 映射为 exit 0 是死代码缺陷）。
             self._note("runtime-lost")
+            self._record_finalize("runtime-lost")
             self._set_exit_code(RUNNER_EXIT_CLEANUP_UNPROVEN)
             return
         worker = self._close_worker
@@ -1114,22 +1241,54 @@ class TerminalRunner:
             budget = min(3.0, max(0.0, deadline - time.monotonic()))
             finished, result, error_type = worker.run(budget)  # 同一 worker（不重叠）
             if finished and error_type is None and isinstance(result, CleanupReport) and result.ok:
+                self._record_finalize("worker-converged", waited_seconds=round(budget, 3))
                 self._set_exit_code(RUNNER_EXIT_OK)
             else:
+                self._record_finalize(
+                    "worker-not-converged", waited_seconds=round(budget, 3),
+                    finished=bool(finished), error_type=error_type,
+                )
                 self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
             return
         remaining = deadline - time.monotonic()
         if remaining <= 0.05:
             self._note("finalize-budget-exhausted")
+            self._record_finalize("budget-exhausted", remaining_seconds=round(remaining, 3))
             self._set_exit_code(RUNNER_EXIT_CLEANUP_UNPROVEN)
             return
-        result = self.close(reason="runner-shutdown", wait=min(self._close_wait, remaining))
-        if result.get("status") == "exited":
-            self._set_exit_code(RUNNER_EXIT_OK)
-        elif result.get("status") == "closing":
+        # 有界取锁：等锁时间计入总预算；锁忙不假 success、不丢 owner、不裸关句柄。
+        lock_acquired = bool(self._lifecycle_lock.acquire(timeout=remaining))
+        if not lock_acquired:
+            self._note("finalize-lock-busy")
+            self._record_finalize(
+                "lock-busy", remaining_seconds=round(deadline - time.monotonic(), 3)
+            )
             self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
-        else:
-            self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
+            return
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.05:
+                self._note("finalize-budget-exhausted-after-lock")
+                self._record_finalize(
+                    "budget-exhausted-after-lock",
+                    remaining_seconds=round(remaining, 3),
+                )
+                self._set_exit_code(RUNNER_EXIT_CLEANUP_UNPROVEN)
+                return
+            result = self.close(reason="runner-shutdown", wait=min(self._close_wait, remaining))
+            status = result.get("status")
+            if status == "exited":
+                self._record_finalize(
+                    "close-converged", waited_seconds=round(remaining, 3),
+                )
+                self._set_exit_code(RUNNER_EXIT_OK)
+            else:
+                self._record_finalize(
+                    "close-not-converged", waited_seconds=round(remaining, 3), status=status,
+                )
+                self._set_exit_code(RUNNER_EXIT_CLEANUP_FAILED)
+        finally:
+            self._lifecycle_lock.release()
 
     # ------------------------------------------------------------ 关闭协调
     def _shutdown_due(self) -> bool:
@@ -1180,6 +1339,35 @@ class TerminalRunner:
             last = self._last_heartbeat
         return last is not None and (time.monotonic() - last) >= self._lease_grace
 
+    def _acquire_lease_close_right(self, epoch: int, *, established: bool) -> str:
+        """**N1 线性化点**：在 lease 锁内原子完成"expiry 复核 + 取得不可撤销关闭权"。
+
+        与 ``owner_heartbeat`` 共用同一把 ``_lease_lock``，因此两条指令流严格线性化：
+
+        - hb 先被接受（世代自增）→ 本方法返回 ``renewed``（旧 expiry 作废）；
+        - 本方法先取得关闭权（``_expiry_in_progress=True``）→ hb 在锁内看到该位，
+          只能返回 ``closing``（**不得假 ok**）；
+        - 关闭权取得后不可撤销（关闭链继续；失败仍走 R1 同 worker 消费/重试）。
+
+        返回 ``granted`` / ``renewed`` / ``already``。
+        """
+        with self._lease_lock:
+            if self._expiry_in_progress:
+                return "already"
+            if int(self._lease_epoch) != int(epoch):
+                return "renewed"
+            if bool(self._lease_established) != bool(established):
+                return "renewed"
+            now = time.monotonic()
+            if established:
+                last = self._last_heartbeat
+                if last is None or (now - last) < self._lease_grace:
+                    return "renewed"
+            elif (now - float(self._lease_started_at)) < self._bootstrap_grace:
+                return "renewed"
+            self._expiry_in_progress = True
+            return "granted"
+
     def _watchdog_loop(self) -> None:
         """lease 看门狗：只读时间戳 + 触发 close worker（与 handler 互不拖死）。
 
@@ -1208,15 +1396,18 @@ class TerminalRunner:
             # "skipped"（迟到 detach/迟到心跳）：继续看门，等下一次判定。
 
     def _lease_expired_close(self, *, epoch: int, established: bool) -> str:
-        """死期自停（R1/R2 仲裁）：返回 ``exited`` / ``skipped`` / ``exhausted``。
+        """死期自停（R1/R2/N1 仲裁）：返回 ``exited`` / ``skipped`` / ``exhausted``。
 
+        - N1：**先在 lease 锁内原子取得不可撤销关闭权**（复核与置位同临界区），
+          与 hb 线性化：hb 先 → `renewed` 作废；本方法先 → hb 只能 `closing`；
         - 与 detach 在同一生命周期门仲裁：expiry 先取得关闭权 → detach 拒绝；
-          detach 先完成 → 本路径在锁内复核后跳过（不杀 detached）；
+          detach 先完成 → `close(source="lease")` 锁内复核后跳过（不杀 detached）；
         - 显式 close 在途/失败时：等待并消费**同一** close worker（不叠加），
           未收敛则有界重试（重试只在 worker 已结束时另起，不重叠）。
         """
-        if not self._lease_still_expired(epoch, established=established):
-            return "skipped"
+        grant = self._acquire_lease_close_right(epoch, established=established)
+        if grant != "granted":
+            return "skipped"  # renewed（hb 先）/ already（本进程仅 watchdog 单线程）
         result = self.close(
             reason="lease-expired",
             source="lease",
@@ -1234,7 +1425,7 @@ class TerminalRunner:
             if self._detached:
                 return "skipped"
             if not self._lease_still_expired(epoch, established=established):
-                return "skipped"  # 迟到心跳：旧 expiry 作废
+                return "skipped"  # 防御性复核（关闭权取得后 hb 已不可续约）
             result = self.close(
                 reason=f"lease-expired-retry{attempt}",
                 source="lease",
@@ -1428,6 +1619,7 @@ class TerminalRunner:
         snapshot_meta = snapshot_capability(self._emulator, self._bridge)
         lifecycle = {
             "closing": bool(self._closing),
+            "finalize_outcome": (self._finalize_report or {}).get("outcome"),
             "expiry_in_progress": bool(self._expiry_in_progress),
             "expiry_reason": self._expiry_reason,
             "exit_reason": self._exit_reason,
@@ -1788,10 +1980,20 @@ class TerminalRunner:
         return self._payload("invalid-request", ok=False)
 
     def owner_heartbeat(self, client_id: str, *, generation: int | None = None) -> dict[str, Any]:
-        """已认证 Pan 所有者的租约续约/接管（唯一续约路径）。"""
+        """已认证 Pan 所有者的租约续约/接管（唯一续约路径）。
+
+        **N1 线性化**：与 expiry 的关闭权取得共用同一把 ``_lease_lock``——
+        若关闭权已被取得（``_expiry_in_progress``，或在关闭/已退出），本方法在锁内
+        直接返回 ``closing``（**不假 ok**）；否则续约/接管与世代自增在同一临界区完成，
+        此后任何"旧 expiry"的取得尝试都会因世代变化而作废。两条指令流因此严格线性化。
+        """
         client_id = str(client_id)
         with self._lease_lock:
-            if self._closing or self._runner_state in ("exited",):
+            if (
+                self._expiry_in_progress
+                or self._closing
+                or self._runner_state in ("exited",)
+            ):
                 status = "closing"
             else:
                 previous = self._owner_client_id
@@ -1932,9 +2134,16 @@ class TerminalRunner:
                 # R2 仲裁点：与 detach 共用同一把生命周期锁。
                 if self._detached:
                     return self._payload("lease-skipped-detached", ok=True)
-                if lease_epoch is not None and not self._lease_still_expired(
-                    int(lease_epoch), established=bool(lease_established)
+                if (
+                    not self._expiry_in_progress
+                    and lease_epoch is not None
+                    and not self._lease_still_expired(
+                        int(lease_epoch), established=bool(lease_established)
+                    )
                 ):
+                    # 兼容直接调用：关闭权尚未取得且世代已更新 → 作废（N1 后
+                    # ``_lease_expired_close`` 已在 lease 锁内原子取得关闭权，
+                    # 此处不会触发）。
                     return self._payload("lease-skipped-renewed", ok=True)
                 self._expiry_in_progress = True
                 self._expiry_reason = reason
