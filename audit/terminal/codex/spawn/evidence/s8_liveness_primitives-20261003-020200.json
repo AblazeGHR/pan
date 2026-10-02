@@ -1,0 +1,206 @@
+{
+  "scenario": "s8_liveness_primitives",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s8_liveness_primitives-mkljseys",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "child_requested_exit_code": 259,
+  "wait_exit_returned": 259,
+  "exit_code_informational": 259,
+  "liveness_with_retained_handle": "dead",
+  "is_alive_with_retained_handle": false,
+  "informational_exit_code_read": 259,
+  "kill_verified_on_exited_259": {
+    "pid": 43320,
+    "state": "dead",
+    "expected_filetime": 134354377160137921,
+    "observed_filetime": 134354377160137921,
+    "killed": false,
+    "reason": "not_running",
+    "exit_code_informational": 259
+  },
+  "close_part1": {
+    "closed": true,
+    "retryable": false,
+    "reader_cancel": {
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "reader_converged": true,
+      "converge_seconds": 0.005,
+      "reader_error": null
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "seconds": 0.006
+  },
+  "survivors_part1": [],
+  "live_liveness": "alive",
+  "kill_verified_wrong_filetime": {
+    "pid": 20328,
+    "state": "alive",
+    "expected_filetime": 134354377168825770,
+    "observed_filetime": 134354377168825769,
+    "killed": false,
+    "reason": "identity_mismatch"
+  },
+  "identity_after_refused_kill": {
+    "pid": 20328,
+    "open_ok": true,
+    "state": "alive",
+    "still_active": true,
+    "creation_filetime": 134354377168825769,
+    "exit_code_informational": 259
+  },
+  "kill_verified_correct_filetime": {
+    "pid": 20328,
+    "state": "alive",
+    "expected_filetime": 134354377168825769,
+    "observed_filetime": 134354377168825769,
+    "killed": true,
+    "reason": "terminated",
+    "last_error": 0
+  },
+  "close_part2": {
+    "closed": true,
+    "retryable": false,
+    "reader_cancel": {
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 1,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "reader_converged": true,
+      "converge_seconds": 0.064,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "seconds": 0.065
+  },
+  "survivors_part2": [],
+  "checks": [
+    {
+      "check": "child_really_exited_with_259",
+      "ok": true,
+      "detail": 259
+    },
+    {
+      "check": "informational_exit_code_is_259",
+      "ok": true,
+      "detail": 259
+    },
+    {
+      "check": "liveness_reads_dead_despite_259",
+      "ok": true,
+      "detail": "dead"
+    },
+    {
+      "check": "is_alive_false_despite_259",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "verified_kill_refuses_exited_259",
+      "ok": true,
+      "detail": {
+        "pid": 43320,
+        "state": "dead",
+        "expected_filetime": 134354377160137921,
+        "observed_filetime": 134354377160137921,
+        "killed": false,
+        "reason": "not_running",
+        "exit_code_informational": 259
+      }
+    },
+    {
+      "check": "verified_kill_saw_state_dead",
+      "ok": true,
+      "detail": "dead"
+    },
+    {
+      "check": "part1_no_survivors",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "live_process_reads_alive",
+      "ok": true,
+      "detail": "alive"
+    },
+    {
+      "check": "verified_kill_refuses_wrong_filetime",
+      "ok": true,
+      "detail": {
+        "pid": 20328,
+        "state": "alive",
+        "expected_filetime": 134354377168825770,
+        "observed_filetime": 134354377168825769,
+        "killed": false,
+        "reason": "identity_mismatch"
+      }
+    },
+    {
+      "check": "target_still_alive_after_refused_kill",
+      "ok": true,
+      "detail": {
+        "pid": 20328,
+        "open_ok": true,
+        "state": "alive",
+        "still_active": true,
+        "creation_filetime": 134354377168825769,
+        "exit_code_informational": 259
+      }
+    },
+    {
+      "check": "verified_kill_accepts_exact_identity",
+      "ok": true,
+      "detail": {
+        "pid": 20328,
+        "state": "alive",
+        "expected_filetime": 134354377168825769,
+        "observed_filetime": 134354377168825769,
+        "killed": true,
+        "reason": "terminated",
+        "last_error": 0
+      }
+    },
+    {
+      "check": "part2_no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 4.25,
+  "log": [
+    "[sweep] {'pid': 43320, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 20328, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

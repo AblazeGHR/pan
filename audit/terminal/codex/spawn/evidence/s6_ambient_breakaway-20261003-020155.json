@@ -1,0 +1,87 @@
+{
+  "scenario": "s6_ambient_breakaway",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s6_ambient_breakaway-yt8d69we",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "caller_job_report": {
+    "pid": 18332,
+    "in_any_job": true,
+    "note": "membership only; job flags are not readable without a named-job handle"
+  },
+  "child_without_breakaway": {
+    "created": true,
+    "pid": 45292,
+    "creation_filetime": 134354377151792216,
+    "in_any_job": true,
+    "flags": "0x0"
+  },
+  "child_with_breakaway": {
+    "created": false,
+    "last_error": 5,
+    "last_error_name": "ERROR_ACCESS_DENIED"
+  },
+  "breakaway_escaped_ambient_job": null,
+  "nested_assign_record": {
+    "child_in_guard_job": true,
+    "child_in_ambient_job": true,
+    "assign_last_error": 0
+  },
+  "survivors": [],
+  "checks": [
+    {
+      "check": "ambient_job_state_recorded",
+      "ok": true,
+      "detail": {
+        "pid": 18332,
+        "in_any_job": true,
+        "note": "membership only; job flags are not readable without a named-job handle"
+      }
+    },
+    {
+      "check": "plain_child_created",
+      "ok": true,
+      "detail": {
+        "created": true,
+        "pid": 45292,
+        "creation_filetime": 134354377151792216,
+        "in_any_job": true,
+        "flags": "0x0"
+      }
+    },
+    {
+      "check": "breakaway_failure_recorded",
+      "ok": true,
+      "detail": {
+        "last_error": 5,
+        "name": "ERROR_ACCESS_DENIED"
+      }
+    },
+    {
+      "check": "nested_guard_assign_succeeded",
+      "ok": true,
+      "detail": {
+        "child_in_guard_job": true,
+        "child_in_ambient_job": true,
+        "assign_last_error": 0
+      }
+    },
+    {
+      "check": "child_also_in_ambient_chain",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 0.82,
+  "log": [
+    "[sweep] {'pid': 47816, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

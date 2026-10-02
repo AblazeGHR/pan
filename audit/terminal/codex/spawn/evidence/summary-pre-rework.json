@@ -1,0 +1,14 @@
+{
+  "scenarios": {
+    "s10_resource_release": {
+      "passed": true,
+      "checks": 14,
+      "failed": [],
+      "seconds": 7.4,
+      "evidence": "s10_resource_release-20261003-020057.json",
+      "temp_removed": true
+    }
+  },
+  "started_at": "2026-10-03 02:00:50",
+  "finished_at": "2026-10-03 02:00:57"
+}

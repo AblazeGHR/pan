@@ -94,12 +94,18 @@ JobObjectExtendedLimitInformation = 9
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_SET_QUOTA = 0x0100
 PROCESS_TERMINATE = 0x0001
+SYNCHRONIZE = 0x00100000
 THREAD_TERMINATE = 0x0001
 THREAD_SUSPEND_RESUME = 0x0002
 
+# GetExitCodeProcess reports STILL_ACTIVE (259) both while a process runs AND
+# when a process genuinely exits with code 259. It is therefore an informational
+# field only; liveness always comes from WaitForSingleObject(handle, 0).
 STILL_ACTIVE = 259
 WAIT_OBJECT_0 = 0x00000000
+WAIT_ABANDONED = 0x00000080
 WAIT_TIMEOUT = 0x00000102
+WAIT_FAILED = 0xFFFFFFFF
 INFINITE = 0xFFFFFFFF
 
 HPCON = wintypes.HANDLE
@@ -299,15 +305,15 @@ def filetime_to_int(ft: wintypes.FILETIME) -> int:
 
 
 def read_creation_filetime(hprocess: wintypes.HANDLE) -> int | None:
-    """Read the raw creation FILETIME from an already-open process handle.
+    """Read the raw 64-bit creation FILETIME from an already-open process handle.
 
-    SPIKE FINDING (measured, Windows 11 build 26200 + CPython 3.12.12 ctypes):
-    passing ``NULL`` for the optional out-parameters of ``GetProcessTimes``
-    raises an access violation through ctypes --
-    ``OSError: exception: access violation writing 0x0000000000000000`` --
-    even though the Win32 contract allows NULL for those parameters, and even
-    with a valid process handle. All four FILETIME pointers are therefore
-    always supplied here. Reproduced in isolation in the evidence bundle.
+    ``GetProcessTimes`` is documented with four ``[out]`` FILETIME parameters and
+    none of them is marked optional
+    (<https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes>),
+    so all four pointers are always supplied here; passing NULL would violate the
+    API's pointer contract. The value returned is the raw 100-nanosecond count
+    since 1601-01-01 as an exact Python int (64-bit), used for identity
+    comparison rather than any tolerance-based "same second" heuristic.
     """
     ft, exit_ft, kernel_ft, user_ft = (wintypes.FILETIME() for _ in range(4))
     ok = kernel32.GetProcessTimes(
@@ -315,6 +321,36 @@ def read_creation_filetime(hprocess: wintypes.HANDLE) -> int | None:
         ctypes.byref(kernel_ft), ctypes.byref(user_ft),
     )
     return filetime_to_int(ft) if ok else None
+
+
+def wait_state(hprocess: wintypes.HANDLE) -> str:
+    """The single liveness primitive: ``WaitForSingleObject(handle, 0)``.
+
+    Returns exactly one of:
+      ``"dead"``    -- WAIT_OBJECT_0: the process object is signaled (exited).
+      ``"alive"``   -- WAIT_TIMEOUT: still running.
+      ``"unknown"`` -- anything else (WAIT_FAILED, WAIT_ABANDONED, unexpected).
+
+    "unknown" is never treated as either answer: callers must refuse rather than
+    guess. ``GetExitCodeProcess`` is deliberately not used here, because a
+    process that exits with code 259 is indistinguishable from a running one by
+    that API alone, and a detached/never-signaled handle must not be reported as
+    alive on the strength of an exit-code read.
+    """
+    rc = kernel32.WaitForSingleObject(hprocess, 0)
+    if rc == WAIT_OBJECT_0:
+        return "dead"
+    if rc == WAIT_TIMEOUT:
+        return "alive"
+    return "unknown"
+
+
+def read_exit_code_informational(hprocess: wintypes.HANDLE) -> int | None:
+    """Exit code as *information only* (see the STILL_ACTIVE caveat above)."""
+    code = wintypes.DWORD(0)
+    if not kernel32.GetExitCodeProcess(hprocess, ctypes.byref(code)):
+        return None
+    return int(code.value)
 
 
 def is_process_in_job(hprocess: wintypes.HANDLE, hjob: wintypes.HANDLE) -> bool:
@@ -397,6 +433,16 @@ class GuardJob:
         return ok, ctypes.get_last_error()
 
     def active_processes(self) -> int | None:
+        """Member count, or ``None`` when we no longer hold a job handle.
+
+        Measured trap: calling ``QueryInformationJobObject`` with a NULL/closed
+        handle does **not** reliably fail on this machine -- it was observed to
+        return success with garbage (a stale value of 20 on a job that had been
+        closed). A closed owner must therefore be reported as "unknown" rather
+        than have a number invented for it.
+        """
+        if not self._handle:
+            return None
         info = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
         returned = wintypes.DWORD(0)
         ok = kernel32.QueryInformationJobObject(
@@ -461,6 +507,7 @@ class ConPtySession:
         self._output_read = None
         self._output_write = None
         self._closed = False
+        self._attr_buf = None
         self._reader_thread: threading.Thread | None = None
         self._reader_stop = threading.Event()
         self._reader_thread_handle = None
@@ -480,14 +527,26 @@ class ConPtySession:
         guard: GuardJob,
         *,
         inject_assign_failure: bool = False,
+        inject_membership_query_failure: bool = False,
+        inject_membership_false: bool = False,
+        inject_resume_count: int | None = None,
         resume: bool = True,
         creation_flags_extra: int = 0,
+        use_std_handles_null: bool = True,
+        inherit_handles: bool = False,
     ) -> "ConPtySession":
         """Create the child suspended, bind it to ``guard``, then resume.
 
-        ``command_line`` is passed as a mutable buffer to CreateProcessW, which
-        may modify it in place -- the Java/Windows quirk of requiring a writable
-        command line is honoured by ``create_string_buffer``.
+        Every gate below is fail-closed: if the guard-job assignment cannot be
+        *proved*, or the resume cannot be *proved* to have happened exactly once,
+        the child is never resumed, this session is never returned, and the
+        attempt raises :class:`SpawnDenied` after cleaning up only what this call
+        created.
+
+        The three ``inject_*`` hooks exist solely so the driver can exercise the
+        refusal branches deterministically. They are wrapper-level simulations of
+        failures -- they are **not** reproductions of real OS errors, and the
+        evidence they produce must not be read as such.
         """
         self = cls()
         t0 = time.perf_counter()
@@ -537,19 +596,22 @@ class ConPtySession:
             si = STARTUPINFOEXW()
             si.StartupInfo.cb = ctypes.sizeof(STARTUPINFOEXW)
             si.lpAttributeList = ctypes.cast(attr_buf, ctypes.c_void_p)
-            # SPIKE FINDING (measured): creating the pseudoconsole is not enough.
-            # If STARTF_USESTDHANDLES is left unset, CreateProcess copies the
+            # SPIKE FINDING (measured on this machine; see s11 for the committed
+            # matrix): creating the pseudoconsole is not enough. If
+            # STARTF_USESTDHANDLES is left unset, CreateProcess copies the
             # *parent's* standard handles into the child, and those copies shadow
             # the pseudoconsole's console handles: the child's console is the pty
             # (writes to CONOUT$ do reach the pty) but its stdout/stderr still
             # point at whatever the parent had. Setting STARTF_USESTDHANDLES with
             # NULL handles makes the console subsystem hand the child the pty's
-            # own handles instead. Measured in the dbg matrix: CONOUT$ in pty
-            # = True in every variant, stdout in pty = True only with this flag.
-            si.StartupInfo.dwFlags = STARTF_USESTDHANDLES
-            si.StartupInfo.hStdInput = None
-            si.StartupInfo.hStdOutput = None
-            si.StartupInfo.hStdError = None
+            # own handles instead. In the s11 matrix (this machine, this build)
+            # the flag alone decided the outcome in all four combinations; that
+            # is not a claim about every Windows build or every parent topology.
+            if use_std_handles_null:
+                si.StartupInfo.dwFlags = STARTF_USESTDHANDLES
+                si.StartupInfo.hStdInput = None
+                si.StartupInfo.hStdOutput = None
+                si.StartupInfo.hStdError = None
             pi = PROCESS_INFORMATION()
 
             # 4) suspended creation -- the child has not executed a single instruction
@@ -558,7 +620,7 @@ class ConPtySession:
             cmd_buf = ctypes.create_unicode_buffer(command_line)
             flags = CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | creation_flags_extra
             if not kernel32.CreateProcessW(
-                None, cmd_buf, None, None, False, flags, None,
+                None, cmd_buf, None, None, inherit_handles, flags, None,
                 cwd or None, ctypes.byref(si), ctypes.byref(pi),
             ):
                 raise ctypes.WinError(ctypes.get_last_error())
@@ -593,34 +655,75 @@ class ConPtySession:
             timings["assign_ms"] = round((time.perf_counter() - t3) * 1000, 2)
 
             if not assign_ok:
-                detail = {
-                    "stage": stage,
+                raise self._deny(stage, {
                     "pid": int(pi.dwProcessId),
                     "creation_filetime": creation,
                     "assign_last_error": assign_err,
+                    "assign_last_error_name": _winerr_name(assign_err),
                     "resumed": False,
                     "note": "child was never resumed; terminating only this self-created process",
-                }
-                self._terminate_self_created(pi.hProcess)
-                self._release_handles()
-                raise SpawnDenied(stage, detail)
+                }, hprocess=pi.hProcess)
 
+            # Membership must be PROVED. A failed query and a negative answer are
+            # both treated as "not assigned": the plan's gate requires
+            # `assigned`, and an unproven guard binding must never reach a
+            # `running` state. Previously a query failure silently fell through
+            # to resume, which is exactly the hole this closes.
             child_in_guard = False
-            try:
-                child_in_guard = is_process_in_job(pi.hProcess, guard.raw_handle)
-            except OSError:
-                pass
+            membership_error: str | None = None
+            if inject_membership_query_failure:
+                membership_error = "injected: membership query failure (wrapper-level simulation)"
+            else:
+                try:
+                    child_in_guard = is_process_in_job(pi.hProcess, guard.raw_handle)
+                except OSError as exc:
+                    membership_error = f"membership query raised: {exc!r}"
+                if membership_error is None and inject_membership_false:
+                    # force the *reported* answer to false, whatever the real one is
+                    child_in_guard = False
+                if membership_error is None and not child_in_guard:
+                    membership_error = ("injected: membership reported false" if inject_membership_false
+                                        else "guard job reports the child is not a member")
 
-            # 7) resume
+            if membership_error is not None:
+                raise self._deny("verify_guard_membership", {
+                    "pid": int(pi.dwProcessId),
+                    "creation_filetime": creation,
+                    "child_in_guard_job": child_in_guard,
+                    "membership_error": membership_error,
+                    "resumed": False,
+                    "injected": bool(inject_membership_query_failure or inject_membership_false),
+                    "note": "membership unproven -> fail-closed, child never resumed",
+                }, hprocess=pi.hProcess)
+
+            # 7) resume -- and verify it actually happened exactly once.
             prev = None
             resumed = False
             if resume:
                 stage = "resume_thread"
-                r = kernel32.ResumeThread(pi.hThread)
-                if r == 0xFFFFFFFF:
-                    self._terminate_self_created(pi.hProcess)
-                    self._release_handles()
-                    raise SpawnDenied(stage, {"last_error": ctypes.get_last_error()})
+                if inject_resume_count is not None:
+                    r = inject_resume_count
+                else:
+                    r = kernel32.ResumeThread(pi.hThread)
+                if r == WAIT_FAILED:
+                    raise self._deny(stage, {
+                        "last_error": ctypes.get_last_error(),
+                        "resume_return": "WAIT_FAILED",
+                        "resumed": False,
+                    }, hprocess=pi.hProcess)
+                if r != 1:
+                    # A CREATE_SUSPENDED thread must report a previous suspend
+                    # count of exactly 1. 0 means it was never suspended (so the
+                    # "never ran before the guard assignment" claim is void) and
+                    # >1 means it is still suspended after this call (so the
+                    # child is not running). Neither may be recorded as resumed.
+                    raise self._deny(stage, {
+                        "resume_return": int(r),
+                        "expected_previous_suspend_count": 1,
+                        "injected": inject_resume_count is not None,
+                        "resumed": False,
+                        "note": "unexpected previous suspend count -> fail-closed",
+                    }, hprocess=pi.hProcess)
                 prev = int(r)
                 resumed = True
 
@@ -648,10 +751,10 @@ class ConPtySession:
         except SpawnDenied:
             raise
         except Exception as exc:
-            # any unexpected failure must also fail closed
-            self._terminate_self_created(self._h_process)
-            self._release_handles()
-            raise SpawnDenied(stage, {"exception": repr(exc)}) from exc
+            # any unexpected failure must also fail closed, and must release the
+            # pseudoconsole + attribute list rather than leaking them
+            detail = {"exception": repr(exc), "resumed": False}
+            raise self._deny(stage, detail, hprocess=self._h_process) from exc
 
     # ---------------------------------------------------------------- ops
     def resume(self) -> tuple[bool, int]:
@@ -706,25 +809,54 @@ class ConPtySession:
         self._reader_thread.start()
 
     def cancel_read(self, timeout: float = 5.0) -> dict:
-        """Cancel the blocked ReadFile and verify the reader converges."""
+        """Cancel the blocked ReadFile and verify the reader converges.
+
+        Order matters, and it is not cosmetic: the stop flag is raised *before*
+        any cancellation is attempted, so a ``CancelSynchronousIo`` that lands in
+        the gap between two ``ReadFile`` calls -- where there is no pending I/O to
+        cancel -- still leaves the reader exiting at its next loop check instead
+        of blocking again and quietly surviving the teardown. Because that gap is
+        real, the cancellation is retried until the reader reports it has
+        returned or the deadline passes.
+        """
         t0 = time.perf_counter()
-        h = None
-        for _ in range(100):
-            if self._reader_thread_handle:
+        self._reader_stop.set()
+        deadline = t0 + timeout
+
+        # the reader publishes its own thread handle as its first action
+        while self._reader_thread_handle is None and time.perf_counter() < deadline:
+            if self.reader_returned.is_set():
                 break
             time.sleep(0.02)
-        result: dict = {"thread_handle_obtained": bool(self._reader_thread_handle)}
-        if self._reader_thread_handle:
-            ctypes.set_last_error(0)
-            ok = bool(kernel32.CancelSynchronousIo(self._reader_thread_handle))
-            result["cancel_ok"] = ok
-            result["cancel_last_error"] = ctypes.get_last_error()
-            self.reader_cancelled.set()
-        converged = self.reader_returned.wait(timeout=timeout)
-        result["reader_converged"] = bool(converged)
-        result["converge_seconds"] = round(time.perf_counter() - t0, 3)
-        result["reader_error"] = self._reader_error
-        return result
+
+        attempts = 0
+        last_ok: bool | None = None
+        last_err: int | None = None
+        while time.perf_counter() < deadline:
+            if self.reader_returned.wait(timeout=0.05):
+                break
+            if self._reader_thread_handle:
+                ctypes.set_last_error(0)
+                ok = bool(kernel32.CancelSynchronousIo(self._reader_thread_handle))
+                last_ok = ok
+                last_err = ctypes.get_last_error()
+                attempts += 1
+                if ok:
+                    self.reader_cancelled.set()
+
+        converged = self.reader_returned.is_set() or self.reader_returned.wait(
+            timeout=max(0.0, deadline - time.perf_counter())
+        )
+        return {
+            "stop_flag_set_first": True,
+            "thread_handle_obtained": bool(self._reader_thread_handle),
+            "cancel_attempts": attempts,
+            "cancel_ok": last_ok,
+            "cancel_last_error": last_err,
+            "reader_converged": bool(converged),
+            "converge_seconds": round(time.perf_counter() - t0, 3),
+            "reader_error": self._reader_error,
+        }
 
     def cancel_read_by_closing_output(self, timeout: float = 5.0) -> dict:
         """Alternative convergence path: close the read end under the reader."""
@@ -757,34 +889,29 @@ class ConPtySession:
     def identity(self) -> tuple[int, int] | None:
         return (self.record.pid, self.record.creation_filetime) if self.record else None
 
-    def is_alive(self) -> bool:
-        """Alive == 'handle exists AND not exited'.
-
-        Re-opening by PID is deliberately avoided: the retained handle pins the
-        original kernel object, and GetExitCodeProcess distinguishes a live
-        process from a PID that is merely still addressable (zombie) because a
-        parent holds a handle -- the trap recorded in the lifecycle report §2.1.
-        """
+    def liveness(self) -> str:
+        """``"dead"`` / ``"alive"`` / ``"unknown"`` for the retained handle."""
         if not self._h_process:
-            return False
-        code = wintypes.DWORD(0)
-        if not kernel32.GetExitCodeProcess(self._h_process, ctypes.byref(code)):
-            return False
-        return code.value == STILL_ACTIVE
+            return "unknown"
+        return wait_state(self._h_process)
+
+    def is_alive(self) -> bool:
+        """True only for a positive ``wait_state == "alive"``.
+
+        Uses the retained handle, so the answer concerns the exact kernel object
+        this session created -- never a PID that may since have been reused.
+        """
+        return self.liveness() == "alive"
 
     def wait_exit(self, timeout: float) -> int | None:
         rc = kernel32.WaitForSingleObject(self._h_process, int(timeout * 1000))
         if rc == WAIT_OBJECT_0:
-            code = wintypes.DWORD(0)
-            kernel32.GetExitCodeProcess(self._h_process, ctypes.byref(code))
-            return int(code.value)
+            return read_exit_code_informational(self._h_process)
         return None
 
     def exit_code(self) -> int | None:
-        code = wintypes.DWORD(0)
-        if not kernel32.GetExitCodeProcess(self._h_process, ctypes.byref(code)):
-            return None
-        return None if code.value == STILL_ACTIVE else int(code.value)
+        """Informational exit code; may read 259 for a genuinely exited process."""
+        return read_exit_code_informational(self._h_process)
 
     # ---------------------------------------------------------------- teardown
     def _terminate_self_created(self, hprocess) -> None:
@@ -795,61 +922,154 @@ class ConPtySession:
             except Exception:
                 pass
 
-    def _release_handles(self) -> None:
+    def _destroy_pty(self) -> dict:
+        """Close the pseudoconsole handle if we still own one.
+
+        Previously the denial paths never reached this, so an assignment failure
+        leaked the HPCON. Every failure path now calls it.
+        """
+        if not self._hpc:
+            return {"pty_closed": False, "already_gone": True}
+        try:
+            kernel32.ClosePseudoConsole(self._hpc)
+            self._hpc = None
+            return {"pty_closed": True}
+        except Exception as exc:
+            return {"pty_closed": False, "error": repr(exc)}
+
+    def _delete_attr_list(self) -> dict:
+        """Release the PROC_THREAD_ATTRIBUTE list allocation.
+
+        ``DeleteProcThreadAttributeList`` is documented as the correct release
+        for memory initialised by ``InitializeProcThreadAttributeList``; it was
+        missing before, so each spawn leaked that heap block.
+        """
+        if self._attr_buf is None:
+            return {"attr_list_deleted": False, "already_gone": True}
+        try:
+            kernel32.DeleteProcThreadAttributeList(self._attr_buf)
+            self._attr_buf = None
+            return {"attr_list_deleted": True}
+        except Exception as exc:
+            return {"attr_list_deleted": False, "error": repr(exc)}
+
+    def _close_pipe_handles(self) -> list[str]:
+        closed = []
         for name in ("_input_read", "_input_write", "_output_read", "_output_write"):
             h = getattr(self, name, None)
             if h:
                 kernel32.CloseHandle(h)
                 setattr(self, name, None)
+                closed.append(name)
+        return closed
+
+    def _close_process_handles(self) -> list[str]:
+        closed = []
         for name in ("_h_process", "_h_thread"):
             h = getattr(self, name, None)
             if h:
                 kernel32.CloseHandle(h)
                 setattr(self, name, None)
+                closed.append(name)
+        return closed
+
+    def _release_handles(self) -> None:
+        """Legacy name kept for callers: closes pipes + process handles only."""
+        self._close_pipe_handles()
+        self._close_process_handles()
+
+    def _full_local_cleanup(self) -> dict:
+        """Release *everything* this session owns locally, in a safe order."""
+        return {
+            "pty": self._destroy_pty(),
+            "attr_list": self._delete_attr_list(),
+            "pipes_closed": self._close_pipe_handles(),
+            "process_handles_closed": self._close_process_handles(),
+        }
+
+    def _deny(self, stage: str, detail: dict, *, hprocess=None) -> SpawnDenied:
+        """Fail-closed exit: verify-kill only our own child, then release all own
+        resources (including the pseudoconsole and the attribute list)."""
+        if hprocess is not None:
+            self._terminate_self_created(hprocess)
+        detail = dict(detail)
+        detail["cleanup"] = self._full_local_cleanup()
+        return SpawnDenied(stage, detail)
 
     def close(self, *, close_pty: bool = True, drain_timeout: float = 5.0) -> dict:
-        """Bounded, ordered teardown.
+        """Bounded, ordered and *honest* teardown.
 
-        Order follows the official guidance: stop/join the reader first (or keep
-        draining while closing), then ClosePseudoConsole, then release handles.
-        The ConPTY ``HPCON`` is a process-local handle: it is closed here, and
-        the guard job's kill-on-close remains the authoritative tree cleanup.
+        ``closed=True`` is reported only when every step actually succeeded. If
+        the drain reader cannot be brought to a stop within the bound, this
+        returns ``closed=False, retryable=True`` and **keeps ownership**: the
+        handle set is left intact so a later ``close()`` can retry, rather than
+        releasing a reader thread that would still touch freed handles. The
+        caller (and the driver's cleanup sweep) must treat a non-closed result as
+        "still owned", not as "cleaned up".
+
+        Ordering note: the output pipe is closed *before* ``ClosePseudoConsole``,
+        which is the ordering Microsoft recommends so that a full output pipe
+        cannot block the call. On this machine ClosePseudoConsole returns
+        immediately (Windows 11 build 26200 >= the documented 26100 threshold);
+        the blocking behaviour documented for older builds is **not tested here**
+        and remains an unverified boundary.
         """
-        result: dict = {"already_closed": self._closed}
         if self._closed:
-            return result
-        t0 = time.perf_counter()
+            return {"already_closed": True, "closed": True, "retryable": False}
 
-        # 1) Stop the drain reader. It is blocked inside ReadFile, so merely
-        #    setting a flag is not enough: the pending I/O is cancelled first
-        #    (CancelSynchronousIo on the reader's own thread handle), and if
-        #    that does not land, closing the read end forces the call to fail.
-        self._reader_stop.set()
+        t0 = time.perf_counter()
+        errors: list[str] = []
+
+        # 1) stop the drain reader: stop flag first, then bounded cancellation
         if self._reader_thread and self._reader_thread.is_alive():
-            cancel = self.cancel_read(timeout=min(2.0, drain_timeout))
-            result["reader_cancel"] = cancel
-            if not self.reader_returned.is_set():
-                if self._output_read:
-                    kernel32.CloseHandle(self._output_read)
-                    self._output_read = None
-                result["reader_forced_by_close"] = True
-                self.reader_returned.wait(timeout=drain_timeout)
-        result["reader_stopped"] = not (self._reader_thread and self._reader_thread.is_alive())
+            cancel = self.cancel_read(timeout=drain_timeout)
+            if not cancel["reader_converged"] and self._output_read:
+                kernel32.CloseHandle(self._output_read)
+                self._output_read = None
+                cancel["forced_by_output_close"] = True
+                cancel["reader_converged"] = self.reader_returned.wait(timeout=1.0)
+            if not cancel["reader_converged"]:
+                errors.append("reader_not_converged")
+        else:
+            cancel = {"reader_was_not_running": True, "reader_converged": True}
+        self._reader_stop.set()
         if self._reader_thread_handle:
             kernel32.CloseHandle(self._reader_thread_handle)
             self._reader_thread_handle = None
 
-        if close_pty and self._hpc:
-            kernel32.ClosePseudoConsole(self._hpc)
-            self._hpc = None
-        result["pty_closed"] = True
+        if errors:
+            # Ownership retained on purpose: nothing else has been released.
+            return {
+                "closed": False,
+                "retryable": True,
+                "errors": errors,
+                "reader_cancel": cancel,
+                "seconds": round(time.perf_counter() - t0, 3),
+                "note": "owner retained (not marked closed); safe to call close() again",
+            }
 
-        # Official sample: release the handles handed to CreatePseudoConsole and
-        # the retained process/thread handles.
-        self._release_handles()
+        # 2) output pipe before the pseudoconsole (official ordering guidance)
+        if self._output_read:
+            kernel32.CloseHandle(self._output_read)
+            self._output_read = None
+
+        # 3) pseudoconsole, attribute list, then the remaining handles
+        pty = self._destroy_pty() if close_pty else {"pty_closed": False, "skipped": True}
+        attr = self._delete_attr_list()
+        pipes = self._close_pipe_handles()
+        procs = self._close_process_handles()
+
         self._closed = True
-        result["close_seconds"] = round(time.perf_counter() - t0, 3)
-        return result
+        return {
+            "closed": True,
+            "retryable": False,
+            "reader_cancel": cancel,
+            "pty": pty,
+            "attr_list": attr,
+            "pipes_closed": pipes,
+            "process_handles_closed": procs,
+            "seconds": round(time.perf_counter() - t0, 3),
+        }
 
 
 # --------------------------------------------------------------------------- misc
@@ -879,22 +1099,23 @@ def _winerr_name(code: int) -> str:
 def retrieve_identity_by_pid(pid: int) -> dict:
     """Read-only identity probe used by the driver for comparisons.
 
-    Opens the process for query only and returns the raw FILETIME plus exit
-    code. This never terminates anything.
+    Opens with SYNCHRONIZE (needed to wait on the process object) plus query
+    rights, then reports the shared ``wait_state`` verdict, the raw 64-bit
+    creation FILETIME and the informational exit code. Never terminates anything.
     """
-    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    h = kernel32.OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not h:
-        return {"pid": pid, "open_ok": False, "last_error": ctypes.get_last_error()}
+        return {"pid": pid, "open_ok": False, "last_error": ctypes.get_last_error(),
+                "state": "unknown"}
     try:
-        creation = read_creation_filetime(h)
-        code = wintypes.DWORD(0)
-        ok2 = kernel32.GetExitCodeProcess(h, ctypes.byref(code))
+        state = wait_state(h)
         return {
             "pid": pid,
             "open_ok": True,
-            "creation_filetime": creation,
-            "exit_code": int(code.value) if ok2 else None,
-            "still_active": bool(ok2 and code.value == STILL_ACTIVE),
+            "state": state,
+            "still_active": state == "alive",
+            "creation_filetime": read_creation_filetime(h),
+            "exit_code_informational": read_exit_code_informational(h),
         }
     finally:
         kernel32.CloseHandle(h)
@@ -908,30 +1129,44 @@ def kill_verified(pid: int, expected_filetime: int, exit_code: int = 0xDEAD) -> 
     """Terminate a process only after proving its identity, on one handle.
 
     Follows the single-handle atomic pattern the lifecycle report §5.3 settled
-    on: ``OpenProcess`` once with QUERY_LIMITED_INFORMATION|TERMINATE, then
-    perform the FILETIME check, the STILL_ACTIVE check and ``TerminateProcess``
-    all against that same handle. The handle pins one kernel process object, so
-    a PID reused between check and kill cannot redirect the kill at a new
-    process. Refuses (and reports) whenever identity does not match.
+    on: ``OpenProcess`` once with SYNCHRONIZE|QUERY_LIMITED_INFORMATION|TERMINATE,
+    then the liveness verdict, the FILETIME check and ``TerminateProcess`` all act
+    on that same handle. The handle pins one kernel process object, so a PID
+    reused between check and kill cannot redirect the kill at a new process.
+
+    Refuses -- and reports why -- when:
+      * the handle cannot be opened;
+      * ``wait_state`` is ``"unknown"`` (never guessed);
+      * ``wait_state`` is ``"dead"`` (nothing to kill);
+      * the creation FILETIME differs at all from the expected value.
 
     This is the only termination-by-PID path in the spike; there is no
     ``taskkill`` and no WMI/CIM termination anywhere.
     """
-    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, False, pid)
+    h = kernel32.OpenProcess(
+        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, False, pid
+    )
     if not h:
         return {"pid": pid, "killed": False, "reason": "open_failed",
-                "last_error": ctypes.get_last_error()}
+                "last_error": ctypes.get_last_error(), "state": "unknown"}
     try:
+        state = wait_state(h)
         creation = read_creation_filetime(h)
-        code = wintypes.DWORD(0)
-        ok = kernel32.GetExitCodeProcess(h, ctypes.byref(code))
-        detail = {"pid": pid, "expected_filetime": expected_filetime, "observed_filetime": creation}
+        detail = {
+            "pid": pid,
+            "state": state,
+            "expected_filetime": expected_filetime,
+            "observed_filetime": creation,
+        }
+        if state == "unknown":
+            detail.update(killed=False, reason="state_unknown")
+            return detail
+        if state == "dead":
+            detail.update(killed=False, reason="not_running",
+                          exit_code_informational=read_exit_code_informational(h))
+            return detail
         if creation is None or creation != expected_filetime:
             detail.update(killed=False, reason="identity_mismatch")
-            return detail
-        if not ok or code.value != STILL_ACTIVE:
-            detail.update(killed=False, reason="not_running",
-                          exit_code=int(code.value) if ok else None)
             return detail
         ctypes.set_last_error(0)
         ok_kill = bool(kernel32.TerminateProcess(h, exit_code))
