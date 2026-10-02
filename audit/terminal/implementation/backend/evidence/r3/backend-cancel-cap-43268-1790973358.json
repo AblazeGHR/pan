@@ -1,0 +1,12 @@
+{
+  "test": "cancel_worker_cap_exhausted_diagnosed_and_recovers",
+  "diag_at_cap": {
+    "attempts": 16,
+    "last_kind": "exception",
+    "last_exception_type": "OSError",
+    "cap_exhausted": true,
+    "last_error": null
+  },
+  "writer_still_blocked_at_cap": true,
+  "recovered_by_close": true
+}

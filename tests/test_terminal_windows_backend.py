@@ -1155,6 +1155,219 @@ def test_pump_handle_failure_visible_and_drained(tmp_path, monkeypatch):
         stop_backend(b)
 
 
+def test_close_refuses_while_cancel_worker_in_flight(tmp_path, monkeypatch):
+    """R12 门控（审查 round-3）：取消回调阻塞 > join(1.0s) 时——
+
+    write 可以返回，但必须保留 **(timer, handle) 配对**（可追踪所有权）；
+    ``close`` 在释放任何配对句柄前有界 join + ``is_alive`` 真核验，仍活则**拒绝**
+    （cleanup-failed / owner retained / 句柄未裸关、无复用）；回调释放后再重试成功。
+    """
+    import packages.core.terminal.backend as backend_module
+
+    real_cancel = backend_module.cancel_synchronous_io
+    real_close = backend_module.close_handle_checked
+    gate = threading.Event()
+    entered = threading.Event()
+    rec: dict = {"first": True, "handle": None, "err_after_release": None, "closed_handles": []}
+
+    def gated_cancel(handle):
+        if rec["first"]:
+            rec["first"] = False
+            rec["handle"] = int(handle)
+            entered.set()
+            gate.wait(15.0)  # 阻塞远超 join(1.0)
+            ok, err = real_cancel(handle)
+            rec["err_after_release"] = err
+            return ok, err
+        return real_cancel(handle)
+
+    def spy_close(handle):
+        rec["closed_handles"].append(int(handle))
+        return real_close(handle)
+
+    monkeypatch.setattr(backend_module, "cancel_synchronous_io", gated_cancel)
+    monkeypatch.setattr(backend_module, "close_handle_checked", spy_close)
+    drain = write_script(
+        tmp_path,
+        "drain_child2.py",
+        "import sys\n"
+        "while True:\n"
+        "    data = sys.stdin.buffer.read(65536)\n"
+        "    if not data:\n"
+        "        break\n",
+    )
+    b = ConPtyBackend.spawn([PYTHON, drain], cwd=str(tmp_path), write_budget=0.15)
+    try:
+        # 8MiB 多块写（drain 子进程 + conhost 节流）：timer 在写中途触发（确定性），
+        # 写经“loop 到期/下一块检查”返回时取消者仍被 gate 卡住 -> 配对必须保留。
+        b.write(b"x" * (8 * 1024 * 1024))
+        assert entered.wait(3.0), "预算 timer 必须触发取消 worker"
+        assert rec["handle"] is not None
+        workers = b.describe().get("cancel_workers") or []
+        assert any(w.get("alive") for w in workers), workers  # 配对保留（可追踪）
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        with pytest.raises(BackendCloseError) as excinfo:
+            b.close(writer_wait_timeout=0.5)
+        rep = excinfo.value.report
+        assert rep.get("retryable") is True
+        assert any("cancel_worker" in str(x) for x in rep.get("retained", [])), rep
+        assert (rep.get("cancel_workers") or {}).get("thread_exited") is False, rep
+        # 取消者 in-flight：绝不裸关配对句柄
+        assert rec["handle"] not in rec["closed_handles"], rec
+        assert b.closed is False
+        # 回调释放 -> 真实取消作用于仍有效的句柄（err != 6 = ERROR_INVALID_HANDLE）
+        gate.set()
+        deadline = time.monotonic() + 3.0
+        while rec["err_after_release"] is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert rec["err_after_release"] is not None
+        assert rec["err_after_release"] != 6, "句柄被提前释放/复用（R12）"
+        report = b.close()
+        assert report["closed"] is True
+        assert (report.get("cancel_workers") or {}).get("thread_exited") is True
+        emit_evidence(
+            "backend-cancel-owner-pair",
+            {
+                "test": "close_refuses_while_cancel_worker_in_flight",
+                "refusal": {
+                    "retryable": True,
+                    "retained": rep.get("retained"),
+                    "thread_exited": (rep.get("cancel_workers") or {}).get("thread_exited"),
+                },
+                "handle_not_closed_while_in_flight": True,
+                "cancel_err_after_release": rec["err_after_release"],
+                "retry_close": {"closed": True},
+            },
+        )
+    finally:
+        gate.set()
+        stop_backend(b)
+
+
+def test_cancel_worker_exception_retries_desensitized(tmp_path, monkeypatch):
+    """R13：取消原语抛异常必须**可见（脱敏类型名）、有界重试（不静默死线程）**——
+    一次异常后重试命中，write 按期返回；哨兵消息不得泄漏。"""
+    import packages.core.terminal.backend as backend_module
+
+    real_cancel = backend_module.cancel_synchronous_io
+    sentinel = "SENTINEL-CANCEL-EXC-9f3a"
+    once = {"fired": False, "attempts": 0}
+
+    def flaky_cancel(handle):
+        once["attempts"] += 1
+        if not once["fired"]:
+            once["fired"] = True
+            raise OSError(87, sentinel)  # 一次异常（含哨兵消息）
+        return real_cancel(handle)
+
+    monkeypatch.setattr(backend_module, "cancel_synchronous_io", flaky_cancel)
+    b = ConPtyBackend.spawn(
+        sleep_child(), cwd=str(tmp_path), write_budget=0.05, write_chunk=16 * 1024 * 1024
+    )
+    state: dict = {"done": threading.Event(), "written": None}
+
+    def writer() -> None:
+        try:
+            state["written"] = b.write(b"x" * (16 * 1024 * 1024))
+        except Exception as exc:  # noqa: BLE001
+            state["written"] = type(exc).__name__
+        state["done"].set()
+
+    thread = threading.Thread(target=writer, daemon=True)
+    thread.start()
+    try:
+        assert state["done"].wait(6.0) is True, "取消异常后必须重试命中而非静默死线程（R13）"
+        diag = b.describe().get("cancel_worker_last") or {}
+        assert diag.get("last_exception_type") == "OSError", diag
+        assert diag.get("last_kind") == "cancelled", diag
+        assert diag.get("attempts", 0) >= 2, diag
+        blob = json.dumps(b.describe(), ensure_ascii=False)
+        assert sentinel not in blob, "异常消息（哨兵）不得进入诊断（脱敏）"
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        report = b.close()
+        assert report["closed"] is True
+        emit_evidence(
+            "backend-cancel-exception",
+            {
+                "test": "cancel_worker_exception_retries_desensitized",
+                "diag": diag,
+                "sentinel_leaked": False,
+                "write_returned": True,
+            },
+        )
+    finally:
+        stop_backend(b)
+        thread.join(2.0)
+
+
+def test_cancel_worker_cap_exhausted_diagnosed_and_recovers(tmp_path, monkeypatch):
+    """R13：取消**持续异常** -> cap 耗尽必须显式诊断（``cap_exhausted``），
+    **不得把 Timer 退出等同 writer 退出**；恢复取消原语后由 close 兜底正确收敛。"""
+    import packages.core.terminal.backend as backend_module
+
+    monkeypatch.setattr(backend_module, "_CANCEL_CAP_BASE_SECONDS", 0.3, raising=False)
+    real_cancel = backend_module.cancel_synchronous_io
+    armed = {"raise": True}
+    sentinel = "SENTINEL-CAP-7c1"
+
+    def raising_cancel(handle):
+        if armed["raise"]:
+            raise OSError(87, sentinel)
+        return real_cancel(handle)
+
+    monkeypatch.setattr(backend_module, "cancel_synchronous_io", raising_cancel)
+    b = ConPtyBackend.spawn(
+        sleep_child(), cwd=str(tmp_path), write_budget=0.05, write_chunk=16 * 1024 * 1024
+    )
+    state: dict = {"done": threading.Event()}
+
+    def writer() -> None:
+        try:
+            b.write(b"x" * (16 * 1024 * 1024))
+        except Exception:  # noqa: BLE001
+            pass
+        state["done"].set()
+
+    thread = threading.Thread(target=writer, daemon=True)
+    thread.start()
+    try:
+        diag: dict = {}
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            diag = b.describe().get("cancel_worker_last") or {}
+            if diag.get("cap_exhausted"):
+                break
+            time.sleep(0.05)
+        assert diag.get("cap_exhausted") is True, diag
+        assert diag.get("last_kind") == "exception", diag
+        assert diag.get("last_exception_type") == "OSError", diag
+        blob = json.dumps(b.describe(), ensure_ascii=False)
+        assert sentinel not in blob
+        # Timer 退出 != writer 退出：writer 仍阻塞（事实边界，不假称硬界）
+        assert state["done"].is_set() is False
+        b.terminate(True)
+        assert b.wait_dead(5.0) is True
+        armed["raise"] = False  # 恢复取消原语
+        report = b.close()  # close 的 _converge_writers 兜底取消注册句柄
+        assert report["closed"] is True
+        assert state["done"].wait(3.0) is True
+        emit_evidence(
+            "backend-cancel-cap",
+            {
+                "test": "cancel_worker_cap_exhausted_diagnosed_and_recovers",
+                "diag_at_cap": diag,
+                "writer_still_blocked_at_cap": True,
+                "recovered_by_close": True,
+            },
+        )
+    finally:
+        armed["raise"] = False
+        stop_backend(b)
+        thread.join(2.0)
+
+
 def test_close_failure_retry_deadline(tmp_path, monkeypatch):
     """清理失败重试（确定性）：**取消落空** -> 读者未收敛 -> 抛错保 owner（句柄/线程不丢）
     -> 取消恢复后重试成功。

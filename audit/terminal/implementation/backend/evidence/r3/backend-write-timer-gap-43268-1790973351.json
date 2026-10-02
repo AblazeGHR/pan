@@ -1,0 +1,7 @@
+{
+  "test": "write_timer_gap_canceller_retries",
+  "budget_s": 0.3,
+  "gate_sleep_s": 0.9,
+  "finished_within_5s": true,
+  "writer_result": "('ok', 0)"
+}

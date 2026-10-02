@@ -1,0 +1,19 @@
+{
+  "test": "pump_handle_failure_visible_and_drained",
+  "read_error": "BackendPumpError",
+  "pump_exit": "fatal:OSError",
+  "close": {
+    "closed": true,
+    "reader": {
+      "reader": "already-exited",
+      "thread_exited": true,
+      "stop_requested": false,
+      "pump_exit": "fatal:OSError",
+      "pump_fatal": "OSError",
+      "drain_done": true,
+      "drain_eof": false,
+      "drain_cancelled": false,
+      "drain_error_type": "BackendPumpError"
+    }
+  }
+}

@@ -134,6 +134,50 @@ DEFAULT_PTY_CLOSE_TIMEOUT_SECONDS = 2.0
 #: 阻塞时，TerminateProcess 到 signaled 存在 ~0.5s 级延迟；不等待会让调用方的
 #: “根确认退出”步骤立即 fail-closed）。
 DEFAULT_TERMINATE_CONFIRM_SECONDS = 1.0
+#: 取消 worker 的重试上限基数（R13/R14）；实际 cap = max(本值, 4×budget)。
+#: **预算不是硬 SLA**：取消者持续异常或 cap 耗尽而目标 I/O 仍阻塞时，write 可能
+#: 超出预算（未解决限制）；close 的 `_converge_writers` 为最后兜底。
+_CANCEL_CAP_BASE_SECONDS = 5.0
+#: 单次 write 结束时对取消者的有界 join（R12：未收敛则保留 (timer, handle) 配对）。
+_CANCEL_JOIN_SECONDS = 1.0
+
+
+class _CancelWorkerRecord:
+    """取消 worker 的 **(timer, writer thread_handle) 配对所有权**记录（R12）。
+
+    - ``timer`` 活着 = 取消者 in-flight：**任何路径都不得释放其 ``thread_handle``**；
+    - 诊断字段有界且脱敏（只记类型名/计数，不记异常消息）；
+    - 与普通 ``CloseHandle`` 失败孤柄（:attr:`ConPtyBackend._orphan_handles`，
+      无 worker、可安全重试关闭）**分类型**管理。
+    """
+
+    __slots__ = ("timer", "thread_handle", "attempts", "last_kind", "last_exception_type", "cap_exhausted")
+
+    def __init__(
+        self,
+        timer: threading.Timer,
+        thread_handle: int,
+        *,
+        attempts: int,
+        last_kind: str,
+        last_exception_type: str | None,
+        cap_exhausted: bool,
+    ) -> None:
+        self.timer = timer
+        self.thread_handle = int(thread_handle)
+        self.attempts = int(attempts)
+        self.last_kind = str(last_kind)
+        self.last_exception_type = last_exception_type
+        self.cap_exhausted = bool(cap_exhausted)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "alive": self.timer.is_alive(),
+            "attempts": self.attempts,
+            "last_kind": self.last_kind,
+            "last_exception_type": self.last_exception_type,
+            "cap_exhausted": self.cap_exhausted,
+        }
 
 ERROR_NO_DATA = 232
 ERROR_HANDLE_EOF = 38
@@ -249,6 +293,10 @@ class ConPtyBackend:
 
         self._writer_threads: dict[int, int] = {}
         self._orphan_handles: list[int] = []
+        # R12：活动/未收敛取消者的 (timer, handle) 配对（与普通孤柄分类型）。
+        self._cancel_workers: list[_CancelWorkerRecord] = []
+        # R13：最近一次取消 worker 的有界脱敏诊断（供 describe()/close 观测）。
+        self._last_cancel_diag: dict[str, Any] | None = None
 
         self._reader_thread: threading.Thread | None = None
         self._reader_handle = 0
@@ -526,9 +574,15 @@ class ConPtyBackend:
           写预算——与 ``terminate(force=False)`` 同一上界。注意这**不等于**“中断
           有效”：Ctrl-C 的 OS 级语义在本机仍不可投递（见报告 §2.6.1，负结论不变）。
 
-        诚实边界：预算计时器按“本调用”计时；若取消恰好落在两次 WriteFile 之间，
-        下一次 WriteFile（同一调用内）不会再发起（``timer_fired`` 检查），write
-        直接返回 partial。极窄的延迟窗口内取消若落空，本调用仍在预算内返回。
+        诚实边界（R14，不使用硬 SLA 口径）：``budget`` 是**发起取消的截止**，不是
+        “所有 OS 异常下 write 完成”的硬保证——
+        - 正常路径：预算含锁等待；写返回 ≈ budget；
+        - 预算到期由取消 worker 重试取消（覆盖 check-then-syscall 窗口）；
+        - 额外等待单列：单次 write 结束时有界 ``join``（≤ :data:`_CANCEL_JOIN_SECONDS`）；
+        - 故障 cap 单列：取消者重试至 ``max(_CANCEL_CAP_BASE_SECONDS, 4×budget)``
+          （异常被捕获并分类，不静默死）；cap 耗尽或取消持续不命中而目标 I/O 仍
+          阻塞时，write **可能超出预算**（未解决限制；close 的 ``_converge_writers``
+          与 runtime 的“在途输入有界拒绝”是兜底，不宣传后端 write 硬有界）。
         """
         payload = bytes(data)
         if not payload:
@@ -562,29 +616,65 @@ class ConPtyBackend:
                 "finished": False,
                 "timer_fired": False,
                 "cancel_attempts": 0,
+                "last_kind": "none",
+                "last_exception_type": None,
+                "cap_exhausted": False,
+                "last_error": None,
             }
 
             def _budget_fired() -> bool:
                 with budget_state["lock"]:
                     return bool(budget_state["timer_fired"])
 
+            def _publish_cancel_diag() -> None:
+                # R13：取消者状态**实时**发布（write 仍阻塞时也可观测 cap/异常），
+                # 只含类型名/计数（有界、脱敏）；写结束时的快照另存一次。
+                with budget_state["lock"]:
+                    snapshot = {
+                        "attempts": budget_state["cancel_attempts"],
+                        "last_kind": budget_state["last_kind"],
+                        "last_exception_type": budget_state["last_exception_type"],
+                        "cap_exhausted": budget_state["cap_exhausted"],
+                        "last_error": budget_state["last_error"],
+                    }
+                with self._io_lock:
+                    self._last_cancel_diag = snapshot
+
             def _on_budget_timeout() -> None:
                 # 预算到期强制点：**重试**取消本线程上可能仍在阻塞/待发的同步
-                # WriteFile，直到本次写调用结束——覆盖“timer_fired 检查后、
-                # WriteFile 之前”的窗口：一次取消可能落空，不能只发一次（R4）。
-                cap = time.monotonic() + max(5.0, budget * 4.0)
+                # WriteFile，直到本次写调用结束（覆盖“timer_fired 检查后、
+                # WriteFile 之前”的窗口，R4）。
+                #
+                # R13：取消原语异常**不得静默杀死本线程**——捕获、脱敏分类
+                # （``exception:<Type>``）后继续重试；false 返回（无挂起 I/O）与命中
+                # 分别诊断；cap 耗尽显式置位，**不等同 writer 已结束**。
+                cap = time.monotonic() + max(_CANCEL_CAP_BASE_SECONDS, budget * 4.0)
                 while True:
                     with budget_state["lock"]:
                         if budget_state["finished"]:
                             return
                         budget_state["timer_fired"] = True
                         budget_state["cancel_attempts"] += 1
-                    cancel_synchronous_io(thread_handle)
+                    try:
+                        ok, err = cancel_synchronous_io(thread_handle)
+                    except Exception as exc:  # noqa: BLE001 - R13：必须可见且不静默死
+                        with budget_state["lock"]:
+                            budget_state["last_kind"] = "exception"
+                            budget_state["last_exception_type"] = type(exc).__name__
+                            budget_state["last_error"] = None
+                    else:
+                        with budget_state["lock"]:
+                            budget_state["last_kind"] = "cancelled" if ok else "no-pending"
+                            budget_state["last_error"] = int(err)
+                    _publish_cancel_diag()
                     with budget_state["lock"]:
                         if budget_state["finished"]:
                             return
                     if time.monotonic() >= cap:
-                        return  # 极端兜底；close 的 _converge_writers 仍会取消注册句柄
+                        with budget_state["lock"]:
+                            budget_state["cap_exhausted"] = True
+                        _publish_cancel_diag()
+                        return  # 兜底：close 的 _converge_writers 仍会取消注册句柄
                     time.sleep(0.02)
 
             remaining_after_lock = max(0.0, deadline - time.monotonic())
@@ -634,21 +724,43 @@ class ConPtyBackend:
                             continue
                         total += written
                 finally:
-                    # 先让取消者收敛（finished + join），句柄才可能安全关闭（R4：
-                    # 不 join 就可能在关闭线程句柄后仍被回调使用 -> 陈旧句柄）。
+                    # 先让取消者收敛（finished + 有界 join，R12/R8：不 join 就可能
+                    # 在关闭线程句柄后仍被回调使用 -> 陈旧句柄/句柄复用）。
                     with budget_state["lock"]:
                         budget_state["finished"] = True
                     if timer is not None:
                         timer.cancel()
-                        timer.join(1.0)
+                        timer.join(_CANCEL_JOIN_SECONDS)
             finally:
+                with budget_state["lock"]:
+                    diag_snapshot = {
+                        "attempts": budget_state["cancel_attempts"],
+                        "last_kind": budget_state["last_kind"],
+                        "last_exception_type": budget_state["last_exception_type"],
+                        "cap_exhausted": budget_state["cap_exhausted"],
+                        "last_error": budget_state["last_error"],
+                    }
                 with self._io_lock:
                     self._writer_threads.pop(tid, None)
-                if timer is not None and timer.is_alive():
-                    # 取消者未收敛：句柄保活，交由 close 重试（不得当作已回收）
-                    self._orphan_handles.append(thread_handle)
-                elif not close_handle_checked(thread_handle):
-                    self._orphan_handles.append(thread_handle)
+                    self._last_cancel_diag = diag_snapshot
+                    if timer is not None and timer.is_alive():
+                        # R12：取消者 in-flight —— 保留 (timer, handle) **配对**，
+                        # 绝不裸关该句柄；可追踪所有权交 close 预收敛（有界 join +
+                        # is_alive 真核验）后才释放。
+                        self._cancel_workers.append(
+                            _CancelWorkerRecord(
+                                timer,
+                                thread_handle,
+                                attempts=diag_snapshot["attempts"],
+                                last_kind=str(diag_snapshot["last_kind"]),
+                                last_exception_type=diag_snapshot["last_exception_type"],
+                                cap_exhausted=bool(diag_snapshot["cap_exhausted"]),
+                            )
+                        )
+                    elif not close_handle_checked(thread_handle):
+                        # 普通 CloseHandle 失败孤柄（无 worker，可安全重试关闭）
+                        self._orphan_handles.append(thread_handle)
+                    self._reap_cancel_workers_locked()
             return total
         finally:
             self._input_lock.release()
@@ -889,6 +1001,22 @@ class ConPtyBackend:
                         "writers": writer_detail,
                     },
                 )
+            # 2b) 取消 worker 预收敛（R12）：**释放任何配对句柄之前**，所有
+            #     (timer, handle) 对必须有界 join + is_alive 真核验；未收敛 -> 拒绝，
+            #     保 pair 与 owner（可重试）。绝不在取消者 in-flight 时裸关句柄。
+            cancel_ok, cancel_detail = self._converge_cancel_workers(writer_wait_timeout)
+            if not cancel_ok:
+                raise BackendCloseError(
+                    "cancel_worker_not_converged：取消 worker 仍 in-flight（R12：配对所有权保留，"
+                    "owner 保留，可重试）",
+                    {
+                        "retryable": True,
+                        "retained": self._retained_inventory(),
+                        "reader": reader_detail,
+                        "writers": writer_detail,
+                        "cancel_workers": cancel_detail,
+                    },
+                )
 
             # 3) 释放句柄（与 resize 的句柄使用互斥）
             release: dict[str, Any]
@@ -937,6 +1065,7 @@ class ConPtyBackend:
                 "already_closed": False,
                 "reader": reader_detail,
                 "writers": writer_detail,
+                "cancel_workers": cancel_detail,
                 "release": release,
                 "seconds": round(time.perf_counter() - started, 4),
             }
@@ -1054,6 +1183,63 @@ class ConPtyBackend:
         }
         return False, detail
 
+    # ------------------------------------------------------------------ R12/R13
+    def _reap_cancel_workers_locked(self) -> None:
+        """回收**已退出**的取消 worker（须持有 ``_io_lock``；不在锁内等待）。
+
+        - 仅当 ``timer.is_alive()==False``（取消者确已退出）才释放其 ``thread_handle``；
+        - ``CloseHandle`` 失败 → 转普通孤柄列表（无 worker，可安全重试）；
+        - 仍活者保留在 ``_cancel_workers``（配对所有权延续到 close 预收敛）。
+        """
+        survivors: list[_CancelWorkerRecord] = []
+        for worker in self._cancel_workers:
+            if worker.timer.is_alive():
+                survivors.append(worker)
+                continue
+            if not close_handle_checked(worker.thread_handle):
+                self._orphan_handles.append(worker.thread_handle)
+        self._cancel_workers = survivors
+
+    def _converge_cancel_workers(self, timeout: float) -> tuple[bool, dict[str, Any]]:
+        """R12：close 释放任何配对句柄之前的**预收敛**（有界 join + is_alive 真核验）。
+
+        在锁外做 join（避免锁内无界等待），锁内只做快照/回收；到期仍有 in-flight
+        取消者 -> ``False``（调用方保 owner、报可重试错误、不释放任何句柄）。
+        """
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        join_attempts = 0
+        while True:
+            with self._io_lock:
+                alive = [w for w in self._cancel_workers if w.timer.is_alive()]
+            if not alive:
+                with self._io_lock:
+                    self._reap_cancel_workers_locked()
+                    still_alive = [w for w in self._cancel_workers if w.timer.is_alive()]
+                if not still_alive:
+                    detail = {
+                        "workers": [],
+                        "join_attempts": join_attempts,
+                        "thread_exited": True,
+                    }
+                    return True, detail
+                alive = still_alive
+            for worker in alive:
+                join_attempts += 1
+                remaining = max(0.0, deadline - time.monotonic())
+                if remaining <= 0:
+                    break
+                worker.timer.join(min(0.02, remaining))
+            if time.monotonic() >= deadline:
+                break
+        with self._io_lock:
+            remaining_workers = [w for w in self._cancel_workers if w.timer.is_alive()]
+            detail = {
+                "workers": [w.as_dict() for w in remaining_workers],
+                "join_attempts": join_attempts,
+                "thread_exited": not remaining_workers,
+            }
+        return False, detail
+
     def _retained_inventory(self) -> list[str]:
         names = list(self._spawn.retained_resources())
         if self._reader_thread is not None and self._reader_thread.is_alive():
@@ -1061,6 +1247,12 @@ class ConPtyBackend:
         with self._lifecycle_lock:
             if self._reader_handle:
                 names.append("pump_thread_handle")
+        with self._io_lock:
+            for worker in self._cancel_workers:
+                if worker.timer.is_alive():
+                    names.append(f"cancel_worker:{worker.last_kind}:{worker.attempts}")
+            if self._orphan_handles:
+                names.append(f"plain_handle_orphans:{len(self._orphan_handles)}")
         if self._guard is not None and self._guard.handle_open:
             names.append("job_handle")
         return names
@@ -1104,7 +1296,19 @@ class ConPtyBackend:
             "drain_done": self._drain_done,
             "pump_exit": self._pump_exit,
             "pump_fatal": self._pump_fatal,
+            # R12/R13：配对所有权与取消者诊断（有界、脱敏：类型名/计数）
+            "cancel_workers": self._cancel_workers_diag(),
+            "cancel_worker_last": self._last_cancel_diag_snapshot(),
+            "plain_handle_orphans": len(self._orphan_handles),
         }
+
+    def _cancel_workers_diag(self) -> list[dict[str, Any]]:
+        with self._io_lock:
+            return [w.as_dict() for w in self._cancel_workers]
+
+    def _last_cancel_diag_snapshot(self) -> dict[str, Any]:
+        with self._io_lock:
+            return dict(self._last_cancel_diag or {})
 
 
 class WinptyBackend:

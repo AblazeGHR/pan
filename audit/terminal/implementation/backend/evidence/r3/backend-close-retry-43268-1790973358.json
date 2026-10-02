@@ -1,0 +1,21 @@
+{
+  "test": "close_failure_retry_deadline",
+  "first": {
+    "thread_exited": false,
+    "retained": [
+      "input_write",
+      "output_read",
+      "hpc",
+      "h_process",
+      "h_thread",
+      "attr_list",
+      "pump_thread",
+      "pump_thread_handle",
+      "job_handle"
+    ]
+  },
+  "retry": {
+    "closed": true,
+    "already_closed": false
+  }
+}

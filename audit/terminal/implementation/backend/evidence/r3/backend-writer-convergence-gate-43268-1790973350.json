@@ -1,0 +1,12 @@
+{
+  "test": "writer_convergence_requires_input_lock",
+  "first": {
+    "input_lock_acquired": false,
+    "closed": false,
+    "retained_input_write": true
+  },
+  "retry": {
+    "input_lock_acquired": true,
+    "closed": true
+  }
+}

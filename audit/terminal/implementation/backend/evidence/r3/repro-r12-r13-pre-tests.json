@@ -1,0 +1,25 @@
+{
+  "probe": "r12_r13_test_level_replay",
+  "baseline": "git archive 6613533c（修复前；无 _CANCEL_CAP_BASE_SECONDS shim 需求，测试用 raising=False）",
+  "method": "同一测试文件在 661 归档副本重放；当前树同用例通过（各 2 次）",
+  "pre_failures": [
+    {
+      "test": "test_close_refuses_while_cancel_worker_in_flight",
+      "r12": "write 返回后 describe().cancel_workers=[]：仅存 handle 孤柄、无 (timer, handle) 配对；close 无取消者收敛核验",
+      "review_cross_ref": "probe10 R12（_orphan_handles=[792]、close 后晚回调 (False,1168)/复用）"
+    },
+    {
+      "test": "test_cancel_worker_exception_retries_desensitized",
+      "r13": "取消原语一次异常 -> Timer 静默死亡，write 6s 未返回（外部取消才解除）",
+      "review_cross_ref": "probe10 R13（attempts=1、2.0s≈6×budget 仍阻塞）"
+    },
+    {
+      "test": "test_cancel_worker_cap_exhausted_diagnosed_and_recovers",
+      "r13": "无取消者实时诊断（describe 无 cancel_worker_last），cap 耗尽不可观测",
+      "review_cross_ref": "probe10 R14（cap 停 242@7.5s、无诊断出口）"
+    }
+  ],
+  "post_status": "当前树（661 + 本窄修）三用例通过（backend-cancel-owner-pair / backend-cancel-exception / backend-cancel-cap）",
+  "replay_result": "3 failed（661 归档）",
+  "captured_at": 1790973320.1951542
+}
