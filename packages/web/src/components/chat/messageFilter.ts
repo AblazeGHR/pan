@@ -42,7 +42,7 @@ export function filterVisibleMessages(
  * - `worker`   — TA report (`@@@@by agent`); existing value kept verbatim.
  * - `maAssign` — MA assign: formal dispatch — `role: "user"`,
  *   `source: "agent"`, no inherited task id and no `////by agent` prefix
- *   (the shared `getMessageSourceTag` evidence).
+ *   (mirrors the `ma-assign` label tag).
  * - `maMsg`    — MA msg: every other agent-sourced row — the `////by agent`
  *   identity prefix that `agent_send` / `agent_send_force` prepend, or an
  *   inherited-task-id follow-up (`taskIdSource: "active"`).
@@ -78,11 +78,13 @@ export interface QuickJumpIndexItem {
  * deliberately not reused here).
  * - `@@@@by agent` → `worker` (TA report, the old judgment; checked first and
  *   role-independent because some adapters serialize reports as user rows).
- * - `role: "user"` + `source: "agent"` → split by the shared
- *   `getMessageSourceTag` evidence: the formal-dispatch tag (`ma-assign`)
- *   yields `maAssign`; every other agent-sourced row — the `////by agent`
- *   identity prefix of `agent_send` / `agent_send_force`, or an inherited
- *   `taskIdSource: "active"` follow-up — yields `maMsg`.
+ * - `role: "user"` + `source: "agent"` → inside the confirmed provenance,
+ *   the send/follow-up split: the `////by agent` identity prefix of
+ *   `agent_send` / `agent_send_force`, or an inherited
+ *   `taskIdSource: "active"` follow-up, yields `maMsg`; otherwise
+ *   `maAssign`.  The prefix only splits an already-confirmed source — it
+ *   never proves the source itself.  Invariant: `maAssign` ⇔
+ *   `getMessageSourceTag(...)` is `'ma-assign'`.
  * - any other `user` row → `user` (browser sends, scheduler/background jobs,
  *   prompt injection, QQ, user-typed markers); non-user rows without the
  *   report prefix → `null`.
@@ -102,9 +104,11 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   if (content.startsWith(TASK_AGENT_PREFIX)) return 'worker';
   if (message.role !== 'user') return null;
   if (message.source === 'agent') {
-    // The shared label determination is the formal-dispatch evidence; every
-    // other agent-sourced row is a message / follow-up.
-    return getMessageSourceTag(message) === 'ma-assign' ? 'maAssign' : 'maMsg';
+    // Within confirmed agent provenance, the send/follow-up markers split
+    // messages from assigns; the prefix never proves the source itself.
+    return content.startsWith(META_AGENT_PREFIX) || message.taskIdSource === 'active'
+      ? 'maMsg'
+      : 'maAssign';
   }
   return 'user';
 }
@@ -114,9 +118,9 @@ export type MessageSourceTag = 'ta-report' | 'ma-assign';
 
 /**
  * Classify the source tag for a message body, or null when it carries none.
- * This is the shared structured determination the navigation kinds build on:
- * `ma-assign` ⇔ the `maAssign` kind, `ta-report` ⇔ the `worker` kind — the
- * body pill and the rail can never disagree.
+ * The navigation kinds mirror this determination, so the body pill and the
+ * rail tooltip can never disagree: `ma-assign` ⇔ kind `maAssign`,
+ * `ta-report` ⇔ kind `worker`.
  *
  * - `ta-report` — the task-agent completion report marker (`@@@@by agent`).
  *   Kept exactly as before: prefix-based and role-independent because some
