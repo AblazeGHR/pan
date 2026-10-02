@@ -1,0 +1,56 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- E:\software\miniforge\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 42 items
+
+tests/test_terminal_emulator.py::test_construct_ready_identity_and_close PASSED [  2%]
+tests/test_terminal_emulator.py::test_start_cursor_beyond_53_bits_travels_as_string PASSED [  4%]
+tests/test_terminal_emulator.py::test_missing_node_binary_is_unavailable PASSED [  7%]
+tests/test_terminal_emulator.py::test_missing_sidecar_script_is_unavailable PASSED [  9%]
+tests/test_terminal_emulator.py::test_frame_helpers_reject_oversize_and_truncation PASSED [ 11%]
+tests/test_terminal_emulator.py::test_main_screen_matrix_and_recovery PASSED [ 14%]
+tests/test_terminal_emulator.py::test_alternate_screen_matrix_and_recovery PASSED [ 16%]
+tests/test_terminal_emulator.py::test_split_utf8_1_4_rest_matches_continuous PASSED [ 19%]
+tests/test_terminal_emulator.py::test_holdback_split_csi_and_protocol_a_recovery PASSED [ 21%]
+tests/test_terminal_emulator.py::test_holdback_split_osc_degrades_partial_and_recovers PASSED [ 23%]
+tests/test_terminal_emulator.py::test_snapshot_cursor_excludes_pending_tail PASSED [ 26%]
+tests/test_terminal_emulator.py::test_resize_queue_ordering_matches_reference PASSED [ 28%]
+tests/test_terminal_emulator.py::test_browserless_large_output_and_log_cursor_eviction PASSED [ 30%]
+tests/test_terminal_emulator.py::test_snapshot_cursor_is_applied_not_producer_frontier PASSED [ 33%]
+tests/test_terminal_emulator.py::test_expired_control_never_executes_late PASSED [ 35%]
+tests/test_terminal_emulator.py::test_feed_enqueue_never_waits_for_node PASSED [ 38%]
+tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded PASSED [ 40%]
+tests/test_terminal_emulator.py::test_control_queue_overflow_is_visible PASSED [ 42%]
+tests/test_terminal_emulator.py::test_unknown_sequence_after_event_saturation_is_detected PASSED [ 45%]
+tests/test_terminal_emulator.py::test_engine_op_error_is_sticky_degraded PASSED [ 47%]
+tests/test_terminal_emulator.py::test_reset_baseline_uses_execution_position_not_future_frontier PASSED [ 50%]
+tests/test_terminal_emulator.py::test_reset_clears_old_gap_and_never_fakes_full PASSED [ 52%]
+tests/test_terminal_emulator.py::test_duplicate_feed_bytes_not_double_consumed PASSED [ 54%]
+tests/test_terminal_emulator.py::test_sidecar_crash_is_visible_and_close_converges PASSED [ 57%]
+tests/test_terminal_emulator.py::test_close_failure_retains_resources_then_retry_converges PASSED [ 59%]
+tests/test_terminal_emulator.py::test_guard_close_failure_is_retryable PASSED [ 61%]
+tests/test_terminal_emulator.py::test_runner_hard_death_kills_sidecar_via_job PASSED [ 64%]
+tests/test_terminal_emulator.py::test_no_process_leaks_after_close PASSED [ 66%]
+tests/test_terminal_emulator.py::test_close_bounded_when_root_dead_descendant_holds_stdout PASSED [ 69%]
+tests/test_terminal_emulator.py::test_startup_failure_bounded_and_owner_retry PASSED [ 71%]
+tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable PASSED [ 73%]
+tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable PASSED [ 76%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_false] PASSED [ 78%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_raises] PASSED [ 80%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_none] PASSED [ 83%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_raises] PASSED [ 85%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_zero] PASSED [ 88%]
+tests/test_terminal_emulator.py::test_late_reset_ack_updates_ledger_once_and_gates_cursor PASSED [ 90%]
+tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface PASSED [ 92%]
+tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait PASSED [ 95%]
+tests/test_terminal_emulator.py::test_owner_retry_serialized_bounded_and_convergent PASSED [ 97%]
+tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget PASSED [100%]
+
+============================= 42 passed in 47.59s =============================
+DIRECT_EXIT=0

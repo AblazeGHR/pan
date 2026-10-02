@@ -711,6 +711,9 @@ function handle(h, payload) {
       });
       return;
     case 'shutdown':
+      // ignore-shutdown（r3）：不回 ack、不退出 —— 迫使 close 走强杀路径
+      // （kill_timeout 传递门控的确定性现场）。
+      if (mode === 'ignore-shutdown') return;
       ack(h.op);
       setTimeout(() => process.exit(0), 20);
       return;
@@ -1039,3 +1042,272 @@ def test_resize_wait_confirmation_surface(emu_factory):
     time.sleep(2.6)
     assert emu2.resize_wait(31, 101, timeout=8.0) is True
     assert emu2.diagnostics()["applied_resize"] == [31, 101]
+
+
+# ---------------------------------------------------------------------------
+# r3 并发窄修回归（F1/F2/F3；独立审查 ROUND2 N8b/N9a 确定失败 + F3 死参数）
+#（先失败后通过：9cb 固定副本上本段测试失败，修复后通过）
+# ---------------------------------------------------------------------------
+
+
+def test_close_timeout_bounds_total_call_including_lock_wait(emu_factory):
+    """F1：close(timeout) 是**本次调用**总预算（从入口计时，含 _close_lock 排队）。
+
+    - T1 持锁时 T2 短 budget 必须在其预算内有界返回合法 closed=False + 锁忙诊断；
+    - T2 不写另一调用的状态/缓存（保 owner）；
+    - T1 收敛后重试成功且 seconds 为本次调用实际耗时（不用 T1 耗时冒充）；
+    - timeout=0 边界明确不倒退（合法报告，重试收敛）。
+    """
+    emu = emu_factory()
+    assert emu._test_stall(2500)
+    r1: list = []
+
+    def t1_worker():
+        r1.append(emu.close(timeout=6.0))
+
+    t1 = threading.Thread(target=t1_worker, daemon=True)
+    t1.start()
+    time.sleep(0.25)  # T1 已持 _close_lock（等待 stall 结束）
+    t0 = time.monotonic()
+    r2 = emu.close(timeout=0.5)
+    t2_elapsed = time.monotonic() - t0
+    assert t2_elapsed <= 0.5 + 0.5, f"T2 未被本次 timeout 约束：{t2_elapsed:.3f}s"
+    assert r2.closed is False
+    assert r2.seconds <= t2_elapsed + 0.05, (r2.seconds, t2_elapsed)
+    assert "close-lock-busy" in r2.detail, r2.detail
+    assert emu._close_report is None, "T2 不得写入另一调用（未完成）的状态/缓存"
+    assert emu.engine_alive, "T2 抢锁失败不得触碰资源（保 owner）"
+    t1.join(timeout=20)
+    assert not t1.is_alive() and r1 and r1[0].closed is True
+    # 释放后重试：缓存可返回，但 seconds 必须是本次调用耗时（不是 T1 的 2.x s）
+    t3 = time.monotonic()
+    r3 = emu.close(timeout=5.0)
+    t3_elapsed = time.monotonic() - t3
+    assert r3.closed is True
+    assert r3.seconds <= max(t3_elapsed, 0.02) + 0.05, (r3.seconds, t3_elapsed)
+    assert r3.seconds < 1.0
+    # timeout=0 边界：合法报告 + 不破坏状态，重试收敛
+    emu2 = emu_factory()
+    r0 = emu2.close(timeout=0.0)
+    assert isinstance(r0, type(r2))
+    assert r0.seconds < 0.75
+    assert emu2.close(timeout=10.0).closed is True
+
+
+def test_owner_retry_serialized_bounded_and_convergent(
+    fake_sidecar, monkeypatch, tmp_path
+):
+    """F2：StartupCleanupOwner.retry_cleanup 同 owner 内部串行化（总 deadline 含锁等待）。
+
+    - 并发调用不得重叠终止（peak 并发 == 1）；
+    - 每个调用在有界时间内返回，且都被证明 closed=True（后到者等锁后幂等重放）；
+    - timeout=0 超时保引用可重试；完成后幂等。
+    """
+    pid_file = tmp_path / "holder.pid"
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    real_term = emulator_module._force_terminate_root
+    real_close = guard_module.JobObjectGuard.close
+    term_calls = {"n": 0}
+    close_calls = {"n": 0}
+
+    def failing_term(*args, **kwargs):
+        term_calls["n"] += 1
+        if term_calls["n"] <= 1:  # 仅构造期间的首次清理失败 -> 保留活资源（retained owner）
+            return {
+                "root_dead": False,
+                "root_killed": False,
+                "job_terminate_called": False,
+                "job_verified": False,
+                "remaining": None,
+                "errors": ["injected-construct"],
+            }
+        return real_term(*args, **kwargs)
+
+    def failing_close(self):
+        close_calls["n"] += 1
+        if close_calls["n"] <= 1:  # 构造期间 guard 保留（不触发 KILL_ON_JOB_CLOSE 兜底）
+            return False
+        return real_close(self)
+
+    monkeypatch.setattr(emulator_module, "_force_terminate_root", failing_term)
+    monkeypatch.setattr(guard_module.JobObjectGuard, "close", failing_close)
+    outcome: dict = {}
+    try:
+        HeadlessEmulator(sidecar_path=str(fake_sidecar), startup_timeout=2.0)
+    except Exception as exc:  # noqa: BLE001
+        outcome["exc"] = exc
+    exc = outcome.get("exc")
+    assert exc is not None and getattr(exc, "owner", None) is not None
+    assert exc.residual.get("process_exited") is False  # retained（注入）
+    owner = exc.owner
+
+    active = {"now": 0, "peak": 0}
+    active_lock = threading.Lock()
+
+    def spy_term(*args, **kwargs):
+        with active_lock:
+            active["now"] += 1
+            active["peak"] = max(active["peak"], active["now"])
+        try:
+            time.sleep(0.05)  # 放大重叠窗口（修复前两线程会同时进入）
+            return real_term(*args, **kwargs)
+        finally:
+            with active_lock:
+                active["now"] -= 1
+
+    monkeypatch.setattr(emulator_module, "_force_terminate_root", spy_term)
+    monkeypatch.setattr(guard_module.JobObjectGuard, "close", real_close)
+    active["peak"] = 0
+    results: list = []
+    errors: list = []
+
+    def worker():
+        try:
+            results.append(owner.retry_cleanup(timeout=6.0))
+        except Exception as err:  # noqa: BLE001
+            errors.append(err)
+
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(2)]
+    t0 = time.monotonic()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=20)
+    elapsed = time.monotonic() - t0
+    try:
+        assert not errors, errors
+        assert len(results) == 2
+        assert elapsed <= 6.0 + 2.0, f"并发 owner 重试未被总预算约束：{elapsed:.3f}s"
+        assert active["peak"] == 1, f"终止原语重叠执行：peak={active['peak']}"
+        assert all(r.get("closed") is True for r in results), results
+        # timeout=0：超时保引用、可重试
+        r0 = owner.retry_cleanup(timeout=0.0)
+        assert r0.get("closed") is False and r0.get("retryable") is True, r0
+        # 完成后幂等
+        again = owner.retry_cleanup(timeout=5.0)
+        assert again.get("closed") is True
+    finally:
+        if pid_file.exists():
+            try:
+                holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                h, probe = _probe_retained(holder_pid)
+                ft = probe.identity.created_at_filetime if probe.identity else None
+                if ft is not None:
+                    identity_module.kill_verified(holder_pid, int(ft), wait_timeout=3.0)
+                identity_module.close_handle_checked(h)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def test_kill_timeout_wired_to_remaining_budget(
+    emu_factory, fake_sidecar, monkeypatch, tmp_path
+):
+    """F3：kill_timeout 接入每次 kill 等待上限 = min(剩余总预算, kill_timeout)；
+    close / 构造失败清理 / owner 重试三条路径参数一致（不误称硬 OS SLA）。"""
+    captured: list = []
+    real_kv = identity_module.kill_verified
+
+    def spy_kv(pid, expected, *, exit_code=0xDEAD, wait_timeout=5.0):
+        captured.append(float(wait_timeout))
+        return real_kv(pid, expected, exit_code=exit_code, wait_timeout=wait_timeout)
+
+    monkeypatch.setattr(identity_module, "kill_verified", spy_kv)
+    kill_timeout = 1.0
+
+    # (a) close 预算不足：等待上限跟随剩余总预算（< kill_timeout）
+    emu = emu_factory(kill_timeout=kill_timeout)
+    assert emu._test_stall(2500)
+    captured.clear()
+    emu.close(timeout=1.2)
+    assert captured, "预算不足场景未触发身份核验终止"
+    wait_a = captured[-1]
+    assert 0.0 < wait_a < kill_timeout, f"预算不足时等待上限应跟随剩余：{wait_a}"
+
+    # (b) close 预算充足（ignore-shutdown 迫使强杀）：等待上限 == kill_timeout
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "ignore-shutdown")
+    emu2 = emu_factory(
+        sidecar_path=str(fake_sidecar), startup_timeout=20.0, kill_timeout=kill_timeout
+    )
+    captured.clear()
+    rep_b = emu2.close(timeout=6.0)
+    monkeypatch.delenv("FAKE_SIDECAR_MODE", raising=False)
+    assert rep_b.closed is True, rep_b.as_dict()
+    assert captured and abs(captured[-1] - kill_timeout) <= 0.05, captured
+
+    # (c) 构造失败清理路径：同一 kill_timeout 参与（清理总预算 5s > kill_timeout）
+    pid_file = tmp_path / "c.pid"
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    captured.clear()
+    outcome: dict = {}
+    try:
+        HeadlessEmulator(
+            sidecar_path=str(fake_sidecar), startup_timeout=2.0, kill_timeout=kill_timeout
+        )
+    except Exception as exc:  # noqa: BLE001
+        outcome["exc"] = exc
+    monkeypatch.delenv("FAKE_SIDECAR_MODE", raising=False)
+    monkeypatch.delenv("FAKE_CHILD_PID_FILE", raising=False)
+    assert outcome.get("exc") is not None
+    assert captured and abs(captured[-1] - kill_timeout) <= 0.05, captured
+
+    # (d) owner.retry_cleanup 路径：retained 现场下同一 kill_timeout 参与
+    real_term = emulator_module._force_terminate_root
+    real_close = guard_module.JobObjectGuard.close
+    term_calls = {"n": 0}
+
+    def failing_term(*args, **kwargs):
+        term_calls["n"] += 1
+        if term_calls["n"] <= 1:
+            return {
+                "root_dead": False,
+                "root_killed": False,
+                "job_terminate_called": False,
+                "job_verified": False,
+                "remaining": None,
+                "errors": ["injected-construct"],
+            }
+        return real_term(*args, **kwargs)
+
+    close_calls = {"n": 0}
+
+    def failing_close(self):
+        close_calls["n"] += 1
+        if close_calls["n"] <= 1:
+            return False
+        return real_close(self)
+
+    pid_file2 = tmp_path / "d.pid"
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file2))
+    monkeypatch.setattr(emulator_module, "_force_terminate_root", failing_term)
+    monkeypatch.setattr(guard_module.JobObjectGuard, "close", failing_close)
+    outcome2: dict = {}
+    try:
+        HeadlessEmulator(
+            sidecar_path=str(fake_sidecar), startup_timeout=2.0, kill_timeout=kill_timeout
+        )
+    except Exception as exc:  # noqa: BLE001
+        outcome2["exc"] = exc
+    owner = getattr(outcome2.get("exc"), "owner", None)
+    assert owner is not None and owner.kill_timeout == kill_timeout, "owner 未携带 kill_timeout"
+    monkeypatch.setattr(emulator_module, "_force_terminate_root", real_term)
+    monkeypatch.setattr(guard_module.JobObjectGuard, "close", real_close)
+    monkeypatch.delenv("FAKE_SIDECAR_MODE", raising=False)
+    monkeypatch.delenv("FAKE_CHILD_PID_FILE", raising=False)
+    captured.clear()
+    out_d = owner.retry_cleanup(timeout=6.0)
+    assert out_d.get("closed") is True, out_d
+    assert captured and abs(captured[-1] - kill_timeout) <= 0.05, captured
+    for pid_file_path in (pid_file, pid_file2):
+        if pid_file_path.exists():
+            try:
+                holder_pid = int(pid_file_path.read_text(encoding="utf-8").strip())
+                h, probe = _probe_retained(holder_pid)
+                ft = probe.identity.created_at_filetime if probe.identity else None
+                if ft is not None:
+                    identity_module.kill_verified(holder_pid, int(ft), wait_timeout=3.0)
+                identity_module.close_handle_checked(h)
+            except Exception:  # noqa: BLE001
+                pass

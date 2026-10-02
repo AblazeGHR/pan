@@ -26,7 +26,7 @@
 | `packages/core/terminal/emulator.py` | `HeadlessEmulator`：`AuthoritativeEmulator` 实现 + runner 桥接（`feed_at`/`restore_screen`）+ sidecar 进程所有权 |
 | `packages/core/terminal/emulator_sidecar/sidecar.mjs` | 常驻 Node sidecar：帧协议、hold-back 供料、保守分类器、barrier 快照、reset、sticky 降级 |
 | `packages/core/terminal/emulator_sidecar/package.json` + `package-lock.json` | 精确 pin `@xterm/headless@6.0.0`、`@xterm/addon-serialize@0.14.0`（`node_modules/` 由仓库 `.gitignore` 忽略，不提交） |
-| `tests/test_terminal_emulator.py` | 28 项测试矩阵（§9） |
+| `tests/test_terminal_emulator.py` | 42 项测试矩阵（28 首版 + 11 r2 + 3 r3；§9） |
 | `docs/design/PAN_TERMINAL_EMULATOR_INTERFACES_20261003.md` | 本文件 |
 | `audit/terminal/implementation/emulator/**` | 先失败/后通过证据、复现脚本与清理扫描（旧 CBC 证据不覆盖） |
 
@@ -121,6 +121,10 @@ snap = emulator.snapshot(timeout=2.0)
   `control_queue_overflow`）与 `diagnostics()`；**不得**由"已调用 resize"推断
   PTY/引擎/前端三方尺寸一致。需要确认时用 `resize_wait`（唯一改动是新增方法，
   未改冻结协议签名）。
+- **`close(timeout)` 是本次调用总预算（r3）**：从入口计时，**包含**等待
+  `_close_lock` 的时间；抢锁超时返回合法 `closed=false` + `close-lock-busy`
+  诊断（可重试、不触碰另一调用的状态/缓存）；拿到锁后只用剩余预算，不重置
+  deadline；已收敛缓存报告可返回但 `seconds` 恒为本次调用实际耗时。
 - `close()` 幂等、可重试；runner 的硬性兜底是自持 Job guard（§8）。
 
 ### 3.3 控制面语义（全部有界）
@@ -283,19 +287,38 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
 - **统一有界清理（构造失败 / close 共用，唯一顺序）**：
   1. 优雅 `shutdown`（仅 close；有界切片）；
   2. **先清树**：retained-handle 核验终止 root + `terminate_tree` 整 Job 终止与
-     核验（**根 DEAD 不算整树空**；`remaining==[]` 才 verified；Job 句柄已被本进程
-     关闭时按 KILL_ON_JOB_CLOSE 语义视为内核已核验）；
+     核验（**根 DEAD 不算整树空**；`remaining==[]` 才 verified）；
   3. **再** join reader/stderr/applier 与在途操作（applier 由 `closing` 唤醒）；
   4. **最后**关闭流——仅在 reader/stderr 均已退出后执行（`BufferedReader.close`
      在对方持有缓冲锁时可能无界等待；否则保留引用）；
-  5. `guard.close()`（最后一个 Job 句柄 = 内核兜底）。
+  5. `guard.close()`（最后一个 Job 句柄 = 内核兜底）；
+  6. **最终 root 复核（r3）**：终止是异步的（`TerminateProcess` 返回 ≠ signaled），
+     用**剩余预算内**的有界确认窗口避免"已发起终止但尚未 signaled"被过早采样成
+     假 `process_exited=false`；不延长总预算（deadline 封顶，预算 0 时窗口为 0）。
+- **close 总预算（F1）**：`close(timeout)` 从入口计时，含 `_close_lock` 排队；
+  抢锁超时 → 合法 `closed=false` + `close-lock-busy` 诊断（可重试；**不触碰**
+  另一调用的状态/缓存、保 owner）；拿锁后只用剩余预算（不重置 deadline、无最小
+  下限多次延长）；缓存报告可返回但 `seconds` 恒为本次调用实际耗时。
 - **失败保留、同 owner 可重试**：任一步失败 `closed=False` 且资源保留；
   `close()` 并发调用由 `_close_lock` 串行化、重复调用幂等。`closed` 记账包含
   **stderr join 与三流关闭**（`EmulatorCloseReport.{stderr_joined,streams_closed,
   job_verified}`），不再只看进程/guard。
 - **构造失败携带 owner**：异常为 `EmulatorStartupError`（`EmulatorUnavailableError`
   子类），带 `owner.retry_cleanup()` 重试清理入口与 `residual`（pid/身份/清理核验/
-  stderr 摘要），不仅文本。
+  stderr 摘要），不仅文本。**owner 内部串行化（F2）**：同一 owner 的并发
+  `retry_cleanup` 不重叠执行 `TerminateProcess`/关资源；其 `timeout` 同样是本次
+  调用总预算（含等锁）；抢锁/预算超时返回 `closed=false + retryable=true` 且保留
+  引用；完成后幂等（已收敛资源再次清理返回 `closed=true`，不重复终止制造假 false）。
+- **kill_timeout（F3）**：`kill_timeout` 构造参数已接线为**每次身份核验终止的等待
+  上限 = `min(剩余总预算, kill_timeout)`**；正常 close / 构造失败清理 /
+  `owner.retry_cleanup`（owner 携带同一值）三条路径传递一致。这是本层等待参数，
+  **不是** `TerminateProcess` 的硬 OS SLA 承诺。
+- **guard 已关后的 `job_verified` 限定（F6）**：该 `true` 是**有明示假设链的语义
+  证据**（CloseHandle 成功 + guard 创建时自证 KILL_ON_JOB_CLOSE 且无 breakaway 位 +
+  句柄默认不可继承 + 单持有者），**不是** post-close 内核查询（此刻
+  `active_processes()` 不可用、`member_pids()` 抛 `GuardQueryError`）；若未来引入
+  句柄复制/继承或 breakaway 场景，该假设链失效，必须重新评估（本轮不扩 guard 共享
+  实现）。正常路径（句柄仍开）以 `terminate_tree` 的 `remaining==[]` 为内核查询直证。
 - **现场验证（r2 对照，见 `evidence/r2/repro_p11_unbounded_close.py`）**：
   root 退出、detached holder（Job 成员）持 stdout 时，旧实现 `close(timeout=3)`
   阻塞 12.0s、构造失败清理阻塞 15.0s（由外部身份核验终止解除）；修复后同一现场
@@ -313,7 +336,7 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
 E:/software/miniforge/python.exe -m pytest tests/test_terminal_emulator.py -q
 ```
 
-矩阵（r2 后 **39 项** = 28 原 + 11 r2）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、
+矩阵（r3 后 **42 项** = 28 首版 + 11 r2 + 3 r3）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、
 帧边界、主屏与备用屏 headless↔headless 对拍（协议 A）、split UTF-8/CSI/OSC、
 pending tail cursor 边界、resize 排序与 `resize_wait` 确认面、browserless >256 KiB +
 OutputLog 游标二次驱逐、applied 滞后、控制过期不执行、feed 快速有界、满队列 sticky
@@ -321,7 +344,11 @@ OutputLog 游标二次驱逐、applied 滞后、控制过期不执行、feed 快
 sidecar 崩溃可见、卡住/失败关闭重试、runner 硬死 Job 兜底、多实例 close 无泄漏；
 **r2 新增**：root 死/孙活持 stdout 的 close 有界性、构造失败有界 + owner 重试、
 stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail-closed、
-迟到 reset ack 账本一次回填与 cursor 结构性禁止。
+迟到 reset ack 账本一次回填与 cursor 结构性禁止；
+**r3 新增（并发窄修 F1/F2/F3）**：close 总预算含 `_close_lock` 排队（T2 短预算有界
+false + 锁忙诊断 + 不触碰另一调用状态、释放后重试 seconds 本次、timeout=0 边界不倒退）、
+owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引用可重试、幂等）、
+`kill_timeout` 剩余预算传递（三条路径一致，spy 断言实际传参）。
 
 证据目录 `audit/terminal/implementation/emulator/`（旧证据不覆盖，r2 增量在 `evidence/r2/`）：
 
@@ -336,6 +363,15 @@ stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail
 - **`evidence/r2/core_six_uv_pyte.txt`**：六核心文件（uv + pyte 0.8.2）**129 passed**；
 - **`evidence/r2/broadcast_uv_pyte.txt`**：`test_terminal_broadcast.py` **8 passed**
   （与 129 分列；历史 137 为两者组合口径，不合并报告）。
+- **`evidence/r3/pre_fix_r3_tests.txt`**：r3 三项并发门控在 `9cb550f7` 固定实现上
+  的失败证据（3 failed；含 kill_timeout 死参数实测 `[3.0]` 的断言现场）；
+- **`evidence/r3/post_fix_r3_full_direct.txt` / `post_fix_r3_full_uv.txt`**：
+  r3 修复后全量 **42 passed**（直连与 uv 隔离各一次，分列）；
+- **`evidence/r3/summary.json`**：r3 结构化摘要（pre/post 清单、三门断言口径、
+  复跑计数）；
+- **`evidence/r3/source_blob_anchors.json`**：源 blob 锚定（`9cb550f7` 被审基线
+  与 r3 后 blob 对照；含 sidecar 未动的等式证据）；
+- **`evidence/r3/cleanup_scan.json`**：r3 资源清理核验。
 
 ---
 
@@ -377,13 +413,23 @@ stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail
 9. **resize 三方一致的其余两方**：`resize_wait` 只确认**引擎侧**已应用请求尺寸；
    PTY/前端侧确认仍属 runner/服务层编排（本模块不触碰 PTY）。
 10. **runner 装配未在真实服务中验收**：本模块单测边界内验证；runner 目前不存在于本树。
+11. **graceful-ack 后紧接 exit 的时序竞态（F5，设计内）**：shutdown ack 到达后
+   进程退出是异步的，单次 close 可能保守返回 `closed=false/process_exited=false`
+   并保留引用；方向为 fail-closed（不假称收敛），顺序重试收敛。r3 的最终 root
+   复核已把"已发起终止但尚未 signaled"的窗口收敛到剩余预算内的有界确认，但
+   不承诺"单次调用必然观测到 ExitProcess 完成"；调用方按"至少一次收敛 + 重试"使用。
+12. **`kill_timeout` 的边界**：它是本层对"每次身份核验终止等待"的上限
+   （`min(剩余总预算, kill_timeout)`），**不是** OS 级 `TerminateProcess` 硬时限；
+   进程终止完成的时刻由内核调度决定；超时窗口内未 signaled 时按"未确认退出"
+   保留资源，由重试核验收敛。
 
 ---
 
 ## 12. 变更记录
 
-- `2026-10-03` 首版：`emulator.py` + `packages/core/terminal/emulator_sidecar/`（exact pin）+ 28 项测试 +
-  证据；五项 MA 缺口先失败后通过（§10）；接口冻结面见 §3/§4（runner 桥接契约）。
+- `2026-10-03` 首版：`emulator.py` + **仓库根** `emulator_sidecar/`（exact pin；历史事实：
+  当时 sidecar 尚未位于专属路径，r2 才迁移）+ 28 项测试 + 证据；五项 MA 缺口先失败后通过
+  （§10）；接口冻结面见 §3/§4（runner 桥接契约）。**本行按历史事实记录，不倒写为专属路径。**
 - `2026-10-03` **r2 返工（独立审查 `1daff2a6` 返工口径，`evidence/r2/`）**：
   ① sidecar 迁移至专属路径 `packages/core/terminal/emulator_sidecar/`（同步路径/测试/文档，
   exact pin 不变）；② 构造/close 统一总 deadline 的整 Job 清理与核验（先清树 → join →
@@ -396,3 +442,15 @@ stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail
   先失败证据：`evidence/r2/pre_fix_r2_tests.txt`（11 failed）；修复后 39/39
   （`post_fix_r2_full.txt`）；对照复现 `repro_p11_unbounded_close.json`（`ok: true`）；
   六核心 129（`core_six_uv_pyte.txt`）与 broadcast 8（`broadcast_uv_pyte.txt`）分列。
+- `2026-10-03` **r3 并发窄修（独立审查 ROUND2 `0f3e96c9` 的 F1/F2/F3，`evidence/r3/`）**：
+  F1 `close(timeout)` 为**本次调用总预算**（从入口计时，含 `_close_lock` 排队；有界
+  acquire → 锁忙合法 `closed=false` + `close-lock-busy` 诊断，保 owner、不改另一调用
+  状态/缓存；拿锁后只用剩余预算，去 0.2/0.05 下限；缓存返回但 `seconds` 为本次实际）；
+  F2 `StartupCleanupOwner.retry_cleanup` 同 owner 内部串行化（终止不重叠、总预算含
+  等锁、超时保引用可重试、完成后幂等）；F3 `kill_timeout` 接线为每次 kill 等待上限
+  `min(剩余总预算, kill_timeout)`，三条路径一致（只读参数断言，不称硬 OS SLA）；
+  另加"最终 root 复核"有界窗口消除假 `process_exited=false`。F4 文档口径校正
+  （28→42；首版历史保持"仓库根 sidecar"事实不倒写）；F5/F6 文档限定（§11.11/§11.12、
+  §8 语义证据链）不扩共享实现。
+  先失败证据：`evidence/r3/pre_fix_r3_tests.txt`（3 failed，对 `9cb550f7`）；
+  修复后 42/42 直连与 uv 各一次（`post_fix_r3_full_{direct,uv}.txt`）。

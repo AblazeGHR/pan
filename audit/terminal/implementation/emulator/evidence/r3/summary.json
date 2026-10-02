@@ -1,0 +1,55 @@
+{
+  "round": "r3（F1/F2/F3 并发窄修；独立审查 ROUND2 0f3e96c9）",
+  "reviewed_baseline": "9cb550f7",
+  "pre_fix": {
+    "source": "pre_fix_r3_tests.txt",
+    "failed": [
+      "test_close_timeout_bounds_total_call_including_lock_wait",
+      "test_owner_retry_serialized_bounded_and_convergent",
+      "test_kill_timeout_wired_to_remaining_budget"
+    ],
+    "passed": []
+  },
+  "post_fix": {
+    "direct": {
+      "source": "post_fix_r3_full_direct.txt",
+      "passed": 42,
+      "total": 42
+    },
+    "uv_pyte": {
+      "source": "post_fix_r3_full_uv.txt",
+      "passed": 42,
+      "total": 42
+    }
+  },
+  "gates": {
+    "T1_close_total_budget_incl_lock_wait": {
+      "test": "test_close_timeout_bounds_total_call_including_lock_wait",
+      "assertions": [
+        "T2 短 budget(0.5s) 有界返回（<=1.0s）且 closed=false",
+        "detail 含 close-lock-busy；_close_report 未被 T2 写入；engine_alive 保 owner",
+        "释放后重试 closed=true 且 seconds 为本次实际耗时（<1.0s，不冒充 T1 的 2.x s）",
+        "timeout=0：合法报告 + 重试收敛（不倒退）"
+      ]
+    },
+    "T2_owner_retry_serialized": {
+      "test": "test_owner_retry_serialized_bounded_and_convergent",
+      "assertions": [
+        "并发两个 retry_cleanup：终止原语并发峰值 == 1（不重叠）",
+        "两调用都被证明 closed=true（后到者等锁后幂等）",
+        "timeout=0：closed=false + retryable=true（保引用）",
+        "再次调用幂等 closed=true"
+      ]
+    },
+    "T3_kill_timeout_remaining_budget": {
+      "test": "test_kill_timeout_wired_to_remaining_budget",
+      "assertions": [
+        "(a) close 预算不足：wait_timeout = min(剩余, kill_timeout) < kill_timeout",
+        "(b) close 预算充足（ignore-shutdown）：wait_timeout == kill_timeout",
+        "(c) 构造失败清理路径：== kill_timeout",
+        "(d) owner.retry_cleanup：owner 携带同一 kill_timeout，实际传参 == kill_timeout",
+        "仅断言等待参数，不宣称 TerminateProcess 硬 OS SLA"
+      ]
+    }
+  }
+}

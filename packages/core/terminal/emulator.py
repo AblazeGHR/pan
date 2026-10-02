@@ -62,7 +62,7 @@ import sys
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, BinaryIO, NoReturn
 
@@ -138,7 +138,13 @@ class EmulatorStartupError(EmulatorUnavailableError):
 
 @dataclass
 class StartupCleanupOwner:
-    """构造失败后仍可重试清理的自有资源句柄（不扫描陌生 PID）。"""
+    """构造失败后仍可重试清理的自有资源句柄（不扫描陌生 PID）。
+
+    ``retry_cleanup`` 对**同一 owner** 内部串行化（``_lock``）：并发调用不重叠
+    执行 ``TerminateProcess``/关资源；``timeout`` 是**该次调用**的总预算（包含
+    等锁时间）。抢锁/预算超时返回 ``closed=false + retryable=true`` 且保留引用；
+    完成后幂等（已收敛资源再次清理返回 ``closed=true``，不会重复终止制造假 false）。
+    """
 
     proc: Any = None
     guard: Any = None
@@ -147,23 +153,58 @@ class StartupCleanupOwner:
     reader: Any = None
     stderr: Any = None
     applier: Any = None
+    kill_timeout: float = DEFAULT_KILL_TIMEOUT
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     def retry_cleanup(self, *, timeout: float = 10.0) -> dict[str, Any]:
-        """重试整 Job 清理（先清树 → join → 关流 → guard.close；幂等、有界）。"""
-        detail: list[str] = []
-        outcome = _reap_process_resources(
-            proc=self.proc,
-            guard=self.guard,
-            pid=self.pid,
-            identity=self.identity,
-            reader=self.reader,
-            stderr=self.stderr,
-            applier=self.applier,
-            budget=float(timeout),
-            detail=detail,
-        )
-        outcome["detail"] = ", ".join(detail) if detail else "ok"
-        return outcome
+        """重试整 Job 清理（同 owner 串行；总 deadline 含锁等待；幂等、有界）。"""
+        t0 = time.monotonic()
+        budget = max(0.0, float(timeout))
+        acquired = self._lock.acquire(timeout=budget)
+        if not acquired:
+            return {
+                "closed": False,
+                "retryable": True,
+                "reason": "owner-busy-timeout",
+                "deadline_exceeded": True,
+                "seconds": round(time.monotonic() - t0, 3),
+                "detail": (
+                    "owner-busy: another retry_cleanup() holds this owner's lock; "
+                    "resources retained, retryable"
+                ),
+            }
+        try:
+            remaining = max(0.0, budget - (time.monotonic() - t0))
+            if remaining <= 0.0:
+                return {
+                    "closed": False,
+                    "retryable": True,
+                    "reason": "owner-deadline-exhausted",
+                    "deadline_exceeded": True,
+                    "seconds": round(time.monotonic() - t0, 3),
+                    "detail": "owner lock acquired after the total deadline expired; retryable",
+                }
+            detail: list[str] = []
+            outcome = _reap_process_resources(
+                proc=self.proc,
+                guard=self.guard,
+                pid=self.pid,
+                identity=self.identity,
+                reader=self.reader,
+                stderr=self.stderr,
+                applier=self.applier,
+                budget=remaining,
+                kill_timeout=self.kill_timeout,
+                detail=detail,
+            )
+            outcome["detail"] = ", ".join(detail) if detail else "ok"
+            outcome.setdefault("retryable", not outcome.get("closed", False))
+            outcome.setdefault("seconds", round(time.monotonic() - t0, 3))
+            return outcome
+        finally:
+            self._lock.release()
 
 
 @dataclass(frozen=True)
@@ -324,12 +365,17 @@ def _force_terminate_root(
     *,
     budget: float,
     detail: list[str],
+    kill_timeout: float = DEFAULT_KILL_TIMEOUT,
 ) -> dict[str, Any]:
     """清树：retained-handle 核验的 root 终止 + 整 Job 终止与核验。
 
     以**真实 guard 所有权**为准（Job 成员枚举 / ``TerminateJobObject``），
     不按名字/命令行扫描陌生 PID。根 DEAD **不算**整树空：即使 root 已退出，
     也必须执行 ``terminate_tree`` 并核验剩余成员为空（``remaining == []``）。
+
+    ``kill_timeout``（F3 接线）：身份核验终止的**每次等待上限** =
+    ``min(剩余总预算, kill_timeout)``。这是本层的等待参数，不是 OS 级
+    ``TerminateProcess`` 硬时限承诺（进程终止完成时刻由内核调度决定）。
     """
     from . import identity as identity_module
 
@@ -356,10 +402,15 @@ def _force_terminate_root(
                 else None
             )
             if expected_ft is not None:
+                # F3：等待上限 = min(剩余总预算, kill_timeout)；不再硬编码。
+                kill_wait = min(
+                    max(0.0, deadline - time.monotonic()),
+                    max(0.0, float(kill_timeout)),
+                )
                 result = identity_module.kill_verified(
                     int(pid if pid is not None else proc.pid),
                     identity,
-                    wait_timeout=max(0.5, min(3.0, deadline - time.monotonic())),
+                    wait_timeout=kill_wait,
                 )
                 outcome["root_killed"] = bool(result.killed)
                 if not result.killed and result.reason != "not_running":
@@ -374,14 +425,16 @@ def _force_terminate_root(
         outcome["errors"].append("guard-unavailable")
     elif not getattr(guard, "handle_open", False):
         # Job 句柄已被本进程关闭（前一轮 close 的 guard.close）：KILL_ON_JOB_CLOSE
-        # 的语义是"关闭最后一个句柄 -> 内核终止全部关联进程并销毁 Job"，
-        # 因此关闭成功本身就是整树终止的内核核验（无 breakaway 位、成员不可逃）。
+        # 的语义是"关闭最后一个句柄 -> 内核终止全部关联进程并销毁 Job"。
+        # F6：这是**有明示假设链的语义证据**（CloseHandle 成功 + guard 创建时自证
+        # KILL_ON_JOB_CLOSE 且无 breakaway 位 + 句柄默认不可继承 + 单持有者），
+        # 不是 post-close 内核查询；该时刻 active/成员查询均不可用。
         outcome["job_verified"] = True
         outcome["job_closed_previously"] = True
     else:
         try:
             owned, remaining = guard.terminate_tree(
-                pid, timeout=max(0.5, min(2.5, deadline - time.monotonic()))
+                pid, timeout=min(2.5, max(0.0, deadline - time.monotonic()))
             )
             outcome["job_terminate_called"] = True
             outcome["job_owned"] = owned
@@ -428,17 +481,20 @@ def _reap_process_resources(
     applier: Any = None,
     *,
     budget: float = 5.0,
+    kill_timeout: float = DEFAULT_KILL_TIMEOUT,
     detail: list[str] | None = None,
 ) -> dict[str, Any]:
-    """统一整 Job 清理与核验（构造失败 / ``close`` 共用；全程有界）。
+    """统一整 Job 清理与核验（构造失败 / ``close`` / owner 重试共用；全程有界）。
 
-    顺序（MA r2 口径）：**先清树**（root 终止 + ``terminate_tree`` + 核验）→
-    **再**取消/join reader/stderr/applier/在途操作 → **最后**关闭流 →
-    ``guard.close()``（内核级兜底）。失败保留引用，``closed=False`` 可重试。
+    顺序：**先清树**（root 终止 + ``terminate_tree`` + 核验）→ **再**取消/join
+    reader/stderr/applier/在途操作 → **最后**关闭流 → ``guard.close()``（内核级
+    兜底）。失败保留引用，``closed=False`` 可重试。``budget`` 是本次调用的总
+    预算（不设最小下限；预算为 0 时各步骤快速保守返回）。``kill_timeout`` 透传
+    给 ``_force_terminate_root``（核对每次 kill 等待上限，F3）。
     """
     detail = detail if detail is not None else []
     t0 = time.monotonic()
-    deadline = t0 + max(0.15, float(budget))
+    deadline = t0 + max(0.0, float(budget))
     outcome: dict[str, Any] = {
         "root_dead": False,
         "root_killed": False,
@@ -456,7 +512,13 @@ def _reap_process_resources(
     }
     # 1) 清树（可注入：测试以 monkeypatch 替换 _force_terminate_root 模拟终止失败）
     term = _force_terminate_root(
-        proc, guard, pid, identity, budget=max(0.0, deadline - time.monotonic()), detail=detail
+        proc,
+        guard,
+        pid,
+        identity,
+        budget=max(0.0, deadline - time.monotonic()),
+        detail=detail,
+        kill_timeout=kill_timeout,
     )
     outcome["root_dead"] = bool(term.get("root_dead"))
     outcome["root_killed"] = bool(term.get("root_killed"))
@@ -495,6 +557,25 @@ def _reap_process_resources(
             detail.append("guard-close-failed-retryable")
     else:
         outcome["guard_closed"] = True
+
+    # 5) 最终 root 复核：终止是异步的（TerminateProcess 返回 != signaled），
+    #    本步骤用**剩余预算内**的有界确认窗口避免"已发起终止但尚未 signaled"
+    #    被过早采样成假 process_exited=False；不延长总预算（deadline 封顶），
+    #    预算耗尽时窗口为 0（立即采样一次）。
+    if not outcome["root_dead"] and proc is not None:
+        from . import identity as identity_module
+
+        handle = int(getattr(proc, "_handle", 0) or 0)
+        if handle:
+            confirm_until = min(deadline, time.monotonic() + 0.75)
+            while time.monotonic() < confirm_until:
+                if identity_module.wait_state(handle) is identity_module.ProcessStatus.DEAD:
+                    break
+                time.sleep(0.02)
+            outcome["root_dead"] = identity_module.wait_state(handle) is (
+                identity_module.ProcessStatus.DEAD
+            )
+
     outcome["closed"] = bool(
         outcome["root_dead"]
         and outcome["job_verified"]
@@ -769,6 +850,7 @@ class HeadlessEmulator:
             reader=self._reader_thread,
             stderr=self._stderr_thread,
             applier=self._applier_thread,
+            kill_timeout=self._kill_timeout,
         )
         outcome = _reap_process_resources(
             proc=self._proc,
@@ -779,6 +861,7 @@ class HeadlessEmulator:
             stderr=self._stderr_thread,
             applier=self._applier_thread,
             budget=self._shutdown_timeout,
+            kill_timeout=self._kill_timeout,
             detail=detail,
         )
         residual = {
@@ -1617,20 +1700,53 @@ class HeadlessEmulator:
     def close(self, *, timeout: float | None = None) -> EmulatorCloseReport:
         """有界、幂等、可重试的关闭；并发调用由 ``_close_lock`` 串行化。
 
-        顺序（r2 口径）：优雅 shutdown（有界切片）→ **统一整 Job 清理与核验**
-        （先清树：root 终止 + ``terminate_tree`` + 成员/active 核验 → 再
-        join reader/stderr/applier 与在途操作 → 最后关闭流 → ``guard.close``）。
+        ``timeout`` 是**本次调用**的总预算：从入口开始计时，**包含**等待
+        ``_close_lock`` 的时间。抢锁超时 → 合法 ``closed=false`` + 锁忙诊断
+        （可重试；不触碰另一调用的状态/缓存、保 owner）。拿到锁后只使用剩余
+        预算，**不重置 deadline、不用最小下限多次延长**。已收敛的缓存报告可
+        返回，但 ``seconds`` 恒为本次调用的实际耗时（不冒充历史调用）。
+
+        顺序：优雅 shutdown（有界切片）→ **统一整 Job 清理与核验**（先清树：
+        root 终止 + ``terminate_tree`` + 成员/active 核验 → 再 join
+        reader/stderr/applier 与在途操作 → 最后关闭流 → ``guard.close``）。
         任一步失败：``closed=False`` 且资源保留（同一 owner 重试收敛）。
         """
-        with self._close_lock:
-            return self._close_serialized(timeout)
-
-    def _close_serialized(self, timeout: float | None) -> EmulatorCloseReport:
         start = time.monotonic()
+        budget = self._shutdown_timeout if timeout is None else max(0.0, float(timeout))
+        acquired = self._close_lock.acquire(timeout=budget)
+        if not acquired:
+            return self._close_lock_busy_report(start, budget)
+        try:
+            return self._close_serialized(start, budget)
+        finally:
+            self._close_lock.release()
+
+    def _close_lock_busy_report(self, start: float, budget: float) -> EmulatorCloseReport:
+        """抢锁失败的合法报告：不触碰资源/状态、不改另一调用缓存、可重试。"""
+        return EmulatorCloseReport(
+            closed=False,
+            graceful=False,
+            forced=False,
+            process_exited=False,
+            guard_closed=False,
+            reader_joined=False,
+            stderr_joined=False,
+            applier_joined=False,
+            streams_closed=False,
+            job_verified=False,
+            detail=(
+                f"close-lock-busy: another close() call holds _close_lock; this "
+                f"call's budget ({budget}s) expired while waiting; retryable"
+            ),
+            seconds=round(time.monotonic() - start, 3),
+        )
+
+    def _close_serialized(self, start: float, budget: float) -> EmulatorCloseReport:
         with self._lock:
-            if self._close_report is not None and self._close_report.closed:
-                return self._close_report
-        budget = self._shutdown_timeout if timeout is None else max(0.2, float(timeout))
+            cached = self._close_report
+            if cached is not None and cached.closed:
+                # 已收敛缓存可返回；seconds 必须是本次调用实际耗时（不冒充 T1）。
+                return replace(cached, seconds=round(time.monotonic() - start, 3))
         deadline = start + budget
         detail: list[str] = []
         graceful = False
@@ -1643,13 +1759,17 @@ class HeadlessEmulator:
             and not self._engine_dead
             and not self._closing
         ):
-            slice_ = min(max(deadline - time.monotonic(), 0.0), max(0.5, budget * 0.5))
-            call = self._enqueue_control("shutdown", slice_)
-            if call is not None:
-                if call.event.wait(slice_) and call.header is not None:
-                    graceful = True
-                else:
-                    detail.append("shutdown-unacknowledged")
+            remaining = max(0.0, deadline - time.monotonic())
+            slice_ = min(remaining, max(0.5, budget * 0.5))
+            if slice_ > 0.0:
+                call = self._enqueue_control("shutdown", slice_)
+                if call is not None:
+                    if call.event.wait(slice_) and call.header is not None:
+                        graceful = True
+                    else:
+                        detail.append("shutdown-unacknowledged")
+            else:
+                detail.append("graceful-skipped-no-budget")
 
         # 2) 停止 applier：closing 丢弃队列并唤醒在途 ack 等待者。
         with self._lock:
@@ -1658,7 +1778,7 @@ class HeadlessEmulator:
         with self._ack_lock:
             self._ack_cond.notify_all()
 
-        # 3) 统一整 Job 清理与核验（与剩余预算共享；失败保留引用可重试）。
+        # 3) 统一整 Job 清理与核验（仅用剩余预算，不设最小下限；失败保留可重试）。
         outcome = _reap_process_resources(
             proc=proc,
             guard=self._guard,
@@ -1667,7 +1787,8 @@ class HeadlessEmulator:
             reader=self._reader_thread,
             stderr=self._stderr_thread,
             applier=self._applier_thread,
-            budget=max(0.05, deadline - time.monotonic()),
+            budget=max(0.0, deadline - time.monotonic()),
+            kill_timeout=self._kill_timeout,
             detail=detail,
         )
         forced = bool(outcome.get("root_killed")) or bool(outcome.get("job_owned"))
