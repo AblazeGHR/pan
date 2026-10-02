@@ -1,0 +1,177 @@
+{
+  "scenario": "s12_resume_gate",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s12_resume_gate-scg70hx7",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "suspended_record": {
+    "resumed": false,
+    "prev_count": null
+  },
+  "marker_before_resume": false,
+  "first_resume": {
+    "ok": true,
+    "previous_suspend_count": 1,
+    "detail": {
+      "ok": true,
+      "reason": "resumed",
+      "previous_suspend_count": 1,
+      "currently_resumed": true
+    }
+  },
+  "second_resume": {
+    "ok": false,
+    "previous_suspend_count": null,
+    "detail": {
+      "ok": false,
+      "reason": "already_resumed",
+      "currently_resumed": true,
+      "previous_suspend_count": null
+    },
+    "record_before": [
+      true,
+      1
+    ],
+    "record_after": [
+      true,
+      1
+    ]
+  },
+  "pty_output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HCHILD_STARTED pid=45856\r\nUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\r\nCONSOLE_SIZE 80x24\r\n\u001b]0;E:\\software\\miniforge\\python.exe\u0007\u001b[?25hCONSOLE_SIZE_FINAL 80x24\r\nTAIL_MARKER end-of-output\r\n",
+  "marker_after_resume": true,
+  "close": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 1,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "survivors": [],
+  "checks": [
+    {
+      "check": "starts_suspended",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "no_execution_before_resume",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "first_resume_ok",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "first_resume_reports_previous_count_1",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "check": "record_marked_resumed",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "record_previous_count_is_1",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "check": "second_resume_refused",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "second_resume_reports_already_resumed",
+      "ok": true,
+      "detail": {
+        "ok": false,
+        "reason": "already_resumed",
+        "currently_resumed": true,
+        "previous_suspend_count": null
+      }
+    },
+    {
+      "check": "second_resume_does_not_claim_not_resumed",
+      "ok": true,
+      "detail": {
+        "ok": false,
+        "reason": "already_resumed",
+        "currently_resumed": true,
+        "previous_suspend_count": null
+      }
+    },
+    {
+      "check": "record_unchanged_by_second_call",
+      "ok": true,
+      "detail": {
+        "before": [
+          true,
+          1
+        ],
+        "after": [
+          true,
+          1
+        ]
+      }
+    },
+    {
+      "check": "child_ran_after_single_resume",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "execution_observed_after_resume",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 5.91,
+  "log": [
+    "[sweep] {'pid': 45856, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

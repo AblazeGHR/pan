@@ -4,10 +4,13 @@
 - 工作树：`D:/project/pan-worktrees/terminal-codex-explore-20261003`，
   分支 `explore/terminal-codex-20261003`
 - 允许路径（本轮全部产出均在其中）：`audit/terminal/codex/spawn/` 与本文档
-- 本文档为 **r2（有界返工后）**：修正 liveness 原语、fail-closed 门禁、异常清理与若干措辞边界。
-  返工前的证据 JSON 全部保留（`s1..s7` 旧时间戳文件 + `summary-pre-rework.json`）。
-- 证据：`audit/terminal/codex/spawn/evidence/`（11 个场景 + `summary.json`），
-  本轮 **118/118 断言通过**。
+- 本文档为 **r3（第三次窄修后）**：修正 `close()` 部分失败处理、reader 归零改用线程 join、
+  异常路径释放顺序、公共 `resume()` 门禁，以及两处 API 语义措辞。
+  返工前证据 JSON 全部保留（`s1..s7` 旧时间戳文件 + `summary-pre-rework.json`）。
+- 证据：`audit/terminal/codex/spawn/evidence/`，本轮 **13 个场景，r2 的 118 断言 +
+  r3 新增 s12/s13 的 29 断言**（`s5`、`s10` 因共享代码变更一并复跑，均通过）。
+- **定位说明**：本轮是**可行性 spike 与接口草案**，不是生产实现，也不构成生产保证；
+  未做长时间运行、真实负载、跨机器/跨 build 验证。
 
 > 边界遵守：未修改任何生产模块；未合并/推送；未触碰既有服务、Session、Worker、
 > CLI thread、8768 或既有 app-server daemon；未使用模型或用户凭据；
@@ -42,7 +45,9 @@
 | guard 归属查询失败 / 报 false | **fail-closed 拒绝 resume**（此前会静默 fall through 到 resume） | 实测（注入为包装层模拟） | s9 |
 | `ResumeThread` 返回值 | 只有**先前的挂起计数恰为 1** 才算 resumed；`0xFFFFFFFF`、`0`、`>1` 一律拒绝并清理 | 实测（注入为包装层模拟） | s9 |
 | 被拒绝路径是否释放伪控制台与属性表 | 成立。assign 失败路径现在会 `ClosePseudoConsole` 与 `DeleteProcThreadAttributeList`（此前两者都会泄漏） | 实测 | s9、s10 |
-| `close()` 在 reader 未收敛时是否诚实 | 成立。返回 `closed=false, retryable=true` 并**保留所有权**（不置 `_closed`、不释放 handle）；同一 owner 重试可成功 | 实测（不可取消性为包装层模拟） | s10 |
+| `close()` 在 reader 未收敛时是否诚实 | 成立。返回 `closed=false, retryable=true` 并**保留所有权**（不置 `_closed`、并保留 reader 线程 handle 与输出 handle 以便重试再次取消）；同一 owner 重试可成功 | 实测（不可取消性为包装层模拟） | s10、s13 |
+| 释放步骤失败是否可重试 | 成立。注入 `_destroy_pty` / `_delete_attr_list` 失败各一次：返回 `closed=false`、**不关闭其余 handle**、`retained` 列出仍持有的资源；移除注入后同一 owner 重试成功 | 实测（注入为包装层模拟） | s13 |
+| 公共 `resume()` 是否与 spawn 同一门禁 | 成立。仅"先前挂起计数恰为 1"算恢复；重复调用以 `already_resumed` 拒绝，如实报告当前确已恢复，不改写记录 | 实测 | s12 |
 | `STARTF_USESTDHANDLES` + NULL 的作用 | 本机 4 组矩阵中该标志**单独决定** stdout 是否落到 pty；`CONOUT$` 在所有组合都到达 pty | 实测（限本机/build） | s11 |
 
 ### 0.3 detach：独立的、尚未验证的产品门
@@ -122,6 +127,18 @@
 <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes>
 - 四个 `[out] FILETIME` 参数**均未标记 optional**。给它们传 `NULL` 违反该 API 的指针契约；
   本机由此观测到的访问违例是**违反契约的后果**，不是"NULL 合法但不支持"，也不是 ctypes 特有缺陷。
+
+**IsProcessInJob**（r3 更正措辞）
+<https://learn.microsoft.com/en-us/windows/win32/api/jobapi/nf-jobapi-isprocessinjob>
+- `JobHandle`：**"A handle to the job. If this parameter is NULL, the function tests if the
+  process is running under any job."** —— NULL 的官方含义是"该进程是否在**任意** Job 下"，
+  与调用者所在的 Job 无关。
+
+**QueryInformationJobObject**（r3 更正措辞）
+<https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject>
+- Remarks："an application can call the **QueryInformationJobObject** function with NULL to
+  obtain information about the job object." —— NULL 表示查询**调用进程所在的那个 Job**，
+  不是失败，也不涉及陈旧数据。
 
 ---
 
@@ -261,6 +278,32 @@ handle 关闭后查询返回 `None`（不返回编造的数字）、被拒路径
 的取值没有改变结果。**范围限定**：这是本机、本 build、本父进程拓扑下的一次 4 组矩阵，
 不是"所有环境都如此"的普适结论。
 
+### s12 `s12_resume_gate`（13/13，r3）
+
+公共 `resume()` 与 `spawn()` 使用同一门禁：
+
+| 观测 | 值 |
+|---|---|
+| 初始状态 | `record.resumed=False`，挂起期标记文件不存在 |
+| 第一次 `resume()` | `(True, 1)`；`record.resumed=True`、`resume_previous_suspend_count=1` |
+| 第二次 `resume()` | `(False, None)`，`reason="already_resumed"`，`currently_resumed=true` |
+| 第二次调用对记录的影响 | `record` 前后完全一致（不被改写、不伪写"未恢复"） |
+| 子进程 | 单次恢复后真实执行（`TAIL_MARKER` 到达、标记文件出现） |
+
+### s13 `s13_close_failure_retry`（16/16，r3）
+
+对 `_destroy_pty` 与 `_delete_attr_list` **各注入一次失败**（包装层替换为失败 stub）：
+
+| 观测 | 值 |
+|---|---|
+| 首次 `close()` | `closed=false`、`retryable=true`、`errors` 指出失败资源；`_closed` 仍为 False |
+| 其余 handle | **未被关闭**（错误不牵连其它资源） |
+| `retained` | 明确列出仍持有的资源（含失败的那一个）；`released` 列出已释放的 |
+| 移除注入后同一 owner 重试 | `closed=true`，且确实 `pty_closed` / `attr_list_deleted` |
+
+**重要限定**：注入是包装层替换方法，**不是真实 OS 失败**；它验证的是"部分失败时保留
+所有权并可重试"的逻辑，不构成对真实释放失败的证据。
+
 ---
 
 ## 4. 构建过程中发现并修正的问题（保留过程记录）
@@ -280,19 +323,52 @@ handle 关闭后查询返回 `None`（不返回编造的数字）、被拒路径
 4. **r2：liveness 必须走 `WaitForSingleObject(0)`**。`GetExitCodeProcess` 会把
    "真实退出码 259"与"仍在运行"混为一谈（§3 s8 负例）。
 
-5. **r2：`QueryInformationJobObject` 在 handle 已关闭时不会可靠失败** ——
-   实测给已关闭的 Job 查询返回了成功和一个陈旧数字（20）。因此
-   `active_processes()` 在自持 handle 为空时直接返回 `None`，不编造数字。
+5. **r2：`QueryInformationJobObject` 接受 NULL job handle** ——
+   官方 Remarks 明确 "an application can call the QueryInformationJobObject function with
+   NULL to obtain information about the job object"，即**查询的是调用进程所在的那个 Job**，
+   而不是失败、也不是返回陈旧数据。因此 owner 关闭后若继续用空 handle 查询，
+   会**查询到 ambient Job**（本机实测该 Job 有 20 个进程）并被误当成自己 guard 的成员数。
+   `active_processes()` 在自持 handle 为空时直接返回 `None`，
+   这是**防"查错 Job"**的措施，不是防陈旧数据。
 
-6. **r2：门禁漏洞**。此前"guard 归属查询失败"或"resume 计数异常"都会继续走 resume；
+6. **r2：两个错误措辞已更正**（官方原文见 §1）：
+   - `IsProcessInJob` 的 `JobHandle` 传 NULL 的官方含义是"**该进程是否在任意 Job 下**"，
+     与"调用者的 Job"无关；文档与注释已按此改正。
+   - `QueryInformationJobObject` 的 NULL 语义如上一条，不再描述为"关闭句柄返回陈旧数字"。
+
+7. **r2：门禁漏洞**。此前"guard 归属查询失败"或"resume 计数异常"都会继续走 resume；
    现在两者都 fail-closed，并且被拒路径释放伪控制台与属性表（此前会泄漏）。
 
-7. **r2：`close()` 不诚实**。此前 reader 未收敛仍释放 owner 并置 `_closed=True`；
-   现在返回 `retryable=true` 并保留所有权，重试可成功。
-   同时 `cancel_read` 先置 stop 标志，避免取消恰好落在两次 `ReadFile` 之间的空隙后
-   reader 重新阻塞。
+8. **r2：`close()` 不诚实（已修）**。此前 reader 未收敛仍释放 owner 并置 `_closed=True`；
+   现在返回 `retryable=true` 并保留所有权。同时 `cancel_read` 先置 stop 标志，
+   避免取消恰好落在两次 `ReadFile` 之间的空隙后 reader 重新阻塞。
 
-8. **过程事实**：早期一版调试脚本用**无超时**的 `ReadFile` 排空管道，直接挂死（人工终止）。
+9. **r3：`close()` 的部分失败处理（已修）**。此前即使 `_destroy_pty` 或
+   `_delete_attr_list` 返回错误，`close()` 仍继续关闭其余 handle 并置
+   `closed=True/_closed=True`，失败资源因此无法重试。现在按资源分阶段：
+   任一步失败即返回 `closed=false`、**不再关闭其余 handle**、`_closed` 保持 False，
+   并在 `retained` 中列出**仍然持有**的资源、在 `released` 中列出**已经释放**的资源
+   （而不是笼统地说"什么都没释放"）。注入 destroy / attr 失败各一次后重试均成功（s13）。
+
+10. **r3：reader 归零改用线程 join 确认（已修）**。此前用 `reader_returned` 事件判断
+   "reader 已停"，但该事件由 reader 在返回前最后一刻置位，**事件已置位而线程仍在运行**
+   存在窗口；同时失败分支会关闭 `_reader_thread_handle` 并把 `_output_read` 置 `None`，
+   使真实重试无法再次 `CancelSynchronousIo`。现在 `_stop_reader()` 用
+   `Thread.join` / `is_alive()` 确认线程确已退出；reader 未收敛时**保留**线程 handle 与
+   输出 handle，重试可在同一批对象上重新取消。
+
+11. **r3：异常路径的释放顺序（已修）**。`_full_local_cleanup` 此前先 `_destroy_pty`
+   再关 output，与 `close()` 使用的官方顺序相反。现在两条路径都统一为
+   **停 reader → 关 output 管道 → `ClosePseudoConsole` → 属性表 → 其余 handle**，
+   并逐步检查各资源返回值（`released` / `errors`）。
+
+12. **r3：公共 `resume()` 绕过门禁（已修）**。此前 `resume()` 只看"是否 `0xFFFFFFFF`"，
+   重复调用会对已恢复线程再次 `ResumeThread` 得到 `0`，却仍写 `record.resumed=True`。
+   现在与 `spawn()` 统一为**先前挂起计数必须恰为 1**；已恢复的会话直接以
+   `already_resumed` 拒绝，且如实报告"当前确已恢复"（`currently_resumed=true`），
+   不改写记录、也不伪写"未发生"的状态（s12）。
+
+13. **过程事实**：早期一版调试脚本用**无超时**的 `ReadFile` 排空管道，直接挂死（人工终止）。
    现版本所有阻塞等待均有显式上界。
 
 ---
@@ -334,11 +410,22 @@ class ConPtySession:
     def resize(self, cols, rows) -> tuple[bool, str]: ...
     def write_input(self, data: bytes) -> int: ...
     def start_reader(self) -> None: ...
-    def cancel_read(self, timeout: float) -> dict: ...   # 先置 stop 再取消，重试至收敛或超时
+    def _stop_reader(self, timeout: float) -> dict:
+        """停 reader 并以 Thread.join/is_alive 确认**线程确已退出**
+        （不用完成事件代替 join：事件置位到线程真正退出之间存在窗口）。"""
+    def cancel_read(self, timeout: float) -> dict: ...   # _stop_reader 的兼容视图
     def wait_exit(self, timeout: float) -> int | None: ...
+    def resume(self) -> tuple[bool, int | None]:
+        """与 spawn 同一门禁：仅先前挂起计数恰为 1 算恢复；
+        重复调用以 already_resumed 拒绝，不改写记录。细节见 session.resume_detail。"""
     def close(self, *, close_pty=True, drain_timeout=5.0) -> dict:
-        """closed=True 仅当每步都成功；否则 closed=False/retryable=True 并保留所有权。"""
-    def _full_local_cleanup(self) -> dict: ...  # 伪控制台 + 属性表 + 管柄 + 进程 handle
+        """分阶段释放：任一步失败即 closed=False/retryable=True，
+        **不再关闭其余 handle**、_closed 保持 False；
+        released / retained 分别列出已释放与仍持有的资源。"""
+    def _full_local_cleanup(self, reader_timeout=2.0) -> dict:
+        """异常路径共用同一官方顺序：
+        reader → output 管道 → ClosePseudoConsole → 属性表 → 其余 handle，
+        并逐项检查资源返回值。"""
 
 def kill_verified(pid: int, expected_filetime: int, exit_code: int = 0xDEAD) -> dict:
     """单句柄原子核验后终止：
@@ -388,10 +475,13 @@ def kill_verified(pid: int, expected_filetime: int, exit_code: int = 0xDEAD) -> 
    以降低满管道风险，但**这是设计选择而非实测结论**。
 4. **`PSEUDOCONSOLE_INHERIT_CURSOR`**：未使用、未测（官方提示需异步应答否则可能 hang）。
 5. **输入方向**：只做了基本 `WriteFile` 通路，未测按键序列、Ctrl-C 注入、鼠标与 VT 输入编码。
-6. **s9/s10 中的失败均为包装层注入**，不是真实 OS 异常；真实异常路径未覆盖。
+6. **s9/s10/s13 中的失败与"不可取消"均为包装层注入/替换**，不是真实 OS 异常；
+   真实异常路径（真实的 `ClosePseudoConsole` 失败、真实的句柄释放失败）未覆盖。
 7. **s11 矩阵只覆盖本机、本 build、本父进程拓扑**（4 组），未做跨 build/跨拓扑验证。
 8. **多客户端/attach**、**POSIX 边界**、**命名管道/ACL 安全模型**：不在本 spike 范围。
 9. **`spawn_plain_probe`（s6 用）不是生产 API**：仅用于环境表征，实现较粗糙。
+10. **本 spike 不是生产实现**：无长时间运行、无真实负载、无并发多终端验证；
+    接口草案需在 backend 阶段重新评审后再决定是否沿用。
 
 ---
 
@@ -426,7 +516,11 @@ E:/software/miniforge/python.exe audit/terminal/codex/spawn/spawn_driver.py \
 
 可用场景：`s1_atomic_suspended`、`s2_resize`、`s3_assign_failure`、`s4_holder_hardkill`、
 `s5_reader_cancel`、`s6_ambient_breakaway`、`s7_api_contract`、`s8_liveness_primitives`、
-`s9_failclosed_gates`、`s10_resource_release`、`s11_std_handle_matrix`。
+`s9_failclosed_gates`、`s10_resource_release`、`s11_std_handle_matrix`、
+`s12_resume_gate`、`s13_close_failure_retry`（共 13 个）。
+
+> 单项复跑示例：`--scenario s13_close_failure_retry`。r3 期间只复跑了与改动直接相关的
+> `s5`、`s10` 以及新增的 `s12`、`s13`；`s1–s4`、`s6`、`s7` 未重跑，其 r2 证据保留。
 
 证据写入 `audit/terminal/codex/spawn/evidence/<scenario>-<时间戳>.json`，每条断言附 `detail`；
 驱动以退出码表示整体通过与否。
@@ -440,7 +534,7 @@ E:/software/miniforge/python.exe audit/terminal/codex/spawn/spawn_driver.py \
 | `audit/terminal/codex/spawn/spawn_win.py` | ctypes 原子 spawn 实现 + 接口草案（含 §4 各问题的说明） |
 | `audit/terminal/codex/spawn/child_probe.py` | 测试子进程（启动标记 / UTF-8 / 控制台尺寸 / 尾标记 / 孙进程） |
 | `audit/terminal/codex/spawn/holder.py` | runner/guard-holder 替身（布局 B；供硬杀场景） |
-| `audit/terminal/codex/spawn/spawn_driver.py` | 11 场景驱动 + 断言 + 证据生成 |
+| `audit/terminal/codex/spawn/spawn_driver.py` | 13 场景驱动 + 断言 + 证据生成 |
 | `audit/terminal/codex/spawn/evidence/` | 场景证据 + `summary.json`（并保留返工前 JSON） |
 | `docs/design/PAN_TERMINAL_CONPTY_ATOMIC_SPAWN_20261003.md` | 本报告 |
 

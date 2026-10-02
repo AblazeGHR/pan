@@ -354,12 +354,17 @@ def read_exit_code_informational(hprocess: wintypes.HANDLE) -> int | None:
 
 
 def is_process_in_job(hprocess: wintypes.HANDLE, hjob: wintypes.HANDLE) -> bool:
-    """Precise membership test against a *specific* job handle.
+    """``IsProcessInJob`` with an explicit or NULL job handle.
 
-    ``IsProcessInJob``'s ``JobHandle`` parameter is documented as "a handle to
-    the job to test for"; passing NULL instead tests against "the job that is
-    associated with the calling process", which is a different question. Guard
-    membership is therefore always checked with the explicit guard handle.
+    Official parameter semantics
+    (<https://learn.microsoft.com/en-us/windows/win32/api/jobapi/nf-jobapi-isprocessinjob>):
+    ``JobHandle`` is "A handle to the job. **If this parameter is NULL, the
+    function tests if the process is running under any job.**"
+
+    So ``hjob=None`` asks "is this process in *any* job at all" -- it is not a
+    question about the caller's job. Pass the explicit guard handle when the
+    question is "is this process in *our* job", which is the only form suitable
+    for a gate.
     """
     in_job = wintypes.BOOL()
     if not kernel32.IsProcessInJob(hprocess, hjob, ctypes.byref(in_job)):
@@ -368,12 +373,7 @@ def is_process_in_job(hprocess: wintypes.HANDLE, hjob: wintypes.HANDLE) -> bool:
 
 
 def is_caller_in_any_job() -> bool:
-    """Whether *this* process is associated with the job it belongs to.
-
-    With both handles NULL, ``IsProcessInJob`` uses the calling process and the
-    job associated with it -- i.e. "is my process inside a job at all". This is
-    the ambient-job question, not a guard-membership question.
-    """
+    """Whether *this* process is running under any job (ambient-job question)."""
     return is_process_in_job(kernel32.GetCurrentProcess(), None)
 
 
@@ -433,13 +433,15 @@ class GuardJob:
         return ok, ctypes.get_last_error()
 
     def active_processes(self) -> int | None:
-        """Member count, or ``None`` when we no longer hold a job handle.
+        """Member count of *this* guard job, or ``None`` when we hold no handle.
 
-        Measured trap: calling ``QueryInformationJobObject`` with a NULL/closed
-        handle does **not** reliably fail on this machine -- it was observed to
-        return success with garbage (a stale value of 20 on a job that had been
-        closed). A closed owner must therefore be reported as "unknown" rather
-        than have a number invented for it.
+        Measured trap: ``QueryInformationJobObject`` accepts NULL for its job
+        handle and, per its documentation, then reports on "the job object" of
+        the **calling process** rather than failing. A closed owner therefore did
+        not produce an error but a perfectly valid count belonging to the
+        *ambient* job (measured: 20) -- which would have been silently mistaken
+        for our guard's membership. The explicit ``None`` return prevents that;
+        it is a guard against querying the wrong job, not against stale data.
         """
         if not self._handle:
             return None
@@ -508,6 +510,7 @@ class ConPtySession:
         self._output_write = None
         self._closed = False
         self._attr_buf = None
+        self.resume_detail: dict = {}
         self._reader_thread: threading.Thread | None = None
         self._reader_stop = threading.Event()
         self._reader_thread_handle = None
@@ -757,17 +760,64 @@ class ConPtySession:
             raise self._deny(stage, detail, hprocess=self._h_process) from exc
 
     # ---------------------------------------------------------------- ops
-    def resume(self) -> tuple[bool, int]:
-        """Resume a session that was deliberately left suspended."""
+    def resume(self) -> tuple[bool, int | None]:
+        """Resume a session that was deliberately left suspended.
+
+        Uses exactly the same gate as ``spawn(resume=True)``: the call counts as
+        a resume only when ``ResumeThread`` reports a previous suspend count of
+        **exactly 1**. Anything else (``WAIT_FAILED``, ``0``, ``>1``) is refused
+        and ``record.resumed`` is left untouched, so the factual record never
+        claims a resume that did not happen.
+
+        A session that has already been resumed is refused as ``already_resumed``
+        rather than being re-issued against a live thread -- a second
+        ``ResumeThread`` on an unsuspended thread returns 0, which previously was
+        recorded as ``resumed=True`` even though nothing was resumed.
+
+        Detailed outcome is available on ``resume_detail``.
+        """
+        if self.record is not None and self.record.resumed:
+            self.resume_detail = {
+                "ok": False,
+                "reason": "already_resumed",
+                "currently_resumed": True,
+                "previous_suspend_count": None,
+            }
+            return False, None
         if not self._h_thread:
-            raise RuntimeError("no thread handle")
+            self.resume_detail = {"ok": False, "reason": "no_thread_handle",
+                                  "currently_resumed": False}
+            return False, None
+
         r = kernel32.ResumeThread(self._h_thread)
-        if r == 0xFFFFFFFF:
-            return False, ctypes.get_last_error()
+        if r == WAIT_FAILED:
+            self.resume_detail = {
+                "ok": False,
+                "reason": "resume_call_failed",
+                "last_error": ctypes.get_last_error(),
+                "currently_resumed": False,
+            }
+            return False, None
+        if r != 1:
+            self.resume_detail = {
+                "ok": False,
+                "reason": "unexpected_previous_suspend_count",
+                "expected_previous_suspend_count": 1,
+                "previous_suspend_count": int(r),
+                "currently_resumed": False,
+            }
+            return False, None
+
         if self.record:
             self.record.resumed = True
-            self.record.resume_previous_suspend_count = int(r)
-        return True, int(r)
+            self.record.resume_previous_suspend_count = 1
+        self.resume_detail = {
+            "ok": True,
+            "reason": "resumed",
+            "previous_suspend_count": 1,
+            "currently_resumed": True,
+        }
+        return True, 1
 
     def resize(self, cols: int, rows: int) -> tuple[bool, str]:
         hr = kernel32.ResizePseudoConsole(self._hpc, COORD(cols, rows))
@@ -808,33 +858,39 @@ class ConPtySession:
         self._reader_thread = threading.Thread(target=_loop, name="conpty-reader", daemon=True)
         self._reader_thread.start()
 
-    def cancel_read(self, timeout: float = 5.0) -> dict:
-        """Cancel the blocked ReadFile and verify the reader converges.
+    def _stop_reader(self, timeout: float = 5.0) -> dict:
+        """Stop the drain reader and **confirm the thread has actually exited**.
 
-        Order matters, and it is not cosmetic: the stop flag is raised *before*
-        any cancellation is attempted, so a ``CancelSynchronousIo`` that lands in
-        the gap between two ``ReadFile`` calls -- where there is no pending I/O to
-        cancel -- still leaves the reader exiting at its next loop check instead
-        of blocking again and quietly surviving the teardown. Because that gap is
-        real, the cancellation is retried until the reader reports it has
-        returned or the deadline passes.
+        Confirmation is by ``Thread.join`` / ``is_alive``, never by the
+        completion Event: the reader sets that Event as its last action before
+        returning, so there is a window in which the Event is already set while
+        the thread is still running (and may still touch handles). Ownership
+        decisions are therefore based on the thread having exited, not on the
+        Event.
+
+        The stop flag is raised *before* any cancellation, so a
+        ``CancelSynchronousIo`` that lands in the gap between two ``ReadFile``
+        calls -- where there is no pending I/O to cancel -- still leaves the
+        reader exiting at its next loop check instead of blocking again. Because
+        that gap is real, cancellation is retried until the thread is gone or the
+        deadline passes.
         """
         t0 = time.perf_counter()
+        thread = self._reader_thread
+        if thread is None:
+            return {"reader_present": False, "stopped": True, "converge_seconds": 0.0}
+
         self._reader_stop.set()
         deadline = t0 + timeout
 
         # the reader publishes its own thread handle as its first action
-        while self._reader_thread_handle is None and time.perf_counter() < deadline:
-            if self.reader_returned.is_set():
-                break
+        while self._reader_thread_handle is None and thread.is_alive() and time.perf_counter() < deadline:
             time.sleep(0.02)
 
         attempts = 0
         last_ok: bool | None = None
         last_err: int | None = None
-        while time.perf_counter() < deadline:
-            if self.reader_returned.wait(timeout=0.05):
-                break
+        while thread.is_alive() and time.perf_counter() < deadline:
             if self._reader_thread_handle:
                 ctypes.set_last_error(0)
                 ok = bool(kernel32.CancelSynchronousIo(self._reader_thread_handle))
@@ -843,20 +899,27 @@ class ConPtySession:
                 attempts += 1
                 if ok:
                     self.reader_cancelled.set()
+            thread.join(timeout=0.05)
 
-        converged = self.reader_returned.is_set() or self.reader_returned.wait(
-            timeout=max(0.0, deadline - time.perf_counter())
-        )
+        thread.join(timeout=max(0.0, deadline - time.perf_counter()))
+        stopped = not thread.is_alive()
         return {
+            "reader_present": True,
             "stop_flag_set_first": True,
             "thread_handle_obtained": bool(self._reader_thread_handle),
             "cancel_attempts": attempts,
             "cancel_ok": last_ok,
             "cancel_last_error": last_err,
-            "reader_converged": bool(converged),
+            "stopped": stopped,
             "converge_seconds": round(time.perf_counter() - t0, 3),
             "reader_error": self._reader_error,
         }
+
+    def cancel_read(self, timeout: float = 5.0) -> dict:
+        """Backwards-compatible view of :meth:`_stop_reader`."""
+        result = self._stop_reader(timeout)
+        result["reader_converged"] = result["stopped"]
+        return result
 
     def cancel_read_by_closing_output(self, timeout: float = 5.0) -> dict:
         """Alternative convergence path: close the read end under the reader."""
@@ -978,14 +1041,74 @@ class ConPtySession:
         self._close_pipe_handles()
         self._close_process_handles()
 
-    def _full_local_cleanup(self) -> dict:
-        """Release *everything* this session owns locally, in a safe order."""
-        return {
-            "pty": self._destroy_pty(),
-            "attr_list": self._delete_attr_list(),
-            "pipes_closed": self._close_pipe_handles(),
-            "process_handles_closed": self._close_process_handles(),
+    def _close_output_read(self) -> dict:
+        """Close the ConPTY output read end.
+
+        Microsoft's ``ClosePseudoConsole`` guidance is to close the output pipe
+        before closing the pseudoconsole (or keep draining), so that a full pipe
+        cannot block the call. This ordering is used on *every* release path --
+        normal close and failure paths alike -- not only in ``close()``.
+        """
+        if not self._output_read:
+            return {"output_closed": False, "already_gone": True}
+        try:
+            kernel32.CloseHandle(self._output_read)
+            self._output_read = None
+            return {"output_closed": True}
+        except Exception as exc:
+            return {"output_closed": False, "error": repr(exc)}
+
+    def _full_local_cleanup(self, reader_timeout: float = 2.0) -> dict:
+        """Release everything this session owns locally, in the official order.
+
+        Order: stop the drain reader -> close the output pipe -> close the
+        pseudoconsole -> delete the attribute list -> remaining pipe and process
+        handles. Every step's result is checked and reported, so a caller can see
+        exactly which resources were released and which were not, rather than
+        being told "nothing was released".
+
+        Used by the spawn-denial paths, where the session is discarded; the
+        staged, retryable variant used by ``close()`` shares the same helpers.
+        """
+        result: dict = {
+            "order": ["reader_stop", "output_close", "pty", "attr_list", "pipes", "process_handles"],
         }
+        errors: list[str] = []
+
+        reader = self._stop_reader(reader_timeout)
+        result["reader_stop"] = reader
+        if not reader.get("stopped", False):
+            errors.append("reader_not_converged")
+
+        output = self._close_output_read()
+        result["output_close"] = output
+        if not (output.get("output_closed") or output.get("already_gone")):
+            errors.append("output_close_failed")
+
+        pty = self._destroy_pty()
+        result["pty"] = pty
+        if not (pty.get("pty_closed") or pty.get("already_gone")):
+            errors.append("pty_close_failed")
+
+        attr = self._delete_attr_list()
+        result["attr_list"] = attr
+        if not (attr.get("attr_list_deleted") or attr.get("already_gone")):
+            errors.append("attr_list_delete_failed")
+
+        result["pipes_closed"] = self._close_pipe_handles()
+        result["process_handles_closed"] = self._close_process_handles()
+        result["errors"] = errors
+        result["released"] = [
+            name for name, ok in (
+                ("reader", reader.get("stopped") or not reader.get("reader_present")),
+                ("output_read", output.get("output_closed") or output.get("already_gone")),
+                ("pseudo_console", pty.get("pty_closed") or pty.get("already_gone")),
+                ("attr_list", attr.get("attr_list_deleted") or attr.get("already_gone")),
+                ("pipes", bool(result["pipes_closed"])),
+                ("process_handles", bool(result["process_handles_closed"])),
+            ) if ok
+        ]
+        return result
 
     def _deny(self, stage: str, detail: dict, *, hprocess=None) -> SpawnDenied:
         """Fail-closed exit: verify-kill only our own child, then release all own
@@ -1020,42 +1143,58 @@ class ConPtySession:
         t0 = time.perf_counter()
         errors: list[str] = []
 
-        # 1) stop the drain reader: stop flag first, then bounded cancellation
-        if self._reader_thread and self._reader_thread.is_alive():
-            cancel = self.cancel_read(timeout=drain_timeout)
-            if not cancel["reader_converged"] and self._output_read:
-                kernel32.CloseHandle(self._output_read)
-                self._output_read = None
-                cancel["forced_by_output_close"] = True
-                cancel["reader_converged"] = self.reader_returned.wait(timeout=1.0)
-            if not cancel["reader_converged"]:
-                errors.append("reader_not_converged")
-        else:
-            cancel = {"reader_was_not_running": True, "reader_converged": True}
-        self._reader_stop.set()
-        if self._reader_thread_handle:
-            kernel32.CloseHandle(self._reader_thread_handle)
-            self._reader_thread_handle = None
+        # 1) stop the drain reader and CONFIRM the thread exited (join-based)
+        reader = self._stop_reader(drain_timeout)
+        if not reader.get("stopped", False):
+            errors.append("reader_not_converged")
 
         if errors:
-            # Ownership retained on purpose: nothing else has been released.
+            # Ownership retained in full: the reader thread handle and the output
+            # handle are deliberately NOT closed and NOT cleared, so a retry can
+            # issue CancelSynchronousIo again against the same objects. Report
+            # exactly which handles are still held.
             return {
                 "closed": False,
                 "retryable": True,
                 "errors": errors,
-                "reader_cancel": cancel,
+                "reader_stop": reader,
+                "released": [],
+                "retained": self._retained_resources(),
                 "seconds": round(time.perf_counter() - t0, 3),
-                "note": "owner retained (not marked closed); safe to call close() again",
+                "note": "owner retained (not marked closed); retry re-issues cancellation on the same handles",
             }
 
         # 2) output pipe before the pseudoconsole (official ordering guidance)
-        if self._output_read:
-            kernel32.CloseHandle(self._output_read)
-            self._output_read = None
+        output = self._close_output_read()
+        if not (output.get("output_closed") or output.get("already_gone")):
+            errors.append("output_close_failed")
 
-        # 3) pseudoconsole, attribute list, then the remaining handles
+        # 3) pseudoconsole, then the attribute list
         pty = self._destroy_pty() if close_pty else {"pty_closed": False, "skipped": True}
+        if close_pty and not (pty.get("pty_closed") or pty.get("already_gone")):
+            errors.append("pty_close_failed")
         attr = self._delete_attr_list()
+        if not (attr.get("attr_list_deleted") or attr.get("already_gone")):
+            errors.append("attr_list_delete_failed")
+
+        if errors:
+            # A resource that failed to release stays owned and retryable; the
+            # remaining handles are NOT torn down around it, and `_closed` stays
+            # False so the failure cannot be mistaken for a completed teardown.
+            return {
+                "closed": False,
+                "retryable": True,
+                "errors": errors,
+                "reader_stop": reader,
+                "output_close": output,
+                "pty": pty,
+                "attr_list": attr,
+                "released": [r["resource"] for r in self._retained_resources(only_released=True)],
+                "retained": self._retained_resources(),
+                "seconds": round(time.perf_counter() - t0, 3),
+                "note": "release failed for at least one resource; remaining handles kept for retry",
+            }
+
         pipes = self._close_pipe_handles()
         procs = self._close_process_handles()
 
@@ -1063,13 +1202,33 @@ class ConPtySession:
         return {
             "closed": True,
             "retryable": False,
-            "reader_cancel": cancel,
+            "reader_stop": reader,
+            "output_close": output,
             "pty": pty,
             "attr_list": attr,
             "pipes_closed": pipes,
             "process_handles_closed": procs,
+            "released": ["reader", "output_read", "pseudo_console", "attr_list", "pipes", "process_handles"],
+            "retained": [],
             "seconds": round(time.perf_counter() - t0, 3),
         }
+
+    def _retained_resources(self, only_released: bool = False) -> list[dict]:
+        """Inventory of what this session still holds (or, optionally, released)."""
+        held = [
+            ("reader_thread", self._reader_thread is not None and self._reader_thread.is_alive()),
+            ("reader_thread_handle", bool(self._reader_thread_handle)),
+            ("input_write", bool(self._input_write)),
+            ("output_read", bool(self._output_read)),
+            ("input_read", bool(self._input_read)),
+            ("output_write", bool(self._output_write)),
+            ("pseudo_console", bool(self._hpc)),
+            ("attr_list", self._attr_buf is not None),
+            ("process_handle", bool(self._h_process)),
+            ("thread_handle", bool(self._h_thread)),
+        ]
+        return [{"resource": name, "released": not is_held} for name, is_held in held
+                if is_held != only_released]
 
 
 # --------------------------------------------------------------------------- misc

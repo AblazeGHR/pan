@@ -1,0 +1,192 @@
+{
+  "scenario": "s5_reader_cancel",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s5_reader_cancel-5j4xyppl",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "arm_cancel_synchronous_io": {
+    "reader_present": true,
+    "stop_flag_set_first": true,
+    "thread_handle_obtained": true,
+    "cancel_attempts": 1,
+    "cancel_ok": true,
+    "cancel_last_error": 0,
+    "stopped": true,
+    "converge_seconds": 0.0,
+    "reader_error": "ReadFile failed: 995 (<code 995>)",
+    "reader_converged": true
+  },
+  "bytes_before_cancel": 171,
+  "close_arm_a": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "survivors_arm_a": [],
+  "arm_close_output_handle": {
+    "reader_converged": true,
+    "converge_seconds": 6.081,
+    "reader_error": "ReadFile failed: 6 (ERROR_INVALID_HANDLE)"
+  },
+  "arm_b_child_hold_seconds": 8,
+  "close_arm_b": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 6 (ERROR_INVALID_HANDLE)"
+    },
+    "output_close": {
+      "output_closed": false,
+      "already_gone": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "survivors_arm_b": [],
+  "checks": [
+    {
+      "check": "reader_converged_on_cancel",
+      "ok": true,
+      "detail": {
+        "reader_present": true,
+        "stop_flag_set_first": true,
+        "thread_handle_obtained": true,
+        "cancel_attempts": 1,
+        "cancel_ok": true,
+        "cancel_last_error": 0,
+        "stopped": true,
+        "converge_seconds": 0.0,
+        "reader_error": "ReadFile failed: 995 (<code 995>)",
+        "reader_converged": true
+      }
+    },
+    {
+      "check": "cancel_reported_success",
+      "ok": true,
+      "detail": {
+        "reader_present": true,
+        "stop_flag_set_first": true,
+        "thread_handle_obtained": true,
+        "cancel_attempts": 1,
+        "cancel_ok": true,
+        "cancel_last_error": 0,
+        "stopped": true,
+        "converge_seconds": 0.0,
+        "reader_error": "ReadFile failed: 995 (<code 995>)",
+        "reader_converged": true
+      }
+    },
+    {
+      "check": "cancel_is_prompt_under_1s",
+      "ok": true,
+      "detail": 0.0
+    },
+    {
+      "check": "cancel_error_is_operation_aborted",
+      "ok": true,
+      "detail": "ReadFile failed: 995 (<code 995>)"
+    },
+    {
+      "check": "arm_a_no_survivors",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "reader_eventually_converged_on_output_close",
+      "ok": true,
+      "detail": {
+        "reader_converged": true,
+        "converge_seconds": 6.081,
+        "reader_error": "ReadFile failed: 6 (ERROR_INVALID_HANDLE)"
+      }
+    },
+    {
+      "check": "close_handle_alone_is_not_prompt",
+      "ok": true,
+      "detail": 6.081
+    },
+    {
+      "check": "close_handle_yields_no_abort_error",
+      "ok": true,
+      "detail": "ReadFile failed: 6 (ERROR_INVALID_HANDLE)"
+    },
+    {
+      "check": "arm_b_no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 11.7,
+  "log": [
+    "[sweep] {'pid': 5964, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 48572, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

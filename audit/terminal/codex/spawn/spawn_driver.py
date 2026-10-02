@@ -908,6 +908,156 @@ def s11_std_handle_matrix(root: str, out: dict, log: list[str]) -> list[dict]:
     return checks
 
 
+# --------------------------------------------------------------------------- s12
+def s12_resume_gate(root: str, out: dict, log: list[str]) -> list[dict]:
+    """The public resume() path must enforce the same exactly-once gate as spawn.
+
+    Previously a second resume() re-issued ResumeThread on an unsuspended thread,
+    got 0, and still wrote ``record.resumed = True`` -- reporting a resume that
+    did not happen. Repeat calls must be refused outright, and the factual record
+    must not be rewritten.
+    """
+    checks: list[dict] = []
+
+    def check(name, ok, detail=None):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail})
+
+    marker = os.path.join(root, "resume_gate.txt")
+    guard = sw.GuardJob()
+    sess = None
+    tracked: list[tuple[int, int]] = []
+    try:
+        sess = sw.ConPtySession.spawn(child_cmd(marker, "--hold 4"), root, 80, 24,
+                                      guard, resume=False)
+        tracked.append((sess.record.pid, sess.record.creation_filetime))
+        out["suspended_record"] = {"resumed": sess.record.resumed,
+                                   "prev_count": sess.record.resume_previous_suspend_count}
+        check("starts_suspended", sess.record.resumed is False, sess.record.resumed)
+        time.sleep(1.0)
+        out["marker_before_resume"] = os.path.exists(marker)
+        check("no_execution_before_resume", not os.path.exists(marker), out["marker_before_resume"])
+
+        first_ok, first_prev = sess.resume()
+        out["first_resume"] = {"ok": first_ok, "previous_suspend_count": first_prev,
+                               "detail": sess.resume_detail}
+        check("first_resume_ok", first_ok is True, first_ok)
+        check("first_resume_reports_previous_count_1", first_prev == 1, first_prev)
+        check("record_marked_resumed", sess.record.resumed is True, sess.record.resumed)
+        check("record_previous_count_is_1",
+              sess.record.resume_previous_suspend_count == 1,
+              sess.record.resume_previous_suspend_count)
+
+        # second call: must refuse, and must not rewrite the record
+        record_before = (sess.record.resumed, sess.record.resume_previous_suspend_count)
+        second_ok, second_prev = sess.resume()
+        record_after = (sess.record.resumed, sess.record.resume_previous_suspend_count)
+        out["second_resume"] = {"ok": second_ok, "previous_suspend_count": second_prev,
+                                "detail": sess.resume_detail,
+                                "record_before": record_before, "record_after": record_after}
+        check("second_resume_refused", second_ok is False, second_ok)
+        check("second_resume_reports_already_resumed",
+              sess.resume_detail.get("reason") == "already_resumed", sess.resume_detail)
+        check("second_resume_does_not_claim_not_resumed",
+              sess.resume_detail.get("currently_resumed") is True, sess.resume_detail)
+        check("record_unchanged_by_second_call", record_before == record_after,
+              {"before": record_before, "after": record_after})
+
+        # the child must actually have run exactly once
+        sess.start_reader()
+        got = sess.wait_output_contains("TAIL_MARKER", 20)
+        out["pty_output"] = sess.output_text()
+        check("child_ran_after_single_resume", got, got)
+        out["marker_after_resume"] = os.path.exists(marker)
+        check("execution_observed_after_resume", os.path.exists(marker),
+              out["marker_after_resume"])
+    finally:
+        if sess:
+            out["close"] = sess.close()
+        guard.close()
+        time.sleep(0.8)
+        out["survivors"] = survivor_report(tracked)
+        check("no_survivors", not out["survivors"], out["survivors"])
+        sweep_own(tracked, log)
+        out["checks"] = checks
+    return checks
+
+
+# --------------------------------------------------------------------------- s13
+def s13_close_failure_retry(root: str, out: dict, log: list[str]) -> list[dict]:
+    """A close() whose release step fails must stay owned and be retryable.
+
+    Injecting a failure into ``_destroy_pty`` (then ``_delete_attr_list``) must
+    yield ``closed=False, retryable=True`` with the failed resource still held and
+    the other handles deliberately left alone; removing the injection and calling
+    close() again on the same owner must succeed. Injection is wrapper-level.
+    """
+    checks: list[dict] = []
+
+    def check(name, ok, detail=None):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail})
+
+    out["injection_note"] = ("wrapper-level: session._destroy_pty / _delete_attr_list are "
+                             "replaced with a failing stub; not a real OS failure")
+
+    for label, attr in (("pty_close", "_destroy_pty"), ("attr_list_delete", "_delete_attr_list")):
+        guard = sw.GuardJob()
+        sess = None
+        tracked: list[tuple[int, int]] = []
+        try:
+            sess = sw.ConPtySession.spawn(
+                child_cmd(os.path.join(root, f"{label}.txt"), "--hold 3"),
+                root, 80, 24, guard, resume=True)
+            tracked.append((sess.record.pid, sess.record.creation_filetime))
+            sess.start_reader()
+            time.sleep(2.0)
+            sess.wait_exit(10)
+
+            original = getattr(sess, attr)
+            setattr(sess, attr, lambda: {"failed": True, "injected": True})
+            first = sess.close(drain_timeout=3.0)
+            setattr(sess, attr, original)
+            out[f"{label}_first_close"] = first
+
+            check(f"{label}_close_reports_not_closed", first.get("closed") is False,
+                  first.get("closed"))
+            check(f"{label}_close_is_retryable", first.get("retryable") is True,
+                  first.get("retryable"))
+            check(f"{label}_owner_retained", sess._closed is False, sess._closed)
+            check(f"{label}_error_names_the_resource",
+                  any(label.split("_")[0] in e for e in (first.get("errors") or [])),
+                  first.get("errors"))
+            retained = {r["resource"] for r in (first.get("retained") or [])}
+            out[f"{label}_retained_resources"] = sorted(retained)
+            check(f"{label}_retained_inventory_mentions_failure",
+                  ("pseudo_console" in retained) if attr == "_destroy_pty" else ("attr_list" in retained),
+                  sorted(retained))
+
+            second = sess.close(drain_timeout=5.0)
+            out[f"{label}_retry_close"] = second
+            check(f"{label}_retry_succeeds", second.get("closed") is True, second.get("closed"))
+            if attr == "_destroy_pty":
+                check(f"{label}_retry_closed_pseudo_console",
+                      bool((second.get("pty") or {}).get("pty_closed")), second.get("pty"))
+            else:
+                check(f"{label}_retry_deleted_attr_list",
+                      bool((second.get("attr_list") or {}).get("attr_list_deleted")),
+                      second.get("attr_list"))
+        finally:
+            if sess and not sess._closed:
+                try:
+                    sess.close(drain_timeout=3.0)
+                except Exception:
+                    pass
+            guard.close()
+            time.sleep(0.8)
+            out[f"{label}_survivors"] = survivor_report(tracked)
+            check(f"{label}_no_survivors", not out[f"{label}_survivors"],
+                  out[f"{label}_survivors"])
+            sweep_own(tracked, log)
+    out["checks"] = checks
+    return checks
+
+
 SCENARIOS = {
     "s1_atomic_suspended": s1_atomic_suspended,
     "s2_resize": s2_resize,
@@ -920,6 +1070,8 @@ SCENARIOS = {
     "s9_failclosed_gates": s9_failclosed_gates,
     "s10_resource_release": s10_resource_release,
     "s11_std_handle_matrix": s11_std_handle_matrix,
+    "s12_resume_gate": s12_resume_gate,
+    "s13_close_failure_retry": s13_close_failure_retry,
 }
 
 
