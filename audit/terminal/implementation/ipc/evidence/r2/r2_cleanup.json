@@ -1,0 +1,19 @@
+{
+  "self_built_processes": "全部经 win_pipe.terminate_verified_process（同 handle PID+raw FILETIME）核验后终止；launcher 与真实 runner 各自可证，不按命令行广杀",
+  "process_scan": {
+    "available": true,
+    "marker_scope": "python*/uv* 进程",
+    "markers": [
+      "ipc_child_host.py",
+      "bootstrap.py",
+      "reader.py"
+    ],
+    "leftovers": []
+  },
+  "temp_scan": {
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp",
+    "note": "测试创建的临时目录在 pytest tmp_path（pytest 自动清理）；本次返工期间自建的调试/探针目录（pan-ace-probe-*, pan-acl-dbg-*, pan-obj-ace-dbg*, pan-squat-debug*, pan-impostor-debug-*, pan-secret-*, pan-ipc-smoke-*）已由本 TA 删除；同目录下其它 pan-* 属其它任务/其它 TA 的产物，本 TA 未触碰",
+    "own_probe_dirs_removed": true
+  },
+  "network": "无监听端口（本层只用本机命名管道与 DPAPI）"
+}

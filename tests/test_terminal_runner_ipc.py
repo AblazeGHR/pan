@@ -430,7 +430,14 @@ def _identity_probe(pid):
     return ProcessProbe(status=ProcessStatus.UNKNOWN, detail="unknown pid")
 
 
-def _session_pair(*, server_token=None, client_token=None, probe=_identity_probe, server_expected=None):
+def _session_pair(
+    *,
+    server_token=None,
+    client_token=None,
+    probe=_identity_probe,
+    server_expected=None,
+    terminal_id="term_fake",
+):
     c2s: queue.Queue = queue.Queue()
     s2c: queue.Queue = queue.Queue()
     server_transport = FakeTransport(c2s, s2c, SERVER_PID, CLIENT_PID)
@@ -440,7 +447,7 @@ def _session_pair(*, server_token=None, client_token=None, probe=_identity_probe
         server_transport,
         role="server",
         token=token,
-        terminal_id="term_fake",
+        terminal_id=terminal_id,
         local_identity=SERVER_IDENTITY,
         expected_peer_identity=server_expected,
         identity_probe=probe,
@@ -450,13 +457,23 @@ def _session_pair(*, server_token=None, client_token=None, probe=_identity_probe
         client_transport,
         role="client",
         token=client_token or token,
-        terminal_id="term_fake",
+        terminal_id=terminal_id,
         expected_peer_identity=SERVER_IDENTITY,
         identity_probe=probe,
         local_pid=CLIENT_PID,
         timeout=1.0,
     )
     return server, client, server_transport, client_transport
+
+
+def _handshake(server, client):
+    """``_run_handshakes`` 的别名（r2 回归用例沿用复核树的命名习惯）。"""
+    return _run_handshakes(server, client)
+
+
+def _valid_request(terminal_id: str = "term_fake", op: str = ipc.OP_READ, **payload):
+    body = {"cursor": 0} if op == ipc.OP_READ else dict(payload)
+    return ipc.build_request(op, body, terminal_id=terminal_id, timeout_ms=2000)
 
 
 def _run_handshakes(server, client):
@@ -684,6 +701,16 @@ def flush():
     os.replace(tmp, REPORT_PATH)
 
 
+#: 子进程**自证身份**：自身 pid + 同 handle raw FILETIME（GetProcessTimes）。
+#: uv launcher 蹦床下 Popen.pid ≠ 真实解释器 pid，父进程必须用自证值再内核核验。
+try:
+    _own = win_pipe.current_process_identity()
+    REPORT["self_identity"] = {"pid": _own.pid, "filetime": _own.created_at_filetime}
+except Exception as _exc:  # noqa: BLE001 - 自证失败必须显式记录，不允许猜
+    REPORT["self_identity"] = {"error": type(_exc).__name__}
+flush()
+
+
 def raw_create_pipe(name, *, first_instance=False, max_instances=4):
     """测试用「朴素」管道创建（不依赖被测模块的参数，制造占名/冒充场景）。
 
@@ -833,7 +860,14 @@ main()
 
 
 class ChildHandle:
-    """自建子进程句柄：报告读取 + **核验身份后**终止。"""
+    """自建子进程句柄：**自证身份 + 内核核验** + 核验后终止。
+
+    F11：uv ``--with`` 覆盖层里 ``sys.executable`` 是 launcher 蹦床，``Popen.pid``
+    不是真实解释器 pid。因此 runner 身份一律取子进程**自证**（report/hello 里的
+    ``os.getpid()`` + 同 handle raw FILETIME），父进程再用 ``probe_process``（同 handle
+    ``GetProcessTimes`` + ``WaitForSingleObject``）**核验**后才使用；清理阶段分别对
+    真实子进程与 launcher 各自核验后终止——**不按命令行广杀**。
+    """
 
     def __init__(self, process: subprocess.Popen, report_path: Path, config_path: Path, name: str):
         self.process = process
@@ -842,20 +876,37 @@ class ChildHandle:
         self.name = name
         self.stdout = ""
         self.stderr = ""
+        self.launcher_pid = int(process.pid)
+        self.launcher_identity: ProcessIdentity | None = None  # spawn 时经同 handle 探针取得
+        self.termination_evidence: list[dict] = []
         self._identity: ProcessIdentity | None = None
 
     @property
     def pid(self) -> int:
-        return int(self.process.pid)
+        """真实 runner pid（自证 + 内核核验），**不是** ``Popen.pid``。"""
+        identity = self.identity()
+        assert identity.pid is not None
+        return int(identity.pid)
 
     def identity(self) -> ProcessIdentity:
+        """子进程自证身份 + 内核核验（ALIVE 且 pid/FILETIME 精确匹配）。"""
         if self._identity is None:
-            probe = win_pipe.ProcessIdentityHandle.open(self.pid)
-            assert probe is not None, f"cannot inspect {self.name} process identity (pid={self.pid})"
-            try:
-                self._identity = probe.identity
-            finally:
-                probe.close()
+            report = self.wait_report(
+                lambda data: isinstance(data.get("self_identity"), dict) and "pid" in data["self_identity"],
+                timeout=20.0,
+            )
+            attested = report["self_identity"]
+            pid = int(attested["pid"])
+            filetime = int(attested["filetime"])
+            probe = win_pipe.probe_process(pid)
+            assert probe.status is ProcessStatus.ALIVE, (
+                f"{self.name}: 自证 runner pid={pid} 内核探针状态 {probe.status.value}"
+            )
+            assert probe.identity is not None and probe.identity.pid == pid
+            assert probe.identity.created_at_filetime == filetime, (
+                f"{self.name}: 自证 FILETIME 与内核值不一致（不允许按 Popen.pid 猜身份）"
+            )
+            self._identity = probe.identity
         return self._identity
 
     def report(self) -> dict:
@@ -892,17 +943,48 @@ class ChildHandle:
         self.stdout = out or ""
         self.stderr = err or ""
 
+    def _alive(self, pid: int) -> bool:
+        probe = win_pipe.probe_process(pid)
+        return probe.status is ProcessStatus.ALIVE
+
     def cleanup(self, *, timeout: float = 10.0) -> dict:
-        """结束子进程：先核验身份（同 handle PID + raw FILETIME），再终止。"""
+        """核验后终止：先真实 runner（自证身份），再 launcher（spawn 时核验的身份）。
+
+        两者都只在“同 handle PID + raw FILETIME 匹配且 ALIVE”时才终止；不做
+        命令行匹配式广杀（另有用例断言无关的同名进程不受影响）。
+        """
         self.collect_output()
-        if self.process.poll() is None:
-            evidence = win_pipe.terminate_verified_process(self.pid, self.identity().created_at_filetime)
-            try:
-                self.process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:  # pragma: no cover
-                pass
-            return evidence
-        return {"terminated": False, "detail": "already exited"}
+        summary = {"runner": None, "launcher": None}
+        # ① 真实 runner：自证 pid + 内核同 handle 核验（FILETIME 精确匹配）后才终止
+        identity = self._identity
+        if identity is None:
+            report = self.report()
+            attested = report.get("self_identity") if isinstance(report, dict) else None
+            if isinstance(attested, dict) and "pid" in attested:
+                probe = win_pipe.probe_process(int(attested["pid"]))
+                if probe.status is ProcessStatus.ALIVE and probe.identity is not None:
+                    assert probe.identity.created_at_filetime == int(attested["filetime"]), (
+                        f"{self.name}: 自证 FILETIME 与内核不一致，拒绝终止"
+                    )
+                    identity = probe.identity
+        if identity is not None and identity.pid is not None and self._alive(int(identity.pid)):
+            evidence = win_pipe.terminate_verified_process(int(identity.pid), identity.created_at_filetime)
+            summary["runner"] = evidence
+            self.termination_evidence.append(evidence)
+        # ② launcher（uv 蹦床）：spawn 时已用同 handle 探针取得身份
+        if self.process.poll() is None and self.launcher_identity is not None:
+            pid = int(self.launcher_pid)
+            if self._alive(pid):
+                evidence = win_pipe.terminate_verified_process(
+                    pid, self.launcher_identity.created_at_filetime
+                )
+                summary["launcher"] = evidence
+                self.termination_evidence.append(evidence)
+        try:
+            self.process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:  # pragma: no cover - 失败路径
+            pass
+        return summary
 
 
 @pytest.fixture
@@ -935,12 +1017,78 @@ def child_runner(tmp_path):
             text=True,
         )
         handle = ChildHandle(process, report_path, config_path, f"{mode}:{terminal_id}")
+        # launcher 身份：spawn 时用同 handle 探针取得（uv 蹦床下 ≠ 真实 runner）
+        launcher = win_pipe.ProcessIdentityHandle.open(int(process.pid))
+        if launcher is not None:
+            try:
+                handle.launcher_identity = launcher.identity
+            finally:
+                launcher.close()
         handles.append(handle)
         return handle
 
     yield spawn
     for handle in handles:
         handle.cleanup()
+
+
+def _spawn_sleeper(seconds: float = 30.0):
+    """自建 sleeper：**子进程自证**真实 pid + raw FILETIME，父进程内核核验后才使用。
+
+    返回 ``(process, ProcessIdentity)``；不按 ``Popen.pid`` 猜（uv 蹦床下两者不同）。
+    """
+    program = (
+        "import json, os, sys, time;"
+        "sys.path.insert(0, sys.argv[1]);"
+        "from packages.core.terminal import win_pipe;"
+        "ident = win_pipe.current_process_identity();"
+        "print(json.dumps({'pid': os.getpid(), 'filetime': ident.created_at_filetime}), flush=True);"
+        "time.sleep(float(sys.argv[2]))"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", program, str(REPO_ROOT), str(seconds)],
+        cwd=str(REPO_ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        attested = json.loads(process.stdout.readline())
+    except (json.JSONDecodeError, TypeError) as exc:  # pragma: no cover - 失败路径
+        process.kill()
+        raise AssertionError(f"sleeper did not self-attest its identity: {exc}") from exc
+    pid = int(attested["pid"])
+    filetime = int(attested["filetime"])
+    probe = win_pipe.probe_process(pid)
+    assert probe.status is ProcessStatus.ALIVE and probe.identity is not None
+    assert probe.identity.created_at_filetime == filetime, "自证 FILETIME 与内核不一致"
+    return process, probe.identity
+
+
+def _cleanup_sleeper(process: subprocess.Popen, identity: ProcessIdentity) -> list[dict]:
+    """核验后终止 sleeper：先**真实子进程**（自证身份），再 launcher（若有），都不是广杀。"""
+    evidence: list[dict] = []
+    if identity.pid is not None:
+        probe = win_pipe.probe_process(int(identity.pid))
+        if probe.status is ProcessStatus.ALIVE:
+            evidence.append(
+                win_pipe.terminate_verified_process(int(identity.pid), identity.created_at_filetime)
+            )
+    launcher = win_pipe.ProcessIdentityHandle.open(int(process.pid))
+    if launcher is not None:
+        try:
+            if launcher.is_alive():
+                evidence.append(
+                    win_pipe.terminate_verified_process(int(process.pid), launcher.filetime)
+                )
+        finally:
+            launcher.close()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:  # pragma: no cover - 失败路径
+        pass
+    return evidence
 
 
 def _write_secret_for_child(tmp_path, child: ChildHandle, terminal_id: str, token: str) -> None:
@@ -1195,17 +1343,8 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
     terminal_id = "term_impostor01"
     token = _sentinel_token()
     own_identity = win_pipe.current_process_identity()
-    # 预期 runner：另一个真实自建进程（它会立刻退出，但身份可核验）
-    expected_process = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(30)"],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    expected_probe = win_pipe.ProcessIdentityHandle.open(expected_process.pid)
-    assert expected_probe is not None
-    expected_filetime = expected_probe.filetime
-    expected_probe.close()
+    # 预期 runner：另一个真实自建进程（自证 pid + 内核核验，uv 蹦床下也不靠 Popen.pid）
+    expected_process, expected_identity = _spawn_sleeper(30.0)
     try:
         store = secret_store.SecretStore(tmp_path / "data")
         store.write_secret(
@@ -1213,8 +1352,8 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
                 terminal_id=terminal_id,
                 pipe_name=win_pipe.pipe_name_for(terminal_id),
                 token=token,
-                runner_pid=expected_process.pid,
-                runner_filetime=expected_filetime,
+                runner_pid=int(expected_identity.pid),
+                runner_filetime=expected_identity.created_at_filetime,
                 created_at=time.time(),
                 updated_at=time.time(),
             )
@@ -1254,12 +1393,18 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
                 time.sleep(0.02)
             return list(received)
 
+        def credential_bytes() -> int:
+            """冒充者实际收到的字节数（0 = 一个凭据字节都没发出去）。"""
+            return sum(len(chunk) for chunk in received if isinstance(chunk, bytes))
+
         # 1) PID 不符（冒充者 PID 与秘密中的 runner PID 不同）→ 拒绝，零字节
         session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
         with pytest.raises(ipc.AuthenticationError):
             session.handshake()
         connection.close(timeout=1.0)
-        assert wait_received(1) == [b""], f"绝不能把凭据发给冒充者: {received!r}"
+        wait_received(1, timeout=2.0)  # 给冒充者一点时间记录（可能因连上即断而没记录）
+        assert credential_bytes() == 0, f"绝不能把凭据发给冒充者: {received!r}"
+        assert all(b"hello" not in chunk for chunk in received if isinstance(chunk, bytes))
 
         # 2) PID 相同但 raw FILETIME 不符（模拟 PID 复用）→ 同样拒绝、零字节
         store.update_runner_identity(terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime + 1)
@@ -1267,7 +1412,9 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
         with pytest.raises(ipc.AuthenticationError):
             session.handshake()
         connection.close(timeout=1.0)
-        assert wait_received(2) == [b"", b""], f"FILETIME 不符时必须拒绝: {received!r}"
+        wait_received(2, timeout=2.0)
+        assert credential_bytes() == 0, f"FILETIME 不符时必须拒绝: {received!r}"
+        assert all(b"hello" not in chunk for chunk in received if isinstance(chunk, bytes))
 
         # 对照：身份精确匹配 → 客户端进入凭据交换；冒充者不持有 token ⇒ 服务器侧认证失败
         store.update_runner_identity(
@@ -1308,9 +1455,7 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path):
         client_connection.close(timeout=1.0)
         assert impostor.close(timeout=2.0).converged is True
     finally:
-        if expected_process.poll() is None:
-            win_pipe.terminate_verified_process(expected_process.pid, expected_filetime)
-        expected_process.wait(timeout=10)
+        _cleanup_sleeper(expected_process, expected_identity)
 
 
 @windows_only
@@ -1467,34 +1612,30 @@ def test_client_that_leaves_before_connect_call_does_not_break_accept(tmp_path):
 
 @windows_only
 def test_verified_terminate_refuses_identity_mismatch(tmp_path):
-    """清理纪律：没有 raw FILETIME 或 FILETIME 不匹配一律拒绝终止。"""
-    process = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(30)"],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    """清理纪律：没有 raw FILETIME 或 FILETIME 不匹配一律拒绝终止。
+
+    进程身份来自子进程**自证** + 内核同 handle 核验（uv 蹦床下 Popen.pid ≠ 真实 pid）。
+    """
+    process, identity = _spawn_sleeper(30.0)
     try:
-        handle = win_pipe.ProcessIdentityHandle.open(process.pid)
+        handle = win_pipe.ProcessIdentityHandle.open(int(identity.pid))
         assert handle is not None
         try:
             assert handle.probe().status is ProcessStatus.ALIVE
             assert handle.is_alive() is True
-            mismatch = win_pipe.terminate_verified_process(process.pid, handle.filetime + 1)
+            mismatch = win_pipe.terminate_verified_process(identity.pid, handle.filetime + 1)
             assert mismatch["terminated"] is False and mismatch["filetimeMatch"] is False
-            no_identity = win_pipe.terminate_verified_process(process.pid, None)
+            no_identity = win_pipe.terminate_verified_process(identity.pid, None)
             assert no_identity["terminated"] is False
             assert process.poll() is None, "身份未核验时绝不能杀进程"
-            verified = win_pipe.terminate_verified_process(process.pid, handle.filetime)
+            verified = win_pipe.terminate_verified_process(identity.pid, handle.filetime)
             assert verified["terminated"] is True and verified["filetimeMatch"] is True
-            process.wait(timeout=5)
+            process.wait(timeout=10)
             assert handle.is_alive() is False, "同一句柄的 Wait 必须能确认退出"
         finally:
             handle.close()
     finally:
-        if process.poll() is None:  # pragma: no cover - 失败兜底
-            process.kill()
-            process.wait(timeout=5)
+        _cleanup_sleeper(process, identity)
 
 
 @windows_only
@@ -1528,11 +1669,11 @@ def test_invalid_handle_values_are_detected():
 def test_pipe_creation_parameters_carry_owner_only_dacl_and_reject_remote(monkeypatch):
     """结构性证据：创建参数必须带 FIRST_PIPE_INSTANCE（首实例）、owner-only SA，
     且 ``PIPE_REJECT_REMOTE_CLIENTS`` 出现在 **dwPipeMode**（跨主机实测未做）。"""
-    recorded: dict = {}
+    recorded: list[dict] = []
     real_create = win_pipe._k32.CreateNamedPipeW  # noqa: SLF001 - 测试 spy
 
     def spy(name, open_mode, pipe_mode, instances, out_buf, in_buf, timeout, sa):
-        recorded.update(
+        recorded.append(
             {
                 "name": name,
                 "open_mode": open_mode,
@@ -1550,16 +1691,23 @@ def test_pipe_creation_parameters_carry_owner_only_dacl_and_reject_remote(monkey
     server = win_pipe.PipeServer("term_spy", max_instances=3)
     server.create()
     try:
-        assert recorded["open_mode"] & win_pipe.FILE_FLAG_FIRST_PIPE_INSTANCE, "首实例必须独占占名"
-        assert not (recorded["open_mode"] & win_pipe.PIPE_REJECT_REMOTE_CLIENTS), (
-            "PIPE_REJECT_REMOTE_CLIENTS 放进 dwOpenMode 会被 Win32 判为 ERROR_INVALID_PARAMETER"
-        )
-        assert recorded["pipe_mode"] & win_pipe.PIPE_REJECT_REMOTE_CLIENTS
-        # 字节流 + 阻塞模式下不应带消息模式/非阻塞位（PIPE_TYPE_BYTE 为 0，故检查反位）
-        assert recorded["pipe_mode"] & (0x4 | 0x2 | 0x1) == 0, "必须是 PIPE_TYPE_BYTE|READMODE_BYTE|WAIT"
-        assert recorded["instances"] == 3
-        assert recorded["sa"], "必须传入非空 SECURITY_ATTRIBUTES（owner-only DACL 从创建时生效）"
-        assert recorded["name"] == win_pipe.pipe_name_for("term_spy")
+        assert recorded, "create() 必须至少创建一个实例"
+        first = recorded[0]
+        assert first["open_mode"] & win_pipe.FILE_FLAG_FIRST_PIPE_INSTANCE, "首实例必须独占占名"
+        for entry in recorded:
+            assert not (entry["open_mode"] & win_pipe.PIPE_REJECT_REMOTE_CLIENTS), (
+                "PIPE_REJECT_REMOTE_CLIENTS 放进 dwOpenMode 会被 Win32 判为 ERROR_INVALID_PARAMETER"
+            )
+            assert entry["pipe_mode"] & win_pipe.PIPE_REJECT_REMOTE_CLIENTS
+            # 字节流 + 阻塞模式：不得带消息模式/非阻塞位（PIPE_TYPE_BYTE 为 0，故检查反位）
+            assert entry["pipe_mode"] & (0x4 | 0x2 | 0x1) == 0
+            assert entry["instances"] == 3
+            assert entry["sa"], "必须传入非空 SECURITY_ATTRIBUTES（owner-only DACL 从创建时生效）"
+            assert entry["name"] == win_pipe.pipe_name_for("term_spy")
+        assert all(
+            not (entry["open_mode"] & win_pipe.FILE_FLAG_FIRST_PIPE_INSTANCE)
+            for entry in recorded[1:]
+        ), "FIRST_PIPE_INSTANCE 只能用于首个实例（F4）"
     finally:
         server.close(timeout=1.0)
 
@@ -1587,3 +1735,717 @@ def test_owner_only_dacl_on_pipe_is_applied_to_current_user_only():
     assert "FILE_FLAG_FIRST_PIPE_INSTANCE" in source
     # 远端拒绝 / 其它 Windows 用户连接被拒未实测（需要第二主机/第二账户）
     assert "未做的负验证" in source
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r2 返工：独立复核 21 负例 → 安全正向回归（F1/F2/F12/F3/F4/F5/F6/F11）
+#
+# 这些用例由只读复核树 audit/terminal/implementation/ipc-review/tests 的负例
+# 转换而来：原负例断言「缺陷存在」，这里断言「缺陷不存在」的安全正向期望。
+# 转换前先在本文件所在的未修复代码上运行，保留 pre-fix 失败证据（evidence/r2）。
+# ══════════════════════════════════════════════════════════════════════════
+
+FOREIGN_TERMINAL = "term_elsewhere"
+
+
+class _CloseHandleSpy:
+    """按句柄值选择性失败的 CloseHandle 包装（F3：关闭结果必须被检查）。
+
+    ``fail_all``/``fail_values`` 期间返回 0（失败）；``disable()`` 后恢复真实语义，
+    用于验证「失败保留资源 → 重试收敛」。
+    """
+
+    def __init__(self, monkeypatch, *, fail_values=(), fail_all: bool = False):
+        self.real = win_pipe._k32.CloseHandle  # noqa: SLF001 - 测试 spy
+        self.calls: dict[int, int] = {}
+        self.failed: dict[int, int] = {}
+        self.fail_values = {int(value) for value in fail_values}
+        self.fail_all = bool(fail_all)
+        self._active = True
+        monkeypatch.setattr(win_pipe._k32, "CloseHandle", self._close)  # noqa: SLF001
+
+    def _close(self, handle):  # noqa: ANN001 - ctypes HANDLE
+        try:
+            value = int(getattr(handle, "value", handle) or 0)
+        except (TypeError, ValueError):  # pragma: no cover - 非整数值
+            value = 0
+        self.calls[value] = self.calls.get(value, 0) + 1
+        if self._active and (self.fail_all or value in self.fail_values):
+            self.failed[value] = self.failed.get(value, 0) + 1
+            return 0
+        return self.real(handle)
+
+    def disable(self) -> None:
+        self._active = False
+
+    @property
+    def failed_total(self) -> int:
+        return sum(self.failed.values())
+
+
+# ── F1：run_handler 统一认证 / schema / request 类型 / terminal_id 严格绑定 ──
+
+
+def test_f1_run_handler_requires_authentication_and_never_invokes_handler():
+    """未认证 session 的 run_handler 必须拒绝（零 handler 调用），与其他业务入口一致。"""
+    server = ipc.IpcSession(
+        FakeTransport(queue.Queue(), queue.Queue(), SERVER_PID, CLIENT_PID),
+        role="server",
+        token=ipc.generate_token(),
+        terminal_id="term_review",
+        local_identity=SERVER_IDENTITY,
+        identity_probe=_identity_probe,
+        timeout=1.0,
+    )
+    assert server.authenticated is False
+    calls: list = []
+    request = _valid_request()
+
+    with pytest.raises(ipc.AuthenticationError):
+        server.run_handler(request, lambda req: calls.append(req) or {"status": "ok"})
+    assert calls == [], "未认证 session 不得调用业务 handler"
+
+    # 对照：同一未认证 session 的其他业务入口同样拒绝
+    with pytest.raises(ipc.AuthenticationError):
+        server.recv_message(timeout=0.01)
+    with pytest.raises(ipc.AuthenticationError):
+        server.serve(lambda req: calls.append(req) or {}, max_requests=1, idle_timeout=0.05)
+    assert calls == []
+
+
+def test_f1_auth_failure_blocks_run_handler_too():
+    """握手失败后（authenticated=False）run_handler 与 serve 一样拒绝。"""
+    server, client, _, _ = _session_pair(client_token=ipc.generate_token())
+    results = _handshake(server, client)
+    assert isinstance(results["server"], ipc.AuthenticationError)
+    assert server.authenticated is False
+    calls: list = []
+    with pytest.raises(ipc.AuthenticationError):
+        server.run_handler(_valid_request(), lambda req: calls.append(req) or {"status": "ok"})
+    assert calls == []
+
+
+def test_f1_run_handler_binds_request_terminal_id_to_session():
+    """一个 runner 只服务一个 terminal：业务帧 terminal_id 必须与会话绑定一致。"""
+    server, client, _, client_transport = _session_pair(terminal_id="term_session")
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+    assert server.terminal_id == "term_session"
+
+    calls: list = []
+    foreign = _valid_request(terminal_id=FOREIGN_TERMINAL)
+    response = server.run_handler(foreign, lambda req: calls.append(req) or {"status": "ok"})
+    assert response["type"] == "error" and response["error"] == "terminal-mismatch"
+    assert response["request_id"] == foreign["request_id"]
+    assert calls == [], "跨 terminal_id 的请求绝不能被路由给 handler"
+    assert server.diagnostics.as_dict()["rejected_terminal_mismatch"] >= 1
+
+    # 匹配的 terminal_id 正常执行
+    mine = _valid_request(terminal_id="term_session")
+    ok = server.run_handler(mine, lambda req: calls.append(req) or {"status": "ok"})
+    assert ok["ok"] is True and len(calls) == 1
+
+
+def test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable():
+    """外部（管道）路径同样严格绑定，且一次非法请求不破坏连接。"""
+    server, client, _, client_transport = _session_pair(terminal_id="term_auth")
+    results = _handshake(server, client)
+    assert isinstance(results["server"], ipc.AuthResult)
+    assert isinstance(results["client"], ipc.AuthResult)
+
+    handled: list = []
+    thread = threading.Thread(
+        target=lambda: server.serve(
+            lambda req: handled.append(req) or {"status": "ok"}, max_requests=2, idle_timeout=2.0
+        )
+    )
+    thread.start()
+    client_transport.send_frame(_valid_request(terminal_id=FOREIGN_TERMINAL))
+    first = client_transport.recv_frame(timeout=3.0)
+    assert first is not None and first["type"] == "error" and first["error"] == "terminal-mismatch"
+    client_transport.send_frame(_valid_request(terminal_id="term_auth"))
+    second = client_transport.recv_frame(timeout=3.0)
+    assert second is not None and second["type"] == "response" and second["ok"] is True
+    thread.join(5)
+    assert [entry["terminal_id"] for entry in handled] == ["term_auth"]  # 只执行合法的那条
+
+
+def test_f1_run_handler_rejects_invalid_schema_and_non_request_types():
+    """run_handler 必须自己校验 schema 与消息类型（不依赖调用方先校验）。"""
+    server, client, _, _ = _session_pair(terminal_id="term_schema")
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+    calls: list = []
+
+    bad_frames = [
+        {"v": 1, "type": "request", "request_id": "not-a-request-id", "terminal_id": "term_schema"},
+        {"v": 2, "type": "request", "request_id": "r-" + "0" * 16, "terminal_id": "term_schema"},
+        {"v": 1, "type": "response", "request_id": "r-" + "0" * 16, "ok": True},
+        {"v": 1, "type": "event", "payload": {"status": "x"}},
+        {"v": 1, "type": "unknown-type"},
+        {"not": "even a frame"},
+    ]
+    for frame in bad_frames:
+        with pytest.raises(ipc.ProtocolError):
+            server.run_handler(frame, lambda req: calls.append(req) or {"status": "ok"})
+    assert calls == [], "schema/类型非法时不得调用 handler"
+
+
+# ── F2：per-request 响应分派与并发纪律 ──
+
+
+def test_f2_call_returns_only_its_own_response_and_other_response_is_kept():
+    """call(B) 不得被 A 的响应满足；A 的响应必须留待其请求者取回（per-request 分派）。"""
+    server, client, server_transport, client_transport = _session_pair()
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+
+    entry_a = client.send_request(ipc.OP_SNAPSHOT, {"timeout_ms": 1000}, timeout_ms=5000)
+    outcome: dict = {}
+
+    def caller_b():
+        try:
+            outcome["message"] = client.call(ipc.OP_INPUT, {"data_b64": "QQ=="}, timeout_ms=5000)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=caller_b, name="caller-B")
+    thread.start()
+    sent_a = server_transport.inbox.get(timeout=3)
+    assert sent_a["request_id"] == entry_a.request_id
+    sent_b = server_transport.inbox.get(timeout=3)
+    entry_b_id = sent_b["request_id"]
+
+    # 先投递 A 的响应：它不满足 B，也不能被丢弃
+    server_transport.send_frame(ipc.build_response(entry_a.request_id, {"status": "snapshot-of-A"}))
+    time.sleep(0.1)
+    assert thread.is_alive(), "call(B) 不得被 A 的响应错误满足"
+    server_transport.send_frame(ipc.build_response(entry_b_id, {"status": "input-of-B"}))
+    thread.join(5)
+    message = outcome.get("message")
+    assert message is not None, outcome.get("error")
+    assert message["request_id"] == entry_b_id, "call(B) 必须返回 B 自己的响应"
+    assert message["payload"]["status"] == "input-of-B"
+
+    # A 的响应未丢：可以从会话上按 request_id 取回
+    a_message = client.wait_response(entry_a.request_id, timeout=2.0)
+    assert a_message["request_id"] == entry_a.request_id
+    assert a_message["payload"]["status"] == "snapshot-of-A"
+    assert client.pending.pending_count == 0
+
+
+def test_f2_two_concurrent_calls_do_not_cross_deliver():
+    """两个并发 call 交错时各拿自己的响应（不得跨交付）。"""
+    server, client, server_transport, _ = _session_pair()
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+
+    outcome: dict = {}
+    started = threading.Barrier(2)
+
+    def caller(name: str, op: str, payload: dict, status: str) -> None:
+        started.wait(timeout=5)
+        try:
+            message = client.call(op, payload, timeout_ms=5000)
+            outcome[name] = (status, message)
+        except Exception as exc:  # noqa: BLE001
+            outcome[name] = ("error", exc)
+
+    threads = [
+        threading.Thread(target=caller, args=("one", ipc.OP_SNAPSHOT, {"timeout_ms": 500}, "s1")),
+        threading.Thread(target=caller, args=("two", ipc.OP_READ, {"cursor": 0}, "s2")),
+    ]
+    for thread in threads:
+        thread.start()
+    requests = [server_transport.inbox.get(timeout=3), server_transport.inbox.get(timeout=3)]
+    by_op = {request["payload"]["op"]: request for request in requests}
+    snapshot_request = by_op[ipc.OP_SNAPSHOT]
+    read_request = by_op[ipc.OP_READ]
+    # 故意反序投递：先回 read（two），再回 snapshot（one）
+    server_transport.send_frame(ipc.build_response(read_request["request_id"], {"status": "s2"}))
+    server_transport.send_frame(ipc.build_response(snapshot_request["request_id"], {"status": "s1"}))
+    for thread in threads:
+        thread.join(5)
+        assert not thread.is_alive()
+
+    for name, (expected_status, message) in outcome.items():
+        assert not isinstance(message, Exception), f"{name}: {message!r}"
+        expected_request = read_request if expected_status == "s2" else snapshot_request
+        assert message["request_id"] == expected_request["request_id"], (
+            f"{name} 收到别人的响应: {message['request_id']} != {expected_request['request_id']}"
+        )
+        assert message["payload"]["status"] == expected_status, (
+            f"{name} 收到别人的响应: {message['request_id']} -> {message['payload']}"
+        )
+    assert client.pending.pending_count == 0
+
+
+def test_f2_recv_message_does_not_steal_pending_call_responses():
+    """并发 ``recv_message`` 只能拿到非响应帧；响应帧必须路由给等待者。"""
+    server, client, server_transport, _ = _session_pair()
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+
+    call_result: dict = {}
+
+    def caller():
+        try:
+            call_result["message"] = client.call(ipc.OP_READ, {"cursor": 0}, timeout_ms=5000)
+        except Exception as exc:  # noqa: BLE001
+            call_result["error"] = exc
+
+    thread = threading.Thread(target=caller, name="caller-C")
+    thread.start()
+    request = server_transport.inbox.get(timeout=3)
+
+    event_seen: dict = {}
+
+    def reader():
+        try:
+            event_seen["message"] = client.recv_message(timeout=3.0)
+        except Exception as exc:  # noqa: BLE001
+            event_seen["error"] = exc
+
+    reader_thread = threading.Thread(target=reader, name="reader-D")
+    reader_thread.start()
+    time.sleep(0.1)
+    # 服务器先发响应（属于 caller-C），再发事件帧（属于 recv_message）
+    server_transport.send_frame(ipc.build_response(request["request_id"], {"status": "for-C"}))
+    server_transport.send_frame({"v": 1, "type": "event", "payload": {"status": "note"}})
+    thread.join(5)
+    reader_thread.join(5)
+
+    message = call_result.get("message")
+    assert message is not None and message["payload"]["status"] == "for-C"
+    event = event_seen.get("message")
+    assert isinstance(event, dict) and event["type"] == "event"
+    assert event["payload"]["status"] == "note"
+
+
+# ── F12：固化期限不得在 claim→handler 被放宽；私有 deadline 不可伪造 ──
+
+
+def test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch():
+    """scheduler 入队固化的期限必须在 dispatch 时仍然生效（不重算放宽）。"""
+    server, client, _, _ = _session_pair(terminal_id="term_deadline")
+    results = _handshake(server, client)
+    assert isinstance(results["client"], ipc.AuthResult)
+
+    now = time.time()
+    request = ipc.build_request(
+        ipc.OP_READ, {"cursor": 0}, terminal_id="term_deadline", timeout_ms=150, deadline=now + 3600.0
+    )
+    scheduler = ipc.RequestScheduler()
+    assert scheduler.submit(request, now=now) is ipc.SubmitOutcome.ACCEPTED
+    claimed = scheduler.claim(now=now)
+    assert claimed is not None
+
+    time.sleep(0.25)  # 已越过固化期限（now + 0.150）
+    calls: list = []
+    response = server.run_handler(claimed, lambda req: calls.append(req) or {"status": "ok"})
+    assert calls == [], "固化期限已过的请求不得在 dispatch 时被放宽执行"
+    assert response["type"] == "error" and response["error"] == "expired"
+
+
+def test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged():
+    """claim 必须把固化期限交给 dispatch；客户端字段不能伪造该私有期限。"""
+    now = time.time()
+    scheduler = ipc.RequestScheduler()
+    request = ipc.build_request(
+        ipc.OP_READ, {"cursor": 0}, terminal_id="term_deadline", timeout_ms=150, deadline=now + 3600.0
+    )
+    assert scheduler.submit(request, now=now) is ipc.SubmitOutcome.ACCEPTED
+    claimed = scheduler.claim(now=now)
+    assert claimed is not None
+    frozen = getattr(claimed, "deadline", None)
+    assert frozen is not None, "claim 必须返回携带固化期限的请求对象"
+    assert frozen == pytest.approx(now + 0.150, abs=0.05)
+    assert frozen < now + 3600.0, "sender 的远未来 deadline 不得覆盖本地预算"
+
+    # 客户端（线上帧）不得携带任何私有/未知字段
+    forged = {
+        "v": 1,
+        "type": "request",
+        "request_id": "r-" + "0" * 16,
+        "terminal_id": "term_deadline",
+        "payload": {"op": "read", "cursor": 0, "__pan_deadline__": 10.0**18},
+    }
+    with pytest.raises(ipc.MalformedFrameError):
+        ipc.validate_message(forged)
+    forged_top = dict(forged)
+    forged_top["payload"] = {"op": "read", "cursor": 0}
+    forged_top["__pan_deadline__"] = 10.0**18
+    with pytest.raises(ipc.MalformedFrameError):
+        ipc.validate_message(forged_top)
+
+
+# ── F3：CloseHandle 结果必须被检查，失败保留资源可重试 ──
+
+
+@windows_only
+def test_f3_connection_close_reports_closehandle_failure_and_is_retryable(monkeypatch):
+    """CloseHandle 失败时不得声称已关闭；恢复后重试必须收敛（句柄恰好关闭一次）。"""
+    terminal_id = "term_f3_conn"
+    server = win_pipe.PipeServer(terminal_id, max_active_connections=2)
+    server.create()
+    connection = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+
+    connection_handle = int(connection.handle)
+    spy = _CloseHandleSpy(monkeypatch, fail_values=[connection.handle, accepted.handle])
+    try:
+        failed = connection.close(timeout=2.0)
+        assert failed.converged is False and failed.closed is False
+        assert "closehandle" in failed.detail.lower()
+        assert connection.closed is False, "句柄未释放时不得标记 closed"
+        assert spy.failed_total >= 1
+    finally:
+        spy.disable()
+
+    retry = connection.close(timeout=2.0)
+    assert retry.converged is True and retry.closed is True
+    assert spy.calls[connection_handle] >= 2, "关闭失败 + 重试各尝试一次 CloseHandle"
+    accepted.close(timeout=2.0)
+    assert server.close(timeout=2.0).converged is True
+
+
+@windows_only
+def test_f3_retained_read_op_event_close_failure_is_retryable(monkeypatch):
+    """op/event 阶段：保留读操作的事件句柄关闭失败 → 非收敛；重试收敛且不留孤儿。"""
+    terminal_id = "term_f3_op"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    connection = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+    try:
+        # 制造“超时后被保留的读操作”（对端不发数据）
+        assert accepted.recv_frame(timeout=0.1) is None
+        retained = accepted._read_op  # noqa: SLF001 - 断言保留状态
+        assert retained is not None and retained.issued
+        spy = _CloseHandleSpy(monkeypatch, fail_values=[retained.event])
+        try:
+            failed = accepted.close(timeout=2.0)
+            assert failed.converged is False and failed.closed is False
+            assert spy.failed_total >= 1, "事件句柄关闭失败必须被检出"
+            still_referenced = retained in list(accepted._orphan_ops) or accepted._read_op is retained  # noqa: SLF001
+            assert still_referenced, "事件未释放时必须保留引用（内核仍可能写它）"
+            assert retained.event, "未释放的事件句柄值必须保留（供重试）"
+        finally:
+            spy.disable()
+        retry = accepted.close(timeout=3.0)
+        assert retry.converged is True and retry.closed is True
+        assert accepted._read_op is None  # noqa: SLF001
+        assert accepted._orphan_ops == []  # noqa: SLF001
+    finally:
+        connection.close(timeout=2.0)
+        server.close(timeout=2.0)
+
+
+@windows_only
+def test_f3_server_close_reports_failure_and_converges_after_retry(monkeypatch):
+    """server 阶段：CloseHandle 失败 → converged/closed=False；恢复后重试收敛。"""
+    terminal_id = "term_f3_server"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    connection = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+    assert server.own_instances >= 1
+
+    spy = _CloseHandleSpy(monkeypatch, fail_all=True)
+    try:
+        failed = server.close(timeout=1.0)
+        assert failed.converged is False and failed.closed is False
+        assert server.closed is False
+        assert spy.failed_total >= 1
+    finally:
+        spy.disable()
+
+    # 重试：连接 + 服务器都收敛
+    assert accepted.close(timeout=2.0).converged is True
+    connection.close(timeout=2.0)
+    retry = server.close(timeout=3.0)
+    assert retry.converged is True and retry.closed is True
+    assert server.closed is True and server.own_instances == 0
+
+
+# ── F4：名称所有权必须包含已交给 connection 的活动实例 ──
+
+
+@windows_only
+def test_f4_accept_works_while_an_accepted_connection_is_live():
+    """活动连接存在时仍可 accept 第二个客户端（并发连接有界能力可达）。"""
+    terminal_id = "term_f4_concurrent"
+    server = win_pipe.PipeServer(terminal_id, max_active_connections=4)
+    server.create()
+    first_client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    first_accepted = server.accept(timeout=5.0)
+    assert first_accepted is not None
+    assert server.active_connections == 1
+    assert server.name_owned is True, "连接持有的实例必须计入名称所有权"
+
+    second_client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    second_accepted = server.accept(timeout=5.0)
+    assert second_accepted is not None, "活动连接存在时 accept 必须返回第二个连接"
+    assert second_accepted.peer_client_pid() == os.getpid()
+    assert server.active_connections == 2
+
+    # 两个连接各自独立收发
+    first_accepted.send_frame({"v": 1, "type": "ping"})
+    assert second_accepted.recv_frame(timeout=0.5) is None
+    assert first_client.recv_frame(timeout=2.0) is not None
+    second_accepted.send_frame({"v": 1, "type": "ping"})
+    assert second_client.recv_frame(timeout=2.0) is not None
+
+    for connection in (first_client, second_client, first_accepted, second_accepted):
+        connection.close(timeout=2.0)
+    assert server.active_connections == 0
+    assert server.close(timeout=2.0).converged is True
+    assert server.own_instances == 0
+
+
+@windows_only
+def test_f4_first_instance_flag_only_for_the_first_live_instance(monkeypatch):
+    """FIRST 只用于**首个**实例；已有活动实例时新建实例不得带该标志（否则必然抛错）。"""
+    terminal_id = "term_f4_flag"
+    recorded: list[tuple[int, int]] = []
+    real_create = win_pipe._k32.CreateNamedPipeW  # noqa: SLF001
+
+    def spy(name, open_mode, pipe_mode, instances, out_buf, in_buf, timeout, sa):
+        recorded.append((open_mode, instances))
+        return real_create(name, open_mode, pipe_mode, instances, out_buf, in_buf, timeout, sa)
+
+    monkeypatch.setattr(win_pipe._k32, "CreateNamedPipeW", spy)  # noqa: SLF001
+    server = win_pipe.PipeServer(terminal_id, max_active_connections=2)
+    server.create()
+    client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+    second_client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    second_accepted = server.accept(timeout=5.0)
+    assert second_accepted is not None
+
+    assert len(recorded) >= 2
+    assert recorded[0][0] & win_pipe.FILE_FLAG_FIRST_PIPE_INSTANCE, "首个实例必须独占占名"
+    assert not (recorded[1][0] & win_pipe.FILE_FLAG_FIRST_PIPE_INSTANCE), (
+        "已有活动实例时不得再带 FIRST_PIPE_INSTANCE"
+    )
+    for connection in (client, accepted, second_client, second_accepted):
+        connection.close(timeout=2.0)
+    assert server.close(timeout=2.0).converged is True
+
+
+@windows_only
+def test_f4_rearm_after_last_instance_prevents_squatting_window(tmp_path, child_runner):
+    """最后一个实例释放后重新占名：必须重新做 FIRST 检测，占名者存在即拒绝。"""
+    terminal_id = "term_f4_rearm"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    assert server.own_instances >= 1, "实例池在运行期间始终持有名称（无冒充窗口）"
+    client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+    accepted.close(timeout=2.0)
+    client.close(timeout=2.0)
+    assert server.close(timeout=2.0).converged is True
+    assert server.own_instances == 0, "释放全部实例后不得再声称持有名称"
+
+    # 释放后冒充者抢占管道名 → **新建**服务器重新占名必须显式失败（绝不复用同名管道）
+    squatter = child_runner("squat", terminal_id, str(tmp_path / "data"), {"hold_seconds": 10.0})
+    squatter.wait_report(lambda data: data.get("reason") in ("squatting", "squat-failed"), timeout=10.0)
+    if squatter.report().get("reason") != "squatting":
+        pytest.skip(f"squatter could not create the pipe (error={squatter.report().get('create_error')})")
+    fresh = win_pipe.PipeServer(terminal_id)
+    with pytest.raises(win_pipe.PipeBusyError):
+        fresh.create()
+    assert fresh.name_owned is False, "创建失败后不得声称持有名称"
+    assert fresh.close(timeout=1.0).converged is True
+
+
+# ── F5：未 issued 的 accept 直接释放；取消后重建；close 可重试收敛 ──
+
+
+@windows_only
+def test_f5_close_converges_after_cancel_accept_rearms_pending():
+    """cancel_accept 重建（issued=False）后，close 必须收敛并可幂等重试。"""
+    terminal_id = "term_f5_rearm"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    assert server.accept(timeout=0.2) is None  # issued=True 保留实例
+    assert server.cancel_accept() is True  # 丢弃 + 重建（issued=False）
+    assert server.name_owned is True
+
+    first = server.close(timeout=1.0)
+    assert first.converged is True and first.closed is True, "未 issued 的 pending 必须直接释放"
+    second = server.close(timeout=0.5)
+    assert second.converged is True and second.closed is True
+    assert server.closed is True and server.own_instances == 0
+
+
+@windows_only
+def test_f5_close_after_accept_timeout_cancels_the_landed_instance():
+    """accept 超时（issued=True）后 close 必须取消并等其落地，然后收敛。"""
+    terminal_id = "term_f5_issued"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    assert server.accept(timeout=0.1) is None
+    assert server.own_instances >= 1
+    report = server.close(timeout=2.0)
+    assert report.converged is True and report.closed is True
+    assert server.own_instances == 0
+    assert server.close(timeout=0.2).converged is True
+
+
+# ── F6：admission→发行→取消竞态封闭；每次 close 补取消 ──
+
+
+@windows_only
+def test_f6_close_race_with_read_issuance_converges_on_retry(monkeypatch):
+    """close 先于 ReadFile 发起时，重试必须补发取消并收敛（不得留下不可取消的读）。"""
+    terminal_id = "term_f6_race"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    connection = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+
+    gate = threading.Event()
+    real_issue = win_pipe.PipeConnection._issue_read  # noqa: SLF001
+
+    def gated_issue(self, max_bytes):  # noqa: ANN001
+        assert gate.wait(10.0), "gate never opened"
+        return real_issue(self, max_bytes)
+
+    monkeypatch.setattr(win_pipe.PipeConnection, "_issue_read", gated_issue)
+
+    state: dict = {}
+
+    def blocked_read():
+        try:
+            state["result"] = accepted.recv_frame(timeout=None)
+        except Exception as exc:  # noqa: BLE001
+            state["error"] = type(exc).__name__
+
+    worker = threading.Thread(target=blocked_read, name="f6-read", daemon=True)
+    worker.start()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and accepted.in_flight < 1:
+        time.sleep(0.005)
+    assert accepted.in_flight == 1, "读线程必须在读操作准入后才继续"
+
+    first = accepted.close(timeout=0.2)  # 取消先于 ReadFile 发起（竞态窗口）
+    assert first.converged is False and first.closed is False
+    gate.set()  # 放行 → ReadFile 真正发起；F6 修复应在发起后立即补发定向取消
+    try:
+        retry = accepted.close(timeout=2.0)
+        worker.join(5.0)
+        assert retry.converged is True and retry.closed is True, "重试必须补发取消并收敛"
+        assert not worker.is_alive(), "取消必须收敛并 join，不得留下不可取消的挂起读"
+        assert accepted._read_op is None  # noqa: SLF001
+        assert accepted._orphan_ops == []  # noqa: SLF001
+        assert state.get("error") in ("PipeCancelled", "PipeClosed")
+    finally:
+        monkeypatch.undo()
+        connection.close(timeout=2.0)
+        server.close(timeout=2.0)
+
+
+@windows_only
+def test_f6_every_close_attempt_reissues_cancel(monkeypatch):
+    """close 每次调用都必须补发 CancelIoEx（幂等），而不是只在首次进入时取消。"""
+    terminal_id = "term_f6_recancel"
+    server = win_pipe.PipeServer(terminal_id)
+    server.create()
+    client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0).connect()
+    accepted = server.accept(timeout=5.0)
+    assert accepted is not None
+
+    calls: list = []
+    real_cancel = win_pipe._k32.CancelIoEx  # noqa: SLF001
+
+    def counting_cancel(handle, overlapped):  # noqa: ANN001
+        try:
+            calls.append(int(getattr(handle, "value", handle) or 0))
+        except (TypeError, ValueError):  # pragma: no cover
+            calls.append(-1)
+        return real_cancel(handle, overlapped)
+
+    state: dict = {}
+
+    def blocked_read():
+        try:
+            state["result"] = accepted.recv_frame(timeout=None)
+        except Exception as exc:  # noqa: BLE001
+            state["error"] = type(exc).__name__
+
+    worker = threading.Thread(target=blocked_read, name="f6-recancel-read", daemon=True)
+    worker.start()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and accepted.in_flight < 1:
+        time.sleep(0.005)
+    assert accepted.in_flight == 1
+
+    monkeypatch.setattr(win_pipe._k32, "CancelIoEx", counting_cancel)  # noqa: SLF001
+    handle_value = int(accepted.handle)
+    first = accepted.close(timeout=0.0)  # budget 0：在飞读未落地 → 必须报非收敛
+    assert first.converged is False and first.closed is False
+    second = accepted.close(timeout=2.0)  # 重试：必须**补发**取消并收敛
+    worker.join(5.0)
+    assert second.converged is True and second.closed is True
+    assert not worker.is_alive()
+    assert calls.count(handle_value) >= 2, f"每次 close 都必须补发取消: {calls}"
+    client.close(timeout=2.0)
+    server.close(timeout=2.0)
+
+
+# ── F11：子进程身份自证 + 内核核验（uv launcher 蹦床下也成立） ──
+
+
+@windows_only
+def test_f11_child_self_attested_identity_is_kernel_verified(tmp_path, child_runner):
+    """runner 身份来自子进程自证 + 内核同 handle 核验；不按 Popen.pid 猜。"""
+    terminal_id = "term_f11_identity"
+    token = _sentinel_token()
+    child = child_runner("server", terminal_id, str(tmp_path / "data"), {"max_seconds": 20.0})
+    identity = child.identity()
+    report = child.report()
+    assert report["self_identity"]["pid"] == identity.pid
+    assert report["self_identity"]["filetime"] == identity.created_at_filetime
+    probe = win_pipe.probe_process(int(identity.pid))
+    assert probe.status is ProcessStatus.ALIVE and probe.identity is not None
+    assert probe.identity.matches(identity) is True, "自证身份必须与内核同 handle 值精确一致"
+
+    _write_secret_for_child(tmp_path, child, terminal_id, token)
+    session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
+    assert session.handshake().ok
+    assert session.peer.pid == identity.pid
+    assert session.call(ipc.OP_STOP, {"reason": "done"}, timeout_ms=5000)["ok"] is True
+    connection.close(timeout=2.0)
+    assert child.wait_exit(timeout=15.0) == 0
+
+    # 清理证据：真实 runner 已退出（无需终止）；launcher 若不同则是另一个可证身份
+    child.cleanup()
+    if child.launcher_pid != int(identity.pid):
+        assert child.launcher_identity is not None, "uv 蹦床下 launcher 也必须自有可证身份"
+        assert child.launcher_identity.created_at_filetime
+
+
+@windows_only
+def test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line(tmp_path, child_runner):
+    """清理只按自证+核验的 PID 终止，绝不按命令行模式广杀。"""
+    terminal_id = "term_f11_decoy"
+    decoy_process, decoy_identity = _spawn_sleeper(30.0)  # 与被测子进程命令行长得很像
+    try:
+        child = child_runner("squat", terminal_id, str(tmp_path / "data"), {"hold_seconds": 8.0})
+        child.identity()  # 自证 + 内核核验
+        summary = child.cleanup()
+        assert summary["runner"] is not None and summary["runner"]["terminated"] is True
+        assert summary["runner"]["filetimeMatch"] is True
+        # 无关的同名/同命令行进程必须仍然活着
+        probe = win_pipe.probe_process(int(decoy_identity.pid))
+        assert probe.status is ProcessStatus.ALIVE, "清理不得按命令行广杀无关进程"
+        assert decoy_process.poll() is None
+    finally:
+        _cleanup_sleeper(decoy_process, decoy_identity)

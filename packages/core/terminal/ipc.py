@@ -10,7 +10,12 @@
    ``win_pipe.PipeConnection`` 通过 ``FrameTransport`` 协议接入（鸭子类型）。
 2. **认证前不碰业务**：``IpcSession`` 在握手成功前拒绝收发任何业务帧；
    ``serve()`` 先握手，握手失败/超时**不调用业务 handler**（handler 只接收
-   已通过认证、且**未过期**的请求）。
+   已通过认证、且**未过期**的请求）。**唯一 handler 调用点 ``run_handler`` 自己
+   带认证门**，并强制 schema/消息类型/``terminal_id`` 与会话绑定（一个 runner 一个
+   终端；不匹配回 ``error: terminal-mismatch`` 且零调用）。
+2b. **per-request 分派**：响应按 ``request_id`` 投递到各自的等待槽位；``call`` 只返回
+   自己的响应，``wait_response`` 可取回 ``send_request`` 的响应；同一时刻只有一个线程
+   做原始读（读者仲裁），并发 ``call``/``send_request``/``recv_message`` 不串线。
 3. **凭据不落日志**：token 只出现在 ``SecretStore`` 的 DPAPI 密文文件与内存中；
    verify 走 ``hmac.compare_digest``；``redact``/``describe_message`` 是日志/
    异常文本的唯一出口（``data_b64``、``mac``、token 永不进入描述文本）。
@@ -21,8 +26,11 @@
    诊断错误条数与长度上界；超界一律**拒绝**（不截断、不静默丢弃）。
 6. **精确整数**：``cursor``/``seq``/``size``/``total_bytes`` 等可能超过 2**53 的
    字段一律以**十进制字符串**上线（消费用 :func:`payload_int`），拒绝浮点，
-   避免任何 Number 舍入（与 64 位身份口径一致）。
-7. **不做迟到执行**：请求携带 ``deadline``（epoch 秒）与 ``timeout_ms``，
+   避免任何 Number 舍入（与 64 位身份口径一致）；下划线开头的私有字段名一律拒绝
+   （内部“可信期限”不可由线上帧伪造）。
+7. **不做迟到执行**：``RequestScheduler.claim`` 返回 ``ClaimedRequest``（携带**入队
+   固化期限**），``run_handler`` 对其只认固化值、不在 dispatch 时重算放宽；请求携带
+   ``deadline``（epoch 秒）与 ``timeout_ms``，
    服务端在**分发前**用 ``min(sender_deadline, now + timeout_ms)`` 复核；
    过期请求回 ``expired`` 错误而**不执行**任何 handler；客户端对超时后到达的
    响应一律丢弃并计入 ``late_responses``；超时的 mutating 请求被标记为
@@ -71,6 +79,8 @@ DEFAULT_MAX_OPERATIONS = 32
 DEFAULT_HANDSHAKE_TIMEOUT = 5.0
 #: 单次帧收发的默认预算。
 DEFAULT_IO_TIMEOUT = 10.0
+#: 非请求帧（event/未知）等待队列上界（有界，溢出丢最旧并计数）。
+DEFAULT_MAX_UNSOLICITED = 64
 #: 请求默认超时（毫秒）。
 DEFAULT_REQUEST_TIMEOUT_MS = 10_000
 #: 请求超时上界（毫秒）——防止“永不超时”的请求把队列占满。
@@ -171,6 +181,10 @@ class TransportTimeout(IpcError):
 
 class RequestTimeout(IpcError):
     """请求在本地预算内没有拿到响应。"""
+
+
+class TerminalMismatchError(ProtocolError):
+    """业务帧的 ``terminal_id`` 与认证会话绑定的终端不一致（一个 runner 一个终端）。"""
 
 
 class OperationQueueFull(IpcError):
@@ -556,11 +570,19 @@ def _check_ident(value: Any, *, name: str) -> str:
     return value
 
 
+def _reject_reserved_fields(mapping: Mapping[str, Any], *, context: str) -> None:
+    """拒绝以下划线开头的字段名：私有/内部字段不得从线上伪造（F12 防御）。"""
+    for key in mapping:
+        if isinstance(key, str) and key.startswith("_"):
+            raise MalformedFrameError(f"reserved field name in {context}: {key!r}")
+
+
 def _validate_payload(payload: Any) -> dict[str, Any]:
     if payload is None:
         return {}
     if not isinstance(payload, Mapping):
         raise MalformedFrameError("payload must be an object")
+    _reject_reserved_fields(payload, context="payload")
     op = payload.get("op")
     if not isinstance(op, str) or op not in _PAYLOAD_KEYS:
         raise MalformedFrameError(f"unknown op: {op!r}")
@@ -622,6 +644,7 @@ def validate_message(message: Mapping[str, Any]) -> dict[str, Any]:
     """校验并规范化一帧；任何未知/畸形/越界都抛 ``ProtocolError`` 子类。"""
     if not isinstance(message, Mapping):
         raise MalformedFrameError("frame must be an object")
+    _reject_reserved_fields(message, context="frame")
     raw_type = message.get("type")
     if not isinstance(raw_type, str):
         raise MalformedFrameError("missing message type")
@@ -919,6 +942,12 @@ class IpcDiagnostics:
     handler_errors: int = 0
     connections_accepted: int = 0
     connections_rejected_capacity: int = 0
+    #: 业务帧 terminal_id 与会话不一致（拒绝且不调 handler）的计数。
+    rejected_terminal_mismatch: int = 0
+    #: ping 自动应答/收到的事件等非请求帧计数。
+    pings: int = 0
+    events: int = 0
+    unsolicited_dropped: int = 0
     errors: deque[str] = field(default_factory=lambda: deque(maxlen=DEFAULT_MAX_DIAGNOSTIC_ERRORS))
 
     def __post_init__(self) -> None:
@@ -1006,6 +1035,14 @@ class PendingRequests:
             self._pending[entry.request_id] = entry
         return entry
 
+    def drop(self, request_id: str) -> bool:
+        """移除在飞登记（发送失败/超时清理用）；不存在返回 ``False``。"""
+        with self._lock:
+            if request_id in self._pending:
+                del self._pending[request_id]
+                return True
+            return False
+
     def expire(self, *, now: float | None = None) -> list[PendingRequest]:
         """把已超时的在飞请求移入“已放弃”集合（迟到响应用于丢弃）。"""
         current = self._clock() if now is None else float(now)
@@ -1051,6 +1088,36 @@ class SubmitOutcome(str, Enum):
     ACCEPTED = "accepted"
     REJECTED_QUEUE_FULL = "rejected-queue-full"
     REJECTED_EXPIRED = "rejected-expired"
+
+
+@dataclass(frozen=True)
+class ClaimedRequest:
+    """``RequestScheduler.claim`` 的分发对象：请求 + **入队时固化**的生效期限。
+
+    为什么不是裸 dict：``run_handler`` 若在 dispatch 时重算 ``now + timeout_ms``，
+    排队/派发延迟会把预算重新放宽（复核 F12）。固化期限随对象传递，且**不是**
+    线上可携带的字段（``validate_message`` 拒绝未知字段），客户端无法伪造。
+    只为读取方便实现 ``__getitem__``/``get``/``__contains__``，不暴露可变入口。
+    """
+
+    request: dict[str, Any]
+    deadline: float
+
+    @property
+    def request_id(self) -> str:
+        return str(self.request.get("request_id", ""))
+
+    def __getitem__(self, key: str) -> Any:
+        return self.request[key]
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.request.get(key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.request
+
+    def as_dict(self) -> dict[str, Any]:
+        return dict(self.request)
 
 
 class RequestScheduler:
@@ -1111,8 +1178,8 @@ class RequestScheduler:
             self.accepted += 1
         return SubmitOutcome.ACCEPTED
 
-    def claim(self, *, now: float | None = None) -> dict[str, Any] | None:
-        """取出下一个未过期请求；过期项丢弃（handler 不会被调用）。"""
+    def claim(self, *, now: float | None = None) -> ClaimedRequest | None:
+        """取出下一个未过期请求（带固化期限）；过期项丢弃（handler 不会被调用）。"""
         current = self._clock() if now is None else float(now)
         with self._lock:
             while self._queue:
@@ -1120,7 +1187,7 @@ class RequestScheduler:
                 if deadline <= current:
                     self.dropped_expired += 1
                     continue
-                return request
+                return ClaimedRequest(request=dict(request), deadline=float(deadline))
         return None
 
     def drain(self) -> int:
@@ -1265,16 +1332,34 @@ def verify_peer_identity(
     )
 
 
+class _ResponseSlot:
+    """单个在飞请求的响应槽（per-request 分派：call 只可能被自己的响应唤醒）。"""
+
+    __slots__ = ("request_id", "event", "message")
+
+    def __init__(self, request_id: str) -> None:
+        self.request_id = request_id
+        self.event = threading.Event()
+        self.message: dict[str, Any] | None = None
+
+
 class IpcSession:
     """一条已连接传输上的认证会话（客户端或服务器侧）。
 
     关键不变量：
 
-    - ``handshake()`` 之前，``recv_request``/``send_request``/``serve`` 全部拒绝
-      （``AuthenticationError``）；
+    - ``handshake()`` 之前，``run_handler``/``serve``/``send_request``/``call``/
+      ``recv_message`` 全部拒绝（``AuthenticationError``）——唯一 handler 调用点
+      ``run_handler`` 自己带认证门，不依赖调用方；
     - 客户端在**核验服务器身份之后**才发送 hello MAC；服务器在**核验 token**之后
       才回 ack 并进入业务循环；
-    - 服务器侧 ``serve()`` 只把未过期请求交给 handler。
+    - **业务帧绑定**：``run_handler`` 校验 schema 与消息类型，并要求
+      ``request["terminal_id"] == self.terminal_id``（一个 runner 只服务一个终端；
+      不匹配 → ``error: terminal-mismatch``，**零 handler 调用**）；
+    - **per-request 响应分派**：响应/错误帧按 ``request_id`` 投递到各自的等待槽位；
+      ``call`` 只返回自己的响应，其他请求的响应留给其等待者（并发 ``call``/
+      ``send_request``/``recv_message`` 由会话内读锁串行化原始读，互不串线）；
+    - 服务器侧 ``serve()`` 只把未被拒绝且未过期的请求交给 handler。
     """
 
     def __init__(
@@ -1293,6 +1378,7 @@ class IpcSession:
         timeout: float = DEFAULT_HANDSHAKE_TIMEOUT,
         diagnostics: IpcDiagnostics | None = None,
         secrets_: Iterable[str | bytes] = (),
+        max_unsolicited: int = DEFAULT_MAX_UNSOLICITED,
     ) -> None:
         if role not in ("client", "server"):
             raise ValueError("role must be 'client' or 'server'")
@@ -1318,6 +1404,16 @@ class IpcSession:
         self.ambiguous_mutations = 0
         self._last_ambiguous_op: str | None = None
         self._lock = threading.Lock()
+        # per-request 分派状态（有界）
+        self._slots: dict[str, _ResponseSlot] = {}
+        self._slots_lock = threading.RLock()
+        self._events_cv = threading.Condition(self._slots_lock)
+        self._unsolicited: deque[dict[str, Any]] = deque(maxlen=int(max_unsolicited))
+        self._read_lock = threading.Lock()
+        self._send_lock = threading.Lock()
+        # 读者仲裁：同一时刻只有一个线程在做原始读；其余等待自己的槽位/事件队列被唤醒。
+        self._reader_lock = threading.Lock()
+        self._reader_active = False
 
     # -- 状态 ----------------------------------------------------------
     @property
@@ -1331,6 +1427,11 @@ class IpcSession:
     @property
     def last_ambiguous_op(self) -> str | None:
         return self._last_ambiguous_op
+
+    @property
+    def pending_slots(self) -> int:
+        with self._slots_lock:
+            return len(self._slots)
 
     def _require_authenticated(self) -> None:
         if self._auth_failure is not None:
@@ -1360,16 +1461,101 @@ class IpcSession:
             self._peer = result.peer
             return result
 
-    def _recv(self, deadline: float, *, expect: str | None = None) -> dict[str, Any]:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise HandshakeTimeout("handshake budget exhausted")
+    # -- 底层帧 I/O（读锁串行化：并发 call/send/recv 互不撕帧） --------
+    def _read_frame(self, deadline_mono: float | None) -> dict[str, Any] | None:
+        """带预算的原始读；多调用者共享同一读锁（等待计入预算）。"""
+        remaining = None
+        if deadline_mono is not None:
+            remaining = deadline_mono - time.monotonic()
+            if remaining <= 0:
+                return None
+        acquired = self._read_lock.acquire(timeout=-1 if remaining is None else max(0.0, remaining))
+        if not acquired:
+            return None
         try:
-            message = self.transport.recv_frame(timeout=remaining)
+            budget = None if deadline_mono is None else max(0.0, deadline_mono - time.monotonic())
+            if budget is not None and budget <= 0:
+                return None
+            return self.transport.recv_frame(timeout=budget)
+        finally:
+            self._read_lock.release()
+
+    def _send_frame(self, message: Mapping[str, Any]) -> None:
+        with self._send_lock:
+            self.transport.send_frame(message)
+        self.diagnostics.bump("frames_out")
+
+    # 读者仲裁：一个线程独占原始读，读到帧后按 request_id 分发；
+    # 其他线程等待自己的槽位/事件队列（被唤醒后立即返回，不等满预算）。
+    def _try_become_reader(self) -> bool:
+        with self._reader_lock:
+            if self._reader_active:
+                return False
+            self._reader_active = True
+            return True
+
+    def _release_reader(self) -> None:
+        with self._reader_lock:
+            self._reader_active = False
+
+    def _pull_unsolicited(self, timeout: float | None) -> dict[str, Any] | None:
+        with self._slots_lock:
+            if self._unsolicited:
+                return dict(self._unsolicited.popleft())
+            if timeout is not None and timeout <= 0:
+                return None
+            # 等待读者把事件帧入队（条件变量由 _deliver 唤醒）
+            self._events_cv.wait(timeout)
+            if self._unsolicited:
+                return dict(self._unsolicited.popleft())
+            return None
+
+    def _deliver(self, frame: Mapping[str, Any]) -> str:
+        """把帧投递到正确目的地：``slot`` / ``caller`` / ``dropped`` / ``pong``。"""
+        frame_type = frame.get("type")
+        request_id = frame.get("request_id")
+        if frame_type in (MessageType.RESPONSE.value, MessageType.ERROR.value) and isinstance(request_id, str):
+            with self._slots_lock:
+                slot = self._slots.get(request_id)
+                if slot is not None:
+                    slot.message = dict(frame)
+                    slot.event.set()
+                    return "slot"
+            if self.role == "server":
+                return "caller"
+            delivered, reason = self.pending.accept_response(frame)
+            if delivered:
+                return "dropped"
+            self.diagnostics.bump("late_responses")
+            self.diagnostics.record_error(f"dropped response: {reason}", self._secrets)
+            return "dropped"
+        if frame_type == MessageType.PING.value:
+            try:
+                self._send_frame(build_pong())
+            except Exception as exc:  # noqa: BLE001 - 保活失败不应打断业务
+                self.diagnostics.record_error(f"pong failed: {type(exc).__name__}", self._secrets)
+            self.diagnostics.bump("pings")
+            return "pong"
+        if frame_type == MessageType.EVENT.value:
+            self.diagnostics.bump("events")
+            with self._slots_lock:
+                if self._unsolicited.maxlen is not None and len(self._unsolicited) == self._unsolicited.maxlen:
+                    self.diagnostics.bump("unsolicited_dropped")
+                self._unsolicited.append(dict(frame))
+                self._events_cv.notify_all()
+            return "queued"
+        return "caller"
+
+    def _recv(self, deadline: float, *, expect: str | None = None) -> dict[str, Any]:
+        """握手专用原始读（分发在认证之后才启用）。"""
+        try:
+            message = self._read_frame(deadline)
         except (TransportClosedError, EOFError, OSError) as exc:
             raise AuthenticationError(f"transport closed during handshake: {type(exc).__name__}") from exc
         if message is None:
-            raise HandshakeTimeout("handshake timed out waiting for peer frame")
+            if time.monotonic() >= deadline:
+                raise HandshakeTimeout("handshake timed out waiting for peer frame")
+            raise HandshakeTimeout("handshake budget exhausted")
         self.diagnostics.bump("frames_in")
         try:
             message = validate_message(message)
@@ -1406,10 +1592,9 @@ class IpcSession:
             bind_pid=server_pid,
             bind_filetime=filetime,
         )
-        self.transport.send_frame(
+        self._send_frame(
             build_hello(client_id=self.client_id, mac=compute_mac(self._token, context), pid=self.local_pid)
         )
-        self.diagnostics.bump("frames_out")
 
         ack = self._recv(deadline, expect=MessageType.HELLO_ACK.value)
         if int(ack.get("pid", -1)) != int(self.local_pid):
@@ -1446,8 +1631,7 @@ class IpcSession:
         local_pid = int(self.local_identity.pid)
         local_filetime = self.local_identity.created_at_filetime
         nonce = generate_nonce()
-        self.transport.send_frame(build_challenge(nonce))
-        self.diagnostics.bump("frames_out")
+        self._send_frame(build_challenge(nonce))
 
         hello = self._recv(deadline, expect=MessageType.HELLO.value)
         client_pid = self.transport.peer_client_pid()
@@ -1488,14 +1672,13 @@ class IpcSession:
             bind_filetime=None,
             extra=f"server={local_pid}:{local_filetime}",
         )
-        self.transport.send_frame(
+        self._send_frame(
             build_hello_ack(
                 server_id=self.server_id,
                 mac=compute_mac(self._token, ack_context),
                 pid=int(client_pid),
             )
         )
-        self.diagnostics.bump("frames_out")
         self.client_id = hello["client_id"]
         return AuthResult(
             ok=True,
@@ -1514,38 +1697,116 @@ class IpcSession:
         timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
         now: float | None = None,
     ) -> PendingRequest:
-        """发送请求并登记到飞表（有界；超时后响应一律丢弃）。"""
+        """发送请求并登记到飞表 + **per-request 响应槽**（有界；超时后响应丢弃）。"""
         self._require_authenticated()
         entry = self.pending.register(op, timeout_ms=timeout_ms, now=now)
-        message = build_request(
-            op,
-            payload,
-            terminal_id=self.terminal_id,
-            request_id=entry.request_id,
-            timeout_ms=timeout_ms,
-            deadline=entry.deadline,
-        )
-        self.transport.send_frame(message)
-        self.diagnostics.bump("frames_out")
+        with self._slots_lock:
+            self._slots[entry.request_id] = _ResponseSlot(entry.request_id)
+        try:
+            message = build_request(
+                op,
+                payload,
+                terminal_id=self.terminal_id,
+                request_id=entry.request_id,
+                timeout_ms=timeout_ms,
+                deadline=entry.deadline,
+            )
+            self._send_frame(message)
+        except Exception:
+            with self._slots_lock:
+                self._slots.pop(entry.request_id, None)
+            self.pending.drop(entry.request_id)
+            raise
         return entry
 
-    def recv_message(self, *, timeout: float | None = None) -> dict[str, Any] | None:
+    def wait_response(
+        self,
+        request_id: str,
+        *,
+        timeout: float | None = None,
+        deadline_mono: float | None = None,
+    ) -> dict[str, Any]:
+        """等待**指定**请求的响应（per-request 分派）；其他请求的帧会转投其槽位。
+
+        这是 ``call`` 与 ``send_request`` 使用者的统一取回路径：响应只会唤醒
+        它自己的等待者，迟到响应（已过期）不投递。同一时刻只有一个线程做原始读
+        （读者仲裁），其余线程等待自己的槽位被唤醒——因此并发 ``call`` 不会串线，
+        也不会互相“偷帧”。
+        """
         self._require_authenticated()
-        message = self.transport.recv_frame(timeout=timeout)
-        if message is None:
-            return None
-        self.diagnostics.bump("frames_in")
-        try:
-            return validate_message(message)
-        except ProtocolError as exc:
-            if isinstance(exc, FrameTooLargeError):
-                self.diagnostics.bump("rejected_oversize")
-            else:
-                self.diagnostics.bump("rejected_frames")
-            self.diagnostics.record_error(
-                f"rejected frame: {describe_message(message)}", self._secrets
-            )
-            raise
+        if deadline_mono is None and timeout is not None:
+            deadline_mono = time.monotonic() + max(0.0, float(timeout))
+        while True:
+            with self._slots_lock:
+                slot = self._slots.get(request_id)
+                if slot is None:
+                    raise IpcError(f"no in-flight request with id {request_id}")
+                if slot.message is not None:
+                    message = slot.message
+                    slot.message = None
+                    del self._slots[request_id]
+                    self.pending.accept_response(message)
+                    return message
+                remaining = None if deadline_mono is None else deadline_mono - time.monotonic()
+                if remaining is not None and remaining <= 0:
+                    raise RequestTimeout(f"request {request_id} timed out before its response arrived")
+            if not self._try_become_reader():
+                # 其他线程正在读：等自己的槽位被唤醒（有界），不等满预算。
+                wait_for = 0.05 if remaining is None else min(0.05, max(0.0, remaining))
+                slot.event.wait(wait_for)
+                slot.event.clear()
+                continue
+            try:
+                frame = self._read_frame(deadline_mono)
+            finally:
+                self._release_reader()
+            if frame is None:
+                if deadline_mono is not None and time.monotonic() >= deadline_mono:
+                    raise RequestTimeout(f"request {request_id} timed out before its response arrived")
+                continue
+            self.diagnostics.bump("frames_in")
+            self._deliver(validate_message(frame))
+
+    def recv_message(self, *, timeout: float | None = None) -> dict[str, Any] | None:
+        """读取下一帧**给调用方的**消息（request/event 等）。
+
+        响应/错误帧按 ``request_id`` 路由到等待者（不在这里返回、也不丢弃），
+        因此并发 ``call`` 与 ``recv_message`` 不会互相偷帧。
+        """
+        self._require_authenticated()
+        deadline_mono = None if timeout is None else time.monotonic() + max(0.0, float(timeout))
+        while True:
+            remaining = None if deadline_mono is None else max(0.0, deadline_mono - time.monotonic())
+            if remaining is not None and remaining <= 0:
+                return self._pull_unsolicited(0.0)
+            if not self._try_become_reader():
+                queued = self._pull_unsolicited(0.05 if remaining is None else min(0.05, remaining))
+                if queued is not None:
+                    return queued
+                continue
+            try:
+                frame = self._read_frame(deadline_mono)
+            finally:
+                self._release_reader()
+            if frame is None:
+                return self._pull_unsolicited(0.0)
+            self.diagnostics.bump("frames_in")
+            try:
+                message = validate_message(frame)
+            except ProtocolError as exc:
+                if isinstance(exc, FrameTooLargeError):
+                    self.diagnostics.bump("rejected_oversize")
+                else:
+                    self.diagnostics.bump("rejected_frames")
+                self.diagnostics.record_error(f"rejected frame: {describe_message(frame)}", self._secrets)
+                raise
+            if self._deliver(message) == "caller":
+                return message
+            # 路由给等待者/保活/事件入队 → 先看事件队列，再继续等调用方可见的帧
+            queued = self._pull_unsolicited(0.0)
+            if queued is not None:
+                return queued
+            continue
 
     def call(
         self,
@@ -1555,54 +1816,71 @@ class IpcSession:
         timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
         io_slack: float = 1.0,
     ) -> dict[str, Any]:
-        """请求-响应：返回响应帧；超时抛 ``RequestTimeout``（mutating 记未知）。
+        """请求-响应：**只**返回本次请求的响应（per-request 分派）。
 
-        超时后到达的响应一律丢弃（``late_responses``），mutating 操作的结果被
-        标记为**未知**（``ambiguous_mutations``）——调用方必须重新取快照，
-        禁止静默重试。
+        超时抛 ``RequestTimeout``：本次请求的响应槽被移除（迟到响应一律丢弃，
+        计入 ``late_responses``），mutating 操作标记为**未知**
+        （``ambiguous_mutations``）——调用方必须重新取快照，禁止静默重试。
         """
         entry = self.send_request(op, payload, timeout_ms=timeout_ms)
-        deadline = entry.deadline + max(0.0, float(io_slack))
-        while True:
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                self.diagnostics.bump("expired_dropped")
-                if entry.mutating:
-                    self.ambiguous_mutations += 1
-                    self._last_ambiguous_op = entry.op
-                self.pending.expire()
-                raise RequestTimeout(
-                    f"request {op!r} timed out; outcome unknown for mutating ops (resync required)"
-                )
-            message = self.recv_message(timeout=remaining)
-            if message is None:
-                continue
-            delivered, reason = self.pending.accept_response(message)
-            if not delivered:
-                self.diagnostics.bump("late_responses")
-                self.diagnostics.record_error(f"dropped response for {op!r}: {reason}", self._secrets)
-                continue
-            return message
+        deadline_mono = time.monotonic() + timeout_ms / 1000.0 + max(0.0, float(io_slack))
+        try:
+            return self.wait_response(entry.request_id, deadline_mono=deadline_mono)
+        except RequestTimeout:
+            self.diagnostics.bump("expired_dropped")
+            if entry.mutating:
+                self.ambiguous_mutations += 1
+                self._last_ambiguous_op = entry.op
+            self.pending.expire()
+            with self._slots_lock:
+                self._slots.pop(entry.request_id, None)
+            raise RequestTimeout(
+                f"request {op!r} timed out; outcome unknown for mutating ops (resync required)"
+            ) from None
 
-    def run_handler(self, request: Mapping[str, Any], handler: Callable[[Mapping[str, Any]], Any]) -> dict[str, Any]:
-        """**唯一**的 handler 调用点（先复核过期，再执行）。
+    def run_handler(self, request: Any, handler: Callable[[Mapping[str, Any]], Any]) -> dict[str, Any]:
+        """**唯一**的 handler 调用点：先认证，再 schema/类型/terminal 绑定/期限，最后执行。
 
-        - 过期（``min(sender_deadline, now + timeout_ms) <= now``）→ 返回
-          ``expired`` 错误响应，handler 不被调用；
-        - handler 异常/非法返回值 → 脱敏错误响应（不返回到业务循环外）。
+        拒绝路径（任一不满足）都**零 handler 调用**：
+
+        1. 未认证/认证失败 → ``AuthenticationError``；
+        2. schema 非法（``validate_message``）→ ``ProtocolError``；
+        3. 不是 ``request`` 类型 → ``ProtocolError``；
+        4. ``terminal_id`` 与会话绑定不一致 → ``error: terminal-mismatch``（一个
+           runner 只服务一个终端，不允许按请求字段做对象路由）；
+        5. 期限已过（``ClaimedRequest`` 用**入队固化**期限；裸帧用
+           ``min(sender_deadline, now + timeout_ms)``，不重算放宽）→ ``error: expired``。
         """
-        request_id = str(request.get("request_id"))
+        self._require_authenticated()
+        claimed = request if isinstance(request, ClaimedRequest) else None
+        body = claimed.request if claimed is not None else request
+        body = validate_message(body)
+        if body.get("type") != MessageType.REQUEST.value:
+            raise ProtocolError(f"run_handler expects a request frame, got {body.get('type')!r}")
+        request_id = str(body.get("request_id"))
+        if body.get("terminal_id") != self.terminal_id:
+            self.diagnostics.bump("rejected_terminal_mismatch")
+            self.diagnostics.record_error(
+                f"terminal mismatch: request={body.get('terminal_id')!r} session={self.terminal_id!r}",
+                self._secrets,
+            )
+            return build_error("terminal-mismatch", request_id=request_id, secrets_=self._secrets)
+
         now = time.time()
-        timeout_ms = int(request.get("timeout_ms", DEFAULT_REQUEST_TIMEOUT_MS))
-        deadline = now + max(1, min(timeout_ms, MAX_REQUEST_TIMEOUT_MS)) / 1000.0
-        sender_deadline = request.get("deadline")
-        if isinstance(sender_deadline, (int, float)) and not isinstance(sender_deadline, bool):
-            deadline = min(float(sender_deadline), deadline)
+        if claimed is not None:
+            deadline = claimed.deadline
+        else:
+            timeout_ms = int(body.get("timeout_ms", DEFAULT_REQUEST_TIMEOUT_MS))
+            deadline = now + max(1, min(timeout_ms, MAX_REQUEST_TIMEOUT_MS)) / 1000.0
+            sender_deadline = body.get("deadline")
+            if isinstance(sender_deadline, (int, float)) and not isinstance(sender_deadline, bool):
+                deadline = min(float(sender_deadline), deadline)
         if deadline <= now:
             self.diagnostics.bump("expired_dropped")
             return build_error("expired", request_id=request_id, secrets_=self._secrets)
+
         try:
-            payload = handler(request)
+            payload = handler(body)
         except Exception as exc:  # noqa: BLE001 - handler 失败不拖死连接
             self.diagnostics.bump("handler_errors")
             self.diagnostics.record_error(f"handler error: {_safe_error_text(exc, self._secrets)}", self._secrets)
@@ -1651,9 +1929,8 @@ class IpcSession:
                 reason = "idle-timeout"
                 break
             message_type = message.get("type")
-            if message_type == MessageType.PING.value:
-                self.transport.send_frame(build_pong())
-                self.diagnostics.bump("frames_out")
+            if message_type == MessageType.EVENT.value:
+                # 事件已由分派器入有界队列；serve 循环只处理请求。
                 continue
             if message_type != MessageType.REQUEST.value:
                 self.diagnostics.bump("rejected_unknown_type")
@@ -1663,8 +1940,7 @@ class IpcSession:
                 )
                 continue
             response = self.run_handler(message, handler)
-            self.transport.send_frame(response)
-            self.diagnostics.bump("frames_out")
+            self._send_frame(response)
             handled += 1
         return {
             "handled": handled,
@@ -1686,6 +1962,7 @@ __all__ = [
     "DEFAULT_MAX_OPERATIONS",
     "DEFAULT_HANDSHAKE_TIMEOUT",
     "DEFAULT_IO_TIMEOUT",
+    "DEFAULT_MAX_UNSOLICITED",
     "DEFAULT_REQUEST_TIMEOUT_MS",
     "MAX_REQUEST_TIMEOUT_MS",
     "DEFAULT_MAX_DIAGNOSTIC_ERRORS",
@@ -1718,6 +1995,7 @@ __all__ = [
     "TransportClosedError",
     "TransportTimeout",
     "RequestTimeout",
+    "TerminalMismatchError",
     "OperationQueueFull",
     "generate_token",
     "generate_nonce",
@@ -1749,6 +2027,7 @@ __all__ = [
     "PendingRequest",
     "PendingRequests",
     "SubmitOutcome",
+    "ClaimedRequest",
     "RequestScheduler",
     "FrameTransport",
     "PeerIdentity",

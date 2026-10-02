@@ -129,7 +129,23 @@ Pan 服务（client）                         runner（server，每终端一个
   身份核验与凭据交换都在**同一条已建立连接**上完成。
 - **握手有界**：`DEFAULT_HANDSHAKE_TIMEOUT = 5 s`；超时抛 `HandshakeTimeout`
   （`AuthenticationError` 子类），连接关闭，**handler 零调用**（测试覆盖）。
-- 未认证前 `send_request` / `recv_message` / `serve` 一律 `AuthenticationError`。
+- 未认证前 `run_handler` / `serve` / `send_request` / `call` / `recv_message` 一律
+  `AuthenticationError`（**唯一 handler 调用点 `run_handler` 自己带认证门**，不依赖调用方）。
+
+### 3.1 业务帧绑定与 per-request 分派（r2：F1/F2）
+
+- **一个 runner 一个终端**：`run_handler` 对每个请求依次执行
+  ①认证 ②`validate_message` schema ③类型必须是 `request` ④
+  `request["terminal_id"] == self.terminal_id`（不匹配 → `error: terminal-mismatch`，
+  计入 `rejected_terminal_mismatch`）⑤期限复核；任一不满足**零 handler 调用**。
+  不允许“按请求字段做对象路由”。
+- **per-request 响应分派**：客户端每个在飞请求有独立响应槽（`request_id` 路由）；
+  `call()` **只返回自己的响应**，别的请求的帧转投其等待者（`wait_response(request_id)` 可取回）；
+  同一时刻只有一个线程做原始读（读者仲裁），其余等自己的槽位被唤醒——因此并发
+  `call` / `send_request` / `recv_message` 不串线：`recv_message` 只返回请求/事件等
+  “调用方可见”帧，不会偷走别人的响应。
+- 重复 `request_id` 的业务帧**不去重**（连接完整性由内核管道保证、对端即调用方）：
+  重放会重复执行；mutating 操作超时后禁止静默重试，重连后应先取快照。
 
 ---
 
@@ -138,8 +154,15 @@ Pan 服务（client）                         runner（server，每终端一个
 - 请求携带 `timeout_ms`（1..60 000）与 `deadline`（epoch 秒）。
   服务端生效期限 = `min(sender_deadline, 入队时刻 + timeout_ms)`，**不随排队时间滑动**
   （否则等待越久预算越宽，等于允许迟到执行）。
+- `RequestScheduler.claim()` 返回 `ClaimedRequest`（请求 + **入队固化期限**）；
+  `run_handler` 对 `ClaimedRequest` **只认固化期限**，不在 dispatch 时重算放宽
+  （复核 F12）。裸帧（`serve` 内联路径）仍按 `min(sender_deadline, now + timeout_ms)` 复核。
+- 私有字段防伪造：帧与 payload 中以下划线开头的字段名一律拒绝
+  （`_reject_reserved_fields`），客户端无法注入“可信期限”之类的内部字段。
 - `run_handler` 是**唯一** handler 调用点：分发前复核期限，过期 → 回
   `error: expired` 且**不调用** handler；handler 异常 → 脱敏错误响应，连接不崩。
+  handler 的**执行时长**不在本层设上限（文档如实标注：慢 handler 会推迟后续请求，
+  客户端会超时并标记 `ambiguous_mutations`）。
 - `RequestScheduler`（有界操作队列）：入队即过期 → `REJECTED_EXPIRED`；队列满 →
   `REJECTED_QUEUE_FULL`（拒绝，不阻塞、不无界增长）；`claim` 丢弃排队期间过期的请求
   并计数（`dropped_expired`）。
@@ -171,8 +194,16 @@ DACL      = 当前用户 SID 唯一 ACE（FILE_ALL_ACCESS）
   Win32 判为 `ERROR_INVALID_PARAMETER(87)`（调试中复现）。
 - 客户端连上后校验 `GetNamedPipeServerProcessId` 可得（拿不到 = 非本机管道/已断开）→
   fail-closed 拒绝。
+- **名称所有权 = 本进程持有的全部实例**（含已交给活动连接的实例，r2/F4）：
+  `_finish_accept` 不再递减计数，只有连接句柄**真正关闭**才归还；因此
+  “活动连接存在时再 accept”不再因 FIRST 标志而必然失败。
+- **实例池**：`create()` 建好 `min(max_active_connections, max_instances)` 个实例；
+  `accept(timeout)` 用 `WaitForMultipleObjects` 等任一实例就绪（最多 63 个句柄一批）。
+  并发连接上界因此是**可达能力**；池瞬时空（如客户端连上即断 ERROR_NO_DATA）会重建并重试。
 - 并发有界：`max_instances`（默认 4）+ `max_active_connections`（默认 4，超限返回
   `None` 并计数，不排队）。
+- 最后一个实例释放后再创建实例**重新带 FIRST 占名检测**：占名者存在即 `PipeBusyError`
+  （释放-重占之间没有冒充窗口；运行期间本进程始终持有名称）。
 
 ### 5.2 有界 I/O 与可收敛取消
 
@@ -180,12 +211,21 @@ DACL      = 当前用户 SID 唯一 ACE（FILE_ALL_ACCESS）
   （未完成的读被保留、下次续等，**不丢字节**）。
 - 写超时发生在半帧处 → 连接标记 `broken` 并抛 `PipeTimeout`：**不续写**
   （避免对端把半帧当完整帧解析）。
-- `close(timeout)`：先 `CancelIoEx`，再等在飞操作归零（Condition 计数），**只有收敛才
-  关句柄**；未收敛 → 返回 `CloseReport(converged=False)` 并**保留资源**供重试，
-  不伪造关闭成功、不留后台 daemon 线程冒充完成。
+- `close(timeout)`：**每次调用**都幂等补发 `CancelIoEx`（r2/F6：close 与 ReadFile
+  发起之间的竞态窗口内首次取消会落空，只有重试补发才能收敛），再等在飞操作归零
+  （Condition 计数）与保留/孤儿操作**落地**，**只有全部落地才释放** `OVERLAPPED`
+  并关句柄；未收敛 → `CloseReport(converged=False)` 并**保留资源**供重试。
+- **`CloseHandle` 失败一律如实上报**（r2/F3）：connection / server / 待连接实例 /
+  事件句柄四个阶段的关闭结果都并入 `CloseReport`；失败时 `closed=False`、资源保留、
+  可重试收敛，绝不伪造“已关闭”。
+- 读路径的竞态封闭（r2/F6）：准入后再查 `closing`（不发起）；发起后若 `closing`
+  立即对该操作补发定向 `CancelIoEx`；读超时保留的操作与写超时的“孤儿”操作都会被
+  `close` 等待落地后释放（内核在落地前仍会写 `OVERLAPPED`）。
 - `accept(timeout)`：超时返回 `None` 且保留待连接实例（可重试）；`cancel_accept()`
-  取消在飞连接并重建实例；完成后处理与取消方共用同一把可重入锁，避免“关掉仍有在飞
-  I/O 的句柄”的窗口（该窗口在测试中被复现与修复，见 §8）。
+  取消在飞连接并重建实例池；完成后处理与取消方共用同一把可重入锁。
+- `PipeServer.close()`（r2/F5）：未 `issued` 的待连接实例**直接释放**（事件永不置位，
+  等待只会假超时）；已 `issued` 的先取消再等落地；随后释放残留事件句柄；任何一步失败
+  都 `converged=False` 且保留资源可重试。
 
 ### 5.3 身份核验原语
 
@@ -229,15 +269,33 @@ terminate_verified_process(pid, filetime)    # 同 handle 核验后才终止；�
 - 写：`ensure_secrets_dir()`（owner-only、拒绝 reparse）→ 临时文件（**同样 owner-only，
   从创建时生效**）→ `MoveFileExW` 原子替换；异常路径清理 tmp；从不截断写。
 - 读：不存在 → `SecretNotFoundError`；DPAPI 失败 → `SecretProtectionError`；
-  JSON/schema/枚举/token/管道名/终端号非法 → `SecretCorruptError`；ACL 出现其它 SID 的
-  allow ACE → `SecretSecurityError`。全部 fail-closed。
+  JSON/schema/枚举/token/管道名/终端号非法 → `SecretCorruptError`；ACL 复核不过 →
+  `SecretSecurityError`。全部 fail-closed。
+- **ACL 严格白名单**（r2/F7/F8）：`dacl_entries` 解析普通/object/callback/callback-object
+  的 ACE（object ACE 的 SID 基址按本机实测 = 12 + GUID 数×16）；`verify_owner_only`
+  只接受 ①当前用户 SID 的 allow 类 ACE ②任意 deny 类 ACE；**其余一律拒绝**：
+  owner 查不到（`None`/查询异常）、NULL DACL、未知 ACE 类型、无法归属 SID 的 allow、
+  其它主体/`None` 的 allow。不做“实现所有 ACE 类型”的盲目扩展——无法安全识别即拒绝。
+- **写路径（r2/F9）**：唯一 tmp 名（`secrets.token_hex(8)`）+ `CREATE_NEW` 独占创建
+  （撞名 → `FileExistsError` 换名重试，**绝不删除/覆盖他写者的文件**）→ ACL 复核 →
+  `MoveFileExW` 原子替换；失败只清理**自己创建的** tmp（清理失败记入
+  `cleanup_failures`，不假成功）。`write_secret` / `update_runner_identity` /
+  `write_bootstrap_identity` / `delete_secret` 都在**按秘密路径命名的跨进程内核
+  mutex**（`SECRET_LOCK_TIMEOUT = 5 s`，有界）内执行；`update_runner_identity` 是
+  **锁内 read-modify-write**（并发提交不丢字段、不交叉发布）。
+- **删除约束**（不变）：`verified_exit=True` 或显式 `caller_responsible`；断连不删除。
 - `terminal_id` 必须匹配 `term_[A-Za-z0-9_-]{1,64}`（拒绝 `..`、分隔符、空白、非 `term_`
   前缀）；秘密/hello 路径或 secrets 目录是 reparse point（symlink/junction）→ 拒绝。
-- **bootstrap 闭环**：runner 先写 `<path>.hello`（自身 pid + raw FILETIME 来自
-  `GetProcessTimes`）→ 服务 `wait_for_bootstrap_identity`（有界）读 hello 并**用内核
-  探针复核 hello 的身份**（不依赖 `Popen.pid`，免受解释器包装层影响）→ 写 DPAPI 秘密；
-  runner `wait_for_secret`（有界 10 s）→ `verify_runner_identity(自身)`，
-  不匹配即 fail-closed（不监听、退出非零）。argv **只**有 `--secret-file <path>`。
+- **bootstrap 闭环**（r2/F10：核验是**强制入口**，不是“调用方记得检查”）：runner 先写
+  `<path>.hello`（自身 pid + raw FILETIME 来自 `GetProcessTimes`）→ 服务
+  `wait_for_bootstrap_identity`（有界）→ **默认 `verify=True`**：用
+  `verify_bootstrap_record` 在同 handle 口径下（`GetProcessTimes` +
+  `WaitForSingleObject`）确认 ALIVE 且 pid + raw FILETIME **精确匹配**才返回；
+  探针缺失/`UNKNOWN`/`DEAD`/不符 → `SecretBootstrapUnverifiedError`（fail-closed，
+  不重试掩盖）。`read_bootstrap_identity(..., verify=False)` 只是**诊断/取证**路径，
+  不得用于绑定服务身份（docstring 明确标注）→ 写 DPAPI 秘密；runner
+  `wait_for_secret`（有界 10 s）→ `verify_runner_identity(自身)`，不匹配即 fail-closed
+  （不监听、退出非零）。argv **只**有 `--secret-file <path>`。
 - **删除约束**：`delete_secret(...)` 必须满足其一——`verified_exit=True`（调用方已用
   内核证据确认 runner 已退出）或 `caller_responsible="<责任说明>"`（显式调用者责任，
   如“显式关闭终端”）；否则 `SecretDeletionRefused`。**断连/失联不构成删除理由**
@@ -283,7 +341,12 @@ runner **生命周期**（PTY/Job/lease/detach/stop）不在本层：本层只�
 
 1. **同用户边界**：owner-only DACL + DPAPI 只隔离其它 Windows 用户；同用户进程仍可
    解密/复制秘密、也可连接本用户管道。首版信任边界 = 同一 Pan 用户，不承诺防同用户
-   恶意软件（产品文档必须写明）。
+   恶意软件（产品文档必须写明）。**object/callback ACE 对第二用户的有效访问语义未实测**
+   （无第二账户）：F7 证明的是“该 ACE 存在于 DACL 且复核层拒绝使用该秘密”。
+1b. **业务帧重放**：同一 `request_id` 重复发送会被重复执行（无 nonce/去重）；mutating
+   超时禁止静默重试，重连后先取快照（r2 观察项，如实记录）。
+1c. **handler 执行时长无上限**：期限只在分发前复核；慢 handler 推迟后续请求并触发
+   客户端超时（`ambiguous_mutations`）——这是“内联=天然背压”的权衡。
 2. **未实测的负验证（不得当作已解决）**：
    - “其它 Windows 用户/另一安全上下文连接被拒”：需要第二账户或第二安全上下文。
      **本 TA 未创建账户、未改任何账户权限**，因此只有结构性证据（创建参数 +
@@ -340,7 +403,8 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_secret_store.py -
 
 - **纯逻辑层（无 ctypes）**：token/HMAC/绑定与重放、帧编解码与全部拒绝矩阵、精确整数、
   脱敏与 `describe_message`、有界调度与迟到响应、`IpcSession` 握手（fake transport）、
-  IPC token 与 attachment lease 的凭据分层。
+  IPC token 与 attachment lease 的凭据分层；r2 新增：`run_handler` 认证/绑定/类型
+  （F1）、per-request 分派与并发纪律（F2）、固化期限与私有字段防伪造（F12）。
 - **Windows 真实管道层（跨进程）**：自建 runner 子进程（DPAPI bootstrap → 身份自检 →
   `FIRST_PIPE_INSTANCE` → 认证 → 请求/响应）、两个客户端断连不杀服务器、错误 token、
   冒充者 PID/FILETIME、占名、握手超时、畸形/超大/断帧、过期 mutating 请求不执行、
@@ -349,11 +413,32 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_secret_store.py -
 - **秘密存储层**：加解密往返与密文不含明文、ACL 从创建时生效与外部 ACE 负例、
   损坏/缺失/身份不匹配 fail-closed、64 位身份精确、reparse/越界名拒绝、删除约束、
   bootstrap 闭环、跨进程解密、registry 不带 token。
-- 证据：`audit/terminal/implementation/ipc/evidence/*.json`（含用例清单、计数、环境、
-  缺陷记录、边界声明），由 `audit/terminal/implementation/ipc/generate_evidence.py`
-  现场生成（可重复）。
+- **r2 回归（34 项，`test_f1_*` … `test_f12_*`）**：F1/F2/F12 纯逻辑；F3/F4/F5/F6
+  真实命名管道 + 句柄注入；F7/F8 真实 DACL（object/未知/AUDIT 类型）与注入（callback）；
+  F9 真实并发 + CREATE_NEW 独占据名；F10 真实/伪造/探针不可用；F11 子进程自证身份 +
+  核验清理 + 不广杀 decoy。
+- 计数（r2）：两份文件合计 **114 项**（原 80 + 新 34）；直连与 uv 隔离均全绿
+  （`evidence/r2/post_fix/*.log` 与 `r2_runs.json`）。
+- 证据：首轮 `audit/terminal/implementation/ipc/evidence/*.json`（未改动）；
+  r2 在 `evidence/r2/`（pre-fix 失败阶段 + post-fix 六个变体 + 闭环矩阵 + 清理扫描），
+  由 `audit/terminal/implementation/ipc/collect_r2_evidence.py` 重跑生成。
 
 ## 10. 变更记录
 
 - `2026-10-03` 首版：`ipc.py` / `win_pipe.py` / `secret_store.py` 与两份测试、
   证据与本文档；含 §8 四处缺陷的复现与修复记录。
+- `2026-10-03` **r2（独立复核返工，F1–F12 全部闭环）**：
+  F1 `run_handler` 统一认证/schema/类型/terminal 绑定（零 handler 调用拒绝）；
+  F2 per-request 响应分派 + 并发 call/send/recv 纪律；
+  F3 `CloseHandle` 结果并入 `CloseReport`（connection/server/instance/event 四阶段，保留可重试）；
+  F4 名称所有权含活动连接 + 实例池（并发连接能力可达）+ 释放后重占名检测；
+  F5 未 issued 的 pending 直接释放、取消后重建、close 幂等收敛；
+  F6 `close` 每次补发取消 + 发起前后 closing 复核（竞态封闭，`OVERLAPPED` 保留至落地）；
+  F7 object/callback ACE 的 SID 归属 + 严格白名单（未知/外部/不可归属一律拒绝）；
+  F8 owner 查询失败 fail-closed；
+  F9 唯一 `CREATE_NEW` tmp + 只清理自有 + 锁内 read-modify-write；
+  F10 bootstrap 身份**强制核验入口**（默认 `verify=True`）；
+  F11 跨进程测试改为子进程自证身份 + 内核核验、launcher/runner 各自核验清理；
+  F12 固化期限不可被 claim→handler 放宽、私有字段不可被客户端伪造。
+  复核报告与 21 项负例原文见 `PAN_TERMINAL_IPC_SECURITY_REVIEW_20261003.md`
+  （只读复核树，未修改）；返工证据见 `audit/terminal/implementation/ipc/evidence/r2/`。

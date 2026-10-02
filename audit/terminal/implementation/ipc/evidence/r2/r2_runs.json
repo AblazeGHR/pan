@@ -1,0 +1,625 @@
+{
+  "runs": [
+    {
+      "name": "post_fix_direct_all",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "seconds": 52.66,
+      "summary": "114 passed in 52.20s",
+      "case_count": 0,
+      "counts": {},
+      "cases": [],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/direct_all.log"
+    },
+    {
+      "name": "post_fix_direct_original80",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider",
+        "-k",
+        "not test_f1_ and not test_f2_ and not test_f3_ and not test_f4_ and not test_f5_ and not test_f6_ and not test_f7_ and not test_f8_ and not test_f9_ and not test_f10_ and not test_f11_ and not test_f12_"
+      ],
+      "exit_code": 0,
+      "seconds": 37.64,
+      "summary": "80 passed, 34 deselected in 37.19s",
+      "case_count": 0,
+      "counts": {},
+      "cases": [],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/direct_original80.log"
+    },
+    {
+      "name": "post_fix_direct_new34",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-v",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider",
+        "--timeout=90",
+        "--timeout-method=thread",
+        "-k",
+        "test_f1_ or test_f2_ or test_f3_ or test_f4_ or test_f5_ or test_f6_ or test_f7_ or test_f8_ or test_f9_ or test_f10_ or test_f11_ or test_f12_"
+      ],
+      "exit_code": 0,
+      "seconds": 15.39,
+      "summary": "===================== 34 passed, 80 deselected in 14.97s ======================",
+      "case_count": 34,
+      "counts": {
+        "PASSED": 34
+      },
+      "cases": [
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_rearm_after_last_instance_prevents_squatting_window",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_after_accept_timeout_cancels_the_landed_instance",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_child_self_attested_identity_is_kernel_verified",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_unknown_and_non_allow_ace_types_are_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_verifies_real_identity",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed",
+          "outcome": "PASSED"
+        }
+      ],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/direct_new34.log"
+    },
+    {
+      "name": "post_fix_uv_all",
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--with",
+        "pyte==0.8.2",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "seconds": 53.47,
+      "summary": "114 passed in 52.45s",
+      "case_count": 0,
+      "counts": {},
+      "cases": [],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/uv_isolated_all.log"
+    },
+    {
+      "name": "post_fix_uv_original80",
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--with",
+        "pyte==0.8.2",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider",
+        "-k",
+        "not test_f1_ and not test_f2_ and not test_f3_ and not test_f4_ and not test_f5_ and not test_f6_ and not test_f7_ and not test_f8_ and not test_f9_ and not test_f10_ and not test_f11_ and not test_f12_"
+      ],
+      "exit_code": 0,
+      "seconds": 38.38,
+      "summary": "80 passed, 34 deselected in 37.33s",
+      "case_count": 0,
+      "counts": {},
+      "cases": [],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/uv_original80.log"
+    },
+    {
+      "name": "post_fix_uv_new34",
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--with",
+        "pyte==0.8.2",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner_ipc.py",
+        "tests/test_terminal_secret_store.py",
+        "-v",
+        "-o",
+        "addopts=",
+        "--tb=line",
+        "-p",
+        "no:cacheprovider",
+        "--timeout=90",
+        "--timeout-method=thread",
+        "-k",
+        "test_f1_ or test_f2_ or test_f3_ or test_f4_ or test_f5_ or test_f6_ or test_f7_ or test_f8_ or test_f9_ or test_f10_ or test_f11_ or test_f12_"
+      ],
+      "exit_code": 0,
+      "seconds": 15.83,
+      "summary": "===================== 34 passed, 80 deselected in 14.84s ======================",
+      "case_count": 34,
+      "counts": {
+        "PASSED": 34
+      },
+      "cases": [
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_rearm_after_last_instance_prevents_squatting_window",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_after_accept_timeout_cancels_the_landed_instance",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_child_self_attested_identity_is_kernel_verified",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_unknown_and_non_allow_ace_types_are_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_verifies_real_identity",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed",
+          "outcome": "PASSED"
+        }
+      ],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/post_fix/uv_new34.log"
+    },
+    {
+      "name": "pre_fix_new_regressions",
+      "exit_code": 1,
+      "seconds": 25.1,
+      "summary": "29 failed, 5 passed, 80 deselected (历史产物；在未修复代码 68cf7927 上运行)",
+      "case_count": 34,
+      "counts": {
+        "FAILED": 29,
+        "PASSED": 5
+      },
+      "cases": [
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f4_rearm_after_last_instance_prevents_squatting_window",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f5_close_after_accept_timeout_cancels_the_landed_instance",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_child_self_attested_identity_is_kernel_verified",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_runner_ipc.py::test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_unknown_ace_type_and_unparsable_allow_are_rejected",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity",
+          "outcome": "FAILED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_verifies_real_identity",
+          "outcome": "PASSED"
+        },
+        {
+          "nodeid": "tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed",
+          "outcome": "FAILED"
+        }
+      ],
+      "log": "audit/terminal/implementation/ipc/evidence/r2/pre_fix/r2_new_regressions_pre_fix.log",
+      "note": "修复后不可重跑；仅作先失败后通过的失败阶段证据（另见 r2_closure.json 的 per-F 记录）"
+    }
+  ]
+}

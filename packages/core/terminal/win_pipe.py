@@ -17,9 +17,17 @@
    而不是“先创建再收紧”）、DACL 读取（安全测试证据）、reparse point 检测、
    ``MoveFileExW`` 原子替换。
 4. **有界 I/O 与可收敛取消**：全部读写走 overlapped I/O + 事件等待，
-   取消用 ``CancelIoEx``，``close()`` 等待在飞操作归零后才关句柄；未收敛则
-   **返回 ``CloseReport(converged=False)`` 并保留资源**（可重试），不伪造成功、
-   不留后台 daemon 线程冒充关闭完成。
+   取消用 ``CancelIoEx``（``close()`` **每次调用**都幂等补发，且发起前后复核
+   ``closing`` 以封闭竞态窗口），``close()`` 等待在飞/保留/孤儿操作**落地**后才释放
+   ``OVERLAPPED`` 并关句柄；未收敛则 **返回 ``CloseReport(converged=False)`` 并保留
+   资源**（可重试），不伪造成功、不留后台 daemon 线程冒充关闭完成。
+5. **关闭结果如实**：``CloseHandle`` 的返回值全程检查（connection / server /
+   待连接实例 / 事件句柄四个阶段都并入 ``CloseReport``）；失败即
+   ``closed=False`` 且资源保留供重试。
+6. **名称所有权**：``PipeServer`` 的实例池按 ``max_active_connections`` 维持可连接实例，
+   已交给活动连接的实例继续计入名称所有权（``_own_instances``），只有连接句柄真正关闭
+   才归还；``FILE_FLAG_FIRST_PIPE_INSTANCE`` 只用于“本进程当前不持有任何实例”时的
+   原子占名检测（释放后重占同样检测）。
 
 边界（如实声明，勿当作已解决）：
 
@@ -40,7 +48,8 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from contextlib import contextmanager
+from typing import Any, Callable, Iterator, Mapping
 
 from . import ipc as _ipc
 from .contracts import (
@@ -64,6 +73,8 @@ DEFAULT_PIPE_BUFFER_BYTES = 64 * 1024
 DEFAULT_CONNECT_TIMEOUT = 5.0
 #: ``close`` 等待在飞 I/O 收敛的默认预算。
 DEFAULT_CLOSE_TIMEOUT = 2.0
+#: ``WaitForMultipleObjects`` 单次可等待的句柄上界（Win32 MAXIMUM_WAIT_OBJECTS=64）。
+MAX_WAIT_HANDLES = 63
 
 # ── Win32 常量（跨平台声明，便于文档/测试引用） ──────────────────────────────
 PIPE_ACCESS_DUPLEX = 0x00000003
@@ -78,6 +89,7 @@ FILE_FLAG_WRITE_THROUGH = 0x80000000
 GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
 OPEN_EXISTING = 3
+CREATE_NEW = 1
 CREATE_ALWAYS = 2
 FILE_ATTRIBUTE_NORMAL = 0x80
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
@@ -87,6 +99,8 @@ WAIT_ABANDONED = 0x00000080
 WAIT_TIMEOUT = 0x00000102
 WAIT_FAILED = 0xFFFFFFFF
 ERROR_FILE_NOT_FOUND = 2
+ERROR_FILE_EXISTS = 80
+ERROR_ALREADY_EXISTS = 183
 ERROR_ACCESS_DENIED = 5
 ERROR_SEM_TIMEOUT = 121
 ERROR_PIPE_BUSY = 231
@@ -97,6 +111,8 @@ ERROR_PIPE_NOT_CONNECTED = 233
 ERROR_IO_PENDING = 997
 ERROR_IO_INCOMPLETE = 996
 ERROR_OPERATION_ABORTED = 995
+#: ``CancelIoEx`` 在没有在飞 I/O 时返回 ERROR_NOT_FOUND（属正常，不是失败）。
+ERROR_NOT_FOUND = 1168
 ERROR_BROKEN_PIPE = 109
 SECURITY_DESCRIPTOR_REVISION = 1
 ACL_REVISION = 2
@@ -107,6 +123,39 @@ OBJECT_INHERIT_ACE = 0x01
 CONTAINER_INHERIT_ACE = 0x02
 ACCESS_ALLOWED_ACE_TYPE = 0x00
 ACCESS_DENIED_ACE_TYPE = 0x01
+#: object / callback / callback-object 系列（mask+flags/guid+SID 布局不同）。
+ACCESS_ALLOWED_OBJECT_ACE_TYPE = 0x05
+ACCESS_DENIED_OBJECT_ACE_TYPE = 0x06
+ACCESS_ALLOWED_CALLBACK_ACE_TYPE = 0x09
+ACCESS_DENIED_CALLBACK_ACE_TYPE = 0x0A
+ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE = 0x0B
+ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE = 0x0C
+#: ACE_HEADER(4) 之后的 Mask 偏移；普通/callback ACE 的 SID 起始偏移。
+ACE_MASK_OFFSET = 4
+ACE_SID_START_OFFSET = 8
+ACE_OBJECT_FLAGS_OFFSET = 8
+#: object ACE 布局：ACE_HEADER(4)+Mask(4)+Flags(4) 之后就是 [GUIDs]+SID（本机实测偏移 12）。
+ACE_OBJECT_SID_BASE_OFFSET = 12
+ACE_OBJECT_TYPE_GUID_FLAG = 0x1
+ACE_INHERITED_TYPE_GUID_FLAG = 0x2
+#: allow 类 ACE（会授权）：普通 / object / callback / callback-object。
+ALLOW_ACE_TYPES = frozenset(
+    {
+        ACCESS_ALLOWED_ACE_TYPE,
+        ACCESS_ALLOWED_OBJECT_ACE_TYPE,
+        ACCESS_ALLOWED_CALLBACK_ACE_TYPE,
+        ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE,
+    }
+)
+#: deny 类 ACE（只限制、不授权）。
+DENY_ACE_TYPES = frozenset(
+    {
+        ACCESS_DENIED_ACE_TYPE,
+        ACCESS_DENIED_OBJECT_ACE_TYPE,
+        ACCESS_DENIED_CALLBACK_ACE_TYPE,
+        ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE,
+    }
+)
 FILE_ALL_ACCESS = 0x001F01FF
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_TERMINATE = 0x0001
@@ -141,6 +190,10 @@ class PipeClosed(PipeError, _ipc.TransportClosedError):
 
 class PipeCancelled(PipeError):
     """管道操作被显式取消（``CancelIoEx``）。"""
+
+
+class NamedMutexTimeout(PipeError, TimeoutError):
+    """命名内核 mutex 等待超时（有界，不无限阻塞）。"""
 
 
 class PipeIOError(PipeError):
@@ -272,6 +325,10 @@ if _IS_WINDOWS:  # pragma: no cover - 平台分支
     _k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     _k32.GetCurrentProcess.restype = wintypes.HANDLE
     _k32.GetCurrentProcess.argtypes = ()
+    _k32.CreateMutexW.restype = wintypes.HANDLE
+    _k32.CreateMutexW.argtypes = (ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR)
+    _k32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+    _k32.ReleaseMutex.restype = wintypes.BOOL
     _k32.CloseHandle.argtypes = (wintypes.HANDLE,)
     _k32.CloseHandle.restype = wintypes.BOOL
     _k32.GetProcessTimes.argtypes = (
@@ -284,6 +341,13 @@ if _IS_WINDOWS:  # pragma: no cover - 平台分支
     _k32.GetProcessTimes.restype = wintypes.BOOL
     _k32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
     _k32.WaitForSingleObject.restype = wintypes.DWORD
+    _k32.WaitForMultipleObjects.argtypes = (
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.BOOL,
+        wintypes.DWORD,
+    )
+    _k32.WaitForMultipleObjects.restype = wintypes.DWORD
     _k32.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
     _k32.TerminateProcess.restype = wintypes.BOOL
     _k32.CreateNamedPipeW.restype = wintypes.HANDLE
@@ -439,6 +503,10 @@ if _IS_WINDOWS:  # pragma: no cover - 平台分支
     _adv32.GetNamedSecurityInfoW.restype = wintypes.DWORD
     _adv32.GetAclInformation.argtypes = (ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.c_int)
     _adv32.GetAclInformation.restype = wintypes.BOOL
+    _adv32.IsValidSid.argtypes = (ctypes.c_void_p,)
+    _adv32.IsValidSid.restype = wintypes.BOOL
+    _adv32.GetLengthSid.argtypes = (ctypes.c_void_p,)
+    _adv32.GetLengthSid.restype = wintypes.DWORD
     _adv32.GetAce.argtypes = (ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p))
     _adv32.GetAce.restype = wintypes.BOOL
 
@@ -470,9 +538,15 @@ if _IS_WINDOWS:  # pragma: no cover - 平台分支
     def _error_text(code: int | None = None) -> str:
         return str(ctypes.WinError(_last_error() if code is None else code).strerror or "unknown")
 
-    def _close_handle(handle: int | None) -> None:
-        if handle and not is_invalid_handle(handle):
-            _k32.CloseHandle(wintypes.HANDLE(handle))
+    def _close_handle(handle: int | None) -> bool:
+        """关闭句柄并**如实返回结果**（F3：不得把失败当成功）。
+
+        无效/空句柄视为“没有东西要关”（幂等重试安全）→ ``True``；
+        ``CloseHandle`` 失败 → ``False``，调用方必须保留资源并让 close 可重试。
+        """
+        if not handle or is_invalid_handle(handle):
+            return True
+        return bool(_k32.CloseHandle(wintypes.HANDLE(handle)))
 
     def _filetime_to_int(ft: "wintypes.FILETIME") -> int:
         return (int(ft.dwHighDateTime) << 32) | int(ft.dwLowDateTime)
@@ -513,8 +587,8 @@ else:  # pragma: no cover - 非 Windows 只有 stub
     def _error_text(code: int | None = None) -> str:
         return "windows-only"
 
-    def _close_handle(handle: int | None) -> None:
-        return None
+    def _close_handle(handle: int | None) -> bool:
+        return True
 
     def _filetime_to_int(ft: Any) -> int:
         return 0
@@ -582,10 +656,14 @@ class ProcessIdentityHandle:
     def matches(self, expected: ProcessIdentity | None) -> bool:
         return expected is not None and expected.matches(self.identity)
 
-    def close(self) -> None:
-        if not self._closed:
-            _close_handle(self.handle)
+    def close(self) -> bool:
+        """释放探针句柄；``CloseHandle`` 失败返回 ``False`` 并允许重试（不谎报）。"""
+        if self._closed:
+            return True
+        if _close_handle(self.handle):
             self._closed = True
+            return True
+        return False
 
     def __enter__(self) -> "ProcessIdentityHandle":
         return self
@@ -857,6 +935,61 @@ def _to_security_descriptor(security: OwnerOnlySecurity) -> Any:
     return security._sd  # noqa: SLF001 - 同模块内的安全原语
 
 
+def create_file_exclusive_owner_only(path: str, data: bytes, *, flush: bool = True) -> None:
+    """``CREATE_NEW`` 独占创建 owner-only 文件（F9：绝不覆盖/删除他写者的文件）。
+
+    路径已存在 → ``FileExistsError``（调用方换唯一名字重试，而不是删除别人的文件）。
+    """
+    _require_windows()
+    security = OwnerOnlySecurity()
+    try:
+        handle = _k32.CreateFileW(
+            str(path),
+            GENERIC_WRITE,
+            0,
+            security.security_attributes,
+            CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH,
+            None,
+        )
+        if is_invalid_handle(handle):
+            error = _last_error()
+            if error in (ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS):
+                raise FileExistsError(f"exclusive create refused existing file: {path}")
+            raise PipeSecurityError(
+                f"CreateFileW(CREATE_NEW) failed for {path}: {_error_text(error)}"
+            )
+        try:
+            _write_all_to_handle(handle, data, path)
+            if flush and not _k32.FlushFileBuffers(wintypes.HANDLE(handle)):
+                raise PipeSecurityError(f"FlushFileBuffers failed for {path}: {_error_text()}")
+        finally:
+            if not _close_handle(int(handle)):
+                raise PipeSecurityError(f"file handle close failed for {path}: {_error_text()}")
+    finally:
+        security.close()
+
+
+def _write_all_to_handle(handle: Any, data: bytes, path: str) -> None:
+    """把 ``data`` 全部写进已打开的文件句柄（部分写循环；0 字节写视为失败）。"""
+    total = 0
+    payload = bytes(data)
+    while total < len(payload):
+        written = wintypes.DWORD(0)
+        chunk = payload[total:]
+        if not _k32.WriteFile(
+            wintypes.HANDLE(handle),
+            ctypes.c_char_p(chunk),
+            len(chunk),
+            ctypes.byref(written),
+            None,
+        ):
+            raise PipeSecurityError(f"WriteFile failed for {path}: {_error_text()}")
+        if written.value == 0:
+            raise PipeSecurityError(f"WriteFile wrote 0 bytes for {path}")
+        total += int(written.value)
+
+
 def write_file_owner_only(path: str, data: bytes, *, flush: bool = True) -> None:
     """以 owner-only DACL **从创建时**写文件（``CREATE_ALWAYS``）。"""
     _require_windows()
@@ -874,26 +1007,12 @@ def write_file_owner_only(path: str, data: bytes, *, flush: bool = True) -> None
         if is_invalid_handle(handle):
             raise PipeSecurityError(f"CreateFileW failed for {path}: {_error_text()}")
         try:
-            total = 0
-            payload = bytes(data)
-            while total < len(payload):
-                written = wintypes.DWORD(0)
-                chunk = payload[total:]
-                if not _k32.WriteFile(
-                    wintypes.HANDLE(handle),
-                    ctypes.c_char_p(chunk),
-                    len(chunk),
-                    ctypes.byref(written),
-                    None,
-                ):
-                    raise PipeSecurityError(f"WriteFile failed for {path}: {_error_text()}")
-                if written.value == 0:
-                    raise PipeSecurityError(f"WriteFile wrote 0 bytes for {path}")
-                total += int(written.value)
+            _write_all_to_handle(handle, data, path)
             if flush and not _k32.FlushFileBuffers(wintypes.HANDLE(handle)):
                 raise PipeSecurityError(f"FlushFileBuffers failed for {path}: {_error_text()}")
         finally:
-            _close_handle(int(handle))
+            if not _close_handle(int(handle)):
+                raise PipeSecurityError(f"file handle close failed for {path}: {_error_text()}")
     finally:
         security.close()
 
@@ -924,6 +1043,37 @@ def delete_file(path: str) -> bool:
     if _k32.DeleteFileW(str(path)):
         return True
     return False
+
+
+@contextmanager
+def named_mutex(name: str, *, timeout: float = 5.0) -> Iterator[None]:
+    """按名字的跨进程互斥（Windows 内核 mutex，``Local\\`` 命名空间）。
+
+    - 进程退出/崩溃由内核自动释放（``WAIT_ABANDONED`` 视为成功获取并继续）；
+    - 有界等待：超时抛 ``NamedMutexTimeout``（调用方按 fail-closed 处理）；
+    - 释放失败如实抛出（不得静默“解锁成功”）。
+    """
+    _require_windows()
+    import contextlib
+
+    mutex = _k32.CreateMutexW(None, False, f"Local\\{name}")
+    if not mutex:
+        raise PipeIOError(f"CreateMutexW failed: {_error_text()}")
+    handle = wintypes.HANDLE(mutex)
+    try:
+        wait_timeout = 0xFFFFFFFF if timeout is None else max(0, int(timeout * 1000))
+        wait = int(_k32.WaitForSingleObject(handle, wait_timeout))
+        if wait == WAIT_TIMEOUT:
+            raise NamedMutexTimeout(f"named mutex timeout after {timeout}s: {name}")
+        if wait not in (WAIT_OBJECT_0, WAIT_ABANDONED):
+            raise PipeIOError(f"WaitForSingleObject(mutex) failed: {_error_text()}")
+        try:
+            yield
+        finally:
+            if not _k32.ReleaseMutex(handle):
+                raise PipeIOError(f"ReleaseMutex failed: {_error_text()}")
+    finally:
+        _close_handle(int(mutex))
 
 
 def dacl_entries(path: str) -> list[dict[str, Any]]:
@@ -969,10 +1119,34 @@ def dacl_entries(path: str) -> list[dict[str, Any]]:
                 "sid": None,
                 "mask": None,
             }
-            if int(header.AceType) in (ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE):
-                access = ctypes.cast(ace_ptr, ctypes.POINTER(_ACCESS_ACE)).contents
-                entry["mask"] = int(access.Mask)
-                entry["sid"] = _sid_to_string(int(ace_ptr.value) + 8)  # SidStart offset
+            ace_type = int(header.AceType)
+            ace_size = int(header.AceSize)
+            base = int(ace_ptr.value)
+            if ace_type in (ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
+                            ACCESS_ALLOWED_CALLBACK_ACE_TYPE, ACCESS_DENIED_CALLBACK_ACE_TYPE):
+                entry["mask"] = int(ctypes.c_uint32.from_address(base + ACE_MASK_OFFSET).value)
+                sid_offset = ACE_SID_START_OFFSET
+            elif ace_type in (ACCESS_ALLOWED_OBJECT_ACE_TYPE, ACCESS_DENIED_OBJECT_ACE_TYPE,
+                              ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE,
+                              ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE):
+                # mask(4) + flags(4) + [ObjectType GUID] + [InheritedObjectType GUID] + SID
+                entry["mask"] = int(ctypes.c_uint32.from_address(base + ACE_MASK_OFFSET).value)
+                flags = int(ctypes.c_uint32.from_address(base + ACE_OBJECT_FLAGS_OFFSET).value)
+                entry["object_flags"] = flags
+                sid_offset = ACE_OBJECT_SID_BASE_OFFSET
+                if flags & ACE_OBJECT_TYPE_GUID_FLAG:
+                    sid_offset += 16
+                if flags & ACE_INHERITED_TYPE_GUID_FLAG:
+                    sid_offset += 16
+            else:
+                # 未知类型：无法判断是否授权 → 不做归属假设（sid=None，由上层 fail-closed）
+                sid_offset = None
+            if sid_offset is not None and sid_offset + 8 <= ace_size:
+                sid_ptr = ctypes.c_void_p(base + sid_offset)
+                if _adv32.IsValidSid(sid_ptr):
+                    length = int(_adv32.GetLengthSid(sid_ptr))
+                    if sid_offset + length <= ace_size:
+                        entry["sid"] = _sid_to_string(sid_ptr)
             entries.append(entry)
         return entries
     finally:
@@ -1048,11 +1222,18 @@ class _OverlappedOp:
         wait = int(_k32.WaitForSingleObject(wintypes.HANDLE(self.event), int(timeout_ms)))
         return wait in (WAIT_OBJECT_0, WAIT_ABANDONED)
 
-    def release(self) -> None:
-        """释放事件句柄（幂等）；**仅在操作落地后**调用。"""
-        if self.event:
-            _close_handle(self.event)
+    def release(self) -> bool:
+        """释放事件句柄（幂等，返回是否已释放）；**仅在操作落地后**调用。
+
+        失败时保留 ``self.event``（与 OVERLAPPED 一起被引用），供 close 重试；
+        绝不把“关不掉的事件句柄”当成已释放。
+        """
+        if not self.event:
+            return True
+        if _close_handle(self.event):
             self.event = 0
+            return True
+        return False
 
 
 class PipeConnection:
@@ -1126,6 +1307,22 @@ class PipeConnection:
             self._inflight -= 1
             self._cv.notify_all()
 
+    def _release_op(self, op: "_OverlappedOp") -> bool:
+        """释放操作的事件句柄（幂等）；失败则**保留引用**供 close 重试（F3）。
+
+        未释放的 ``OVERLAPPED``/事件既不能丢（内核可能仍会写），也不能谎报已释放。
+        """
+        if op.release():
+            with self._state:
+                if op in self._orphan_ops:
+                    self._orphan_ops.remove(op)
+            return True
+        self.diagnostics.record_error("event handle close failed; overlay retained for retry")
+        with self._state:
+            if op not in self._orphan_ops:
+                self._orphan_ops.append(op)
+        return False
+
     def _check_open(self) -> None:
         with self._state:
             if self._closing or self._closed:
@@ -1166,7 +1363,7 @@ class PipeConnection:
         if error == ERROR_IO_PENDING:
             op.issued = True
             return op
-        op.release()
+        self._release_op(op)
         if error in (ERROR_BROKEN_PIPE, ERROR_PIPE_NOT_CONNECTED, ERROR_NO_DATA):
             raise _PeerClosed(f"peer closed the pipe (error={error})")
         raise PipeIOError(f"ReadFile failed: {_error_text(error)}")
@@ -1192,10 +1389,19 @@ class PipeConnection:
             self._enter_op()
             try:
                 if self._read_op is None:
+                    # F6：准入之后、发起之前再查一次 closing——close 可能刚刚
+                    # 取消了“无在飞 I/O”，若此处仍发起读就会留下不可取消的挂起读。
+                    if self._closing or self._closed:
+                        raise PipeClosed("connection closed while admitting a read")
                     try:
                         self._read_op = self._issue_read(max_bytes)
                     except _PeerClosed:
                         return b"", "eof"
+                    # F6：发起之后再查一次：若 close 在发起前一刻发生，补发定向取消。
+                    if self._closing and self._read_op is not None:
+                        _k32.CancelIoEx(
+                            wintypes.HANDLE(self.handle), ctypes.byref(self._read_op.ov)
+                        )
                 op = self._read_op
                 while True:
                     remaining_ms = 0xFFFFFFFF if deadline is None else max(
@@ -1208,7 +1414,7 @@ class PipeConnection:
                     if wait not in (WAIT_OBJECT_0, WAIT_ABANDONED):
                         op.error = _last_error()
                         self._read_op = None
-                        op.release()
+                        self._release_op(op)
                         raise PipeIOError(f"WaitForSingleObject(read) failed: {_error_text(op.error)}")
                     transferred = wintypes.DWORD(0)
                     if not _k32.GetOverlappedResult(
@@ -1218,7 +1424,7 @@ class PipeConnection:
                         if error == ERROR_IO_INCOMPLETE:
                             continue
                         self._read_op = None
-                        op.release()
+                        self._release_op(op)
                         if error == ERROR_OPERATION_ABORTED:
                             raise PipeCancelled("read cancelled (CancelIoEx)")
                         if error in (ERROR_BROKEN_PIPE, ERROR_PIPE_NOT_CONNECTED, ERROR_NO_DATA):
@@ -1226,7 +1432,7 @@ class PipeConnection:
                         raise PipeIOError(f"GetOverlappedResult(read) failed: {_error_text(error)}")
                     data = op.buffer.raw[: int(transferred.value)]
                     self._read_op = None
-                    op.release()
+                    self._release_op(op)
                     if not data:
                         return b"", "eof"
                     return bytes(data), "data"
@@ -1259,7 +1465,7 @@ class PipeConnection:
                     if not ok:
                         error = _last_error()
                         if error != ERROR_IO_PENDING:
-                            op.release()
+                            self._release_op(op)
                             if error in (ERROR_BROKEN_PIPE, ERROR_PIPE_NOT_CONNECTED, ERROR_NO_DATA):
                                 raise PipeClosed(f"peer closed the pipe during write (error={error})")
                             self._broken = True
@@ -1274,7 +1480,7 @@ class PipeConnection:
                                 # 半帧已写出：不能续写，必须关连接（不静默修复）。
                                 _k32.CancelIoEx(wintypes.HANDLE(self.handle), ctypes.byref(op.ov))
                                 if op.wait_complete(2000):
-                                    op.release()
+                                    self._release_op(op)
                                 else:
                                     # 取消未落地：**保留引用**（内核可能仍写该 OVERLAPPED），
                                     # 交由 close() 等待/重试；绝不提前释放。
@@ -1286,7 +1492,7 @@ class PipeConnection:
                                 )
                             continue
                         if wait not in (WAIT_OBJECT_0, WAIT_ABANDONED):
-                            op.release()
+                            self._release_op(op)
                             self._broken = True
                             raise PipeIOError(f"WaitForSingleObject(write) failed: {_error_text()}")
                         transferred = wintypes.DWORD(0)
@@ -1299,7 +1505,7 @@ class PipeConnection:
                             e = _last_error()
                             if e == ERROR_IO_INCOMPLETE:
                                 continue
-                            op.release()
+                            self._release_op(op)
                             self._broken = True
                             if e == ERROR_OPERATION_ABORTED:
                                 raise PipeCancelled("write cancelled (CancelIoEx)")
@@ -1307,7 +1513,7 @@ class PipeConnection:
                                 raise PipeClosed("peer closed the pipe during write")
                             raise PipeIOError(f"GetOverlappedResult(write) failed: {_error_text(e)}")
                         written_total += int(transferred.value)
-                        op.release()
+                        self._release_op(op)
                         break
                 return written_total
             finally:
@@ -1363,20 +1569,29 @@ class PipeConnection:
     def close(self, *, timeout: float | None = None) -> CloseReport:
         """取消在飞 I/O 并等其收敛；未收敛则**保留资源**（可重试）。
 
-        收敛判定不只数“在飞调用”，还包括**超时后被保留的读操作**与“取消但未落地”
-        的孤儿操作——内核在操作落地前仍会写那些 ``OVERLAPPED``/缓冲区，提前释放会
-        造成访问违例（本 TA 在压力运行中复现过）。
+        收敛判定与释放都如实反映内核结果：
+
+        - 每次调用都补发 ``CancelIoEx``（F6：准入与发起之间的竞态窗口内 close 的
+          取消会落空，只有重试补发才能收敛）；
+        - 在飞调用、超时后保留的读操作、孤儿操作都必须**落地**才释放；
+        - ``DisconnectNamedPipe`` 失败只记录（对端可能已断开）；
+        - ``CloseHandle`` 失败 → ``converged=False/closed=False`` 且**保留句柄**，
+          调用方可再次 ``close()`` 重试（F3：不伪造关闭成功）。
         """
         budget = DEFAULT_CLOSE_TIMEOUT if timeout is None else max(0.0, float(timeout))
+        deadline = time.monotonic() + budget
         with self._state:
             if self._closed:
                 return CloseReport(converged=True, closed=True, detail="already closed")
-            if not self._closing:
-                self._closing = True
-                if _IS_WINDOWS and self.handle:
-                    # 无在飞 I/O 时 CancelIoEx 返回 False + ERROR_NOT_FOUND：忽略。
-                    _k32.CancelIoEx(wintypes.HANDLE(self.handle), None)
-            deadline = time.monotonic() + budget
+            self._closing = True
+            if _IS_WINDOWS and self.handle:
+                # 幂等补发取消（无在飞 I/O 时返回 False + ERROR_NOT_FOUND，属正常）。
+                if not _k32.CancelIoEx(wintypes.HANDLE(self.handle), None):
+                    error = _last_error()
+                    if error not in (ERROR_NOT_FOUND, ERROR_FILE_NOT_FOUND):
+                        self.diagnostics.record_error(
+                            f"CancelIoEx failed: {_error_text(error)}"
+                        )
             while self._inflight > 0 and time.monotonic() < deadline:
                 self._cv.wait(max(0.01, deadline - time.monotonic()))
             if self._inflight > 0:
@@ -1389,37 +1604,44 @@ class PipeConnection:
             retained_read = self._read_op
             orphans = list(self._orphan_ops)
         # 保留的读操作：取消后等其落地再释放（否则内核可能写已释放内存）
-        if retained_read is not None:
+        for op in ([retained_read] if retained_read is not None else []) + orphans:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
-            if not retained_read.wait_complete(remaining_ms):
+            if not op.wait_complete(remaining_ms):
                 return CloseReport(
                     converged=False,
                     closed=False,
-                    detail="retained read op did not complete after cancel; resources retained for retry",
+                    detail="retained/orphan op did not complete after cancel; resources retained for retry",
                 )
-            if self._read_op is retained_read:
+            if self._read_op is op:
                 self._read_op = None
-            retained_read.release()
-        for orphan in orphans:
-            remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
-            if not orphan.wait_complete(remaining_ms):
+            if not self._release_op(op):
                 return CloseReport(
                     converged=False,
                     closed=False,
-                    detail="orphan op did not complete after cancel; resources retained for retry",
+                    detail="event handle close failed (CloseHandle); resources retained for retry",
                 )
-            orphan.release()
-            with self._state:
-                if orphan in self._orphan_ops:
-                    self._orphan_ops.remove(orphan)
         with self._state:
             if _IS_WINDOWS and self.handle:
                 if self.role == "server":
-                    _k32.DisconnectNamedPipe(wintypes.HANDLE(self.handle))
-                _close_handle(self.handle)
-            self.handle = 0
+                    if not _k32.DisconnectNamedPipe(wintypes.HANDLE(self.handle)):
+                        error = _last_error()
+                        if error not in (ERROR_NO_DATA, ERROR_PIPE_NOT_CONNECTED):
+                            self.diagnostics.record_error(
+                                f"DisconnectNamedPipe failed: {_error_text(error)}"
+                            )
+                if not _close_handle(self.handle):
+                    error = _last_error()
+                    self.diagnostics.record_error(
+                        f"CloseHandle failed: {_error_text(error)}"
+                    )
+                    return CloseReport(
+                        converged=False,
+                        closed=False,
+                        in_flight=self._inflight,
+                        detail=f"CloseHandle failed (handle retained for retry): {_error_text(error)}",
+                    )
+                self.handle = 0
             self._closed = True
-            self._closing = True
         if self._on_close is not None:
             try:
                 self._on_close(self)
@@ -1476,29 +1698,46 @@ class PipeServer:
         self.diagnostics = diagnostics if diagnostics is not None else _ipc.IpcDiagnostics(label=self.terminal_id)
         # RLock：finish/_drop/create 会在持锁路径内互相调用（同线程重入）。
         self._lock = threading.RLock()
-        self._pending: dict[str, Any] | None = None
+        #: 待连接实例池（有界：至多 max_instances 个实例，含交给连接的）
+        self._pendings: list[dict[str, Any]] = []
         self._connections: list[PipeConnection] = []
         self._own_instances = 0
         self._active = 0
+        #: 关闭失败的事件句柄（保留引用，server.close 重试释放，绝不静默泄漏）
+        self._leaked_events: list[int] = []
         self._closing = False
         self._closed = False
         self.accept_timeouts = 0
         self.accept_cancels = 0
 
     # -- 生命周期 ------------------------------------------------------
+    # -- 生命周期 ------------------------------------------------------
     def create(self) -> None:
-        """创建**首个**实例并占用管道名（``FIRST_PIPE_INSTANCE``）。"""
+        """原子占名并建好实例池（首个实例带 ``FILE_FLAG_FIRST_PIPE_INSTANCE``）。
+
+        - 名字已被别的进程占用 → 首个创建失败 → ``PipeBusyError``（绝不静默共用同名管道）；
+        - 实例池大小 = ``min(max_active_connections, max_instances)``：活动连接存在时
+          仍能为新客户端保留可连接实例（并发连接上界是**可达能力**，F4）。
+        """
         with self._lock:
             if self._closed or self._closing:
                 raise PipeClosed("server is closed")
-            if self._pending is not None or self._own_instances > 0:
-                return
-            self._pending = self._create_instance_locked()
+            self._ensure_capacity_locked()
+
+    def _ensure_capacity_locked(self, *, minimum: int = 0) -> None:
+        """让「活动连接数 + 待连接实例数」达到目标容量（受内核实例上界约束）。"""
+        target = min(max(int(minimum), self.max_active_connections), self.max_instances)
+        while (
+            self._active + len(self._pendings) < target
+            and self._own_instances < self.max_instances
+        ):
+            self._pendings.append(self._create_instance_locked())
 
     def _create_instance_locked(self) -> dict[str, Any]:
-        # 只要本进程当前**不持有**任何同名实例，就带上 FIRST_PIPE_INSTANCE：
-        # 名字被别人占住时创建会失败（PipeBusyError），绝不静默共用同名管道；
-        # 一旦自己已有实例，Win32 不允许再带该标志（会 ERROR_ACCESS_DENIED）。
+        # 只要本进程当前**不持有**任何同名实例（含已交给活动连接的实例，F4），
+        # 就带上 FIRST_PIPE_INSTANCE：名字被别人占住时创建会失败（PipeBusyError），
+        # 绝不静默共用同名管道；一旦自己已有实例，Win32 不允许再带该标志
+        # （会 ERROR_ACCESS_DENIED）。
         first = self._own_instances == 0
         open_mode = PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED
         if first:
@@ -1547,15 +1786,13 @@ class PipeServer:
             "cancelled": False,
         }
 
-    def _drop_pending_locked(self, *, wait_event_ms: int = 0) -> bool:
-        """关闭待连接实例。
+    def _drop_pending_locked(self, pending: dict[str, Any], *, wait_event_ms: int = 0) -> bool:
+        """从待连接池释放一个实例（F3/F5）。
 
-        ``wait_event_ms>0`` 时先等取消的 I/O 落地：**只有确认落地才关闭句柄并释放
-        ``OVERLAPPED``**；否则返回 ``False`` 并保留实例（可重试），因为内核在操作
-        落地前仍会写那块内存。
+        - ``wait_event_ms>0`` 时先等取消的 I/O 落地（内核在落地前仍会写 ``OVERLAPPED``）；
+        - 只有句柄**确实释放**才归还名称所有权；部分失败保留未释放的值供重试。
         """
-        pending = self._pending
-        if pending is None:
+        if pending not in self._pendings:
             return True
         if wait_event_ms and pending["issued"]:
             wait = int(
@@ -1563,72 +1800,102 @@ class PipeServer:
             )
             if wait not in (WAIT_OBJECT_0, WAIT_ABANDONED):
                 return False
-        _close_handle(pending["handle"])
-        _close_handle(pending["event"])
+        handle_ok = _close_handle(pending["handle"])
+        if handle_ok:
+            pending["handle"] = 0
+        event_ok = _close_handle(pending["event"])
+        if event_ok:
+            pending["event"] = 0
+        if not (handle_ok and event_ok):
+            self.diagnostics.record_error(
+                "pending instance release incomplete (CloseHandle failed); retained for retry"
+            )
+            return False
+        self._pendings.remove(pending)
         self._own_instances -= 1
-        self._pending = None
         return True
 
+    def _arm_pending_locked(self, pending: dict[str, Any]) -> PipeConnection | None:
+        """对尚未发起的实例调 ``ConnectNamedPipe``；已完成则直接返回连接。"""
+        if pending["issued"] or pending["cancelled"] or pending not in self._pendings:
+            return None
+        _k32.ResetEvent(wintypes.HANDLE(pending["event"]))
+        ok = bool(
+            _k32.ConnectNamedPipe(wintypes.HANDLE(pending["handle"]), ctypes.byref(pending["ov"]))
+        )
+        error = 0 if ok else _last_error()
+        if ok or error == ERROR_PIPE_CONNECTED:
+            return self._finish_accept(pending)
+        if error == ERROR_NO_DATA:
+            # 客户端在 ConnectNamedPipe 之前连上又断开（瞬时状态）：丢实例并重建重试。
+            self._drop_pending_locked(pending)
+            self.diagnostics.record_error("accept: client left before connect; retrying")
+            return None
+        if error != ERROR_IO_PENDING:
+            self._drop_pending_locked(pending)
+            raise PipeIOError(f"ConnectNamedPipe failed: {_error_text(error)}")
+        pending["issued"] = True
+        return None
+
     def accept(self, *, timeout: float | None = None) -> PipeConnection | None:
-        """有界等待一个客户端连接；超时 ``None``、取消 ``PipeCancelled``。"""
+        """有界等待任一客户端连接；超时 ``None``、取消 ``PipeCancelled``。
+
+        多实例（有界）等待：已有活动连接时仍可 accept 新客户端（F4）；实例池
+        容量不足时先补齐（每个实例都做 owner-only DACL 与占名检测）。
+        """
         budget = DEFAULT_CONNECT_TIMEOUT if timeout is None else max(0.0, float(timeout))
+        deadline = time.monotonic() + budget
         with self._lock:
             if self._closed or self._closing:
                 raise PipeClosed("server is closed")
             if self._active >= self.max_active_connections:
                 self.diagnostics.bump("connections_rejected_capacity")
                 return None
-            if self._pending is None:
-                self._pending = self._create_instance_locked()
-            pending = self._pending
-        deadline = time.monotonic() + budget
+            self._ensure_capacity_locked()
         while True:
             with self._lock:
-                if pending["cancelled"] or self._pending is not pending:
-                    self.accept_cancels += 1
-                    raise PipeCancelled("accept was cancelled")
-                if not pending["issued"]:
-                    _k32.ResetEvent(wintypes.HANDLE(pending["event"]))
-                    ok = bool(
-                        _k32.ConnectNamedPipe(
-                            wintypes.HANDLE(pending["handle"]), ctypes.byref(pending["ov"])
-                        )
-                    )
-                    if ok or _last_error() == ERROR_PIPE_CONNECTED:
-                        return self._finish_accept(pending)
-                    error = _last_error()
-                    if error == ERROR_NO_DATA:
-                        # 客户端在 ConnectNamedPipe 之前连上又断开（瞬时状态，不是致命错误）：
-                        # 重建实例并在同一预算内重试，**不**把 accept 循环打死。
-                        self._drop_pending_locked()
-                        self.diagnostics.record_error("accept: client left before connect; retrying")
-                        if time.monotonic() >= deadline:
-                            self.accept_timeouts += 1
-                            return None
-                        pending = self._pending = self._create_instance_locked()
-                        continue
-                    if error != ERROR_IO_PENDING:
-                        self._drop_pending_locked()
-                        raise PipeIOError(f"ConnectNamedPipe failed: {_error_text(error)}")
-                    pending["issued"] = True
-            if time.monotonic() >= deadline:
+                for pending in list(self._pendings):
+                    connection = self._arm_pending_locked(pending)
+                    if connection is not None:
+                        return connection
+                armed = [
+                    pending
+                    for pending in self._pendings
+                    if pending["issued"] and not pending["cancelled"]
+                ][:MAX_WAIT_HANDLES]
+            if not armed:
+                if time.monotonic() >= deadline:
+                    self.accept_timeouts += 1
+                    return None
+                time.sleep(0.005)  # 池瞬时空（重建中）：有界回环，不忙等
+                with self._lock:
+                    if self._closed or self._closing:
+                        raise PipeClosed("server is closed")
+                    if self._active >= self.max_active_connections:
+                        self.diagnostics.bump("connections_rejected_capacity")
+                        return None
+                    self._ensure_capacity_locked()
+                continue
+            remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
+            if remaining_ms <= 0:
                 self.accept_timeouts += 1
                 return None
-            remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
-            wait = int(_k32.WaitForSingleObject(wintypes.HANDLE(pending["event"]), remaining_ms))
+            handles = (wintypes.HANDLE * len(armed))(
+                *(wintypes.HANDLE(pending["event"]) for pending in armed)
+            )
+            wait = int(_k32.WaitForMultipleObjects(len(armed), handles, False, remaining_ms))
             if wait == WAIT_TIMEOUT:
                 self.accept_timeouts += 1
                 return None
-            if wait not in (WAIT_OBJECT_0, WAIT_ABANDONED):
-                with self._lock:
-                    if self._pending is pending:
-                        self._drop_pending_locked()
-                raise PipeIOError(f"WaitForSingleObject(connect) failed: {_error_text()}")
+            index = wait - WAIT_OBJECT_0
+            if not 0 <= index < len(armed):
+                raise PipeIOError(f"WaitForMultipleObjects failed: {_error_text()}")
+            pending = armed[index]
             # 完成后处理**必须**在锁内：取消方在锁内 set(cancelled)→CancelIoEx→
-            # 等事件→关句柄，因此这里要么看到 cancelled=真（不碰已关闭的句柄），
-            # 要么在句柄仍有效时完成检查。两条路径都不关一个仍有在飞 I/O 的句柄。
+            # 等事件→关句柄，因此这里要么看到 cancelled（不碰已关闭句柄），要么在
+            # 句柄仍有效时完成检查；两条路径都不关一个仍有在飞 I/O 的句柄。
             with self._lock:
-                if pending["cancelled"] or self._pending is not pending:
+                if pending["cancelled"] or pending not in self._pendings:
                     self.accept_cancels += 1
                     raise PipeCancelled("accept was cancelled")
                 transferred = wintypes.DWORD(0)
@@ -1643,12 +1910,12 @@ class PipeServer:
                 if error == ERROR_IO_INCOMPLETE:
                     continue
                 if error == ERROR_OPERATION_ABORTED:
-                    self._drop_pending_locked()
+                    self._drop_pending_locked(pending)
                     self.accept_cancels += 1
                     raise PipeCancelled("accept was cancelled (CancelIoEx)")
                 if error == ERROR_PIPE_CONNECTED:
                     return self._finish_accept(pending)
-                self._drop_pending_locked()
+                self._drop_pending_locked(pending)
                 raise PipeIOError(f"GetOverlappedResult(connect) failed: {_error_text(error)}")
 
     def _finish_accept(self, pending: dict[str, Any]) -> PipeConnection:
@@ -1661,80 +1928,126 @@ class PipeServer:
             diagnostics=self.diagnostics,
         )
         with self._lock:
-            if self._pending is pending:
-                self._pending = None
-            self._own_instances -= 1  # 实例句柄移交给连接
+            if pending in self._pendings:
+                self._pendings.remove(pending)
+            # F4：实例句柄移交给连接，但**名称所有权仍在本进程**——活动连接持有的
+            # 实例继续计入 _own_instances，直到该连接的句柄真正关闭为止；否则下一次
+            # 实例创建会重新带上 FIRST_PIPE_INSTANCE 而必然失败（旧缺陷）。
             self._connections.append(connection)
             self._active += 1
-        _close_handle(pending["event"])
+        if not _close_handle(pending["event"]):
+            # F3：事件句柄关不掉 → 保留引用（可重试），并让 server.close 体现出来。
+            with self._lock:
+                self._leaked_events.append(int(pending["event"]))
+            self.diagnostics.record_error("connect event handle close failed; retained for retry")
+        else:
+            pending["event"] = 0
         self.diagnostics.bump("connections_accepted")
         return connection
 
     def _forget_connection(self, connection: PipeConnection) -> None:
+        """连接关闭回调：只有在实例句柄**确实释放**后才归还名称所有权（F4）。"""
         with self._lock:
             if connection in self._connections:
                 self._connections.remove(connection)
                 self._active -= 1
+                if connection.closed:
+                    self._own_instances -= 1
 
     def cancel_accept(self) -> bool:
         """取消在飞 ``ConnectNamedPipe``（幂等；无在飞连接返回 False）。
 
-        取消后**立即重建**待连接实例（重新做占名检测）：否则管道名会短暂无人
-        持有，客户端在此期间连不上（本 TA 在测试里复现过这个窗口）。
+        取消后**重建实例池**（重新做占名检测）：否则管道名会短暂无人持有，
+        客户端在此期间连不上（本 TA 在测试里复现过这个窗口）。
         """
         with self._lock:
-            pending = self._pending
-            if pending is None or not pending["issued"]:
+            armed = [
+                pending
+                for pending in self._pendings
+                if pending["issued"] and not pending["cancelled"]
+            ]
+            if not armed:
                 return False
-            pending["cancelled"] = True
-        cancelled = bool(_k32.CancelIoEx(wintypes.HANDLE(pending["handle"]), ctypes.byref(pending["ov"])))
-        # 等取消的 I/O 落地后再关句柄（避免关掉仍被内核引用的 OVERLAPPED）；
-        # 未落地则保留实例并记录，交由后续 accept/close 重试，绝不提前释放内存。
+            for pending in armed:
+                pending["cancelled"] = True
+        cancelled = False
+        for pending in armed:
+            if _k32.CancelIoEx(wintypes.HANDLE(pending["handle"]), ctypes.byref(pending["ov"])):
+                cancelled = True
         with self._lock:
-            if self._pending is pending:
-                if not self._drop_pending_locked(wait_event_ms=2000):
-                    self.diagnostics.record_error("cancel_accept: pending connect did not converge")
-                    return cancelled
+            for pending in list(armed):
+                if pending in self._pendings and not self._drop_pending_locked(
+                    pending, wait_event_ms=2000
+                ):
+                    self.diagnostics.record_error(
+                        "cancel_accept: pending connect did not converge"
+                    )
             if not self._closing and not self._closed:
                 try:
-                    self._pending = self._create_instance_locked()
+                    self._ensure_capacity_locked()
                 except PipeError as exc:
                     self.diagnostics.record_error(
                         f"cancel_accept: pipe instance could not be re-armed: {type(exc).__name__}"
                     )
-                    self._pending = None
         return cancelled
 
     def close(self, *, timeout: float | None = None) -> CloseReport:
-        """关闭服务器：先关连接，再取消待连接实例；未收敛则保留资源可重试。"""
+        """关闭服务器：先关连接，再释放待连接实例与残留事件；未收敛则保留可重试。
+
+        - 未 ``issued`` 的待连接实例**直接释放**（事件永不置位，等待只会假超时——F5）；
+        - 已 ``issued`` 的先取消再等落地；
+        - 连接/实例/事件任何一处 ``CloseHandle`` 失败都计入 ``converged=False``，
+          保留资源供重试，不伪造关闭成功（F3）。
+        """
         budget = DEFAULT_CLOSE_TIMEOUT if timeout is None else max(0.0, float(timeout))
         deadline = time.monotonic() + budget
         with self._lock:
             self._closing = True
             connections = list(self._connections)
+            leaked_events = list(self._leaked_events)
+            self._leaked_events = []
         converged = True
         details: list[str] = []
         for connection in connections:
             report = connection.close(timeout=max(0.05, deadline - time.monotonic()))
             if not report.converged:
                 converged = False
-                details.append("connection-close-not-converged")
+                details.append(f"connection-close: {report.detail}")
         with self._lock:
-            pending = self._pending
-        if pending is not None:
-            if pending["issued"] and not pending["cancelled"]:
+            pendings = list(self._pendings)
+        for pending in pendings:
+            if not pending["issued"]:
+                # F5：从未发起 ConnectNamedPipe 的实例没有在飞 I/O，直接释放。
+                with self._lock:
+                    if pending in self._pendings and not self._drop_pending_locked(pending):
+                        converged = False
+                        details.append("pending-release-failed")
+                continue
+            if not pending["cancelled"]:
                 pending["cancelled"] = True
                 _k32.CancelIoEx(wintypes.HANDLE(pending["handle"]), ctypes.byref(pending["ov"]))
             remaining = max(0, int((deadline - time.monotonic()) * 1000))
             wait = int(_k32.WaitForSingleObject(wintypes.HANDLE(pending["event"]), remaining))
             if wait in (WAIT_OBJECT_0, WAIT_ABANDONED):
                 with self._lock:
-                    if self._pending is pending:
-                        self._drop_pending_locked()
+                    if pending in self._pendings and not self._drop_pending_locked(pending):
+                        converged = False
+                        details.append("pending-release-failed")
             else:
                 converged = False
                 details.append("connect-cancel-not-converged")
+        for event_handle in leaked_events:
+            if _close_handle(event_handle):
+                continue
+            with self._lock:
+                self._leaked_events.append(event_handle)
+            converged = False
+            details.append("event-close-failed")
         with self._lock:
+            if converged and self._own_instances > 0:
+                # 记账自检：声称收敛时必须真的没有残留实例。
+                converged = False
+                details.append(f"own-instances-remaining:{self._own_instances}")
             if converged:
                 self._closed = True
         return CloseReport(
@@ -1778,6 +2091,23 @@ class PipeClient:
         self.max_frame_bytes = int(max_frame_bytes)
         self.connect_timeout = float(connect_timeout)
         self.poll_interval = float(poll_interval)
+        #: 关闭未收敛时保留的连接（可重试释放，句柄不静默泄漏）
+        self.retained_connections: list[PipeConnection] = []
+        self._retained_lock = threading.Lock()
+
+    def release_retained(self, *, timeout: float = 2.0) -> list[CloseReport]:
+        """重试释放被保留的连接（``connect`` 拒绝路径里关闭未收敛的那些）。"""
+        with self._retained_lock:
+            pending = list(self.retained_connections)
+            self.retained_connections.clear()
+        reports: list[CloseReport] = []
+        for connection in pending:
+            report = connection.close(timeout=timeout)
+            reports.append(report)
+            if not report.converged:
+                with self._retained_lock:
+                    self.retained_connections.append(connection)
+        return reports
 
     def connect(self, *, timeout: float | None = None) -> PipeConnection:
         budget = self.connect_timeout if timeout is None else max(0.0, float(timeout))
@@ -1814,7 +2144,14 @@ class PipeClient:
             )
             if connection.peer_server_pid() is None:
                 # 拿不到服务器 PID = 不是本机管道（或已断开）：fail-closed 拒绝。
-                connection.close(timeout=1.0)
+                report = connection.close(timeout=1.0)
+                if not report.converged:
+                    with self._retained_lock:
+                        self.retained_connections.append(connection)
+                    raise PipeIOError(
+                        "connected pipe has no local server process id (remote pipe?); refusing "
+                        f"(close not converged: {report.detail}; connection retained for release_retained)"
+                    )
                 raise PipeIOError(
                     "connected pipe has no local server process id (remote pipe?); refusing"
                 )
@@ -1828,6 +2165,7 @@ __all__ = [
     "DEFAULT_PIPE_BUFFER_BYTES",
     "DEFAULT_CONNECT_TIMEOUT",
     "DEFAULT_CLOSE_TIMEOUT",
+    "MAX_WAIT_HANDLES",
     "PIPE_REJECT_REMOTE_CLIENTS",
     "FILE_FLAG_FIRST_PIPE_INSTANCE",
     "PipeError",
@@ -1837,6 +2175,7 @@ __all__ = [
     "PipeClosed",
     "PipeCancelled",
     "PipeIOError",
+    "NamedMutexTimeout",
     "CloseReport",
     "pipe_name_for",
     "is_invalid_handle",
@@ -1853,10 +2192,14 @@ __all__ = [
     "create_owner_only_directory",
     "apply_owner_only_acl",
     "write_file_owner_only",
+    "create_file_exclusive_owner_only",
     "replace_file_atomic",
     "delete_file",
+    "named_mutex",
     "dacl_entries",
     "owner_sid",
+    "ALLOW_ACE_TYPES",
+    "DENY_ACE_TYPES",
     "PipeConnection",
     "PipeServer",
     "PipeClient",
