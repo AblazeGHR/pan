@@ -62,7 +62,34 @@ export interface QuickJumpIndexItem {
   preview: string;
 }
 
-/** Return the marker category used by the quick-location rail, if any. */
+/**
+ * Return the marker category used by the quick-location rail, if any.
+ *
+ * Classification basis — only durable provenance written by the worker
+ * history receipt (and mirrored onto delivered live rows), no free-text
+ * guessing beyond the established markers:
+ * - `@@@@by agent` → `worker` (TA report, the old judgment; checked first and
+ *   role-independent because some adapters serialize reports as user rows).
+ * - `////by agent` → `maMsg` (the existing meta-agent rule: identity prefix
+ *   that `agent_send` / `agent_send_force` prepend while Pan-managed, same
+ *   rule as `filterVisibleMessages`).
+ * - `source: "agent"` (编排注入) with `taskIdSource: "active"` → `maMsg`
+ *   (a follow-up that only inherited the active task id; the same split the
+ *   backend draws in `_is_formal_task_item`).
+ * - `source: "agent"` otherwise → `maAssign` (formal dispatch, with or
+ *   without an assign task id).
+ * - any other `user` row → `user` (browser sends, scheduler/background jobs,
+ *   prompt injection, QQ); non-user rows without the report prefix → `null`.
+ *
+ * Indistinguishable boundaries (documented on purpose):
+ * - An env-less `agent_send` / `agent_send_force` (no `////by agent` prefix)
+ *   that inherited no active task id carries exactly the same durable fields
+ *   as an assign and is therefore classified `maAssign`; only the identity
+ *   prefix and the inherited id separate send/force from assign.
+ * - History persisted before the structured source fields existed carries no
+ *   provenance and stays `user` / `null`; the current managed relation is
+ *   never used to guess an old origin.
+ */
 export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   const content = message.content.trimStart();
   // A task-agent report wins over the role because reports can be serialized
