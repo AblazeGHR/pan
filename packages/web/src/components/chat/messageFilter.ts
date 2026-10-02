@@ -35,11 +35,20 @@ export function filterVisibleMessages(
 
 export type QuickJumpKind = 'user' | 'worker';
 
+/**
+ * Unified source kinds for sequential navigation markers (MA assign/msg
+ * classification).  Kept separate from the legacy ``QuickJumpKind`` so the
+ * report route keeps its existing `worker` kind untouched.
+ */
+export type MessageSourceKind = 'user' | 'report' | 'ma';
+
 export interface QuickJumpMessage {
   message: Message;
   /** Index in the filtered message list used by ChatMessages. */
   index: number;
   kind: QuickJumpKind;
+  /** Unified source kind for icon selection (see getMessageSourceKind). */
+  sourceKind?: MessageSourceKind;
   preview: string;
 }
 
@@ -48,6 +57,8 @@ export interface QuickJumpMessage {
 export interface QuickJumpIndexItem {
   fromEnd: number;
   kind: QuickJumpKind;
+  /** Unified source kind for icon selection (see getMessageSourceKind). */
+  sourceKind?: MessageSourceKind;
   preview: string;
 }
 
@@ -100,6 +111,39 @@ export function getMessageSourceTag(message: Message): MessageSourceTag | null {
   return null;
 }
 
+/**
+ * Classify the origin of a navigation-visible body row as a unified source
+ * kind, or null when the row is not a navigable marker.
+ *
+ * Kind contract (rail integration API):
+ * - `report` — TA report (`@@@@by agent`).  The existing report rule is
+ *   checked first and stays role-independent (some adapters serialize
+ *   reports as user rows); report routing and the legacy `QuickJumpKind`
+ *   `worker` marker are unchanged (`report` is its source-level name).
+ * - `ma` — MA assign/msg.  The existing meta-agent判定 wins: the
+ *   `////by agent` identity prefix that `agent_send` / `agent_send_force`
+ *   prepend (same rule as `filterVisibleMessages`) classifies as `ma` first;
+ *   otherwise the structured dispatch provenance written by the worker
+ *   history receipt (`source: "agent"`, 编排注入) classifies as `ma`.  This
+ *   deliberately includes msg follow-ups (`taskIdSource: "active"`) that the
+ *   stricter body-label subset (`getMessageSourceTag` → `ma-assign`) leaves
+ *   unlabelled.
+ * - `user` — every other user-role row (browser sends, automation fills,
+ *   prompt injection, QQ injections), matching the historical
+ *   `getQuickJumpKind` fallback.
+ *
+ * The non-null domain is identical to `getQuickJumpKind`: user-role rows plus
+ * report-prefixed rows of any role; everything else stays null.
+ */
+export function getMessageSourceKind(message: Message): MessageSourceKind | null {
+  const content = message.content.trimStart();
+  if (content.startsWith(TASK_AGENT_PREFIX)) return 'report';
+  if (message.role !== 'user') return null;
+  if (content.startsWith(META_AGENT_PREFIX)) return 'ma';
+  if (message.source === 'agent') return 'ma';
+  return 'user';
+}
+
 /** Remove transport/source headers before showing a compact hover preview. */
 export function getQuickJumpPreview(content: string, maxLength = 120): string {
   const trimmed = content.trimStart();
@@ -127,6 +171,7 @@ export function getQuickJumpIndexItems(
       ? [{
           fromEnd: total - 1 - (start + index),
           kind,
+          sourceKind: getMessageSourceKind(message) ?? undefined,
           preview: getQuickJumpPreview(message.content),
         }]
       : [];
@@ -141,7 +186,13 @@ export function getQuickJumpMessages(
   return filterVisibleMessages(messages, settings).flatMap((message, index) => {
     const kind = getQuickJumpKind(message);
     return kind
-      ? [{ message, index, kind, preview: getQuickJumpPreview(message.content) }]
+      ? [{
+          message,
+          index,
+          kind,
+          sourceKind: getMessageSourceKind(message) ?? undefined,
+          preview: getQuickJumpPreview(message.content),
+        }]
       : [];
   });
 }
