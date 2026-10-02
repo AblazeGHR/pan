@@ -160,8 +160,14 @@ def test_wait_for_proxies_to_observer():
 
 
 def test_core_has_no_adapter_menu_literals():
-    files = sorted(CORE_DIR.glob("*.py"))
-    assert len(files) == 9
+    files = sorted(CORE_DIR.rglob("*.py"))
+    # P0 modules remain required; subsequent backend/IPC modules may extend
+    # the package, but must pass the same adapter-independent boundary check.
+    required = {
+        "__init__.py", "contracts.py", "output.py", "runtime.py",
+        "ownership.py", "registry.py", "attachments.py", "observer.py", "driver.py",
+    }
+    assert required <= {path.name for path in CORE_DIR.glob("*.py")}
     for path in files:
         text = path.read_text(encoding="utf-8").lower()
         assert "restore and fork the conversation" not in text
