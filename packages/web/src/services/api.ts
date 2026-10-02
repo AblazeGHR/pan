@@ -42,6 +42,7 @@ import type {
   ApiClaimResponse,
   ApiSessionOrderResponse,
   ApiSessionPinResponse,
+  ApiSessionUnreadAckResponse,
   ApiWorkspacesResponse,
   ApiWorkspaceResponse,
   ApiWorkspaceOrderResponse,
@@ -887,6 +888,27 @@ export async function setSessionPinned(
     throw new Error(data.error?.message || 'Pin update failed');
   }
   return data as ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] };
+}
+
+/** Acknowledge (clear) one Session's unread done badge up to the observed count.
+ *  The server subtracts only what the caller actually saw, so a done landing
+ *  while the request is in flight stays unread. Returns the authoritative
+ *  remaining count. */
+export async function ackSessionUnreadDone(
+  sessionId: string,
+  observed?: number,
+): Promise<ApiSessionUnreadAckResponse & { ok: true; unreadDoneCount: number }> {
+  const data = await request<ApiSessionUnreadAckResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/unread-done/ack`,
+    {
+      method: 'POST',
+      body: JSON.stringify(observed === undefined ? {} : { observed }),
+    },
+  );
+  if (data.ok !== true || typeof data.unreadDoneCount !== 'number') {
+    throw new Error(data.error?.message || 'Unread ack failed');
+  }
+  return data as ApiSessionUnreadAckResponse & { ok: true; unreadDoneCount: number };
 }
 
 /** Reorder only the supplied currently pinned IDs; omitted pins keep their slots. */

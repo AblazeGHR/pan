@@ -1279,6 +1279,11 @@ class Session:
     queue_idempotency_index: dict = field(default_factory=dict)
     queue_revision: int = 0
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
+    # 未读 done 次数：每个真实 done 终态 +1，由唯一终态入口
+    # worker._persist_terminal_state（既有终态去重之后）计数；error/cancelled/
+    # zombie 与子 report 批次不计。UI 双击徽标或选中 Session 即读后清零。
+    # 旧 JSON 缺该字段按 0 载入；绝不从 history/terminal_results 回溯补计。
+    unread_done_count: int = 0
     # The latest formal assign task selected for this Session.  This is a
     # routing context for subsequent agent_send messages, not a second queue
     # or an idempotency registry.  It is persisted so a Worker respawn cannot
@@ -1341,6 +1346,7 @@ class Session:
                  queue_idempotency_index: dict | None = None,
                  queue_revision: int = 0,
                  task_seq: int = 0,
+                 unread_done_count: int = 0,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
                  summary_projection: dict | None = None,
@@ -1476,6 +1482,10 @@ class Session:
             if migrated:
                 self.queue_revision += 1
         self.task_seq = task_seq
+        try:
+            self.unread_done_count = max(0, int(unread_done_count or 0))
+        except (TypeError, ValueError):
+            self.unread_done_count = 0  # 落盘值损坏时降级为 0，不阻塞 Session 加载
         self.active_task_id = active_task_id
         raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.accepted_input_ids = list(dict.fromkeys(
@@ -1704,6 +1714,7 @@ class Session:
             "queue_idempotency_index": self.queue_idempotency_index,
             "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
+            "unread_done_count": self.unread_done_count,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
             "summary_projection": dict(self.summary_projection),
@@ -1850,6 +1861,7 @@ def _summary_metadata_signature(s: Session) -> str:
         "managed": list(s.managed),
         "managed_by": s.managed_by,
         "readonly_session": s.readonly_session,
+        "unread_done_count": int(s.unread_done_count or 0),
     }
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 

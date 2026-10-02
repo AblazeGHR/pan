@@ -1107,6 +1107,13 @@ async def _persist_terminal_state(
         "sourceSessionId": source_session_id,
         "terminalKey": terminal_key,
     }
+    # 未读 done 计数：只在此唯一终态入口（既有三重去重之后）累加，每次真实
+    # done 终态 +1，随本次 base commit 落盘。error/cancelled 不计；report 批次
+    # 在此刻仍持有 _current_report_items（下方 _ack_current_reports 才清空）
+    # 且 task_seq 为 None，不计入 manager 自己的 done——子 report 到达不再计一次。
+    if (status == "done" and task_seq is not None
+            and not w._current_report_items):
+        s.unread_done_count = max(0, int(getattr(s, "unread_done_count", 0) or 0)) + 1
     if status == "done" and isinstance(result_text, str) and result_text.strip():
         last = s.history[-1] if s.history else None
         already_appended_this_turn = (

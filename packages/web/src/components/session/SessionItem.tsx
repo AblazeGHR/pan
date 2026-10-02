@@ -184,6 +184,12 @@ export const SessionItem = memo(function SessionItem({
       ? messages.length
       : '—';
   const credit = session.totalUsage?.credit ?? null;
+  // 未读 done 徽标：0 时完全不渲染（无空圆、无 0、不占位）；多位数值收窄为
+  // “99+”胶囊，随内容增宽而不挤压卡片布局。计数与 ack 均以整型收敛。
+  const unreadDoneCount = typeof session.unreadDoneCount === 'number'
+      && Number.isFinite(session.unreadDoneCount)
+    ? Math.max(0, Math.floor(session.unreadDoneCount))
+    : 0;
   // Workspace membership badge: shown only in the unscoped "all" view (inside
   // a workspace tab the scope is already known, and the chip just costs width).
   const workspaceId = session.workspaceIds?.[0] ?? null;
@@ -454,17 +460,43 @@ export const SessionItem = memo(function SessionItem({
             })}
           </div>
 
-          {session.adapter && (
-            <span
-              className="session-quick-action-adapter"
-              data-testid="session-adapter-badge"
-              role="img"
-              aria-label={`Adapter ${session.adapter}`}
-              title={`Adapter: ${session.adapter}`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {session.adapter}
+          {(session.adapter || unreadDoneCount > 0) && (
+            <span className="session-quick-action-adapter-row">
+              {unreadDoneCount > 0 && (
+                // 未读 done 徽标（adapter 标签左侧）。单击只拦截冒泡、不选中
+                // 卡片也不清零：否则第一次 click 会经“选择即读”把徽标清零并
+                // 卸载，第二次 click 失去目标，双击永远无法成立。清零只在
+                // 双击（或选择会话）时发生；事件拦截同时防止卡片选中。
+                <span
+                  className="session-unread-done-badge"
+                  data-testid="session-unread-done-badge"
+                  role="img"
+                  aria-label={`${unreadDoneCount} unread done. Double-click to mark as read.`}
+                  title={`${unreadDoneCount} unread done · 双击标记已读`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (isPending) return;
+                    void useSessionStore.getState().ackSessionUnread(session.id, unreadDoneCount);
+                  }}
+                >
+                  {unreadDoneCount > 99 ? '99+' : unreadDoneCount}
+                </span>
+              )}
+              {session.adapter && (
+                <span
+                  className="session-quick-action-adapter"
+                  data-testid="session-adapter-badge"
+                  role="img"
+                  aria-label={`Adapter ${session.adapter}`}
+                  title={`Adapter: ${session.adapter}`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {session.adapter}
+                </span>
+              )}
             </span>
           )}
 

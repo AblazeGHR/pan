@@ -99,6 +99,12 @@ export interface Session {
   workerGeneration?: number | null;
   workerTaskId?: string | null;
   workerTaskSeq?: number | null;
+  /**
+   * Unread done count for this Session: +1 per real done terminal state
+   * (backend `_persist_terminal_state`; error/cancelled/zombie and child
+   * report arrivals do not count). 0/undefined renders no badge.
+   */
+  unreadDoneCount?: number;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
@@ -519,6 +525,14 @@ export interface ApiSessionPinResponse {
   pinOrder?: number | null;
   pinRevision?: number;
   sessionIds?: string[];
+  error?: { code?: string; message?: string };
+}
+
+/** POST /api/sessions/{id}/unread-done/ack — unread done badge acknowledgement. */
+export interface ApiSessionUnreadAckResponse {
+  ok?: boolean;
+  /** Remaining unread done count after this acknowledgement (authoritative). */
+  unreadDoneCount?: number;
   error?: { code?: string; message?: string };
 }
 

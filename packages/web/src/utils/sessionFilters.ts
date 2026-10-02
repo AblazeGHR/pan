@@ -5,7 +5,7 @@ import type { Session } from '@/types';
  * search box. Each filter is judged on real Session fields — never on
  * display text.
  */
-export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'illegal';
+export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'illegal' | 'unread';
 
 export interface SpecialFilterOption {
   id: SpecialFilterId;
@@ -35,6 +35,11 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
     id: 'illegal',
     label: 'Illegal state',
     description: 'Legal state is running, but actual Worker status is not',
+  },
+  {
+    id: 'unread',
+    label: 'Has unread',
+    description: 'Unread done count is greater than zero',
   },
 ];
 
@@ -90,6 +95,10 @@ export function matchesSpecialFilters(
   if (
     filters.has('illegal') &&
     !(session.lastLegalWorkerState === 'running' && session.workerStatus !== 'running')
+  ) return false;
+  if (
+    filters.has('unread') &&
+    !(typeof session.unreadDoneCount === 'number' && session.unreadDoneCount > 0)
   ) return false;
   return true;
 }

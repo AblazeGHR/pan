@@ -12,6 +12,7 @@ import { DemoBadge } from './demo/DemoBadge';
 import { isMockMode } from './demo/mockBackend';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
+import { useSessionStore } from './stores/sessionStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Outlet, useNavigate } from 'react-router-dom';
 
@@ -25,6 +26,26 @@ export function Layout() {
   const setMobileSidebarOpen = useUIStore((s) => s.setMobileSidebarOpen);
   const theme = useUIStore((s) => s.theme);
   const navigate = useNavigate();
+
+  // 选中即读：当前选中的 Session 一出现未读 done（例如正在阅读时它又完成
+  // 一轮），立即按“已观察计数”ack 清零。ack 只扣减调用方看到的计数，与 ack
+  // 竞态落下的新 done 会保留为未读并由下一次状态变化再次收敛；服务端在 0 时
+  // 不再广播，因此 WS 回放把计数短暂复位到 >0 时最多再多一次 ack，不会无限循环。
+  const selectedSessionId = useSessionStore((s) => s.currentSessionId);
+  const selectedUnreadDone = useSessionStore((s) => {
+    const current = selectedSessionId
+      ? s.sessions.find((item) => item.id === selectedSessionId)
+      : undefined;
+    const value = current?.unreadDoneCount;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.floor(value))
+      : 0;
+  });
+  useEffect(() => {
+    if (selectedSessionId && selectedUnreadDone > 0) {
+      void useSessionStore.getState().ackSessionUnread(selectedSessionId, selectedUnreadDone);
+    }
+  }, [selectedSessionId, selectedUnreadDone]);
   const [mobileRailExpanded, setMobileRailExpanded] = useState(false);
   const mobileDrawerOpenedForDrop = useRef(false);
 

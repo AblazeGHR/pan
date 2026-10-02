@@ -121,11 +121,20 @@
   right: 0;
 }
 
-.session-quick-action-adapter {
+/* 底行右侧（adapter 标签行）：未读 done 徽标在 adapter 标签左侧，二者同一
+   flex 行整体锚定右下角；徽标 0 时组件不渲染，该行退回只有 adapter 的原布局。 */
+.session-quick-action-adapter-row {
   position: absolute;
   z-index: 4;
   right: 1px;
   bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+}
+
+.session-quick-action-adapter {
   padding: 0 3px;
   border: 1px solid var(--color-border-default);
   border-radius: 4px;
@@ -134,4 +143,30 @@
   font-size: 9px;
   line-height: 11px;
   pointer-events: auto;
+}
+
+/* 黄色圆底未读数字：单数字为圆，多位自然放宽成胶囊（>99 显示 99+）；文本色
+   取 --color-bg-primary —— 暗色主题为深色、亮色主题为白色，均与黄底形成对比。 */
+.session-unread-done-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-warning);
+  color: var(--color-bg-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.session-unread-done-badge:hover {
+  filter: brightness(1.12);
 }

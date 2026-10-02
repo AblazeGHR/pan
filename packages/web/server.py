@@ -2008,6 +2008,7 @@ def _session_to_api(
         **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
+        "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
@@ -2233,6 +2234,7 @@ def _session_summary(
         "workerTaskId": worker_task_id,
         "workerTaskSeq": worker_task_seq,
         "lastLegalWorkerState": s.last_legal_worker_state,
+        "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
@@ -5815,6 +5817,57 @@ async def api_set_session_pin(session_id: str, data: dict):
         "pinRevision": state["pinRevision"],
         "sessionIds": state["sessionIds"],
     }
+
+
+@app.post("/api/sessions/{session_id}/unread-done/ack")
+async def api_ack_session_unread_done(session_id: str, data: dict | None = None):
+    """Mark this Session's unread done badge as read, up to an observed boundary.
+
+    Body: {"observed": <non-negative int>} — the count the caller actually saw.
+    The server clears exactly that many (``remaining = prev - min(prev,
+    observed)``), so a real done landing while this request is in flight is
+    never swallowed by a delayed ack.  Omitting ``observed`` clears the whole
+    current count.  Only this Session's own counter is touched; history,
+    terminal results and report routes are untouched.
+
+    Permission boundary is the same as every other Session route (the HTTP
+    surface is the trusted local interface); no new authorization is added.
+
+    Response: {"ok": true, "unreadDoneCount": <remaining>} or
+    {"ok": false, "error": {code, message}}.
+    """
+    observed: int | None = None
+    if isinstance(data, dict) and data.get("observed") is not None:
+        raw = data.get("observed")
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+            return {"ok": False, "error": {
+                "code": "invalid_params",
+                "message": "observed must be a non-negative integer when provided"}}
+        observed = raw
+    s = sess.get(session_id)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found"}}
+    # The read-modify-write below has no await: the count can only change fully
+    # before or fully after this ack (worker increments run on the same event
+    # loop), so a concurrent done is either consumed here or stays unread.
+    prev = max(0, int(getattr(s, "unread_done_count", 0) or 0))
+    remaining = 0 if observed is None else max(0, prev - min(prev, observed))
+    if remaining != prev:
+        s.unread_done_count = remaining
+        try:
+            sess.save(s)
+        except OSError as exc:
+            return {"ok": False, "error": {
+                "code": "ack_persist_failed",
+                "message": str(exc) or "Could not persist unread ack"}}
+        await broadcast({
+            "type": "session.updated",
+            "sessionId": s.id,
+            "session": _session_summary(s),
+        })
+    return {"ok": True, "unreadDoneCount": remaining}
 
 
 @app.post("/api/sessions/pins/order")

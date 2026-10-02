@@ -17,6 +17,7 @@ import {
   reimportSession,
   setSessionWorkspaces,
   setSessionPinned as setSessionPinnedApi,
+  ackSessionUnreadDone as ackSessionUnreadApi,
   reorderPinnedSessions as reorderPinnedSessionsApi,
 } from '@/services/api';
 import { applyMockPinnedOrder, isMockMode } from '@/demo/mockBackend';
@@ -98,6 +99,10 @@ interface SessionStore {
   // Actions
   loadSessions: (options?: { throwOnError?: boolean }) => Promise<void>;
   selectSession: (id: string, signal?: AbortSignal) => Promise<void>;
+  /** 标记某 Session 的未读 done 为已读（清零并落盘）。
+   *  observed 为调用方实际看到的计数（ack 边界）；缺省清空当前全部。
+   *  “选择即读”“选中会话新 done 自动已读”和徽标双击共用此入口。 */
+  ackSessionUnread: (id: string, observed?: number) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
@@ -208,6 +213,18 @@ let localTouchSeq = 0;
 let settingsTouchSeq = 0;
 let localMessageSeq = 0;
 let pinMutationSeq = 0;
+/** 同一 Session 同时只允许一个未读 ack 在途：后续触发合并进 `unreadAckWanted`
+ *  并在在途请求完成后继续收敛，避免 WS 回放 / 选中路径叠加出 ack 风暴。 */
+const unreadAckInFlight = new Set<string>();
+/** 每个 Session 的已观察清零意图（ack 边界）；随成功发送逐个消费。 */
+const unreadAckWanted = new Map<string, number>();
+
+/** Coerce a wire/partial `unreadDoneCount` into a safe non-negative integer. */
+function normalizedUnreadCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
+}
 
 // Local user rows are transient projection state, not a new persisted wire
 // field.  Keep the count at which a row was created outside Zustand so an
@@ -1840,6 +1857,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         sessionTranscripts: { ...s.sessionTranscripts, [id]: transcript },
       };
     });
+
+    // 选择即读：选中即清零该 Session 的未读 done（乐观清零 + ack 落盘）。
+    // selectSession 是 currentSessionId 的唯一写入入口，因此卡片点击与命令
+    // 面板 / 历史搜索 / 导入等既有导航选择全部走同一条清零路径。
+    const unreadAtSelection = normalizedUnreadCount(session.unreadDoneCount);
+    if (unreadAtSelection > 0) {
+      void get().ackSessionUnread(id, unreadAtSelection);
+    }
 
     // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
     // loadSessions 刷新，可能滞后或（在 _loadSeq 超驰/事件丢失时）过期——
@@ -3519,6 +3544,65 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       _pinStateTouchedSeq: (state._pinStateTouchedSeq ?? 0) + 1,
     }));
     return true;
+  },
+
+  ackSessionUnread: async (id, observed) => {
+    const session = get().sessions.find((item) => item.id === id);
+    if (!session) return;
+    const boundary = observed === undefined
+      ? normalizedUnreadCount(session.unreadDoneCount)
+      : normalizedUnreadCount(observed);
+    if (normalizedUnreadCount(session.unreadDoneCount) <= 0) return;
+    if (isMockMode()) {
+      set((s) => ({
+        sessions: s.sessions.map((item) =>
+          item.id === id ? { ...item, unreadDoneCount: 0 } : item),
+      }));
+      return;
+    }
+    // 记录清零意图（在途期间的重复触发取最大值合并，请求完成后继续收敛）。
+    unreadAckWanted.set(id, Math.max(unreadAckWanted.get(id) ?? 0, boundary));
+    if (unreadAckInFlight.has(id)) return;
+    unreadAckInFlight.add(id);
+    try {
+      for (;;) {
+        const wanted = unreadAckWanted.get(id) ?? 0;
+        const displayed = normalizedUnreadCount(
+          get().sessions.find((item) => item.id === id)?.unreadDoneCount,
+        );
+        // ack 边界取意图与“当前显示计数”的较小值：在途期间新到达的 done
+        // 不会被旧意图的超量 ack 吞掉（例如双击期间落下的新 done 仍显示）；
+        // 选中会话的剩余未读由选中即读 effect 的后续触发继续清零。
+        const ackBoundary = Math.min(wanted, displayed);
+        if (ackBoundary <= 0) break;
+        unreadAckWanted.delete(id);
+        // 乐观清零：徽标、筛选与列表立即反映“已读”，不必等待网络往返。
+        set((s) => ({
+          sessions: s.sessions.map((item) =>
+            item.id === id ? { ...item, unreadDoneCount: 0 } : item),
+        }));
+        try {
+          const response = await ackSessionUnreadApi(id, ackBoundary);
+          const remaining = normalizedUnreadCount(response.unreadDoneCount);
+          set((s) => ({
+            sessions: s.sessions.map((item) =>
+              item.id === id ? { ...item, unreadDoneCount: remaining } : item),
+          }));
+          if (remaining <= 0) break;
+        } catch (error) {
+          // 失败时以服务端为真源恢复（乐观清零可能掩盖了真实未读数）。
+          console.warn('[sessionStore] ackSessionUnread failed', id, error);
+          try {
+            await get().loadSessions();
+          } catch {
+            // 列表也拉取失败时保留乐观清零；下一次列表/WS 快照会重新对齐。
+          }
+          break;
+        }
+      }
+    } finally {
+      unreadAckInFlight.delete(id);
+    }
   },
 
   setSessionPinned: async (id, pinned) => {
