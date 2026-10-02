@@ -448,9 +448,28 @@ E:/software/miniforge/python.exe -m pytest tests/test_terminal_secret_store.py -
   真实命名管道 + 句柄注入；F7/F8 真实 DACL（object/未知/AUDIT 类型）与注入（callback）；
   F9 真实并发 + CREATE_NEW 独占据名；F10 真实/伪造/探针不可用；F11 子进程自证身份 +
   核验清理 + 不广杀 decoy。
-- 计数（r3）：两份文件合计 **115 项**（原 80 + r2 新 34 + r3 新 1）；直连与 uv 隔离
-  均全绿（`evidence/r2/post_fix/*.log` 与 `r2_runs.json`；r3 见
-  `evidence/r3/README.md`、`r3_freeze.json` 与 `post_fix/` 日志）。
+- 计数（r4）：两份文件合计 **118 项**（原 80 + r2 新 34 + r3 新 1 + r4 新 3）；直连与
+  uv 隔离均全绿。证据：r2 `evidence/r2/**`、r3 `evidence/r3/**`、r4 `evidence/r4/**`
+  （`r4_freeze.json` + `post_fix/*.txt`）。
+- **r4 回归（3 项，R3-A 报告写协议）**：子进程报告改用与测试共用的
+  `write_report_payload`（tmp + `os.replace` 的**有界重试**；耗尽抛 `ReportWriteError`，
+  显式失败不吞不静默）；用例覆盖 ①注入前 3 次共享冲突→第 4 次成功、
+  ②注入持续失败→重试耗尽显式抛错且不留半成品/tmp、③真实持读句柄→旧单发协议必失败
+  （R3-A 现场）且新协议重试成功。子进程 host 的 `flush()` 走同一实现并回填
+  `replace_attempts`（子进程报告据此可证接线）。
+- **R2A 见证口径（r4 收紧）**：两次身份拒绝改为**每案例增量 Δ=(accepted+transient) ≥ 1**
+  （不再只做累计 ≥2）；`_SendFrameCounter` 注明**有效范围**——类级 `send_frame` 计数只在
+  “窗口内无其它发送者”时支撑“零帧发送”，对照段结论由字节级 hello 锚点给出。
+- **证据策略（r4 澄清）**：`r3_freeze.json` 中 23 条 `post_fix` 引用（exists/sha256/summary）
+  是**采集时实现树本地日志的快照**，这些 `*.log` **未入库**（仓库 `.gitignore` 忽略），
+  且重生成日志哈希必然不同——不得据此补造历史；新复跑日志只写入
+  `audit/terminal/implementation/ipc/evidence/r4/**`（UTF-8 `.txt`），r2/r3 旧 JSON 与
+  日志**未覆盖**。
+- **观察（r4，非缺陷，生产不改）**：出现过一次
+  `SecretSecurityError: secret path escapes the secrets directory`（`_guard_path` 在
+  目录创建瞬间的两次 `resolve()` 规范化窗口；生产侧 fail-closed 语义保持不变）。
+  测试侧已在 `child_runner.spawn()` 里由父进程**先建好 secrets 目录**消除该抢跑；
+  生产 3 模块未改动（该观察留给后续轮次）。
 - 证据：首轮 `audit/terminal/implementation/ipc/evidence/*.json`（未改动）；
   r2 在 `evidence/r2/`（pre-fix 失败阶段 + post-fix 六个变体 + 闭环矩阵 + 清理扫描），
   由 `audit/terminal/implementation/ipc/collect_r2_evidence.py` 重跑生成。

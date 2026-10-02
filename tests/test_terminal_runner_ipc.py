@@ -676,6 +676,55 @@ def test_diagnostics_are_bounded():
 # Windows：真实命名管道（跨进程）
 # ══════════════════════════════════════════════════════════════════════════
 
+
+# ── 子进程报告协议（R3-A：有界重试 + 耗尽显式失败） ──────────────────────
+#: `os.replace` 的有界重试次数/间隔（Windows 上父进程读句柄不含 FILE_SHARE_DELETE，
+#: 子进程替换报告时会以 PermissionError(WinError 5) 失败；round3 R3-A 现场）。
+REPORT_REPLACE_ATTEMPTS = 40
+REPORT_REPLACE_RETRY_SECONDS = 0.05
+
+
+class ReportWriteError(RuntimeError):
+    """报告替换在有界重试内仍未成功（**显式失败**；绝不静默、绝不吞掉）。"""
+
+
+def write_report_payload(
+    path,
+    payload,
+    *,
+    attempts: int = REPORT_REPLACE_ATTEMPTS,
+    retry_seconds: float = REPORT_REPLACE_RETRY_SECONDS,
+) -> int:
+    """原子写报告（tmp + ``os.replace``）并返回**实际尝试次数**。
+
+    - 读句柄造成的共享冲突（以及其它临时 OSError）按 ``attempts``/``retry_seconds``
+      有界重试；
+    - 重试耗尽 → 抛 :class:`ReportWriteError`（带尝试次数与最后一次错误），
+      不做“假成功”，也不吞掉调用方的异常语义；
+    - 子进程 host（``CHILD_SOURCE``）与本测试文件**共用这一个实现**，
+      因此针对它的注入/真实句柄测试测的就是子进程实际使用的代码路径。
+    """
+    target = Path(path)
+    data = json.dumps(payload)
+    last: BaseException | None = None
+    tmp = target.with_name(f"{target.name}.tmp")
+    for attempt in range(1, max(1, int(attempts)) + 1):
+        try:
+            tmp.write_text(data, encoding="utf-8")
+            os.replace(tmp, target)
+            return attempt
+        except OSError as exc:  # 共享冲突/临时 IO 错误：有界重试
+            last = exc
+            time.sleep(max(0.0, float(retry_seconds)))
+    try:  # 耗尽：只做“清理自己的 tmp”这一尽力动作，错误本身照抛
+        tmp.unlink(missing_ok=True)
+    except OSError:
+        pass
+    raise ReportWriteError(
+        f"report replace failed after {attempts} attempts: {type(last).__name__}: {last}"
+    )
+
+
 CHILD_SOURCE = r'''
 """Test-owned IPC host: real named pipe + real DPAPI secret (no product code paths)."""
 import ctypes, json, os, sys, time, threading
@@ -694,11 +743,17 @@ REPORT = {
 }
 
 
+_report_io = None
+
+
 def flush():
-    tmp = REPORT_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(REPORT, fh)
-    os.replace(tmp, REPORT_PATH)
+    """写报告：与父进程测试共用 ``write_report_payload``（R3-A 有界重试）。"""
+    global _report_io
+    if _report_io is None:
+        sys.path.insert(0, os.path.join(CONFIG["repo"], "tests"))
+        import test_terminal_runner_ipc as imported_report_io
+        _report_io = imported_report_io
+    REPORT["replace_attempts"] = _report_io.write_report_payload(REPORT_PATH, REPORT)
 
 
 #: 子进程**自证身份**：自身 pid + 同 handle raw FILETIME（GetProcessTimes）。
@@ -851,7 +906,10 @@ def main():
     except Exception as exc:  # noqa: BLE001
         REPORT["errors"].append("%s: %s" % (type(exc).__name__, exc))
         REPORT["reason"] = "fatal"
-        flush()
+        try:
+            flush()
+        except Exception as flush_exc:  # 报告也写不出去：两个错误都不吞（链式抬高）
+            raise flush_exc from exc
         raise
 
 
@@ -997,6 +1055,12 @@ def child_runner(tmp_path):
     script.write_text(CHILD_SOURCE, encoding="utf-8")
 
     def spawn(mode: str, terminal_id: str, data_root: str, extra: dict | None = None) -> ChildHandle:
+        # 先由父进程建好 secrets 目录：避免父子并发首次创建与 _guard_path 的
+        # 两次 resolve() 抢跑（r4 观察到一次 "secret path escapes the secrets directory"
+        # 一次性异常：同类路径在目录创建瞬间的规范化窗口；生产侧 fail-closed 保持不变）。
+        from packages.core.terminal import secret_store as _secret_store
+
+        _secret_store.SecretStore(data_root).ensure_secrets_dir()
         report_path = config_dir / f"{mode}-{len(handles)}.report.json"
         config_path = config_dir / f"{mode}-{len(handles)}.config.json"
         config = {
@@ -1392,7 +1456,15 @@ class _ImpostorWitness:
 
 
 class _SendFrameCounter:
-    """客户端侧证据：``PipeConnection.send_frame`` 调用计数（证明“一个字节都没发”）。"""
+    """客户端侧证据：``PipeConnection.send_frame`` 调用计数（证明“一个字节都没发”）。
+
+    **有效范围**：类级打补丁、进程内计数；`sends.calls == before` 只说明“该窗口内
+    没有发送者”。本用例的两个拒绝窗口里唯一可能的发送者就是被拒客户端
+    （冒充者循环只读、不发帧），因此计数足以支撑“零帧发送”。对照段
+    `sends.calls > before` 可能含**服务器 challenge** 的贡献，故对照结论不依赖计数
+    方向性，另有字节级 `b"hello" in hello_bytes` 锚点。若未来在拒绝窗口引入服务器
+    发送或更多连接，该计数会被污染——届时须改为按连接/按端计数。
+    """
 
     def __init__(self, monkeypatch):
         self.calls = 0
@@ -1468,19 +1540,23 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
         worker = threading.Thread(target=impostor_loop, name="impostor-server", daemon=True)
         worker.start()
 
-        def wait_witness(index: int, *, timeout: float = 10.0) -> None:
-            """有界等待“第 index 次拒绝”的服务端观测（瞬时事件或真实读取）。"""
+        def witness_total() -> int:
+            return witness.accepted + witness.transient
+
+        def wait_witness_delta(before: int, *, label: str, timeout: float = 10.0) -> int:
+            """有界等待**本案例**的增量见证：``(accepted+transient) - before >= 1``。"""
             deadline = time.time() + timeout
             while time.time() < deadline:
-                if witness.witnesses() >= index:
-                    return
+                delta = witness_total() - before
+                if delta >= 1:
+                    return delta
                 time.sleep(0.02)
             raise AssertionError(
-                f"第 {index} 次身份拒绝缺少服务端可证观测（不靠空集合）：{witness.describe()}"
+                f"{label}: 本案例缺少服务端可证观测（增量 < 1，且不靠空集合）：{witness.describe()}"
             )
 
-        def assert_rejection_is_provable(label: str) -> None:
-            assert witness.witnesses() >= 1, f"{label}: 必须有服务端观测 {witness.describe()}"
+        def assert_rejection_is_provable(label: str, delta: int) -> None:
+            assert delta >= 1, f"{label}: 本案例增量见证必须 ≥ 1（实得 {delta}）: {witness.describe()}"
             assert witness.credential_bytes() == 0, (
                 f"{label}: 绝不能把凭据发给冒充者: {witness.describe()}"
             )
@@ -1489,6 +1565,7 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
 
         # 1) PID 不符（冒充者 PID 与秘密中的 runner PID 不同）→ 客户端身份核验阶段拒绝
         sends_before = sends.calls
+        witness_before = witness_total()
         session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
         with pytest.raises(ipc.AuthenticationError) as first_error:
             session.handshake()
@@ -1496,15 +1573,16 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
             f"必须是 PID 身份核验拒绝（而非其它认证失败）: {first_error.value!r}"
         )
         connection.close(timeout=1.0)
-        wait_witness(1)
+        first_delta = wait_witness_delta(witness_before, label="PID 不符")
         assert sends.calls == sends_before, "身份核验通过前客户端不得发送任何帧"
-        assert_rejection_is_provable("PID 不符")
+        assert_rejection_is_provable("PID 不符", first_delta)
 
         # 2) PID 相同但 raw FILETIME 不符（模拟 PID 复用）→ 同样拒绝
         store.update_runner_identity(
             terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime + 1
         )
         sends_before = sends.calls
+        witness_before = witness_total()
         session, connection, _ = _client_session(tmp_path, terminal_id, token=token)
         with pytest.raises(ipc.AuthenticationError) as second_error:
             session.handshake()
@@ -1512,16 +1590,17 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
             f"必须是 PID+FILETIME 身份核验拒绝（而非其它认证失败）: {second_error.value!r}"
         )
         connection.close(timeout=1.0)
-        wait_witness(2)
+        second_delta = wait_witness_delta(witness_before, label="FILETIME 不符")
         assert sends.calls == sends_before, "身份核验通过前客户端不得发送任何帧"
-        assert_rejection_is_provable("FILETIME 不符")
+        assert_rejection_is_provable("FILETIME 不符", second_delta)
 
         # 两次拒绝**各自**有观测（瞬时事件与真实读取分开记录，加起来必须 ≥ 2）
         stop.set()
         impostor.cancel_accept()
         worker.join(5)
         assert not worker.is_alive(), "冒充者线程必须收敛退出"
-        assert witness.witnesses() >= 2, f"两次拒绝各自要有观测: {witness.describe()}"
+        # 每案例增量已各自断言（Δ≥1）；这里只做一次总账 sanity（累计 ≥ 两案例增量之和）
+        assert first_delta >= 1 and second_delta >= 1, (first_delta, second_delta)
         assert witness.credential_bytes() == 0, witness.describe()
 
         # 对照 1（字节级反空集锚点）：身份**精确匹配**时客户端会真正发出 hello，
@@ -1687,7 +1766,9 @@ def test_slow_reader_cancel_close_converges_and_is_retryable(tmp_path, child_run
     child = child_runner(
         "silent_client", terminal_id, str(tmp_path / "data"), {"hold_seconds": 20.0, "connect_timeout": 5.0}
     )
-    child.wait_report(lambda data: data.get("reason") == "silent", timeout=10.0)
+    report = child.wait_report(lambda data: data.get("reason") == "silent", timeout=10.0)
+    # R3-A 接线证据：子进程报告确实经 write_report_payload（有界重试协议）写出
+    assert report.get("replace_attempts", 0) >= 1, report
     connection = server.accept(timeout=10.0)
     assert connection is not None and connection.peer_client_pid() == child.pid
 
@@ -1721,7 +1802,9 @@ def test_blocking_read_is_cancelled_converged_and_joined(tmp_path, child_runner)
     child = child_runner(
         "silent_client", terminal_id, str(tmp_path / "data"), {"hold_seconds": 20.0, "connect_timeout": 5.0}
     )
-    child.wait_report(lambda data: data.get("reason") == "silent", timeout=10.0)
+    report = child.wait_report(lambda data: data.get("reason") == "silent", timeout=10.0)
+    # R3-A 接线证据：子进程报告确实经 write_report_payload（有界重试协议）写出
+    assert report.get("replace_attempts", 0) >= 1, report
     connection = server.accept(timeout=10.0)
     assert connection is not None
 
@@ -2602,6 +2685,92 @@ def test_f6_every_close_attempt_reissues_cancel(monkeypatch):
     assert calls.count(handle_value) >= 2, f"每次 close 都必须补发取消: {calls}"
     client.close(timeout=2.0)
     server.close(timeout=2.0)
+
+
+# ── R3-A：child-report 写协议（有界重试 + 耗尽显式失败） ──
+
+
+@windows_only
+def test_r3a_report_write_retries_bounded_then_succeeds(tmp_path, monkeypatch):
+    """R3-A 正向：共享冲突下**有界重试**必须成功，并如实返回尝试次数。"""
+    target = tmp_path / "child.report.json"
+    real_replace = os.replace
+    calls = {"count": 0}
+
+    def flaky_replace(source, destination):  # noqa: ANN001
+        calls["count"] += 1
+        if calls["count"] <= 3:  # 注入前 3 次共享冲突（确定性）
+            raise PermissionError(13, "injected sharing violation")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", flaky_replace)
+    attempts = write_report_payload(target, {"round": 1}, attempts=10, retry_seconds=0.01)
+    assert attempts == 4, f"必须重试到第 4 次才成功: attempts={attempts} calls={calls['count']}"
+    assert calls["count"] == 4
+    assert json.loads(target.read_text(encoding="utf-8")) == {"round": 1}
+    assert not (tmp_path / "child.report.json.tmp").exists(), "成功后不得残留 tmp"
+
+
+@windows_only
+def test_r3a_report_write_exhaustion_fails_explicitly(tmp_path, monkeypatch):
+    """R3-A 负例：重试耗尽必须**显式抛错**（不静默、不吞断言、不留半成品）。"""
+    target = tmp_path / "child.report.json"
+
+    def always_fail(source, destination):  # noqa: ANN001
+        raise PermissionError(13, "injected sharing violation")
+
+    monkeypatch.setattr(os, "replace", always_fail)
+    with pytest.raises(ReportWriteError) as error:
+        write_report_payload(target, {"round": 2}, attempts=3, retry_seconds=0.0)
+    assert "after 3 attempts" in str(error.value)
+    assert not target.exists(), "耗尽失败不得留下目标文件（半成品）"
+    assert not (tmp_path / "child.report.json.tmp").exists(), "耗尽失败必须清理自己的 tmp"
+
+
+@windows_only
+def test_r3a_report_write_with_real_reader_handle(tmp_path):
+    """R3-A 现场（真实句柄）：旧单发协议必失败；新协议在释放读句柄后重试成功。"""
+    target = tmp_path / "child.report.json"
+    write_report_payload(target, {"round": 0})
+
+    # ① 旧协议（单发）在真实读句柄下必失败——R3-A 失败阶段的最小确定性复现
+    holder = open(target, "r", encoding="utf-8")  # noqa: SIM115 - 故意持有读句柄
+    holder.read()
+    legacy_failed = False
+    try:
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_text(json.dumps({"round": "legacy"}), encoding="utf-8")
+        try:
+            os.replace(tmp, target)
+        except PermissionError:
+            legacy_failed = True
+    finally:
+        holder.close()
+        tmp.unlink(missing_ok=True)
+    assert legacy_failed is True, "读句柄必须阻止 os.replace（本机 WinError 5；R3-A 现场）"
+
+    # ② 新协议：同样持读句柄 → 有界重试；释放后成功，且确实发生过冲突（attempts ≥ 2）
+    holder = open(target, "r", encoding="utf-8")  # noqa: SIM115 - 故意持有读句柄
+    holder.read()
+    outcome: dict = {}
+
+    def writer() -> None:
+        try:
+            outcome["attempts"] = write_report_payload(
+                target, {"round": 3}, attempts=40, retry_seconds=0.05
+            )
+        except Exception as exc:  # noqa: BLE001 - 用例断言异常类型
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=writer, name="r3a-writer")
+    thread.start()
+    time.sleep(0.2)  # 确保 writer 至少撞上一次共享冲突
+    holder.close()
+    thread.join(10)
+    assert not thread.is_alive()
+    assert "error" not in outcome, outcome
+    assert outcome.get("attempts", 0) >= 2, f"持读句柄期间必须发生共享冲突并重试: {outcome}"
+    assert json.loads(target.read_text(encoding="utf-8")) == {"round": 3}
 
 
 # ── F11：子进程身份自证 + 内核核验（uv launcher 蹦床下也成立） ──

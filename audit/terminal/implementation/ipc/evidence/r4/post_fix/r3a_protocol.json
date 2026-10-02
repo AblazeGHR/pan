@@ -1,0 +1,18 @@
+{
+  "tool": "r4_repro_r3a_race",
+  "platform": "win32",
+  "new_protocol_available": {
+    "available": true
+  },
+  "new_with_reader": {
+    "thread_done": true,
+    "attempts": 5,
+    "error": null,
+    "content_ok": true
+  },
+  "exhaustion": {
+    "raised": true,
+    "error": "ReportWriteError",
+    "message": "report replace failed after 3 attempts: PermissionError: [Errno 13] injected sharing violation"
+  }
+}
