@@ -1,5 +1,12 @@
 # Pan Terminal：生产 ConPTY 原子 spawn 可行性（Windows ctypes spike）
 
+> MA 2026-10-03：本提交链已作为**可行性探索证据**接受并纳入隔离集成，不是生产 backend 验收。
+> r3 的失败重试、reader join 与 resume 门禁已审查，新增 s10/s12/s13 保存断言分别为 14/13/16，零失败；
+> MA 未独立复跑真机探针。仍有探针实现限制：reader 的 `OpenThread` 句柄在成功清理后未释放；
+> 部分 `CloseHandle` 返回值未检查；spawn-denial 的对象丢弃路径不能作为生产 owner 保留方案；
+> `close_pty=False` 不证明资源完整释放，`exit_code()` 仍只提供信息而非“已退出”的证明。
+> 后续生产 backend 必须修正这些项，并独立验证内核守卫清理、老 Windows 收尾及 detach 宿主的 ambient Job 边界。
+
 - 任务：`T-TERMINAL-PTY-20261003/windows-spawn/spike/1`
 - 工作树：`D:/project/pan-worktrees/terminal-codex-explore-20261003`，
   分支 `explore/terminal-codex-20261003`
