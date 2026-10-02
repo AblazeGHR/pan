@@ -1,0 +1,11 @@
+
+  CodeBuddy Code HTTP Server
+
+  Endpoint  http://127.0.0.1:64604
+  Web UI    http://127.0.0.1:64604/
+
+  ⚠  Authentication is DISABLED.
+     Any local process can execute commands and read/write files
+     through this server. Remove --auth none to re-enable.
+
+  Press Ctrl+C to stop the server

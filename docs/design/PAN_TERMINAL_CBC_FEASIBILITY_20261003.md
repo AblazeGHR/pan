@@ -329,16 +329,17 @@ uv run --no-project --python E:/software/miniforge/python.exe `
 - `audit/terminal/cbc/probe_cbc_feasibility.py`（11 个 mode 的有界探针驱动）
 - `audit/terminal/cbc/probe_acp_http_variants.py`（ACP over HTTP Accept 变体）
 - `audit/terminal/cbc/evidence/20261003-003232/baseline.json`
-- `audit/terminal/cbc/evidence/20261003-003303/headless.json`（+ headless stdout/stderr 日志）
+- `audit/terminal/cbc/evidence/20261003-003303/headless.json`（+ `headless.stdout.txt` / `headless.stderr.txt`）
 - `audit/terminal/cbc/evidence/20261003-003326/bg.json`
-- `audit/terminal/cbc/evidence/20261003-003430/bg-lifetime.json`（+ launcher 日志）
-- `audit/terminal/cbc/evidence/20261003-003451|003530/bg-observe.json`（+ launcher 日志）
+- `audit/terminal/cbc/evidence/20261003-003430/bg-lifetime.json`（+ `bg-lifetime.launcher.txt`）
+- `audit/terminal/cbc/evidence/20261003-003451|003530/bg-observe.json`（+ `bg-observe.launcher.txt`）
 - `audit/terminal/cbc/evidence/20261003-003552/daemon.json`
 - `audit/terminal/cbc/evidence/20261003-003705/daemon-job.json`
-- `audit/terminal/cbc/evidence/20261003-003807/serve.json`、`openapi.json`（+ stdout/stderr）
+- `audit/terminal/cbc/evidence/20261003-003807/serve.json`、`openapi.json`（+ `serve.stdout.txt` / `serve.stderr.txt`）
 - `audit/terminal/cbc/evidence/20261003-003836/acp.json`
 - `audit/terminal/cbc/evidence/20261003-003852/bg-model.json`
-- `audit/terminal/cbc/evidence/20261003-003938|003954|004056/acp-http.json`（+ stdout/stderr）
+- `audit/terminal/cbc/evidence/20261003-003938|003954|004056/acp-http.json`
+  （+ 同名 `*.stdout.txt` / `*.stderr.txt`）
 - `audit/terminal/cbc/evidence/20261003-004402/baseline.json`（提交前用最终脚本的复跑冒烟）
 - `audit/terminal/cbc/evidence/acp-http-variants.json`（+ .err）
 - `audit/terminal/cbc/evidence/samples/{bg-model.broker.json,bg-model.state.json,daemon-job.state.json,headless-worker-registry.json}`

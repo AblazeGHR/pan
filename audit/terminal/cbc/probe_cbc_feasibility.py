@@ -99,8 +99,9 @@ def run_cli(args: list[str], env: dict, cwd: Path, timeout: float = 60.0) -> dic
 
 
 def spawn_cli(args: list[str], env: dict, cwd: Path, tag: str) -> dict:
-    out_path = EVIDENCE / f"{tag}.stdout.log"
-    err_path = EVIDENCE / f"{tag}.stderr.log"
+    # NOTE: *.log is gitignored in this repo, so evidence uses .stdout.txt/.stderr.txt
+    out_path = EVIDENCE / f"{tag}.stdout.txt"
+    err_path = EVIDENCE / f"{tag}.stderr.txt"
     out_f = open(out_path, "w", encoding="utf-8")
     err_f = open(err_path, "w", encoding="utf-8")
     proc = subprocess.Popen(
@@ -401,7 +402,7 @@ def mode_bg_lifetime() -> dict:
     env = iso_env(cfg)
     name = f"panlife{RUN_ID.replace('-', '')}"
     res: dict = {"mode": "bg-lifetime", "run_id": RUN_ID, "root": str(root), "job_name": name}
-    out_path = EVIDENCE / "bg-lifetime.launcher.log"
+    out_path = EVIDENCE / "bg-lifetime.launcher.txt"
     proc = subprocess.Popen(
         [NODE, str(CBC_ENTRY), "--bg", "--name", name, "--exec", "ping -n 90 127.0.0.1"],
         env=env, cwd=str(ws), stdin=subprocess.DEVNULL,
@@ -646,7 +647,7 @@ def mode_bg_observe() -> dict:
     name = marker
     res: dict = {"mode": "bg-observe", "run_id": RUN_ID, "root": str(root),
                  "job_name": name, "marker": marker}
-    out_path = EVIDENCE / "bg-observe.launcher.log"
+    out_path = EVIDENCE / "bg-observe.launcher.txt"
     proc = subprocess.Popen(
         [NODE, str(CBC_ENTRY), "--bg", "--name", name, "--exec", "ping -n 300 127.0.0.1"],
         env=env, cwd=str(ws), stdin=subprocess.DEVNULL,

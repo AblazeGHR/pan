@@ -1,0 +1,7 @@
+backgrounded · b1c85381 · panobs20261003003451 (shell job)
+  codebuddy agents             list sessions
+  codebuddy logs b1c85381      show recent output
+  codebuddy stop b1c85381      stop this job
+
+  PID:  48180
+  Log:  C:\Users\14709\AppData\Local\Temp\pan-cbc-probe-bgobs-s1ngj_ji\cfg\logs\exec-b1c85381.log

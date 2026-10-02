@@ -1,0 +1,7 @@
+backgrounded · 88adb216 · panobs20261003003530 (shell job)
+  codebuddy agents             list sessions
+  codebuddy logs 88adb216      show recent output
+  codebuddy stop 88adb216      stop this job
+
+  PID:  21212
+  Log:  C:\Users\14709\AppData\Local\Temp\pan-cbc-probe-bgobs-f6dzgpx3\cfg\logs\exec-88adb216.log
