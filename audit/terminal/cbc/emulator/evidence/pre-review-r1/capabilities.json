@@ -1,0 +1,104 @@
+{
+  "xtermHeadless": "6.0.0",
+  "addonSerialize": "0.14.0",
+  "results": {
+    "P1_alt_buffer": {
+      "sourceActiveType": "alternate",
+      "snapshotHas1049h": true,
+      "restoredActiveType": "alternate",
+      "restoredScreen": "\n              ALT-CONTENT\n\n\n\n\n\n\n\n",
+      "restoredSerializedHead": "PRIMARY-LINE-1\r\nPRIMARY-LINE-2\u001b[?1049h\u001b[H\r\n\u001b[14CALT-CONTENT"
+    },
+    "P2a_partial_csi": {
+      "pendingSnapshotTail": "\"AB\"",
+      "restoredAfterContinuation": "AB1mRED\n\n\n\n\n\n\n\n\n",
+      "reference": "ABRED\n\n\n\n\n\n\n\n\n",
+      "matchesReference": false
+    },
+    "P2b_partial_osc": {
+      "restoredAfterContinuation": "XdoneY\n\n\n\n\n\n\n\n\n",
+      "reference": "XY\n\n\n\n\n\n\n\n\n",
+      "matchesReference": false
+    },
+    "P3_utf8_split": {
+      "splitScreen": "中A😀B\n\n\n\n\n\n\n\n\n",
+      "reference": "中A😀B\n\n\n\n\n\n\n\n\n",
+      "matchesReference": true,
+      "serialized": "中A😀B"
+    },
+    "P3b_utf8_string_split": {
+      "splitScreen": "中A��B\n\n\n\n\n\n\n\n\n",
+      "matchesReference": false
+    },
+    "P4_scroll_region": {
+      "sourceScreenAfterEdit": "L02\nL03\nL04\nL05\nL06\n\nL08\nL09\nL10\n",
+      "restoredAfterSameEdit": "L02\nL03\nL04\nL05\nL06\nL08\nL09\nL10\n\n",
+      "referenceAfterSameEdits": "L02\nL03\nL04\nL05\nL06\n\nL08\nL09\nL10\n",
+      "matchesReference": false,
+      "snapshotContainsDECSTBM": false
+    },
+    "P5_modes_roundtrip": {
+      "diff": {
+        "applicationCursorKeysMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "applicationKeypadMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "bracketedPasteMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "insertMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "originMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "reverseWraparoundMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "sendFocusMode": {
+          "source": true,
+          "restored": true,
+          "ok": true
+        },
+        "synchronizedOutputMode": {
+          "source": true,
+          "restored": false,
+          "ok": false
+        },
+        "wraparoundMode": {
+          "source": false,
+          "restored": false,
+          "ok": true
+        },
+        "mouseTrackingMode": {
+          "source": "drag",
+          "restored": "drag",
+          "ok": true
+        }
+      },
+      "snapshotModesTail": "\"\\u001b[?1h\\u001b[?66h\\u001b[?2004h\\u001b[4h\\u001b[?6h\\u001b[?45h\\u001b[?1004h\\u001b[?7l\\u001b[?1002h\""
+    },
+    "P6_write_callback": {
+      "order": [
+        "before-write",
+        "after-write-call",
+        "write-cb"
+      ],
+      "parsedEvents": 1
+    }
+  }
+}

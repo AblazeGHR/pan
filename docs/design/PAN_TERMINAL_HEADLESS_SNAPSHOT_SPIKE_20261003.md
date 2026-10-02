@@ -1,5 +1,11 @@
 # Pan Terminal：常驻 Node headless-xterm 权威快照候选 Spike（P1 门禁）
 
+> 修订 r2（2026-10-03，MA 审查返工）：修复五项可复现缺陷——sticky parser-dirty（D1）、
+> 检测优先于声明（D2）、parsed/resume 双游标协议（D3）、绝对偏移与 gap 粘滞（D4）、
+> 控制 op 有界/过期不执行/异常恢复（D5）；新增 4 个用例（C13–C16），矩阵 16 用例 =
+> 13 pass + 3 pass-partial。pre-fix 复现证据：`evidence/reproduction-r1/repro.json`
+> （对照 `repro-after-fix.json`）；旧矩阵 JSON 保留在 `evidence/pre-review-r1/`。
+
 - 日期：2026-10-03（本地时间；证据 JSON 内时间为 UTC，UTC+8）。
 - 任务：T-TERMINAL-PTY-20261003 P1 门禁——验证 `@xterm/headless` + `@xterm/addon-serialize`
   作为 runner 内常驻权威仿真器的候选（计划 §8，MA 接口冻结补充 §8.5）。
@@ -18,18 +24,19 @@
 可以支撑计划 §8 的“runner 内常驻权威仿真器 + 有序供料 + 序列化快照”，但 `fidelity=full` 必须限定在
 **实测能力矩阵**内：
 
-- 允许 `full` 的条件（本 spike 的 `fidelity_reasons` 为空时成立）：
-  1. 使用到的终端特性全部属于**实测支持集**：alt 屏切换/退出、光标位置、滚动缓冲、resize、
-     基础样式、以及 `IModes` 中除 2026 外的模式（应用光标键/键盘/括号粘贴/插入/原点/反向折返/
-     焦点上报/折返）；
-  2. 无 `feed_lag`（供料队列未打满）；
-  3. 快照边界 `boundary_clean=true`（parser 不处于未完成的 UTF-8/ESC/CSI/OSC/DCS 中间）；
-  4. 未发生过显式 `reset-baseline`（一旦发生，历史不再权威 → 永远 `partial`，不自动回到 full）。
+- 允许 `full` 的条件（`fidelity_reasons` 为空时成立；**由字节流检测驱动，不靠业务自报**）：
+  1. 流中**未检测到**已知缺口序列（DECSTBM、2026、DECTCEM 等）与未知/未验证序列
+     （未列出的私有模式、未知 CSI final、DCS/字符串序列、字符集、tab stops、OSC 标题等）；
+  2. 无 `feed_lag`/控制队列溢出、`parser_dirty=false`、无 sticky gap、未发生过显式 reset-baseline；
+  3. 快照边界 `boundary_clean=true`（parser 不处于未完成的 UTF-8/ESC/CSI/OSC/DCS 中间）。
+  `declareFeatures()` 仅是**测试输入受限前提**，**不是生产保障**；未知 `FEATURE_SUPPORT` 键同样降级。
 - 任一不满足 → 快照必须声明 `fidelity=partial` + `recovery=partial|degraded` 与可读原因
   （`fidelity_reasons`），客户端走 fresh-view/重打基线。这与计划 §8.4/§8.5 的诚实性约束一致。
 - 实测缺口（不是推测，见 §3/§4）：**DECSTBM 滚动区不序列化**、**synchronized output（2026）不序列化**、
   **pending parser state 不序列化**（由本 spike 的 hold-back 供料协议结构性覆盖）。
-- 矩阵结果：**12 用例 = 10 pass + 2 pass-partial（声明式降级）**，无 fail；连续两次运行状态一致。
+- 矩阵结果：**16 用例 = 13 pass + 3 pass-partial（声明式降级）**，无 fail；连续三次运行状态一致。
+- 五处 MA 审查缺陷均先在 `tools/repro-review-r1.mjs` 中**复现**（pre-fix `repro.json`），
+  修复后同脚本产出 `repro-after-fix.json`；详见 §10。
 
 ## 1. 环境与依赖 pin（installed facts）
 
@@ -65,7 +72,10 @@
 | partial parser 状态不丢 | applier 维护 hold-back 尾：扫描 `cleanPrefixLength()`，把未完成的 UTF-8/ESC/CSI/OSC/DCS/ST 串留在 `pending_tail`，快照携带其 base64；恢复时先喂 `pending_tail` 再续流 | C7（边界 75/82，5 字节 `4f4e442dc3`=“OND-”+CJK 首字节；恢复+续流==参考，diff=0）；C11 单测 12 种边界形状 |
 | 有界队列（4 MiB / 8192 块） | 超限 `accepted:false, reason=feed_lag`；`feed_lag` **latch**、`recovery=degraded`；不静默丢字节 | C8（小上限 256 KiB 复现：4 块被显式拒绝；默认构造仍为 4 MiB 断言通过） |
 | 溢出后显式重打基线、不得自动 full | `resetBaseline()`：`term.reset()` + 记录 `baseline_seq/bytes` + `recovery=partial` 并**永久**带 `BASELINE_RESET_FRESH_VIEW` 原因 | C8（degraded→reset→partial；最终快照仍 partial） |
-| 快照原子三元组 | snapshot = `{serialized, cursor(applied_seq/applied_bytes), rows, cols, fidelity, recovery, pending_tail}`，与 resize 同序 | C5/C6/C12 |
+| 快照原子三元组 | snapshot = `{serialized, parsed_cursor, resume_cursor, rows, cols, fidelity, recovery, pending_tail, rejected_ranges}`，与 resize 同序 | C5/C6/C12/C13 |
+| **双游标协议（D3）** | `parsed_cursor` = 序列化状态对应的源偏移；`resume_cursor = parsed + pending`。**协议 A**：恢复快照后从 `parsed_cursor` 拉日志（不重喂尾巴）；**协议 B**：先喂快照尾巴、再从 `resume_cursor` 拉日志。混用会把尾巴消费两次（C13 以字节计数证明） | C13 |
+| **绝对偏移与 gap 粘滞（D4）** | `producer_frontier` 计入全部交付字节（含被拒块）；`rejected_ranges` 记录空洞；gap 期间 cursor 置 null（不伪造对齐）；`resetBaseline()` 定义新绝对 frontier | C8/C13/C15 |
+| **控制 op 有界与过期不执行（D5）** | 所有 op 共享 8192 预算；过期请求**不执行**（含 reset，杜绝迟到 mutation）；op 异常被记录且循环继续；`feedLagEvents` 有上限（默认 64，溢出计数） | C15 |
 
 补充规则（实测驱动）：hold-back 超过 8 KiB（如未终止的 OSC 标题流）时**强制喂入**并把
 `boundary_clean=false`，此后快照因 `PENDING_PARSER_STATE_UNSERIALIZED` 自动降级 partial——
@@ -95,11 +105,15 @@
 | C4 | 客户端游标再次被驱逐 | pass | 第二次驱逐 `firstRetained=577560 > cursor`；快照游标可用；恢复 full（无 lag） |
 | C5 | 异步 feed 后立即 snapshot | pass | 请求时 `applied=0 vs enqueued=248 000`；快照未声称未应用数据；恢复+续流==参考；barrier 收敛到 248 000 |
 | C6 | feed/resize 交错 | pass | 快照 dims==32×8（最后一次 resize）；恢复==参考 |
-| C7 | UTF-8/CSI/OSC 跨快照边界 | pass | 边界 75/82；`pending_tail=5B`；恢复+显式 pending+续流==参考（diff=0） |
+| C7 | UTF-8/CSI/OSC 跨快照边界 | pass（声明式 partial） | 有 pending 尾；恢复+显式 pending+续流==参考（diff=0）；OSC 标题触发 `WINDOW_TITLE_OSC_UNVERIFIED`（标题不序列化，实测） |
 | C8 | 队列停滞/溢出 → degraded + 显式 reset | pass | 4 块显式拒绝（`feed_lag`）；快照 `degraded/partial`；reset 后 `recovery=partial` 且**不自动 full** |
 | C9 | DECSTBM 序列化缺口 | **pass-partial** | `fidelity_reasons=[DECSTBM_NOT_SERIALIZED]`；差异可复现（`screenText`/`serialized` 均不同） |
 | C10 | synchronized output (2026) 缺口 | **pass-partial** | `fidelity_reasons=[SYNCHRONIZED_OUTPUT_NOT_SERIALIZED]`；文本仍恢复 |
-| C12 | 真实 `less.exe` TUI 回放（自有 ConPTY 捕获） | pass | 3 083 B（含 `?1049h`、`2J/H/K`、颜色）；快照@1552 B、`boundary_clean`；恢复+续流==参考（diff=0） |
+| C13 | **D3 双游标协议 + 真实日志拉取**（含尾巴被驱逐） | pass | 快照 `parsed=4 / resume=5`；协议 A、B 均 == 参考；混用多消费 1 字节（=pending）；stale cursor 返回 gap、新快照 cursor 可用 |
+| C14 | **D1 sticky parser-dirty**（长 OSC/DCS 强制喂入） | **pass-partial** | 强制喂入后 partial；下一块与 BEL/ST 终止后**仍 partial**；仅显式 reset 清除 dirty 标记（reset 后仍因 fresh-view 保持 partial） |
+| C15 | **D5 控制队列/过期/异常/诊断** | pass | 64 预算下 resize 被显式拒（`control_lag`）；过期 reset **执行 0 次**；injected op error 被记录且循环继续；lag 诊断上限 4 生效 |
+| C16 | **D2 检测优先于声明** | pass | 纯文本无声明仍 full；DECSTBM/2026/DECTCEM/未知 CSI final/未知私有模式/DCS/未知 feature 键 8 类全部按预期降级并给出原因 |
+| C12 | 真实 `less.exe` TUI 回放（自有 ConPTY 捕获） | pass（声明式 partial） | 3 083 B（含 `?1049h`、`2J/H/K`、颜色）；快照@1552 B、`boundary_clean`；恢复+续流==参考（diff=0）；**真实 ConPTY 流含未列私有模式 `?9001`（win32-input-mode），检测器据此判 partial** |
 
 C12 捕获由 `tools/capture-less.py` 产生：自建 `less -R` + `TERM=xterm-256color` 进程、80×24 ConPTY、
 按键序列 `\r → G → g → /word3 → q`；PID 46564、原始 creation FILETIME=`134354375799964470`
@@ -122,7 +136,9 @@ runner ↔ sidecar 的身份字段必须以**字符串/hex** 传输（本仓库�
 | 基础样式（fg/bg/attr，含 blank 压缩） | 支持（实测，addon 源码 + C1/C12 文本对比） | addon `_diffStyle` |
 | DECSTBM 滚动区 | **缺口（实测）** | P4 / C9 |
 | synchronized output 2026 | **缺口（实测）** | P5 / C10 |
-| pending parser state（CSI/OSC/DCS/UTF-8 中间态） | **缺口（实测）**，由 hold-back 协议覆盖；`boundary_clean=false` 时降级 | P2a/P2b / C7 / C11 |
+| pending parser state（CSI/OSC/DCS/UTF-8 中间态） | **缺口（实测）**，由 hold-back 协议覆盖；强制喂入后 **sticky partial 直到显式 reset** | P2a/P2b / C7 / C11 / C14 |
+| DECTCEM 光标可见性 | **未验证**（addon 模式白名单不含 `?25`）；检测到即降级 | C16 |
+| 未列出的私有模式 / 未知 CSI final / DCS 载荷 / 字符集 / tab stops | **未验证**（保守分类器一律降级；真实 ConPTY 已出现 `?9001`） | C12 / C16 |
 | 光标样式 DECSCUSR、窗口标题 OSC、tab stops、G0/G1 字符集、选择区、SGR 鼠标编码细节 | **未验证**（声明使用时强制 partial） | 未测；`FEATURE_SUPPORT` 表 |
 
 对计划的落点建议：
@@ -159,8 +175,11 @@ UV_CACHE_DIR=D:/tmp/uv-cache-pan-cbc uv run --no-project `
 - `audit/terminal/cbc/emulator/run.mjs`
 - `audit/terminal/cbc/emulator/src/{pipeline,headless-state,cases,capability-probe}.mjs`
 - `audit/terminal/cbc/emulator/tools/capture-less.py`
+- `audit/terminal/cbc/emulator/tools/repro-review-r1.mjs`（五项缺陷的针对性复现/对照脚本）
 - `audit/terminal/cbc/emulator/evidence/capabilities.json`、`summary.json`
-- `audit/terminal/cbc/emulator/evidence/matrix/`（12 个用例 JSON）
+- `audit/terminal/cbc/emulator/evidence/matrix/`（16 个用例 JSON，r2 修复后）
+- `audit/terminal/cbc/emulator/evidence/pre-review-r1/`（r1 旧矩阵 12 JSON + summary + capabilities，保留）
+- `audit/terminal/cbc/emulator/evidence/reproduction-r1/{repro.json,repro-after-fix.json}`（pre/post 对照）
 - `audit/terminal/cbc/emulator/evidence/captures/less-80x24.bin`、`less-80x24.meta.json`
 - `docs/design/PAN_TERMINAL_HEADLESS_SNAPSHOT_SPIKE_20261003.md`（本报告）
 
@@ -186,8 +205,32 @@ UV_CACHE_DIR=D:/tmp/uv-cache-pan-cbc uv run --no-project `
 5. **ConPTY 尺寸/编码联动**（ResizePseudoConsole → feed resize 顺序、UTF-8 输出边界）未在本 spike 覆盖；
    C12 只回放了已捕获字节流。
 6. **版本兼容**：pin 在 6.0.0/0.14.0；升级需重跑本矩阵（`fidelity_reasons` 变化即视为回归）。
+7. **分类器覆盖面**：`classifySequence` 的 allowlist 是保守白名单（未列即降级）；生产需要把
+   runner 实际见到的序列类型逐项测量后再进白名单，**不允许**为了让业务“看起来 full”而放宽。
+   当前白名单仅覆盖本 spike 实测/常见渲染类序列（SGR、光标/擦除/编辑/滚动、alt 屏、10 个已测模式）。
+8. **`declareFeatures()` 不是保障**：它只用于让测试表达“只喂已知安全子集”；生产 fidelity 必须由
+   检测 + 实测能力表决定（C16 覆盖了“未声明也降级”与“未知键也降级”）。
 
-## 9. 与 CBC 探索的关系
+## 10. MA 审查 r2 返工记录（2026-10-03）
+
+五项缺陷均先复现、后修复；复现/对照证据在 `evidence/reproduction-r1/`。
+
+| # | 缺陷（MA 指出） | 复现（pre-fix `repro.json`） | 修复 | 验证 |
+|---|---|---|---|---|
+| D1 | 强制喂入后 `boundary_clean` 被下一块自愈为 true → 假 full | `ESC]0;abcdefghijk`（maxPendingTail=8）→ 首快照 partial，喂 `ZZ` 后**变 full** | `parserDirty` **粘滞**，仅 `resetBaseline()` 清除；长 OSC/DCS 强制喂入后直到终止都保持 partial | C14（OSC+DCS 两路） |
+| D2 | 未声明 DECSTBM/2026 直接 full、reasons=[] | 未声明喂 `ESC[2;4r` / `?2026` → `full, []` | 字节流**保守分类器**（完成序列 → 已知缺口/未验证/未知一律降级）；未知 `FEATURE_SUPPORT` 键降级；声明仅作测试前提 | C16（8 类）；C7/C12 预期随之修正 |
+| D3 | `pending_tail` 与 `applied` 双语义：按 cursor=applied 续流会重复尾巴 | 双喂后首行 `PRE-PRE-…`（可见重复） | 拆 `parsed_cursor` / `resume_cursor` 并写明协议 A/B；禁止混用（字节级双消费）；用真实 256 KiB 日志窗口拉取 + stale-gap 测试 | C13（A/B/混用/驱逐） |
+| D4 | 拒绝块不推进 frontier；`appliedBytes` 非绝对偏移 | 交付 131 072 B、字段仅 65 536 B；被拒 2 块不可见 | `producer_frontier` 计入全部交付字节；`rejected_ranges` 记录空洞；gap 期间 cursor 置 null；`resetBaseline()` 定义新绝对 frontier | `repro-after-fix.json`（字段=131 072）、C8/C13/C15 |
+| D5 | 仅有 feed 受 maxBlocks；resize/request 无界；过期 mutating reset 迟到执行；诊断无界 | stall 后 20 000 resize 全排队（0 拒绝）；过期 reset 仍执行 1 次 | 所有 op 共享 8192 预算（`control_lag` 显式拒绝）；过期请求**不执行**；`enqueueThrow` 异常恢复；lag 诊断上限 64 | C15、`repro-after-fix.json`（拒 11 808、reset=0） |
+
+返工中还修出两个自身缺陷（诚实记录）：快照对象一度漏掉 `serialized` 字段（被 C1/C5 等用例当场抓出）；
+UTF-8 部分字符的 clean 前缀位置计算错误（`PRE-` + 半个汉字曾把整块当 pending，C13 暴露后修正）。
+
+**修复后判定（conditional full 进一步收窄）**：`full` 只可能在「未检测到任何缺口/未知序列 +
+无 lag/dirty/gap/reset」时出现；真实流（ConPTY 私有模式、TUI 颜色/标题）在检测器逐项补齐前
+**大多会落到 `partial`**——这是有意设计：宁可 partial，不得静默 full。
+
+## 11. 与 CBC 探索的关系
 
 本阶段是 Pan Terminal 的 P1 快照门禁，与 `audit/terminal/cbc/` 的 CBC 原生 TUI 探索是两条独立的
 验收线：CBC 部分按 MA 指令**未继续**（不做原生 TUI/模型实验），本 spike 不依赖任何 CBC 进程、

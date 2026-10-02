@@ -1,0 +1,98 @@
+{
+  "id": "C14-sticky-parser-dirty",
+  "title": "D1：强制喂入后 parser-dirty 粘滞（不得被下一块自愈）",
+  "status": "pass-partial",
+  "declared_status": "pass-partial",
+  "expectations": [
+    {
+      "name": "force-fed long OSC marks dirty (partial)",
+      "ok": true
+    },
+    {
+      "name": "next chunk does NOT clear the dirty marker (pre-fix bug)",
+      "ok": true,
+      "detail": [
+        "PENDING_PARSER_STATE_UNSERIALIZED"
+      ]
+    },
+    {
+      "name": "even after the OSC terminates (BEL) the snapshot stays partial",
+      "ok": true
+    },
+    {
+      "name": "explicit reset is the only escape and clears the dirty marker",
+      "ok": true
+    },
+    {
+      "name": "after reset the snapshot is partial for the fresh-view reason (never auto-full)",
+      "ok": true,
+      "detail": [
+        "BASELINE_RESET_FRESH_VIEW"
+      ]
+    },
+    {
+      "name": "long DCS force-fed -> partial, and still partial after ST terminates it",
+      "ok": true
+    }
+  ],
+  "details": {
+    "osc": {
+      "s1": {
+        "dirty": true,
+        "reasons": [
+          "PENDING_PARSER_STATE_UNSERIALIZED"
+        ]
+      },
+      "s2": {
+        "dirty": true,
+        "reasons": [
+          "PENDING_PARSER_STATE_UNSERIALIZED"
+        ]
+      },
+      "s3": {
+        "dirty": true,
+        "reasons": [
+          "PENDING_PARSER_STATE_UNSERIALIZED"
+        ]
+      },
+      "s4": {
+        "dirty": false,
+        "reasons": [
+          "BASELINE_RESET_FRESH_VIEW"
+        ]
+      },
+      "s5": {
+        "dirty": false,
+        "reasons": [
+          "BASELINE_RESET_FRESH_VIEW"
+        ]
+      },
+      "reset": {
+        "ok": true,
+        "reset": true,
+        "baseline_frontier": 22,
+        "producer_frontier": 22,
+        "recovery": "partial",
+        "note": "explicit reset-baseline: screen cleared, a new absolute frontier is defined; history before it (including rejected ranges) is not recoverable"
+      }
+    },
+    "dcs": {
+      "d1": {
+        "dirty": true,
+        "reasons": [
+          "PENDING_PARSER_STATE_UNSERIALIZED"
+        ]
+      },
+      "d2": {
+        "dirty": true,
+        "reasons": [
+          "PENDING_PARSER_STATE_UNSERIALIZED",
+          "UNKNOWN_ESC_92_UNVERIFIED"
+        ]
+      }
+    },
+    "note": "sticky by design: after a force-fed partial sequence the emulator parser state cannot be proven to match a clean-boundary state, so only an explicit reset-baseline may restore a trustworthy baseline (fresh-view, still partial)."
+  },
+  "ms": 204,
+  "failed_expectations": []
+}

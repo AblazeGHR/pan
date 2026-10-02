@@ -43,14 +43,11 @@
       "barrier": 0,
       "reset": 0,
       "stall": 0,
-      "throw": 0,
-      "rejected_feed": 0,
-      "rejected_control": 0,
-      "expired_skipped": 0
+      "rejected": 0
     },
     "bufferLengthLines": 1012,
     "scrollbackOption": 1000
   },
-  "ms": 82,
+  "ms": 73,
   "failed_expectations": []
 }

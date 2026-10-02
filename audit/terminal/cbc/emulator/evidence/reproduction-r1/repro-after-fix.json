@@ -1,0 +1,70 @@
+{
+  "D1_sticky_dirty": {
+    "first": {
+      "boundary_clean": false,
+      "fidelity": "partial",
+      "reasons": [
+        "PENDING_PARSER_STATE_UNSERIALIZED"
+      ]
+    },
+    "after_next_chunk": {
+      "boundary_clean": false,
+      "fidelity": "partial",
+      "reasons": [
+        "PENDING_PARSER_STATE_UNSERIALIZED"
+      ]
+    },
+    "expected_after_fix": "second snapshot must stay partial until an explicit reset (the emulator is still inside the OSC parser state)"
+  },
+  "D2_undeclared_gaps": {
+    "decstbm": {
+      "fidelity": "partial",
+      "reasons": [
+        "DECSTBM_NOT_SERIALIZED"
+      ]
+    },
+    "sync2026": {
+      "fidelity": "partial",
+      "reasons": [
+        "SYNCHRONIZED_OUTPUT_NOT_SERIALIZED"
+      ]
+    },
+    "expected_after_fix": "both must degrade without any declareFeatures() call"
+  },
+  "D3_cursor_double_feed": {
+    "applied_bytes": 4,
+    "pending_tail_bytes": 1,
+    "parsed_cursor": 4,
+    "resume_cursor": 5,
+    "reference_line0": "PRE-中文-😀 REDPOST",
+    "mixed_line0": "PRE-中文-😀 REDPOST",
+    "protocolB_line0": "PRE-中文-😀 REDPOST",
+    "mixed_visible_diff": false,
+    "mixed_extra_consumed_bytes": 1,
+    "mixed_pull_bytes": 52,
+    "protocolB_pull_bytes": 51,
+    "expected_after_fix": "explicit parsed_cursor / resume_cursor semantics; protocol A and B match the reference; mixing double-consumes the pending tail bytes"
+  },
+  "D4_offsets": {
+    "rejected_chunks": 2,
+    "enqueued_bytes_field": 131072,
+    "applied_bytes_field": 65536,
+    "producer_handed_bytes": 131072,
+    "expected_after_fix": "producer frontier must count rejected bytes too; rejected ranges and absolute cursors (parsed/resume) must be reported; reset must define a new absolute frontier"
+  },
+  "D5_queue_and_expiry": {
+    "expired_reset_timeout_result": {
+      "ok": false,
+      "timeout": true
+    },
+    "resets_executed_after_expiry": 0,
+    "processed_seq_at_timeout": 0,
+    "resize_ops_queued_behind_stall": 8192,
+    "resize_ops_rejected": 11808,
+    "expected_after_fix": "expired mutating requests must NOT execute later (resets delta 0) and resize/request ops must be bounded with an explicit rejection reason"
+  },
+  "D5b_op_error_recovery": {
+    "inject_api_present": true,
+    "expected_after_fix": "test-only throw op + op_errors counter; loop keeps processing afterwards"
+  }
+}

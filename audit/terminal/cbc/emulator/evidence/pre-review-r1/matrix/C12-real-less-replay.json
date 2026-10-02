@@ -23,12 +23,10 @@
       "ok": true
     },
     {
-      "name": "real ConPTY stream degrades honestly (unlisted private mode detected)",
+      "name": "fidelity full for the declared feature set",
       "ok": true,
       "detail": {
-        "reasons": [
-          "PRIVATE_MODE_9001_UNVERIFIED"
-        ],
+        "reasons": [],
         "features": [
           "ALT_SCREEN"
         ]
@@ -50,21 +48,18 @@
       "applied_bytes": 1552,
       "pending_tail_bytes": 0,
       "boundary_clean": true,
-      "fidelity": "partial",
+      "fidelity": "full",
       "recovery": "full"
     },
     "finalSnapshot": {
       "applied_bytes": 3083,
-      "fidelity": "partial",
-      "reasons": [
-        "PRIVATE_MODE_9001_UNVERIFIED"
-      ]
+      "fidelity": "full"
     },
     "resumeAt": 1552,
     "diff": [],
     "referenceScreenHead": "line 001  word1 \nline 002  word2 word2 \nline 003  word3 word3 word3 \nline 004  word4 word4 word4 word4 \nline 005  word5 word5 word5 word5 word5 \nline 006  word6 word6 word6 word6 word6 word6 \nline 007",
     "restoredScreenHead": "line 001  word1 \nline 002  word2 word2 \nline 003  word3 word3 word3 \nline 004  word4 word4 word4 word4 \nline 005  word5 word5 word5 word5 word5 \nline 006  word6 word6 word6 word6 word6 word6 \nline 007"
   },
-  "ms": 747,
+  "ms": 783,
   "failed_expectations": []
 }

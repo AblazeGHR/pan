@@ -12,13 +12,6 @@
       "ok": true
     },
     {
-      "name": "OSC title makes the snapshot partial (measured: titles are not serialized)",
-      "ok": true,
-      "detail": [
-        "WINDOW_TITLE_OSC_UNVERIFIED"
-      ]
-    },
-    {
       "name": "restored + pending_tail + rest == reference (no replay, no loss)",
       "ok": true,
       "detail": {
@@ -32,14 +25,14 @@
     }
   ],
   "details": {
-    "pending_tail_bytes": 1,
-    "pending_tail_preview": "c3",
+    "pending_tail_bytes": 5,
+    "pending_tail_preview": "4f4e442dc3",
     "resumeAt": 75,
     "script_bytes": 82,
     "diff": [],
     "referenceScreen": "PRE-中文-😀 RED-TEXT POST-TEXT\nSECOND-éèü\n\n\n\n\n\n\n\n\n\n",
     "restoredScreen": "PRE-中文-😀 RED-TEXT POST-TEXT\nSECOND-éèü\n\n\n\n\n\n\n\n\n\n"
   },
-  "ms": 297,
+  "ms": 294,
   "failed_expectations": []
 }

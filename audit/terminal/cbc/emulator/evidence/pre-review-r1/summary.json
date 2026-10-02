@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-02T18:14:08.618Z",
+  "generated_at": "2026-10-02T17:59:49.114Z",
   "versions": {
     "node": "v24.15.0",
     "platform": "win32",
@@ -7,10 +7,10 @@
     "xtermHeadless": "6.0.0",
     "addonSerialize": "0.14.0"
   },
-  "case_count": 16,
+  "case_count": 12,
   "status_counts": {
-    "pass": 13,
-    "pass-partial": 3
+    "pass": 10,
+    "pass-partial": 2
   },
   "cases": [
     {
@@ -29,7 +29,7 @@
       "id": "C1-alt-screen-switch-exit-restore",
       "title": "主备屏切换 / 退出 / 恢复",
       "status": "pass",
-      "ms": 388,
+      "ms": 374,
       "expectations": [
         {
           "name": "snapshot in alt screen marks activeType=alternate",
@@ -53,7 +53,7 @@
       "id": "C2-cursor-modes-scroll-resize",
       "title": "光标 / 模式 / 滚动 / resize",
       "status": "pass",
-      "ms": 905,
+      "ms": 917,
       "expectations": [
         {
           "name": "snapshot dims == last resize",
@@ -81,7 +81,7 @@
       "id": "C3-browserless-consume",
       "title": "全程无浏览器仍持续消费（>256 KiB）",
       "status": "pass",
-      "ms": 82,
+      "ms": 73,
       "expectations": [
         {
           "name": "fed more than 256 KiB",
@@ -109,7 +109,7 @@
       "id": "C4-client-cursor-evicted-twice",
       "title": "客户端游标再次被驱逐：gap 判定与快照重基线",
       "status": "pass",
-      "ms": 407,
+      "ms": 423,
       "expectations": [
         {
           "name": "first eviction detected as gap",
@@ -132,7 +132,7 @@
           "ok": true
         },
         {
-          "name": "authority cursor is the resume cursor (D3 protocol)",
+          "name": "authority cursor == applied bytes",
           "ok": true
         },
         {
@@ -145,7 +145,7 @@
       "id": "C5-async-feed-immediate-snapshot",
       "title": "异步 feed 后立即 snapshot（游标一致性）",
       "status": "pass",
-      "ms": 367,
+      "ms": 328,
       "expectations": [
         {
           "name": "producer-side probe shows enqueue != applied",
@@ -197,7 +197,7 @@
       "id": "C7-boundary-utf8-csi-osc",
       "title": "UTF-8 / CSI / OSC 跨快照边界恢复（后续接流不重放不丢）",
       "status": "pass",
-      "ms": 297,
+      "ms": 294,
       "expectations": [
         {
           "name": "snapshot taken with a non-empty pending tail",
@@ -205,10 +205,6 @@
         },
         {
           "name": "boundary prepared clean (held back, not force-fed)",
-          "ok": true
-        },
-        {
-          "name": "OSC title makes the snapshot partial (measured: titles are not serialized)",
           "ok": true
         },
         {
@@ -225,7 +221,7 @@
       "id": "C8-queue-overflow-degraded-reset",
       "title": "队列停滞/溢出 → 明确 degraded + 显式 reset baseline（不得自动 full）",
       "status": "pass",
-      "ms": 1299,
+      "ms": 1309,
       "expectations": [
         {
           "name": "overflow rejected explicitly (no silent drop)",
@@ -281,7 +277,7 @@
       "id": "C10-declared-mode-gap",
       "title": "synchronized output (2026) 缺口：声明式降级",
       "status": "pass-partial",
-      "ms": 46,
+      "ms": 53,
       "expectations": [
         {
           "name": "declared gap degrades fidelity",
@@ -301,7 +297,7 @@
       "id": "C12-real-less-replay",
       "title": "真实 less.exe TUI 字节流回放（跨快照边界）",
       "status": "pass",
-      "ms": 747,
+      "ms": 783,
       "expectations": [
         {
           "name": "capture is a real ConPTY recording",
@@ -316,123 +312,7 @@
           "ok": true
         },
         {
-          "name": "real ConPTY stream degrades honestly (unlisted private mode detected)",
-          "ok": true
-        }
-      ]
-    },
-    {
-      "id": "C13-cursor-protocols-and-log-pull",
-      "title": "D3：parsed/resume 双游标协议 + 真实日志拉取（含尾巴被驱逐）",
-      "status": "pass",
-      "ms": 614,
-      "expectations": [
-        {
-          "name": "snapshot carries both cursors and a pending tail",
-          "ok": true
-        },
-        {
-          "name": "protocol A (pull from parsed_cursor, no tail re-feed) == reference",
-          "ok": true
-        },
-        {
-          "name": "protocol B (feed tail, pull from resume_cursor) == reference",
-          "ok": true
-        },
-        {
-          "name": "mixing the two protocols consumes the pending tail twice (protocol violation)",
-          "ok": true
-        },
-        {
-          "name": "evicted tail: stale cursor returns gap instead of window-start bytes",
-          "ok": true
-        },
-        {
-          "name": "fresh snapshot cursor is usable again after eviction",
-          "ok": true
-        }
-      ]
-    },
-    {
-      "id": "C14-sticky-parser-dirty",
-      "title": "D1：强制喂入后 parser-dirty 粘滞（不得被下一块自愈）",
-      "status": "pass-partial",
-      "ms": 204,
-      "expectations": [
-        {
-          "name": "force-fed long OSC marks dirty (partial)",
-          "ok": true
-        },
-        {
-          "name": "next chunk does NOT clear the dirty marker (pre-fix bug)",
-          "ok": true
-        },
-        {
-          "name": "even after the OSC terminates (BEL) the snapshot stays partial",
-          "ok": true
-        },
-        {
-          "name": "explicit reset is the only escape and clears the dirty marker",
-          "ok": true
-        },
-        {
-          "name": "after reset the snapshot is partial for the fresh-view reason (never auto-full)",
-          "ok": true
-        },
-        {
-          "name": "long DCS force-fed -> partial, and still partial after ST terminates it",
-          "ok": true
-        }
-      ]
-    },
-    {
-      "id": "C15-control-queue-bounds-and-expiry",
-      "title": "D5：控制 op 有界 / 过期 mutation 不执行 / op 异常恢复 / 诊断有界",
-      "status": "pass",
-      "ms": 847,
-      "expectations": [
-        {
-          "name": "resize ops are rejected explicitly when the op budget is full",
-          "ok": true
-        },
-        {
-          "name": "snapshot degrades after control-queue overflow",
-          "ok": true
-        },
-        {
-          "name": "expired reset reported as timeout",
-          "ok": true
-        },
-        {
-          "name": "expired reset did NOT execute later",
-          "ok": true
-        },
-        {
-          "name": "a fresh explicit reset still works",
-          "ok": true
-        },
-        {
-          "name": "injected op error is recorded and the loop keeps working",
-          "ok": true
-        },
-        {
-          "name": "lag diagnostics are bounded",
-          "ok": true
-        }
-      ]
-    },
-    {
-      "id": "C16-detection-over-declaration",
-      "title": "D2：检测优先（未声明缺口/未知特性/未知 FEATURE_SUPPORT 键都降级）",
-      "status": "pass",
-      "ms": 112,
-      "expectations": [
-        {
-          "name": "no failed classification cases",
-          "ok": true
-        },
-        {
-          "name": "plain text can still be full without any declaration",
+          "name": "fidelity full for the declared feature set",
           "ok": true
         }
       ]
@@ -445,13 +325,10 @@
     "DECSTBM": "gap",
     "SYNCHRONIZED_OUTPUT": "gap",
     "PENDING_PARSER_STATE": "gap",
-    "CURSOR_VISIBILITY_DECTCEM": "unverified",
     "CURSOR_STYLE_DECSCUSR": "unverified",
     "WINDOW_TITLE_OSC": "unverified",
-    "OSC_HYPERLINK": "unverified",
     "TAB_STOPS": "unverified",
     "CHARSET_G0G1": "unverified",
-    "DCS_PAYLOAD": "unverified",
     "SELECTION": "unverified",
     "MOUSE_ENCODINGS_SGR": "unverified"
   },

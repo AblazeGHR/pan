@@ -74,26 +74,26 @@
       "fidelity": "partial",
       "recovery": "degraded",
       "fidelity_reasons": [
-        "FEED_LAG_QUEUE_OVERFLOW",
-        "SOURCE_GAP_STICKY"
+        "FEED_LAG_QUEUE_OVERFLOW"
       ]
     },
     "reset": {
       "ok": true,
       "reset": true,
-      "baseline_frontier": 524288,
-      "producer_frontier": 524288,
+      "baseline_seq": 6,
+      "baseline_bytes": 262144,
       "recovery": "partial",
-      "note": "explicit reset-baseline: screen cleared, a new absolute frontier is defined; history before it (including rejected ranges) is not recoverable"
+      "note": "explicit reset-baseline: screen cleared, only output from this cursor on is guaranteed"
     },
     "snapAfterReset": {
       "fidelity": "partial",
-      "recovery": "partial"
+      "recovery": "partial",
+      "baseline_bytes": 262144
     },
     "snapFinal": {
       "fidelity": "partial",
       "recovery": "partial",
-      "applied_seq": 13
+      "applied_seq": 9
     },
     "counters": {
       "feed": 5,
@@ -102,12 +102,9 @@
       "barrier": 0,
       "reset": 1,
       "stall": 1,
-      "throw": 0,
-      "rejected_feed": 4,
-      "rejected_control": 0,
-      "expired_skipped": 0
+      "rejected": 4
     }
   },
-  "ms": 1299,
+  "ms": 1309,
   "failed_expectations": []
 }

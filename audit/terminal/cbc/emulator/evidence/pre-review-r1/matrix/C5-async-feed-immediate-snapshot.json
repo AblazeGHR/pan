@@ -56,14 +56,8 @@
     "barrier": {
       "ok": true,
       "processed_seq": 18,
-      "parsed_bytes": 248000,
-      "producer_frontier": 248000,
-      "accepted_bytes": 248000,
       "applied_bytes": 248000,
       "enqueued_bytes": 248000,
-      "parsed_cursor": 248000,
-      "resume_cursor": 248000,
-      "cursors_valid": true,
       "pending_tail_bytes": 0,
       "boundary_clean": true,
       "queue_blocks": 0,
@@ -76,6 +70,6 @@
       "fidelity": "full"
     }
   },
-  "ms": 367,
+  "ms": 328,
   "failed_expectations": []
 }

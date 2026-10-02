@@ -1,0 +1,80 @@
+{
+  "id": "C13-cursor-protocols-and-log-pull",
+  "title": "D3：parsed/resume 双游标协议 + 真实日志拉取（含尾巴被驱逐）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "snapshot carries both cursors and a pending tail",
+      "ok": true
+    },
+    {
+      "name": "protocol A (pull from parsed_cursor, no tail re-feed) == reference",
+      "ok": true,
+      "detail": {
+        "diffA": []
+      }
+    },
+    {
+      "name": "protocol B (feed tail, pull from resume_cursor) == reference",
+      "ok": true,
+      "detail": {
+        "diffB": []
+      }
+    },
+    {
+      "name": "mixing the two protocols consumes the pending tail twice (protocol violation)",
+      "ok": true,
+      "detail": {
+        "pulledMixed": 57,
+        "pulledProtocolB": 56,
+        "pending": 1
+      }
+    },
+    {
+      "name": "evicted tail: stale cursor returns gap instead of window-start bytes",
+      "ok": true,
+      "detail": {
+        "staleCursor": 204805,
+        "firstRetained": 249866
+      }
+    },
+    {
+      "name": "fresh snapshot cursor is usable again after eviction",
+      "ok": true
+    }
+  ],
+  "details": {
+    "snapshot": {
+      "parsed_cursor": 4,
+      "resume_cursor": 5,
+      "pending_tail_bytes": 1,
+      "fidelity": "full"
+    },
+    "protocolA": {
+      "pulledBytes": 57,
+      "diff": 0
+    },
+    "protocolB": {
+      "pulledBytes": 56,
+      "diff": 0
+    },
+    "mixed": {
+      "diff": 0,
+      "firstDiff": null,
+      "note": "the duplicated partial sequence is often absorbed silently by the parser (measured here: visible state unchanged); the violation is therefore asserted at the byte-consumption level, which is what desynchronises client offsets."
+    },
+    "eviction": {
+      "staleGap": true,
+      "freshOk": true,
+      "sA": {
+        "resume": 204805
+      },
+      "sB": {
+        "resume": 512010
+      },
+      "windowBytes": 262144
+    }
+  },
+  "ms": 614,
+  "failed_expectations": []
+}

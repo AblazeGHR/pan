@@ -24,7 +24,7 @@
       "ok": true
     },
     {
-      "name": "authority cursor is the resume cursor (D3 protocol)",
+      "name": "authority cursor == applied bytes",
       "ok": true
     },
     {
@@ -62,16 +62,14 @@
     ],
     "windowBytes": 262144,
     "snapshot1": {
-      "resume_cursor": 532502,
-      "parsed_cursor": 532502,
+      "applied_bytes": 532502,
       "fidelity": "full"
     },
     "snapshot2": {
-      "resume_cursor": 839704,
-      "parsed_cursor": 839704,
+      "applied_bytes": 839704,
       "fidelity": "full"
     }
   },
-  "ms": 407,
+  "ms": 423,
   "failed_expectations": []
 }

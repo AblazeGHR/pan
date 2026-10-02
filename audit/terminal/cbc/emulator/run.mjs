@@ -20,7 +20,6 @@ import { FEATURE_SUPPORT } from './src/pipeline.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVIDENCE = join(HERE, 'evidence');
-const MATRIX_DIR = join(EVIDENCE, 'matrix');
 
 function versions() {
   const read = (p) => JSON.parse(readFileSync(join(HERE, 'node_modules', p, 'package.json'), 'utf8')).version;
@@ -34,11 +33,13 @@ function versions() {
 }
 
 async function main() {
-  mkdirSync(MATRIX_DIR, { recursive: true });
-  const filter = process.argv[2] || null;
-  const selected = filter ? CASES.filter((_, i) => String(i).includes(filter) || true) : CASES;
-  const toRun = filter
-    ? CASES.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()))
+  const args = process.argv.slice(2);
+  const outArg = args.find((a) => a.startsWith('--out='));
+  const filters = args.filter((a) => !a.startsWith('--'));
+  const outDir = outArg ? join(EVIDENCE, outArg.slice('--out='.length)) : EVIDENCE;
+  mkdirSync(join(outDir, 'matrix'), { recursive: true });
+  const toRun = filters.length
+    ? CASES.filter((c) => filters.some((f) => c.name.toLowerCase().includes(f.toLowerCase())))
     : CASES;
 
   const results = [];
@@ -49,7 +50,9 @@ async function main() {
       result = await c();
     } catch (err) {
       result = {
-        id: c.name,
+        // crash fallback id: normalise c1_name -> C1-name so a failed run cannot
+        // leave duplicate-looking evidence files next to the success run
+        id: c.name.replace(/^c(\d+)_/, 'C$1-'),
         title: c.name,
         status: 'fail',
         expectations: [{ name: 'case did not throw', ok: false, detail: String(err && err.stack || err) }],
@@ -62,7 +65,7 @@ async function main() {
     else if (result.declared_status) result.status = result.declared_status;
     else if (!result.status) result.status = 'pass';
     results.push(result);
-    writeFileSync(join(MATRIX_DIR, `${result.id}.json`), JSON.stringify(result, null, 2));
+    writeFileSync(join(outDir, 'matrix', `${result.id}.json`), JSON.stringify(result, null, 2));
     const mark = result.status === 'pass' ? 'PASS' : (result.status === 'pass-partial' ? 'PARTIAL' : 'FAIL');
     console.log(`[${mark}] ${result.id} (${result.ms} ms)`
       + (result.failed_expectations.length ? ` failed=${result.failed_expectations.map((f) => f.name).join('; ')}` : ''));
@@ -92,8 +95,8 @@ async function main() {
       'Unverified features (cursor style, window title, tab stops, charset, selection, SGR mouse encodings) force fidelity=partial when declared.',
     ],
   };
-  writeFileSync(join(EVIDENCE, 'summary.json'), JSON.stringify(summary, null, 2));
-  console.log(JSON.stringify({ out: EVIDENCE, status_counts: summary.status_counts }));
+  writeFileSync(join(outDir, 'summary.json'), JSON.stringify(summary, null, 2));
+  console.log(JSON.stringify({ out: outDir, status_counts: summary.status_counts }));
   if (results.some((r) => r.status === 'fail')) process.exitCode = 1;
 }
 
