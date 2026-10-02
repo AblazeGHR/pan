@@ -464,16 +464,16 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
     return True
 
 
+_PAN_MESSAGE_ID_PATTERN = re.compile(
+    r"pan:(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+)
+
+
 def is_pan_message_id(value: object) -> bool:
     """Return whether ``value`` is one of Pan's durable message identities."""
-    if not isinstance(value, str) or not value.startswith("pan:"):
-        return False
-    token = value[len("pan:"):]
-    try:
-        parsed = uuid.UUID(token)
-    except (ValueError, AttributeError):
-        return False
-    return token in {parsed.hex, str(parsed)}
+    # Same canonical formats as UUID(...).hex/str, without constructing three
+    # UUID/string objects for every history row visited by a cold search.
+    return isinstance(value, str) and _PAN_MESSAGE_ID_PATTERN.fullmatch(value) is not None
 
 
 def _is_searchable_history_body(message: object) -> bool:

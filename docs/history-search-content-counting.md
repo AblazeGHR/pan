@@ -133,3 +133,75 @@ Session/Worker/import/stream regressions.
 
 This backend-only stage does not itself constitute frontend build, real HTTP,
 browser E2E, provider, production-concurrency or deployment acceptance.
+
+## First-query performance follow-up
+
+The previous timings above describe the initial backend increment, not the
+optimized implementation. Profiling confirmed that counting text is cheap;
+index preparation and per-reference SQLite maintenance dominate first-use
+latency. PR #3 parses JSONL and counts occurrences, retaining only a bounded
+result list. It does not build or write an index. It still scans the entire
+history for exact totals; its result limit does not explain this by incomplete
+counting. The comparison helper source hash and pinned head remain unchanged.
+
+This follow-up makes these changes without weakening history integrity:
+
+- Schema v3 uses positionless trigram membership, not token occurrence offsets.
+  Up to three 3-character anchors select candidates; complete literals are
+  always verified. Dense posting statistics choose a selected-role scan when
+  FTS cannot narrow the work. This affects the plan, not result coverage.
+- Canonical message insertion and FTS feeding use batches instead of crossing
+  Python/SQLite separately for every message and partition update.
+- Query references are stored in bounded 128-reference JSON chunks rather than
+  a row with multiple secondary indexes for every matched block. A page reads
+  only the required chunks and retrieves its messages in one bounded query.
+- Canonical prefix hashing encodes a sequence once and extends its digest with
+  the encoded suffix; it does not serialize the whole old prefix twice. It
+  still includes all canonical rows and fields, not only selected roles.
+- A possible append materializes only suffix text blocks. If prefix proof,
+  versions or ID uniqueness fail, a complete snapshot/rebuild is mandatory.
+- Pan ID validation accepts exactly the prior lowercase canonical UUID formats
+  without constructing UUID objects for each visited row.
+
+Migration rebuilds only the disposable database, not history. Cursor signatures
+from the previous database expire normally. FTS membership omits positions
+because final occurrence counting/offsets come from canonical content, never
+from FTS approximate candidates.
+
+Representative final 10k mixed-role core run with stage instrumentation:
+
+| Scenario | Initial increment | Optimized follow-up | PR in follow-up run |
+| --- | ---: | ---: | ---: |
+| New index + first sparse query | 228–230 ms | about 200 ms | about 16 ms |
+| First dense query on existing index | 87–90 ms | about 40 ms | about 18 ms |
+| Append + first query | 123–151 ms | about 70 ms | about 16 ms |
+| All 100 dense pages | 469–513 ms | about 275 ms | no equivalent full pagination |
+| Derived SQLite disk size | 15.3 MB | 7.1 MB | no derived index |
+
+These are not a controlled claim of exact percentage improvements: previous
+and new timings are separate runs with I/O/scheduling variation. Additional
+follow-up runs give cold-build medians around 191–204 ms and append around
+62–86 ms. Exact totals and message identities are asserted in every benchmark.
+
+The final instrumented cold run attributes approximately 19 ms to canonical
+loading, 27 ms to snapshot/proof preparation, 54 ms to message insertion and
+50 ms to FTS feeding. Full Session replacement is around 121 ms **including**
+insertion/FTS, not an additional 121 ms to sum with them. Append attributes
+about 19 ms to loading, 21 ms to proof/snapshot, 12 ms to suffix/index update
+and 10 ms to query references. These are inclusive stage medians and must not
+be added to derive an exact end-to-end total.
+
+Reproduce stage instrumentation:
+
+```powershell
+py -3.14 scripts/benchmark_history_search_content.py --compare-pr --profile-stages
+```
+
+The remaining cold-start disadvantage is architectural: this implementation
+still requires a complete index before its first result. Future work should
+borrow PR's lightweight first scan, separating first exact results from full
+index preparation while retaining version-bound pagination, IDs, selectable
+roles and unloading. That hybrid path is a design direction, **not implemented
+by this follow-up**. For append, canonical prefix validation remains linear;
+any future shortcut needs independently verifiable integrity evidence, never
+revision/total growth alone. The new frontend contract is still pending.

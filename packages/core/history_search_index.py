@@ -27,7 +27,7 @@ _SNIPPET_RADIUS = 42
 _BUSY_TIMEOUT_MS = 10_000
 SEARCH_ROLES = ('user', 'assistant', 'tool', 'thinking')
 BODY_ROLES = ('user', 'assistant')
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _FTS_TABLES = {'user': 'history_search_fts', 'assistant': 'history_search_fts',
                'tool': 'history_search_tool_fts', 'thinking': 'history_search_thinking_fts'}
 
@@ -104,10 +104,12 @@ def session_version(session) -> tuple[str, int, bool, int | None]:
 
 
 def _snapshot(session, previous_total: int | None = None,
-              roles: tuple[str, ...] = BODY_ROLES) -> _HistorySnapshot | None:
+              roles: tuple[str, ...] = BODY_ROLES, *,
+              only_suffix: bool = False) -> _HistorySnapshot | None:
     """Capture text blocks and their version under the Session lock.
 
-    Capture all eligible roles, but index only requested partitions. This lets
+    Capture eligible roles (only the suffix for a possible append), but index
+    only requested partitions. This lets
     a transaction preserve concurrently enabled partitions without reopening
     canonical history while holding a SQLite writer lock.
     """
@@ -118,21 +120,27 @@ def _snapshot(session, previous_total: int | None = None,
         history = getattr(session, "history", []) or []
         # Hash every canonical row, including excluded roles and legacy IDs.
         # An unchanged revision or a growing total alone cannot prove append.
-        digest = hashlib.sha256()
-        prefix_digest = digest.digest() if previous_total == 0 else None
+        prefix_digest = None
         try:
-            for index, row in enumerate(history):
-                if index == previous_total:
-                    prefix_digest = digest.digest()
-                encoded = json.dumps(
-                    row, sort_keys=True, ensure_ascii=False, allow_nan=False,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-                digest.update(len(encoded).to_bytes(8, "big"))
-                digest.update(encoded)
-            if previous_total == len(history):
+            def encode_rows(rows):
+                # Encode a canonical sequence once, rather than creating a
+                # JSON encoder and crossing Python/C once per historical row.
+                encoded = json.dumps(rows, sort_keys=True, ensure_ascii=False,
+                                     allow_nan=False, separators=(',', ':')).encode('utf-8')
+                # Outer brackets are omitted so an encoded suffix can extend
+                # the hash without encoding the prefix a second time. Commas
+                # preserve canonical sequence boundaries, including all roles.
+                return encoded[1:-1]
+            if previous_total is not None and 0 <= previous_total <= len(history):
+                digest = hashlib.sha256(encode_rows(history[:previous_total]))
                 prefix_digest = digest.digest()
-            full_digest = digest.digest()
+                if previous_total < len(history):
+                    if previous_total:
+                        digest.update(b',')
+                    digest.update(encode_rows(history[previous_total:]))
+                full_digest = digest.digest()
+            else:
+                full_digest = hashlib.sha256(encode_rows(history)).digest()
         except (TypeError, ValueError, OverflowError):
             # Unusual in-memory rows still get a complete rebuild; they never
             # qualify for the prefix proof.
@@ -148,7 +156,9 @@ def _snapshot(session, previous_total: int | None = None,
         # source=system_prompt is injected context, not a user body. Defensive
         # duplicate IDs collapse to the last occurrence as in the current finder.
         by_id: dict[str, _SearchMessage] = {}
-        for index, row in enumerate(history):
+        start = previous_total if only_suffix and previous_total is not None else 0
+        for index in range(start, len(history)):
+            row = history[index]
             if not isinstance(row, dict):
                 continue
             role = row.get("role")
@@ -193,12 +203,13 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
         return
     # Only the disposable index is migrated, never canonical history. Recheck
-    # after acquiring the lock so concurrent first requests cannot drop v2.
+    # after acquiring the lock so concurrent first requests cannot drop v3.
     connection.execute('BEGIN IMMEDIATE')
     if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
         connection.commit()
         return
-    for table in (*dict.fromkeys(_FTS_TABLES.values()), 'history_search_query_hits',
+    for table in (*(table+'_vocab' for table in dict.fromkeys(_FTS_TABLES.values())),
+                  *dict.fromkeys(_FTS_TABLES.values()), 'history_search_query_hits', 'history_search_query_chunks',
                   'history_search_queries', 'history_search_messages',
                   'history_search_sessions', 'history_search_meta'):
         connection.execute(f'DROP TABLE IF EXISTS {table}')
@@ -247,8 +258,9 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         connection.execute(f'CREATE VIEW {view} AS SELECT rowid, folded_content '
                            f'FROM history_search_messages WHERE role IN ({roles_sql})')
         connection.execute(f"CREATE VIRTUAL TABLE {table} USING fts5("
-                           "folded_content, tokenize='trigram', "
+                           "folded_content, tokenize='trigram', detail=none, columnsize=0, "
                            f"content='{view}', content_rowid='rowid')")
+        connection.execute(f"CREATE VIRTUAL TABLE {table}_vocab USING fts5vocab({table}, 'row')")
     install_query_schema(connection)
     connection.execute(f'PRAGMA user_version={_SCHEMA_VERSION}')
     connection.commit()
@@ -361,22 +373,9 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
                 ','.join(effective_roles),
             ),
         )
-        for message in snapshot.messages:
-            if message.role not in effective_roles:
-                continue
-            cursor = connection.execute(
-                """INSERT INTO history_search_messages
-                   (session_id, message_id, message_index, role, content, folded_content)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (
-                    snapshot.session_id, message.message_id, message.message_index,
-                    message.role, message.content, message.content.casefold(),
-                ),
-            )
-            connection.execute(
-                f"INSERT INTO {_FTS_TABLES[message.role]}(rowid, folded_content) VALUES (?, ?)",
-                (cursor.lastrowid, message.content.casefold()),
-            )
+        _insert_messages(connection, snapshot.session_id,
+                         (message for message in snapshot.messages if message.role in effective_roles))
+        _index_inserted_rows(connection, snapshot.session_id, 0)
         if snapshot.digest is not None:
             connection.execute(
                 "INSERT INTO history_search_meta(key, value) VALUES (?, ?)",
@@ -386,6 +385,27 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
     except BaseException:
         connection.rollback()
         raise
+
+
+def _insert_messages(connection, session_id, messages):
+    """Batch canonical rows, then feed each selected FTS partition in SQL."""
+    connection.executemany(
+        'INSERT INTO history_search_messages '
+        '(session_id,message_id,message_index,role,content,folded_content) VALUES (?,?,?,?,?,?)',
+        ((session_id, message.message_id, message.message_index, message.role,
+          message.content, message.content.casefold()) for message in messages))
+    # Only rows added in this transaction qualify. SQLite assigns increasing
+    # rowids for this batch; a caller records the pre-batch maximum below.
+
+
+def _index_inserted_rows(connection, session_id, after_rowid):
+    for table in dict.fromkeys(_FTS_TABLES.values()):
+        roles = tuple(role for role, target in _FTS_TABLES.items() if target == table)
+        placeholders = ','.join('?' for _ in roles)
+        connection.execute(f'INSERT INTO {table}(rowid,folded_content) '
+                           'SELECT rowid,folded_content FROM history_search_messages '
+                           f'WHERE session_id=? AND rowid>? AND role IN ({placeholders})',
+                           (session_id, after_rowid, *roles))
 
 
 def _append_session(
@@ -417,31 +437,23 @@ def _append_session(
         ):
             connection.rollback()
             return False
-        suffix = [message for message in snapshot.messages
-                  if message.message_index >= previous_total
-                  and message.role in current['indexed_roles'].split(',')]
+        all_suffix = [message for message in snapshot.messages
+                      if message.message_index >= previous_total]
+        suffix = [message for message in all_suffix
+                  if message.role in current['indexed_roles'].split(',')]
         # A duplicate Pan ID in the suffix changes which occurrence wins.
         # Rebuild so the old row is removed and the last occurrence survives.
         if any(connection.execute(
             """SELECT 1 FROM history_search_messages
                WHERE session_id=? AND message_id=?""",
             (snapshot.session_id, message.message_id),
-        ).fetchone() for message in suffix):
+        ).fetchone() for message in all_suffix):
             connection.rollback()
             return False
         clear_query_cache(connection)
-        for message in suffix:
-            cursor = connection.execute(
-                """INSERT INTO history_search_messages
-                   (session_id, message_id, message_index, role, content, folded_content)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (snapshot.session_id, message.message_id, message.message_index,
-                 message.role, message.content, message.content.casefold()),
-            )
-            connection.execute(
-                f"INSERT INTO {_FTS_TABLES[message.role]}(rowid, folded_content) VALUES (?, ?)",
-                (cursor.lastrowid, message.content.casefold()),
-            )
+        last_rowid = connection.execute('SELECT COALESCE(MAX(rowid),0) FROM history_search_messages').fetchone()[0]
+        _insert_messages(connection, snapshot.session_id, suffix)
+        _index_inserted_rows(connection, snapshot.session_id, last_rowid)
         connection.execute(
             """UPDATE history_search_sessions
                SET history_revision=?, history_total=? WHERE session_id=?""",
@@ -569,7 +581,10 @@ def search_history(
             previous_total = int(indexed["history_total"]) if indexed else None
             indexed_roles = tuple(indexed['indexed_roles'].split(',')) if indexed else ()
             wanted_roles = normalize_roles((*indexed_roles, *selected_roles))
-            snapshot = _snapshot(full_session, previous_total, wanted_roles)
+            only_suffix = bool(indexed and set(indexed_roles) >= set(selected_roles)
+                               and indexed['history_epoch'] == epoch
+                               and history_total is not None and history_total > previous_total)
+            snapshot = _snapshot(full_session, previous_total, wanted_roles, only_suffix=only_suffix)
             if snapshot is None:
                 raise HistorySearchError(
                     f"Session {session_id} history could not be loaded for indexing"
@@ -585,6 +600,12 @@ def search_history(
                 )
             )
             if not appended:
+                if only_suffix:
+                    # A failed proof, ID conflict or concurrent replacement
+                    # needs a complete snapshot; never rebuild from just suffix.
+                    snapshot = _snapshot(full_session, roles=wanted_roles)
+                    if snapshot is None:
+                        raise HistorySearchError(f'Session {session_id} history could not be loaded for rebuilding')
                 _replace_session(connection, snapshot)
             del snapshot, full_session
 
