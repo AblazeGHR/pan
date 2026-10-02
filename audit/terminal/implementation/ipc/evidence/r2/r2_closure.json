@@ -1,11 +1,14 @@
 {
   "note": "独立复核 7 Blocking + 5 Findings/报告项（F1–F12）逐项闭环；每项给修复点与回归用例。原 21 负例（断言缺陷存在）已转换为安全正向期望的正式回归（tests/test_terminal_*.py 的 test_f*）。",
+  "reachability_layering": "本层是库：F1 的直调缺口属本进程公开接口契约问题（非远程可达）、serve() 认证前外部不可达；认证后 terminal_id 绑定缺失的跨终端影响取决于尚未实现的 P2 handler。其余 F2–F12 均为本层公开接口/生命周期缺陷，同样不声称远程可利用性。复核树校准提交 3d046cfa03f3a509ddd14b93cf630505785303f7（仅 docs）。",
   "items": [
     {
       "id": "F1",
       "severity": "Blocking",
       "fix": "run_handler 首行 _require_authenticated + validate_message + 类型必须 request + terminal_id 必须等于会话绑定（不匹配 → error: terminal-mismatch），全部路径零 handler 调用",
       "code": "packages/core/terminal/ipc.py: IpcSession.run_handler / serve / TerminalMismatchError / IpcDiagnostics.rejected_terminal_mismatch",
+      "reachability": "直调 run_handler = **本进程公开接口契约缺口**（调用者已在本进程内执行代码），不是远程/认证绕过；serve() 是唯一外部（管道）路径且先 handshake，认证前不可达。认证后业务帧 terminal_id 未与会话绑定才是**真实缺口**（持 token 对端可携带任意 id），其跨终端影响取决于尚未实现的 P2 handler 是否信任该字段（P1 无 handler 实现）——本层按统一 fail-closed 门 + 严格绑定修复，不夸大当前可利用性。",
+      "calibration": "复核树 r1 校准提交 3d046cfa03f3a509ddd14b93cf630505785303f7（仅 docs）",
       "tests": [
         "tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler",
         "tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too",

@@ -4,7 +4,7 @@
   "branch": "implement/terminal-ipc-20261003",
   "head_at_r2_start": "68cf79279e78ab63f3594f4d53438f0840799b24",
   "reviewed_tree": "D:/project/pan-worktrees/terminal-ipc-review-20261003 (HEAD 3d046cfa; 被审 commit ccc6bd92; 证据 f3c55521)",
-  "generated_at": "2026-10-03T04:39:45+0800",
+  "generated_at": "2026-10-03T04:47:47+0800",
   "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
   "python_executable": "E:\\software\\miniforge\\python.exe",
   "platform": "win32"

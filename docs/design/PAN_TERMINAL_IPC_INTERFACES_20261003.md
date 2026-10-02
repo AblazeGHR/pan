@@ -134,6 +134,12 @@ Pan 服务（client）                         runner（server，每终端一个
 
 ### 3.1 业务帧绑定与 per-request 分派（r2：F1/F2）
 
+- **可达性分层（复核 r1 校准 `3d046cfa`，本层与报告沿用、不夸大）**：直调 `run_handler`
+  属**本进程公开接口的契约缺口**（调用者已在本进程内执行代码），**不是**远程/认证绕过；
+  `serve()` 是唯一外部（管道）路径，认证前不可达（先 `handshake()`，失败即零 handler 调用）。
+  认证后业务帧 `terminal_id` 未与会话绑定才是**真实缺口**（持 token 的对端可携带任意 id），
+  其跨终端影响取决于尚未实现的 P2 handler 是否信任该字段（P1 无 handler 实现）。修复方式即
+  下述**统一 fail-closed 门 + 严格绑定**。
 - **一个 runner 一个终端**：`run_handler` 对每个请求依次执行
   ①认证 ②`validate_message` schema ③类型必须是 `request` ④
   `request["terminal_id"] == self.terminal_id`（不匹配 → `error: terminal-mismatch`，

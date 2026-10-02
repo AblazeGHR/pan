@@ -16,8 +16,8 @@
         "no:cacheprovider"
       ],
       "exit_code": 0,
-      "seconds": 52.66,
-      "summary": "114 passed in 52.20s",
+      "seconds": 52.55,
+      "summary": "114 passed in 52.13s",
       "case_count": 0,
       "counts": {},
       "cases": [],
@@ -41,8 +41,8 @@
         "not test_f1_ and not test_f2_ and not test_f3_ and not test_f4_ and not test_f5_ and not test_f6_ and not test_f7_ and not test_f8_ and not test_f9_ and not test_f10_ and not test_f11_ and not test_f12_"
       ],
       "exit_code": 0,
-      "seconds": 37.64,
-      "summary": "80 passed, 34 deselected in 37.19s",
+      "seconds": 37.35,
+      "summary": "80 passed, 34 deselected in 36.95s",
       "case_count": 0,
       "counts": {},
       "cases": [],
@@ -68,8 +68,8 @@
         "test_f1_ or test_f2_ or test_f3_ or test_f4_ or test_f5_ or test_f6_ or test_f7_ or test_f8_ or test_f9_ or test_f10_ or test_f11_ or test_f12_"
       ],
       "exit_code": 0,
-      "seconds": 15.39,
-      "summary": "===================== 34 passed, 80 deselected in 14.97s ======================",
+      "seconds": 15.4,
+      "summary": "===================== 34 passed, 80 deselected in 14.99s ======================",
       "case_count": 34,
       "counts": {
         "PASSED": 34
@@ -244,8 +244,8 @@
         "no:cacheprovider"
       ],
       "exit_code": 0,
-      "seconds": 53.47,
-      "summary": "114 passed in 52.45s",
+      "seconds": 53.38,
+      "summary": "114 passed in 51.98s",
       "case_count": 0,
       "counts": {},
       "cases": [],
@@ -283,8 +283,8 @@
         "not test_f1_ and not test_f2_ and not test_f3_ and not test_f4_ and not test_f5_ and not test_f6_ and not test_f7_ and not test_f8_ and not test_f9_ and not test_f10_ and not test_f11_ and not test_f12_"
       ],
       "exit_code": 0,
-      "seconds": 38.38,
-      "summary": "80 passed, 34 deselected in 37.33s",
+      "seconds": 38.71,
+      "summary": "80 passed, 34 deselected in 37.73s",
       "case_count": 0,
       "counts": {},
       "cases": [],
@@ -324,8 +324,8 @@
         "test_f1_ or test_f2_ or test_f3_ or test_f4_ or test_f5_ or test_f6_ or test_f7_ or test_f8_ or test_f9_ or test_f10_ or test_f11_ or test_f12_"
       ],
       "exit_code": 0,
-      "seconds": 15.83,
-      "summary": "===================== 34 passed, 80 deselected in 14.84s ======================",
+      "seconds": 16.17,
+      "summary": "===================== 34 passed, 80 deselected in 15.03s ======================",
       "case_count": 34,
       "counts": {
         "PASSED": 34

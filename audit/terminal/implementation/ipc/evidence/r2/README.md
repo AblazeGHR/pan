@@ -44,6 +44,16 @@ uv run --no-project --python E:/software/miniforge/python.exe \
 > pre-fix 的 5 项“当时已通过”是**正向对照**（F4 re-arm 的占名检测、F5 已 issued 的 close、
 > F10 真实自证、F11 两条），与缺陷断言无关；修复后它们仍通过。
 
+## 1b. F1 可达性分层（MA 校准，报告沿用）
+
+- 复核树 r1 校准提交 `3d046cfa03f3a509ddd14b93cf630505785303f7`（仅 docs）明确：
+  **直调 `run_handler` = 本进程公开接口契约缺口**（非远程/认证绕过）；
+  `serve()` 先 `handshake()`，认证前外部不可达（失败即零 handler 调用）；
+  **认证后业务帧 `terminal_id` 未与会话绑定才是真实缺口**，其跨终端影响取决于尚未实现的
+  P2 handler。本 TA 的报告、闭环矩阵（`r2_closure.json` 的 `reachability` 字段与顶层
+  `reachability_layering`）与接口文档 §3.1 均沿用该分层，不夸大漏洞；修复范围不变——
+  `run_handler` 仍是**统一 fail-closed 门**（认证/schema/类型/绑定/期限五道拒绝，零 handler 调用）。
+
 ## 2. 闭环矩阵
 
 `r2_closure.json` 给出 F1–F12 每项的：定级、修复点（文件/方法）、回归用例 nodeid、
