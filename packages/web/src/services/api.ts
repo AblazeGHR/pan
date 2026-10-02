@@ -386,12 +386,24 @@ export async function fetchHistorySearch(
   limit = 50,
   cursor?: string,
   signal?: AbortSignal,
+  options?: {
+    sessionId?: string;
+    roles?: import('@/types').HistorySearchRole[];
+    countMode?: 'messages' | 'content';
+    matchIndex?: number;
+    messageId?: string;
+  },
 ): Promise<ApiHistorySearchResponse> {
   const params = new URLSearchParams({
     q: query,
     limit: String(Math.min(100, Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 50)))),
   });
   if (cursor) params.set('cursor', cursor);
+  if (options?.sessionId) params.set('sessionId', options.sessionId);
+  if (options?.roles) params.set('roles', options.roles.join(','));
+  if (options?.countMode) params.set('countMode', options.countMode);
+  if (options?.matchIndex !== undefined) params.set('matchIndex', String(options.matchIndex));
+  if (options?.messageId) params.set('messageId', options.messageId);
   return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });
 }
 

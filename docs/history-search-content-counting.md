@@ -197,7 +197,7 @@ Reproduce stage instrumentation:
 py -3.14 scripts/benchmark_history_search_content.py --compare-pr --profile-stages
 ```
 
-The remaining cold-start disadvantage is architectural: this implementation
+The remaining cold-start disadvantage was architectural: this implementation
 still requires a complete index before its first result. Future work should
 borrow PR's lightweight first scan, separating first exact results from full
 index preparation while retaining version-bound pagination, IDs, selectable
@@ -205,3 +205,85 @@ roles and unloading. That hybrid path is a design direction, **not implemented
 by this follow-up**. For append, canonical prefix validation remains linear;
 any future shortcut needs independently verifiable integrity evidence, never
 revision/total growth alone. The new frontend contract is still pending.
+
+## Completed scan-first fallback and frontend contract (2026-10-02)
+
+The user explicitly authorized adopting PR's approach if indexing could not
+meet first-result latency. Content mode now uses a PR-inspired read-only scan,
+not a prerequisite FTS build. Both Session and global UI request this mode.
+The former message-mode API/FTS path remains for backward compatibility;
+it is not called by the new UI and does not warm up in the background.
+
+- Canonical cold JSONL is streamed, not loaded into the shared Session cache.
+  Selected pages reread only their bounded message rows. There are no index
+  writes or new append/save hooks. New and imported four-role Pan identities
+  from the previous increment remain authoritative; legacy IDs may be absent
+  from results, as authorized. Native adapter IDs are never Pan identities.
+- Counts are exact non-overlapping `casefold()` literal occurrences. Four
+  roles are selected independently. Unselected roles are excluded before
+  case folding/counting; their JSONL bytes still require parsing. Empty role
+  selection performs no scan. Short/CJK/punctuation queries cover all history.
+- A process-local LRU retains only IDs, row locations, roles and counts: at
+  most 256 Session/query entries and 100,000 references. It retains no body
+  copies, loaded Session objects, background jobs or persistent files. Cold
+  cache reuse requires epoch/revision/total and file size/mtime agreement.
+  Unknown totals and in-memory histories are conservatively scanned. Append
+  or replacement invalidates reuse; append's first search is still linear,
+  avoiding unsafe prefix assumptions. Cache eviction changes latency only.
+- Signed version/scope/query/role-bound cursors, 409 stale handling, ordinal
+  seeking and stable-ID relocation remain. Content cursors use a process-local
+  signing key; restart expires them without a search database. Global results
+  expose exact occurrences separately from loaded message count and paginate
+  past 500. Session N/M and Enter/Shift+Enter now count occurrences.
+- `showHistorySearch` is still default off and both components remain lazy.
+  Unmount clears requests, keyboard listeners, selection and highlighting.
+  A selected hidden QQ row is shown temporarily, without changing filtering.
+  A selected tool/thinking row is split out of a folded group temporarily.
+- The selected mounted message receives React-owned Markdown word marks and
+  an active occurrence, in addition to block highlighting. Closing search
+  restores ordinary rendering. Passive marks are capped at 500 per Markdown
+  renderer; a later selected occurrence remains marked. Counting is never
+  capped. Markup-only matches and matches spanning rendered inline nodes may
+  have no literal visible word mark; Unicode length-changing case mappings
+  retain correct backend totals but may fall back to block highlighting.
+- Browser testing found overlapping mode buttons; popups now start below the
+  button row, scroll within available chat height and leave the composer clear.
+
+Same-machine pinned PR #3 helper comparison on 10k mixed-role synthetic rows:
+
+| Core scenario | Scan-first | PR helper |
+| --- | ---: | ---: |
+| First sparse query, no retained references | 19.2 ms | about 15–16 ms |
+| First dense count, 20k occurrences | 24.5 ms | 18.2 ms |
+| Repeated dense query | 1.08 ms | 18.2 ms |
+| Append, first query | 18.0 ms | 15.7 ms |
+| All 100 dense pages | 125 ms | no equivalent cursor pagination |
+| Derived database size | 0 | 0 |
+
+This is deliberately **not** a claim of universal performance superiority.
+First scans still pay for stable identity/last-ID-wins and paging contracts.
+The earlier 200 ms build and 70 ms append prerequisites are removed, while
+warm queries are substantially faster than repeatedly scanning. The pinned
+helper is PR's actual function, not a substitute algorithm; its full UI is
+not covered by these measurements. Cache-cold is not OS-page-cache-cold.
+
+Real isolated HTTP observations: first sparse query 24 ms, first dense count
+30 ms, append-first 24 ms, hot queries 2–3 ms; PR helper HTTP about 18–21 ms.
+The real Chromium 10k count appears in about 144 ms including 120 ms debounce,
+using one search request rather than 50 full-history downloads. These are
+synthetic fixture observations, not production latency promises.
+
+Reproduce from the repository root, with no production service/config/data:
+
+```powershell
+py -3.14 scripts/benchmark_history_search_content.py --engine scan --compare-pr
+# From packages/web, after its production build:
+node e2e/historySearchAcceptance.mjs
+```
+
+The browser harness uses a newly allocated temporary runtime, loopback 18769
+(overridable by `PAN_SEARCH_TEST_PORT`, excluding 8767/8768), actual FastAPI
+routes, and production Chromium assets. It stops only its own child process
+and verifies port release. Evidence, screenshots and traces go into the ignored
+`packages/web/e2e/test-results/history-search-content-completion` directory;
+temporary fixture data is retained for inspection, never real Pan data.

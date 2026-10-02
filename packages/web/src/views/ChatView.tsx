@@ -36,7 +36,7 @@ export default function ChatView() {
   const { isMobile } = useMediaQuery();
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [activeHistorySearch, setActiveHistorySearch] = useState<'session' | 'global' | null>(null);
-  const [searchTarget, setSearchTarget] = useState<{ sessionId: string; messageId: string } | null>(null);
+  const [searchTarget, setSearchTarget] = useState<{ sessionId: string; messageId: string; query?: string; occurrence?: number } | null>(null);
 
   useEffect(() => {
     // Enabling the master switch and changing viewport modes both start folded.
@@ -58,17 +58,17 @@ export default function ChatView() {
     setActiveHistorySearch((active) => open ? 'global' : active === 'global' ? null : active);
   }, []);
 
-  const handleSessionHighlight = useCallback((messageId: string | null) => {
+  const handleSessionHighlight = useCallback((messageId: string | null, query?: string, occurrence = 0) => {
     if (!messageId) {
       setSearchTarget(null);
       return;
     }
     const sessionId = useSessionStore.getState().currentSessionId;
-    setSearchTarget(sessionId ? { sessionId, messageId } : null);
+    setSearchTarget(sessionId ? { sessionId, messageId, query, occurrence } : null);
   }, []);
 
-  const handleGlobalHighlight = useCallback((sessionId: string | null, messageId: string | null) => {
-    setSearchTarget(sessionId && messageId ? { sessionId, messageId } : null);
+  const handleGlobalHighlight = useCallback((sessionId: string | null, messageId: string | null, query?: string) => {
+    setSearchTarget(sessionId && messageId ? { sessionId, messageId, query } : null);
   }, []);
 
   const restoreChatFocus = useCallback(() => {

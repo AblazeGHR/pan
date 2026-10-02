@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Globe, Loader2, X } from 'lucide-react';
-import { ApiRequestError, fetchHistorySearch, fetchSessionHistory } from '@/services/api';
+import { ApiRequestError, fetchHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
-import type { ApiHistorySearchHit } from '@/types';
+import type { ApiHistorySearchHit, HistorySearchRole } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
-import { scanSessionHistory, StaleSessionHistoryError } from './sessionSearchIndex';
+import { HistorySearchRoles } from './HistorySearchRoles';
+import { ALL_SEARCH_ROLES } from './searchRoleOptions';
 
 const GLOBAL_SEARCH_PAGE_SIZE = 50;
 const GLOBAL_SEARCH_DEBOUNCE_MS = 250;
@@ -14,7 +15,7 @@ interface GlobalHistorySearchProps {
   isMobile: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onHighlightMessage: (sessionId: string | null, messageId: string | null) => void;
+  onHighlightMessage: (sessionId: string | null, messageId: string | null, query?: string) => void;
 }
 
 type SearchStatus = 'idle' | 'loading' | 'loading-more' | 'ready' | 'expired' | 'error';
@@ -62,6 +63,8 @@ export function GlobalHistorySearch({
   const sessions = useSessionStore((state) => state.sessions);
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
   const [query, setQuery] = useState('');
+  const [roles, setRoles] = useState<HistorySearchRole[]>(ALL_SEARCH_ROLES);
+  const [totalMatches, setTotalMatches] = useState<number | null>(null);
   const [hits, setHits] = useState<ApiHistorySearchHit[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -102,9 +105,11 @@ export function GlobalHistorySearch({
         GLOBAL_SEARCH_PAGE_SIZE,
         pageCursor ?? undefined,
         active.controller.signal,
+        { roles, countMode: 'content' },
       );
       if (!isCurrentSearch(active)) return;
       setHits((current) => append ? mergeHits(current, response.hits) : response.hits);
+      setTotalMatches(response.totalMatches ?? null);
       setCursor(response.nextCursor);
       setHasMore(response.hasMore && Boolean(response.nextCursor));
       setStatus('ready');
@@ -124,7 +129,7 @@ export function GlobalHistorySearch({
     } finally {
       if (activeSearchRef.current === active) pageInFlightRef.current = false;
     }
-  }, [isCurrentSearch]);
+  }, [isCurrentSearch, roles]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,7 +140,7 @@ export function GlobalHistorySearch({
   useEffect(() => {
     if (!open) return;
     const normalizedQuery = query.trim();
-    if (!normalizedQuery) {
+    if (!normalizedQuery || roles.length === 0) {
       setStatus('idle');
       setHits([]);
       setCursor(null);
@@ -152,6 +157,7 @@ export function GlobalHistorySearch({
     activeSearchRef.current = active;
     pageInFlightRef.current = false;
     setHits([]);
+    setTotalMatches(null);
     setCursor(null);
     setHasMore(false);
     setStatus('loading');
@@ -168,7 +174,7 @@ export function GlobalHistorySearch({
         searchGenerationRef.current += 1;
       }
     };
-  }, [loadPage, open, query, retryGeneration]);
+  }, [loadPage, open, query, retryGeneration, roles]);
 
   useEffect(() => {
     if (open) {
@@ -315,12 +321,8 @@ export function GlobalHistorySearch({
       if (!stillCurrent()) return;
 
       if (!message || message.messageId !== hit.messageId) {
-        const relocated = await scanSessionHistory(
-          fetchSessionHistory,
-          hit.sessionId,
-          navigation.query,
-          { signal },
-        );
+        const relocated = await fetchHistorySearch(navigation.query, 1, undefined, signal,
+          { sessionId: hit.sessionId, roles, countMode: 'content', messageId: hit.messageId });
         if (!stillCurrent()) return;
         const currentHit = relocated.hits.find((candidate) => candidate.messageId === hit.messageId);
         if (!currentHit) {
@@ -330,7 +332,7 @@ export function GlobalHistorySearch({
           return;
         }
         targetIndex = currentHit.messageIndex;
-        targetTotal = relocated.total;
+        targetTotal = currentHit.historyTotal;
         message = targetIndex < targetTotal
           ? await useSessionStore.getState().ensureMessageLoaded(
             targetTotal - 1 - targetIndex,
@@ -348,7 +350,7 @@ export function GlobalHistorySearch({
         return;
       }
 
-      onHighlightMessage(hit.sessionId, hit.messageId);
+      onHighlightMessage(hit.sessionId, hit.messageId, navigation.query);
       await nextPaint();
       if (!stillCurrent()) return;
       const mountedMessage = useSessionStore.getState().currentMessages.find(
@@ -380,7 +382,7 @@ export function GlobalHistorySearch({
     } catch (error) {
       if (!stillCurrent() || isAbortError(error)) return;
       onHighlightMessage(null, null);
-      if ((error instanceof ApiRequestError && error.status === 409) || error instanceof StaleSessionHistoryError) {
+      if (error instanceof ApiRequestError && error.status === 409) {
         setNavigationStatus('expired');
         setNavigationMessage('This result expired. Search again.');
       } else {
@@ -414,7 +416,7 @@ export function GlobalHistorySearch({
         : status === 'ready' && hits.length === 0
           ? hasMore ? 'No messages on this page · more results available' : 'No matching messages.'
           : status === 'ready'
-            ? `${hits.length} messages shown${hasMore ? ' · More results available' : ''}`
+            ? `${hits.length} messages shown${totalMatches !== null ? ` · ${totalMatches} occurrences` : ''}${hasMore ? ' · More results available' : ''}`
             : query.trim()
               ? ''
               : 'Enter a word to search all Sessions.';
@@ -481,6 +483,14 @@ export function GlobalHistorySearch({
               <X size={15} />
             </button>
           </div>
+          <HistorySearchRoles roles={roles} onChange={(next) => {
+            activeNavigationRef.current?.controller.abort();
+            activeNavigationRef.current = null;
+            setNavigatingMessageId(null);
+            setNavigationStatus('idle');
+            onHighlightMessage(null, null);
+            setRoles(next);
+          }} />
           <div className="global-history-search__status" role="status" aria-live="polite">
             {statusText}
           </div>
@@ -510,6 +520,7 @@ export function GlobalHistorySearch({
                       <span className="global-history-search__result-meta">
                         <span className="global-history-search__session-name">{sessionName}</span>
                         <span className="global-history-search__role">{hit.role}</span>
+                        <span>{hit.matchCount ?? 1} occurrences</span>
                       </span>
                       <span className="global-history-search__snippet">{hit.snippet}</span>
                       {isNavigating && <Loader2 size={14} className="animate-spin" aria-label="Opening" />}

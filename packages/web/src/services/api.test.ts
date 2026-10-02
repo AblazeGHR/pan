@@ -246,6 +246,26 @@ describe('global history search API', () => {
       status,
     } satisfies Partial<ApiRequestError>);
   });
+
+  it('encodes occurrence counting, empty roles, ordinal seek and stable-ID relocation', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return { ok: true, status: 200, json: async () => ({ hits: [], versions: [], limit: 50, hasMore: false, nextCursor: null }) };
+    }));
+    await fetchHistorySearch('中', 50, undefined, undefined,
+      { sessionId: 'a', roles: [], countMode: 'content', matchIndex: 0 });
+    await fetchHistorySearch('中', 1, undefined, undefined,
+      { sessionId: 'a', roles: ['tool', 'thinking'], countMode: 'content', messageId: 'pan:123' });
+    const first = new URL(urls[0]!, 'http://localhost');
+    expect(first.searchParams.get('roles')).toBe('');
+    expect(first.searchParams.get('countMode')).toBe('content');
+    expect(first.searchParams.get('matchIndex')).toBe('0');
+    const next = new URL(urls[1]!, 'http://localhost');
+    expect(next.searchParams.get('roles')).toBe('tool,thinking');
+    expect(next.searchParams.get('messageId')).toBe('pan:123');
+    expect(next.searchParams.get('sessionId')).toBe('a');
+  });
 });
 
 describe('history page API for search jumps', () => {

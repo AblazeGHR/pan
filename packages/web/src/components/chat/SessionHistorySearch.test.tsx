@@ -8,7 +8,7 @@ import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 
 const { fetchHistory } = vi.hoisted(() => ({ fetchHistory: vi.fn() }));
-vi.mock('@/services/api', () => ({ fetchSessionHistory: fetchHistory }));
+vi.mock('@/services/api', async (original) => ({ ...await original<typeof import('@/services/api')>(), fetchHistorySearch: fetchHistory }));
 
 const MESSAGES: Message[] = [
   { role: 'user', content: 'Needle alpha', messageId: 'user-a' },
@@ -16,14 +16,19 @@ const MESSAGES: Message[] = [
   { role: 'assistant', content: 'needle beta', messageId: 'assistant-b' },
 ];
 
-function historyPage(messages: Message[], total = messages.length, start = 0, revision = 1) {
+function historyPage(messages: Message[], total = messages.length, start = 0, revision = 1, query = 'needle') {
+  let count = 0;
+  const hits = messages.flatMap((message, index) => {
+    const matchCount = message.content.toLowerCase().split(query.toLowerCase()).length-1;
+    if (!matchCount) return [];
+    const matchStart = count;
+    count += matchCount;
+    return [{ sessionId: 's1', messageId: message.messageId!, messageIndex: start+index, role: message.role,
+      snippet: message.content, historyTotal: total, historyEpoch: 'epoch-1', historyRevision: revision,
+      matchCount, matchStart }];
+  });
   return {
-    history: messages,
-    total,
-    start,
-    hasMore: start > 0,
-    historyEpoch: 'epoch-1',
-    historyRevision: revision,
+    hits, totalMatches: count, totalMessages: hits.length, hasMore: false, nextCursor: null, limit: 100,
   };
 }
 
@@ -36,7 +41,7 @@ function makeChatRef(scrollToMessage = vi.fn(() => true)) {
 
 beforeEach(() => {
   fetchHistory.mockReset();
-  fetchHistory.mockResolvedValue(historyPage(MESSAGES));
+  fetchHistory.mockImplementation((query: string) => Promise.resolve(historyPage(MESSAGES, 3, 0, 1, query)));
   useSessionStore.setState({
     currentSessionId: 's1',
     currentMessages: MESSAGES,
@@ -55,6 +60,38 @@ afterEach(() => {
 });
 
 describe('SessionHistorySearch', () => {
+  it('counts repeated occurrences, navigates within one block, and filters before searching', async () => {
+    const body: Message = { role: 'tool', content: 'needle needle needle', messageId: 'tool-target' };
+    fetchHistory.mockImplementation((_query: string, _limit: number, _cursor: string, _signal: AbortSignal, options: { roles: string[] }) =>
+      Promise.resolve(historyPage(options.roles.includes('tool') ? [body] : [])));
+    useSessionStore.setState({ currentMessages: [body] });
+    const chat = makeChatRef();
+    const highlight = vi.fn();
+    const view = render(<SessionHistorySearch chatRef={chat.ref} isMobile={false} onHighlightMessage={highlight} />);
+    fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
+    await waitFor(() => expect(view.getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(body, 0));
+    fireEvent.keyDown(view.getByTestId('session-history-search-input'), { key: 'Enter' });
+    await waitFor(() => expect(view.getByTestId('session-history-search-count').textContent).toBe('2 / 3'));
+    fireEvent.click(view.getByRole('checkbox', { name: 'Search tool messages' }));
+    await waitFor(() => expect(view.getByRole('status').textContent).toBe('No results in searchable history'));
+    expect(fetchHistory).toHaveBeenLastCalledWith('needle', 100, undefined, expect.any(AbortSignal),
+      { sessionId: 's1', roles: ['user', 'assistant', 'thinking'], countMode: 'content' });
+    expect(highlight).toHaveBeenLastCalledWith(null);
+  });
+
+  it('does not issue requests when all content types are unmounted from search', async () => {
+    const view = render(<SessionHistorySearch chatRef={makeChatRef().ref} isMobile={false} onHighlightMessage={vi.fn()} />);
+    fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    for (const role of ['user', 'assistant', 'tool', 'thinking']) {
+      fireEvent.click(view.getByRole('checkbox', { name: `Search ${role} messages` }));
+    }
+    fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 150)); });
+    expect(fetchHistory).not.toHaveBeenCalled();
+    expect(view.getByRole('status').textContent).toBe('Select content types to search.');
+  });
   it('shows per-message N/M and cycles with Enter, Shift+Enter, and the buttons', async () => {
     const chat = makeChatRef();
     const onHighlightMessage = vi.fn();
@@ -84,6 +121,7 @@ describe('SessionHistorySearch', () => {
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[0], 0));
 
+    await waitFor(() => expect(getByRole('button', { name: 'Previous result' }).hasAttribute('disabled')).toBe(false));
     fireEvent.click(getByRole('button', { name: 'Previous result' }));
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
     fireEvent.keyDown(input, { key: 'Escape' });
@@ -109,7 +147,7 @@ describe('SessionHistorySearch', () => {
 
     fireEvent.change(input, { target: { value: 'absent' } });
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('0 / 0'));
-    expect(getByRole('status').textContent).toBe('No results in searchable history');
+    await waitFor(() => expect(getByRole('status').textContent).toBe('No results in searchable history'));
   });
 
   it('cancels a scan on Session switch and ignores the old response', async () => {
@@ -118,8 +156,8 @@ describe('SessionHistorySearch', () => {
       signal?: AbortSignal;
       resolve: (value: ReturnType<typeof historyPage>) => void;
     }> = [];
-    fetchHistory.mockImplementation((sessionId: string, _before: number, _limit: number, signal?: AbortSignal) =>
-      new Promise((resolve) => requests.push({ sessionId, signal, resolve })),
+    fetchHistory.mockImplementation((_query: string, _limit: number, _cursor: string, signal: AbortSignal, options: {sessionId: string}) =>
+      new Promise((resolve) => requests.push({ sessionId: options.sessionId, signal, resolve })),
     );
     const chat = makeChatRef();
     const { getByRole, getByTestId } = render(
@@ -145,7 +183,6 @@ describe('SessionHistorySearch', () => {
     await act(async () => {
       requests[1]!.resolve({
         ...historyPage([{ role: 'user', content: 'needle new', messageId: 'new-id' }], 1, 0, 8),
-        historyEpoch: 'epoch-2',
       });
     });
     await waitFor(() => expect(getByTestId('session-history-search-snippet').textContent).toContain('needle new'));
@@ -162,7 +199,7 @@ describe('SessionHistorySearch', () => {
   it('aborts an active scan when the search popup closes', async () => {
     let signal: AbortSignal | undefined;
     let resolvePage!: (value: ReturnType<typeof historyPage>) => void;
-    fetchHistory.mockImplementation((_sessionId: string, _before: number, _limit: number, requestSignal?: AbortSignal) => {
+    fetchHistory.mockImplementation((_query: string, _limit: number, _cursor: string, requestSignal?: AbortSignal) => {
       signal = requestSignal;
       return new Promise((resolve) => { resolvePage = resolve; });
     });
@@ -188,13 +225,13 @@ describe('SessionHistorySearch', () => {
         { role: 'user', content: 'needle first', messageId: 'first' },
         { role: 'assistant', content: 'needle target', messageId: 'target' },
         { role: 'assistant', content: 'last', messageId: 'last' },
-      ]))
+      ], 3, 0, 1, 'needle target'))
       .mockResolvedValueOnce(historyPage([
         { role: 'user', content: 'new first', messageId: 'first' },
         { role: 'assistant', content: 'middle', messageId: 'middle' },
         { role: 'assistant', content: 'needle target', messageId: 'target' },
         { role: 'assistant', content: 'last', messageId: 'last' },
-      ], 4));
+      ], 4, 0, 1, 'needle target'));
     useSessionStore.setState({
       sessions: [{ id: 's1', historyTotal: 3, historyEpoch: 'epoch-1', historyRevision: 1 } as never],
       ensureMessageLoaded: vi.fn()
@@ -216,8 +253,8 @@ describe('SessionHistorySearch', () => {
       expect.objectContaining({ messageId: 'target' }),
       2,
     ));
-    expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(1, 1, 3);
-    expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(2, 1, 4);
+    expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(1, 1, 3, expect.any(AbortSignal));
+    expect(useSessionStore.getState().ensureMessageLoaded).toHaveBeenNthCalledWith(2, 1, 4, expect.any(AbortSignal));
   });
 
   it('replaces the hit order and N/M position after relocating the selected message ID', async () => {
@@ -227,7 +264,8 @@ describe('SessionHistorySearch', () => {
     const newMatch: Message = { role: 'assistant', content: 'needle new match', messageId: 'new-match' };
     fetchHistory
       .mockResolvedValueOnce(historyPage([lead, target, oldMatch], 3))
-      .mockResolvedValueOnce(historyPage([target, lead, newMatch], 3));
+      .mockResolvedValueOnce({ ...historyPage([target, lead, newMatch], 3), hits: historyPage([target, lead, newMatch], 3).hits.slice(0, 1) })
+      .mockResolvedValueOnce({ ...historyPage([target, lead, newMatch], 3), hits: historyPage([target, lead, newMatch], 3).hits.slice(1) });
     const ensureMessageLoaded = vi.fn()
       .mockImplementationOnce(async () => {
         useSessionStore.setState({ currentMessages: [lead] });
@@ -258,6 +296,7 @@ describe('SessionHistorySearch', () => {
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(target, 0));
 
+    await waitFor(() => expect(getByRole('button', { name: 'Next result' }).hasAttribute('disabled')).toBe(false));
     fireEvent.click(getByRole('button', { name: 'Next result' }));
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(lead, 1));
@@ -279,7 +318,7 @@ describe('SessionHistorySearch', () => {
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     fireEvent.change(getByTestId('session-history-search-input'), { target: { value: 'needle' } });
 
-    await waitFor(() => expect(getByRole('status').textContent).toBe('Results expired. Search again.'));
+    await waitFor(() => expect(getByRole('status').textContent).toContain('Results expired. Search again.'));
     expect(chat.scrollToMessage).not.toHaveBeenCalled();
   });
 });

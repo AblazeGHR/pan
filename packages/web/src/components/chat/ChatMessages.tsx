@@ -8,6 +8,7 @@ import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
 import type { Message } from '@/types';
 import { ArrowDown, Loader2 } from 'lucide-react';
+import { SearchTextContext } from './searchText';
 
 // Keep the follow zone small enough that scrolling up to read older content
 // opts out, while absorbing normal wheel/touch settling and sub-pixel layout
@@ -136,7 +137,7 @@ export interface ChatMessagesProps {
   /** Persistent block-level marker for the selected history-search result. */
   searchTargetMessageId?: string | null;
   /** Session-scoped search target; ignored whenever the target belongs elsewhere. */
-  searchTarget?: { sessionId: string; messageId: string } | null;
+  searchTarget?: { sessionId: string; messageId: string; query?: string; occurrence?: number } | null;
 }
 
 export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(function ChatMessages(
@@ -263,7 +264,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     const visible = new Set(filtered);
     const target = currentMessages.find(
       (message) => message.messageId === searchTargetMessageId &&
-        (message.role === 'user' || message.role === 'assistant'),
+        ['user', 'assistant', 'tool', 'thinking'].includes(message.role),
     );
     if (!target || visible.has(target)) return filtered;
     return currentMessages.filter((message) => visible.has(message) || message === target);
@@ -272,11 +273,14 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   // Preserve the existing separate tool/thinking rows unless the user opts in
   // to one parent disclosure for each adjacent non-body run.
   const grouped = useMemo(
-    () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages),
-    [visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages],
+    () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages, searchTargetMessageId),
+    [visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages, searchTargetMessageId],
   );
 
-  const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number } | null>(null);
+  const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number; search?: boolean } | null>(null);
+  useLayoutEffect(() => {
+    if (!searchTargetMessageId && highlightedTarget?.search) setHighlightedTarget(null);
+  }, [searchTargetMessageId, highlightedTarget]);
 
   // Latest render value the module-level helper below needs. It must hold a
   // stable identity because the scroll effects depend on that helper.
@@ -667,15 +671,29 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     setIsNearBottom(false);
     const sessionAtJump = currentSessionIdRef.current;
     virtualizerRef.current.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-    setHighlightedTarget({ identity, historyIndex });
+    setHighlightedTarget({ identity, historyIndex, search: message.messageId === searchTargetMessageId });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const el = parentRef.current;
-        if (el && currentSessionIdRef.current === sessionAtJump) rememberScrollPosition(el);
+        if (el && currentSessionIdRef.current === sessionAtJump) {
+          const target = el.querySelector<HTMLElement>('[data-search-target]');
+          const activeWord = target?.querySelector<HTMLElement>('.history-search-word-active');
+          if (activeWord && target?.getAttribute('data-index') === String(historyIndex)) {
+            const viewport = el.getBoundingClientRect();
+            const word = activeWord.getBoundingClientRect();
+            // Never scroll the whole page/composer. Reconcile only this chat
+            // viewport after the virtual row and selected occurrence mount.
+            if (viewport.height > 0 && (word.top < viewport.top || word.bottom > viewport.bottom)) {
+              markProgrammaticChange();
+              el.scrollTop += word.top-viewport.top-viewport.height/2;
+            }
+          }
+          rememberScrollPosition(el);
+        }
       });
     });
     return true;
-  }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition]);
+  }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition, searchTargetMessageId]);
 
   useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
 
@@ -1643,17 +1661,23 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
                       : vItem.index}
                     data-search-target={(item as import('@/types').Message).messageId === searchTargetMessageId || undefined}
                   >
-                    <MessageDisplayItem
-                      item={item}
-                      prevRole={prevRole}
-                      onTimestampFlashConsumed={clearTimestampFlash}
-                    />
+                    <SearchTextContext.Provider value={searchTarget?.sessionId === currentSessionId && (item as Message).messageId === searchTargetMessageId
+                      ? { query: searchTarget.query ?? '', occurrence: searchTarget.occurrence ?? 0 }
+                      : { query: '', occurrence: 0 }}>
+                      <MessageDisplayItem
+                        item={item}
+                        prevRole={prevRole}
+                        onTimestampFlashConsumed={clearTimestampFlash}
+                        searchTargetMessageId={searchTargetMessageId}
+                      />
+                    </SearchTextContext.Provider>
                   </div>
                 ) : (
                   <MessageDisplayItem
                     item={item}
                     prevRole={prevRole}
                     onTimestampFlashConsumed={clearTimestampFlash}
+                    searchTargetMessageId={searchTargetMessageId}
                   />
                 )}
               </div>

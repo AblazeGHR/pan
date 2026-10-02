@@ -595,15 +595,20 @@ export interface ApiHistorySearchVersion {
   historyTotal: number;
 }
 
+export type HistorySearchRole = 'user' | 'assistant' | 'tool' | 'thinking';
+
 export interface ApiHistorySearchHit {
   sessionId: string;
   messageId: string;
   messageIndex: number;
-  role: 'user' | 'assistant';
+  role: HistorySearchRole;
   snippet: string;
   historyEpoch: string;
   historyRevision: number;
   historyTotal: number;
+  matchCount?: number;
+  matchStart?: number;
+  firstMatch?: number;
 }
 
 export interface ApiHistorySearchResponse {
@@ -612,6 +617,9 @@ export interface ApiHistorySearchResponse {
   limit: number;
   hasMore: boolean;
   nextCursor: string | null;
+  totalMatches?: number;
+  totalMessages?: number;
+  roles?: HistorySearchRole[];
 }
 
 // ── Session template types ──

@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +44,7 @@ import psutil
 from packages.core import worker
 from packages.core import session as sess
 from packages.core import history_search_index
+from packages.core import history_search_scan
 from packages.core import workspace as workspaces
 from packages.core.data_retention import (
     DataRetentionService,
@@ -6158,8 +6159,9 @@ def _history_search_request(
     roles: tuple[str, ...] = history_search_index.BODY_ROLES,
     content_counts: bool = False,
     match_index: int | None = None,
+    message_id: str | None = None,
 ) -> dict:
-    """Run one lazy index/search operation against the current Session registry."""
+    """Run one lazy search against the authoritative Session registry."""
     sessions = sess.list_all(load_history=False)
     live_ids = [session.id for session in sessions]
     if session_id is None:
@@ -6169,19 +6171,19 @@ def _history_search_request(
         if not scoped_sessions:
             return {"error": "Session not found"}
 
-    result = history_search_index.search_history(
-        sess.SESSION_DIR.parent / "history_search.sqlite3",
-        scoped_sessions,
-        live_ids,
-        query,
-        limit=limit,
-        after=after,
-        cursor_auth=cursor_auth,
-        load_session=_load_history_search_snapshot,
-        roles=roles,
-        content_counts=content_counts,
-        match_index=match_index,
-    )
+    if content_counts:
+        result = history_search_scan.scan_history(
+            scoped_sessions, query, roles=roles, limit=limit, after=after,
+            match_index=match_index, message_id=message_id,
+            source=_history_search_scan_source, cursor_auth=cursor_auth,
+        )
+    else:
+        result = history_search_index.search_history(
+            sess.SESSION_DIR.parent / "history_search.sqlite3",
+            scoped_sessions, live_ids, query, limit=limit, after=after,
+            cursor_auth=cursor_auth, load_session=_load_history_search_snapshot,
+            roles=roles, content_counts=content_counts, match_index=match_index,
+        )
 
     # A Session may be deleted while the index is loading/rebuilding. Recheck
     # the authoritative registry before exposing any cached result.
@@ -6233,6 +6235,54 @@ def _history_search_request(
     return result
 
 
+@contextmanager
+def _history_search_scan_source(session):
+    """Stream canonical cold history, without hydrating the shared cache."""
+    if getattr(session, '_history_loaded', True):
+        with history_search_scan.memory_source(session) as source:
+            yield source
+        return
+    path = sess._history_path(session.id)
+    if not path.exists():
+        snapshot = _load_history_search_snapshot(session.id)
+        if snapshot is None:
+            raise history_search_index.HistorySearchError('Session history is unavailable')
+        with history_search_scan.memory_source(snapshot) as source:
+            yield source
+        return
+    try:
+        with path.open('rb') as handle:
+            before = path.stat()
+            def clean(row):
+                if isinstance(row, dict) and isinstance(row.get('content'), str) and '[delivered:' in row['content']:
+                    return sess._strip_delivery_marks([row])[0]
+                return row
+            def rows():
+                index = 0
+                offset = 0
+                while True:
+                    line = handle.readline()
+                    if not line:
+                        break
+                    position = offset
+                    offset += len(line)
+                    try:
+                        row = json.loads(line.decode('utf-8'))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        continue
+                    yield index, clean(row), position
+                    index += 1
+            def read(position):
+                handle.seek(position)
+                return clean(json.loads(handle.readline().decode('utf-8')))
+            yield rows(), read, (str(path.resolve()), before.st_size, before.st_mtime_ns)
+            after_stat = path.stat()
+            if (before.st_size, before.st_mtime_ns) != (after_stat.st_size, after_stat.st_mtime_ns):
+                raise _HistorySearchSnapshotChanged('History changed while scanning')
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise history_search_index.HistorySearchError(f'History scan is unavailable: {exc}') from exc
+
+
 def _load_history_search_snapshot(session_id: str):
     """Load one history for reindexing without hydrating the shared Session cache."""
     path = sess._path(session_id)
@@ -6264,6 +6314,7 @@ async def api_history_search(
     roles: str | None = None,
     countMode: str = 'messages',
     matchIndex: int | None = None,
+    messageId: str | None = None,
 ):
     """Search lazily selected text partitions in one Session or globally.
 
@@ -6272,8 +6323,9 @@ async def api_history_search(
     scope. countMode=content reports non-overlapping literal occurrences and
     matchIndex seeks to a zero-based occurrence without transferring history.
 
-    The independent SQLite index is created only for a non-empty search
-    request; canonical Session history remains the source for every rebuild.
+    Content mode scans canonical history and caches bounded row references;
+    it does not create SQLite. Message mode retains the older lazy FTS index
+    for compatibility. Neither mode changes canonical history on search.
     A nextCursor continues the same trimmed query, scope, and bounded limit.
     It expires after 15 minutes or when the ordered search scope or any
     in-scope history version changes; callers should then start a new search.
@@ -6287,6 +6339,8 @@ async def api_history_search(
     if countMode not in ('messages', 'content'):
         raise HTTPException(status_code=422, detail='countMode must be messages or content')
     content_counts = countMode == 'content'
+    if messageId is not None and (not content_counts or not sess.is_pan_message_id(messageId)):
+        raise HTTPException(status_code=422, detail='messageId requires content mode and a Pan identity')
     if matchIndex is not None and (not content_counts or type(matchIndex) is not int
                                   or not 0 <= matchIndex <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
         raise HTTPException(status_code=422, detail='matchIndex requires content mode and a non-negative bounded integer')
@@ -6327,7 +6381,7 @@ async def api_history_search(
     try:
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
-            selected_roles, content_counts, matchIndex,
+            selected_roles, content_counts, matchIndex, messageId,
         )
     except _HistorySearchSnapshotChanged:
         if cursor_data is not None:

@@ -144,7 +144,9 @@ describe('ChatView: message navigation rail switch', () => {
     expect(searchStyles).toMatch(/\.global-history-search__toggle \{[\s\S]*?pointer-events: auto;/);
     expect(searchStyles).toContain('.session-history-search__popup {');
     expect(searchStyles).toContain('.global-history-search__popup {');
-    expect(searchStyles).toContain('max-height: calc(100% - 16px);');
+    expect(searchStyles).toContain('max-height: max(0px, calc(100% - 52px));');
+    expect(searchStyles).toMatch(/\.global-history-search__popup \{[\s\S]*?top: 36px;/);
+    expect(searchStyles).toMatch(/\.session-history-search__popup \{[\s\S]*?top: 36px;/);
     expect(searchStyles).toMatch(/\.global-history-search__popup \{[\s\S]*?pointer-events: auto;/);
     expect(searchStyles).toContain('width: 100%;');
     expect(searchStyles).toMatch(/\.global-history-search__results \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
@@ -197,7 +199,8 @@ describe('ChatView: message navigation rail switch', () => {
     expect(mockedGlobalSearch).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: 'across sessions' } });
     await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalledTimes(1));
-    expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal));
+    expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal),
+      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
 
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     expect(queryByTestId('global-history-search-input')).toBeNull();
