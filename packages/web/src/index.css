@@ -1141,46 +1141,6 @@ body {
   overflow: visible;
 }
 
-.message-navigation-filters {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border-bottom: 1px solid var(--color-border-muted);
-}
-
-.message-navigation-filter {
-  display: inline-flex;
-  width: 21px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
-}
-
-.message-navigation-filter:hover,
-.message-navigation-filter.is-active {
-  background: var(--color-bg-hover);
-  border-color: var(--color-border-default);
-}
-
-.message-navigation-filter-user.is-active,
-.message-navigation-filter-user:hover { color: var(--color-accent); }
-.message-navigation-filter-worker.is-active,
-.message-navigation-filter-worker:hover { color: var(--color-success); }
-
-.message-navigation-count {
-  font-size: 9px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 .message-navigation-list {
   display: flex;
   flex: 1 1 auto;
@@ -1219,6 +1179,12 @@ body {
   transform: scale(1.08);
 }
 
+.message-navigation-marker-tag {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .message-navigation-marker-user {
   color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-secondary));
@@ -1231,12 +1197,24 @@ body {
   border-color: color-mix(in srgb, var(--color-success) 48%, var(--color-border-default));
 }
 
+.message-navigation-marker-ma-assign,
+.message-navigation-marker-ma-msg {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 16%, var(--color-bg-secondary));
+  border-color: color-mix(in srgb, var(--color-warning) 48%, var(--color-border-default));
+}
+
 .message-navigation-marker-user.is-jumped {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 .message-navigation-marker-worker.is-jumped {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+
+.message-navigation-marker-ma-assign.is-jumped,
+.message-navigation-marker-ma-msg.is-jumped {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-warning) 35%, transparent);
 }
 
 .message-navigation-tooltip {
@@ -1359,8 +1337,6 @@ body {
     width: min(560px, calc(100% - 112px));
   }
   .message-navigation-rail { flex-basis: 52px; width: 52px; }
-  .message-navigation-filters { padding: 4px 3px; gap: 1px; }
-  .message-navigation-filter { width: 44px; min-height: 40px; }
   .message-navigation-list { padding: 6px 3px; }
   .message-navigation-marker { width: 44px; min-height: 40px; }
   .message-navigation-tooltip { width: min(240px, 72vw); }
