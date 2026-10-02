@@ -440,7 +440,7 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
   但**没有**同一个 CBC Agent/backend/turn 与原生 TUI 绑定的证据；当前 headless CLI attach 失败
   **不能排除**其它途径。原 TA 正在 review/纠正。
 
-**Codex**（MA 转述的首轮关键证据；原报告正在做**有界措辞校准**，此处按"边界收敛"引用，不作最终结论）
+**Codex**（校准报告 `45ef0c73` 已获探索层验收并纳入集成；以下仅限安装版与被测路径，不作为生产能力承诺）
 
 - 真实 Codex `0.159.2` TUI 能 `--remote ws` resume 目标 thread；blackhole 模型下目标保持 `inProgress`。
 - **被 resume 的目标在 TUI 退出后变为 `interrupted`**（Ctrl-C 与直接 close 两种退出方式都观测到）；
@@ -554,7 +554,8 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
    **ConPTY host/IO 接管可迁移性**（双方均未测）与生产 backend 加固项（挂起式 spawn/原子入组、ACL 控制端点）。
 2. 首版范围已定（§6A.3）：先落地**普通持久 PTY / Web 终端**——`PtyBackend + OutputLog + PtyRuntime +
    build_runtime`（无 UI），把 PR #6 回滚接到公共核心并跑回滚测试；同时按 §2.9 接入门禁（真机 Job 赋值 + 身份核验）。
-   原生 TUI 相关（`AutomationDriver` 接入具体 adapter、控制权转交、双通道）一律后置探索，不作为首版前置。
+   原生 Agent 的无中断 TUI 接管、provider 输入权交接与双通道后置探索，不作为首版前置；
+   PR #6 的临时 PTY 回滚自动化及其 `AutomationDriver` 接入仍在首版范围，不随此前述探索后置。
 3. 快照引擎选型前不承诺"网页 TUI 状态恢复"；`fidelity` 字段已为降级留出表达空间。
 4. 终端 registry / lease 落地后再做 WS 与 xterm.js 前端；浏览器侧与权威快照（serialize addon）都属未验证项。
 5. 所有权布局一律经 `OwnershipPolicy` 注入；`JobObjectTreeTerminator` 实现前不放开 DETACHED/EXTERNAL。
