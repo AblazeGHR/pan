@@ -18,9 +18,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import psutil
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from probe_cbc_feasibility import (  # noqa: E402
-    CBC_ENTRY, NODE, iso_env, kill_tree, new_workdirs, port_open,
+    CBC_ENTRY, NODE, iso_env, new_workdirs, port_open, safe_stop_tree,
 )
 
 
@@ -59,7 +61,8 @@ def probe(extra_args: list[str], label: str) -> dict:
     proc = subprocess.Popen([NODE, str(CBC_ENTRY), "--serve", "--host", "127.0.0.1",
                              "--port", str(port), "--auth", "none", *extra_args],
                             env=env, cwd=str(ws), stdout=out, stderr=err)
-    res: dict = {"label": label, "args": extra_args, "port": port, "pid": proc.pid}
+    res: dict = {"label": label, "args": extra_args, "port": port, "pid": proc.pid,
+                 "create_time": psutil.Process(proc.pid).create_time()}
     try:
         deadline = time.time() + 30
         while time.time() < deadline and call(port, "/api/v1/health").get("status") != 200:
@@ -96,7 +99,8 @@ def probe(extra_args: list[str], label: str) -> dict:
         res["get_sse"] = {"status": g.get("status"),
                           "body_head": (g.get("body") or g.get("error") or "")[:200]}
     finally:
-        res["cleanup"] = kill_tree(proc.pid, label)
+        res["cleanup"] = safe_stop_tree(proc.pid, res["create_time"], label=label,
+                                        scope_markers=[str(root)], popen=proc)
         res["port_free_after"] = not port_open(port)
         res["stderr_tail"] = Path(root, "srv.err").read_text(
             encoding="utf-8", errors="replace")[-800:]
