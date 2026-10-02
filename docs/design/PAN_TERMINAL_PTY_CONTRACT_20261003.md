@@ -359,6 +359,13 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 最近一次：**145 passed / 0 failed / 5.7s**。用例分组：
 
+> **控制台编码无关（MA 复跑发现并已修）**：在 Windows 默认 GBK 控制台下，harness 打印
+> `bytes.decode(errors="replace")` 产生的 U+FFFD 会抛 `UnicodeEncodeError`，旧实现会把这个**已判 pass**
+> 的断言记为 error 并跳过同函数后续断言（表现为 `140 passed / 1 failed`）。
+> 现在 `probe_lib.safe_print` 在不可编码时降级为替换字符，GBK 与 UTF-8 下均为 **145 passed / 0 failed**，
+> 且两次运行的 verdict/detail/measure 完全一致 —— 即**没有任何契约断言依赖 stdout 编码**：
+> 断言只比较 bytes/str/int，`--json-out` 始终显式 UTF-8 写入。
+
 | 组 | 覆盖 |
 |---|---|
 | M1–M3 | `OutputLog`：绝对序号、驱逐与 gap 数学、单块超容量、`dropped = total - retained` 恒等、分页读取收敛、非法游标拒绝 |

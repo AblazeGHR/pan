@@ -2,7 +2,7 @@
   "kind": "mock",
   "note": "确定性契约逻辑测试（ScriptedBackend）。不代表真实 CLI/PTY 行为。",
   "python": "3.12.12",
-  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmp0vCu51\\Scripts\\python.exe",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmpBbA7zR\\Scripts\\python.exe",
   "platform": "Windows-11-10.0.26200-SP0",
   "dependencies": {
     "pywinpty": null,
@@ -10,8 +10,8 @@
     "psutil": "7.2.2"
   },
   "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
-  "started_at": "2026-10-03T01:21:00",
-  "seconds": 5.578,
+  "started_at": "2026-10-03T01:26:18",
+  "seconds": 5.672,
   "passed": 145,
   "failed": 0,
   "results": [

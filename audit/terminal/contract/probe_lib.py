@@ -66,6 +66,29 @@ def child_pids(pid: int | None) -> list[dict[str, Any]]:
         return []
 
 
+def safe_print(text: str, *, flush: bool = False) -> None:
+    """按控制台编码打印；不可编码字符降级为替换字符，避免展示问题被记成测试失败。
+
+    背景（实测 2026-10-03，MA 在集成树复跑时发现）：Windows 默认控制台编码为 GBK 时，
+    探针 detail 中由 ``bytes.decode(..., errors="replace")`` 产生的 U+FFFD 无法编码，
+    ``print`` 抛 ``UnicodeEncodeError``；旧实现会让 ``Harness`` 把一个**已经判定 pass**
+    的断言记成 error，并跳过同一测试函数后续断言（mock 由 ``145 passed`` 变为
+    ``140 passed / 1 failed``）。这是探针展示层问题，**不是契约断言问题**：
+    断言本身只比较 bytes/str/int，不依赖 stdout 编码。
+    """
+    try:
+        print(text, flush=flush)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        try:
+            print(text.encode(enc, "replace").decode(enc, "replace"), flush=flush)
+        except Exception:
+            try:
+                print(text.encode("ascii", "replace").decode("ascii"), flush=flush)
+            except Exception:
+                pass  # 展示失败绝不影响测试结论
+
+
 class Harness:
     """极简测试宿主：记录通过/失败/测量值，输出可粘贴的 JSON。"""
 
@@ -81,18 +104,18 @@ class Harness:
         self.results.append(
             {"name": name, "status": "pass" if ok else "fail", "detail": detail}
         )
-        print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" :: {detail}" if detail is not None else ""))
+        safe_print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" :: {detail}" if detail is not None else ""))
         return ok
 
     def fail(self, name: str, detail: Any) -> None:
         self.results.append({"name": name, "status": "fail", "detail": detail})
-        print(f"[FAIL] {name} :: {detail}")
+        safe_print(f"[FAIL] {name} :: {detail}")
 
     def measure(self, label: str, **data: Any) -> None:
         """记录测量值。参数名用 ``label`` 以免与 ``data`` 里的 ``name`` 冲突。"""
         entry = {"name": label, **data}
         self.measurements.append(entry)
-        print(f"[MEASURE] {label} :: {json.dumps(data, ensure_ascii=False, default=str)}")
+        safe_print(f"[MEASURE] {label} :: {json.dumps(data, ensure_ascii=False, default=str)}")
 
     def error(self, name: str, exc: BaseException) -> None:
         self.results.append(
@@ -103,10 +126,10 @@ class Harness:
                 "traceback": traceback.format_exc()[-1500:],
             }
         )
-        print(f"[ERROR] {name} :: {type(exc).__name__}: {exc}")
+        safe_print(f"[ERROR] {name} :: {type(exc).__name__}: {exc}")
 
     def section(self, title: str) -> None:
-        print(f"\n--- {title} ---")
+        safe_print(f"\n--- {title} ---")
 
     # -- 运行 ---------------------------------------------------------
     def run(self, fn: Callable[["Harness"], None]) -> None:
@@ -155,7 +178,7 @@ class Watchdog:
     def start(self) -> None:
         def killer() -> None:
             time.sleep(self.seconds)
-            print(f"\n[WATCHDOG] 硬超时 {self.seconds}s，强制退出（exit 9）", flush=True)
+            safe_print(f"\n[WATCHDOG] 硬超时 {self.seconds}s，强制退出（exit 9）", flush=True)
             if self.on_fire is not None:
                 try:
                     self.on_fire()
@@ -185,9 +208,9 @@ def emit(
     if json_out:
         with open(json_out, "w", encoding="utf-8") as fh:
             fh.write(text + "\n")
-        print(f"\n[json] wrote {json_out}")
-    print("\n=== SUMMARY ===")
-    print(json.dumps({k: payload[k] for k in ("kind", "passed", "failed", "seconds")}, ensure_ascii=False))
+        safe_print(f"\n[json] wrote {json_out}")
+    safe_print("\n=== SUMMARY ===")
+    safe_print(json.dumps({k: payload[k] for k in ("kind", "passed", "failed", "seconds")}, ensure_ascii=False))
     return 1 if harness.failed else 0
 
 
