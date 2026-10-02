@@ -368,7 +368,7 @@ def test_history_ts_stamped_on_append_only(tmp_path, monkeypatch):
 
 
 def test_append_history_persists_unique_pan_ids_for_searchable_bodies(tmp_path, monkeypatch):
-    """Only new user/assistant body rows get durable Pan IDs at append time."""
+    """New text blocks get durable IDs; transport/context metadata does not."""
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     s = _sess.create(name="message-ids")
@@ -393,10 +393,10 @@ def test_append_history_persists_unique_pan_ids_for_searchable_bodies(tmp_path, 
     }
     _sess.append_history(s, continued)
 
-    body_ids = [row.get("messageId") for row in s.history[:3]]
+    body_ids = [row.get("messageId") for row in s.history[:5]]
     assert all(_sess.is_pan_message_id(message_id) for message_id in body_ids)
-    assert len(set(body_ids)) == 3, "equal independent bodies need distinct IDs"
-    assert all("messageId" not in row for row in s.history[3:-1])
+    assert len(set(body_ids)) == 5, "independent text blocks need distinct IDs"
+    assert all("messageId" not in row for row in s.history[5:-1])
     assert s.history[-1]["messageId"] == preserved_id
 
     expected_ids = list(body_ids)
@@ -405,8 +405,8 @@ def test_append_history_persists_unique_pan_ids_for_searchable_bodies(tmp_path, 
     _cleanup()
     loaded = _sess.get(sid)
     assert loaded is not None
-    assert [row.get("messageId") for row in loaded.history[:3]] == expected_ids
-    assert all("messageId" not in row for row in loaded.history[3:-1])
+    assert [row.get("messageId") for row in loaded.history[:5]] == expected_ids
+    assert all("messageId" not in row for row in loaded.history[5:-1])
     assert loaded.history[-1]["messageId"] == preserved_id
     _cleanup()
 

@@ -370,7 +370,8 @@ def test_thinking_and_tool_use_recorded():
     roles = [h["role"] for h in s.history]
     assert "thinking" in roles, f"thinking not recorded: {s.history}"
     assert "tool" in roles, f"tool_use not recorded: {s.history}"
-    assert all("messageId" not in row for row in s.history if row["role"] in {"thinking", "tool"})
+    assert all(_sess.is_pan_message_id(row.get("messageId"))
+               for row in s.history if row["role"] in {"thinking", "tool"})
     print("PASS: thinking and tool_use recorded")
     _cleanup()
 

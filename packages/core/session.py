@@ -477,10 +477,10 @@ def is_pan_message_id(value: object) -> bool:
 
 
 def _is_searchable_history_body(message: object) -> bool:
-    """Only non-empty user/assistant body text gets a Pan search identity."""
+    """Give persisted searchable text blocks an identity, not transport metadata."""
     if not isinstance(message, dict):
         return False
-    if message.get("role") not in ("user", "assistant"):
+    if message.get("role") not in ("user", "assistant", "tool", "thinking"):
         return False
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -523,7 +523,7 @@ def _new_pan_message_id() -> str:
 def assign_pan_message_ids(
     history: list[dict], *, previous_history: list[dict] | None = None,
 ) -> list[dict]:
-    """Copy an imported/forked history and give body rows durable Pan IDs.
+    """Copy imported/forked history and give searchable text blocks Pan IDs.
 
     Existing Pan IDs survive a native reimport. Stable provider item IDs are
     the first match key; exact role/content is used only when the match is
@@ -687,8 +687,8 @@ def assign_pan_message_ids(
 def append_history(s: "Session", message: dict) -> None:
     """Append one history row and advance the summary projection.
 
-    新追加的非空 user/assistant 正文块在此分配 Pan messageId；辅助角色与
-    system_prompt 队列项不分配。steer:<caller> 仅保留为 clientMessageId 对账别名。
+    新追加的非空 user/assistant/tool/thinking 内容块在此分配 Pan messageId；
+    error/system 与 system_prompt 不分配。steer:<caller> 仅保留为 clientMessageId 别名。
     新追加的条目在此处打本地 ISO-8601 ts（setdefault：已有 ts 的行不被改写）。
     打点刻意放在追加边界而不是落盘边界：整体替换 / 导入 / branch 复制进来的
     provider 行（它们没有真实时间，只有 role/content）不带 ts，前端对缺失 ts

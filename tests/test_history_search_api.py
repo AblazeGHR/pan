@@ -61,6 +61,51 @@ def _assert_cursor_stale(cursor, **params):
     assert error.value.detail["code"] == "history_search_cursor_expired"
 
 
+def test_content_api_counts_filters_seeks_and_binds_cursor():
+    session = _append_matching_messages('content mode', 3)
+    sess.append_history(session, {'role': 'tool', 'content': 'PageNeedle PageNeedle PageNeedle'})
+    sess.append_history(session, {'role': 'thinking', 'content': 'PageNeedle'})
+    sess.save(session)
+    params = dict(q='PageNeedle', sessionId=session.id, countMode='content',
+                  roles='user,assistant,tool,thinking', limit=1)
+    first = _search(**params)
+    assert (first['totalMatches'], first['totalMessages']) == (10, 5)
+    assert first['hits'][0]['matchCount'] == 2
+    second = _search(**params, cursor=first['nextCursor'])
+    assert second['hits'][0]['matchStart'] == 2
+    sought = _search(**params, matchIndex=8)
+    assert sought['hits'][0]['role'] == 'tool'
+    assert sought['hits'][0]['matchCount'] == 3
+    changed = {**params, 'roles': 'user,assistant'}
+    _assert_cursor_stale(first['nextCursor'], **changed)
+    _assert_cursor_stale(first['nextCursor'], **{**params, 'countMode': 'messages'})
+    assert _search(**{**params, 'roles': ''})['totalMatches'] == 0
+    for changes in ({'roles': 'error'}, {'countMode': 'words'}, {'matchIndex': -1},
+                    {'countMode': 'messages', 'matchIndex': 1}):
+        with pytest.raises(HTTPException) as error:
+            _search(**{**params, **changes})
+        assert error.value.status_code == 422
+
+
+def test_content_query_parameters_through_asgi_without_pan_lifespan():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    session = _append_session('ASGI content', 'tool', 'needle needle')
+    app = FastAPI()
+    # Use the actual endpoint/signature but no production lifespan, providers,
+    # configuration writes or socket listeners. Session storage is test-isolated.
+    app.add_api_route('/api/history/search', server.api_history_search, methods=['GET'])
+    with TestClient(app) as client:
+        response = client.get('/api/history/search', params={
+            'q': 'needle', 'sessionId': session.id, 'roles': 'tool',
+            'countMode': 'content', 'matchIndex': 1,
+        })
+        assert response.status_code == 200
+        assert response.json()['totalMatches'] == 2
+        assert response.json()['hits'][0]['role'] == 'tool'
+        assert client.get('/api/history/search', params={'q': 'needle', 'roles': 'error'}).status_code == 422
+
+
 def test_api_supports_current_session_and_global_scope_and_rebuilds_deleted_index(
 ):
     first = _append_session("search first", "user", "Global keyword in first")

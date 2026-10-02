@@ -18,12 +18,27 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from .session import is_pan_message_id
+from .history_search_query import cached_query_page, clear_query_cache, install_query_schema
 
 DEFAULT_HISTORY_SEARCH_LIMIT = 50
 MAX_HISTORY_SEARCH_LIMIT = 100
 MAX_HISTORY_SEARCH_QUERY_LENGTH = 512
 _SNIPPET_RADIUS = 42
 _BUSY_TIMEOUT_MS = 10_000
+SEARCH_ROLES = ('user', 'assistant', 'tool', 'thinking')
+BODY_ROLES = ('user', 'assistant')
+_SCHEMA_VERSION = 2
+_FTS_TABLES = {'user': 'history_search_fts', 'assistant': 'history_search_fts',
+               'tool': 'history_search_tool_fts', 'thinking': 'history_search_thinking_fts'}
+
+
+def normalize_roles(roles: Iterable[str] | None) -> tuple[str, ...]:
+    if roles is None:
+        return BODY_ROLES
+    selected = set(roles)
+    if selected - set(SEARCH_ROLES):
+        raise ValueError('roles must contain only user, assistant, tool, thinking')
+    return tuple(role for role in SEARCH_ROLES if role in selected)
 
 
 class HistorySearchError(RuntimeError):
@@ -51,6 +66,7 @@ class _HistorySnapshot:
     messages: tuple[_SearchMessage, ...]
     digest: bytes | None
     prefix_digest: bytes | None
+    roles: tuple[str, ...] = BODY_ROLES
 
 
 def bounded_limit(value: int | None) -> int:
@@ -87,8 +103,14 @@ def session_version(session) -> tuple[str, int, bool, int | None]:
         return epoch, revision, history_loaded, history_total
 
 
-def _snapshot(session, previous_total: int | None = None) -> _HistorySnapshot | None:
-    """Capture searchable body text and its version under the Session lock."""
+def _snapshot(session, previous_total: int | None = None,
+              roles: tuple[str, ...] = BODY_ROLES) -> _HistorySnapshot | None:
+    """Capture text blocks and their version under the Session lock.
+
+    Capture all eligible roles, but index only requested partitions. This lets
+    a transaction preserve concurrently enabled partitions without reopening
+    canonical history while holding a SQLite writer lock.
+    """
     lock = getattr(session, "_summary_lock", None)
     with lock if lock is not None else nullcontext():
         if not getattr(session, "_history_loaded", True):
@@ -133,7 +155,7 @@ def _snapshot(session, previous_total: int | None = None) -> _HistorySnapshot | 
             content = row.get("content")
             message_id = row.get("messageId")
             if (
-                role not in ("user", "assistant")
+                role not in SEARCH_ROLES
                 or row.get("source") == "system_prompt"
                 or not isinstance(content, str)
                 or not content.strip()
@@ -155,6 +177,7 @@ def _snapshot(session, previous_total: int | None = None) -> _HistorySnapshot | 
             messages=tuple(sorted(by_id.values(), key=lambda item: item.message_index)),
             digest=full_digest,
             prefix_digest=prefix_digest,
+            roles=roles,
         )
 
 
@@ -167,12 +190,27 @@ def _connect(path: Path) -> sqlite3.Connection:
 
 
 def _ensure_schema(connection: sqlite3.Connection) -> None:
+    if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
+        return
+    # Only the disposable index is migrated, never canonical history. Recheck
+    # after acquiring the lock so concurrent first requests cannot drop v2.
+    connection.execute('BEGIN IMMEDIATE')
+    if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
+        connection.commit()
+        return
+    for table in (*dict.fromkeys(_FTS_TABLES.values()), 'history_search_query_hits',
+                  'history_search_queries', 'history_search_messages',
+                  'history_search_sessions', 'history_search_meta'):
+        connection.execute(f'DROP TABLE IF EXISTS {table}')
+    for name in ('body', 'tool', 'thinking'):
+        connection.execute(f'DROP VIEW IF EXISTS history_search_{name}_content')
     connection.execute(
         """CREATE TABLE IF NOT EXISTS history_search_sessions (
                session_id TEXT PRIMARY KEY,
                history_epoch TEXT NOT NULL,
                history_revision INTEGER NOT NULL,
-               history_total INTEGER NOT NULL
+               history_total INTEGER NOT NULL,
+               indexed_roles TEXT NOT NULL
            )"""
     )
     connection.execute(
@@ -181,7 +219,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
                session_id TEXT NOT NULL,
                message_id TEXT NOT NULL,
                message_index INTEGER NOT NULL,
-               role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+               role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool', 'thinking')),
                content TEXT NOT NULL,
                folded_content TEXT NOT NULL,
                UNIQUE(session_id, message_id)
@@ -189,7 +227,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         "CREATE INDEX IF NOT EXISTS history_search_messages_session "
-        "ON history_search_messages(session_id, message_index)"
+        "ON history_search_messages(session_id, role, message_index)"
     )
     connection.execute(
         """CREATE TABLE IF NOT EXISTS history_search_meta (
@@ -197,17 +235,33 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
                value BLOB NOT NULL
            )"""
     )
-    # Short and punctuated queries use instr() below. Check FTS5 on demand so
+    # Short queries use instr() below. Check FTS5 on demand so
     # importing the app creates no file, connection, thread, or background task.
-    connection.execute(
-        """CREATE VIRTUAL TABLE IF NOT EXISTS history_search_fts
-           USING fts5(folded_content, tokenize='trigram')"""
-    )
+    partitions = (('body', 'history_search_fts', "'user','assistant'"),
+                  ('tool', 'history_search_tool_fts', "'tool'"),
+                  ('thinking', 'history_search_thinking_fts', "'thinking'"))
+    for name, table, roles_sql in partitions:
+        # The external content view has exactly this partition's documents.
+        # SQLite integrity-check/rebuild must not silently add excluded roles.
+        view = f'history_search_{name}_content'
+        connection.execute(f'CREATE VIEW {view} AS SELECT rowid, folded_content '
+                           f'FROM history_search_messages WHERE role IN ({roles_sql})')
+        connection.execute(f"CREATE VIRTUAL TABLE {table} USING fts5("
+                           "folded_content, tokenize='trigram', "
+                           f"content='{view}', content_rowid='rowid')")
+    install_query_schema(connection)
+    connection.execute(f'PRAGMA user_version={_SCHEMA_VERSION}')
     connection.commit()
 
 
 def _cursor_key(connection: sqlite3.Connection) -> bytes:
     """Read or atomically create the disposable index's cursor-signing key."""
+    existing = connection.execute("SELECT value FROM history_search_meta WHERE key='cursor_hmac_key'").fetchone()
+    if existing is not None:
+        key = bytes(existing['value'])
+        if len(key) != 32:
+            raise HistorySearchError('history search cursor key is invalid')
+        return key
     connection.execute("BEGIN IMMEDIATE")
     try:
         row = connection.execute(
@@ -234,14 +288,15 @@ def _cursor_key(connection: sqlite3.Connection) -> bytes:
 
 
 def _delete_session(connection: sqlite3.Connection, session_id: str) -> None:
+    clear_query_cache(connection)
     rowids = connection.execute(
-        "SELECT rowid FROM history_search_messages WHERE session_id=?",
+        "SELECT rowid, role, folded_content FROM history_search_messages WHERE session_id=?",
         (session_id,),
     ).fetchall()
-    connection.executemany(
-        "DELETE FROM history_search_fts WHERE rowid=?",
-        ((row["rowid"],) for row in rowids),
-    )
+    for row in rowids:
+        table = _FTS_TABLES[row['role']]
+        connection.execute(f"INSERT INTO {table}({table}, rowid, folded_content) VALUES ('delete', ?, ?)",
+                           (row['rowid'], row['folded_content']))
     connection.execute(
         "DELETE FROM history_search_messages WHERE session_id=?", (session_id,)
     )
@@ -257,7 +312,7 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
     connection.execute("BEGIN IMMEDIATE")
     try:
         current = connection.execute(
-            """SELECT history_epoch, history_revision, history_total
+            """SELECT history_epoch, history_revision, history_total, indexed_roles
                FROM history_search_sessions WHERE session_id=?""",
             (snapshot.session_id,),
         ).fetchone()
@@ -267,6 +322,7 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
             and current["history_epoch"] == snapshot.history_epoch
             and int(current["history_revision"]) == snapshot.history_revision
             and int(current["history_total"]) == snapshot.history_total
+            and set(current['indexed_roles'].split(',')) >= set(snapshot.roles)
         ):
             saved_digest = connection.execute(
                 "SELECT value FROM history_search_meta WHERE key=?",
@@ -290,29 +346,36 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
         ):
             connection.commit()
             return
+        # A concurrent query may have enabled another partition since this
+        # snapshot was captured. Preserve its coverage while replacing rows.
+        effective_roles = normalize_roles((*snapshot.roles,
+            *(current['indexed_roles'].split(',') if current else ())))
         _delete_session(connection, snapshot.session_id)
         connection.execute(
             """INSERT INTO history_search_sessions
-               (session_id, history_epoch, history_revision, history_total)
-               VALUES (?, ?, ?, ?)""",
+               (session_id, history_epoch, history_revision, history_total, indexed_roles)
+               VALUES (?, ?, ?, ?, ?)""",
             (
                 snapshot.session_id, snapshot.history_epoch,
                 snapshot.history_revision, snapshot.history_total,
+                ','.join(effective_roles),
             ),
         )
         for message in snapshot.messages:
+            if message.role not in effective_roles:
+                continue
             cursor = connection.execute(
                 """INSERT INTO history_search_messages
                    (session_id, message_id, message_index, role, content, folded_content)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     snapshot.session_id, message.message_id, message.message_index,
-                    message.role, message.content, message.content.lower(),
+                    message.role, message.content, message.content.casefold(),
                 ),
             )
             connection.execute(
-                "INSERT INTO history_search_fts(rowid, folded_content) VALUES (?, ?)",
-                (cursor.lastrowid, message.content.lower()),
+                f"INSERT INTO {_FTS_TABLES[message.role]}(rowid, folded_content) VALUES (?, ?)",
+                (cursor.lastrowid, message.content.casefold()),
             )
         if snapshot.digest is not None:
             connection.execute(
@@ -332,12 +395,10 @@ def _append_session(
     """Append a verified suffix, or return False for a complete rebuild."""
     if snapshot.prefix_digest is None or snapshot.digest is None:
         return False
-    suffix = [message for message in snapshot.messages
-              if message.message_index >= previous_total]
     connection.execute("BEGIN IMMEDIATE")
     try:
         current = connection.execute(
-            """SELECT history_epoch, history_revision, history_total
+            """SELECT history_epoch, history_revision, history_total, indexed_roles
                FROM history_search_sessions WHERE session_id=?""",
             (snapshot.session_id,),
         ).fetchone()
@@ -356,6 +417,9 @@ def _append_session(
         ):
             connection.rollback()
             return False
+        suffix = [message for message in snapshot.messages
+                  if message.message_index >= previous_total
+                  and message.role in current['indexed_roles'].split(',')]
         # A duplicate Pan ID in the suffix changes which occurrence wins.
         # Rebuild so the old row is removed and the last occurrence survives.
         if any(connection.execute(
@@ -365,17 +429,18 @@ def _append_session(
         ).fetchone() for message in suffix):
             connection.rollback()
             return False
+        clear_query_cache(connection)
         for message in suffix:
             cursor = connection.execute(
                 """INSERT INTO history_search_messages
                    (session_id, message_id, message_index, role, content, folded_content)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (snapshot.session_id, message.message_id, message.message_index,
-                 message.role, message.content, message.content.lower()),
+                 message.role, message.content, message.content.casefold()),
             )
             connection.execute(
-                "INSERT INTO history_search_fts(rowid, folded_content) VALUES (?, ?)",
-                (cursor.lastrowid, message.content.lower()),
+                f"INSERT INTO {_FTS_TABLES[message.role]}(rowid, folded_content) VALUES (?, ?)",
+                (cursor.lastrowid, message.content.casefold()),
             )
         connection.execute(
             """UPDATE history_search_sessions
@@ -398,74 +463,6 @@ def _snippet(content: str, needle: str, offset: int) -> str:
     end = min(len(content), offset + len(needle) + _SNIPPET_RADIUS)
     excerpt = re.sub(r"\s+", " ", content[start:end]).strip()
     return f"{'…' if start else ''}{excerpt}{'…' if end < len(content) else ''}"
-
-
-def _rows_for_query(
-    connection: sqlite3.Connection,
-    needle: str,
-    limit: int,
-    after: tuple[int, int] | None = None,
-) -> list[sqlite3.Row]:
-    # Bound parameters keep queries literal. Plain needles of 3+ characters
-    # use trigram FTS; short and punctuated inputs use exact instr() matching.
-    use_fts = len(needle) >= 3 and all(character.isalnum() for character in needle)
-    after_clause = ""
-    after_params: tuple[int, ...] = ()
-    if after is not None:
-        after_clause = (
-            "AND (scope.position > ? "
-            "OR (scope.position = ? AND message.message_index > ?))"
-        )
-        after_params = (after[0], after[0], after[1])
-    if not use_fts:
-        return connection.execute(
-            """SELECT message.session_id, message.message_id, message.message_index,
-                      message.role, message.content, scope.position AS scope_position
-               FROM history_search_messages AS message
-               JOIN temp.history_search_scope AS scope
-                 ON scope.session_id=message.session_id
-               WHERE instr(message.folded_content, ?) > 0
-               """ + after_clause + """
-               ORDER BY scope.position, message.message_index
-               LIMIT ?""",
-            (needle, *after_params, limit + 1),
-        ).fetchall()
-
-    # A single quoted FTS phrase makes OR/NOT/NEAR ordinary text.
-    expression = '"' + needle.replace('"', '""') + '"'
-    try:
-        return connection.execute(
-            """SELECT message.session_id, message.message_id, message.message_index,
-                      message.role, message.content, scope.position AS scope_position
-               FROM history_search_fts
-               JOIN history_search_messages AS message
-                 ON message.rowid=history_search_fts.rowid
-               JOIN temp.history_search_scope AS scope
-                 ON scope.session_id=message.session_id
-               WHERE history_search_fts MATCH ?
-                 AND instr(message.folded_content, ?) > 0
-               """ + after_clause + """
-               ORDER BY scope.position, message.message_index
-               LIMIT ?""",
-            (expression, needle, *after_params, limit + 1),
-        ).fetchall()
-    except sqlite3.Error:
-        # Preserve literal semantics if a tokenizer revision rejects an unusual
-        # Unicode phrase. Schema/indexing failures still surface as search errors.
-        return connection.execute(
-            """SELECT message.session_id, message.message_id, message.message_index,
-                      message.role, message.content, scope.position AS scope_position
-               FROM history_search_messages AS message
-               JOIN temp.history_search_scope AS scope
-                 ON scope.session_id=message.session_id
-               WHERE instr(message.folded_content, ?) > 0
-               """ + after_clause + """
-               ORDER BY scope.position, message.message_index
-               LIMIT ?""",
-            (needle, *after_params, limit + 1),
-        ).fetchall()
-
-
 def search_history(
     db_path: str | Path,
     sessions: Sequence[object],
@@ -476,6 +473,9 @@ def search_history(
     after: tuple[int, int] | None = None,
     cursor_auth: tuple[str, bytes] | None = None,
     load_session: Callable[[str], object | None],
+    roles: Iterable[str] | None = None,
+    content_counts: bool = False,
+    match_index: int | None = None,
 ) -> dict:
     """Search the requested live Session scope and repair changed index rows.
 
@@ -485,9 +485,11 @@ def search_history(
     if not isinstance(query, str):
         raise ValueError("query must be a string")
     needle_text = query.strip()
+    selected_roles = normalize_roles(roles)
     result_limit = bounded_limit(limit)
-    if not needle_text:
-        return {"hits": [], "versions": [], "limit": result_limit, "hasMore": False}
+    if not needle_text or not selected_roles:
+        return {"hits": [], "versions": [], "limit": result_limit, "hasMore": False,
+                **({'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected_roles)} if content_counts else {})}
     if len(needle_text) > MAX_HISTORY_SEARCH_QUERY_LENGTH:
         raise ValueError(
             f"query must be at most {MAX_HISTORY_SEARCH_QUERY_LENGTH} characters"
@@ -500,7 +502,9 @@ def search_history(
     ):
         raise ValueError("after must contain bounded non-negative integers")
 
-    needle = needle_text.lower()
+    needle = needle_text.casefold()
+    if match_index is not None and (type(match_index) is not int or not 0 <= match_index <= 2_147_483_647):
+        raise ValueError('match_index must be a bounded non-negative integer')
     connection: sqlite3.Connection | None = None
     try:
         connection = _connect(Path(db_path))
@@ -540,7 +544,7 @@ def search_history(
                 continue
             epoch, revision, history_loaded, history_total = session_version(session)
             indexed = connection.execute(
-                """SELECT history_epoch, history_revision, history_total
+                """SELECT history_epoch, history_revision, history_total, indexed_roles
                    FROM history_search_sessions WHERE session_id=?""",
                 (session_id,),
             ).fetchone()
@@ -550,6 +554,7 @@ def search_history(
                 and int(indexed["history_revision"]) == revision
                 and history_total is not None
                 and int(indexed["history_total"]) == history_total
+                and set(indexed['indexed_roles'].split(',')) >= set(selected_roles)
             ):
                 continue
 
@@ -562,13 +567,16 @@ def search_history(
                     f"Session {session_id} history could not be loaded for indexing"
                 )
             previous_total = int(indexed["history_total"]) if indexed else None
-            snapshot = _snapshot(full_session, previous_total)
+            indexed_roles = tuple(indexed['indexed_roles'].split(',')) if indexed else ()
+            wanted_roles = normalize_roles((*indexed_roles, *selected_roles))
+            snapshot = _snapshot(full_session, previous_total, wanted_roles)
             if snapshot is None:
                 raise HistorySearchError(
                     f"Session {session_id} history could not be loaded for indexing"
                 )
             appended = (
                 indexed is not None
+                and set(indexed_roles) >= set(selected_roles)
                 and indexed["history_epoch"] == snapshot.history_epoch
                 and snapshot.history_total > previous_total
                 and _append_session(
@@ -617,14 +625,27 @@ def search_history(
             for row in version_rows
         ]
         version_by_session = {row["sessionId"]: row for row in versions}
-
-        rows = _rows_for_query(connection, needle, result_limit, after)
+        # Finish temporary-scope writes before acquiring a cache-build lock.
+        connection.commit()
+        rows, counts = cached_query_page(connection, needle, selected_roles,
+                                         _FTS_TABLES, versions, result_limit, after, match_index)
         hits = []
         for row in rows[:result_limit]:
             content = row["content"]
-            offset = content.lower().find(needle)
+            folded = content.casefold()
+            offset = folded.find(needle)
             if offset < 0:
                 continue
+            if len(folded) != len(content):
+                # Case folding may expand characters (ß -> ss). Snippets and
+                # firstMatch still refer to the original displayed content.
+                folded_offset = offset
+                consumed = 0
+                for original_offset, character in enumerate(content):
+                    consumed += len(character.casefold())
+                    if consumed > folded_offset:
+                        offset = original_offset
+                        break
             version = version_by_session.get(row["session_id"])
             if version is None:
                 continue
@@ -637,6 +658,8 @@ def search_history(
                 "historyEpoch": version["historyEpoch"],
                 "historyRevision": version["historyRevision"],
                 "historyTotal": version["historyTotal"],
+                **({'matchCount': int(row['match_count']), 'matchStart': int(row['match_start']),
+                    'firstMatch': offset} if content_counts else {}),
             })
         result = {
             "hits": hits,
@@ -644,6 +667,8 @@ def search_history(
             "limit": result_limit,
             "hasMore": len(rows) > result_limit,
             "_cursorKey": cursor_key,
+            **({'totalMatches': counts['totalMatches'], 'totalMessages': counts['totalMessages'],
+                'roles': list(selected_roles)} if content_counts else {}),
         }
         if len(rows) > result_limit and hits:
             last = rows[result_limit - 1]
