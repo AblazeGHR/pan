@@ -1,0 +1,362 @@
+{
+  "scenario": "main",
+  "isolation": {
+    "codex_home": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm",
+    "listener_port": 51754,
+    "note": "fresh temp CODEX_HOME; synthetic credential; loopback listener owned by this probe"
+  },
+  "credentials": {
+    "login_rc": 0,
+    "login_stdout": "",
+    "login_stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\"))\nReading API key from stdin...\nSuccess",
+    "status_rc": 0,
+    "status_stdout": "",
+    "auth_json_present": true
+  },
+  "backend_identity_initial": {
+    "node": {
+      "pid": 30080,
+      "create_time": 1790958896.9769688,
+      "create_time_iso": "2026-10-03 00:34:56",
+      "name": "node.exe"
+    },
+    "codex_children": [
+      {
+        "pid": 25544,
+        "create_time": 1790958897.0384693,
+        "create_time_iso": "2026-10-03 00:34:57",
+        "name": "codex.exe"
+      }
+    ]
+  },
+  "backend_cmdline": "D:\\software\\nodeJs\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js app-server --listen ws://127.0.0.1:51754",
+  "initialize_result": {
+    "userAgent": "pan_probe/0.159.2 (Windows 10.0.26200; x86_64) dumb (pan_probe; 0.1.0)",
+    "codexHome": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm",
+    "platformFamily": "windows",
+    "platformOs": "windows"
+  },
+  "thread_id": "01a0fd78-09b1-7280-868c-d19f808b444b",
+  "turn_id": "01a0fd78-0a29-76d1-aa3b-56e1560ffb37",
+  "events_before_attach": 10,
+  "turn_notifications_before_attach": [
+    "turn/started",
+    "item/started",
+    "item/completed"
+  ],
+  "backend_identity_before_attach": {
+    "node": {
+      "pid": 30080,
+      "create_time": 1790958896.9769688,
+      "create_time_iso": "2026-10-03 00:34:56",
+      "name": "node.exe"
+    },
+    "codex_children": [
+      {
+        "pid": 25544,
+        "create_time": 1790958897.0384693,
+        "create_time_iso": "2026-10-03 00:34:57",
+        "name": "codex.exe"
+      }
+    ]
+  },
+  "thread_loaded_list": {
+    "data": [
+      "01a0fd78-09b1-7280-868c-d19f808b444b"
+    ],
+    "nextCursor": null
+  },
+  "second_client_resume": {
+    "thread": {
+      "id": "01a0fd78-09b1-7280-868c-d19f808b444b",
+      "environments": [
+        {
+          "environmentId": "local",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwd",
+          "runtimeWorkspaceRoots": [
+            "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwd"
+          ]
+        }
+      ],
+      "extra": null,
+      "sessionId": "01a0fd78-09b1-7280-868c-d19f808b444b",
+      "forkedFromId": null,
+      "parentThreadId": null,
+      "preview": "Reply with exactly: PROBE-OK",
+      "ephemeral": false,
+      "section": null,
+      "sectionEnteredAt": null,
+      "projectId": null,
+      "historyMode": "paginated",
+      "modelProvider": "openai",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": null,
+      "createdAt": 1790958897,
+      "updatedAt": 1790958898,
+      "recencyAt": 1790958897,
+      "status": {
+        "type": "active",
+        "activeFlags": []
+      },
+      "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\sessions\\2026\\10\\03\\rollout-2026-10-03T00-34-57-01a0fd78-09b1-7280-868c-d19f808b444b.jsonl",
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwd",
+      "cliVersion": "0.159.2",
+      "originator": "pan_probe",
+      "source": "vscode",
+      "canAcceptDirectInput": true,
+      "threadSource": "pan_probe",
+      "agentNickname": null,
+      "agentRole": null,
+      "gitInfo": null,
+      "name": null,
+      "daybreakEnabled": null,
+      "turns": [
+        {
+          "id": "01a0fd78-0a29-76d1-aa3b-56e1560ffb37",
+          "items": [
+            {
+              "type": "userMessage",
+              "id": "item-1",
+              "clientId": null,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Reply with exactly: PROBE-OK",
+                  "text_elements": []
+                }
+              ]
+            }
+          ],
+          "itemsView": "full",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 1790958897,
+          "completedAt": null,
+          "durationMs": null
+        }
+      ]
+    },
+    "model": "gpt-6.1-sol",
+    "modelProvider": "openai",
+    "serviceTier": null,
+    "disabledPluginIds": [],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwd",
+    "runtimeWorkspaceRoots": [
+      "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwd"
+    ],
+    "instructionSources": [],
+    "approvalPolicy": "on-request",
+    "approvalsReviewer": "user",
+    "sandbox": {
+      "type": "readOnly",
+      "networkAccess": false
+    },
+    "activePermissionProfile": {
+      "id": ":read-only",
+      "extends": null
+    },
+    "reasoningEffort": null,
+    "collaborationMode": {
+      "mode": "default",
+      "settings": {
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": null,
+        "developer_instructions": null
+      }
+    },
+    "multiAgentMode": "explicitRequestOnly",
+    "initialTurnsPage": null,
+    "turnsBackwardsCursor": "{\"requestedThreadId\":\"01a0fd78-09b1-7280-868c-d19f808b444b\",\"rolloutOrdinal\":1,\"includeAnchor\":true,\"scope\":{\"kind\":\"turns\"}}",
+    "itemsBackwardsCursor": "{\"requestedThreadId\":\"01a0fd78-09b1-7280-868c-d19f808b444b\",\"rolloutOrdinal\":9,\"includeAnchor\":true,\"scope\":{\"kind\":\"itemsByCreatedAtOrdinal\"}}"
+  },
+  "second_client_saw_turn_events": [],
+  "tui_url": "ws://127.0.0.1:51754",
+  "tui": {
+    "pid": 14016,
+    "cmd": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js",
+      "--remote",
+      "ws://127.0.0.1:51754"
+    ],
+    "url": "ws://127.0.0.1:51754"
+  },
+  "tui_identity": {
+    "pid": 14016,
+    "create_time": 1790958902.8370228,
+    "create_time_iso": "2026-10-03 00:35:02",
+    "name": "node.exe"
+  },
+  "tui_alive": true,
+  "tui_screen_tail": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\"))\n>_ OpenAI Codex (v0.159.2)loadingWelcome to the blinking edge of possibility.›Ask Codex to do anything?forshortcuts\u001b[0 q ~\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwdGPT-6.1-Sol default·~\\AppData\\Local\\Temp\\codex_tui_probe_kzgazcwm\\probe-cwdD:\\roject\\pan-worktrees\\termnal-codex-explore-20261003  To get started, describe a task or try one of these commands:/init - create an AGENTS.md file with instructions for Codex/status - show current session configuration/permissions - choose what Codex is allowed to do/model - choose what model and reasoning effort to use/review - review any changes and find issuesD:\\roject\\pan-worktrees\\termnal-codex-explore-20261003",
+  "tui_screen_has_codex_banner": true,
+  "tui_screen_stuck_at_login": false,
+  "backend_identity_during_attach": {
+    "node": {
+      "pid": 30080,
+      "create_time": 1790958896.9769688,
+      "create_time_iso": "2026-10-03 00:34:56",
+      "name": "node.exe"
+    },
+    "codex_children": [
+      {
+        "pid": 25544,
+        "create_time": 1790958897.0384693,
+        "create_time_iso": "2026-10-03 00:34:57",
+        "name": "codex.exe"
+      }
+    ]
+  },
+  "events_during_attach": 22,
+  "tui_alive_after_detach": false,
+  "tui_alive_after_close": false,
+  "backend_identity_after_detach": {
+    "node": {
+      "pid": 30080,
+      "create_time": 1790958896.9769688,
+      "create_time_iso": "2026-10-03 00:34:56",
+      "name": "node.exe"
+    },
+    "codex_children": [
+      {
+        "pid": 25544,
+        "create_time": 1790958897.0384693,
+        "create_time_iso": "2026-10-03 00:34:57",
+        "name": "codex.exe"
+      }
+    ]
+  },
+  "thread_read_after_detach_truncated": "{\"thread\": {\"id\": \"01a0fd78-09b1-7280-868c-d19f808b444b\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\\\\probe-cwd\"]}], \"extra\": null, \"sessionId\": \"01a0fd78-09b1-7280-868c-d19f808b444b\", \"forkedFromId\": null, \"parentThreadId\": null, \"preview\": \"Reply with exactly: PROBE-OK\", \"ephemeral\": false, \"section\": null, \"sectionEnteredAt\": null, \"projectId\": null, \"historyMode\": \"paginated\", \"modelProvider\": \"openai\", \"model\": \"gpt-6.1-sol\", \"reasoningEffort\": null, \"createdAt\": 1790958897, \"updatedAt\": 1790958918, \"recencyAt\": 1790958897, \"status\": {\"type\": \"systemError\"}, \"path\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\\\\sessions\\\\2026\\\\10\\\\03\\\\rollout-2026-10-03T00-34-57-01a0fd78-09b1-7280-868c-d19f808b444b.jsonl\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\\\\probe-cwd\", \"cliVersion\": \"0.159.2\", \"originator\": \"pan_probe\", \"source\": \"vscode\", \"canAcceptDirectInput\": true, \"threadSource\": \"pan_probe\", \"agentNickname\": null, \"agentRole\": null, \"gitInfo\": null, \"name\": null, \"daybreakEnabled\": null, \"turns\": [{\"id\": \"01a0fd78-0a29-76d1-aa3b-56e1560ffb37\", \"items\": [{\"type\": \"userMessage\", \"id\": \"01a0fd78-0d18-7381-b939-7f4e947ae840\", \"clientId\": null, \"content\": [{\"type\": \"text\", \"text\": \"Reply with exactly: PROBE-OK\", \"text_elements\": []}]}], \"itemsView\": \"full\", \"status\": \"failed\", \"error\": {\"message\": \"unexpected status 401 Unauthorized: Incorrect API key provided: probe-sy************************************tial. You can find your API key at https://platform.openai.com/account/api-keys., url: https://api.openai.com/v1/responses, cf-ray: a4451e98cb61f8fb-SIN, request id: req_6ca1280853b6457e96b0cbd3eab3536c\", \"codexErrorInfo\": {\"httpConnectionFailed\": {\"httpStatusCode\": 401}}, \"additionalDetails\": null, \"misalignment\": null}, \"startedAt\": 1790958897, \"completedAt\": 1790958918, \"durationMs\": 20908}]}}",
+  "turn_statuses_after_detach": [
+    [
+      "01a0fd78-0a29-76d1-aa3b-56e1560ffb37",
+      "failed"
+    ]
+  ],
+  "events_after_detach": 27,
+  "checks": [
+    {
+      "check": "app_server_ready",
+      "ok": true,
+      "detail": "ws://127.0.0.1:51754"
+    },
+    {
+      "check": "pan_client_created_thread",
+      "ok": true,
+      "detail": "01a0fd78-09b1-7280-868c-d19f808b444b"
+    },
+    {
+      "check": "turn_in_flight",
+      "ok": true,
+      "detail": "01a0fd78-0a29-76d1-aa3b-56e1560ffb37"
+    },
+    {
+      "check": "backend_pid_stable_before_attach",
+      "ok": true,
+      "detail": 30080
+    },
+    {
+      "check": "second_client_can_resume_live_thread",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "second_client_receives_structured_events",
+      "ok": false,
+      "detail": []
+    },
+    {
+      "check": "native_tui_connected_and_rendered",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "native_tui_past_login_gate",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "backend_pid_stable_during_tui_attach",
+      "ok": true,
+      "detail": 30080
+    },
+    {
+      "check": "pan_client_stream_alive_during_attach",
+      "ok": true,
+      "detail": {
+        "before": 10,
+        "during": 22
+      }
+    },
+    {
+      "check": "backend_pid_stable_after_tui_detach",
+      "ok": true,
+      "detail": 30080
+    },
+    {
+      "check": "original_turn_survived_tui_detach",
+      "ok": true,
+      "detail": [
+        [
+          "01a0fd78-0a29-76d1-aa3b-56e1560ffb37",
+          "failed"
+        ]
+      ]
+    },
+    {
+      "check": "pan_client_stream_still_alive_after_detach",
+      "ok": true,
+      "detail": {
+        "during": 22,
+        "after": 27
+      }
+    },
+    {
+      "check": "pan_client_connection_survived",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "listener_released",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "temp_home_removed",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "backend_stop": {
+    "was_running": true,
+    "returncode": 1
+  },
+  "port_still_listening": false,
+  "home_removed": true,
+  "passed": false,
+  "failed_checks": [
+    {
+      "check": "second_client_receives_structured_events",
+      "ok": false,
+      "detail": []
+    }
+  ],
+  "log": [
+    "[credentials] {\"login_rc\": 0, \"login_stdout\": \"\", \"login_stderr\": \"WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \\\"C:\\\\\\\\Users\\\\\\\\14709\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\\\\" (codex_home: AbsolutePathBuf(\\\"C:\\\\\\\\Users\\\\\\\\14709\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\codex_tui_probe_kzgazcwm\\\"))\\nReading API key from stdin...\\nSuccess\", \"status_rc\": 0, \"status_stdout\": \"\", \"auth_json_present\": true}",
+    "[spawn] D:\\software\\nodeJs\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js app-server --listen ws://127.0.0.1:51754 (pid=30080)",
+    "[app-server] WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_kzgazcwm\"))",
+    "[app-server] codex app-server (WebSockets)",
+    "[app-server]   listening on: ws://127.0.0.1:51754",
+    "[app-server]   readyz: http://127.0.0.1:51754/readyz",
+    "[app-server]   healthz: http://127.0.0.1:51754/healthz",
+    "[app-server]   note: binds localhost only (use SSH port-forwarding for remote access)",
+    "[app-server] \u001b[2m2026-10-02T16:34:58.423669Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:34:59.216963Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:00.108283Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:01.228511Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:02.719937Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:04.990173Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:07.268767Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses",
+    "[app-server] \u001b[2m2026-10-02T16:35:08.828061Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_api::endpoint::responses_websocket\u001b[0m\u001b[2m:\u001b[0m failed to connect to websocket: HTTP error: 401 Unauthorized, url: wss://api.openai.com/v1/responses"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "scenario": "control",
+  "dead_port": 55870,
+  "tui": {
+    "pid": 46732,
+    "cmd": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js",
+      "--remote",
+      "ws://127.0.0.1:55870"
+    ],
+    "url": "ws://127.0.0.1:55870"
+  },
+  "alive_after_12s": false,
+  "screen": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_p8kgkggs\"))\n>_ OpenAI Codex (v0.159.2)loadingShall we make this terminal earn its keep?›Ask Codex to do anything?forshortcuts\u001b[0 q ~\\AppData\\Local\\Temp\\codex_tui_probe_p8kgkggs\\probe-cwd\u001b[0 qError: failed to connect to remote app server at `ws://127.0.0.1:55870/`: IO error: 由于目标计算机积极拒绝，无法连接。 (os error 10061)\n\u001b[0 q<<read-error EOFError('Pty is closed')>>",
+  "connect_error_visible": true,
+  "tui_alive_after_close": false,
+  "home_removed": true,
+  "log": []
+}
