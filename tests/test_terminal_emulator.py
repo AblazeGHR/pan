@@ -13,9 +13,20 @@
   rejected/诊断有界；reset 基线按命令实际执行位置；reset 清除旧 gap 且不假 full）；
 - sidecar 崩溃/卡住/失败关闭重试；runner 硬死不残留 sidecar；无进程泄漏。
 
+r2 返工回归（独立审查 `1daff2a6` 的确定失败/缺口，**先失败后通过**）：
+
+- 根死孙活持有 stdout 时 ``close`` 必须自身有界（先整 Job 清理与核验，
+  再 join 线程，最后关闭流）；
+- 构造失败清理有界，且异常携带可重试 owner / cleanup 入口与残留信息；
+- stderr join / 流关闭失败纳入 ``closed`` 记账并保留可重试；
+- assign 后 resume 前的 Job 成员/active 核验（false/unknown/query 失败 fail-closed）；
+- 迟到 reset ack 只回填一次实际执行账本；确认前结构性禁止旧 cursor 续流；
+- ``resize_wait`` 提供确认面（非阻塞 ``resize`` 不得被推断三方一致）。
+
 边界：本文件全部是 headless↔headless 对比；真实浏览器渲染保真属 P3，不在
-本文件声称。仅使用自建 sidecar 进程与 pytest 临时目录；等待均有界
-（pytest.ini timeout=300 为兜底看门狗）。
+本文件声称。仅使用自建 sidecar/fake sidecar 进程与 pytest 临时目录；等待均有界
+（pytest.ini timeout=300 为兜底看门狗）。任何兜底终止只针对**自建有身份**
+（同 handle raw FILETIME + Wait）的进程，不扫描陌生 PID。
 """
 
 from __future__ import annotations
@@ -35,6 +46,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core.terminal import emulator as emulator_module
+from packages.core.terminal import guard as guard_module
 from packages.core.terminal import identity as identity_module
 from packages.core.terminal.contracts import (
     Fidelity,
@@ -506,17 +518,19 @@ def test_close_failure_retains_resources_then_retry_converges(emu_factory, monke
     assert emu._test_stall(3000)
     calls = {"force": 0}
 
-    def failing_force():
+    def failing_terminate(*args, **kwargs):
         calls["force"] += 1
-        return "injected-force-failure"
+        return {"errors": ["injected-force-failure"], "job_verified": False, "root_dead": False}
 
-    monkeypatch.setattr(emu, "_force_terminate", failing_force)
-    rep1 = emu.close(timeout=0.6)
-    assert calls["force"] == 1
+    monkeypatch.setattr(
+        emulator_module, "_force_terminate_root", failing_terminate, raising=False
+    )
+    monkeypatch.setattr(guard_module.JobObjectGuard, "close", lambda self: False)
+    rep1 = emu.close(timeout=0.8)
+    assert calls["force"] >= 1
     assert rep1.closed is False
     assert rep1.process_exited is False
     assert rep1.guard_closed is False  # 资源保留、可重试
-    assert "resources-retained-for-retry" in rep1.detail
     assert emu.engine_alive  # 未被伪清理
 
     monkeypatch.undo()
@@ -603,3 +617,425 @@ def test_no_process_leaks_after_close():
             assert probe.identity.created_at_filetime != identity.created_at_filetime, (
                 f"sidecar {pid} 在 close 后仍存活"
             )
+
+
+# ---------------------------------------------------------------------------
+# r2 返工回归：有界关闭 / startup owner / 记账 / 成员门禁 / 迟到 reset ack
+#（独立审查 1daff2a6 的确定失败与缺口；先失败后通过）
+# ---------------------------------------------------------------------------
+
+#: 测试专用协议替身（由测试生成到 tmp_path；node 运行，行为由环境变量控制）。
+#: 只实现生产帧协议的被测形状；不参与任何生产路径。
+FAKE_SIDECAR_SOURCE = r"""
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
+
+const mode = process.env.FAKE_SIDECAR_MODE || 'normal';
+const childPidFile = process.env.FAKE_CHILD_PID_FILE || '';
+let buffer = Buffer.alloc(0);
+let applied = 0n;
+
+function frame(header, payload) {
+  const body = Buffer.isBuffer(payload) ? payload : Buffer.alloc(0);
+  const head = Buffer.from(JSON.stringify(header), 'utf8');
+  const total = head.length + body.length;
+  const buf = Buffer.alloc(8 + total);
+  buf.writeUInt32LE(total, 0);
+  buf.writeUInt32LE(head.length, 4);
+  head.copy(buf, 8);
+  body.copy(buf, 8 + head.length);
+  return buf;
+}
+function send(header, payload) {
+  process.stdout.write(frame(header, payload));
+}
+function spawnHolder() {
+  // holder 继承 root 的 stdout/stderr（只持有，不写）；detached + unref
+  // 使其在 root 退出后仍存活，用于制造 "root 退出但管道写端仍被存活
+  // Job 成员后代持有" 的现场（不 detached 时 holder 会随父退出而消失）。
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000)'], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: true,
+  });
+  child.unref();
+  if (childPidFile) fs.writeFileSync(childPidFile, String(child.pid));
+  return child;
+}
+function ack(op, extra) {
+  send(Object.assign({
+    v: 1, type: 'applied', op,
+    applied_bytes: applied.toString(),
+    processed_frontier: applied.toString(),
+  }, extra || {}));
+}
+function handle(h, payload) {
+  switch (h.type) {
+    case 'hello':
+      if (mode === 'no-ready-child') { spawnHolder(); return; }
+      send({ v: 1, type: 'ready', pid: process.pid, engine: 'fake-sidecar/1.0.0' });
+      if (mode === 'ready-exit-child') {
+        spawnHolder();
+        setTimeout(() => process.exit(0), 250);
+      }
+      return;
+    case 'feed':
+      applied += BigInt(payload.length);
+      ack(h.op, { abs_start: h.abs_start, abs_end: h.abs_end });
+      return;
+    case 'resize':
+      ack(h.op, { rows: Number(h.rows), cols: Number(h.cols) });
+      return;
+    case 'reset':
+      if (mode === 'delayed-reset') {
+        setTimeout(() => ack(h.op, { baseline_frontier: applied.toString(), resets: 1 }), 800);
+        return;
+      }
+      ack(h.op, { baseline_frontier: applied.toString(), resets: 1 });
+      return;
+    case 'restore':
+      ack(h.op);
+      return;
+    case 'snapshot':
+      send({
+        v: 1, type: 'snapshot', op: h.op,
+        applied_bytes: applied.toString(), processed_frontier: applied.toString(),
+        parsed_cursor: applied.toString(), cursors_valid: true,
+        rows: 24, cols: 80, fidelity: 'full', recovery: 'full', reasons: [],
+        engine: 'fake-sidecar/1.0.0',
+      });
+      return;
+    case 'barrier':
+      send({
+        v: 1, type: 'barrier', op: h.op,
+        applied_bytes: applied.toString(), processed_frontier: applied.toString(),
+      });
+      return;
+    case 'shutdown':
+      ack(h.op);
+      setTimeout(() => process.exit(0), 20);
+      return;
+    default:
+      send({ v: 1, type: 'error', op: h.op, code: 'unknown-op', detail: String(h.type) });
+  }
+}
+process.stdin.on('data', (chunk) => {
+  buffer = Buffer.concat([buffer, chunk]);
+  while (buffer.length >= 8) {
+    const total = buffer.readUInt32LE(0);
+    const hlen = buffer.readUInt32LE(4);
+    if (hlen > total || buffer.length < 8 + total) break;
+    const header = JSON.parse(buffer.subarray(8, 8 + hlen).toString('utf8'));
+    const payload = Buffer.from(buffer.subarray(8 + hlen, 8 + total));
+    buffer = buffer.subarray(8 + total);
+    handle(header, payload);
+  }
+});
+"""
+
+
+@pytest.fixture
+def fake_sidecar(tmp_path):
+    path = tmp_path / "fake_sidecar.cjs"
+    path.write_text(FAKE_SIDECAR_SOURCE.strip() + "\n", encoding="utf-8")
+    return path
+
+
+def _wait_until(predicate, timeout: float, interval: float = 0.05) -> bool:
+    deadline = time.monotonic() + float(timeout)
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return bool(predicate())
+
+
+def _same_handle_dead(proc) -> bool:
+    handle = int(getattr(proc, "_handle", 0) or 0)
+    if not handle:
+        return False
+    return identity_module.wait_state(handle) is ProcessStatus.DEAD
+
+
+def _probe_retained(pid: int):
+    handle = identity_module.open_process_for_probe(int(pid))
+    if not handle:
+        raise RuntimeError(f"OpenProcess(probe) failed for pid={pid}")
+    probe = identity_module.probe_handle(int(handle), pid=int(pid))
+    return int(handle), probe
+
+
+def test_close_bounded_when_root_dead_descendant_holds_stdout(
+    emu_factory, fake_sidecar, monkeypatch, tmp_path
+):
+    """P11：root 退出但（Job 成员）孙进程持有 stdout → close 必须自身有界并核验收敛。
+
+    审查现场证明该后代是 Job 成员（guard.member_pids() 含其 pid）；清理以真实
+    guard 所有权为准（整 Job 清理与核验），不扫描陌生 PID。
+    """
+    pid_file = tmp_path / "holder.pid"
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "ready-exit-child")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    emu = emu_factory(sidecar_path=str(fake_sidecar), startup_timeout=20.0)
+    proc = emu._proc
+    assert _wait_until(lambda: _same_handle_dead(proc), 8.0), "fake root 未退出"
+    assert _wait_until(pid_file.exists, 8.0), "孙进程 pid 未落盘"
+    holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+    handle, probe = _probe_retained(holder_pid)
+    holder_ft = int(probe.identity.created_at_filetime) if probe.identity else None
+    try:
+        assert probe.status is ProcessStatus.ALIVE
+        assert holder_pid in emu._guard.member_pids()  # 真实 Job 成员证据
+        reports: list = []
+        errors: list = []
+
+        def do_close():
+            try:
+                reports.append(emu.close(timeout=3.0))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        thread = threading.Thread(target=do_close, daemon=True)
+        t0 = time.monotonic()
+        thread.start()
+        thread.join(timeout=12.0)
+        blocked = thread.is_alive()
+        if blocked and holder_ft is not None:
+            # 旧实现现场：仅以身份核验兜底解除无界等待（不作为通过依据）
+            identity_module.kill_verified(holder_pid, holder_ft, wait_timeout=5.0)
+            thread.join(timeout=15.0)
+        elapsed = time.monotonic() - t0
+        assert not blocked, f"close 未被自身 timeout 约束：{elapsed:.2f}s 仍未返回"
+        assert elapsed <= 3.0 + 4.0, f"close 远超预算：{elapsed:.2f}s"
+        assert not errors, errors
+        report = reports[0]
+        assert report.closed and report.process_exited and report.guard_closed
+        assert report.job_verified is True
+        assert _wait_until(
+            lambda: identity_module.wait_state(handle) is ProcessStatus.DEAD, 5.0
+        ), "孙进程未被整 Job 清理终止"
+    finally:
+        if holder_ft is not None:
+            identity_module.kill_verified(holder_pid, holder_ft, wait_timeout=3.0)
+        identity_module.close_handle_checked(handle)
+
+
+def test_startup_failure_bounded_and_owner_retry(fake_sidecar, monkeypatch, tmp_path):
+    """P1b/P10：构造失败清理必须自身有界；异常须携带可重试 owner 与残留信息。"""
+    pid_file = tmp_path / "holder.pid"
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    captured: list = []
+    real_popen = emulator_module.subprocess.Popen
+
+    def spy_popen(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        captured.append(proc)
+        return proc
+
+    monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+    outcome: dict = {}
+
+    def ctor():
+        try:
+            HeadlessEmulator(sidecar_path=str(fake_sidecar), startup_timeout=2.0)
+        except Exception as exc:  # noqa: BLE001
+            outcome["exc"] = exc
+
+    thread = threading.Thread(target=ctor, daemon=True)
+    t0 = time.monotonic()
+    thread.start()
+    thread.join(timeout=15.0)
+    blocked = thread.is_alive()
+    if blocked:
+        # 旧实现现场兜底：核验终止自有 root 与孙进程，解除清理阻塞
+        for proc in captured:
+            handle = int(getattr(proc, "_handle", 0) or 0)
+            ft = identity_module.read_creation_filetime(handle) if handle else None
+            if ft is not None and proc.poll() is None:
+                identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=3.0)
+        if pid_file.exists():
+            try:
+                holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                h, probe = _probe_retained(holder_pid)
+                ft = probe.identity.created_at_filetime if probe.identity else None
+                if ft is not None:
+                    identity_module.kill_verified(holder_pid, int(ft), wait_timeout=3.0)
+                identity_module.close_handle_checked(h)
+            except Exception:  # noqa: BLE001
+                pass
+        thread.join(timeout=15.0)
+    elapsed = time.monotonic() - t0
+    exc = outcome.get("exc")
+    try:
+        assert not blocked, f"构造失败清理未被约束：{elapsed:.2f}s 仍未返回"
+        assert elapsed <= 2.0 + 10.0, f"构造失败远超总预算：{elapsed:.2f}s"
+        assert isinstance(exc, EmulatorUnavailableError)
+        owner = getattr(exc, "owner", None)
+        assert owner is not None, "异常未携带可重试 owner（仅有文本）"
+        assert hasattr(owner, "retry_cleanup")
+        residual = getattr(exc, "residual", None)
+        assert isinstance(residual, dict) and residual.get("pid")
+        outcome2 = owner.retry_cleanup(timeout=10.0)
+        assert outcome2.get("closed") is True, outcome2
+        for proc in captured:
+            assert _same_handle_dead(proc) or proc.poll() is not None
+    finally:
+        if pid_file.exists():
+            try:
+                holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                h, probe = _probe_retained(holder_pid)
+                ft = probe.identity.created_at_filetime if probe.identity else None
+                if ft is not None:
+                    identity_module.kill_verified(holder_pid, int(ft), wait_timeout=3.0)
+                identity_module.close_handle_checked(h)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def test_stderr_join_failure_is_accounted_and_retryable(emu_factory):
+    """P8：stderr 未 join 必须阻止 closed=True；恢复后可重试收敛。"""
+    emu = emu_factory()
+    stubborn = threading.Thread(target=lambda: time.sleep(60), daemon=True, name="stub-stderr")
+    stubborn.start()
+    original = emu._stderr_thread
+    emu._stderr_thread = stubborn
+    try:
+        rep1 = emu.close(timeout=8.0)
+        assert rep1.closed is False
+        assert rep1.stderr_joined is False
+        assert rep1.process_exited is True
+    finally:
+        emu._stderr_thread = original
+    rep2 = emu.close(timeout=10.0)
+    assert rep2.closed is True
+    assert rep2.stderr_joined is True
+
+
+def test_stream_close_failure_is_accounted_and_retryable(emu_factory):
+    """P8：流关闭失败必须阻止 closed=True，保留引用；恢复后重试收敛。"""
+    emu = emu_factory()
+    real_stdin = emu._proc.stdin
+
+    class _BadStream:
+        def close(self):
+            raise OSError("injected stream close failure")
+
+    emu._proc.stdin = _BadStream()
+    try:
+        rep1 = emu.close(timeout=8.0)
+        assert rep1.closed is False
+        assert rep1.streams_closed is False
+        assert "stdin-close-error" in rep1.detail
+    finally:
+        emu._proc.stdin = real_stdin
+    rep2 = emu.close(timeout=10.0)
+    assert rep2.closed is True
+    assert rep2.streams_closed is True
+
+
+@pytest.mark.parametrize(
+    "injection",
+    ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+)
+def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+    """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+    captured: list = []
+    real_popen = emulator_module.subprocess.Popen
+
+    def spy_popen(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        captured.append(proc)
+        return proc
+
+    monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+    if injection == "is_member_false":
+        monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+    elif injection == "is_member_raises":
+
+        def _raising_member(self, h):
+            raise OSError("injected is_member query failure")
+
+        monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+    elif injection == "active_none":
+        monkeypatch.setattr(
+            guard_module.JobObjectGuard, "active_processes", lambda self: None
+        )
+    elif injection == "active_raises":
+
+        def _raising_active(self):
+            raise OSError("injected active query failure")
+
+        monkeypatch.setattr(
+            guard_module.JobObjectGuard, "active_processes", _raising_active
+        )
+    else:
+        monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+    emu = None
+    exc = None
+    try:
+        try:
+            emu = HeadlessEmulator(startup_timeout=20.0)
+        except EmulatorUnavailableError as err:
+            exc = err
+    finally:
+        if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+            try:
+                emu.close(timeout=6.0)
+            except Exception:  # noqa: BLE001
+                pass
+        for proc in captured:
+            handle = int(getattr(proc, "_handle", 0) or 0)
+            ft = identity_module.read_creation_filetime(handle) if handle else None
+            if ft is not None and proc.poll() is None:
+                identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+    assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+    assert captured, "spy 未捕获 sidecar 进程"
+    assert _wait_until(
+        lambda: _same_handle_dead(captured[-1]) or captured[-1].poll() is not None, 8.0
+    ), "构造失败后 sidecar 未被清理"
+
+
+def test_late_reset_ack_updates_ledger_once_and_gates_cursor(
+    emu_factory, fake_sidecar, monkeypatch
+):
+    """P9：迟到 reset ack 只回填一次实际执行账本；确认前结构性禁止旧 cursor 续流。"""
+    monkeypatch.setenv("FAKE_SIDECAR_MODE", "delayed-reset")
+    emu = emu_factory(
+        sidecar_path=str(fake_sidecar), startup_timeout=20.0, control_timeout=0.4
+    )
+    emu.feed_at(0, b"abcd")
+    t0 = time.monotonic()
+    snap = emu.reset_baseline()
+    elapsed = time.monotonic() - t0
+    assert elapsed < 1.5
+    assert "unconfirmed" in snap.note
+    assert emu.cursors_valid is False, "reset 未确认期间不得允许旧 cursor 续流"
+    diag0 = emu.diagnostics()
+    assert diag0["cursors_valid"] is False
+    assert diag0["reset_unconfirmed"] is True
+    time.sleep(1.4)  # fake 在 800ms 后回 ack（引擎已执行 reset）
+    diag = emu.diagnostics()
+    assert diag["reset_count"] == 1
+    assert int(diag["baseline_cursor"]) == 4
+    assert diag["reset_unconfirmed"] is False
+    assert diag["cursors_valid"] is True
+    snap2 = emu.snapshot(timeout=10)
+    assert snap2.cursor >= 4
+    assert emu.diagnostics()["reset_count"] == 1  # 只应用一次
+
+
+def test_resize_wait_confirmation_surface(emu_factory):
+    """resize 确认面：非阻塞 resize 无回执（不得推断三方一致）；resize_wait 可确认。"""
+    emu = emu_factory()
+    assert emu.resize_wait(30, 100, timeout=8.0) is True
+    assert emu.diagnostics()["applied_resize"] == [30, 100]
+
+    emu2 = emu_factory(max_queue_ops=8, max_queue_bytes=1 << 20)
+    assert emu2._test_stall(2500)
+    for _ in range(20):
+        emu2.resize(24, 80)  # 无回执；多数被拒
+    assert emu2.resize_wait(31, 101, timeout=0.5) is False
+    assert emu2.diagnostics()["counters"]["resize_rejected"] >= 1
+    time.sleep(2.6)
+    assert emu2.resize_wait(31, 101, timeout=8.0) is True
+    assert emu2.diagnostics()["applied_resize"] == [31, 101]

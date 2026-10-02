@@ -89,7 +89,7 @@ def temp_leftovers() -> list[str]:
 def workspace_leftovers() -> list[str]:
     keep = {"node_modules", "__pycache__"}
     hits = []
-    sidecar_dir = REPO_ROOT / "emulator_sidecar"
+    sidecar_dir = REPO_ROOT / "packages" / "core" / "terminal" / "emulator_sidecar"
     if sidecar_dir.is_dir():
         for entry in sidecar_dir.iterdir():
             if entry.name in keep:

@@ -1,0 +1,42 @@
+{
+  "pre_fix": {
+    "source": "pre_fix_r2_tests.txt",
+    "total": 12,
+    "failed": [
+      "test_close_bounded_when_root_dead_descendant_holds_stdout",
+      "test_startup_failure_bounded_and_owner_retry",
+      "test_stderr_join_failure_is_accounted_and_retryable",
+      "test_stream_close_failure_is_accounted_and_retryable",
+      "test_assign_phase_membership_gate_fail_closed[is_member_false]",
+      "test_assign_phase_membership_gate_fail_closed[is_member_raises]",
+      "test_assign_phase_membership_gate_fail_closed[active_none]",
+      "test_assign_phase_membership_gate_fail_closed[active_raises]",
+      "test_assign_phase_membership_gate_fail_closed[active_zero]",
+      "test_late_reset_ack_updates_ledger_once_and_gates_cursor",
+      "test_resize_wait_confirmation_surface"
+    ],
+    "passed": [
+      "test_feed_overflow_is_sticky_degraded_and_bounded"
+    ]
+  },
+  "post_fix": {
+    "source": "post_fix_r2_full.txt",
+    "total": 39,
+    "passed": 39,
+    "failed": []
+  },
+  "core_six": {
+    "source": "core_six_uv_pyte.txt",
+    "passed": 129,
+    "exit_0": true
+  },
+  "broadcast": {
+    "source": "broadcast_uv_pyte.txt",
+    "passed": 8,
+    "exit_0": true
+  },
+  "repro_p11": {
+    "source": "repro_p11_unbounded_close.json",
+    "ok": true
+  }
+}

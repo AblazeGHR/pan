@@ -545,7 +545,8 @@ async function handleFrame(header, payload) {
       }
       case 'resize': {
         state.term.resize(Number(header.cols), Number(header.rows));
-        await sendApplied(op);
+        // 确认面：回报 term 实际尺寸，供 runner 以 resize_wait 核对三方一致。
+        await sendApplied(op, { rows: state.term.rows, cols: state.term.cols });
         break;
       }
       case 'reset': {

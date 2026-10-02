@@ -24,8 +24,8 @@
 | 文件 | 内容 |
 | --- | --- |
 | `packages/core/terminal/emulator.py` | `HeadlessEmulator`：`AuthoritativeEmulator` 实现 + runner 桥接（`feed_at`/`restore_screen`）+ sidecar 进程所有权 |
-| `emulator_sidecar/sidecar.mjs` | 常驻 Node sidecar：帧协议、hold-back 供料、保守分类器、barrier 快照、reset、sticky 降级 |
-| `emulator_sidecar/package.json` + `package-lock.json` | 精确 pin `@xterm/headless@6.0.0`、`@xterm/addon-serialize@0.14.0`（`node_modules/` 由仓库 `.gitignore` 忽略，不提交） |
+| `packages/core/terminal/emulator_sidecar/sidecar.mjs` | 常驻 Node sidecar：帧协议、hold-back 供料、保守分类器、barrier 快照、reset、sticky 降级 |
+| `packages/core/terminal/emulator_sidecar/package.json` + `package-lock.json` | 精确 pin `@xterm/headless@6.0.0`、`@xterm/addon-serialize@0.14.0`（`node_modules/` 由仓库 `.gitignore` 忽略，不提交） |
 | `tests/test_terminal_emulator.py` | 28 项测试矩阵（§9） |
 | `docs/design/PAN_TERMINAL_EMULATOR_INTERFACES_20261003.md` | 本文件 |
 | `audit/terminal/implementation/emulator/**` | 先失败/后通过证据、复现脚本与清理扫描（旧 CBC 证据不覆盖） |
@@ -42,7 +42,7 @@
 
 | 项 | 值 | 证据 |
 | --- | --- | --- |
-| `@xterm/headless` | **6.0.0**（exact pin） | `emulator_sidecar/package.json` / `package-lock.json` |
+| `@xterm/headless` | **6.0.0**（exact pin） | `packages/core/terminal/emulator_sidecar/package.json` / `package-lock.json` |
 | `@xterm/addon-serialize` | **0.14.0**（exact pin） | 同上 |
 | Node（本机实测） | `v24.15.0` | `ready` 帧 `node_version`（测试断言不锁定具体版本，仅要求可加载） |
 | `allowProposedApi` | **必须为 true**（序列化 addon 依赖） | 实测：不开时 `serialize()` 抛 "You must set the allowProposedApi option" |
@@ -85,6 +85,7 @@ class HeadlessEmulator:
 ```python
     def feed_at(self, seq: int, data: bytes) -> None: ...   # == contracts.OutputConsumer
     def restore_screen(self, serialized_screen: str) -> bool: ...
+    def resize_wait(self, rows: int, cols: int, *, timeout=None) -> bool: ...  # resize 确认面
     def barrier(self, *, timeout: float | None = None) -> dict: ...
     def diagnostics(self) -> dict: ...
     def close(self, *, timeout: float | None = None) -> EmulatorCloseReport: ...
@@ -101,7 +102,9 @@ runtime = build_runtime(
     output_consumer=emulator.feed_at,                      # (绝对偏移, bytes) 同序投递
 )
 # resize 联动（同一条有序队列语义在 runner 侧编排）：
-runtime.resize(rows, cols); emulator.resize(rows, cols)     # 两者都只由 control lease 触发
+emulator.resize(rows, cols)                                 # 尽力入队（无回执）
+if need_three_way_confirmation:                             # 需要三方一致时用确认面
+    ok = emulator.resize_wait(rows, cols, timeout=2.0)      # sidecar 回报实际 rows/cols
 
 # 快照（WS 桥重连/gap 恢复）
 snap = emulator.snapshot(timeout=2.0)
@@ -114,6 +117,10 @@ snap = emulator.snapshot(timeout=2.0)
   不等待 sidecar）。
 - `snapshot.cursor` = sidecar **已解析应用**（xterm write 回调确认）的绝对字节位置；
   **不是** producer 的 `total_bytes`（§5.3）。
+- **resize 无回执**：`resize()` 被拒/过期只体现在计数器（`resize_rejected` /
+  `control_queue_overflow`）与 `diagnostics()`；**不得**由"已调用 resize"推断
+  PTY/引擎/前端三方尺寸一致。需要确认时用 `resize_wait`（唯一改动是新增方法，
+  未改冻结协议签名）。
 - `close()` 幂等、可重试；runner 的硬性兜底是自持 Job guard（§8）。
 
 ### 3.3 控制面语义（全部有界）
@@ -121,13 +128,14 @@ snap = emulator.snapshot(timeout=2.0)
 | 方法 | 默认预算 | 过期语义 |
 | --- | --- | --- |
 | `snapshot(timeout=2.0)` | 参数 | 超时返回 `fidelity=unavailable/recovery=degraded` 的**无内容**快照；排队中过期的请求**不执行** |
-| `reset_baseline()` | `control_timeout=2.0` | 超时返回明确 note；未发送则**不执行**；已发送（在途）则 note 声明 "unconfirmed（可能已执行）" |
+| `reset_baseline()` | `control_timeout=2.0` | 未发送则**不执行**；已发送（在途）→ `reset_unconfirmed`：结构性禁止旧 cursor 续流，直到迟到 ack 回填账本（§7.2） |
 | `restore_screen()` | `control_timeout=2.0` | 同上有界；失败返回 `False`（调用方走 fresh view） |
-| `resize()` / `feed*` | 无等待 | 队列满：feed 显式拒绝并 sticky `feed_lag`；resize 计入 `control_queue_overflow` |
+| `resize_wait(rows, cols, timeout=2.0)` | 参数 | 入队并等待 sidecar 回报实际尺寸；被拒/超时/尺寸不符返回 `False` |
+| `resize()` / `feed*` | 无等待 | 队列满：feed 显式拒绝并 sticky `feed_lag`；resize 计入 `resize_rejected`/`control_queue_overflow` |
 
 ---
 
-## 4. sidecar 线协议（`emulator_sidecar/sidecar.mjs`）
+## 4. sidecar 线协议（`packages/core/terminal/emulator_sidecar/sidecar.mjs`）
 
 ### 4.1 帧格式（stdin/stdout 双向、有界）
 
@@ -202,8 +210,13 @@ total_len = header_len + payload_len
   reader 入队 ≠ 已解析；**禁止**用 producer 的 `total_bytes` 冒充。
 - 引擎死亡/关闭：`cursor` 保持最后确认值，但 `fidelity=unavailable/recovery=none`。
 - 序列 gap/duplicate 供料：`cursor` 继续前进（诚实表示"已处理位置"），但
-  `recovery=degraded`、`cursors_valid=false`（`diagnostics()` 可见），直到显式 reset
-  清除旧基线前的记录。
+  `recovery=degraded`；直到显式 reset 清除旧基线前的记录。
+- **`cursors_valid`（r2）**：`diagnostics()["cursors_valid"]` 与属性
+  `HeadlessEmulator.cursors_valid` 同一判定——仅当「无粘滞 gap/duplicate ∧ 引擎
+  可用 ∧ 未关闭 ∧ reset 未处于未确认态」时为 `True`；`False` 时 cursor **不得**
+  作为续流起点（快照 `recovery=degraded` + note 同步标注）。
+- `AppliedSnapshot` 保持冻结形状（无布尔 `cursor_valid` 字段）：接入方以
+  `recovery != full` 或 `diagnostics()["cursors_valid"]` 做 fail-closed 判定。
 
 ---
 
@@ -239,31 +252,56 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
 - `feed_lag` 恢复后**不自动**回到 full；需要显式 `reset_baseline()`，且 reset 之后
   仍因 `BASELINE_RESET_FRESH_VIEW` 保持 partial（**reset 不假恢复过去 full**）。
 
-### 7.2 reset 语义（生产化修复）
+### 7.2 reset 语义（生产化修复 + r2 账本一致性）
 
 - 新基线 = **命令实际执行位置**（sidecar 在有序队列中处理到该命令时的
   `processedFrontier`），**不是** producer 全局 frontier——排队在该命令之后的 feed
   不计入（否则快照 cursor 会跳过尚未应用的字节）。
 - reset 清除**旧基线之前**的 gap/duplicate sticky（不再永久污染 cursor）；
   `feed_lag` 与检测原因保留（不假恢复）。
-- 未确认（超时且未发送）的 reset 不执行；已发送未确认的在 note 中声明"可能已执行"。
+- 未确认（超时且未发送）的 reset **不执行**。
+- **迟到 ack 的账本回填（r2）**：账本更新只在 ack 处理路径发生且**只应用一次**——
+  即使调用方已超时，ack 到达后仍更新 `reset_count`/`baseline_cursor` 并解除
+  cursor 禁止；`sent` 标记与过期检查在同一临界区，准确区分"仍在排队（不执行）"
+  与"已在途（结果未知）"。
+- **未确认期结构性禁止（r2）**：已发送但未确认的 reset 置
+  `reset_unconfirmed=true` → `cursors_valid=false`（禁止已知失同步继续续流），
+  快照 `recovery=degraded`、note 标注 `reset-unconfirmed`；确认/引擎不可用后收敛。
 
 ---
 
-## 8. 进程所有权与生命周期
+## 8. 进程所有权与生命周期（r2 统一口径）
 
-- **出生即入组**：`CREATE_SUSPENDED | CREATE_NO_WINDOW` 创建 node → `AssignProcessToJobObject`
-  （本 emulator 自持的 `JobObjectGuard`，`KILL_ON_JOB_CLOSE`）→ `NtResumeProcess`。
-  实测证据：`guard.member_pids()` 含 sidecar PID（测试断言）。
+- **出生即入组（含门禁核验）**：`CREATE_SUSPENDED | CREATE_NO_WINDOW` 创建 node →
+  先读 retained handle 的 raw FILETIME（此后任何失败都有可核验身份）→
+  `AssignProcessToJobObject` → **`is_member` 与同一 Job `active>=1` 核验**
+  （false/unknown/查询失败一律 fail-closed，不 resume、不发布 ready）→
+  `NtResumeProcess`。实测证据：`guard.member_pids()` 含 sidecar PID（测试断言）。
 - **runner 硬死不残留**：Job 句柄由 runner 进程持有；宿主进程死亡 → 内核关闭句柄 →
   sidecar（及 conhost）整树终止。测试以"子进程创建 emulator 后 `os._exit(7)`"实证
   （`test_runner_hard_death_kills_sidecar_via_job`）。
-- **close 顺序**：优雅 `shutdown`（有界）→ 进程退出确认 → 关管道/join 线程 → 关 Job 句柄；
-  优雅失败 → `identity.kill_verified`（同一 handle 核验）→ Job `terminate_tree`。
-  **进程未确认退出前绝不关管道/Job**（否则 EOF/KILL_ON_CLOSE 会造成"伪收敛"）；
-  任何一步失败 → `closed=False` 且资源保留，重试可收敛（测试覆盖 force 注入与
-  guard.close 注入两条失败路径）。
-- 重复 close 幂等（返回已收敛报告）。
+- **统一有界清理（构造失败 / close 共用，唯一顺序）**：
+  1. 优雅 `shutdown`（仅 close；有界切片）；
+  2. **先清树**：retained-handle 核验终止 root + `terminate_tree` 整 Job 终止与
+     核验（**根 DEAD 不算整树空**；`remaining==[]` 才 verified；Job 句柄已被本进程
+     关闭时按 KILL_ON_JOB_CLOSE 语义视为内核已核验）；
+  3. **再** join reader/stderr/applier 与在途操作（applier 由 `closing` 唤醒）；
+  4. **最后**关闭流——仅在 reader/stderr 均已退出后执行（`BufferedReader.close`
+     在对方持有缓冲锁时可能无界等待；否则保留引用）；
+  5. `guard.close()`（最后一个 Job 句柄 = 内核兜底）。
+- **失败保留、同 owner 可重试**：任一步失败 `closed=False` 且资源保留；
+  `close()` 并发调用由 `_close_lock` 串行化、重复调用幂等。`closed` 记账包含
+  **stderr join 与三流关闭**（`EmulatorCloseReport.{stderr_joined,streams_closed,
+  job_verified}`），不再只看进程/guard。
+- **构造失败携带 owner**：异常为 `EmulatorStartupError`（`EmulatorUnavailableError`
+  子类），带 `owner.retry_cleanup()` 重试清理入口与 `residual`（pid/身份/清理核验/
+  stderr 摘要），不仅文本。
+- **现场验证（r2 对照，见 `evidence/r2/repro_p11_unbounded_close.py`）**：
+  root 退出、detached holder（Job 成员）持 stdout 时，旧实现 `close(timeout=3)`
+  阻塞 12.0s、构造失败清理阻塞 15.0s（由外部身份核验终止解除）；修复后同一现场
+  `close` **0.0s 有界收敛**（`job_verified=true`）、构造失败 **2.05s** 返回且
+  owner 可重试收敛。全部终止只针对自建同 handle 身份（raw FILETIME + Wait），
+  不扫描陌生 PID。
 
 ---
 
@@ -275,21 +313,29 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
 E:/software/miniforge/python.exe -m pytest tests/test_terminal_emulator.py -q
 ```
 
-矩阵（28 项）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、帧边界、主屏与备用屏
-headless↔headless 对拍（协议 A）、split UTF-8/CSI/OSC、pending tail cursor 边界、
-resize 排序、browserless >256 KiB + OutputLog 游标二次驱逐、applied 滞后、
-控制过期不执行、feed 快速有界、满队列 sticky 与有界诊断、控制队列溢出、
-五个 MA 缺口的先失败后通过回归、duplicate 防双消费、sidecar 崩溃可见、
-卡住/失败关闭重试、runner 硬死 Job 兜底、多实例 close 无泄漏。
+矩阵（r2 后 **39 项** = 28 原 + 11 r2）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、
+帧边界、主屏与备用屏 headless↔headless 对拍（协议 A）、split UTF-8/CSI/OSC、
+pending tail cursor 边界、resize 排序与 `resize_wait` 确认面、browserless >256 KiB +
+OutputLog 游标二次驱逐、applied 滞后、控制过期不执行、feed 快速有界、满队列 sticky
+与有界诊断、控制队列溢出、五个 MA 缺口的第一轮先失败后通过回归、duplicate 防双消费、
+sidecar 崩溃可见、卡住/失败关闭重试、runner 硬死 Job 兜底、多实例 close 无泄漏；
+**r2 新增**：root 死/孙活持 stdout 的 close 有界性、构造失败有界 + owner 重试、
+stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail-closed、
+迟到 reset ack 账本一次回填与 cursor 结构性禁止。
 
-证据目录 `audit/terminal/implementation/emulator/`：
+证据目录 `audit/terminal/implementation/emulator/`（旧证据不覆盖，r2 增量在 `evidence/r2/`）：
 
-- `pre_fix/`：基线复现（`pytest_pre_fix.log` = **10 failed / 18 passed**；含
-  `sidecar.baseline.mjs`、`emulator.baseline.py`、`test_terminal_emulator.baseline.py` 快照）；
-- `post_fix_pytest.log`：修复后 **28 passed**；
-- `regression_all_terminal.log`：全终端测试回归；
-- `pre_fix_log.json` / `post_fix_log.json`：失败/通过清单（机器可读）；
-- `repro_ma_gaps.py`：五项缺口的独立复现脚本（可重复执行）。
+- `pre_fix/` 与 `pre_fix_log.json`：第一轮基线复现（**10 failed / 18 passed**）；
+- `post_fix_pytest.log` / `post_fix_verbose.log` / `post_fix_log.json`：第一轮修复后 **28 passed**；
+- `repro_ma_gaps.py` / `repro_ma_gaps_post_fix.json`：第一轮五项缺口复现脚本；
+- **`evidence/r2/pre_fix_r2_tests.txt`**：r2 新增测试在第一轮实现上的失败证据（11 failed）；
+- **`evidence/r2/post_fix_r2_full.txt`**：r2 修复后全量 **39 passed**（含逐用例清单）；
+- **`evidence/r2/repro_p11_unbounded_close.py` / `.json`**：旧实现（`1daff2a6` 动态加载）
+  与修复实现的 P11/P1b 对照复现（修正 detached holder 现场；旧 12.0s/15.0s 阻塞
+  且无 owner → 新 0.0s/2.05s 有界 + owner 可重试；脚本自证 `ok: true`）；
+- **`evidence/r2/core_six_uv_pyte.txt`**：六核心文件（uv + pyte 0.8.2）**129 passed**；
+- **`evidence/r2/broadcast_uv_pyte.txt`**：`test_terminal_broadcast.py` **8 passed**
+  （与 129 分列；历史 137 为两者组合口径，不合并报告）。
 
 ---
 
@@ -323,15 +369,30 @@ resize 排序、browserless >256 KiB + OutputLog 游标二次驱逐、applied �
    引擎能力，升级 addon 需重跑矩阵）。
 5. **`allowProposedApi` 依赖**：addon-serialize 0.14.0 的既有要求；升级 addon/headless
    需重跑全矩阵（版本不符 sidecar 直接拒绝启动）。
-6. **非 Windows**：不提供 sidecar 宿主（抛 `EmulatorUnavailableError`）。
+6. **非 Windows**：不提供 sidecar 宿主（抛 `EmulatorStartupError`）。
 7. **跨 sidecar 重启的恢复**：sidecar 崩溃后引擎状态不可恢复（`recovery=none`）；
    runner 侧若重建 emulator，只能从 OutputLog 重放（游标窗口内）。
 8. **真实原语不足的替代**：未发现需要"假称"的原语；Job guard/身份核验均为真实调用，
    失败路径有测试。若未来某些 shell/安全上下文阻止 assign，属环境问题（构造期 fail-closed）。
+9. **resize 三方一致的其余两方**：`resize_wait` 只确认**引擎侧**已应用请求尺寸；
+   PTY/前端侧确认仍属 runner/服务层编排（本模块不触碰 PTY）。
+10. **runner 装配未在真实服务中验收**：本模块单测边界内验证；runner 目前不存在于本树。
 
 ---
 
 ## 12. 变更记录
 
-- `2026-10-03` 首版：`emulator.py` + `emulator_sidecar/`（exact pin）+ 28 项测试 +
+- `2026-10-03` 首版：`emulator.py` + `packages/core/terminal/emulator_sidecar/`（exact pin）+ 28 项测试 +
   证据；五项 MA 缺口先失败后通过（§10）；接口冻结面见 §3/§4（runner 桥接契约）。
+- `2026-10-03` **r2 返工（独立审查 `1daff2a6` 返工口径，`evidence/r2/`）**：
+  ① sidecar 迁移至专属路径 `packages/core/terminal/emulator_sidecar/`（同步路径/测试/文档，
+  exact pin 不变）；② 构造/close 统一总 deadline 的整 Job 清理与核验（先清树 → join →
+  关流 → guard.close；根 DEAD 非整树空；`BufferedReader.close` 不再无界等待）；
+  ③ `EmulatorStartupError` 携带可重试 owner/residual；④ assign 后 resume 前
+  `is_member`/`active` 门禁（false/unknown/query 失败 fail-closed）；⑤ `closed` 记账纳入
+  stderr join 与三流关闭，并发 close 串行化；⑥ `diagnostics()["cursors_valid"]`（快照形状
+  不变）；⑦ 迟到 reset ack 只回填一次账本 + 未确认期结构性禁止旧 cursor；
+  ⑧ `resize_wait` 确认面（不改冻结签名）；⑨ 清除 pre-fix 矛盾注释。
+  先失败证据：`evidence/r2/pre_fix_r2_tests.txt`（11 failed）；修复后 39/39
+  （`post_fix_r2_full.txt`）；对照复现 `repro_p11_unbounded_close.json`（`ok: true`）；
+  六核心 129（`core_six_uv_pyte.txt`）与 broadcast 8（`broadcast_uv_pyte.txt`）分列。

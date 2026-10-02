@@ -1,0 +1,563 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- E:\software\miniforge\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 39 items / 27 deselected / 12 selected
+
+tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded PASSED [  8%]
+tests/test_terminal_emulator.py::test_close_bounded_when_root_dead_descendant_holds_stdout FAILED [ 16%]
+tests/test_terminal_emulator.py::test_startup_failure_bounded_and_owner_retry FAILED [ 25%]
+tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable FAILED [ 33%]
+tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable FAILED [ 41%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_false] FAILED [ 50%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_raises] FAILED [ 58%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_none] FAILED [ 66%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_raises] FAILED [ 75%]
+tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_zero] FAILED [ 83%]
+tests/test_terminal_emulator.py::test_late_reset_ack_updates_ledger_once_and_gates_cursor FAILED [ 91%]
+tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface FAILED [100%]
+
+================================== FAILURES ===================================
+__________ test_close_bounded_when_root_dead_descendant_holds_stdout __________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AE8715D120>
+fake_sidecar = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1266/test_close_bounded_when_root_d0/fake_sidecar.cjs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87181010>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1266/test_close_bounded_when_root_d0')
+
+    def test_close_bounded_when_root_dead_descendant_holds_stdout(
+        emu_factory, fake_sidecar, monkeypatch, tmp_path
+    ):
+        """P11：root 退出但（Job 成员）孙进程持有 stdout → close 必须自身有界并核验收敛。
+    
+        审查现场证明该后代是 Job 成员（guard.member_pids() 含其 pid）；清理以真实
+        guard 所有权为准（整 Job 清理与核验），不扫描陌生 PID。
+        """
+        pid_file = tmp_path / "holder.pid"
+        monkeypatch.setenv("FAKE_SIDECAR_MODE", "ready-exit-child")
+        monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+        emu = emu_factory(sidecar_path=str(fake_sidecar), startup_timeout=20.0)
+        proc = emu._proc
+        assert _wait_until(lambda: _same_handle_dead(proc), 8.0), "fake root 未退出"
+        assert _wait_until(pid_file.exists, 8.0), "孙进程 pid 未落盘"
+        holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+>       handle, probe = _probe_retained(holder_pid)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:780: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+pid = 28360
+
+    def _probe_retained(pid: int):
+        handle = identity_module.open_process_for_probe(int(pid))
+        if not handle:
+>           raise RuntimeError(f"OpenProcess(probe) failed for pid={pid}")
+E           RuntimeError: OpenProcess(probe) failed for pid=28360
+
+tests\test_terminal_emulator.py:759: RuntimeError
+________________ test_startup_failure_bounded_and_owner_retry _________________
+
+fake_sidecar = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1266/test_startup_failure_bounded_a0/fake_sidecar.cjs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87182120>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1266/test_startup_failure_bounded_a0')
+
+    def test_startup_failure_bounded_and_owner_retry(fake_sidecar, monkeypatch, tmp_path):
+        """P1b/P10：构造失败清理必须自身有界；异常须携带可重试 owner 与残留信息。"""
+        pid_file = tmp_path / "holder.pid"
+        monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+        monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        outcome: dict = {}
+    
+        def ctor():
+            try:
+                HeadlessEmulator(sidecar_path=str(fake_sidecar), startup_timeout=2.0)
+            except Exception as exc:  # noqa: BLE001
+                outcome["exc"] = exc
+    
+        thread = threading.Thread(target=ctor, daemon=True)
+        t0 = time.monotonic()
+        thread.start()
+        thread.join(timeout=15.0)
+        blocked = thread.is_alive()
+        if blocked:
+            # 旧实现现场兜底：核验终止自有 root 与孙进程，解除清理阻塞
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=3.0)
+            if pid_file.exists():
+                try:
+                    holder_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                    h, probe = _probe_retained(holder_pid)
+                    ft = probe.identity.created_at_filetime if probe.identity else None
+                    if ft is not None:
+                        identity_module.kill_verified(holder_pid, int(ft), wait_timeout=3.0)
+                    identity_module.close_handle_checked(h)
+                except Exception:  # noqa: BLE001
+                    pass
+            thread.join(timeout=15.0)
+        elapsed = time.monotonic() - t0
+        exc = outcome.get("exc")
+        try:
+            assert not blocked, f"构造失败清理未被约束：{elapsed:.2f}s 仍未返回"
+            assert elapsed <= 2.0 + 10.0, f"构造失败远超总预算：{elapsed:.2f}s"
+            assert isinstance(exc, EmulatorUnavailableError)
+            owner = getattr(exc, "owner", None)
+>           assert owner is not None, "异常未携带可重试 owner（仅有文本）"
+E           AssertionError: 异常未携带可重试 owner（仅有文本）
+E           assert None is not None
+
+tests\test_terminal_emulator.py:871: AssertionError
+_____________ test_stderr_join_failure_is_accounted_and_retryable _____________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AE871C9620>
+
+    def test_stderr_join_failure_is_accounted_and_retryable(emu_factory):
+        """P8：stderr 未 join 必须阻止 closed=True；恢复后可重试收敛。"""
+        emu = emu_factory()
+        stubborn = threading.Thread(target=lambda: time.sleep(60), daemon=True, name="stub-stderr")
+        stubborn.start()
+        original = emu._stderr_thread
+        emu._stderr_thread = stubborn
+        try:
+            rep1 = emu.close(timeout=8.0)
+>           assert rep1.closed is False
+E           AssertionError: assert True is False
+E            +  where True = EmulatorCloseReport(closed=True, graceful=True, forced=False, process_exited=True, guard_closed=True, reader_joined=True, applier_joined=True, detail='ok', seconds=1.0160000000032596).closed
+
+tests\test_terminal_emulator.py:901: AssertionError
+____________ test_stream_close_failure_is_accounted_and_retryable _____________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AE871CA520>
+
+    def test_stream_close_failure_is_accounted_and_retryable(emu_factory):
+        """P8：流关闭失败必须阻止 closed=True，保留引用；恢复后重试收敛。"""
+        emu = emu_factory()
+        real_stdin = emu._proc.stdin
+    
+        class _BadStream:
+            def close(self):
+                raise OSError("injected stream close failure")
+    
+        emu._proc.stdin = _BadStream()
+        try:
+            rep1 = emu.close(timeout=8.0)
+>           assert rep1.closed is False
+E           AssertionError: assert True is False
+E            +  where True = EmulatorCloseReport(closed=True, graceful=False, forced=True, process_exited=True, guard_closed=True, reader_joined=True, applier_joined=True, detail='shutdown-unacknowledged, kill-verified:terminated;job-terminate:remaining=[], stdin-close-error', seconds=8.014999999999418).closed
+
+tests\test_terminal_emulator.py:923: AssertionError
+_______ test_assign_phase_membership_gate_fail_closed[is_member_false] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87183C50>
+injection = 'is_member_false'
+
+    @pytest.mark.parametrize(
+        "injection",
+        ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+    )
+    def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+        """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        if injection == "is_member_false":
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+        elif injection == "is_member_raises":
+    
+            def _raising_member(self, h):
+                raise OSError("injected is_member query failure")
+    
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+        elif injection == "active_none":
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", lambda self: None
+            )
+        elif injection == "active_raises":
+    
+            def _raising_active(self):
+                raise OSError("injected active query failure")
+    
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", _raising_active
+            )
+        else:
+            monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+        emu = None
+        exc = None
+        try:
+            try:
+                emu = HeadlessEmulator(startup_timeout=20.0)
+            except EmulatorUnavailableError as err:
+                exc = err
+        finally:
+            if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+                try:
+                    emu.close(timeout=6.0)
+                except Exception:  # noqa: BLE001
+                    pass
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+>       assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+E       AssertionError: 成员核验缺失：注入 is_member_false 下构造仍然成功
+E       assert None is not None
+
+tests\test_terminal_emulator.py:988: AssertionError
+_______ test_assign_phase_membership_gate_fail_closed[is_member_raises] _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87274EF0>
+injection = 'is_member_raises'
+
+    @pytest.mark.parametrize(
+        "injection",
+        ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+    )
+    def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+        """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        if injection == "is_member_false":
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+        elif injection == "is_member_raises":
+    
+            def _raising_member(self, h):
+                raise OSError("injected is_member query failure")
+    
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+        elif injection == "active_none":
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", lambda self: None
+            )
+        elif injection == "active_raises":
+    
+            def _raising_active(self):
+                raise OSError("injected active query failure")
+    
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", _raising_active
+            )
+        else:
+            monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+        emu = None
+        exc = None
+        try:
+            try:
+                emu = HeadlessEmulator(startup_timeout=20.0)
+            except EmulatorUnavailableError as err:
+                exc = err
+        finally:
+            if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+                try:
+                    emu.close(timeout=6.0)
+                except Exception:  # noqa: BLE001
+                    pass
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+>       assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+E       AssertionError: 成员核验缺失：注入 is_member_raises 下构造仍然成功
+E       assert None is not None
+
+tests\test_terminal_emulator.py:988: AssertionError
+_________ test_assign_phase_membership_gate_fail_closed[active_none] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87276210>
+injection = 'active_none'
+
+    @pytest.mark.parametrize(
+        "injection",
+        ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+    )
+    def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+        """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        if injection == "is_member_false":
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+        elif injection == "is_member_raises":
+    
+            def _raising_member(self, h):
+                raise OSError("injected is_member query failure")
+    
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+        elif injection == "active_none":
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", lambda self: None
+            )
+        elif injection == "active_raises":
+    
+            def _raising_active(self):
+                raise OSError("injected active query failure")
+    
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", _raising_active
+            )
+        else:
+            monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+        emu = None
+        exc = None
+        try:
+            try:
+                emu = HeadlessEmulator(startup_timeout=20.0)
+            except EmulatorUnavailableError as err:
+                exc = err
+        finally:
+            if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+                try:
+                    emu.close(timeout=6.0)
+                except Exception:  # noqa: BLE001
+                    pass
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+>       assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+E       AssertionError: 成员核验缺失：注入 active_none 下构造仍然成功
+E       assert None is not None
+
+tests\test_terminal_emulator.py:988: AssertionError
+________ test_assign_phase_membership_gate_fail_closed[active_raises] _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87277680>
+injection = 'active_raises'
+
+    @pytest.mark.parametrize(
+        "injection",
+        ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+    )
+    def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+        """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        if injection == "is_member_false":
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+        elif injection == "is_member_raises":
+    
+            def _raising_member(self, h):
+                raise OSError("injected is_member query failure")
+    
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+        elif injection == "active_none":
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", lambda self: None
+            )
+        elif injection == "active_raises":
+    
+            def _raising_active(self):
+                raise OSError("injected active query failure")
+    
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", _raising_active
+            )
+        else:
+            monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+        emu = None
+        exc = None
+        try:
+            try:
+                emu = HeadlessEmulator(startup_timeout=20.0)
+            except EmulatorUnavailableError as err:
+                exc = err
+        finally:
+            if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+                try:
+                    emu.close(timeout=6.0)
+                except Exception:  # noqa: BLE001
+                    pass
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+>       assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+E       AssertionError: 成员核验缺失：注入 active_raises 下构造仍然成功
+E       assert None is not None
+
+tests\test_terminal_emulator.py:988: AssertionError
+_________ test_assign_phase_membership_gate_fail_closed[active_zero] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87248A10>
+injection = 'active_zero'
+
+    @pytest.mark.parametrize(
+        "injection",
+        ["is_member_false", "is_member_raises", "active_none", "active_raises", "active_zero"],
+    )
+    def test_assign_phase_membership_gate_fail_closed(monkeypatch, injection):
+        """P3：assign 后 resume 前必须核验 Job 成员/active；false/unknown/查询失败均 fail-closed。"""
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        monkeypatch.setattr(emulator_module.subprocess, "Popen", spy_popen)
+        if injection == "is_member_false":
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", lambda self, h: False)
+        elif injection == "is_member_raises":
+    
+            def _raising_member(self, h):
+                raise OSError("injected is_member query failure")
+    
+            monkeypatch.setattr(guard_module.JobObjectGuard, "is_member", _raising_member)
+        elif injection == "active_none":
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", lambda self: None
+            )
+        elif injection == "active_raises":
+    
+            def _raising_active(self):
+                raise OSError("injected active query failure")
+    
+            monkeypatch.setattr(
+                guard_module.JobObjectGuard, "active_processes", _raising_active
+            )
+        else:
+            monkeypatch.setattr(guard_module.JobObjectGuard, "active_processes", lambda self: 0)
+        emu = None
+        exc = None
+        try:
+            try:
+                emu = HeadlessEmulator(startup_timeout=20.0)
+            except EmulatorUnavailableError as err:
+                exc = err
+        finally:
+            if emu is not None:  # 旧实现现场：构造未被门禁拒绝，收尾防泄漏
+                try:
+                    emu.close(timeout=6.0)
+                except Exception:  # noqa: BLE001
+                    pass
+            for proc in captured:
+                handle = int(getattr(proc, "_handle", 0) or 0)
+                ft = identity_module.read_creation_filetime(handle) if handle else None
+                if ft is not None and proc.poll() is None:
+                    identity_module.kill_verified(int(proc.pid), int(ft), wait_timeout=5.0)
+>       assert exc is not None, f"成员核验缺失：注入 {injection} 下构造仍然成功"
+E       AssertionError: 成员核验缺失：注入 active_zero 下构造仍然成功
+E       assert None is not None
+
+tests\test_terminal_emulator.py:988: AssertionError
+__________ test_late_reset_ack_updates_ledger_once_and_gates_cursor ___________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AE8725E3E0>
+fake_sidecar = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1266/test_late_reset_ack_updates_le0/fake_sidecar.cjs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AE87249D60>
+
+    def test_late_reset_ack_updates_ledger_once_and_gates_cursor(
+        emu_factory, fake_sidecar, monkeypatch
+    ):
+        """P9：迟到 reset ack 只回填一次实际执行账本；确认前结构性禁止旧 cursor 续流。"""
+        monkeypatch.setenv("FAKE_SIDECAR_MODE", "delayed-reset")
+        emu = emu_factory(
+            sidecar_path=str(fake_sidecar), startup_timeout=20.0, control_timeout=0.4
+        )
+        emu.feed_at(0, b"abcd")
+        t0 = time.monotonic()
+        snap = emu.reset_baseline()
+        elapsed = time.monotonic() - t0
+        assert elapsed < 1.5
+        assert "unconfirmed" in snap.note
+>       assert emu.cursors_valid is False, "reset 未确认期间不得允许旧 cursor 续流"
+E       AssertionError: reset 未确认期间不得允许旧 cursor 续流
+E       assert True is False
+E        +  where True = <packages.core.terminal.emulator.HeadlessEmulator object at 0x000001AE87249E20>.cursors_valid
+
+tests\test_terminal_emulator.py:1009: AssertionError
+____________________ test_resize_wait_confirmation_surface ____________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AE8727D300>
+
+    def test_resize_wait_confirmation_surface(emu_factory):
+        """resize 确认面：非阻塞 resize 无回执（不得推断三方一致）；resize_wait 可确认。"""
+        emu = emu_factory()
+>       assert emu.resize_wait(30, 100, timeout=8.0) is True
+               ^^^^^^^^^^^^^^^
+E       AttributeError: 'HeadlessEmulator' object has no attribute 'resize_wait'
+
+tests\test_terminal_emulator.py:1027: AttributeError
+============================== warnings summary ===============================
+tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable
+  C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread emulator-applier
+  
+  Traceback (most recent call last):
+    File "E:\software\miniforge\Lib\threading.py", line 1075, in _bootstrap_inner
+      self.run()
+    File "E:\software\miniforge\Lib\threading.py", line 1012, in run
+      self._target(*self._args, **self._kwargs)
+    File "D:\project\pan-worktrees\terminal-emulator-implement-20261003\packages\core\terminal\emulator.py", line 1057, in _applier_loop
+      if not self._send_op(op):
+             ^^^^^^^^^^^^^^^^^
+    File "D:\project\pan-worktrees\terminal-emulator-implement-20261003\packages\core\terminal\emulator.py", line 1100, in _send_op
+      proc.stdin.write(encode_frame(header, payload))
+      ^^^^^^^^^^^^^^^^
+  AttributeError: '_BadStream' object has no attribute 'write'
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_emulator.py::test_close_bounded_when_root_dead_descendant_holds_stdout
+FAILED tests/test_terminal_emulator.py::test_startup_failure_bounded_and_owner_retry
+FAILED tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable
+FAILED tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable
+FAILED tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_false]
+FAILED tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[is_member_raises]
+FAILED tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_none]
+FAILED tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_raises]
+FAILED tests/test_terminal_emulator.py::test_assign_phase_membership_gate_fail_closed[active_zero]
+FAILED tests/test_terminal_emulator.py::test_late_reset_ack_updates_ledger_once_and_gates_cursor
+FAILED tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface
+=========== 11 failed, 1 passed, 27 deselected, 1 warning in 14.75s ===========

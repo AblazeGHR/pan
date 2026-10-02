@@ -16,17 +16,32 @@
   duplicate 供料、显式 reset：一律 ``fidelity=partial|unavailable`` /
   ``recovery=partial|degraded|none``；``full`` 仅在被测能力矩阵内出现。
 
-进程所有权（runner 侧职责）：
+进程所有权与关闭纪律（runner 侧职责；r2 返工后统一为有界整 Job 清理）：
 
-- sidecar 以 ``CREATE_SUSPENDED`` 创建 → assign 进本 emulator 自持的
-  ``JobObjectGuard``（KILL_ON_JOB_CLOSE）→ ``NtResumeProcess``；runner 进程
-  硬死时内核关闭 Job 句柄并清理 sidecar，**不依赖 runner 的清理代码**。
-- ``close()`` 幂等、可重试：优雅 shutdown（有界）→ 身份核验终止
-  （``identity.kill_verified``，同 handle）→ Job 级终止；任一步失败则
-  ``closed=False`` 且资源保留（报告可重试），绝不假称已关闭。
+- sidecar 以 ``CREATE_SUSPENDED`` 创建 → 在 resume 之前完成 retained handle
+  身份读取、``AssignProcessToJobObject``、``is_member`` 与本 Job ``active``
+  核验（false/unknown/查询失败一律 fail-closed，不 resume）；runner 进程硬死
+  时内核关闭 Job 句柄并清理 sidecar，**不依赖 runner 的清理代码**。
+- 所有清理路径（构造失败 / ``close``）共享同一总 deadline 与同一顺序：
+  **先清树**（retained-handle 核验终止 root + ``terminate_tree`` 整 Job 终止与
+  核验；根 DEAD 不算整树空）→ **再**取消/join reader/stderr/applier/在途操作 →
+  **最后**关闭流（``BufferedReader.close`` 在 reader 持有缓冲锁时可能无界等待，
+  因此仅在 reader/stderr 均已退出后执行，否则保留引用）。失败一律
+  ``closed=False`` 且资源保留（报告可重试），绝不假称已关闭；``close()``
+  并发调用由 ``_close_lock`` 串行化，重复调用幂等。
+- 构造失败抛 :class:`EmulatorStartupError`：携带可重试 ``owner``
+  （``retry_cleanup()``）与 ``residual`` 残留信息（pid/身份/清理结果），不仅文本。
 - sidecar stdin/stdout 为有界二进制帧（u32 长度前缀）；帧超限、断帧、EOF、
   异常、卡住均有明确可见状态；64 位偏移一律十进制字符串（无 JS 浮点）。
 - token/秘密不进入 sidecar：协议里没有任何认证字段。
+
+cursor 账本一致性（r2）：
+
+- ``reset_baseline()`` 的账本更新统一发生在 **ack 处理路径**且只应用一次：
+  即使调用方已超时，迟到 ack 到达后仍回填实际执行账本；
+- reset 未确认（超时且已在途）期间 ``cursors_valid=False``：结构性禁止把旧
+  cursor 当续流起点（``diagnostics()["cursors_valid"]`` / 快照 note/recovery
+  可见），确认或引擎不可用后由判定收敛，禁止已知失同步继续续流。
 
 已知边界（不夸大）：
 
@@ -34,11 +49,6 @@
 - 引擎序列化能力缺口（滚动区、synchronized output、光标可见性等）由 sidecar
   检测器降级为 partial；详见
   ``docs/design/PAN_TERMINAL_EMULATOR_INTERFACES_20261003.md``。
-
-BASELINE REVISION (pre-fix)：本修订有意保留探索管线的两个前端化缺口，用于
-"先失败后通过"证据：(1) ``reset_baseline()`` 把新基线接到 **producer frontier**
-（含已入队但尚未执行的后续 feed），而不是命令实际执行位置；(2) reset 后旧的
-序列 gap/duplicate 标记继续污染 cursor。修复版在提交历史中可见。
 """
 
 from __future__ import annotations
@@ -54,7 +64,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, NoReturn
 
 from .contracts import (
     AppliedSnapshot,
@@ -67,9 +77,11 @@ from .contracts import (
 __all__ = [
     "EmulatorCloseReport",
     "EmulatorProtocolError",
+    "EmulatorStartupError",
     "EmulatorUnavailableError",
     "HeadlessEmulator",
     "PROTOCOL_VERSION",
+    "StartupCleanupOwner",
 ]
 
 PROTOCOL_VERSION = 1
@@ -103,9 +115,65 @@ class EmulatorUnavailableError(BackendUnavailableError):
     """sidecar 依赖缺失/启动失败：构造时解释；由 runner 决定基本终端策略。"""
 
 
+class EmulatorStartupError(EmulatorUnavailableError):
+    """构造失败（含清理结果）：携带可重试 owner 与残留信息，不仅文本。
+
+    - ``owner``（:class:`StartupCleanupOwner`）：自有（proc/guard/线程）引用，
+      可调用 ``retry_cleanup()`` 在有界预算内重试清理（幂等）；
+    - ``residual``：残留事实 dict（pid / raw FILETIME 字符串 / 清理核验结果 /
+      stderr 摘要），供 runner 决策与审计。
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        owner: "StartupCleanupOwner | None" = None,
+        residual: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.owner = owner
+        self.residual = dict(residual or {})
+
+
+@dataclass
+class StartupCleanupOwner:
+    """构造失败后仍可重试清理的自有资源句柄（不扫描陌生 PID）。"""
+
+    proc: Any = None
+    guard: Any = None
+    pid: int | None = None
+    identity: ProcessIdentity | None = None
+    reader: Any = None
+    stderr: Any = None
+    applier: Any = None
+
+    def retry_cleanup(self, *, timeout: float = 10.0) -> dict[str, Any]:
+        """重试整 Job 清理（先清树 → join → 关流 → guard.close；幂等、有界）。"""
+        detail: list[str] = []
+        outcome = _reap_process_resources(
+            proc=self.proc,
+            guard=self.guard,
+            pid=self.pid,
+            identity=self.identity,
+            reader=self.reader,
+            stderr=self.stderr,
+            applier=self.applier,
+            budget=float(timeout),
+            detail=detail,
+        )
+        outcome["detail"] = ", ".join(detail) if detail else "ok"
+        return outcome
+
+
 @dataclass(frozen=True)
 class EmulatorCloseReport:
-    """``HeadlessEmulator.close()`` 的结果（失败保留资源、可重试）。"""
+    """``HeadlessEmulator.close()`` 的结果（失败保留资源、可重试）。
+
+    ``closed`` 为收敛总判定：进程退出（retained handle）+ 整 Job 核验空 +
+    guard 关闭 + reader/stderr/applier 全部 join + 三流全部关闭，缺一即 False
+    且相应资源保留供重试。
+    """
 
     closed: bool
     graceful: bool
@@ -113,7 +181,10 @@ class EmulatorCloseReport:
     process_exited: bool
     guard_closed: bool
     reader_joined: bool
+    stderr_joined: bool
     applier_joined: bool
+    streams_closed: bool
+    job_verified: bool
     detail: str
     seconds: float
 
@@ -125,7 +196,10 @@ class EmulatorCloseReport:
             "process_exited": self.process_exited,
             "guard_closed": self.guard_closed,
             "reader_joined": self.reader_joined,
+            "stderr_joined": self.stderr_joined,
             "applier_joined": self.applier_joined,
+            "streams_closed": self.streams_closed,
+            "job_verified": self.job_verified,
             "detail": self.detail,
             "seconds": self.seconds,
         }
@@ -155,6 +229,7 @@ class _Op:
     ms: int = 0
     target: str = ""
     call: _ControlCall | None = None
+    ledger_applied: bool = False  # reset 账本只应用一次（ack 路径回填）
 
 
 class _FrameReader:
@@ -212,7 +287,8 @@ def encode_frame(header: dict[str, Any], payload: bytes = b"") -> bytes:
 
 
 def _default_sidecar_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "emulator_sidecar" / "sidecar.mjs"
+    # 专属路径：packages/core/terminal/emulator_sidecar/（与 emulator.py 同层级）
+    return Path(__file__).resolve().parent / "emulator_sidecar" / "sidecar.mjs"
 
 
 def _resolve_node_binary(explicit: str | None) -> str | None:
@@ -240,12 +316,204 @@ def _resume_process(process_handle: int) -> None:
         raise OSError(f"NtResumeProcess failed: 0x{status & 0xFFFFFFFF:08x}")
 
 
+def _force_terminate_root(
+    proc: Any,
+    guard: Any,
+    pid: int | None,
+    identity: ProcessIdentity | None,
+    *,
+    budget: float,
+    detail: list[str],
+) -> dict[str, Any]:
+    """清树：retained-handle 核验的 root 终止 + 整 Job 终止与核验。
+
+    以**真实 guard 所有权**为准（Job 成员枚举 / ``TerminateJobObject``），
+    不按名字/命令行扫描陌生 PID。根 DEAD **不算**整树空：即使 root 已退出，
+    也必须执行 ``terminate_tree`` 并核验剩余成员为空（``remaining == []``）。
+    """
+    from . import identity as identity_module
+
+    outcome: dict[str, Any] = {
+        "root_killed": False,
+        "root_dead": False,
+        "job_terminate_called": False,
+        "job_owned": None,
+        "job_verified": False,
+        "remaining": None,
+        "errors": [],
+    }
+    deadline = time.monotonic() + max(0.0, float(budget))
+    handle = 0
+    if proc is not None:
+        handle = int(getattr(proc, "_handle", 0) or 0)
+    # 1) root：仅在 retained handle 显示 ALIVE 且身份可比对时终止（fail-closed）
+    if handle:
+        state = identity_module.wait_state(handle)
+        if state is identity_module.ProcessStatus.ALIVE:
+            expected_ft = (
+                identity.created_at_filetime
+                if identity is not None
+                else None
+            )
+            if expected_ft is not None:
+                result = identity_module.kill_verified(
+                    int(pid if pid is not None else proc.pid),
+                    identity,
+                    wait_timeout=max(0.5, min(3.0, deadline - time.monotonic())),
+                )
+                outcome["root_killed"] = bool(result.killed)
+                if not result.killed and result.reason != "not_running":
+                    outcome["errors"].append(f"kill-verified:{result.reason}")
+            else:
+                outcome["errors"].append("kill-verified:expected-identity-missing")
+        outcome["root_dead"] = identity_module.wait_state(handle) is (
+            identity_module.ProcessStatus.DEAD
+        )
+    # 2) 整 Job 终止与核验（root 已死也必须做：根 DEAD 非整树空）
+    if guard is None:
+        outcome["errors"].append("guard-unavailable")
+    elif not getattr(guard, "handle_open", False):
+        # Job 句柄已被本进程关闭（前一轮 close 的 guard.close）：KILL_ON_JOB_CLOSE
+        # 的语义是"关闭最后一个句柄 -> 内核终止全部关联进程并销毁 Job"，
+        # 因此关闭成功本身就是整树终止的内核核验（无 breakaway 位、成员不可逃）。
+        outcome["job_verified"] = True
+        outcome["job_closed_previously"] = True
+    else:
+        try:
+            owned, remaining = guard.terminate_tree(
+                pid, timeout=max(0.5, min(2.5, deadline - time.monotonic()))
+            )
+            outcome["job_terminate_called"] = True
+            outcome["job_owned"] = owned
+            outcome["remaining"] = remaining
+            outcome["job_verified"] = remaining == []
+        except Exception as exc:  # noqa: BLE001 - 所有权未知必须如实上报
+            outcome["errors"].append(f"terminate-tree:{type(exc).__name__}")
+    # 3) root 复核（terminate_tree 可能刚刚终止了它）
+    if handle and not outcome["root_dead"]:
+        outcome["root_dead"] = identity_module.wait_state(handle) is (
+            identity_module.ProcessStatus.DEAD
+        )
+    if not outcome["root_dead"]:
+        outcome["errors"].append("root-not-dead")
+    return outcome
+
+
+def _close_proc_streams(proc: Any, detail: list[str]) -> bool:
+    """关闭子进程三个流；失败如实记录并返回 False（不抛）。
+
+    调用前提：reader/stderr 线程已退出（否则 ``BufferedReader.close`` 可能在
+    对方持有缓冲锁时无界等待——r2 审查 P11 的根因）。
+    """
+    ok = True
+    for name in ("stdin", "stdout", "stderr"):
+        stream = getattr(proc, name, None)
+        if stream is None:
+            continue
+        try:
+            stream.close()
+        except (OSError, ValueError):
+            ok = False
+            detail.append(f"{name}-close-error")
+    return ok
+
+
+def _reap_process_resources(
+    proc: Any,
+    guard: Any,
+    pid: int | None,
+    identity: ProcessIdentity | None,
+    reader: Any = None,
+    stderr: Any = None,
+    applier: Any = None,
+    *,
+    budget: float = 5.0,
+    detail: list[str] | None = None,
+) -> dict[str, Any]:
+    """统一整 Job 清理与核验（构造失败 / ``close`` 共用；全程有界）。
+
+    顺序（MA r2 口径）：**先清树**（root 终止 + ``terminate_tree`` + 核验）→
+    **再**取消/join reader/stderr/applier/在途操作 → **最后**关闭流 →
+    ``guard.close()``（内核级兜底）。失败保留引用，``closed=False`` 可重试。
+    """
+    detail = detail if detail is not None else []
+    t0 = time.monotonic()
+    deadline = t0 + max(0.15, float(budget))
+    outcome: dict[str, Any] = {
+        "root_dead": False,
+        "root_killed": False,
+        "job_terminate_called": False,
+        "job_verified": False,
+        "remaining": None,
+        "reader_joined": False,
+        "stderr_joined": False,
+        "applier_joined": False,
+        "streams_closed": False,
+        "guard_closed": False,
+        "errors": [],
+        "seconds": 0.0,
+        "closed": False,
+    }
+    # 1) 清树（可注入：测试以 monkeypatch 替换 _force_terminate_root 模拟终止失败）
+    term = _force_terminate_root(
+        proc, guard, pid, identity, budget=max(0.0, deadline - time.monotonic()), detail=detail
+    )
+    outcome["root_dead"] = bool(term.get("root_dead"))
+    outcome["root_killed"] = bool(term.get("root_killed"))
+    outcome["job_terminate_called"] = bool(term.get("job_terminate_called"))
+    outcome["job_verified"] = bool(term.get("job_verified"))
+    outcome["remaining"] = term.get("remaining")
+    outcome["job_owned"] = term.get("job_owned")
+    outcome["errors"].extend(term.get("errors") or [])
+
+    def _join(thread: Any, slice_seconds: float) -> bool:
+        if thread is None:
+            return True
+        remaining = max(0.0, deadline - time.monotonic())
+        thread.join(timeout=min(slice_seconds, remaining))
+        return not thread.is_alive()
+
+    # 2) 取消/join 线程与在途操作（applier 已由调用方以 closing 唤醒）
+    outcome["reader_joined"] = _join(reader, 2.5)
+    outcome["stderr_joined"] = _join(stderr, 1.5)
+    outcome["applier_joined"] = _join(applier, 1.0)
+    # 3) 关闭流：仅在 reader 与 stderr 均已退出后（否则保留引用，可重试）
+    if outcome["reader_joined"] and outcome["stderr_joined"] and proc is not None:
+        outcome["streams_closed"] = _close_proc_streams(proc, detail)
+        if not outcome["streams_closed"]:
+            detail.append("stream-close-failed-retryable")
+    else:
+        detail.append("streams-retained-reader-active")
+    # 4) guard.close（最后一个 Job 句柄：内核终止整树；失败保留可重试）
+    if guard is not None:
+        try:
+            outcome["guard_closed"] = bool(guard.close())
+        except Exception as exc:  # noqa: BLE001 - 如实上报
+            outcome["guard_closed"] = False
+            outcome["errors"].append(f"guard-close:{type(exc).__name__}")
+        if not outcome["guard_closed"]:
+            detail.append("guard-close-failed-retryable")
+    else:
+        outcome["guard_closed"] = True
+    outcome["closed"] = bool(
+        outcome["root_dead"]
+        and outcome["job_verified"]
+        and outcome["guard_closed"]
+        and outcome["reader_joined"]
+        and outcome["stderr_joined"]
+        and outcome["applier_joined"]
+        and outcome["streams_closed"]
+    )
+    outcome["seconds"] = round(time.monotonic() - t0, 3)
+    return outcome
+
+
 class HeadlessEmulator:
     """runner 生命周期内常驻的权威仿真器（Node headless-xterm sidecar 宿主）。
 
-    直接构造即启动 sidecar；构造失败抛
-    :class:`EmulatorUnavailableError`（依赖缺失/握手失败，资源尽力清理并在
-    异常文本中如实报告残留）。生产装配由 runner 负责；本类不触碰 PTY。
+    直接构造即启动 sidecar；构造失败抛 :class:`EmulatorStartupError`
+    （依赖缺失/门禁失败/握手失败；携带可重试 owner 与残留信息）。
+    生产装配由 runner 负责；本类不触碰 PTY。
     """
 
     ENGINE_FAMILY = "xterm-headless+serialize"
@@ -300,7 +568,7 @@ class HeadlessEmulator:
         self._feed_lag = False
         self._gap_ranges: deque[tuple[int, int]] = deque()
         self._duplicate_ranges: deque[tuple[int, int]] = deque()
-        # BASELINE (pre-fix): rejection diagnostics grow without bound.
+        # 严格有界（max_rejected_ranges + overflow 计数）。
         self._rejected_ranges: list[tuple[int, int]] = []
         self._reasons: list[str] = []
         self._reason_overflow = 0
@@ -319,16 +587,23 @@ class HeadlessEmulator:
             "ops_dropped_engine_dead": 0,
             "resets": 0,
             "unconfirmed_ops": 0,
+            "resize_rejected": 0,
+            "resize_confirmed": 0,
+            "engine_op_errors": 0,
         }
 
         self._reset_count = 0
         self._baseline_cursor = int(start_cursor)
+        # reset 已发送但未确认：期间结构性禁止旧 cursor 作为续流起点
+        self._reset_unconfirmed = False
+        self._applied_resize: list[int] | None = None
         self._engine_error_note: str | None = None
         self._sticky_error_note: str | None = None
         self._engine_dead = False
         self._closing = False
         self._closed = False
         self._close_report: EmulatorCloseReport | None = None
+        self._close_lock = threading.Lock()
 
         self._cond = threading.Condition(self._lock)
         self._ack_lock = threading.Lock()
@@ -355,20 +630,28 @@ class HeadlessEmulator:
 
         # --- platform gate ------------------------------------------------
         if sys.platform != "win32":
-            raise EmulatorUnavailableError(
+            raise EmulatorStartupError(
                 "HeadlessEmulator 生产宿主仅支持 Windows（Job Object 所有权）；"
-                f"sys.platform={sys.platform!r}"
+                f"sys.platform={sys.platform!r}",
+                owner=None,
+                residual={"reason": "unsupported-platform"},
             )
 
         node = _resolve_node_binary(node_binary)
         if not node:
-            raise EmulatorUnavailableError(
+            raise EmulatorStartupError(
                 "未找到 Node 运行时：sidecar 不可用。请安装 Node（>=18）或通过 "
-                "node_binary / PAN_TERMINAL_NODE_BIN 指定；终端基本策略由 runner 决定。"
+                "node_binary / PAN_TERMINAL_NODE_BIN 指定；终端基本策略由 runner 决定。",
+                owner=None,
+                residual={"reason": "node-missing"},
             )
         sidecar = Path(sidecar_path) if sidecar_path is not None else _default_sidecar_path()
         if not sidecar.is_file():
-            raise EmulatorUnavailableError(f"sidecar 脚本不存在：{sidecar}")
+            raise EmulatorStartupError(
+                f"sidecar 脚本不存在：{sidecar}",
+                owner=None,
+                residual={"reason": "sidecar-script-missing", "sidecar_path": str(sidecar)},
+            )
 
         self._node_binary = node
         self._sidecar_path = sidecar
@@ -382,7 +665,15 @@ class HeadlessEmulator:
         from . import guard as guard_module
         from . import identity as identity_module
 
-        self._guard = guard_module.JobObjectGuard()
+        try:
+            self._guard = guard_module.JobObjectGuard()
+        except Exception as exc:
+            raise EmulatorStartupError(
+                f"Job 守卫创建失败（{type(exc).__name__}: {exc}）",
+                owner=StartupCleanupOwner(),
+                residual={"reason": "guard-create-failed"},
+            ) from exc
+
         flags = _CREATE_SUSPENDED | _CREATE_NO_WINDOW
         try:
             self._proc = subprocess.Popen(
@@ -394,22 +685,33 @@ class HeadlessEmulator:
                 cwd=str(self._sidecar_path.parent),
             )
         except OSError as exc:
-            self._guard.close()
-            raise EmulatorUnavailableError(f"sidecar 进程创建失败：{exc}") from exc
+            self._fail_startup(
+                f"sidecar 进程创建失败（{type(exc).__name__}: {exc}）", cause=exc
+            )
 
         self._sidecar_pid = int(self._proc.pid)
         try:
-            self._guard.assign(int(self._proc._handle))  # type: ignore[attr-defined]
+            # retained handle 身份读取先于 assign/resume：此后任何失败都有
+            # 可核验身份用于清理（kill_verified 拒绝无身份目标）。
             ft = identity_module.read_creation_filetime(int(self._proc._handle))  # type: ignore[attr-defined]
             if ft is None:
-                raise OSError("无法读取 sidecar 创建时间（fail-closed）")
-            self._sidecar_identity = ProcessIdentity(self._sidecar_pid, created_at_filetime=int(ft))
+                raise OSError("无法读取 sidecar 创建时间（retained handle，fail-closed）")
+            self._sidecar_identity = ProcessIdentity(
+                self._sidecar_pid, created_at_filetime=int(ft)
+            )
+            self._guard.assign(int(self._proc._handle))  # type: ignore[attr-defined]
+            # assign 之后、resume 之前：成员与 active 核验。
+            # false / unknown / 查询失败一律 fail-closed（不 resume、不发布 ready）。
+            if not self._guard.is_member(int(self._proc._handle)):  # type: ignore[attr-defined]
+                raise OSError("assign 后 is_member=False：sidecar 不在自有 Job（fail-closed）")
+            active = self._guard.active_processes()
+            if active is None:
+                raise OSError("Job active 查询失败（unknown，fail-closed）")
+            if int(active) < 1:
+                raise OSError(f"Job active={int(active)}：sidecar 未计入（fail-closed）")
             _resume_process(int(self._proc._handle))  # type: ignore[attr-defined]
-        except Exception as exc:  # fail-closed: never leave an unguarded sidecar
-            detail = self._cleanup_failed_startup()
-            raise EmulatorUnavailableError(
-                f"sidecar 门禁失败（{type(exc).__name__}: {exc}）；清理结果：{detail}"
-            ) from exc
+        except Exception as exc:
+            self._fail_startup(f"sidecar 门禁失败（{type(exc).__name__}: {exc}）", cause=exc)
 
         self._stderr_thread = threading.Thread(
             target=self._stderr_loop, name="emulator-stderr", daemon=True
@@ -436,66 +738,71 @@ class HeadlessEmulator:
             self._proc.stdin.write(encode_frame(hello))
             self._proc.stdin.flush()
         except (OSError, ValueError, EmulatorProtocolError) as exc:
-            detail = self._cleanup_failed_startup()
-            raise EmulatorUnavailableError(
-                f"sidecar hello 写入失败（{type(exc).__name__}）；清理结果：{detail}"
-            ) from exc
+            self._fail_startup(f"sidecar hello 写入失败（{type(exc).__name__}）", cause=exc)
 
         if not self._ready_event.wait(self._startup_timeout):
-            detail = self._cleanup_failed_startup()
-            raise EmulatorUnavailableError(
-                f"sidecar 启动握手超时（{self._startup_timeout}s）；stderr={self._stderr_digest()!r}；"
-                f"清理结果：{detail}"
+            self._fail_startup(
+                f"sidecar 启动握手超时（{self._startup_timeout}s）；"
+                f"stderr={self._stderr_digest()!r}"
             )
         if self._startup_failure is not None:
-            detail = self._cleanup_failed_startup()
-            raise EmulatorUnavailableError(
-                f"sidecar 不可用：{self._startup_failure}；清理结果：{detail}"
-            )
+            self._fail_startup(f"sidecar 不可用：{self._startup_failure}")
 
         self._applier_thread = threading.Thread(
             target=self._applier_loop, name="emulator-applier", daemon=True
         )
         self._applier_thread.start()
 
-    def _cleanup_failed_startup(self) -> str:
-        """启动失败清理：尽力终止 + 关 Job + 关管道；返回如实结果文本。"""
-        parts: list[str] = []
-        proc = self._proc
-        if proc is not None:
-            try:
-                if proc.poll() is None:
-                    proc.terminate()
-                    try:
-                        proc.wait(timeout=2.0)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        try:
-                            proc.wait(timeout=2.0)
-                        except subprocess.TimeoutExpired:
-                            parts.append("process-still-alive")
-                else:
-                    parts.append("process-already-exited")
-            except OSError as exc:
-                parts.append(f"terminate-error:{type(exc).__name__}")
-            for stream_name in ("stdin", "stdout", "stderr"):
-                stream = getattr(proc, stream_name, None)
-                if stream is not None:
-                    try:
-                        stream.close()
-                    except OSError:
-                        parts.append(f"{stream_name}-close-error")
-        if self._guard is not None:
-            try:
-                closed = bool(self._guard.close())
-                parts.append("guard-closed" if closed else "guard-close-failed")
-            except Exception as exc:  # pragma: no cover - defensive
-                parts.append(f"guard-error:{type(exc).__name__}")
-        if self._reader_thread is not None:
-            self._reader_thread.join(timeout=1.0)
-        if self._stderr_thread is not None:
-            self._stderr_thread.join(timeout=1.0)
-        return ", ".join(parts) if parts else "nothing-to-clean"
+    def _fail_startup(self, reason: str, *, cause: BaseException | None = None) -> NoReturn:
+        """构造失败统一出口：有界整 Job 清理 + 携带 owner/残留信息的异常。
+
+        清理顺序与 ``close`` 一致（先清树 → join 线程 → 关流 → guard.close），
+        总预算为 ``shutdown_timeout``；异常携带可重试 ``owner``（``retry_cleanup``）
+        与 ``residual``（pid/身份/清理核验/stderr 摘要），不仅文本。
+        """
+        detail: list[str] = []
+        owner = StartupCleanupOwner(
+            proc=self._proc,
+            guard=self._guard,
+            pid=self._sidecar_pid,
+            identity=self._sidecar_identity,
+            reader=self._reader_thread,
+            stderr=self._stderr_thread,
+            applier=self._applier_thread,
+        )
+        outcome = _reap_process_resources(
+            proc=self._proc,
+            guard=self._guard,
+            pid=self._sidecar_pid,
+            identity=self._sidecar_identity,
+            reader=self._reader_thread,
+            stderr=self._stderr_thread,
+            applier=self._applier_thread,
+            budget=self._shutdown_timeout,
+            detail=detail,
+        )
+        residual = {
+            "reason": reason,
+            "pid": self._sidecar_pid,
+            "identity_filetime": (
+                str(self._sidecar_identity.created_at_filetime)
+                if self._sidecar_identity is not None
+                else None
+            ),
+            "process_exited": outcome["root_dead"],
+            "job_verified": outcome["job_verified"],
+            "guard_closed": outcome["guard_closed"],
+            "cleanup_closed": outcome["closed"],
+            "cleanup_seconds": outcome["seconds"],
+            "cleanup_detail": ", ".join(detail) if detail else "ok",
+            "cleanup_errors": list(outcome["errors"]),
+            "stderr_digest": self._stderr_digest(),
+        }
+        message = (
+            f"{reason}；清理={'converged' if outcome['closed'] else 'retained'}"
+            f"（{outcome['seconds']}s, pid={self._sidecar_pid}）"
+        )
+        raise EmulatorStartupError(message, owner=owner, residual=residual) from cause
 
     # ------------------------------------------------------------------
     # background threads
@@ -635,7 +942,13 @@ class HeadlessEmulator:
         call.event.set()
 
     def _enqueue_control(
-        self, kind: str, timeout: float, *, payload: bytes = b""
+        self,
+        kind: str,
+        timeout: float,
+        *,
+        payload: bytes = b"",
+        rows: int = 0,
+        cols: int = 0,
     ) -> _ControlCall | None:
         call = _ControlCall(kind=kind, timeout=timeout)
         nbytes = len(payload)
@@ -647,7 +960,14 @@ class HeadlessEmulator:
                 self._count_locked("control_queue_overflow")
                 self._record_reason_locked("CONTROL_QUEUE_OVERFLOW")
                 return None
-            op = _Op(op_id=self._next_op_id, kind=kind, call=call, data=payload or None)
+            op = _Op(
+                op_id=self._next_op_id,
+                kind=kind,
+                call=call,
+                data=payload or None,
+                rows=max(1, int(rows)) if rows else 0,
+                cols=max(1, int(cols)) if cols else 0,
+            )
             self._next_op_id += 1
             self._ops.append(op)
             self._queue_ops += 1
@@ -727,7 +1047,11 @@ class HeadlessEmulator:
             self._cond.notify_all()
 
     def resize(self, rows: int, cols: int) -> None:
-        """入队一次 resize（与 feed 同一有序通道；占同一 op 预算）。"""
+        """入队一次 resize（与 feed 同一有序通道；占同一 op 预算）。
+
+        **无 per-op 回执**：调用方不得由"已调用 resize"推断终端/PTY/引擎三方
+        尺寸一致；需要确认时使用 :meth:`resize_wait`（不改冻结协议签名）。
+        """
         with self._lock:
             if self._closing or self._closed or self._engine_dead:
                 self._count_locked("ops_dropped_engine_dead")
@@ -735,6 +1059,7 @@ class HeadlessEmulator:
             if not self._can_enqueue_locked(0):
                 self._record_overflow_locked("control_queue")
                 self._count_locked("control_queue_overflow")
+                self._count_locked("resize_rejected")
                 self._record_reason_locked("CONTROL_QUEUE_OVERFLOW")
                 return
             op = _Op(
@@ -748,6 +1073,35 @@ class HeadlessEmulator:
             self._queue_ops += 1
             self._count_locked("control_ops")
             self._cond.notify_all()
+
+    def resize_wait(self, rows: int, cols: int, *, timeout: float | None = None) -> bool:
+        """入队 resize 并等待引擎确认（三方一致核对面；不改冻结协议签名）。
+
+        返回 ``True`` 仅当 sidecar 回报的 ``rows/cols`` 与请求一致；超时（排队中
+        过期则不执行）、队列满拒绝、引擎不可用、确认值不一致均返回 ``False``。
+        """
+        t = self._control_timeout if timeout is None else max(0.01, float(timeout))
+        rows_i, cols_i = max(1, int(rows)), max(1, int(cols))
+        call = self._enqueue_control("resize", t, rows=rows_i, cols=cols_i)
+        if call is None:
+            with self._lock:
+                if not (self._closing or self._closed or self._engine_dead):
+                    self._count_locked("resize_rejected")
+            return False
+        if not call.event.wait(t):
+            self._expire_control(call)
+            with self._lock:
+                self._count_locked("control_timeouts")
+                self._count_locked("resize_rejected")
+            return False
+        if call.failure is not None or call.header is None:
+            return False
+        header = call.header
+        return (
+            str(header.get("type")) == "applied"
+            and int(header.get("rows", -1)) == rows_i
+            and int(header.get("cols", -1)) == cols_i
+        )
 
     def snapshot(self, *, timeout: float | None = None) -> AppliedSnapshot:
         t = self._snapshot_timeout if timeout is None else max(0.01, float(timeout))
@@ -810,12 +1164,16 @@ class HeadlessEmulator:
             self._expire_control(call)
             with self._lock:
                 self._count_locked("control_timeouts")
+                if kind == "reset":
+                    # 结构性禁止：已发送（在途）的 reset 结果未知时，旧 cursor
+                    # 不得作为续流起点，直到迟到 ack 回填或引擎不可用。
+                    self._reset_unconfirmed = bool(call.sent)
             return self._timeout_snapshot(kind, timeout, call)
         if call.failure:
             return self._degraded_snapshot_now(f"engine-unavailable:{call.failure}")
         assert call.header is not None
-        if kind == "reset":
-            self._apply_reset_result(call.header)
+        # reset 账本更新统一发生在 ack 处理路径（_complete_op），此处不再重复应用，
+        # 保证"只应用一次"且迟到 ack 同样回填。
         return self._compose_snapshot(call.header, call.payload)
 
     def _expire_control(self, call: _ControlCall) -> None:
@@ -850,6 +1208,8 @@ class HeadlessEmulator:
                 if reason not in ("SOURCE_GAP_STICKY", "DUPLICATE_FEED_BYTES")
             ]
             self._record_reason_locked("BASELINE_RESET_FRESH_VIEW")
+            # 确认到达：结构性禁止解除（账本与实际执行位置已对齐）
+            self._reset_unconfirmed = False
 
     def _ledger_snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -893,6 +1253,7 @@ class HeadlessEmulator:
             duplicate_blocks = self._counters.get("duplicate_blocks", 0)
             gap_info = list(self._gap_ranges)
             applied = self._applied_cursor
+            reset_unconfirmed = self._reset_unconfirmed
 
         reasons: list[str] = []
         reason_overflow = False
@@ -909,7 +1270,8 @@ class HeadlessEmulator:
             else:
                 reasons.append("REASON_TABLE_OVERFLOW")
 
-        degraded = feed_lag or sticky_note is not None
+        # reset 未确认（已发送、结果未知）期间：旧 cursor 被结构性禁止续流
+        degraded = feed_lag or sticky_note is not None or reset_unconfirmed
         if engine_dead:
             fidelity = Fidelity.UNAVAILABLE
             recovery = Recovery.NONE
@@ -934,6 +1296,8 @@ class HeadlessEmulator:
             note_bits.append(f"source_gap={gap_info[:1]}")
         if duplicate_blocks:
             note_bits.append(f"duplicate_blocks={duplicate_blocks}")
+        if reset_unconfirmed:
+            note_bits.append("reset-unconfirmed(cursors_valid=false; do not resume from old cursor)")
         if reasons:
             note_bits.append("reasons=" + ",".join(reasons[:8]))
         if engine_note:
@@ -1046,6 +1410,10 @@ class HeadlessEmulator:
                     self._count_locked("control_expired_skipped")
                     skip = True
                 else:
+                    # `sent` 与过期检查在同一临界区：调用方超时后读 `sent`
+                    # 即可精确区分"仍在排队（不执行）"与"已在途（结果未知）"。
+                    if op.call is not None:
+                        op.call.sent = True
                     with self._ack_lock:
                         self._inflight_op_id = op.op_id
                         self._inflight_ack = None
@@ -1093,13 +1461,11 @@ class HeadlessEmulator:
             header["target"] = op.target
         else:  # pragma: no cover - internal guard
             return False
-        if op.call is not None:
-            op.call.sent = True
         try:
             proc.stdin.write(encode_frame(header, payload))
             proc.stdin.flush()
             return True
-        except (OSError, ValueError, EmulatorProtocolError) as exc:
+        except Exception as exc:  # noqa: BLE001 - applier 线程不得因流异常死亡
             self._note_engine_failure(f"send-error:{type(exc).__name__}")
             return False
 
@@ -1155,6 +1521,18 @@ class HeadlessEmulator:
         if applied is not None:
             with self._lock:
                 self._applied_cursor = max(self._applied_cursor, int(applied))
+        if op.kind == "reset" and not op.ledger_applied:
+            # ack 路径统一回填账本（只应用一次）：即使调用方已超时，迟到 ack
+            # 也会把 reset_count/baseline 对齐到实际执行位置并解除 cursor 禁止。
+            op.ledger_applied = True
+            self._apply_reset_result(header)
+        if op.kind == "resize":
+            with self._lock:
+                self._applied_resize = [
+                    int(header.get("rows", op.rows)),
+                    int(header.get("cols", op.cols)),
+                ]
+                self._count_locked("resize_confirmed")
         if op.call is not None:
             op.call.header = header
             op.call.payload = payload
@@ -1183,6 +1561,11 @@ class HeadlessEmulator:
                 "applied_cursor": str(self._applied_cursor),
                 "baseline_cursor": str(self._baseline_cursor),
                 "reset_count": self._reset_count,
+                "reset_unconfirmed": self._reset_unconfirmed,
+                "cursors_valid": self._cursors_valid_locked(),
+                "applied_resize": (
+                    list(self._applied_resize) if self._applied_resize is not None else None
+                ),
                 "feed_lag": self._feed_lag,
                 "queue_bytes": self._queue_bytes,
                 "queue_ops": self._queue_ops,
@@ -1232,135 +1615,80 @@ class HeadlessEmulator:
         return True
 
     def close(self, *, timeout: float | None = None) -> EmulatorCloseReport:
+        """有界、幂等、可重试的关闭；并发调用由 ``_close_lock`` 串行化。
+
+        顺序（r2 口径）：优雅 shutdown（有界切片）→ **统一整 Job 清理与核验**
+        （先清树：root 终止 + ``terminate_tree`` + 成员/active 核验 → 再
+        join reader/stderr/applier 与在途操作 → 最后关闭流 → ``guard.close``）。
+        任一步失败：``closed=False`` 且资源保留（同一 owner 重试收敛）。
+        """
+        with self._close_lock:
+            return self._close_serialized(timeout)
+
+    def _close_serialized(self, timeout: float | None) -> EmulatorCloseReport:
         start = time.monotonic()
         with self._lock:
             if self._close_report is not None and self._close_report.closed:
                 return self._close_report
-        budget = self._shutdown_timeout if timeout is None else max(0.1, float(timeout))
+        budget = self._shutdown_timeout if timeout is None else max(0.2, float(timeout))
         deadline = start + budget
         detail: list[str] = []
         graceful = False
-        forced = False
-
-        # 1) graceful: enqueue shutdown and let the applier deliver it in order.
         proc = self._proc
-        if proc is None:
-            self._closing = True
-        elif proc.poll() is None and not self._engine_dead and not self._closing:
-            call = self._enqueue_control("shutdown", max(0.1, deadline - time.monotonic()))
+
+        # 1) graceful shutdown：仅当进程仍在、引擎未死、未进入关闭；预算切片。
+        if (
+            proc is not None
+            and proc.poll() is None
+            and not self._engine_dead
+            and not self._closing
+        ):
+            slice_ = min(max(deadline - time.monotonic(), 0.0), max(0.5, budget * 0.5))
+            call = self._enqueue_control("shutdown", slice_)
             if call is not None:
-                remaining = max(0.0, deadline - time.monotonic())
-                if call.event.wait(remaining) and call.header is not None:
+                if call.event.wait(slice_) and call.header is not None:
                     graceful = True
                 else:
                     detail.append("shutdown-unacknowledged")
 
-        # 2) bounded wait for process exit
-        process_exited = self._wait_process_exit(deadline - time.monotonic())
-
-        # 3) forced path when the graceful path did not converge
-        if not process_exited and proc is not None:
-            forced = True
-            detail.append(self._force_terminate())
-            process_exited = self._wait_process_exit(max(0.5, deadline - time.monotonic()))
-            if not process_exited:
-                detail.append("process-still-alive-after-force")
-
-        # 4) stop the applier (always; bounded)
+        # 2) 停止 applier：closing 丢弃队列并唤醒在途 ack 等待者。
         with self._lock:
             self._closing = True
             self._cond.notify_all()
         with self._ack_lock:
             self._ack_cond.notify_all()
-        applier_joined = True
-        if self._applier_thread is not None:
-            self._applier_thread.join(timeout=2.0)
-            applier_joined = not self._applier_thread.is_alive()
 
-        # 5) only reap resources once the process is confirmed exited: a failed
-        #    close retains the guard / pipes / reader so a retry can converge
-        #    (closing the pipes or the job handle earlier would kill the
-        #    sidecar through EOF / KILL_ON_JOB_CLOSE and fake convergence).
-        reader_joined = False
-        guard_closed = False
-        if process_exited:
-            if proc is not None:
-                for stream_name in ("stdin", "stdout", "stderr"):
-                    stream = getattr(proc, stream_name, None)
-                    if stream is not None:
-                        try:
-                            stream.close()
-                        except OSError:
-                            detail.append(f"{stream_name}-close-error")
-            if self._reader_thread is not None:
-                self._reader_thread.join(timeout=2.0)
-                reader_joined = not self._reader_thread.is_alive()
-            else:
-                reader_joined = True
-            if self._stderr_thread is not None:
-                self._stderr_thread.join(timeout=1.0)
-            if self._guard is not None:
-                try:
-                    guard_closed = bool(self._guard.close())
-                except Exception as exc:  # pragma: no cover - defensive
-                    guard_closed = False
-                    detail.append(f"guard-close-error:{type(exc).__name__}")
-                if not guard_closed:
-                    detail.append("guard-close-failed-retryable")
-            else:
-                guard_closed = True
-        else:
-            detail.append("resources-retained-for-retry")
-
-        closed = bool(process_exited and guard_closed and reader_joined and applier_joined)
+        # 3) 统一整 Job 清理与核验（与剩余预算共享；失败保留引用可重试）。
+        outcome = _reap_process_resources(
+            proc=proc,
+            guard=self._guard,
+            pid=self._sidecar_pid,
+            identity=self._sidecar_identity,
+            reader=self._reader_thread,
+            stderr=self._stderr_thread,
+            applier=self._applier_thread,
+            budget=max(0.05, deadline - time.monotonic()),
+            detail=detail,
+        )
+        forced = bool(outcome.get("root_killed")) or bool(outcome.get("job_owned"))
         report = EmulatorCloseReport(
-            closed=closed,
+            closed=bool(outcome["closed"]),
             graceful=graceful,
             forced=forced,
-            process_exited=process_exited,
-            guard_closed=guard_closed,
-            reader_joined=reader_joined,
-            applier_joined=applier_joined,
+            process_exited=bool(outcome["root_dead"]),
+            guard_closed=bool(outcome["guard_closed"]),
+            reader_joined=bool(outcome["reader_joined"]),
+            stderr_joined=bool(outcome["stderr_joined"]),
+            applier_joined=bool(outcome["applier_joined"]),
+            streams_closed=bool(outcome["streams_closed"]),
+            job_verified=bool(outcome["job_verified"]),
             detail=", ".join(detail) if detail else "ok",
             seconds=time.monotonic() - start,
         )
         with self._lock:
-            self._closed = closed
+            self._closed = report.closed
             self._close_report = report
         return report
-
-    def _wait_process_exit(self, timeout: float) -> bool:
-        proc = self._proc
-        if proc is None:
-            return True
-        if proc.poll() is not None:
-            return True
-        try:
-            proc.wait(timeout=max(0.0, timeout))
-            return True
-        except subprocess.TimeoutExpired:
-            return False
-
-    def _force_terminate(self) -> str:
-        """身份核验终止 → Job 终止（fail-closed 记录，不裸杀）。"""
-        from . import identity as identity_module
-
-        notes: list[str] = []
-        pid = self._sidecar_pid
-        if pid is not None and self._sidecar_identity is not None:
-            result = identity_module.kill_verified(
-                pid,
-                self._sidecar_identity,
-                wait_timeout=min(self._kill_timeout, 3.0),
-            )
-            notes.append(f"kill-verified:{result.reason}")
-        if self._guard is not None and getattr(self._guard, "handle_open", False):
-            try:
-                owned, remaining = self._guard.terminate_tree(pid, timeout=2.0)
-                notes.append(f"job-terminate:remaining={remaining}")
-            except Exception as exc:
-                notes.append(f"job-terminate-error:{type(exc).__name__}")
-        return ";".join(notes) if notes else "no-terminate-path"
 
     # ------------------------------------------------------------------
     # lifecycle helpers for callers
@@ -1385,20 +1713,28 @@ class HeadlessEmulator:
     def sidecar_pid(self) -> int | None:
         return self._sidecar_pid
 
+    def _cursors_valid_locked(self) -> bool:
+        return (
+            not self._gap_ranges
+            and not self._duplicate_ranges
+            and not self._engine_dead
+            and not self._closing
+            and not self._reset_unconfirmed
+        )
+
     @property
     def cursors_valid(self) -> bool:
-        """绝对 cursor 是否可信：无粘滞 gap/duplicate 且引擎可用/未关闭。
+        """绝对 cursor 是否可信（与 ``diagnostics()["cursors_valid"]`` 同一判定）。
 
-        reset_baseline 之前发生的 gap/duplicate 属于旧基线，应在 reset 确认后
-        被清除（新基线按命令实际执行位置定义）；否则 cursor 不可作为续流起点。
+        不满足任一条件即为 False，cursor 不得作为续流起点：
+
+        - 粘滞 gap / duplicate 供料；
+        - 引擎不可用 / 正在关闭；
+        - **reset 已发送但未确认**（结果未知，禁止已知失同步继续续流；迟到
+          ack 或引擎不可用后判定收敛）。
         """
         with self._lock:
-            return (
-                not self._gap_ranges
-                and not self._duplicate_ranges
-                and not self._engine_dead
-                and not self._closing
-            )
+            return self._cursors_valid_locked()
 
     def __enter__(self) -> "HeadlessEmulator":
         return self
