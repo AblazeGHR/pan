@@ -6,8 +6,8 @@ Codex stores threads in two SQLite databases under ``~/.codex``:
   model / model_provider / created_at / updated_at / archived ...）+ 
   ``thread_spawn_edges``（fork 父子关系）。
 - ``thread_history_1.sqlite`` — ``thread_items``（thread_id / item_json /
-  item_type），逐条 transcript；``thread_turns``（轮次状态）。
-- ``sessions/<yyyy>/<mm>/<dd>/rollout-*.jsonl`` — 完整事件日志，其中
+  item_type），可能滞后的历史索引，作为 rollout 不可用时的回退来源。
+- ``sessions/<yyyy>/<mm>/<dd>/rollout-*.jsonl`` — 历史读取的首选事件日志，其中
   ``event_msg`` payload.type=token_count 携带 token usage（``total_token_usage``）。
 
 Why not ``codex session list`` / ``codex exec resume --last``？这些命令返回的是 CLI
@@ -253,7 +253,7 @@ def _item_to_block(item: dict) -> dict | None:
             block["nativeItemId"] = str(item["id"])
         return block
     if itype == "agentmessage":
-        text = _stringify_content(item.get("text"))
+        text = _stringify_content(item.get("text")) or _content_text(item.get("content"))
         if not text:
             return None
         block = {"role": "assistant", "content": text}
@@ -263,9 +263,11 @@ def _item_to_block(item: dict) -> dict | None:
     if itype == "reasoning":
         text = _stringify_content(item.get("text"))
         if not text:
-            summary = item.get("summary") or []
+            summary = item.get("summary") or item.get("summary_text") or []
             if summary:
-                text = _stringify_content(summary[0])
+                text = _content_text(summary)
+        if not text:
+            text = _content_text(item.get("raw_content"))
         return {"role": "thinking", "content": text} if text else None
     if itype == "plan":
         text = _text_from_item(item)
@@ -308,6 +310,8 @@ def _item_to_block(item: dict) -> dict | None:
         "subagentactivity": "SubAgent",
         "websearch": "WebSearch",
         "imagegeneration": "ImageGeneration",
+        "imageview": "ImageView",
+        "extension": "Extension",
         "sleep": "Sleep",
         "enteredreviewmode": "ReviewMode",
         "exitedreviewmode": "ReviewMode",
@@ -326,8 +330,113 @@ def _item_to_block(item: dict) -> dict | None:
     return None
 
 
+def _content_text(content) -> str:
+    """Extract plaintext without exposing encrypted reasoning or protocol metadata."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "".join(
+        part if isinstance(part, str) else _stringify_content(part.get("text"))
+        for part in content if isinstance(part, (str, dict))
+    )
+
+
+def _rollout_history(path: Path, session_id: str) -> list[dict]:
+    """Read native completed items, falling back to legacy response items per turn.
+
+    These are parallel representations of the same turn, not additive logs.
+    Use file order and native IDs rather than content deduplication, which would
+    discard intentionally repeated messages. Compaction snapshots are not new
+    conversation messages and must not replace earlier history.
+    """
+    events = list(_iter_jsonl(path))
+    meta = next((event.get("payload") for event in events
+                 if event.get("type") == "session_meta"), None)
+    if not isinstance(meta, dict) or (meta.get("id") or meta.get("session_id")) != session_id:
+        return []
+    turn = ""
+    records = []
+    completed_turns = set()
+    outputs = {}
+    for event in events:
+        payload = event.get("payload") or {}
+        if not isinstance(payload, dict):
+            continue
+        kind = event.get("type")
+        if kind == "turn_context":
+            turn = payload.get("turn_id") or turn
+        elif kind == "event_msg" and payload.get("type") == "task_started":
+            turn = payload.get("turn_id") or turn
+        elif kind == "event_msg" and payload.get("type") == "item_completed":
+            if payload.get("thread_id") not in (None, session_id):
+                continue
+            item = payload.get("item")
+            if isinstance(item, dict):
+                item_turn = payload.get("turn_id") or turn
+                completed_turns.add(item_turn)
+                records.append((item_turn, True, item))
+        elif kind == "response_item":
+            if payload.get("type") in ("function_call_output", "custom_tool_call_output"):
+                outputs[payload.get("call_id")] = payload.get("output")
+            else:
+                records.append((turn, False, payload))
+
+    history = []
+    seen = set()
+    for item_turn, completed, native in records:
+        if not completed and item_turn in completed_turns:
+            continue
+        item = dict(native)
+        if not completed:
+            kind = item.get("type")
+            if kind == "message":
+                role = item.get("role")
+                if role not in ("user", "assistant"):
+                    continue
+                item["type"] = "userMessage" if role == "user" else "agentMessage"
+                item["text"] = _content_text(item.get("content"))
+                if role == "user":
+                    item["content"] = [{"type": "text", "text": item["text"]}]
+            elif kind in ("function_call", "custom_tool_call"):
+                item["type"] = "functionCall"
+                item["output"] = outputs.get(item.get("call_id"))
+                arguments = item.get("arguments") or item.get("input") or {}
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except ValueError:
+                        arguments = {"input": arguments}
+                item["arguments"] = arguments
+            elif kind != "reasoning":
+                continue
+        block = _item_to_block(item)
+        if not block:
+            continue
+        native_id = item.get("id") or item.get("call_id")
+        if native_id:
+            key = (item_turn, str(native_id))
+            if key in seen:
+                continue
+            seen.add(key)
+            block["nativeItemId"] = str(native_id)
+        history.append(block)
+    return history
+
+
 def parse_codex_history(session_id: str, workdir: str | None = None) -> list[dict]:
-    """解析 codex thread 为 Pan history 格式（user/assistant/thinking/tool 块）。"""
+    """Read the thread's rollout first; fall back to its SQLite history index."""
+    state_con = _connect_ro(_STATE_DB)
+    if state_con is not None:
+        try:
+            row = _thread_row(state_con, session_id)
+        finally:
+            state_con.close()
+        rollout = _rollout_full_path(row.get("rollout_path")) if row else None
+        if rollout is not None:
+            history = _rollout_history(rollout, session_id)
+            if history:
+                return history
     con = _connect_ro(_HISTORY_DB)
     if con is None:
         return []
