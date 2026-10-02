@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Bot, Loader2, UserRound } from 'lucide-react';
+import { Loader2, UserRound } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchSessionHistory } from '@/services/api';
@@ -47,13 +47,36 @@ interface ScrubGesture {
 
 type PreviewMode = 'hover' | 'scrub';
 
-const FILTERS: Array<{ kind: QuickJumpKind; label: string }> = [
-  { kind: 'user', label: USER_LABEL },
-  { kind: 'worker', label: 'Worker' },
-];
+/**
+ * The single rail column shows every navigable kind in the session's original
+ * message order. Classification belongs to the shared `./messageFilter`
+ * module; the two MA ids below are the Rail-side consumption proposal
+ * (reported for coordination) and light up unchanged once the classifier
+ * emits them — the Rail never classifies by itself.
+ */
+type RailNavigationKind = QuickJumpKind | 'maAssign' | 'maMsg';
 
-function MarkerIcon({ kind }: { kind: QuickJumpKind }) {
-  return kind === 'user' ? <UserRound size={13} strokeWidth={2.4} /> : <Bot size={13} strokeWidth={2.4} />;
+interface NavigationKindMeta {
+  /** Tooltip heading and marker aria label for this kind. */
+  label: string;
+  /** Compact text glyph used when the kind has no dedicated icon. */
+  tag?: string;
+  /** Marker style suffix: `message-navigation-marker-<slug>`. */
+  slug: string;
+}
+
+const KIND_META: Record<RailNavigationKind, NavigationKindMeta> = {
+  user: { label: USER_LABEL, slug: 'user' },
+  worker: { label: 'TA report', tag: 'Re', slug: 'worker' },
+  maAssign: { label: 'MA assign', tag: 'MA', slug: 'ma-assign' },
+  maMsg: { label: 'MA msg', tag: 'MA', slug: 'ma-msg' },
+};
+
+function MarkerGlyph({ kind }: { kind: RailNavigationKind }) {
+  const { tag } = KIND_META[kind];
+  return tag
+    ? <span className="message-navigation-marker-tag" aria-hidden="true">{tag}</span>
+    : <UserRound size={13} strokeWidth={2.4} />;
 }
 
 function nextPaint(): Promise<void> {
@@ -80,7 +103,6 @@ export function MessageNavigationRail({
     () => ({ showMetaAgent, showTaskAgent, showQQ }),
     [showMetaAgent, showTaskAgent, showQQ],
   );
-  const [activeKind, setActiveKind] = useState<QuickJumpKind>('user');
   const [activeFromEnd, setActiveFromEnd] = useState<number | null>(null);
   const [jumpingFromEnd, setJumpingFromEnd] = useState<number | null>(null);
   const [jumpError, setJumpError] = useState<string | null>(null);
@@ -201,21 +223,15 @@ export function MessageNavigationRail({
     [currentMessages, currentHistoryTotal, historyLoadEnd, settings, fullIndex, indexStatus],
   );
 
-  const allTargets = fullIndex.length > 0 && indexStatus !== 'error'
+  // One merged column: every navigable kind in the session's original message
+  // order (the stable fromEnd identity), never re-sorted by kind or timestamp.
+  const targets = fullIndex.length > 0 && indexStatus !== 'error'
     ? fullIndex
     : loadedWindowTargets;
-  const targets = useMemo(
-    () => allTargets.filter((target) => target.kind === activeKind),
-    [allTargets, activeKind],
-  );
   const targetsByFromEnd = useMemo(
     () => new Map(targets.map((target) => [target.fromEnd, target])),
     [targets],
   );
-  const counts = useMemo(() => ({
-    user: allTargets.filter((item) => item.kind === 'user').length,
-    worker: allTargets.filter((item) => item.kind === 'worker').length,
-  }), [allTargets]);
 
   const jumpTo = async (target: QuickJumpIndexItem) => {
     if (!currentSessionId || jumpingFromEnd !== null) return;
@@ -377,32 +393,11 @@ export function MessageNavigationRail({
       className="message-navigation-rail"
       aria-label={RAIL_LABEL}
       data-index-status={indexStatus}
-      data-indexed-targets={allTargets.length}
+      data-indexed-targets={targets.length}
       data-history-total={indexTotal || currentHistoryTotal}
       data-index-requests={indexMetrics.requests}
       data-index-duration-ms={Math.round(indexMetrics.durationMs)}
     >
-      <div className="message-navigation-filters" role="tablist" aria-label={RAIL_LABEL}>
-        {FILTERS.map(({ kind, label }) => (
-          <button
-            key={kind}
-            type="button"
-            role="tab"
-            aria-selected={activeKind === kind}
-            className={`message-navigation-filter message-navigation-filter-${kind}${activeKind === kind ? ' is-active' : ''}`}
-            onClick={() => {
-              clearScrub(false);
-              setActiveKind(kind);
-            }}
-            title={`${RAIL_LABEL}: ${label}`}
-          >
-            <MarkerIcon kind={kind} />
-            <span className="sr-only">{label}</span>
-            <span className="message-navigation-count">{counts[kind]}</span>
-          </button>
-        ))}
-      </div>
-
       {hovered && createPortal(
         <div
           className="message-navigation-tooltip message-navigation-tooltip-floating"
@@ -416,7 +411,7 @@ export function MessageNavigationRail({
             left: hovered.left,
           }}
         >
-          <strong>{hovered.target.kind === 'user' ? USER_LABEL : 'Worker report'}</strong>
+          <strong>{KIND_META[hovered.target.kind].label}</strong>
           <span>{hovered.target.preview || PREVIEW_FALLBACK}</span>
         </div>,
         document.body,
@@ -431,26 +426,27 @@ export function MessageNavigationRail({
         onLostPointerCapture={(event) => finishScrub(event, true)}
       >
         {targets.map((target) => {
-          const label = target.kind === 'user' ? USER_LABEL : 'Worker report';
+          const meta = KIND_META[target.kind];
           return (
             <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.fromEnd}`}>
               <button
                 type="button"
-                className={`message-navigation-marker message-navigation-marker-${target.kind}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}`}
+                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}`}
                 onClick={(event) => handleMarkerClick(event, target)}
                 onPointerDown={(event) => beginScrub(event, target)}
                 onMouseEnter={(event) => showPreview(event, target)}
                 onMouseLeave={() => {
                   if (!scrubGestureRef.current?.active) setHovered(null);
                 }}
-                aria-label={`${label}: ${target.preview || PREVIEW_FALLBACK}`}
+                aria-label={`${meta.label}: ${target.preview || PREVIEW_FALLBACK}`}
                 title={target.preview || PREVIEW_FALLBACK}
                 data-from-end={target.fromEnd}
+                data-kind={target.kind}
                 disabled={jumpingFromEnd !== null}
               >
                 {jumpingFromEnd === target.fromEnd
                   ? <Loader2 size={13} className="animate-spin" />
-                  : <MarkerIcon kind={target.kind} />}
+                  : <MarkerGlyph kind={target.kind} />}
               </button>
             </div>
           );

@@ -222,10 +222,9 @@ describe('message navigation dock', () => {
     fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
     await act(async () => { await Promise.resolve(); });
 
-    const filter = container.querySelector<HTMLButtonElement>('.message-navigation-filter')!;
-    fireEvent.pointerDown(filter, { pointerType: 'mouse' });
-    act(() => filter.focus());
-    fireEvent.click(filter, { detail: 1 });
+    const firstMarker = container.querySelector<HTMLButtonElement>('.message-navigation-marker')!;
+    fireEvent.pointerDown(firstMarker, { pointerType: 'mouse' });
+    act(() => firstMarker.focus());
     fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
     await act(async () => { vi.advanceTimersByTime(90); });
     expect(dock.getAttribute('data-expanded')).toBe('false');
@@ -442,7 +441,7 @@ describe('mobile message navigation scrub', () => {
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 
-  it('clears the gesture on session changes, rail close, and filter changes', async () => {
+  it('clears the gesture on session changes and rail close', async () => {
     const { container, rerender } = await renderOpenMobileRail();
     let marker = markers(container)[0]!;
     touchDown(marker);
@@ -479,8 +478,6 @@ describe('mobile message navigation scrub', () => {
     touchDown(marker, 9);
     await act(async () => { vi.advanceTimersByTime(450); });
     expect(document.querySelector('[role="tooltip"]')).not.toBeNull();
-    fireEvent.click(container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')!);
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
 
   it('does not start scrubbing on desktop pointer interactions', async () => {
