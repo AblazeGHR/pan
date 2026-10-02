@@ -323,3 +323,28 @@ routes, and production Chromium assets. It stops only its own child process
 and verifies port release. Evidence, screenshots and traces go into the ignored
 `packages/web/e2e/test-results/history-search-content-completion` directory;
 temporary fixture data is retained for inspection, never real Pan data.
+
+## Shared overviews and global list filtering
+
+- Both search popups use the same foldable result overview. Session-scoped
+  rows omit the Session title; global rows keep it. Literal snippet matches
+  are rendered as safe text-node marks, not HTML injection. Folding only
+  hides the overview and its paging button, not the search/navigation controls.
+- React portal events still bubble through their logical parent. Dock pointer,
+  focus and keyboard handlers therefore check physical DOM containment;
+  interacting with either popup does not open or retain the folding dock.
+- Content search returns `matchingSessionIds` for the entire query scope, not
+  only the visible result page. This adds IDs, not another history scan or a
+  body cache. Global preparation previews progressively replace this scope.
+- The left Session list intersects that temporary scope with existing
+  Workspace/name/special/hidden filters. Bulk selection uses the same candidate
+  selector. No filter preference or Session metadata is changed. Clearing the
+  query, closing global search or unloading it removes the temporary scope.
+- Global Previous/Next and Enter/Shift+Enter reuse the Session occurrence
+  navigator. Their N/M refers only to the currently selected Session; the
+  overview reports the separate global total. Navigation wraps inside that
+  Session and never advances to another Session. No matches disables it.
+- Scoped counting in the global popup is read-only (`prepareLegacy` is not
+  requested) while global preparation owns identity repair. The final stream
+  event refreshes the local count, avoiding concurrent repairs and retaining
+  query/Session cancellation protection.

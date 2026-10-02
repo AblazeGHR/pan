@@ -612,6 +612,7 @@ export interface ApiHistorySearchHit {
 }
 
 export interface ApiHistorySearchResponse {
+  matchingSessionIds?: string[];
   preparedIdentities?: number;
   hits: ApiHistorySearchHit[];
   versions: ApiHistorySearchVersion[];

@@ -50,6 +50,7 @@ def test_full_pagination_seek_and_id_relocation():
     while True:
         page = scan_history(subjects, 'needle', roles=['user', 'tool'], limit=67, after=after)
         assert page['totalMatches'] == 505
+        assert page['matchingSessionIds'] == ['a', 'b']
         hits.extend(page['hits'])
         if not page['hasMore']:
             break
@@ -62,6 +63,18 @@ def test_full_pagination_seek_and_id_relocation():
     relocated = scan_history(subjects, 'needle', roles=['user', 'tool'], message_id=f'pan:{1010:032x}')
     assert relocated['hits'][0]['messageIndex'] == 10
     assert relocated['totalMatches'] == 505
+
+
+def test_matching_session_scope_is_complete_even_beyond_result_page_and_respects_roles():
+    subjects = [session([row('user', 'needle', n+1) for n in range(150)], 'first'),
+                session([row('thinking', 'needle needle', 200)], 'later'),
+                session([row('assistant', 'nothing', 201)], 'empty')]
+    result = scan_history(subjects, 'needle', roles=['user', 'thinking'], limit=1)
+    assert len(result['hits']) == 1
+    assert result['matchingSessionIds'] == ['first', 'later']
+    assert scan_history(subjects, 'needle', roles=['user'], limit=1)['matchingSessionIds'] == ['first']
+    assert scan_history(subjects, '', roles=['user'])['matchingSessionIds'] == []
+    assert scan_history(subjects, 'needle', roles=[])['matchingSessionIds'] == []
 
 
 def test_signed_cursor_key_and_empty_search_do_not_open_source():

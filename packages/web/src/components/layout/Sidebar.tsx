@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { createQuickNewSession } from '@/utils/quickNewSession';
 import { SessionList } from '@/components/session/SessionList';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
@@ -47,6 +48,8 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceExpanded?: boolean }) {
+  const matchingSessionIds = useHistorySearchViewStore((state) => state.matchingSessionIds);
+  const historySearchPreparing = useHistorySearchViewStore((state) => state.preparing);
   const location = useLocation();
   const navigate = useNavigate();
   const isEditorRoute = location.pathname === '/editor';
@@ -239,8 +242,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       searchQuery,
       specialFilters,
       activeWorkspaceId,
+      matchingSessionIds,
     }),
-    [sessions, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId],
+    [sessions, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId, matchingSessionIds],
   );
   const selectableIds = useMemo(
     () => selectableSessions.map((session) => session.id),
@@ -808,6 +812,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
           {/* Session list */}
           <div className="flex-1 overflow-y-auto">
+            {matchingSessionIds !== null && <div className="px-3 py-2 text-xs text-[var(--color-text-secondary)]" role="status">
+              {matchingSessionIds.size} matching Sessions{historySearchPreparing ? ' · still searching…' : ''}
+            </div>}
             <SessionList onSessionClick={handleSessionClick} onSessionMenu={handleSessionMenu} />
           </div>
 

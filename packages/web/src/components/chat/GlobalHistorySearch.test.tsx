@@ -7,12 +7,16 @@ import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, ApiHistorySearchResponse, Message } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
 import { GlobalHistorySearch } from './GlobalHistorySearch';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 
 const { fetchSearch, fetchHistory, prepareSearch } = vi.hoisted(() => ({
   fetchSearch: vi.fn(),
   fetchHistory: vi.fn(),
   prepareSearch: vi.fn(),
 }));
+// The shared local navigator has its own real component tests; keep these
+// global transport/cursor tests isolated from its additional scoped requests.
+vi.mock('./SessionHistorySearch', () => ({ SessionHistorySearch: () => null }));
 
 vi.mock('@/services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/api')>()),
@@ -121,14 +125,19 @@ it('shows provisional matches during preparation and enables paging only at comp
   act(() => report({ result: { ...searchPage([hit()], true, 'final-page'), totalMatches: 9 },
     completed: 1, total: 2, done: false, failedSessions: [] }));
   expect(view.getByText(/9 occurrences found so far/)).toBeTruthy();
+  expect([...useHistorySearchViewStore.getState().matchingSessionIds!]).toEqual(['s2']);
   expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
   await act(async () => {
-    report({ result: { ...searchPage([hit()], true, 'final-page'), totalMatches: 12 },
+    report({ result: { ...searchPage([hit()], true, 'final-page'), totalMatches: 12, matchingSessionIds: ['s2', 'beyond-page'] },
       completed: 2, total: 2, done: true, failedSessions: [] });
     finish();
   });
   expect(view.getByText(/12 occurrences/)).toBeTruthy();
   expect(view.getByTestId('global-history-search-load-more')).toBeTruthy();
+  expect([...useHistorySearchViewStore.getState().matchingSessionIds!]).toEqual(['s2', 'beyond-page']);
+  expect(useHistorySearchViewStore.getState().preparing).toBe(false);
+  fireEvent.click(view.getByRole('button', { name: 'Clear global search' }));
+  expect(useHistorySearchViewStore.getState().matchingSessionIds).toBeNull();
 });
 
 it('keeps results explicitly incomplete on preparation failure', async () => {
@@ -153,7 +162,7 @@ it('keeps already found results but never exposes complete pagination when the p
   expect(view.getByText(/Results are incomplete/)).toBeTruthy();
   expect(view.queryByTestId('global-history-search-load-more')).toBeNull();
   expect(view.getByRole('button', { name: 'Retry search' })).toBeTruthy();
-  expect(view.getByText('needle in this Session')).toBeTruthy();
+  expect(view.getByRole('button', { name: /Target Session, assistant, needle in this Session/ })).toBeTruthy();
 });
 
 afterEach(() => {
@@ -331,11 +340,11 @@ describe('GlobalHistorySearch', () => {
   });
 
   it('keeps the expired state when a result Session has been removed', async () => {
-    const { getByTestId, getByText } = renderSearch();
+    const { getByTestId, getByText, getByRole } = renderSearch();
     await enterQuery(getByTestId('global-history-search-input'), 'needle');
-    await waitFor(() => expect(getByText('needle in this Session')).not.toBeNull());
+    await waitFor(() => expect(getByRole('button', { name: /Target Session, assistant, needle in this Session/ })).not.toBeNull());
     act(() => useSessionStore.setState({ sessions: [{ id: 's1', name: 'Source Session' }] as never }));
-    fireEvent.click(getByText('needle in this Session').closest('button')!);
+    fireEvent.click(getByRole('button', { name: /s2, assistant, needle in this Session/ }));
     await waitFor(() => expect(getByText('This result expired. Search again.')).not.toBeNull());
   });
 

@@ -1426,3 +1426,10 @@ body {
   min-width: 0;
 }
 .history-search-roles label { display: inline-flex; align-items: center; gap: 4px; }
+.history-search-overview { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.history-search-overview[hidden] { display: none; }
+.history-search-overview-toggle { flex: 0 0 auto; padding: 6px 10px; text-align: left; font-size: 12px; }
+.history-search-current-session { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 10px; font-size: 12px; }
+.history-search-current-session > button { padding: 3px; }
+.session-history-search__popup { display: flex; flex-direction: column; overflow: hidden; }
+.global-history-search__snippet mark { background: #facc15; color: #171717; }

@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { effectiveWorkspaceIds, getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX, buildManagerEdges, collectDescendants, movePinnedSessionId, orderPinnedWithinGroups, sessionPinGroupKey } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
@@ -217,6 +218,7 @@ async function persistSessionDrop(p: RealDropParams): Promise<void> {
 }
 
 export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps) {
+  const matchingSessionIds = useHistorySearchViewStore((state) => state.matchingSessionIds);
   const sessions = useSessionStore((s) => s.sessions);
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -327,6 +329,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       searchQuery,
       specialFilters,
       activeWorkspaceId,
+      matchingSessionIds,
     })];
 
     // Preview/status updates can rerun this sort during streaming. Build the
@@ -406,7 +409,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       scopedSessions.every((session) => hiddenSessionIds.has(session.id));
 
     return { filtered: pinnedOrdered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, customOrder, effectiveGroupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId]);
+  }, [sessions, searchQuery, sortBy, customOrder, effectiveGroupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId, matchingSessionIds]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，

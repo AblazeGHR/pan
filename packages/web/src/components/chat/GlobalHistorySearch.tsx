@@ -7,6 +7,9 @@ import type { ChatMessagesHandle } from './ChatMessages';
 import { HistorySearchRoles } from './HistorySearchRoles';
 import { ALL_SEARCH_ROLES } from './searchRoleOptions';
 import { HistorySearchPopup } from './HistorySearchPopup';
+import { HistorySearchOverview } from './HistorySearchOverview';
+import { SessionHistorySearch } from './SessionHistorySearch';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 
 const GLOBAL_SEARCH_PAGE_SIZE = 50;
 const GLOBAL_SEARCH_DEBOUNCE_MS = 250;
@@ -17,7 +20,7 @@ interface GlobalHistorySearchProps {
   isMobile: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onHighlightMessage: (sessionId: string | null, messageId: string | null, query?: string) => void;
+  onHighlightMessage: (sessionId: string | null, messageId: string | null, query?: string, occurrence?: number) => void;
 }
 
 type SearchStatus = 'idle' | 'loading' | 'preparing' | 'loading-more' | 'ready' | 'expired' | 'error';
@@ -66,6 +69,13 @@ export function GlobalHistorySearch({
   const sessions = useSessionStore((state) => state.sessions);
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
   const [query, setQuery] = useState('');
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const currentNavigationRef = useRef<{ move: (delta: number) => void }>(null);
+  const highlightCurrent = useCallback((messageId: string | null, word?: string, occurrence?: number) => {
+    const sessionId = useSessionStore.getState().currentSessionId;
+    onHighlightMessage(messageId ? sessionId : null, messageId, word, occurrence);
+  }, [onHighlightMessage]);
   const [roles, setRoles] = useState<HistorySearchRole[]>(ALL_SEARCH_ROLES);
   const [totalMatches, setTotalMatches] = useState<number | null>(null);
   const [hits, setHits] = useState<ApiHistorySearchHit[]>([]);
@@ -118,6 +128,7 @@ export function GlobalHistorySearch({
       setHasMore(response.hasMore && Boolean(response.nextCursor));
       setStatus('ready');
       setErrorMessage('');
+      useHistorySearchViewStore.getState().update(response.matchingSessionIds ?? [...new Set(response.hits.map((hit) => hit.sessionId))], !append);
       if (!append) {
         setStatus('preparing');
         setPreparationProgress('Preparing old history…');
@@ -128,8 +139,10 @@ export function GlobalHistorySearch({
             if (!isCurrentSearch(active)) return;
             setHits(event.result.hits);
             setTotalMatches(event.result.totalMatches ?? null);
+            useHistorySearchViewStore.getState().update(event.result.matchingSessionIds ?? [...new Set(event.result.hits.map((hit) => hit.sessionId))], !event.done || event.failedSessions.length > 0);
             setPreparationProgress(`${event.completed}/${event.total} Sessions checked`);
             if (event.done) {
+              setLocalRefreshKey((value) => value + 1);
               const incomplete = event.failedSessions.length > 0;
               setCursor(incomplete ? null : event.result.nextCursor);
               setHasMore(!incomplete && event.result.hasMore && Boolean(event.result.nextCursor));
@@ -154,6 +167,15 @@ export function GlobalHistorySearch({
       if (activeSearchRef.current === active) pageInFlightRef.current = false;
     }
   }, [isCurrentSearch, roles]);
+
+  useEffect(() => {
+    if (!open || !query.trim() || roles.length === 0) {
+      useHistorySearchViewStore.getState().update(null);
+      return;
+    }
+    useHistorySearchViewStore.getState().update([], true);
+    return () => useHistorySearchViewStore.getState().update(null);
+  }, [open, query, roles]);
 
   useEffect(() => {
     if (!open) return;
@@ -225,6 +247,7 @@ export function GlobalHistorySearch({
   useEffect(() => () => {
     activeSearchRef.current?.controller.abort();
     activeNavigationRef.current?.controller.abort();
+    useHistorySearchViewStore.getState().update(null);
   }, []);
 
   useEffect(() => {
@@ -250,6 +273,7 @@ export function GlobalHistorySearch({
   }, [onHighlightMessage]);
 
   const closeSearch = () => {
+    useHistorySearchViewStore.getState().update(null);
     activeSearchRef.current?.controller.abort();
     activeSearchRef.current = null;
     searchGenerationRef.current += 1;
@@ -259,6 +283,7 @@ export function GlobalHistorySearch({
   };
 
   const handleQueryChange = (value: string) => {
+    setSelectedMessageId(null);
     queryRef.current = value;
     activeSearchRef.current?.controller.abort();
     activeSearchRef.current = null;
@@ -408,6 +433,7 @@ export function GlobalHistorySearch({
       )?.name ?? hit.sessionId;
       setNavigationStatus('ready');
       setNavigationMessage(`Opened in ${sessionName}`);
+      setSelectedMessageId(hit.messageId);
     } catch (error) {
       if (!stillCurrent() || isAbortError(error)) return;
       onHighlightMessage(null, null);
@@ -465,6 +491,7 @@ export function GlobalHistorySearch({
     } else if (event.key === 'Enter') {
       event.preventDefault();
       if (status === 'error' || status === 'expired') retry();
+      else currentNavigationRef.current?.move(event.shiftKey ? -1 : 1);
     }
   };
 
@@ -522,6 +549,11 @@ export function GlobalHistorySearch({
             onHighlightMessage(null, null);
             setRoles(next);
           }} />
+          <SessionHistorySearch navigationOnly isOpen={open} isMobile={isMobile} chatRef={chatRef}
+            refreshKey={localRefreshKey}
+            navigationEnabled={!navigatingMessageId}
+            externalQuery={query} externalRoles={roles} selectedMessageId={selectedMessageId}
+            navigationRef={currentNavigationRef} onHighlightMessage={highlightCurrent} />
           <div className="global-history-search__status" role="status" aria-live="polite">
             {statusText}
           </div>
@@ -530,51 +562,15 @@ export function GlobalHistorySearch({
               {navigationText}
             </div>
           )}
-          {hits.length > 0 && (
-            <div className="global-history-search__results" role="list" aria-label="Global history results">
-              {hits.map((hit) => {
-                const sessionName = sessions.find((session) => session.id === hit.sessionId)?.name ?? hit.sessionId;
-                const isNavigating = navigatingMessageId === hit.messageId;
-                return (
-                  <div
-                    key={`${hit.sessionId}:${hit.messageId}`}
-                    className="global-history-search__result-row"
-                    role="listitem"
-                  >
-                    <button
-                      type="button"
-                      className="global-history-search__result"
-                      disabled={Boolean(navigatingMessageId) && !isNavigating}
-                      aria-label={`${sessionName}, ${hit.role}, ${hit.snippet}`}
-                      onClick={() => void navigateToHit(hit)}
-                    >
-                      <span className="global-history-search__result-meta">
-                        <span className="global-history-search__session-name">{sessionName}</span>
-                        <span className="global-history-search__role">{hit.role}</span>
-                        <span>{hit.matchCount ?? 1} occurrences</span>
-                      </span>
-                      <span className="global-history-search__snippet">{hit.snippet}</span>
-                      {isNavigating && <Loader2 size={14} className="animate-spin" aria-label="Opening" />}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {hits.length > 0 && <HistorySearchOverview hits={hits} query={query}
+            sessionName={(id) => sessions.find((session) => session.id === id)?.name ?? id}
+            disabled={Boolean(navigatingMessageId)} onSelect={(hit) => void navigateToHit(hit)}>
+            {hasMore && status !== 'expired' && status !== 'error' && <button type="button" className="global-history-search__load-more"
+              disabled={status !== 'ready' || Boolean(navigatingMessageId)} onClick={loadMore} data-testid="global-history-search-load-more">{status === 'loading-more' ? 'Loading…' : 'Load more'}</button>}
+          </HistorySearchOverview>}
           {(status === 'expired' || status === 'error') && (
             <button type="button" className="global-history-search__retry" onClick={retry}>
               {status === 'expired' ? 'Search again' : hits.length > 0 && hasMore ? 'Retry loading more' : 'Retry search'}
-            </button>
-          )}
-          {hasMore && status !== 'expired' && status !== 'error' && (
-            <button
-              type="button"
-              className="global-history-search__load-more"
-              disabled={status === 'loading' || status === 'loading-more' || Boolean(navigatingMessageId)}
-              onClick={loadMore}
-              data-testid="global-history-search-load-more"
-            >
-              {status === 'loading-more' ? 'Loading…' : 'Load more'}
             </button>
           )}
         </div>

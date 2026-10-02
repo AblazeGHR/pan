@@ -63,6 +63,7 @@ try {
   const first = await api(local+'&limit=1');
   assert.equal(first.body.totalMatches, 7);
   assert.equal(first.body.totalMessages, 4);
+  assert.deepEqual(first.body.matchingSessionIds, [ids.primary]);
   let cursor = first.body.nextCursor, hits = [...first.body.hits];
   while (cursor) {
     const page = await api(local+'&limit=1&cursor='+encodeURIComponent(cursor));
@@ -101,6 +102,7 @@ try {
   }
   assert.equal(seen.length, 601);
   assert.equal(page.body.totalMatches, 1202);
+  assert.deepEqual(page.body.matchingSessionIds, [ids.remote]);
   assert.equal(new Set(seen.map((hit) => hit.messageId)).size, 601);
   await api('/__e2e/append-history', { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: ids.remote, messages: [{ role: 'assistant', content: 'unrelated new body' }] }) });
@@ -187,20 +189,54 @@ try {
   await tab.getByText(/1 occurrences found so far/).waitFor({ state: 'visible' });
   assert.equal(await tab.getByTestId('global-history-search-load-more').count(), 0);
   await tab.getByText(/9 occurrences/).waitFor({ state: 'visible' });
+  assert.ok(await tab.locator('.global-history-search__snippet mark').count() > 0);
+  const filteredIds = await tab.locator('[data-session-card-id]').evaluateAll((cards) => cards.map((card) => card.dataset.sessionCardId));
+  assert.ok(filteredIds.includes(ids.legacyGlobal));
+  assert.ok(!filteredIds.includes(ids.bench));
+  // A search popup is outside the DOM dock even though it is a React portal.
+  await tab.mouse.move(300, 300);
+  await tab.waitForTimeout(180);
+  const globalPopup = tab.getByRole('search', { name: 'Global history search' });
+  for (let i = 0; i < 3; i++) {
+    await globalPopup.hover();
+    await tab.waitForTimeout(180);
+    assert.equal(await tab.getByTestId('message-navigation-dock').getAttribute('data-expanded'), 'false');
+  }
   await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Legacy Global, assistant/ }).first().click();
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
+  await tab.getByTestId('global-current-session-count').waitFor({ state: 'visible' });
+  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"]')?.textContent?.trim() === '3 / 8');
+  await globalPopup.getByRole('button', { name: 'Next result', exact: true }).click();
+  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"]')?.textContent?.trim() === '4 / 8');
+  assert.match(await globalPopup.innerText(), /Opened in Search Legacy Global/);
+  await globalPopup.getByRole('button', { name: 'Collapse results' }).click();
+  assert.equal(await globalPopup.getByRole('list').count(), 0);
+  assert.equal(await globalPopup.getByRole('button', { name: 'Next result', exact: true }).isVisible(), true);
+  await globalPopup.getByRole('button', { name: 'Expand results' }).click();
   const legacyHistory = await api(`/api/sessions/${ids.legacyGlobal}/history?limit=50`);
   assert.equal(legacyHistory.body.history.length, 4);
   assert.ok(legacyHistory.body.history.every((row) => row.messageId.startsWith('pan:') && row.pluginField === 'preserve'));
   evidence.tests.push('Legacy Session backfill/reload navigation and global provisional-to-complete streamed preparation (800ms fixture delay)');
+  await tab.getByRole('button', { name: 'Clear global search' }).click();
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Acceptance' }).first().click();
-  await tab.getByTestId('session-history-search-toggle').waitFor({ state: 'visible' });
+  await tab.getByTestId('session-history-search-toggle').waitFor({ state: 'attached' });
   await tab.evaluate(() => document.activeElement?.blur());
   await tab.keyboard.press('Control+f');
   const input = tab.getByTestId('session-history-search-input');
   await input.fill('DeepNeedle');
   await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 7');
   await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  const sessionPopup = tab.getByRole('search', { name: 'Session history search' });
+  assert.equal(await sessionPopup.locator('.global-history-search__session-name').count(), 0);
+  assert.ok(await sessionPopup.locator('.global-history-search__snippet mark').count() > 0);
+  await tab.mouse.move(300, 300);
+  await tab.waitForTimeout(180);
+  await sessionPopup.hover();
+  await tab.waitForTimeout(180);
+  assert.equal(await tab.getByTestId('message-navigation-dock').getAttribute('data-expanded'), 'false');
+  await sessionPopup.getByRole('button', { name: 'Collapse results' }).click();
+  assert.equal(await sessionPopup.getByRole('list').count(), 0);
+  await sessionPopup.getByRole('button', { name: 'Expand results' }).click();
   assert.equal(await tab.locator('[data-search-target] mark').count(), 2);
   for (let ordinal = 2; ordinal <= 7; ordinal++) {
     await tab.getByRole('button', { name: 'Next result', exact: true }).click();
@@ -221,6 +257,7 @@ try {
   await tab.getByTestId('global-history-search-load-more').click();
   await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Remote, user/ }).first().click();
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
+  await tab.getByRole('button', { name: 'Clear global search' }).click();
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Benchmark' }).first().click();
   await ensureSidebarOpen();
   await tab.getByTestId('session-history-search-toggle').click();
@@ -280,6 +317,7 @@ try {
   assert.equal(await tab.getByTestId('chat-tools-sidebar').count(), 0);
   assert.equal(await tab.getByTestId('message-navigation-dock').count(), 0);
   evidence.tests.push('Chromium default-off, occurrence navigation, tool/thinking expansion, filters, QQ hidden target, global count/jump and hot unload');
+  evidence.tests.push('Portal hover leaves dock folded, both highlighted foldable overviews, complete Session filtering/restoration and global current-Session occurrence navigation');
   assert.equal(evidence.consoleErrors.length, 0);
   assert.equal(evidence.pageErrors.length, 0);
   assert.equal(evidence.requests.filter((url) => /:(8767|8768)(\/|$)/.test(url)).length, 0);

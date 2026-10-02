@@ -97,7 +97,9 @@ export function MessageNavigationDock({
     }, COLLAPSE_DELAY_MS);
   };
 
-  const handleFocus = () => {
+  const isInsideDock = (target: EventTarget | null) => target instanceof Node && Boolean(rootRef.current?.contains(target));
+  const handleFocus = (event: FocusEvent<HTMLDivElement>) => {
+    if (!isInsideDock(event.target)) return;
     if (pointerInteractionRef.current) {
       setFocusWithin(false);
       return;
@@ -108,6 +110,7 @@ export function MessageNavigationDock({
   };
 
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!isInsideDock(event.target)) return;
     if (event.relatedTarget instanceof Node && rootRef.current?.contains(event.relatedTarget)) {
       return;
     }
@@ -121,6 +124,7 @@ export function MessageNavigationDock({
   };
 
   const handlePointerEnter = (event: PointerEvent<HTMLDivElement>) => {
+    if (!isInsideDock(event.target)) return;
     if (isMobile || (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen')) {
       return;
     }
@@ -130,6 +134,7 @@ export function MessageNavigationDock({
   };
 
   const handlePointerOut = (event: PointerEvent<HTMLDivElement>) => {
+    if (!isInsideDock(event.target)) return;
     if (isMobile) return;
     if (event.relatedTarget instanceof Node && rootRef.current?.contains(event.relatedTarget)) {
       return;
@@ -138,6 +143,7 @@ export function MessageNavigationDock({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isInsideDock(event.target)) return;
     pointerInteractionRef.current = false;
     if (event.key !== 'Escape') return;
     event.preventDefault();
@@ -174,14 +180,15 @@ export function MessageNavigationDock({
       data-expanded={expanded}
       onPointerEnter={handlePointerEnter}
       onPointerDown={(event) => {
+        if (!isInsideDock(event.target)) return;
         if (!isMobile && (!event.pointerType || event.pointerType === 'mouse' || event.pointerType === 'pen')) {
           pointerInteractionRef.current = true;
           setKeyboardDismissed(true);
         }
       }}
       onPointerOut={handlePointerOut}
-      onPointerLeave={() => {
-        if (!isMobile) schedulePointerCollapse();
+      onPointerLeave={(event) => {
+        if (!isMobile && isInsideDock(event.target)) schedulePointerCollapse();
       }}
       onFocusCapture={handleFocus}
       onBlurCapture={handleBlur}

@@ -274,9 +274,8 @@ describe('ChatView: message navigation rail switch', () => {
     expect(queryByTestId('session-history-search-input')).toBeNull();
     expect(mockedGlobalSearch).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: 'across sessions' } });
-    await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalledTimes(1));
-    expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal),
-      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
+    await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal),
+      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' }));
 
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     expect(queryByTestId('global-history-search-input')).toBeNull();

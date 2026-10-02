@@ -65,13 +65,13 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
     limit = bounded_limit(limit)
     if not needle or not selected:
         return {'hits': [], 'versions': [], 'limit': limit, 'hasMore': False,
-                'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected)}
+                'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected), 'matchingSessionIds': []}
     key = cursor_key()
     if cursor_auth is not None:
         body, signature = cursor_auth
         if not hmac.compare_digest(hmac.new(key, body.encode('ascii'), hashlib.sha256).digest(), signature):
             raise HistorySearchCursorError('search cursor signature is invalid')
-    versions, hits = [], []
+    versions, hits, matching_session_ids = [], [], []
     total_matches, total_messages = 0, 0
     for scope_position, session in enumerate(sessions):
         epoch, revision, known_total, _ = session_version(session)
@@ -114,6 +114,8 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
             version = {'sessionId': session.id, 'historyEpoch': epoch,
                        'historyRevision': revision, 'historyTotal': total}
             versions.append(version)
+            if ordered_matches:
+                matching_session_ids.append(session.id)
             for identity, (index, locator, role, count) in ordered_matches:
                 start = total_matches
                 total_matches += count
@@ -148,7 +150,8 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
         hit.pop('_scopePosition')
     result = {'hits': hits[:limit], 'versions': versions, 'limit': limit,
               'hasMore': len(hits) > limit, 'totalMatches': total_matches,
-              'totalMessages': total_messages, 'roles': list(selected), '_cursorKey': key}
+              'totalMessages': total_messages, 'roles': list(selected), '_cursorKey': key,
+              'matchingSessionIds': matching_session_ids}
     if next_after is not None:
         result['nextAfter'] = next_after
     return result

@@ -149,6 +149,7 @@ export function getSessionListCandidates(
     specialFilters: Set<SpecialFilterId>;
     /** Active workspace scope ('all' keeps the historical full list). */
     activeWorkspaceId?: string | null;
+    matchingSessionIds?: Set<string> | null;
   },
 ): Session[] {
   const inScope = scopeSessionsByWorkspace(sessions, options.activeWorkspaceId);
@@ -163,6 +164,9 @@ export function getSessionListCandidates(
     candidates = candidates.filter((session) =>
       matchesSessionSearch(session, options.searchQuery),
     );
+  }
+  if (options.matchingSessionIds) {
+    candidates = candidates.filter((session) => options.matchingSessionIds!.has(session.id));
   }
   return candidates;
 }

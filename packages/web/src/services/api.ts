@@ -392,6 +392,7 @@ export async function fetchHistorySearch(
     countMode?: 'messages' | 'content';
     matchIndex?: number;
     messageId?: string;
+    prepareLegacy?: boolean;
   },
 ): Promise<ApiHistorySearchResponse> {
   const params = new URLSearchParams({
@@ -402,7 +403,7 @@ export async function fetchHistorySearch(
   if (options?.sessionId) params.set('sessionId', options.sessionId);
   if (options?.roles) params.set('roles', options.roles.join(','));
     if (options?.countMode) params.set('countMode', options.countMode);
-    if (options?.sessionId && options.countMode === 'content' && !cursor) params.set('prepareLegacy', 'true');
+    if (options?.sessionId && options.countMode === 'content' && !cursor && options.prepareLegacy !== false) params.set('prepareLegacy', 'true');
   if (options?.matchIndex !== undefined) params.set('matchIndex', String(options.matchIndex));
   if (options?.messageId) params.set('messageId', options.messageId);
   return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });

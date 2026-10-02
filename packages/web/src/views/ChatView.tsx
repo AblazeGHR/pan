@@ -73,8 +73,8 @@ export default function ChatView() {
     setSearchTarget(sessionId ? { sessionId, messageId, query, occurrence } : null);
   }, []);
 
-  const handleGlobalHighlight = useCallback((sessionId: string | null, messageId: string | null, query?: string) => {
-    setSearchTarget(sessionId && messageId ? { sessionId, messageId, query } : null);
+  const handleGlobalHighlight = useCallback((sessionId: string | null, messageId: string | null, query?: string, occurrence?: number) => {
+    setSearchTarget(sessionId && messageId ? { sessionId, messageId, query, occurrence } : null);
   }, []);
 
   const restoreChatFocus = useCallback(() => {

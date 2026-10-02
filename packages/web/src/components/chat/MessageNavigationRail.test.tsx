@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import type { RefObject } from 'react';
 import { MessageNavigationRail } from './MessageNavigationRail';
 import { MessageNavigationDock } from './MessageNavigationDock';
+import { createPortal } from 'react-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { fetchSessionHistory } from '@/services/api';
@@ -82,6 +83,32 @@ afterEach(() => {
 });
 
 describe('message navigation dock', () => {
+  it('ignores pointer, focus and Escape events from a physically external portal', async () => {
+    vi.useFakeTimers();
+    const target = document.createElement('div');
+    document.body.append(target);
+    const close = vi.fn();
+    const view = render(<MessageNavigationDock chatRef={{ current: null }} dockRef={{ current: null }}
+      isMobile={false} mobileExpanded={false} onMobileClose={close} onRestoreFocus={vi.fn()} showNavigation={false}>
+      {createPortal(<input aria-label="Portaled search" />, target)}
+    </MessageNavigationDock>);
+    try {
+      const dock = view.getByTestId('message-navigation-dock');
+      const input = view.getByRole('textbox', { name: 'Portaled search' });
+      fireEvent.pointerEnter(input, { pointerType: 'mouse' });
+      fireEvent.focus(input);
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+      fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+      fireEvent.pointerLeave(dock, { pointerType: 'mouse', relatedTarget: input });
+      fireEvent.pointerEnter(input, { pointerType: 'mouse' });
+      await act(async () => { vi.advanceTimersByTime(120); });
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+      fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+      fireEvent.keyDown(input, { key: 'Escape' });
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+    } finally { view.unmount(); target.remove(); }
+  });
   it('waits to index until desktop hover and keeps the indexed rail mounted when folded', async () => {
     vi.useFakeTimers();
     const dockRef = { current: null } as RefObject<HTMLDivElement | null>;

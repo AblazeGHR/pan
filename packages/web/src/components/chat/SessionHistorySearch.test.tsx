@@ -60,6 +60,41 @@ afterEach(() => {
 });
 
 describe('SessionHistorySearch', () => {
+  it('shows a highlighted title-free overview, folds it without hiding navigation, and selects a row', async () => {
+    const chat = makeChatRef();
+    const view = render(<SessionHistorySearch chatRef={chat.ref} isMobile={false} onHighlightMessage={vi.fn()} />);
+    fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
+    await waitFor(() => expect(view.getByRole('list', { name: 'Session history results' })).toBeTruthy());
+    expect(view.container.querySelectorAll('.global-history-search__snippet mark')).toHaveLength(2);
+    expect(view.container.querySelector('.global-history-search__session-name')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: 'Collapse results' }));
+    expect(view.queryByRole('list')).toBeNull();
+    expect(view.getByRole('button', { name: 'Next result' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: 'Expand results' }));
+    await waitFor(() => expect(view.getByRole('button', { name: 'assistant, needle beta' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(view.getByRole('button', { name: 'assistant, needle beta' }));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
+    expect(view.getByTestId('session-history-search-count').textContent).toBe('2 / 2');
+  });
+
+  it('uses the same occurrence navigator in global mode without auto-jumping or a second search input', async () => {
+    const chat = makeChatRef();
+    const highlight = vi.fn();
+    const roles = ['user', 'assistant'] as const;
+    const view = render(<SessionHistorySearch navigationOnly isOpen isMobile={false} chatRef={chat.ref}
+      externalQuery="needle" externalRoles={[...roles]} onHighlightMessage={highlight} />);
+    await waitFor(() => expect(view.getByTestId('global-current-session-count').textContent).toBe('1 / 2'));
+    expect(chat.scrollToMessage).not.toHaveBeenCalled();
+    expect(view.queryByRole('textbox')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: 'Next result' }));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
+    expect(highlight).toHaveBeenLastCalledWith('assistant-b', 'needle', 0);
+    await waitFor(() => expect(view.getByRole('button', { name: 'Next result' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(view.getByRole('button', { name: 'Next result' }));
+    await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[0], 0));
+    expect(fetchHistory.mock.calls.every((call) => call[4].sessionId === 's1')).toBe(true);
+  });
   it('counts repeated occurrences, navigates within one block, and filters before searching', async () => {
     const body: Message = { role: 'tool', content: 'needle needle needle', messageId: 'tool-target' };
     fetchHistory.mockImplementation((_query: string, _limit: number, _cursor: string, _signal: AbortSignal, options: { roles: string[] }) =>
@@ -105,7 +140,7 @@ describe('SessionHistorySearch', () => {
 
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(MESSAGES[0], 0));
-    expect(getByTestId('session-history-search-snippet').textContent).toContain('Needle alpha');
+    expect(getByRole('list', { name: 'Session history results' }).textContent).toContain('Needle alpha');
 
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
@@ -185,11 +220,11 @@ describe('SessionHistorySearch', () => {
         ...historyPage([{ role: 'user', content: 'needle new', messageId: 'new-id' }], 1, 0, 8),
       });
     });
-    await waitFor(() => expect(getByTestId('session-history-search-snippet').textContent).toContain('needle new'));
+    await waitFor(() => expect(getByRole('list', { name: 'Session history results' }).textContent).toContain('needle new'));
     await act(async () => {
       requests[0]!.resolve(historyPage([{ role: 'user', content: 'needle old', messageId: 'old-id' }], 1, 0));
     });
-    expect(getByTestId('session-history-search-snippet').textContent).toContain('needle new');
+    expect(getByRole('list', { name: 'Session history results' }).textContent).toContain('needle new');
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(
       expect.objectContaining({ messageId: 'new-id' }),
       0,
