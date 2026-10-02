@@ -1530,6 +1530,7 @@ export async function fetchCodexSessions(cwd: string): Promise<CodexSessionItem[
   const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
   const data = await request<{ sessions: CodexSessionItem[] }>(
     `${BASE}/adapters/codex/sessions${query}`,
+    { cache: 'no-store' },
   );
   return data.sessions || [];
 }
