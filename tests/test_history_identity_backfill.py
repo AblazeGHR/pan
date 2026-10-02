@@ -157,6 +157,66 @@ def test_append_during_bulk_write_is_not_lost(monkeypatch):
     assert store.get(session.id).history[-1]['content'] == 'late needle'
 
 
+def test_prefix_replace_during_write_is_not_overwritten(monkeypatch):
+    session, _ = legacy()
+    before = store._history_path(session.id).read_bytes()
+    started, release = threading.Event(), threading.Event()
+    encode = store._encode_line
+    first = True
+    def slow(row):
+        nonlocal first
+        if first:
+            first = False
+            started.set()
+            assert release.wait(5)
+        return encode(row)
+    monkeypatch.setattr(store, '_encode_line', slow)
+    errors = []
+    def run():
+        try:
+            repair.prepare_history_identities(session)
+        except Exception as error:
+            errors.append(error)
+    thread = threading.Thread(target=run)
+    thread.start()
+    assert started.wait(5)
+    store.replace_history(session, [{'role': 'assistant', 'content': 'replacement'}])
+    release.set()
+    thread.join(5)
+    assert not thread.is_alive() and len(errors) == 1
+    assert store._history_path(session.id).read_bytes() == before
+    assert session.history == [{'role': 'assistant', 'content': 'replacement'}]
+
+
+def test_cold_pending_append_survives_preparation():
+    old, _ = legacy()
+    store.clear_cache()
+    cold = store.list_all(load_history=False)[0]
+    store.append_history(cold, {'role': 'assistant', 'content': 'pending needle'})
+    assert repair.prepare_history_identities(cold) == 4
+    store.save(cold)
+    store.clear_cache()
+    assert store.get(old.id).history[-1]['content'] == 'pending needle'
+
+
+def test_large_legacy_scope_is_fully_searchable_and_ids_survive_reload():
+    old = store.create('large legacy', adapter='cbc')
+    store.replace_history(old, [{'role': ('user', 'assistant', 'tool', 'thinking')[index % 4],
+                                'content': f'needle needle {index}'} for index in range(513)])
+    store.save_full(old)
+    store.clear_cache()
+    final = progressive()[-1]['result']
+    assert (final['totalMatches'], final['totalMessages']) == (1026, 513)
+    seen = list(final['hits'])
+    while final['nextCursor']:
+        final = asyncio.run(server.api_history_search(q='needle', roles='user,assistant,tool,thinking',
+                                                     countMode='content', limit=1, cursor=final['nextCursor']))
+        seen.extend(final['hits'])
+    assert len({hit['messageId'] for hit in seen}) == 513
+    store.clear_cache()
+    assert [row['messageId'] for row in store.get(old.id).history] == [hit['messageId'] for hit in seen]
+
+
 def test_scoped_search_opt_in_repairs_without_import():
     session, _ = legacy()
     params = dict(q='needle', sessionId=session.id, countMode='content', roles='user,assistant,tool,thinking')
