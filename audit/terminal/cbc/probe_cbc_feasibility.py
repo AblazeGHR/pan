@@ -112,7 +112,8 @@ def spawn_cli(args: list[str], env: dict, cwd: Path, tag: str) -> dict:
     )
     return {"proc": proc, "stdout_path": out_path, "stderr_path": err_path,
             "argv": ["node", str(CBC_ENTRY), *args],
-            "pid": proc.pid, "create_time": psutil.Process(proc.pid).create_time()}
+            "pid": proc.pid, "create_time": psutil.Process(proc.pid).create_time(),
+            "filetime": (raw_identity(proc.pid) or {}).get("filetime")}
 
 
 def proc_identity(pid: int) -> dict | None:
@@ -121,6 +122,7 @@ def proc_identity(pid: int) -> dict | None:
         return {
             "pid": pid,
             "create_time": p.create_time(),
+            "filetime": (raw_identity(pid) or {}).get("filetime"),
             "name": p.name(),
             "cmdline": p.cmdline(),
             "cwd": p.cwd(),
@@ -131,22 +133,31 @@ def proc_identity(pid: int) -> dict | None:
 
 
 # --------------------------------------------------------------------------
-# Safety-reviewed process cleanup.
+# Safety-reviewed process cleanup (probe scope only).
 #
 # A bare PID is not an identity: after the process exits the PID can be reused
 # by an unrelated process. Every termination here therefore:
-#   1. opens ONE handle with QUERY_LIMITED_INFORMATION|TERMINATE|SYNCHRONIZE;
-#   2. asks that same handle for its process id and creation FILETIME;
-#   3. refuses to terminate unless the FILETIME equals the identity recorded
-#      when the probe started that process (or when the leftover scan observed
-#      it moments earlier);
+#   1. stores the RAW creation FILETIME (integer, GetProcessTimes units) when
+#      the process is spawned / first collected — never a float round-trip;
+#   2. at stop time opens ONE handle with
+#      QUERY_LIMITED_INFORMATION|TERMINATE|SYNCHRONIZE;
+#   3. asks that same handle for its process id and creation FILETIME and
+#      requires an EXACT integer match (no tolerance) against the recorded raw
+#      value; if the raw identity was never recorded, it refuses;
 #   4. terminates through the verified handle and waits on the same handle
-#      (handles refer to the process object, so PID reuse cannot redirect it).
+#      (handles refer to the process object, so PID reuse cannot redirect).
 # Subtree handling additionally requires the descendant relationship at scan
 # time and that the process command line or cwd references this run's isolated
 # temp root; anything else is skipped and recorded as evidence.
-# Residual race: between psutil enumeration and OpenProcess the relationship
-# map can change; the FILETIME check still protects the termination itself.
+#
+# BOUNDARY (do not over-claim): this is cleanup for this probe's own processes,
+# NOT a production tree guard. Residual races remain: (a) between psutil
+# enumeration and OpenProcess the parent/child relation map can change, so a
+# recorded "child" could have been reparented; the FILETIME equality check
+# still prevents terminating a different process, but association cannot be
+# re-verified afterwards; (b) no Windows Job Object is used here, so nothing
+# re-parented out of the tree is re-collected by ancestry; (c) a refused or
+# unverified entry is reported as residue and MUST NOT be counted as cleaned.
 # --------------------------------------------------------------------------
 
 import ctypes
@@ -179,8 +190,32 @@ def _ft_value(ft) -> int:
     return (ft.dwHighDateTime << 32) | ft.dwLowDateTime
 
 
-def _ft_from_unix(ts: float) -> int:
-    return int(round((ts + _FILETIME_UNIX_DELTA) * 10_000_000))
+def _ft_to_unix(ft: int) -> float:
+    """Display-only conversion; never used for identity comparison."""
+    return ft / 10_000_000 - _FILETIME_UNIX_DELTA
+
+
+def raw_identity(pid: int) -> dict | None:
+    """Read the RAW creation FILETIME straight from a handle.
+
+    Returns ``{"pid": int, "filetime": int}`` or ``None`` when the process
+    cannot be opened/timed. Callers must store ``filetime`` verbatim; if it is
+    missing, termination refuses (no fallback to wall-clock or psutil floats).
+    """
+    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        if _kernel32.GetProcessId(handle) != pid:
+            return None
+        creation = wintypes.FILETIME(); exit_t = wintypes.FILETIME()
+        ktime = wintypes.FILETIME(); utime = wintypes.FILETIME()
+        if not _kernel32.GetProcessTimes(handle, ctypes.byref(creation), ctypes.byref(exit_t),
+                                         ctypes.byref(ktime), ctypes.byref(utime)):
+            return None
+        return {"pid": pid, "filetime": _ft_value(creation)}
+    finally:
+        _kernel32.CloseHandle(handle)
 
 
 def protected_pids() -> set[int]:
@@ -200,21 +235,29 @@ def protected_pids() -> set[int]:
     return protected
 
 
-def safe_stop(pid: int, expected_create_time: float | None, *, label: str = "",
+def safe_stop(pid: int, expected_filetime: int | None, *, label: str = "",
               basis: str = "", popen: subprocess.Popen | None = None,
               wait_ms: int = 5000) -> dict:
-    """Terminate *pid* only if the handle-confirmed identity matches."""
+    """Terminate *pid* only if the handle-confirmed RAW identity matches exactly.
+
+    ``expected_filetime`` must be the raw FILETIME integer recorded at spawn or
+    collection time. ``None`` or any mismatch refuses; an already exited
+    process is only reported as not running, never terminated.
+    """
     rec: dict = {"label": label, "pid": pid, "basis": basis,
-                 "expected_create_time": expected_create_time}
+                 "expected_filetime": expected_filetime,
+                 "terminate_attempted": False}
     if pid in protected_pids():
         rec.update({"refused": True,
                     "reason": "self/ancestor protection: refusing to terminate this probe's own process chain"})
         return rec
-    if expected_create_time is None:
-        rec.update({"refused": True, "reason": "no recorded identity; refusing to terminate"})
+    if expected_filetime is None:
+        rec.update({"refused": True,
+                    "reason": "no raw FILETIME identity recorded; refusing to terminate"})
         return rec
     if not psutil.pid_exists(pid):
-        rec.update({"gone": True, "terminated": False, "reason": "already gone at stop time"})
+        rec.update({"running": False, "gone": True,
+                    "reason": "not running at stop time; no TerminateProcess attempted"})
         return rec
 
     handle = _kernel32.OpenProcess(
@@ -233,20 +276,18 @@ def safe_stop(pid: int, expected_create_time: float | None, *, label: str = "",
                         "reason": f"GetProcessTimes failed err={ctypes.get_last_error()}"})
             return rec
         actual_ft = _ft_value(creation)
-        expected_ft = _ft_from_unix(expected_create_time)
-        rec["actual_create_time"] = actual_ft / 10_000_000 - _FILETIME_UNIX_DELTA
+        rec["actual_filetime"] = actual_ft
         rec["handle_pid"] = handle_pid
         if handle_pid != pid:
             rec.update({"refused": True, "reason": "handle pid mismatch"})
             return rec
-        # Tolerance absorbs float64 rounding of the recorded create_time
-        # (2.4e-7 s at epoch ~1.79e9 => ~3 FILETIME units); real PID reuse
-        # differs by seconds/milliseconds, i.e. >= 10^4 units.
-        if abs(actual_ft - expected_ft) > 10_000:
+        if actual_ft != expected_filetime:
             rec.update({"refused": True,
-                        "reason": "identity mismatch: creation FILETIME differs from recorded identity"})
+                        "reason": "identity mismatch: raw creation FILETIME differs from the "
+                                  "recorded identity (exact integer compare)"})
             return rec
         rec["identity_verified"] = True
+        rec["terminate_attempted"] = True
         if not _kernel32.TerminateProcess(handle, 1):
             rec.update({"terminate_failed": True,
                         "reason": f"TerminateProcess err={ctypes.get_last_error()}"})
@@ -262,6 +303,15 @@ def safe_stop(pid: int, expected_create_time: float | None, *, label: str = "",
     return rec
 
 
+def _stop_outcome(rec: dict, pid: int) -> str:
+    """Classify one stop record: 'gone' | 'refused' | 'residual'."""
+    if rec.get("refused") or rec.get("terminate_failed"):
+        return "refused"
+    if rec.get("gone") or not psutil.pid_exists(pid):
+        return "gone"
+    return "residual"
+
+
 def _scope_match(info: dict, scope_markers: list[str]) -> bool:
     blob = " ".join(info.get("cmdline") or []) + " " + str(info.get("cwd") or "")
     return any(m and m.lower() in blob.lower() for m in scope_markers)
@@ -269,7 +319,12 @@ def _scope_match(info: dict, scope_markers: list[str]) -> bool:
 
 def collect_own_descendants(root_pid: int, root_create_time: float,
                             scope_markers: list[str]) -> dict:
-    """Enumerate descendants of *root_pid* that carry this run's scope marker."""
+    """Enumerate descendants of *root_pid* that carry this run's scope marker.
+
+    Each accepted entry stores the RAW creation FILETIME read at scan time;
+    entries whose raw identity cannot be read are skipped (they would be
+    unverifiable at stop time).
+    """
     children: dict[int, list[int]] = {}
     infos: dict[int, dict] = {}
     protected = protected_pids()
@@ -305,27 +360,56 @@ def collect_own_descendants(root_pid: int, root_create_time: float,
             skipped.append({"pid": pid, "reason": "cmdline/cwd lacks this run's scope marker",
                             "cmdline": " ".join(info.get("cmdline") or [])[:200]})
             continue
-        owned.append({"pid": pid, "create_time": created,
+        raw = raw_identity(pid)
+        if not raw:
+            skipped.append({"pid": pid, "reason": "raw FILETIME identity unreadable at scan"})
+            continue
+        owned.append({"pid": pid, "filetime": raw["filetime"],
+                      "create_time": created,
                       "name": info.get("name"),
                       "cmdline": " ".join(info.get("cmdline") or [])[:200]})
     return {"owned": owned, "skipped": skipped}
 
 
-def safe_stop_tree(root_pid: int, root_create_time: float, *, label: str = "",
+def safe_stop_tree(root_pid: int, root_filetime: int | None, *, label: str = "",
                    scope_markers: list[str] | None = None,
-                   popen: subprocess.Popen | None = None) -> dict:
-    """Stop this run's own subtree: verified descendants first, then the root."""
+                   popen: subprocess.Popen | None = None,
+                   identity_overrides: dict[int, int] | None = None,
+                   root_create_time: float | None = None) -> dict:
+    """Stop this probe's own subtree: verified descendants first, then the root.
+
+    ``identity_overrides`` exists solely for the cleanup self-test fault
+    injection (a deliberately wrong raw FILETIME for one pid); no production
+    call site passes it.
+
+    ``all_gone`` is True only when every stop record is classified ``gone``;
+    refused/unverified/residual entries keep ``all_gone`` False and are listed
+    in ``refused_or_unverified`` / ``residual_pids``. This is probe-scope
+    cleanup, not a production tree guard (see module note above the helpers).
+    """
     markers = list(scope_markers or [])
+    if root_create_time is None:
+        ident = proc_identity(root_pid) or {}
+        root_create_time = ident.get("create_time") or 0.0
     scan = collect_own_descendants(root_pid, root_create_time, markers)
+    overrides = identity_overrides or {}
     stopped = []
     for child in sorted(scan["owned"], key=lambda c: c["create_time"], reverse=True):
-        stopped.append(safe_stop(child["pid"], child["create_time"], label=f"{label}:child",
-                                 basis="descendant of own root + scope marker"))
-    stopped.append(safe_stop(root_pid, root_create_time, label=label,
-                             basis="own root, identity recorded at spawn", popen=popen))
+        expected = overrides.get(child["pid"], child["filetime"])
+        stopped.append(safe_stop(child["pid"], expected, label=f"{label}:child",
+                                 basis="descendant of own root + scope marker + raw FILETIME at scan"))
+    stopped.append(safe_stop(root_pid, root_filetime, label=label,
+                             basis="own root, raw FILETIME recorded at spawn", popen=popen))
+    outcomes = {s["pid"]: _stop_outcome(s, s["pid"]) for s in stopped}
+    residual = [pid for pid, out in outcomes.items() if out != "gone"]
+    refused = [s for s in stopped if outcomes[s["pid"]] == "refused"]
     return {"label": label, "root_pid": root_pid, "scan": scan, "stopped": stopped,
-            "all_gone": all(
-                s.get("gone") or s.get("refused") for s in stopped) and not psutil.pid_exists(root_pid)}
+            "outcomes": outcomes,
+            "residual_pids": residual,
+            "refused_or_unverified": refused,
+            "root_gone": outcomes.get(root_pid) == "gone",
+            "all_gone": bool(outcomes) and all(out == "gone" for out in outcomes.values())
+                        and not psutil.pid_exists(root_pid)}
 
 
 def scan_own_leftovers(scope_markers: list[str], *, not_before: float) -> list[dict]:
@@ -343,8 +427,11 @@ def scan_own_leftovers(scope_markers: list[str], *, not_before: float) -> list[d
         blob = f"{cmdline} {cwd}"
         if any(m and m.lower() in blob.lower() for m in scope_markers):
             created = p.info.get("create_time") or 0.0
+            raw = raw_identity(p.info["pid"])
             found.append({"pid": p.info["pid"], "name": p.info["name"],
-                          "create_time": created, "cmdline": cmdline[:300],
+                          "create_time": created,
+                          "filetime": (raw or {}).get("filetime"),
+                          "cmdline": cmdline[:300],
                           "cwd": cwd,
                           "created_during_run": bool(created >= not_before - 1.0)})
     return found
@@ -356,23 +443,27 @@ def safe_stop_leftovers(scope_markers: list[str], *, not_before: float,
     """Defensive fallback path: scan then identity-verify each candidate.
 
     A candidate is terminated only if (a) its cmdline/cwd references this run's
-    unique temp root, (b) it was created during this run, and (c) the FILETIME
-    read from the same handle equals the create_time observed during the scan.
+    unique temp root, (b) it was created during this run, and (c) the raw
+    FILETIME read at scan time equals the value read from the terminating
+    handle. Created-before-run candidates, unreadable raw identities and
+    identity mismatches are reported as residue, never as "gone" —
+    ``all_gone`` is False whenever any candidate was refused.
     """
     candidates = scan_own_leftovers(scope_markers, not_before=not_before)
     results = []
     for cand in candidates:
         if not cand["created_during_run"]:
             results.append({"pid": cand["pid"], "refused": True,
-                            "reason": "created before this run started"})
+                            "reason": "created before this run started",
+                            "terminate_attempted": False})
             continue
         results.append(safe_stop_tree(
-            cand["pid"], cand["create_time"], label=f"{label}:{cand['pid']}",
+            cand["pid"], cand.get("filetime"), label=f"{label}:{cand['pid']}",
             scope_markers=tree_scope_markers or scope_markers))
+    leftovers = [r for r in results if not r.get("all_gone")]
     return {"candidates": candidates, "results": results,
-            "all_gone": all(
-                s.get("all_gone") or not psutil.pid_exists(c.get("pid", -1))
-                for s, c in zip(results, candidates))}
+            "leftovers": leftovers,
+            "all_gone": not leftovers}
 
 
 def sessions_dir(env: dict) -> Path:
@@ -551,7 +642,7 @@ def mode_headless() -> dict:
             ["attach", str(handle["pid"])], env, ws, seconds=6.0)
         res["registry_after_attach"] = registry_snapshot(env)
     finally:
-        res["cleanup"] = safe_stop_tree(handle["pid"], handle["create_time"],
+        res["cleanup"] = safe_stop_tree(handle["pid"], handle["filetime"],
                                         label="headless", scope_markers=[str(root)],
                                         popen=handle["proc"])
     res["stderr_after"] = handle["stderr_path"].read_text(encoding="utf-8", errors="replace")[:8000]
@@ -614,7 +705,7 @@ def mode_bg() -> dict:
     if bg_pid and psutil.pid_exists(bg_pid):
         ident = res.get("bg_identity_after_launch") or proc_identity(bg_pid)
         res["cleanup"] = safe_stop_tree(
-            bg_pid, (ident or {}).get("create_time"),
+            bg_pid, (ident or {}).get("filetime"),
             label="bg-job", scope_markers=[str(root)])
     else:
         res["cleanup"] = {"skipped": True, "reason": "job PID not alive at cleanup time"}
@@ -684,7 +775,7 @@ def mode_bg_lifetime() -> dict:
     if ids.get("pid") and psutil.pid_exists(ids["pid"]):
         ident = res.get("job_identity_at_end") or proc_identity(ids["pid"])
         res["cleanup"] = safe_stop_tree(
-            ids["pid"], (ident or {}).get("create_time"),
+            ids["pid"], (ident or {}).get("filetime"),
             label="bg-lifetime", scope_markers=[str(root)])
     res["launcher_identity_at_end"] = proc_identity(proc.pid)
     job_dir = cfg / "jobs"
@@ -716,7 +807,7 @@ def mode_bg_model() -> dict:
         if pid and psutil.pid_exists(pid):
             ident = proc_identity(pid) or {}
             res.setdefault("cleanup", []).append(safe_stop_tree(
-                pid, ident.get("create_time"), label=f"bg-model-{pid}",
+                pid, ident.get("filetime"), label=f"bg-model-{pid}",
                 scope_markers=[str(root)]))
     res["kill_rc"] = run_cli(["kill", name], env, ws, timeout=30)
     save("bg-model.json", res)
@@ -833,7 +924,7 @@ def mode_serve() -> dict:
             res["pty_list_after_delete"] = http("GET", "/api/v1/pty")
         res["cfg_dir_after"] = sorted(str(p.relative_to(cfg)) for p in cfg.rglob("*"))[:80]
     finally:
-        res["cleanup"] = safe_stop_tree(handle["pid"], handle["create_time"],
+        res["cleanup"] = safe_stop_tree(handle["pid"], handle["filetime"],
                                         label="serve", scope_markers=[str(root)],
                                         popen=handle["proc"])
         time.sleep(1)
@@ -854,6 +945,7 @@ def mode_acp() -> dict:
     )
     res["pid"] = proc.pid
     res["create_time"] = psutil.Process(proc.pid).create_time()
+    res["filetime"] = (raw_identity(proc.pid) or {}).get("filetime")
     out_lines: list[str] = []
     err_lines: list[str] = []
 
@@ -879,7 +971,7 @@ def mode_acp() -> dict:
         time.sleep(8)
         res["alive_after_8s"] = proc.poll() is None
     finally:
-        res["cleanup"] = safe_stop_tree(proc.pid, res["create_time"],
+        res["cleanup"] = safe_stop_tree(proc.pid, res["filetime"],
                                         label="acp", scope_markers=[str(root)],
                                         popen=proc)
     res["stdout_lines"] = out_lines[:40]
@@ -934,7 +1026,7 @@ def mode_bg_observe() -> dict:
     res["job_identity_at_end"] = proc_identity(ids["pid"]) if ids.get("pid") else None
     if ids.get("pid") and psutil.pid_exists(ids["pid"]):
         ident = res.get("job_identity_at_end") or proc_identity(ids["pid"]) or {}
-        res["cleanup"] = safe_stop_tree(ids["pid"], ident.get("create_time"),
+        res["cleanup"] = safe_stop_tree(ids["pid"], ident.get("filetime"),
                                         label="bg-observe", scope_markers=[str(root)])
     log_path = ids.get("log_path")
     if log_path and Path(log_path).exists():
@@ -1282,7 +1374,7 @@ def mode_acp_http() -> dict:
                                          headers={"acp-connection-id": conn_id})
         res["alive_at_end"] = handle["proc"].poll() is None
     finally:
-        res["cleanup"] = safe_stop_tree(handle["pid"], handle["create_time"],
+        res["cleanup"] = safe_stop_tree(handle["pid"], handle["filetime"],
                                         label="acp-http", scope_markers=[str(root)],
                                         popen=handle["proc"])
         time.sleep(1)
@@ -1296,42 +1388,54 @@ def mode_acp_http() -> dict:
 def mode_selftest_cleanup() -> dict:
     """Fault tests for the identity-verified cleanup path (no CBC involved).
 
-    T1 wrong recorded identity -> must refuse and leave the process alive
-    T2 correct identity       -> terminates through the verified handle
-    T3 already-gone identity  -> reports gone, no kill attempted
-    T4 own subtree            -> descendants need ancestry + scope marker
-    T5 foreign same-marker    -> separate process with the marker is NOT
-                                 collected as a descendant of the root
-    T6 timeout path           -> subprocess.run(timeout=) kills via retained
-                                 handle; verify the child is gone
-    T7 leftover scan+stop     -> cmdline-scoped scan followed by FILETIME check
-    T8 self/ancestor guard    -> refuses to terminate this probe's own chain
+    T1  wrong raw identity (recorded FILETIME + 1) -> must refuse, process alive
+    T2  exact raw identity                       -> terminates via verified handle
+    T3  already-exited process                   -> reported "not running" only,
+                                                    no TerminateProcess attempted
+    T4  own subtree                              -> descendants need ancestry +
+                                                    scope marker + raw identity
+    T5  foreign same-marker decoy                -> NOT collected by root scan;
+                                                    stopped only by its own identity
+    T6  timeout path                             -> subprocess.run(timeout=) ends
+                                                    its own child via retained handle
+    T7  leftover scan + verified stop            -> all_gone True
+    T8  self/ancestor guard                      -> refuses this probe's own chain
+    T9  marker-in-argv scenario                  -> cleanup-leftovers subprocess whose
+                                                    own argv contains the marker exits
+                                                    cleanly (self-kill regression)
+    T10 refused child negative                   -> identity_overrides(+1) forces a
+                                                    refused child; all_gone MUST be
+                                                    False and the child listed as
+                                                    residual; then truly cleaned
     """
     root, cfg, ws = new_workdirs("selftest")
     env = iso_env(cfg)
     res: dict = {"mode": "selftest-cleanup", "run_id": RUN_ID, "root": str(root),
-                 "note": "all processes here are created by this probe; no CBC calls"}
+                 "note": "all processes here are created by this probe; no CBC calls",
+                 "identity_comparison": "exact raw FILETIME integer, no tolerance"}
     started = time.time()
     spawned: list[subprocess.Popen] = []
     try:
-        # --- T1/T2: decoy with wrong, then correct, recorded identity
+        # --- T1/T2: decoy with wrong (raw + 1), then exact raw identity
         decoy = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         spawned.append(decoy)
-        ident = proc_identity(decoy.pid)
-        t1 = safe_stop(decoy.pid, ident["create_time"] + 120.0, label="decoy-wrong-id",
-                       basis="fault test: deliberately wrong create_time")
+        decoy_ft = (raw_identity(decoy.pid) or {}).get("filetime")
+        t1 = safe_stop(decoy.pid, None if decoy_ft is None else decoy_ft + 1,
+                       label="decoy-wrong-raw",
+                       basis="fault test: recorded raw FILETIME + 1")
         alive_after_t1 = psutil.pid_exists(decoy.pid)
-        t2 = safe_stop(decoy.pid, ident["create_time"], label="decoy-correct-id",
-                       basis="identity recorded at spawn")
+        t2 = safe_stop(decoy.pid, decoy_ft, label="decoy-correct-raw",
+                       basis="raw FILETIME recorded at spawn")
         res["T1_wrong_identity"] = {"stop_result": t1, "alive_after_refusal": alive_after_t1}
-        res["T2_correct_identity"] = {"stop_result": t2, "gone_after": not psutil.pid_exists(decoy.pid)}
+        res["T2_correct_identity"] = {"stop_result": t2,
+                                      "gone_after": not psutil.pid_exists(decoy.pid)}
 
         # --- T3: short-lived process, identity recorded, then gone
         short = subprocess.Popen(["cmd", "/c", "exit", "0"], cwd=str(ws))
-        short_ident = proc_identity(short.pid)
+        short_ft = (raw_identity(short.pid) or {}).get("filetime")
         short.wait(timeout=30)
-        t3 = safe_stop(short.pid, short_ident["create_time"], label="short-lived",
+        t3 = safe_stop(short.pid, short_ft, label="short-lived",
                        basis="already exited naturally")
         res["T3_already_gone"] = t3
 
@@ -1343,24 +1447,26 @@ def mode_selftest_cleanup() -> dict:
         spawned.append(root_proc)
         time.sleep(1.5)
         root_ident = proc_identity(root_proc.pid)
+        root_ft = (root_ident or {}).get("filetime")
         foreign = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         spawned.append(foreign)
-        foreign_ident = proc_identity(foreign.pid)
+        foreign_ft = (raw_identity(foreign.pid) or {}).get("filetime")
         time.sleep(1.0)
         scan_root = collect_own_descendants(root_proc.pid, root_ident["create_time"],
                                             scope_markers=[str(root)])
-        t4 = safe_stop_tree(root_proc.pid, root_ident["create_time"], label="selftest-root",
+        t4 = safe_stop_tree(root_proc.pid, root_ft, label="selftest-root",
                             scope_markers=[str(root)], popen=root_proc)
         res["T4_own_subtree"] = {
             "scan": scan_root, "stop": t4,
             "root_gone": not psutil.pid_exists(root_proc.pid),
             "children_gone": [c["pid"] for c in scan_root["owned"]
                               if not psutil.pid_exists(c["pid"])],
+            "all_gone": t4["all_gone"],
             "foreign_still_alive": psutil.pid_exists(foreign.pid),
         }
-        t5 = safe_stop(foreign.pid, foreign_ident["create_time"], label="foreign-decoy",
-                       basis="own decoy, separate identity")
+        t5 = safe_stop(foreign.pid, foreign_ft, label="foreign-decoy",
+                       basis="own decoy, separate raw identity")
         res["T5_foreign_not_collected"] = {
             "foreign_collected_by_root_scan": any(c["pid"] == foreign.pid for c in scan_root["owned"]),
             "stop_result": t5, "gone_after": not psutil.pid_exists(foreign.pid)}
@@ -1378,17 +1484,16 @@ def mode_selftest_cleanup() -> dict:
         time.sleep(0.5)
         res["T6_timeout_path"] = {
             "timeout_raised": timed_out,
-            "note": "subprocess.run killed its own child through the retained Popen handle",
+            "note": "subprocess.run ended its own child through the retained Popen handle",
             "own_unrelated_decoy_untouched": psutil.pid_exists(t6_proc.pid),
         }
         if psutil.pid_exists(t6_proc.pid):
-            ident6 = proc_identity(t6_proc.pid) or {}
+            ft6 = (raw_identity(t6_proc.pid) or {}).get("filetime")
             res["T6_timeout_path"]["decoy_cleanup"] = safe_stop(
-                t6_proc.pid, ident6.get("create_time"), label="t6-decoy",
-                basis="own decoy after timeout test")
+                t6_proc.pid, ft6, label="t6-decoy", basis="own decoy after timeout test")
 
         # --- T8: self / ancestor protection
-        own = proc_identity(os.getpid()) or {}
+        own_ft = (raw_identity(os.getpid()) or {}).get("filetime")
         parent = None
         try:
             parents = psutil.Process(os.getpid()).parents()
@@ -1396,11 +1501,11 @@ def mode_selftest_cleanup() -> dict:
                 parent = parents[0]
         except psutil.Error:
             parent = None
-        t8_self = safe_stop(os.getpid(), own.get("create_time"), label="self",
+        t8_self = safe_stop(os.getpid(), own_ft, label="self",
                             basis="fault test: must refuse self")
-        parent_ident = proc_identity(parent.pid) if parent else None
-        t8_parent = (safe_stop(parent.pid, (parent_ident or {}).get("create_time"),
-                               label="parent", basis="fault test: must refuse ancestor")
+        parent_ft = (raw_identity(parent.pid) or {}).get("filetime") if parent else None
+        t8_parent = (safe_stop(parent.pid, parent_ft, label="parent",
+                               basis="fault test: must refuse ancestor")
                      if parent else {"skipped": "no parent resolved"})
         res["T8_self_ancestor_protection"] = {
             "self_stop": t8_self, "parent_stop": t8_parent,
@@ -1420,13 +1525,60 @@ def mode_selftest_cleanup() -> dict:
         res["T7_leftover_scan_stop"] = {
             "scan_found": scan, "stop": t7,
             "alive_after": psutil.pid_exists(leftover.pid)}
+
+        # --- T9: marker-in-argv regression (the child's own argv has the marker)
+        scenario_marker = f"pan-selfscenario-{RUN_ID}"
+        child = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), "cleanup-leftovers", scenario_marker],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+            cwd=str(Path(__file__).resolve().parent.parent.parent.parent))
+        res["T9_marker_in_argv"] = {
+            "child_rc": child.returncode,
+            "child_stdout_tail": (child.stdout or "")[-300:],
+            "child_stderr_tail": (child.stderr or "")[-500:],
+            "parent_alive_after": bool(psutil.Process(os.getpid()).is_running()),
+            "note": "child argv contained the marker; self/ancestor protection must prevent self-kill",
+        }
+
+        # --- T10: refused-child negative -> all_gone must be False
+        neg_root = subprocess.Popen(
+            ["cmd", "/c", f"echo {marker} & ping -n 60 127.0.0.1"],
+            cwd=str(ws), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        spawned.append(neg_root)
+        time.sleep(1.5)
+        neg_scan = collect_own_descendants(neg_root.pid,
+                                           (proc_identity(neg_root.pid) or {}).get("create_time", 0.0),
+                                           scope_markers=[str(root)])
+        neg_root_ft = (raw_identity(neg_root.pid) or {}).get("filetime")
+        overrides = {c["pid"]: c["filetime"] + 1 for c in neg_scan["owned"]}
+        t10 = safe_stop_tree(neg_root.pid, neg_root_ft, label="selftest-refused-child",
+                             scope_markers=[str(root)], popen=neg_root,
+                             identity_overrides=overrides)
+        residual_child = [c["pid"] for c in neg_scan["owned"]]
+        res["T10_refused_child_negative"] = {
+            "injected_overrides": {str(k): v for k, v in overrides.items()},
+            "stop": t10,
+            "all_gone_must_be_false": t10["all_gone"] is False,
+            "residual_pids": t10["residual_pids"],
+            "refused_entries": [r.get("pid") for r in t10["refused_or_unverified"]],
+            "child_still_alive_after": [pid for pid in residual_child if psutil.pid_exists(pid)],
+        }
+        # then clean the residual child with its TRUE raw identity
+        cleaned = []
+        for pid in residual_child:
+            if psutil.pid_exists(pid):
+                ft = (raw_identity(pid) or {}).get("filetime")
+                cleaned.append(safe_stop(pid, ft, label=f"t10-cleanup-{pid}",
+                                         basis="true raw identity after negative case"))
+        res["T10_refused_child_negative"]["post_cleanup"] = cleaned
+        res["T10_refused_child_negative"]["residual_gone_after_cleanup"] = [
+            pid for pid in residual_child if not psutil.pid_exists(pid)]
     finally:
         for p in spawned:
             if p.poll() is None:
-                ident = proc_identity(p.pid) or {}
+                ft = (raw_identity(p.pid) or {}).get("filetime")
                 res.setdefault("final_cleanup", []).append(safe_stop(
-                    p.pid, ident.get("create_time"), label=f"final-{p.pid}",
-                    basis="own spawned process"))
+                    p.pid, ft, label=f"final-{p.pid}", basis="own spawned process"))
         # scope-based fallback for anything this mode created
         res.setdefault("final_scope_cleanup", safe_stop_leftovers(
             [str(root)], not_before=RUN_START, label="selftest-scope"))

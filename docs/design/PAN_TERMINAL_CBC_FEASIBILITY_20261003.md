@@ -1,5 +1,9 @@
 # Pan Terminal：CBC 无中断网页原生 TUI 可行性（TA 探索报告）
 
+> 修订 r3（2026-10-03）：MA 复核 `ec0dd04f` 后最小 follow-up——清理身份改为**原始整数 FILETIME
+> 精确比较**（去掉 float 反算与容差；原始身份缺失即拒绝；已退出仅报告不终止），`safe_stop_tree.all_gone`
+> 不再把 refused 视作已清理（新增 `residual_pids`/`refused_or_unverified`）并补 T10 拒杀负例（§3.1、§4.7）。
+>
 > 修订 r2（2026-10-03）：MA 审查后按六项返工——结论分层与措辞收紧（Q1/Q2/Q3/§0/§7/§9/§12）、
 > 清理安全重做（§3.1、§4.7）、`--remote-control` 只读评估（§3.2）、日志映射（§11.1）、
 > 凭证扫描结论（§11.2）。原始证据全部保留（含首轮暴露缺陷的自测快照）。
@@ -164,29 +168,44 @@ daemon 宿主；但“从一开始运行 native TUI，同时供 Pan 使用结构
   已完成清理的本机 loopback 测试服务（任务书同时要求“Windows 测试服务选已验证空闲的自有 loopback
   端口并记 PID/创建时间”）。
 
-### 3.1 清理安全模型（2026-10-03 返工，取代裸 `taskkill`）
+### 3.1 清理安全模型（2026-10-03 两轮返工，取代裸 `taskkill`）
 
-初版探针用 `taskkill /PID <pid> /T /F`，存在 PID 复用/误杀风险，已整体替换（`probe_cbc_feasibility.py`
-的 `safe_stop` / `safe_stop_tree` / `safe_stop_leftovers`）：
+初版探针用 `taskkill /PID <pid> /T /F`，存在 PID 复用/误杀风险，已整体替换。第二轮修正把身份比对
+从“float 反算 + 容差”改为**原始整数 FILETIME 精确比较**（`probe_cbc_feasibility.py` 的
+`raw_identity` / `safe_stop` / `safe_stop_tree` / `safe_stop_leftovers`）：
 
-1. **单一 handle 核验身份**：`OpenProcess(QUERY_LIMITED_INFORMATION|TERMINATE|SYNCHRONIZE)` 打开后，
-   用同一 handle 读 `GetProcessId` 与 `GetProcessTimes`（creation FILETIME），与启动时记录的
-   identity 比对；不符则**拒绝终止并留证**。FILETIME 容差 ±10 000 单位（1 ms），只用于吸收
-   `psutil.create_time` 的 float64 舍入；真实 PID 复用的时间差远大于此。
-2. **Handle 即身份**：终止与等待都通过这个已验证 handle（`TerminateProcess` + `WaitForSingleObject`），
+1. **原始身份在采集时刻落盘**：`raw_identity(pid)` 直接用 handle 读 `GetProcessTimes` 的 creation
+   FILETIME（整数，100ns 单位）；spawn/扫描时保存该整数。**不做 float 往返、不设容差**——
+   浮点反算与 ±1 ms 窗口都只是启发式，不构成安全保证。
+2. **同一 handle 精确核验**：终止时 `OpenProcess(QUERY_LIMITED_INFORMATION|TERMINATE|SYNCHRONIZE)`，
+   用同一 handle 读 `GetProcessId` + creation FILETIME；**整数必须完全相等**（`!=` 即拒绝）。
+   **原始身份缺失（None）同样拒绝**，不会回退到 wall-clock 或 psutil 浮点值。
+3. **Handle 即身份**：终止与等待都通过这个已验证 handle（`TerminateProcess` + `WaitForSingleObject`），
    handle 指向进程对象本身，PID 复用无法重定向；结束后 `GetExitCodeProcess` 记录退出码。
-3. **子树必须自证**：`collect_own_descendants` 要求 (a) 扫描时刻的 parent 链属于本次自建 root，
-   (b) 创建时间不早于 root，(c) cmdline 或 cwd 含本次隔离临时根路径——三项全过才纳入；
-   否则跳过并记录原因。
-4. **自链保护**：`protected_pids()` 把当前进程与其全部祖先排除；`safe_stop` 对其直接拒绝。
+   结果中显式记录 `terminate_attempted`，只有走到核验通过的终止分支才为 True。
+4. **已退出只报告、不终止**：进程已不在时返回 `running=false, gone=true, terminate_attempted=false`，
+   说明“not running at stop time; no TerminateProcess attempted”，绝不调用 TerminateProcess
+   （T3 断言该字段为 False）。
+5. **子树必须自证**：`collect_own_descendants` 要求 (a) 扫描时刻的 parent 链属于本次自建 root，
+   (b) 创建时间不早于 root，(c) cmdline 或 cwd 含本次隔离临时根路径，(d) 能读到原始 FILETIME——
+   四项全过才纳入；否则跳过并记录原因。
+6. **`all_gone` 诚实聚合**：每条停止记录分类为 `gone` / `refused`（身份不符、无身份、OpenProcess
+   失败、TerminateProcess 失败） / `residual`（存活）。**refused/residual 不再当作已清理**：
+   `all_gone` 仅在全部条目为 `gone` 且 root 已消失时为 True；另有 `root_gone`、`residual_pids`、
+   `refused_or_unverified` 字段保留残留与未核验事实（T10 负例断言 `all_gone=false`）。
+7. **自链保护**：`protected_pids()` 把当前进程与其全部祖先排除；`safe_stop` 对其直接拒绝。
    该保护源于实测事故：当调用命令的 argv 里包含扫描 marker 时，初版扫描会匹配到发起命令的
    自身 shell 并把它终止（见 §4.7 T8/T9）。
-5. **daemon/超时兜底**：daemon 这类脱离子进程在 `daemon stop` 后由 `safe_stop_leftovers`
-   （扫描 → 身份核验 → 终止）兜底；`run_cli` 的 `subprocess.run(timeout=)` 走 Python 保留的
-   Popen handle 终止（非 PID），已用 T6 验证其子进程确实消失且无关进程不受影响。
-6. **剩余竞态**（明示）：扫描到 OpenProcess 之间进程关系可能变化；兜底路径的身份基准来自“扫描时刻”，
-   窗口为毫秒级，且终止前仍以同一 handle 的 FILETIME 复核。探针无法消除该窗口，只能收敛并留证；
-   Pan 侧长期方案应为自有 Job Object（对照 `packages/core/takeover_job.py` 的 suspended-launch 模式）。
+8. **daemon/超时兜底**：daemon 这类脱离子进程在 `daemon stop` 后由 `safe_stop_leftovers`
+   （扫描 → 原始身份核验 → 终止）兜底；`run_cli` 的 `subprocess.run(timeout=)` 走 Python 保留的
+   Popen handle 终止（非 PID），已用 T6 验证。
+9. **边界（不得过度声明）**：这是本探针自有进程的清理，**不是生产级整树守卫**。剩余竞态：
+   (a) psutil 枚举到 OpenProcess 之间父子关系可能变化——FILETIME 相等可保证“没有杀错进程”，
+   但事后无法再验证关联；(b) 未使用 Windows Job Object，脱离树的重挂进程不会被按血缘重新收集；
+   (c) refused/residual 条目一律保留为残留事实。Pan 侧长期方案应为自有 Job Object
+   （对照 `packages/core/takeover_job.py` 的 suspended-launch 模式）。
+10. **测试注入缝**：`safe_stop_tree(identity_overrides=...)` 仅供 `selftest-cleanup` 故障注入
+    （见 T10），无生产调用点。
 
 ### 3.2 `--remote-control`（只读评估，未连接任何远程服务）
 
@@ -297,32 +316,38 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
   - `DELETE /api/v1/acp` → 200 断开。
 - `--serve --acp` 与普通 `--serve` 行为一致（ACP over HTTP 本就默认开启）。
 
-### 4.7 清理安全故障自测（`evidence/20261003-011130/selftest-cleanup.json`，返工新增）
+### 4.7 清理安全故障自测 T1–T10（`evidence/20261003-012008/selftest-cleanup.json`）
 
-`probe_cbc_feasibility.py selftest-cleanup` 全部为自建进程，不调用 CBC、无模型请求：
+`probe_cbc_feasibility.py selftest-cleanup` 全部为自建进程，不调用 CBC、无模型请求；
+身份基准为**原始整数 FILETIME**，比较为精确相等（无容差）。
 
 | 用例 | 场景 | 期望 | 实测结果 |
 |---|---|---|---|
-| T1 | 故意给错 create_time（+120 s） | 拒绝终止、进程存活 | ✅ `refused`，reason=identity mismatch；`alive_after_refusal=true` |
-| T2 | 正确 create_time | 核验通过并终止 | ✅ `identity_verified=true, terminated=true, gone=true` |
-| T3 | 已自然退出的短命进程 | 报告 gone、不尝试 kill | ✅ `gone=true, terminated=false` |
-| T4 | 自建 root + 其子进程 | 依据 ancestor+scope 终止两者 | ✅ owned=[child]，root/child 均 verified+gone |
-| T5 | 同 marker 但非 root 后代的外部 decoy | 不被 root 扫描收集；仅按自身身份停止 | ✅ `foreign_collected_by_root_scan=false`；随后自身身份核验通过 |
-| T6 | `subprocess.run(timeout=)` 超时路径 | 子进程经保留 handle 被终止，无关进程不受影响 | ✅ `timeout_raised=true`；无关 decoy 存活；后续清理 verified |
+| T1 | 记录 raw FILETIME **+1** | 拒绝终止、进程存活 | ✅ `refused`（exact compare）；`expected = actual + 1`；`alive_after_refusal=true` |
+| T2 | 精确 raw FILETIME | 核验通过并终止 | ✅ `identity_verified=true, terminate_attempted=true, gone=true` |
+| T3 | 已自然退出的进程 | 仅报告 not-running，不 Terminate | ✅ `running=false, gone=true, terminate_attempted=false` |
+| T4 | 自建 root + 其子进程 | 依据 ancestor+scope+raw FILETIME 终止两者 | ✅ outcomes 全 `gone`，`all_gone=true`，root/child 均消失 |
+| T5 | 同 marker 但非 root 后代的外部 decoy | 不被 root 扫描收集；仅按自身 raw 身份停止 | ✅ `foreign_collected_by_root_scan=false`；随后自身核验通过 |
+| T6 | `subprocess.run(timeout=)` 超时路径 | 子进程经保留 handle 结束，无关进程不受影响 | ✅ `timeout_raised=true`；无关 decoy 存活；随后核验清理 |
 | T7 | 扫描 + 身份核验兜底（leftover） | 找到 cmd.exe 及其 ping 子进程并全部终止 | ✅ `all_gone=true`，`alive_after=false` |
 | T8 | 当前进程自身 + 其父进程（祖先） | 拒绝（自链保护） | ✅ 两者 `refused`，父进程仍存活 |
-| T9（复现场景） | marker 出现在调用命令 argv 中，运行 `cleanup-leftovers` | 不再自杀、正常完成 | ✅ 返工前该场景曾终止调用 shell（rc=1、无输出）；返工后 rc=0 并写出证据（`evidence/20261003-011156/cleanup-leftovers.json`） |
+| T9 | marker 出现在执行命令 argv 中（子进程运行 `cleanup-leftovers`） | 不自杀、正常完成 | ✅ 子进程 rc=0、父进程存活；子进程证据 `evidence/20261003-012025/cleanup-leftovers.json` |
+| T10 | **拒杀 child 负例**：`identity_overrides` 把 child 的 raw FILETIME 改成 +1 | 子进程被拒、**`all_gone` 必须为 False** 且列为残留 | ✅ `all_gone=false`；`residual_pids=[child]`、`refused_or_unverified=[child]`、child 存活；随后用真实 raw 身份清理并确认消失 |
 
-附注：首轮自测 `evidence/20261003-010736/selftest-cleanup.json` 暴露出真实缺陷——FILETIME 比较容差过紧
-（±1 单位）导致正确的 identity 也被拒绝（T2/T7 失败，并留下 2 个待清理 ping 进程）；
-改为 ±10 000 单位（1 ms，仅吸收 float64 舍入）后 `010837` 复跑通过，残留进程由
-`safe_stop_leftovers` 兜底清除（见 §8）。
+附注（历史）：首轮自测 `evidence/20261003-010736/selftest-cleanup.json` 暴露出真实缺陷——FILETIME
+容差过紧（±1 单位）导致正确的 identity 也被拒绝（T2/T7 失败，并留下 2 个待清理 ping 进程）；
+改为 ±10 000 单位后 `010837` 复跑通过，残留进程由 `safe_stop_leftovers` 兜底清除。
+**第二轮审查后已彻底移除容差与 float 反算**：现有实现为原始整数精确比较；若原始身份缺失一律拒绝。
+自测运行 `012008` 为当前实现的最终结果。
 
 ### 4.8 返工后冒烟复跑（验证新清理路径不回归）
 
-- `headless`（`evidence/20261003-011202/headless.json`）：根进程 `identity_verified=true,
+- `headless`（第二轮实现，`evidence/20261003-011202/headless.json`）：根进程 `identity_verified=true,
   terminated=true, gone=true`，无后代（符合预期）；attach 拒绝结论不变。
-- `daemon`（`evidence/20261003-011225/daemon.json`）：`daemon stop` 后兜底扫描 0 候选、
+- `headless`（第三轮 raw FILETIME 实现，`evidence/20261003-012039/headless.json`）：spawn 记录原始
+  FILETIME；清理时 `actual_filetime == expected_filetime` 精确匹配、`outcomes={"<pid>":"gone"}`、
+  `all_gone=true`、`residual=[]`。
+- `daemon`（第二轮实现，`evidence/20261003-011225/daemon.json`）：`daemon stop` 后兜底扫描 0 候选、
   `all_gone=true`、端口释放、`daemon status=stopped`。
 
 ## 5. 代码/机制推断（源码与 bundle 阅读，非直接实测结论）
@@ -376,7 +401,7 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
 | 运行中任务连续（in-flight turn） | B/C | **未验证**：层 C 的 job 有独立 PID 与 `alive/settled` 生命周期、可 stop；turn 在 attach/respawn/daemon 重启下的存续未测 | §4.4、§6 |
 | 操作权转交（Pan ↔ 原生 TUI） | B | **未验证/未实现**：无“同一 Agent 会话在 Pan 与原生 TUI 间交接”的证据；PTY/ACP 接口本身可用，但不构成会话交接 | §4.5、§4.6、§6 |
 | 审批与输出事件保留 | C | 部分：daemon job 的 shell 输出**未进日志文件**（0 字节）且 shell job 无 transcript 流；模型事件的 SSE/审批未测 | §4.3、§4.4、§6 |
-| 清理 | — | ✅ 探针进程/端口/临时目录均已清理；返工后清理全部走身份核验路径，T1–T9 覆盖误杀/自链/超时/兜底 | §4.7、§8 |
+| 清理 | — | ✅ 探针进程/端口/临时目录均已清理；清理走**原始 FILETIME 精确核验**（无容差、缺失即拒绝），`all_gone` 不把 refused 当已清理；T1–T10 覆盖误杀/自链/超时/兜底/拒杀负例 | §4.7、§8 |
 | 网页终端真实性（普通 shell PTY） | A | ✅ 真 PowerShell PTY、真 ANSI、真 resize；**它是 OS shell，不是 Agent 会话** | §4.5 |
 
 ## 8. 清理记录
@@ -387,12 +412,21 @@ bundle 字符串只读检查**，不使用认证、不建立连接、不启动 t
   - 复现自杀场景修复：`evidence/20261003-011156/cleanup-leftovers.json`（rc=0 正常完成）；
   - 冒烟：`evidence/20261003-011202/headless.json`（root `identity_verified=true, gone=true`）、
     `evidence/20261003-011225/daemon.json`（stop 后 0 候选、`all_gone=true`、端口释放）。
+- 第二轮（提交 `ec0dd04f`）：清理全部走身份核验路径（仍为 float 反算 + 1 ms 容差），
+  `selftest-cleanup` T1–T9 留证：`evidence/20261003-011130/selftest-cleanup.json`；
+  复现自杀场景修复：`evidence/20261003-011156/cleanup-leftovers.json`（rc=0 正常完成）；
+  冒烟：`evidence/20261003-011202/headless.json`（root `identity_verified=true, gone=true`）、
+  `evidence/20261003-011225/daemon.json`（stop 后 0 候选、`all_gone=true`、端口释放）。
+- 第三轮（本轮）：身份改为**原始整数 FILETIME 精确相等**（无容差、无 float 反算；缺失即拒绝），
+  `all_gone` 不再把 refused 当 gone。`selftest-cleanup` T1–T10 全过并留证：
+  `evidence/20261003-012008/selftest-cleanup.json`（含 T9 子进程证据 `evidence/20261003-012025/cleanup-leftovers.json`）；
+  第三轮冒烟 `evidence/20261003-012039/headless.json`（精确匹配、`all_gone=true`、`residual=[]`）。
 - 第一轮（提交 `f081484b`/`8e2be41c`）运行（当时使用 `taskkill`）：核验进程消失、端口释放：
   serve 52648 ✅、daemon 53373 ✅、daemon-job 63242 ✅、ACP-HTTP 57739 ✅、ACP 变体 56709/57759 ✅、
   headless 4040 ✅、bg/observe 相关 job PID 均不在 ✅；无误杀事件的旁证（全部操作对象均为自建进程）。
 - 返工期间由自测**发现并修复两个真实清理缺陷**：FILETIME 容差过紧（正确的 identity 被拒）与
   自链未保护（marker 出现在调用命令 argv 时曾终止调用自身 shell，仅影响本探针命令，未触及其它进程）。
-- 全部 `%TEMP%\pan-cbc-probe-*` 隔离根已删除（含返工新增的 `selftest-*`）；`Get-CimInstance` 复核
+- 全部 `%TEMP%\pan-cbc-probe-*` 隔离根已删除（含各轮新增的 `selftest-*`）；`Get-CimInstance` 复核
   无任何引用它们的进程。
 - 证据中不保存 `sessionToken`/密码等凭证值（一次早期写入已在提交前脱敏，两轮提交与最终 evidence
   的扫描结果见 §11.2）。
@@ -475,9 +509,12 @@ uv run --no-project --python E:/software/miniforge/python.exe `
   `evidence/acp-http-variants.json`（+ .err）、
   `evidence/samples/{bg-model.broker.json,bg-model.state.json,daemon-job.state.json,headless-worker-registry.json}`
 - 返工新增（2026-10-03 第二轮）：`evidence/20261003-010736/selftest-cleanup.json`（首轮自测，暴露容差缺陷）、
-  `evidence/20261003-011130/selftest-cleanup.json`（T1–T9 全过）、
+  `evidence/20261003-010837|011130/selftest-cleanup.json`（T1–T9 全过）、
   `evidence/20261003-011156/cleanup-leftovers.json`（自杀场景修复复现）、
-  `evidence/20261003-011202/headless.json`、`evidence/20261003-011225/daemon.json`（新清理路径冒烟）
+  `evidence/20261003-011202/headless.json`、`evidence/20261003-011225/daemon.json`（第二轮清理路径冒烟）
+- 返工新增（2026-10-03 第三轮，raw FILETIME）：`evidence/20261003-012008/selftest-cleanup.json`（T1–T10 全过）、
+  `evidence/20261003-012025/cleanup-leftovers.json`（T9 子进程自证运行）、
+  `evidence/20261003-012039/headless.json`（raw 身份冒烟：精确匹配、`all_gone=true`、`residual=[]`）
 
 ### 11.1 证据日志映射（`.log` → `.txt`，读者定位用）
 
@@ -498,13 +535,14 @@ uv run --no-project --python E:/software/miniforge/python.exe `
 
 ### 11.2 凭证扫描结果（只列文件/键/是否脱敏，不打印值）
 
-扫描范围：两次已提交树（`f081484b`、`8e2be41c`=HEAD 之前）+ 工作区最终 `evidence/`。
+扫描范围：全部已提交树（`f081484b`、`8e2be41c`、`ec0dd04f`）+ 第三轮工作区 `evidence/`
+（`20261003-012008|012025|012039`）。
 
 | 项 | 结果 |
 |---|---|
 | `sessionToken` 值 | 历史与最终证据中均无裸值；仅出现在 OpenAPI schema（字段名）、探针代码与显式脱敏注记 |
 | 早期运行 `20261003-003938` 的 token | **未进入 Git 历史**：`f081484b` 中该文件的 `acp_connect` 即为 `{"status":200,"note":"initial run redacted: sessionToken value removed"}`（写入发生在首次 `git add` 之前） |
-| `password` / `Bearer ` / `gateway_session` / `CODEBUDDY_API_KEY` / `CODEBUDDY_AUTH_TOKEN` | 无值命中（`--serve` 探针均用 `--auth none`，启动横幅不含密码） |
+| `password` / `Bearer ` / `gateway_session` / `CODEBUDDY_API_KEY` / `CODEBUDDY_AUTH_TOKEN` | 无值命中（`--serve` 探针均用 `--auth none`，启动横幅不含密码）；第三轮新增证据复扫 0 命中 |
 | 高熵字符串扫描（≥32 字符） | 命中均为 CBC 会话/作业 UUID、local_storage 条目名、日志文件名哈希、`--help` 旗标串，非凭证 |
 | 结论 | 无需改写历史；未发现需要上报 MA 的泄露 |
 
