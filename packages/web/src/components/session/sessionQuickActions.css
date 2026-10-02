@@ -170,3 +170,30 @@
 .session-unread-done-badge:hover {
   filter: brightness(1.12);
 }
+
+/* 队列数徽标：只读展示，默认蓝底；队列非空且每个待处理项都带真实锁（手动锁/
+   自动 report 锁）时为红底。cursor 保持 default 以区别于可双击清零的 done
+   徽标；点击/双击事件在组件里全部拦截，不会触发卡片选中或任何队列操作。 */
+.session-queue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-bg-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  cursor: default;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.session-queue-badge-locked {
+  background: var(--color-danger);
+}

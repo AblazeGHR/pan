@@ -441,6 +441,11 @@ export function useWebSocket() {
       unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => {
         useQueueStore.getState().applyQueueEvent(e);
         refreshAgentQueue(e.sessionId);
+        // 队列事件附带的最新 Session 摘要（queuePendingCount / queueAllLocked /
+        // queueRevision）就地合入卡片徽标；缺失时由既有防抖列表刷新兜底。
+        if (e.sessionId && e.session) {
+          useSessionStore.getState().updateSession(e.sessionId, { ...e.session }, true);
+        }
       }));
     }
     unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {

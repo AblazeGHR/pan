@@ -1279,11 +1279,17 @@ class Session:
     queue_idempotency_index: dict = field(default_factory=dict)
     queue_revision: int = 0
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
-    # 未读 done 次数：每个真实 done 终态 +1，由唯一终态入口
-    # worker._persist_terminal_state（既有终态去重之后）计数；error/cancelled/
-    # zombie 与子 report 批次不计。UI 双击徽标或选中 Session 即读后清零。
-    # 旧 JSON 缺该字段按 0 载入；绝不从 history/terminal_results 回溯补计。
+    # 未读 done 游标模型：unread_done_generation 是每个真实 done 终态 +1 的
+    # 单调累计（唯一终态入口 worker._persist_terminal_state 在既有去重之后
+    # 累加）；unread_done_read_generation 是已读游标——ack 只推进到调用方已
+    # 观察的 generation，重复/重试/延迟的同一游标幂等，且永远不清新 generation。
+    # unread_done_count = generation - read，只是物化显示值（徽标/筛选）。
+    # error/cancelled/zombie 与子 report 批次不计；旧 JSON 缺字段按 0 载入，
+    # 仅带 count 的旧数据把它折算为未读 generation（见 __init__ 收敛），
+    # 绝不从 history/terminal_results 回溯补计。
     unread_done_count: int = 0
+    unread_done_generation: int = 0
+    unread_done_read_generation: int = 0
     # The latest formal assign task selected for this Session.  This is a
     # routing context for subsequent agent_send messages, not a second queue
     # or an idempotency registry.  It is persisted so a Worker respawn cannot
@@ -1347,6 +1353,8 @@ class Session:
                  queue_revision: int = 0,
                  task_seq: int = 0,
                  unread_done_count: int = 0,
+                 unread_done_generation: int = 0,
+                 unread_done_read_generation: int = 0,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
                  summary_projection: dict | None = None,
@@ -1482,10 +1490,27 @@ class Session:
             if migrated:
                 self.queue_revision += 1
         self.task_seq = task_seq
+        # 未读 done 游标收敛：count 只是 generation - read 的物化显示值。
+        # 旧 JSON（本功能前一版只落盘 count，或更早完全缺字段）把 count 折算为
+        # 未读 generation 补足，再夹紧 read <= generation，避免损坏值把游标
+        # 关系弄反；此后 count 不参与任何 ack 边界判断。
         try:
-            self.unread_done_count = max(0, int(unread_done_count or 0))
+            unread_generation = max(0, int(unread_done_generation or 0))
         except (TypeError, ValueError):
-            self.unread_done_count = 0  # 落盘值损坏时降级为 0，不阻塞 Session 加载
+            unread_generation = 0
+        try:
+            unread_read_generation = max(0, int(unread_done_read_generation or 0))
+        except (TypeError, ValueError):
+            unread_read_generation = 0
+        try:
+            unread_count = max(0, int(unread_done_count or 0))
+        except (TypeError, ValueError):
+            unread_count = 0
+        unread_generation = max(unread_generation, unread_count + unread_read_generation)
+        unread_read_generation = min(unread_read_generation, unread_generation)
+        self.unread_done_generation = unread_generation
+        self.unread_done_read_generation = unread_read_generation
+        self.unread_done_count = unread_generation - unread_read_generation
         self.active_task_id = active_task_id
         raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.accepted_input_ids = list(dict.fromkeys(
@@ -1715,6 +1740,8 @@ class Session:
             "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
             "unread_done_count": self.unread_done_count,
+            "unread_done_generation": self.unread_done_generation,
+            "unread_done_read_generation": self.unread_done_read_generation,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
             "summary_projection": dict(self.summary_projection),
@@ -1861,7 +1888,8 @@ def _summary_metadata_signature(s: Session) -> str:
         "managed": list(s.managed),
         "managed_by": s.managed_by,
         "readonly_session": s.readonly_session,
-        "unread_done_count": int(s.unread_done_count or 0),
+        "unread_done_generation": int(s.unread_done_generation or 0),
+        "unread_done_read_generation": int(s.unread_done_read_generation or 0),
     }
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 

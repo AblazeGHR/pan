@@ -890,25 +890,27 @@ export async function setSessionPinned(
   return data as ApiSessionPinResponse & { ok: true; pinRevision: number; sessionIds: string[] };
 }
 
-/** Acknowledge (clear) one Session's unread done badge up to the observed count.
- *  The server subtracts only what the caller actually saw, so a done landing
- *  while the request is in flight stays unread. Returns the authoritative
- *  remaining count. */
+/** Acknowledge (advance the read cursor of) one Session's unread done badge.
+ *  `observedGeneration` is the done generation the caller actually saw — the
+ *  only race boundary (the server advances max(read, observed); duplicate /
+ *  delayed / retried cursors are idempotent and never clear newer
+ *  generations). Returns the authoritative count + cursor pair. */
 export async function ackSessionUnreadDone(
   sessionId: string,
-  observed?: number,
-): Promise<ApiSessionUnreadAckResponse & { ok: true; unreadDoneCount: number }> {
+  observedGeneration: number,
+): Promise<ApiSessionUnreadAckResponse
+  & { ok: true; unreadDoneCount: number; unreadDoneGeneration: number; unreadDoneReadGeneration: number }> {
   const data = await request<ApiSessionUnreadAckResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/unread-done/ack`,
-    {
-      method: 'POST',
-      body: JSON.stringify(observed === undefined ? {} : { observed }),
-    },
+    { method: 'POST', body: JSON.stringify({ observed: observedGeneration }) },
   );
-  if (data.ok !== true || typeof data.unreadDoneCount !== 'number') {
+  if (data.ok !== true || typeof data.unreadDoneCount !== 'number'
+      || typeof data.unreadDoneGeneration !== 'number'
+      || typeof data.unreadDoneReadGeneration !== 'number') {
     throw new Error(data.error?.message || 'Unread ack failed');
   }
-  return data as ApiSessionUnreadAckResponse & { ok: true; unreadDoneCount: number };
+  return data as ApiSessionUnreadAckResponse
+    & { ok: true; unreadDoneCount: number; unreadDoneGeneration: number; unreadDoneReadGeneration: number };
 }
 
 /** Reorder only the supplied currently pinned IDs; omitted pins keep their slots. */

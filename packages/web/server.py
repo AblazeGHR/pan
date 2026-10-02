@@ -1424,6 +1424,13 @@ _SUMMARY_SESSION_EVENT_TYPES = frozenset({
     "session.created", "session.updated", "session.renamed",
     "session.workspaceUpdated",
 })
+# Queue mutations attach the same Session summary so card badges (pending count
+# / all-locked) and queueRevision converge with the existing queue events
+# instead of forcing a per-Session queue subscription in the list.
+_SUMMARY_QUEUE_EVENT_TYPES = frozenset({
+    "queue.item_added", "queue.item_updated", "queue.item_removed",
+    "queue.item_delivered", "queue.snapshot",
+})
 
 
 def _summary_session_get(session_id: str):
@@ -1462,7 +1469,9 @@ def _attach_session_summary_patch(data: dict) -> dict:
                 task_id=task_id,
                 task_seq=task_seq,
             )
-    if event_type not in (_SUMMARY_WORKER_EVENT_TYPES | _SUMMARY_SESSION_EVENT_TYPES):
+    if event_type not in (_SUMMARY_WORKER_EVENT_TYPES
+                          | _SUMMARY_SESSION_EVENT_TYPES
+                          | _SUMMARY_QUEUE_EVENT_TYPES):
         return data
     current = _summary_session_get(session_id)
     if not isinstance(current, sess.Session):
@@ -1972,6 +1981,7 @@ def _session_to_api(
     projection = sess.summary_projection(s)
     if pin_projection is None:
         pin_projection = sess.session_pin_projection(s.id)
+    queue_pending_count, queue_all_locked = _queue_pending_summary(s)
     return {
         "id": s.id,
         "name": s.name,
@@ -1999,6 +2009,9 @@ def _session_to_api(
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
+        "queuePendingCount": queue_pending_count,
+        "queueAllLocked": queue_all_locked,
+        "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
         **({"history": _api_history(
             s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
         )} if include_history else {}),
@@ -2009,6 +2022,9 @@ def _session_to_api(
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
         "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
+        "unreadDoneGeneration": max(0, int(getattr(s, "unread_done_generation", 0) or 0)),
+        "unreadDoneReadGeneration": max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0)),
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
@@ -2223,6 +2239,7 @@ def _session_summary(
     ac = s.adapter_config
     if pin_projection is None:
         pin_projection = sess.session_pin_projection(s.id)
+    queue_pending_count, queue_all_locked = _queue_pending_summary(s)
     return {
         "id": s.id,
         "name": s.name,
@@ -2235,6 +2252,9 @@ def _session_summary(
         "workerTaskSeq": worker_task_seq,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
+        "unreadDoneGeneration": max(0, int(getattr(s, "unread_done_generation", 0) or 0)),
+        "unreadDoneReadGeneration": max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0)),
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
@@ -2271,6 +2291,9 @@ def _session_summary(
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
+        "queuePendingCount": queue_pending_count,
+        "queueAllLocked": queue_all_locked,
+        "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
     }
 
 
@@ -5821,53 +5844,79 @@ async def api_set_session_pin(session_id: str, data: dict):
 
 @app.post("/api/sessions/{session_id}/unread-done/ack")
 async def api_ack_session_unread_done(session_id: str, data: dict | None = None):
-    """Mark this Session's unread done badge as read, up to an observed boundary.
+    """Acknowledge unread done up to an observed done-generation cursor.
 
-    Body: {"observed": <non-negative int>} — the count the caller actually saw.
-    The server clears exactly that many (``remaining = prev - min(prev,
-    observed)``), so a real done landing while this request is in flight is
-    never swallowed by a delayed ack.  Omitting ``observed`` clears the whole
-    current count.  Only this Session's own counter is touched; history,
-    terminal results and report routes are untouched.
+    Body: {"observed": <non-negative int>} — REQUIRED.  It is the done
+    generation (``unreadDoneGeneration``) the caller has actually seen, never a
+    count.  The server advances its read cursor monotonically:
 
-    Permission boundary is the same as every other Session route (the HTTP
-    surface is the trusted local interface); no new authorization is added.
+        observed_clamped = min(observed, generation)
+        read = max(read, observed_clamped);  unread = generation - read
 
-    Response: {"ok": true, "unreadDoneCount": <remaining>} or
+    Consequences: an identical ack retried after a lost response is idempotent;
+    an old cursor arriving late can never clear generations produced after it
+    (a stale ``count - observed`` subtraction could); a done landing while the
+    ack is in flight stays unread.  There is deliberately no bare "clear
+    everything" mode — the observed cursor is the only race boundary.
+
+    On persistence failure the in-memory cursor/count are rolled back and no
+    success is returned or broadcast, so a later GET cannot mask an
+    unpersisted clear.  Permission boundary is the same as every other Session
+    route; history, terminal results and report routes are untouched.
+
+    Response: {"ok": true, "unreadDoneCount": <remaining>,
+    "unreadDoneGeneration": <gen>, "unreadDoneReadGeneration": <read>} or
     {"ok": false, "error": {code, message}}.
     """
-    observed: int | None = None
-    if isinstance(data, dict) and data.get("observed") is not None:
-        raw = data.get("observed")
-        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
-            return {"ok": False, "error": {
-                "code": "invalid_params",
-                "message": "observed must be a non-negative integer when provided"}}
-        observed = raw
+    observed_raw = data.get("observed") if isinstance(data, dict) else None
+    if (isinstance(observed_raw, bool) or not isinstance(observed_raw, int)
+            or observed_raw < 0):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "observed (non-negative done generation) is required"}}
     s = sess.get(session_id)
     if not s:
         return {"ok": False, "error": {
             "code": "session_not_found",
             "message": f"Session {session_id} not found"}}
-    # The read-modify-write below has no await: the count can only change fully
-    # before or fully after this ack (worker increments run on the same event
-    # loop), so a concurrent done is either consumed here or stays unread.
-    prev = max(0, int(getattr(s, "unread_done_count", 0) or 0))
-    remaining = 0 if observed is None else max(0, prev - min(prev, observed))
-    if remaining != prev:
+    # The read-modify-write below has no await: the cursor can only change
+    # fully before or fully after this ack (worker increments run on the same
+    # event loop), so a concurrent done is either behind the observed cursor
+    # or stays unread.
+    generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+    prev_read = max(0, int(getattr(s, "unread_done_read_generation", 0) or 0))
+    prev_count = max(0, int(getattr(s, "unread_done_count", 0) or 0))
+    observed = min(observed_raw, generation)
+    new_read = max(prev_read, observed)
+    remaining = generation - new_read
+    if new_read != prev_read:
+        s.unread_done_read_generation = new_read
         s.unread_done_count = remaining
         try:
             sess.save(s)
         except OSError as exc:
+            # Restore memory to the durable state; without this a later GET
+            # would expose a clear that never reached disk.
+            s.unread_done_read_generation = prev_read
+            s.unread_done_count = prev_count
             return {"ok": False, "error": {
                 "code": "ack_persist_failed",
                 "message": str(exc) or "Could not persist unread ack"}}
+        except Exception:
+            s.unread_done_read_generation = prev_read
+            s.unread_done_count = prev_count
+            raise
         await broadcast({
             "type": "session.updated",
             "sessionId": s.id,
             "session": _session_summary(s),
         })
-    return {"ok": True, "unreadDoneCount": remaining}
+    return {
+        "ok": True,
+        "unreadDoneCount": remaining,
+        "unreadDoneGeneration": generation,
+        "unreadDoneReadGeneration": new_read,
+    }
 
 
 @app.post("/api/sessions/pins/order")
@@ -6749,6 +6798,56 @@ def _session_queue_items(s) -> list[dict]:
             items.append(si)
             seen.add(si["id"])
     return items
+
+
+def _queue_item_in_public_projection(item: dict) -> bool:
+    """Shape filter mirroring ``_serialize_queue_item`` (keep them in sync).
+
+    Only rows the Agent-queue snapshot would actually render count toward the
+    card badge; the queue panel drops unknown-typed rows without a result, so
+    the summary does too.
+    """
+    item_type = item.get("type")
+    kind = item.get("kind")
+    if item_type == "task" or kind == "task" or (
+            item_type is None and isinstance(item.get("text"), str)):
+        return True
+    if item_type in ("qq", "wechat") or kind in ("qq", "wechat"):
+        return True
+    return "result" in item or item_type is None
+
+
+def _queue_pending_summary(s) -> tuple[int, bool]:
+    """(pending count, all locked) from queue_pending's public projection.
+
+    Mirrors ``_session_queue_items``: still-queued delivery state only, first
+    occurrence per queue id, shapes the snapshot would drop are skipped — so
+    the card badge always agrees with the Agent queue panel.  Only two scalars
+    travel in the Session summary (never the queue payload), keeping list/WS
+    refreshes an O(pending) metadata scan that never reads history.
+
+    ``all_locked`` is True only when the queue is non-empty AND every counted
+    row carries a real lock (manual or auto-report) — never inferred from
+    ``agent_reports_paused`` or worker presence.
+    """
+    count = 0
+    all_locked = True
+    seen: set[str] = set()
+    for item in (getattr(s, "queue_pending", None) or []):
+        if not isinstance(item, dict):
+            continue
+        if worker._delivery_state(item) != worker._DELIVERY_QUEUED:
+            continue
+        if not _queue_item_in_public_projection(item):
+            continue
+        item_id = _queue_item_id(item)
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+        count += 1
+        if not worker._queue_item_locked(item):
+            all_locked = False
+    return count, count > 0 and all_locked
 
 
 def _queue_snapshot_locked(s) -> dict:

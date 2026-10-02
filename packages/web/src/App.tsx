@@ -28,9 +28,10 @@ export function Layout() {
   const navigate = useNavigate();
 
   // 选中即读：当前选中的 Session 一出现未读 done（例如正在阅读时它又完成
-  // 一轮），立即按“已观察计数”ack 清零。ack 只扣减调用方看到的计数，与 ack
-  // 竞态落下的新 done 会保留为未读并由下一次状态变化再次收敛；服务端在 0 时
-  // 不再广播，因此 WS 回放把计数短暂复位到 >0 时最多再多一次 ack，不会无限循环。
+  // 一轮），立即按“已观察的 done generation”推进已读游标。ack 只推进游标，
+  // 重复/延迟/重试的同一游标幂等，竞态落下的新 generation 永远保留并由下一次
+  // 状态变化再次收敛；服务端游标未变时不广播，因此 WS 回放最多再多一次 ack，
+  // 不会无限循环。
   const selectedSessionId = useSessionStore((s) => s.currentSessionId);
   const selectedUnreadDone = useSessionStore((s) => {
     const current = selectedSessionId
@@ -41,11 +42,21 @@ export function Layout() {
       ? Math.max(0, Math.floor(value))
       : 0;
   });
+  const selectedUnreadGeneration = useSessionStore((s) => {
+    const current = selectedSessionId
+      ? s.sessions.find((item) => item.id === selectedSessionId)
+      : undefined;
+    const value = current?.unreadDoneGeneration;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.floor(value))
+      : 0;
+  });
   useEffect(() => {
-    if (selectedSessionId && selectedUnreadDone > 0) {
-      void useSessionStore.getState().ackSessionUnread(selectedSessionId, selectedUnreadDone);
+    if (selectedSessionId && selectedUnreadDone > 0 && selectedUnreadGeneration > 0) {
+      void useSessionStore.getState()
+        .ackSessionUnread(selectedSessionId, selectedUnreadGeneration);
     }
-  }, [selectedSessionId, selectedUnreadDone]);
+  }, [selectedSessionId, selectedUnreadDone, selectedUnreadGeneration]);
   const [mobileRailExpanded, setMobileRailExpanded] = useState(false);
   const mobileDrawerOpenedForDrop = useRef(false);
 

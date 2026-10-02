@@ -100,11 +100,23 @@ export interface Session {
   workerTaskId?: string | null;
   workerTaskSeq?: number | null;
   /**
-   * Unread done count for this Session: +1 per real done terminal state
-   * (backend `_persist_terminal_state`; error/cancelled/zombie and child
-   * report arrivals do not count). 0/undefined renders no badge.
+   * Unread done count for this Session: materialized ``generation - read``
+   * (backend `_persist_terminal_state` increments the generation after the
+   * existing terminal dedup; error/cancelled/zombie and child report arrivals
+   * do not count). 0/undefined renders no badge. Display/filter only — acks
+   * always carry {@link unreadDoneGeneration}, never this count.
    */
   unreadDoneCount?: number;
+  /** Monotonic count of real done terminal states (ack request boundary). */
+  unreadDoneGeneration?: number;
+  /** Highest done generation acknowledged as read (server-side monotonic). */
+  unreadDoneReadGeneration?: number;
+  /** Pending queue rows per the queue panel's public projection (0 hides). */
+  queuePendingCount?: number;
+  /** True only when the queue is non-empty and every pending row is locked. */
+  queueAllLocked?: boolean;
+  /** Durable queue revision matching the queue events/snapshot. */
+  queueRevision?: number;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
@@ -528,11 +540,15 @@ export interface ApiSessionPinResponse {
   error?: { code?: string; message?: string };
 }
 
-/** POST /api/sessions/{id}/unread-done/ack — unread done badge acknowledgement. */
+/** POST /api/sessions/{id}/unread-done/ack — generation-cursor acknowledgement. */
 export interface ApiSessionUnreadAckResponse {
   ok?: boolean;
   /** Remaining unread done count after this acknowledgement (authoritative). */
   unreadDoneCount?: number;
+  /** Done generation known to the server when the ack was applied. */
+  unreadDoneGeneration?: number;
+  /** Read cursor after the ack (monotonic; idempotent for equal cursors). */
+  unreadDoneReadGeneration?: number;
   error?: { code?: string; message?: string };
 }
 

@@ -115,6 +115,13 @@ function shortWorkdir(workdir?: string): string {
   return `/${lastTwo.join('/')}`;
 }
 
+/** 徽标计数（未读 done / 队列）统一收敛为非负整数；0 表示不渲染徽标。 */
+function normalizedBadgeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
+}
+
 /** Strip common markdown syntax so a one-line preview reads as plain text. */
 function stripMarkdown(text: string): string {
   return text
@@ -185,11 +192,12 @@ export const SessionItem = memo(function SessionItem({
       : '—';
   const credit = session.totalUsage?.credit ?? null;
   // 未读 done 徽标：0 时完全不渲染（无空圆、无 0、不占位）；多位数值收窄为
-  // “99+”胶囊，随内容增宽而不挤压卡片布局。计数与 ack 均以整型收敛。
-  const unreadDoneCount = typeof session.unreadDoneCount === 'number'
-      && Number.isFinite(session.unreadDoneCount)
-    ? Math.max(0, Math.floor(session.unreadDoneCount))
-    : 0;
+  // “99+”胶囊。ack 边界用 generation（不是可重复减的计数）。
+  const unreadDoneCount = normalizedBadgeCount(session.unreadDoneCount);
+  const unreadDoneGeneration = normalizedBadgeCount(session.unreadDoneGeneration);
+  // 队列数徽标：按 queue_pending 公开投影的待处理数；非空且全部带真实锁时红底。
+  const queuePendingCount = normalizedBadgeCount(session.queuePendingCount);
+  const queueAllLocked = session.queueAllLocked === true;
   // Workspace membership badge: shown only in the unscoped "all" view (inside
   // a workspace tab the scope is already known, and the chip just costs width).
   const workspaceId = session.workspaceIds?.[0] ?? null;
@@ -460,8 +468,28 @@ export const SessionItem = memo(function SessionItem({
             })}
           </div>
 
-          {(session.adapter || unreadDoneCount > 0) && (
+          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0) && (
             <span className="session-quick-action-adapter-row">
+              {queuePendingCount > 0 && (
+                // 队列数徽标（done 徽标左侧，独立于 done 计数）。只读：单击 /
+                // 双击只拦截卡片事件，不清零、不删消息、不隐藏计数，数值只随
+                // 真实队列变化减少。非空且所有待处理项都带真实锁（手动锁 /
+                // 自动 report 锁）时红底，任一条未锁保持蓝底；与可双击清零的
+                // 黄色 done 徽标以颜色、光标（default）与文案区分。
+                <span
+                  className={`session-queue-badge${queueAllLocked ? ' session-queue-badge-locked' : ''}`}
+                  data-testid="session-queue-badge"
+                  data-queue-all-locked={queueAllLocked ? 'true' : 'false'}
+                  role="img"
+                  aria-label={`${queuePendingCount} queued pending message(s)${queueAllLocked ? ', all locked' : ''}. Read-only; it changes only with the real queue.`}
+                  title={`Queue: ${queuePendingCount} pending${queueAllLocked ? ' · all locked' : ''}（只读，只随真实队列变化）`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  {queuePendingCount > 99 ? '99+' : queuePendingCount}
+                </span>
+              )}
               {unreadDoneCount > 0 && (
                 // 未读 done 徽标（adapter 标签左侧）。单击只拦截冒泡、不选中
                 // 卡片也不清零：否则第一次 click 会经“选择即读”把徽标清零并
@@ -477,8 +505,9 @@ export const SessionItem = memo(function SessionItem({
                   onClick={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
-                    if (isPending) return;
-                    void useSessionStore.getState().ackSessionUnread(session.id, unreadDoneCount);
+                    if (isPending || unreadDoneGeneration <= 0) return;
+                    void useSessionStore.getState()
+                      .ackSessionUnread(session.id, unreadDoneGeneration);
                   }}
                 >
                   {unreadDoneCount > 99 ? '99+' : unreadDoneCount}

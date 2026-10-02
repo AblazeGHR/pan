@@ -99,10 +99,12 @@ interface SessionStore {
   // Actions
   loadSessions: (options?: { throwOnError?: boolean }) => Promise<void>;
   selectSession: (id: string, signal?: AbortSignal) => Promise<void>;
-  /** 标记某 Session 的未读 done 为已读（清零并落盘）。
-   *  observed 为调用方实际看到的计数（ack 边界）；缺省清空当前全部。
+  /** 推进某 Session 的未读 done 已读游标（服务端落盘）。
+   *  observedGeneration 为调用方实际看到的 done generation（唯一 ack 边界：
+   *  后端按 max(read, observed) 单调推进，重复/延迟/重试游标幂等，永不清除
+   *  其后的新 generation）；缺省取当前显示的 generation。
    *  “选择即读”“选中会话新 done 自动已读”和徽标双击共用此入口。 */
-  ackSessionUnread: (id: string, observed?: number) => Promise<void>;
+  ackSessionUnread: (id: string, observedGeneration?: number) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
@@ -216,14 +218,42 @@ let pinMutationSeq = 0;
 /** 同一 Session 同时只允许一个未读 ack 在途：后续触发合并进 `unreadAckWanted`
  *  并在在途请求完成后继续收敛，避免 WS 回放 / 选中路径叠加出 ack 风暴。 */
 const unreadAckInFlight = new Set<string>();
-/** 每个 Session 的已观察清零意图（ack 边界）；随成功发送逐个消费。 */
+/** 每个 Session 的已观察 done generation 清零意图（唯一 ack 边界）；随成功
+ *  发送逐个消费，重复/延迟游标由服务端 max(read, observed) 幂等吸收。 */
 const unreadAckWanted = new Map<string, number>();
 
-/** Coerce a wire/partial `unreadDoneCount` into a safe non-negative integer. */
+/** Coerce a wire unread-done count/generation into a safe non-negative int. */
 function normalizedUnreadCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
     : 0;
+}
+
+/**
+ * The unread-done cursor pair (generation, read generation) is a logical
+ * clock: both components only grow. A snapshot or WS payload whose pair is
+ * older than the local pair (e.g. a list response fetched before an ack and
+ * replayed after it) must not roll the badge or the read cursor back. Equal
+ * pairs accept the incoming payload — the server stays authoritative for the
+ * materialized count in that case.
+ */
+function preserveNewerUnread(current: Session, incoming: Session): Session {
+  const currentGeneration = current.unreadDoneGeneration;
+  const incomingGeneration = incoming.unreadDoneGeneration;
+  if (typeof currentGeneration !== 'number' || typeof incomingGeneration !== 'number') {
+    return incoming;
+  }
+  const currentRead = normalizedUnreadCount(current.unreadDoneReadGeneration);
+  const incomingRead = normalizedUnreadCount(incoming.unreadDoneReadGeneration);
+  const currentIsNewer = currentGeneration > incomingGeneration
+    || (currentGeneration === incomingGeneration && currentRead > incomingRead);
+  if (!currentIsNewer) return incoming;
+  return {
+    ...incoming,
+    unreadDoneCount: current.unreadDoneCount,
+    unreadDoneGeneration: currentGeneration,
+    unreadDoneReadGeneration: currentRead,
+  };
 }
 
 // Local user rows are transient projection state, not a new persisted wire
@@ -645,13 +675,13 @@ function preserveNewerSummary(current: Session, incoming: Session): Session {
   const incomingRevision = incoming.summaryRevision;
   if (typeof currentRevision !== 'number'
       || currentRevision <= (typeof incomingRevision === 'number' ? incomingRevision : -1)) {
-    return incoming;
+    return preserveNewerUnread(current, incoming);
   }
   const preserved = { ...incoming, summaryRevision: currentRevision };
   for (const field of SUMMARY_PROJECTION_FIELDS) {
     if (field in current) Object.assign(preserved, { [field]: current[field] });
   }
-  return preserved;
+  return preserveNewerUnread(current, preserved);
 }
 
 // ── Transcript helpers ──────────────────────────────────────────────────────
@@ -1858,12 +1888,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       };
     });
 
-    // 选择即读：选中即清零该 Session 的未读 done（乐观清零 + ack 落盘）。
-    // selectSession 是 currentSessionId 的唯一写入入口，因此卡片点击与命令
-    // 面板 / 历史搜索 / 导入等既有导航选择全部走同一条清零路径。
+    // 选择即读：选中即推进该 Session 的未读 done 已读游标（乐观清零 +
+    // ack 落盘）。selectSession 是 currentSessionId 的唯一写入入口，因此
+    // 卡片点击与命令面板 / 历史搜索 / 导入等既有导航选择全部走同一条路径；
+    // ack 边界用已观察的 generation，而不是可重复减的计数。
     const unreadAtSelection = normalizedUnreadCount(session.unreadDoneCount);
-    if (unreadAtSelection > 0) {
-      void get().ackSessionUnread(id, unreadAtSelection);
+    const unreadGenerationAtSelection = normalizedUnreadCount(session.unreadDoneGeneration);
+    if (unreadAtSelection > 0 && unreadGenerationAtSelection > 0) {
+      void get().ackSessionUnread(id, unreadGenerationAtSelection);
     }
 
     // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
@@ -3546,13 +3578,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return true;
   },
 
-  ackSessionUnread: async (id, observed) => {
+  ackSessionUnread: async (id, observedGeneration) => {
     const session = get().sessions.find((item) => item.id === id);
     if (!session) return;
-    const boundary = observed === undefined
-      ? normalizedUnreadCount(session.unreadDoneCount)
-      : normalizedUnreadCount(observed);
-    if (normalizedUnreadCount(session.unreadDoneCount) <= 0) return;
+    const generation = normalizedUnreadCount(session.unreadDoneGeneration);
+    const readGeneration = normalizedUnreadCount(session.unreadDoneReadGeneration);
+    const displayCount = normalizedUnreadCount(session.unreadDoneCount);
+    const observed = observedGeneration === undefined
+      ? generation
+      : normalizedUnreadCount(observedGeneration);
+    // 没有 generation 游标（旧服务端/不完整载荷）或没有新的已观察代时不 ack：
+    // 绝不用裸计数清零充当竞态边界。
+    if (generation <= 0 || observed <= 0) return;
+    if (displayCount <= 0 || observed <= readGeneration) return;
     if (isMockMode()) {
       set((s) => ({
         sessions: s.sessions.map((item) =>
@@ -3560,35 +3598,50 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }));
       return;
     }
-    // 记录清零意图（在途期间的重复触发取最大值合并，请求完成后继续收敛）。
-    unreadAckWanted.set(id, Math.max(unreadAckWanted.get(id) ?? 0, boundary));
+    // 记录清零意图（在途期间的重复触发取最大 generation 合并，完成后继续收敛）。
+    unreadAckWanted.set(id, Math.max(unreadAckWanted.get(id) ?? 0, observed));
     if (unreadAckInFlight.has(id)) return;
     unreadAckInFlight.add(id);
     try {
       for (;;) {
         const wanted = unreadAckWanted.get(id) ?? 0;
-        const displayed = normalizedUnreadCount(
-          get().sessions.find((item) => item.id === id)?.unreadDoneCount,
-        );
-        // ack 边界取意图与“当前显示计数”的较小值：在途期间新到达的 done
-        // 不会被旧意图的超量 ack 吞掉（例如双击期间落下的新 done 仍显示）；
-        // 选中会话的剩余未读由选中即读 effect 的后续触发继续清零。
-        const ackBoundary = Math.min(wanted, displayed);
-        if (ackBoundary <= 0) break;
+        const current = get().sessions.find((item) => item.id === id);
+        const currentGeneration = normalizedUnreadCount(current?.unreadDoneGeneration);
+        const currentRead = normalizedUnreadCount(current?.unreadDoneReadGeneration);
+        // ack 边界 = min(意图, 当前显示 generation)：只推进调用方已观察的代，
+        // 在途期间新到的 generation 不会被旧意图超量吞掉。
+        const ackBoundary = Math.min(wanted, currentGeneration);
+        if (!current || ackBoundary <= 0 || ackBoundary <= currentRead) break;
         unreadAckWanted.delete(id);
-        // 乐观清零：徽标、筛选与列表立即反映“已读”，不必等待网络往返。
+        // 乐观清零只改显示计数，不动游标：服务端真源与版本比较会把状态收敛
+        // 回来，不会把未确认的游标写进本地版本时钟。
         set((s) => ({
           sessions: s.sessions.map((item) =>
             item.id === id ? { ...item, unreadDoneCount: 0 } : item),
         }));
         try {
           const response = await ackSessionUnreadApi(id, ackBoundary);
-          const remaining = normalizedUnreadCount(response.unreadDoneCount);
+          const responseGeneration = normalizedUnreadCount(response.unreadDoneGeneration);
+          const responseRead = normalizedUnreadCount(response.unreadDoneReadGeneration);
+          const responseCount = normalizedUnreadCount(response.unreadDoneCount);
           set((s) => ({
-            sessions: s.sessions.map((item) =>
-              item.id === id ? { ...item, unreadDoneCount: remaining } : item),
+            sessions: s.sessions.map((item) => {
+              if (item.id !== id) return item;
+              const storeGeneration = normalizedUnreadCount(item.unreadDoneGeneration);
+              const storeRead = normalizedUnreadCount(item.unreadDoneReadGeneration);
+              // 过期响应（期间已有更新的 WS 计数/游标）不得降级本地状态。
+              const responseIsNewer = responseGeneration > storeGeneration
+                || (responseGeneration === storeGeneration && responseRead >= storeRead);
+              if (!responseIsNewer) return item;
+              return {
+                ...item,
+                unreadDoneCount: responseCount,
+                unreadDoneGeneration: responseGeneration,
+                unreadDoneReadGeneration: responseRead,
+              };
+            }),
           }));
-          if (remaining <= 0) break;
+          if (responseCount <= 0) break;
         } catch (error) {
           // 失败时以服务端为真源恢复（乐观清零可能掩盖了真实未读数）。
           console.warn('[sessionStore] ackSessionUnread failed', id, error);

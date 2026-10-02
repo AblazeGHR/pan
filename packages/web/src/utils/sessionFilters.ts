@@ -5,7 +5,7 @@ import type { Session } from '@/types';
  * search box. Each filter is judged on real Session fields — never on
  * display text.
  */
-export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'illegal' | 'unread';
+export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'illegal' | 'unread' | 'queue';
 
 export interface SpecialFilterOption {
   id: SpecialFilterId;
@@ -40,6 +40,11 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
     id: 'unread',
     label: 'Has unread',
     description: 'Unread done count is greater than zero',
+  },
+  {
+    id: 'queue',
+    label: 'Has queued messages',
+    description: 'Pending queue count is greater than zero',
   },
 ];
 
@@ -99,6 +104,10 @@ export function matchesSpecialFilters(
   if (
     filters.has('unread') &&
     !(typeof session.unreadDoneCount === 'number' && session.unreadDoneCount > 0)
+  ) return false;
+  if (
+    filters.has('queue') &&
+    !(typeof session.queuePendingCount === 'number' && session.queuePendingCount > 0)
   ) return false;
   return true;
 }
