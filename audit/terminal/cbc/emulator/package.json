@@ -1,0 +1,14 @@
+{
+  "name": "pan-terminal-snapshot-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bounded spike: resident Node headless-xterm emulator + serialize snapshot candidate (P1 gate for Pan Terminal plan sec.8).",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0"
+  }
+}

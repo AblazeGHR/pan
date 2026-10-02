@@ -1,0 +1,38 @@
+{
+  "id": "C7-boundary-utf8-csi-osc",
+  "title": "UTF-8 / CSI / OSC 跨快照边界恢复（后续接流不重放不丢）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "snapshot taken with a non-empty pending tail",
+      "ok": true
+    },
+    {
+      "name": "boundary prepared clean (held back, not force-fed)",
+      "ok": true
+    },
+    {
+      "name": "restored + pending_tail + rest == reference (no replay, no loss)",
+      "ok": true,
+      "detail": {
+        "resumeAt": 75,
+        "scriptBytes": 82
+      }
+    },
+    {
+      "name": "pending tail equals stream[applied_bytes .. applied+boundary)",
+      "ok": true
+    }
+  ],
+  "details": {
+    "pending_tail_bytes": 5,
+    "pending_tail_preview": "4f4e442dc3",
+    "resumeAt": 75,
+    "script_bytes": 82,
+    "diff": [],
+    "referenceScreen": "PRE-中文-😀 RED-TEXT POST-TEXT\nSECOND-éèü\n\n\n\n\n\n\n\n\n\n",
+    "restoredScreen": "PRE-中文-😀 RED-TEXT POST-TEXT\nSECOND-éèü\n\n\n\n\n\n\n\n\n\n"
+  },
+  "ms": 294,
+  "failed_expectations": []
+}

@@ -1,0 +1,78 @@
+{
+  "id": "C11-clean-boundary-unit",
+  "title": "hold-back 边界扫描器单测（UTF-8/ESC/CSI/OSC/DCS）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "all boundary shapes classified as expected",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "details": {
+    "cases": [
+      {
+        "name": "plain text",
+        "expected": 5,
+        "got": 5
+      },
+      {
+        "name": "split CSI",
+        "expected": 2,
+        "got": 2
+      },
+      {
+        "name": "complete CSI",
+        "expected": 7,
+        "got": 7
+      },
+      {
+        "name": "split OSC + BEL",
+        "expected": 1,
+        "got": 1
+      },
+      {
+        "name": "complete OSC BEL",
+        "expected": 7,
+        "got": 7
+      },
+      {
+        "name": "complete OSC ST",
+        "expected": 9,
+        "got": 9
+      },
+      {
+        "name": "split 4-byte emoji",
+        "expected": 0,
+        "got": 0
+      },
+      {
+        "name": "complete emoji",
+        "expected": 4,
+        "got": 4
+      },
+      {
+        "name": "8-bit CSI split",
+        "expected": 0,
+        "got": 0
+      },
+      {
+        "name": "ESC alone",
+        "expected": 0,
+        "got": 0
+      },
+      {
+        "name": "DCS split",
+        "expected": 0,
+        "got": 0
+      },
+      {
+        "name": "malformed utf8 continuation",
+        "expected": 3,
+        "got": 3
+      }
+    ]
+  },
+  "ms": 0,
+  "failed_expectations": []
+}
