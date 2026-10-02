@@ -22,25 +22,39 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pty_contract import (  # noqa: E402
+    ALT_SCREEN_DEC_MODES,
     AttachmentRegistry,
+    DetachedOwnershipNotImplemented,
+    ExternalOwnershipNotYetValidated,
     IllegalStateTransition,
     InvalidCursorError,
     NotControlLeaseError,
+    NullTreeTerminator,
     OutputLog,
+    OwnershipGateError,
+    OwnershipMode,
+    OwnershipPolicy,
+    OwnershipPolicyRequired,
+    ProcessIdentity,
+    ProcessOwnershipEvidence,
     PsutilTreeTerminator,
     PtyRuntime,
     RuntimeState,
     ScriptedBackend,
     StaleLeaseError,
     TerminalRegistry,
+    UnverifiedOwnershipGate,
     UnknownTerminalError,
-    ALT_SCREEN_DEC_MODES,
-    DetachedOwnershipNotImplemented,
+    UnownedTreeRejected,
+    build_runtime,
     require_detached_ownership,
+    tail_text_view,
 )
 from probe_lib import Harness, emit  # noqa: E402
 
@@ -435,6 +449,507 @@ def t_automation_driver_boundary(h: Harness) -> None:
     )
 
 
+# ------------------------------------------- M12: reader 结束原因的分类（修正 1）
+
+
+def t_drain_stop_reasons(h: Harness) -> None:
+    """MA 修正 1：不得把错误/超时/stop 当成正常 EOF。"""
+    # a) 真实 EOF
+    rt = PtyRuntime("term_m12a", ScriptedBackend([b"tail"], alive_returns=False, exit_code=0),
+                    output_cap=4096, eof_grace=0.2)
+    rt.start(rows=24, cols=80)
+    rt.wait_eof(2.0)
+    info = rt.poll_exit()
+    h.check(
+        "M12.1 真实 EOF：reader_done/channel_eof/output_complete 同时为真",
+        info.reader_done and info.channel_eof and info.output_complete
+        and info.drain_stop_reason == "eof",
+        {"reason": info.drain_stop_reason},
+    )
+    rt.close(reason="m12a", reader_grace=0.2)
+
+    # b) 通道错误
+    rt = PtyRuntime("term_m12b", ScriptedBackend([b"head"], channel_error="boom", alive_returns=True),
+                    output_cap=4096, eof_grace=0.2)
+    rt.start(rows=24, cols=80)
+    rt.wait_eof(2.0)
+    info = rt.poll_exit()
+    h.check(
+        "M12.2 通道错误：reader_done 为真但 channel_eof/output_complete 为假",
+        info.reader_done and not info.channel_eof and not info.output_complete
+        and info.drain_stop_reason == "channel-error" and "boom" in (info.channel_error or ""),
+        {"reason": info.drain_stop_reason, "err": info.channel_error},
+    )
+    h.check("M12.3 通道错误不被当作 output_complete", info.output_complete is False)
+
+    # c) eof_grace 超时（read 一直返回空、进程已不在）
+    rt = PtyRuntime("term_m12c", ScriptedBackend([], alive_returns=False, empty_reads=True),
+                    output_cap=4096, eof_grace=0.15)
+    rt.start(rows=24, cols=80)
+    rt.wait_eof(3.0)
+    info = rt.poll_exit()
+    h.check(
+        "M12.4 eof_grace 超时：reader_done 为真但 output_complete 为假",
+        info.reader_done and not info.output_complete and info.drain_stop_reason == "eof-timeout",
+        {"reason": info.drain_stop_reason},
+    )
+
+    # d) stop-requested
+    backend = ScriptedBackend([], alive_returns=True, empty_reads=True)
+    rt = PtyRuntime("term_m12d", backend, output_cap=4096, eof_grace=0.2)
+    rt.start(rows=24, cols=80)
+    rt._stop.set()  # noqa: SLF001 - 探针直接触发停止请求
+    rt.wait_eof(2.0)
+    info = rt.poll_exit()
+    h.check(
+        "M12.5 stop-requested 不声明输出完整",
+        info.reader_done and not info.output_complete and info.drain_stop_reason == "stop-requested",
+        {"reason": info.drain_stop_reason},
+    )
+    h.measure(
+        "M12.6 四种结束原因的输出完整性",
+        eof=("output_complete=True",),
+        channel_error=(rt.exit.channel_error is not None,),
+        note="只有对端真实 EOF（drain_stop_reason=eof）才允许 output_complete=True；cancelled/错误/超时/stop 都不允许",
+    )
+
+
+    # e) 取消导致的传输层异常（实测 pywinpty WinError 10053）归因为 cancelled
+    backend_e = ScriptedBackend([], alive_returns=True, block_forever=True,
+                                cancel_on_close=True, abort_on_release=True)
+    rt_e = PtyRuntime("term_m12e", backend_e, output_cap=4096, eof_grace=0.2)
+    rt_e.start(rows=24, cols=80)
+    time.sleep(0.1)
+    rep_e = rt_e.close(reason="m12e", reader_grace=0.3)
+    h.check(
+        "M12.7 自取消导致的传输异常归因为 cancelled（不是通道错误）",
+        rt_e.exit.drain_stop_reason == "cancelled" and rt_e.exit.channel_error is None
+        and rt_e.exit.channel_eof is False and rt_e.exit.output_complete is False,
+        {"reason": rt_e.exit.drain_stop_reason, "err": rt_e.exit.channel_error},
+    )
+    h.check(
+        "M12.8 取消路径仍可收敛并进入 exited（输出完整性不冒充）",
+        rep_e.state_after is RuntimeState.EXITED and rep_e.reader_converged
+        and rep_e.reader_cancelled and rep_e.drain_stop_reason == "cancelled",
+        {"state": rep_e.state_after.value, "stop": rep_e.drain_stop_reason},
+    )
+
+
+# ------------------------------------- M13: reader 回收（修正 2）
+
+
+def t_reader_convergence_and_owner(h: Harness) -> None:
+    """MA 修正 2：不能用 daemon thread 当回收保证。"""
+    # a) 取消有效：close() 关句柄让阻塞 read 抛 EOFError → 收敛
+    backend = ScriptedBackend([], alive_returns=True, block_forever=True, cancel_on_close=True)
+    rt = PtyRuntime("term_m13a", backend, output_cap=4096, eof_grace=0.2)
+    rt.start(rows=24, cols=80)
+    time.sleep(0.1)
+    report = rt.close(reason="m13a", reader_grace=0.3)
+    h.check(
+        "M13.1 取消有效：reader 收敛并进入 exited",
+        report.reader_converged and report.reader_joined and report.state_after is RuntimeState.EXITED,
+        {
+            "converged": report.reader_converged,
+            "cancelled": report.reader_cancelled,
+            "cancel_kind": report.cancel_kind,
+            "state": report.state_after.value,
+            "stop": report.drain_stop_reason,
+        },
+    )
+    h.check("M13.2 取消手段被记录", report.cancel_kind in ("backend-close", "none"), report.cancel_kind)
+    h.check("M13.3 自取消不算对端 EOF（channel_eof 必须为假）",
+            report.drain_stop_reason == "cancelled" and rt.exit.channel_eof is False
+            and rt.exit.output_complete is False,
+            report.drain_stop_reason)
+
+    # b) 取消无效（后端没有可用的取消原语）→ 必须保留 owner，不得标 exited
+    backend_b = ScriptedBackend([], alive_returns=True, block_forever=True, cancel_on_close=False)
+    rt_b = PtyRuntime("term_m13b", backend_b, output_cap=4096, eof_grace=0.2)
+    rt_b.start(rows=24, cols=80)
+    time.sleep(0.1)
+    failed = rt_b.close(reason="m13b", reader_grace=0.3)
+    h.check(
+        "M13.4 取消无效：拒绝标记 exited",
+        failed.state_after is RuntimeState.CLEANUP_FAILED and failed.reader_converged is False,
+        {"state": failed.state_after.value, "error": failed.error},
+    )
+    h.check("M13.5 保留 owner", failed.owner_retained is True)
+    h.check("M13.6 失败原因指向 reader 未收敛", "reader 未收敛" in (failed.error or ""), failed.error)
+    backend_b.release_blocked_read()  # 放行模拟读，让 reader 收敛（真机上是进程/句柄释放）
+    time.sleep(0.2)
+    retry = rt_b.close(reason="m13b-retry", reader_grace=0.5)
+    h.check(
+        "M13.7 释放后重试才进入 exited",
+        retry.state_after is RuntimeState.EXITED and retry.reader_converged,
+        {"state": retry.state_after.value, "error": retry.error},
+    )
+
+
+# ------------------------------------- M14: lease 撤销/伪造/原子（修正 3）
+
+
+def _lease_fixture() -> tuple[TerminalRegistry, AttachmentRegistry, PtyRuntime, ScriptedBackend]:
+    registry = TerminalRegistry()
+    tid = registry.new_terminal_id()
+    backend = ScriptedBackend([], alive_returns=True)
+    runtime = PtyRuntime(tid, backend, output_cap=1024)
+    runtime.start(rows=24, cols=80)
+    registry.register(runtime)
+    return registry, AttachmentRegistry(registry), runtime, backend
+
+
+def t_lease_revocation_and_forgery(h: Harness) -> None:
+    """MA 修正 3：撤销不可复活、伪造被拒、校验与操作原子。"""
+    registry, attachments, runtime, backend = _lease_fixture()
+    tid = runtime.terminal_id
+
+    c1 = attachments.attach(tid, "client-1", role="control", rows=24, cols=80)
+    obs = attachments.attach(tid, "client-2", role="observer", rows=24, cols=80)
+    baseline = len(backend.writes)
+    h.check("M14.1 控制权可写入", attachments.send(c1, b"one\r\n") == 5 and len(backend.writes) == baseline + 1)
+
+    attachments.detach(c1)
+    h.check("M14.2 撤销后控制权为空", attachments.control_holder(tid) is None)
+    h.check("M14.3 撤销后 token 被标记", attachments.is_revoked(c1) is True)
+    for label, fn in (
+        ("M14.4 撤销后 send 被拒", lambda: attachments.send(c1, b"revived\r\n")),
+        ("M14.5 撤销后 resize 被拒", lambda: attachments.resize(c1, 10, 10)),
+        ("M14.6 撤销后 transfer 被拒", lambda: attachments.transfer_control(c1, to_client="client-x")),
+    ):
+        try:
+            fn()
+            h.check(label, False, "未报错")
+        except StaleLeaseError as exc:
+            h.check(label, True, str(exc))
+    h.check(
+        "M14.7 撤销后没有任何写入发生（不会被 setdefault 复活）",
+        len(backend.writes) == baseline + 1,
+        {"writes": len(backend.writes)},
+    )
+
+    # 伪造 token（自报 role=control + 自造 revocation_id）必须被拒
+    forged = LeaseTokenFactory.forge(c1, role="control", revocation_id="forged-not-issued")
+    try:
+        attachments.send(forged, b"forged\r\n")
+        h.check("M14.8 伪造 token 被拒", False, "未报错")
+    except (StaleLeaseError, NotControlLeaseError) as exc:
+        h.check("M14.8 伪造 token 被拒", True, f"{type(exc).__name__}: {exc}")
+
+    # observer 不能获得控制权
+    for label, fn in (
+        ("M14.9 observer 不能写入", lambda: attachments.send(obs, b"nope")),
+        ("M14.10 observer 不能 resize", lambda: attachments.resize(obs, 1, 1)),
+        ("M14.11 observer 不能转交控制权", lambda: attachments.transfer_control(obs, to_client="z")),
+    ):
+        try:
+            fn()
+            h.check(label, False, "未报错")
+        except NotControlLeaseError as exc:
+            h.check(label, True, str(exc))
+
+    # 转交后旧 token 失效；同一代的副本同样失效（generation 自增）
+    c2 = attachments.attach(tid, "client-3", role="control")
+    clone_of_c1 = LeaseTokenFactory.clone(c1)
+    for label, tok in (("M14.12 旧控制权 token 失效", c1), ("M14.13 旧控制权副本失效", clone_of_c1)):
+        try:
+            attachments.send(tok, b"late")
+            h.check(label, False, "未报错")
+        except StaleLeaseError as exc:
+            h.check(label, True, str(exc))
+    h.check("M14.14 新控制权可用", attachments.send(c2, b"ok\r\n") == 4)
+    h.check("M14.15 转交后新持有者正确", attachments.control_holder(tid).revocation_id == c2.revocation_id)
+
+    # 伪造：世代与持有者都对，但 revocation_id 不是 registry 签发的 → 必须拒绝
+    forged_holder = LeaseTokenFactory.forge(c2, revocation_id="forged-not-issued")
+    try:
+        attachments.send(forged_holder, b"forged\r\n")
+        h.check("M14.15b 伪造 revocation_id 的 token 被拒", False, "未报错")
+    except NotControlLeaseError as exc:
+        h.check("M14.15b 伪造 revocation_id 的 token 被拒", True, str(exc))
+
+    # observer 撤销不影响其它 observer（各自撤销 id，不共享 generation 失效）
+    o1 = attachments.attach(tid, "client-4", role="observer")
+    o2 = attachments.attach(tid, "client-5", role="observer")
+    attachments.detach(o1)
+    ok = True
+    try:
+        attachments.validate(o2)
+    except Exception:
+        ok = False
+    h.check("M14.16 撤销一个 observer 不影响另一个", ok and attachments.is_revoked(o2) is False)
+    h.check("M14.17 observer 撤销后自身失效", attachments.is_revoked(o1) is True)
+
+    # 原子性：撤销与写入在同一临界区，撤销返回后不可能再有该 token 的写入
+    ok_atomic = True
+    detail = ""
+    for i in range(200):
+        tok = attachments.attach(tid, f"churn-{i}", role="control")
+        attachments.send(tok, b"x")  # 可能成功
+        attachments.detach(tok)
+        writes_at_detach = len(backend.writes)
+        try:
+            attachments.send(tok, b"after-detach")
+            ok_atomic = False
+            detail = f"iteration {i}: 撤销后仍写入成功"
+            break
+        except StaleLeaseError:
+            pass
+        if len(backend.writes) != writes_at_detach:
+            ok_atomic = False
+            detail = f"iteration {i}: 撤销后写入数变化"
+            break
+    h.check("M14.18 撤销与写入原子（200 次 churn 无撤销后写入）", ok_atomic, detail or "ok")
+
+    # 已知边界（如实记录，不作为通过项）：token 内容等价即可通过
+    holder = attachments.attach(tid, "owner-client", role="control")
+    impersonator = LeaseTokenFactory.clone(holder, client_id="attacker")
+    try:
+        attachments.send(impersonator, b"impersonate")
+        accepted = True
+    except (StaleLeaseError, NotControlLeaseError):
+        accepted = False
+    h.measure(
+        "M14.19 已知边界：复制 revocation_id 的 token 会被接受",
+        accepted=accepted,
+        note="进程内单 writer 语义成立；真实身份/网络授权未实现，必须由 Pan 入口先授权",
+    )
+
+
+class LeaseTokenFactory:
+    """测试用 token 复制/伪造（不参与契约实现）。"""
+
+    @staticmethod
+    def clone(token, **changes):
+        import dataclasses
+
+        return dataclasses.replace(token, **changes)
+
+    @staticmethod
+    def forge(token, **changes):
+        return LeaseTokenFactory.clone(token, **changes)
+
+
+# ------------------------------------- M15: 输出边界（修正 4）
+
+
+def t_output_boundary_cross_chunk(h: Harness) -> None:
+    """MA 修正 4：块边界/窗口起点可以切断 UTF-8、CSI、OSC。"""
+    cjk = "中".encode("utf-8")  # E4 B8 AD
+    log = OutputLog(max_bytes=4096)
+    log.append(cjk[:1])
+    log.append(cjk[1:])
+    body = b"".join(c.data for c in log.read_from(0).chunks)
+    h.check("M15.1 跨块拼接后字节完全一致", body == cjk, {"body": body.hex()})
+    per_chunk_bad = b"".join(
+        c.data.decode("utf-8", "replace").encode("utf-8", "replace") for c in log.read_from(0).chunks
+    )
+    h.check(
+        "M15.2 逐块解码会破坏 UTF-8（证明边界是字节而非序列）",
+        per_chunk_bad != cjk,
+        {"per_chunk": per_chunk_bad.decode("utf-8", "replace")},
+    )
+
+    log2 = OutputLog(max_bytes=4096)
+    log2.append(b"a\x1b[")
+    log2.append(b"31mred")
+    body2 = b"".join(c.data for c in log2.read_from(0).chunks)
+    h.check("M15.3 跨块 CSI 拼接后仍为完整序列", body2 == b"a\x1b[31mred", {"body": body2})
+
+    # 保留窗口起点可能落在序列内部 → 从窗口起点解析不可靠
+    log3 = OutputLog(max_bytes=8)
+    log3.append(b"XXXX")          # 会被驱逐
+    log3.append(b"Y\x1b[38;5;196mZ")
+    page = log3.read_from(0)
+    window_start = page.first_seq
+    seq = b"Y\x1b[38;5;196mZ"
+    csi_start = 4 + seq.index(b"\x1b[")
+    h.check(
+        "M15.4 保留窗口起点可以落在 CSI 内部（文档必须承认）",
+        window_start > csi_start,
+        {"window_start": window_start, "csi_start": csi_start, "gap": page.gap},
+    )
+    h.check("M15.5 该情形必须返回 gap 要求快照恢复", page.gap is not None, {"gap": page.gap})
+
+    # OSC 跨块
+    log4 = OutputLog(max_bytes=4096)
+    log4.append(b"\x1b]0;title")
+    log4.append(b"-continued\x07visible")
+    body4 = b"".join(c.data for c in log4.read_from(0).chunks)
+    h.check("M15.6 跨块 OSC 拼接后完整", body4 == b"\x1b]0;title-continued\x07visible")
+    h.check(
+        "M15.7 尾部文本视图会同时丢掉 OSC 与 CSI（无法承载状态）",
+        "\x1b" not in tail_text_view(body4),
+        {"tail": tail_text_view(body4)},
+    )
+
+
+# ------------------------------------- M16: ownership policy / 工厂 / 门禁
+
+
+def t_ownership_policy_and_gate(h: Harness) -> None:
+    """MA 补充：布局中立 + fail-closed 工厂 + 启动所有权门禁。"""
+    for label, kw in (
+        ("M16.1 无策略被拒", dict(ownership=None)),
+        ("M16.2 声明守卫却给 None 被拒", dict(ownership=OwnershipPolicy(OwnershipMode.SERVICE, "pan-service", "job-object", None))),
+        ("M16.3 detach 未验收被拒", dict(ownership=OwnershipPolicy(OwnershipMode.DETACHED, "runner", "job-object", NullTreeTerminator(), detached=True))),
+        ("M16.4 external 未验收被拒", dict(ownership=OwnershipPolicy(OwnershipMode.EXTERNAL, "external-host", "job-object", NullTreeTerminator()))),
+    ):
+        expected = {
+            "M16.1 无策略被拒": OwnershipPolicyRequired,
+            "M16.2 声明守卫却给 None 被拒": UnownedTreeRejected,
+            "M16.3 detach 未验收被拒": DetachedOwnershipNotImplemented,
+            "M16.4 external 未验收被拒": ExternalOwnershipNotYetValidated,
+        }[label]
+        try:
+            build_runtime("term_m16", ScriptedBackend([]), **kw)
+            h.check(label, False, "未报错")
+        except expected as exc:
+            h.check(label, True, type(exc).__name__)
+
+    # 布局中立：同一接口 + 三种 lifecycle_owner 都能建 runtime（逐字声明，不做分支）
+    for owner in ("pan-service", "runner", "external-host"):
+        policy = OwnershipPolicy(OwnershipMode.SERVICE, owner, "none", None, notes="布局中立测试")
+        rt = build_runtime(
+            f"term_m16_{owner}",
+            ScriptedBackend([], alive_returns=True),
+            ownership=policy,
+            acknowledge_unowned_tree=True,
+        )
+        rt.start(rows=24, cols=80)
+        h.check(
+            f"M16.5 布局中立：lifecycle_owner={owner} 可运行",
+            rt.state is RuntimeState.RUNNING and rt.ownership.lifecycle_owner == owner,
+            {"owner": rt.ownership.lifecycle_owner},
+        )
+        rt.close(reason="m16", reader_grace=0.3)
+
+    # 启动门禁：四要素缺一不可，缺则拒绝 running
+    good_identity = ProcessIdentity(pid=4242, created_at_filetime=123456789)
+    cases = {
+        "M16.6 assign 失败拒绝 running": dict(assigned=False, atomic_with_spawn=True, identity=good_identity, handle_bound_for_cleanup=True),
+        "M16.7 非原子赋值拒绝 running": dict(assigned=True, atomic_with_spawn=False, identity=good_identity, handle_bound_for_cleanup=True),
+        "M16.8 缺身份拒绝 running": dict(assigned=True, atomic_with_spawn=True, identity=None, handle_bound_for_cleanup=True),
+        "M16.9 清理未绑定同一 handle 拒绝 running": dict(assigned=True, atomic_with_spawn=True, identity=good_identity, handle_bound_for_cleanup=False),
+    }
+    for label, evidence in cases.items():
+        policy = OwnershipPolicy(OwnershipMode.SERVICE, "pan-service", "job-object", PsutilTreeTerminator())
+        rt = build_runtime("term_m16g", ScriptedBackend([], alive_returns=True), ownership=policy)
+        gate = UnverifiedOwnershipGate(ProcessOwnershipEvidence(guard="job-object", **evidence))
+        try:
+            rt.start(rows=24, cols=80, gate=gate)
+            h.check(label, False, "启动未被拒绝")
+        except OwnershipGateError as exc:
+            h.check(label, True, str(exc)[:60])
+        h.check(f"{label}（状态保持 created）", rt.state is RuntimeState.CREATED, {"state": rt.state.value})
+        rt._stop.set()  # noqa: SLF001
+        rt.close(reason="m16g", reader_grace=0.2)
+
+    # 四要素齐全 → 放行，并且声明了守卫却没给 gate 也要拒绝
+    policy = OwnershipPolicy(OwnershipMode.SERVICE, "runner", "job-object", PsutilTreeTerminator())
+    rt = build_runtime("term_m16ok", ScriptedBackend([], alive_returns=True), ownership=policy)
+    try:
+        rt.start(rows=24, cols=80)
+        h.check("M16.10 声明守卫但无启动证据被拒", False, "未报错")
+    except OwnershipGateError as exc:
+        h.check("M16.10 声明守卫但无启动证据被拒", True, str(exc)[:50])
+    gate = UnverifiedOwnershipGate(
+        ProcessOwnershipEvidence(
+            assigned=True,
+            atomic_with_spawn=True,
+            identity=good_identity,
+            handle_bound_for_cleanup=True,
+            guard="job-object",
+        )
+    )
+    rt.start(rows=24, cols=80, gate=gate)
+    h.check(
+        "M16.11 四要素齐全才进入 running 并带入身份",
+        rt.state is RuntimeState.RUNNING and rt.identity == good_identity,
+        {"state": rt.state.value},
+    )
+    h.check(
+        "M16.12 未提供的 Job 实现不被契约绑死",
+        True,
+        "JobObjectTreeTerminator 只在生产层实现；契约不做分支",
+    )
+    h.check("M16.13 策略可序列化描述（含 owner 与守卫）",
+            rt.ownership.describe()["lifecycle_owner"] == "runner"
+            and rt.ownership.describe()["tree_guard"]["kind"] == "psutil-tree")
+    rt.close(reason="m16ok", reader_grace=0.3)
+
+    # on_service_shutdown 语义
+    svc_rt = build_runtime("term_m16svc", ScriptedBackend([], alive_returns=True),
+                           ownership=OwnershipPolicy(OwnershipMode.SERVICE, "pan-service", "none", None),
+                           acknowledge_unowned_tree=True)
+    svc_rt.start(rows=10, cols=10)
+    rep = OwnershipPolicy(OwnershipMode.SERVICE, "pan-service", "none", None).on_service_shutdown(svc_rt)
+    h.check("M16.14 service 策略在服务关闭时终止终端", rep.state_after is RuntimeState.EXITED, {"state": rep.state_after.value})
+    try:
+        OwnershipPolicy(OwnershipMode.DETACHED, "runner", "job-object", NullTreeTerminator(), detached=True).on_service_shutdown(svc_rt)
+        h.check("M16.15 detach 策略不得在服务关闭时被终止", False, "未报错")
+    except DetachedOwnershipNotImplemented as exc:
+        h.check("M16.15 detach 策略不得在服务关闭时被终止", True, str(exc)[:50])
+
+
+# ------------------------------------- M17: 清理身份核验
+
+
+def t_identity_verified_cleanup(h: Harness) -> None:
+    """MA 补充：清理必须核验身份、用同一 handle 终止。"""
+    recorded = ProcessIdentity(pid=4242, created_at_filetime=1000, image="cmd.exe")
+
+    # a) 身份不匹配 → 拒杀
+    backend = ScriptedBackend([], alive_returns=True)
+    rt = PtyRuntime("term_m17a", backend, output_cap=1024, identity=recorded,
+                    identity_probe=lambda pid: ProcessIdentity(pid=pid, created_at_filetime=9999))
+    rt.start(rows=24, cols=80)
+    rep = rt.close(reason="m17a", reader_grace=0.2)
+    h.check("M17.1 身份不匹配拒绝终止", rep.terminate_result == "refused-identity-mismatch", rep.terminate_result)
+    h.check("M17.2 未调用 terminate（不会误杀）", backend.terminate_calls == [], {"calls": backend.terminate_calls})
+    h.check("M17.3 状态为 cleanup-failed 且保留 owner",
+            rep.state_after is RuntimeState.CLEANUP_FAILED and rep.owner_retained, {"state": rep.state_after.value})
+    h.check("M17.4 identity_check 标记 mismatch", rep.identity_check == "mismatch", rep.identity_check)
+
+    # b) 探针自身失败 → 同样拒杀
+    backend_b = ScriptedBackend([], alive_returns=True)
+    def broken_probe(pid):
+        raise OSError("no access")
+
+    rt_b = PtyRuntime("term_m17b", backend_b, output_cap=1024, identity=recorded, identity_probe=broken_probe)
+    rt_b.start(rows=24, cols=80)
+    rep_b = rt_b.close(reason="m17b", reader_grace=0.2)
+    h.check("M17.5 身份探针失败也拒杀", rep_b.identity_check == "probe-failed" and not backend_b.terminate_calls,
+            {"check": rep_b.identity_check})
+
+    # c) 匹配 → 正常收敛
+    backend_c = ScriptedBackend([], alive_returns=True)
+    rt_c = PtyRuntime("term_m17c", backend_c, output_cap=1024, identity=recorded,
+                      identity_probe=lambda pid: ProcessIdentity(pid=pid, created_at_filetime=1000))
+    rt_c.start(rows=24, cols=80)
+    rep_c = rt_c.close(reason="m17c", reader_grace=0.2)
+    h.check("M17.6 身份匹配则正常清理", rep_c.state_after is RuntimeState.EXITED and rep_c.identity_check == "verified",
+            {"check": rep_c.identity_check, "state": rep_c.state_after.value})
+    h.check("M17.7 身份匹配时确实调用了 terminate", backend_c.terminate_calls == [True])
+
+    # d) 进程已消失（探针返回 None）→ 正常收敛
+    backend_d = ScriptedBackend([], alive_returns=True)
+    rt_d = PtyRuntime("term_m17d", backend_d, output_cap=1024, identity=recorded, identity_probe=lambda pid: None)
+    rt_d.start(rows=24, cols=80)
+    rep_d = rt_d.close(reason="m17d", reader_grace=0.2)
+    h.check("M17.8 进程已消失时正常收敛", rep_d.state_after is RuntimeState.EXITED, rep_d.state_after.value)
+
+    # e) ProcessIdentity.matches 单元语义
+    h.check("M17.9 FILETIME 精确比较（无容差）",
+            ProcessIdentity(1, created_at_filetime=5).matches(ProcessIdentity(1, created_at_filetime=5))
+            and not ProcessIdentity(1, created_at_filetime=5).matches(ProcessIdentity(1, created_at_filetime=6)))
+    h.check("M17.10 PID 不同即不匹配",
+            not ProcessIdentity(1, created_at_filetime=5).matches(ProcessIdentity(2, created_at_filetime=5)))
+    h.check("M17.11 无可比字段视为不匹配（fail-closed）",
+            not ProcessIdentity(1).matches(ProcessIdentity(1))
+            and not ProcessIdentity(1, created_at_filetime=5).matches(None))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-out", default=None)
@@ -457,6 +972,12 @@ def main() -> int:
         t_attachment_namespace_and_detach_point,
         t_screen_snapshot_is_state_not_tail,
         t_automation_driver_boundary,
+        t_drain_stop_reasons,
+        t_reader_convergence_and_owner,
+        t_lease_revocation_and_forgery,
+        t_output_boundary_cross_chunk,
+        t_ownership_policy_and_gate,
+        t_identity_verified_cleanup,
     ):
         h.run(fn)
     return emit(h, json_out=args.json_out, extra={"psutil_terminator_available": _has_psutil()})

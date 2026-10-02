@@ -33,6 +33,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pty_contract import (  # noqa: E402
     AttachmentRegistry,
+    OwnershipMode,
+    OwnershipPolicy,
+    ProcessIdentity,
     PsutilTreeTerminator,
     PtyRuntime,
     PyteScreenObserver,
@@ -40,7 +43,10 @@ from pty_contract import (  # noqa: E402
     StaleLeaseError,
     TerminalRegistry,
     WinptyBackend,
+    build_runtime,
+    psutil_identity_probe,
     tail_text_view,
+    win32_identity_probe,
 )
 from probe_lib import (  # noqa: E402
     Harness,
@@ -57,6 +63,16 @@ HARD_TIMEOUT = 300.0
 RESOURCES: list[PtyRuntime] = []
 EXTRA_PIDS: list[int] = []
 TMP_DIRS: list[str] = []
+
+# 真实探针明确标注：pywinpty/ConPTY spawn 不提供内核级树守卫与原子赋值，
+# 因此用 fail-closed 工厂的"显式确认无 OS 级守卫"开关，而不是静默默认。
+PROBE_OWNERSHIP = OwnershipPolicy(
+    mode=OwnershipMode.SERVICE,
+    lifecycle_owner="pan-service",
+    tree_guard_kind="none",
+    tree_guard=None,
+    notes="真实 PTY 探针：pywinpty spawn 无 Job Object 守卫，显式确认无内核级守卫",
+)
 
 
 # ---------------------------------------------------------------- helpers
@@ -130,10 +146,26 @@ def new_runtime(
     cap: int = 1 << 20,
     terminator=None,
     cwd: str | None = None,
+    identity_probe=None,
 ) -> tuple[PtyRuntime, WinptyBackend]:
+    """经 fail-closed 工厂创建 runtime（布局中立 + 显式无守卫确认）。"""
     backend = WinptyBackend(argv, cwd or TMP_DIRS[0], rows=rows, cols=cols)
-    runtime = PtyRuntime(
-        f"term_probe_{len(RESOURCES):02d}", backend, output_cap=cap, terminator=terminator
+    policy = PROBE_OWNERSHIP if terminator is None else OwnershipPolicy(
+        mode=OwnershipMode.SERVICE,
+        lifecycle_owner="pan-service",
+        tree_guard_kind="psutil-tree",
+        tree_guard=terminator,
+        notes="真实 PTY 探针 + psutil 兜底守卫（非整树所有权证明）",
+    )
+    runtime = build_runtime(
+        f"term_probe_{len(RESOURCES):02d}",
+        backend,
+        ownership=policy,
+        acknowledge_unowned_tree=True,
+        require_startup_gate=False,  # 探针无 Job 赋值的原子证据（生产层要求，见报告）
+        output_cap=cap,
+        identity=win32_identity_probe(backend.pid),
+        identity_probe=identity_probe or win32_identity_probe,
     )
     runtime.start(rows=rows, cols=cols)
     RESOURCES.append(runtime)
@@ -188,10 +220,21 @@ def t_r1_short_lived_eof_drain(h: Harness) -> None:
     body = decoded(runtime.log)
     h.check("R1.A1 读到通道 EOF", eof and runtime.exit.channel_eof)
     h.check("R1.A2 output_complete 置位", runtime.exit.output_complete is True)
+    h.check(
+        "R1.A2b reader_done / output_complete 是两个不同事实",
+        runtime.exit.reader_done is True and runtime.exit.drain_stop_reason == "eof",
+        {"reader_done": runtime.exit.reader_done, "reason": runtime.exit.drain_stop_reason},
+    )
     h.check("R1.A3 捕获到完整标记行", marker in body, {"tail": strip_ansi(body)[-80:]})
     h.check("R1.A4 退出码来自真实进程", info.code == 7, {"code": info.code})
     h.check("R1.A5 根进程退出被单独公布", info.process_exit_seen is True)
     h.check("R1.A6 reader 线程收敛", runtime._reader is not None and not runtime._reader.is_alive())
+    report_a = runtime.close(reason="R1.A-done", reader_grace=1.0)
+    h.check(
+        "R1.A7 清理报告区分收敛与取消",
+        report_a.reader_converged and report_a.cancel_kind in ("none", "reader-not-started"),
+        {"converged": report_a.reader_converged, "cancel": report_a.cancel_kind, "stop": report_a.drain_stop_reason},
+    )
 
     # --- B1: 确定性复现「先判 alive 再读」丢尾部
     # 条件：在第一次 read 之前先等进程真正退出（期间完全不读，输出留在 PTY 缓冲里）。
@@ -549,12 +592,30 @@ def t_r5b_cleanup_failure_retains_owner(h: Harness) -> None:
         owner_retained=failed.owner_retained,
         alive_pids=alive_after_failure,
     )
+    h.check(
+        "R5b.6b 终止失败时不得用取消原语毁掉存活证据",
+        failed.cancel_kind == "skipped-terminate-failed" and failed.reader_converged is False,
+        {"cancel_kind": failed.cancel_kind, "converged": failed.reader_converged},
+    )
 
     retry = runtime.close(reason="R5b-retry")
     alive_after_retry = [pid for pid in ([root_pid] + kids) if pid and process_facts(pid).get("exists")]
     h.check("R5b.7 重试后进入 exited", retry.state_after is RuntimeState.EXITED and retry.ok, {"error": retry.error})
     h.check("R5b.8 重试后真实进程消失", not alive_after_retry, {"alive": alive_after_retry})
-    h.measure("R5b.9 重试清理报告", owned=retry.tree_owned_pids, remaining=retry.tree_remaining_pids, seconds=retry.seconds)
+    h.check(
+        "R5b.8b 重试时 reader 收敛被证明",
+        retry.reader_converged and retry.reader_joined,
+        {"converged": retry.reader_converged, "cancel": retry.cancel_kind, "stop": retry.drain_stop_reason},
+    )
+    h.measure(
+        "R5b.9 重试清理报告",
+        owned=retry.tree_owned_pids,
+        remaining=retry.tree_remaining_pids,
+        seconds=retry.seconds,
+        reader_converged=retry.reader_converged,
+        reader_cancelled=retry.reader_cancelled,
+        cancel_kind=retry.cancel_kind,
+    )
 
 
 # ---------------------------------------------------------------- R6
@@ -755,6 +816,166 @@ def t_r7_reconnect_gap_and_snapshot(h: Harness) -> None:
     h.check("R7.4 清理成功", report.ok)
 
 
+def t_r8_identity_verified_cleanup(h: Harness) -> None:
+    """真实清理身份核验：身份不符必须拒杀，且不得依赖 daemon 线程回收。"""
+    runtime, backend = new_runtime(["cmd.exe", "/k"], cap=1 << 20)
+    root_pid = backend.pid
+    real_identity = win32_identity_probe(root_pid)
+    h.measure(
+        "R8.0 真实进程身份（PID + 100ns FILETIME）",
+        **process_facts(root_pid),
+        filetime=getattr(real_identity, "created_at_filetime", None),
+    )
+    h.check("R8.1 能取到真实 FILETIME 身份", real_identity is not None and real_identity.created_at_filetime, )
+    h.check(
+        "R8.2 身份自比较通过",
+        real_identity.matches(win32_identity_probe(root_pid)) if real_identity else False,
+    )
+    forged = ProcessIdentity(
+        pid=root_pid,
+        created_at_filetime=(real_identity.created_at_filetime or 0) + 10_000_000,  # +1s
+    )
+    h.check("R8.3 伪造创建时间不匹配（PID 复用防线）", real_identity.matches(forged) is False)
+
+    # 故障注入：让清理阶段读到不匹配的身份
+    original_probe = runtime._identity_probe  # noqa: SLF001 - 探针故障注入
+    runtime._identity_probe = lambda pid: forged  # noqa: SLF001
+    refused = runtime.close(reason="R8-injected-identity-mismatch", reader_grace=0.5)
+    alive_after_refusal = process_facts(root_pid).get("exists")
+    h.check(
+        "R8.4 身份不符时拒绝终止",
+        refused.terminate_result == "refused-identity-mismatch" and refused.identity_check == "mismatch",
+        {"terminate": refused.terminate_result, "check": refused.identity_check},
+    )
+    h.check(
+        "R8.5 拒绝后真实进程仍然存活（未误杀）",
+        bool(alive_after_refusal),
+        {"alive": alive_after_refusal},
+    )
+    h.check(
+        "R8.6 拒绝时保留 owner 且不进入 exited",
+        refused.owner_retained is True and refused.state_after is RuntimeState.CLEANUP_FAILED,
+        {"state": refused.state_after.value},
+    )
+    h.measure(
+        "R8.7 拒绝清理报告",
+        terminate_result=refused.terminate_result,
+        identity_check=refused.identity_check,
+        error=refused.error,
+        alive_pid=root_pid,
+    )
+
+    runtime._identity_probe = original_probe  # noqa: SLF001 - 恢复真实探针
+    retry = runtime.close(reason="R8-retry-with-real-identity", reader_grace=1.5)
+    h.check(
+        "R8.8 用真实身份重试才收敛",
+        retry.state_after is RuntimeState.EXITED and retry.identity_check == "verified",
+        {"state": retry.state_after.value, "check": retry.identity_check},
+    )
+    h.check(
+        "R8.9 重试后真实进程消失",
+        not process_facts(root_pid).get("exists"),
+        {"alive": process_facts(root_pid).get("exists")},
+    )
+    h.measure(
+        "R8.10 重试清理报告",
+        reader_converged=retry.reader_converged,
+        reader_cancelled=retry.reader_cancelled,
+        cancel_kind=retry.cancel_kind,
+        drain_stop_reason=retry.drain_stop_reason,
+        seconds=retry.seconds,
+    )
+
+
+def t_r9_cancel_and_converge(h: Harness) -> None:
+    """真实 PTY 上的 reader 回收证据（两种路径分开测）。"""
+    # a) 正常路径：terminate 本身就会释放阻塞中的 read → 自然收敛，不需要取消
+    runtime, backend = new_runtime(["cmd.exe", "/k"], cap=1 << 20)
+    root_pid = backend.pid
+    h.measure("R9.0a PTY 根进程身份", **process_facts(root_pid))
+    time.sleep(1.5)  # 不产生输出：reader 此时阻塞在 read() 上
+    h.check(
+        "R9.1a reader 阻塞且未声明输出完整",
+        runtime._reader is not None and runtime._reader.is_alive()
+        and runtime.exit.reader_done is False and runtime.exit.output_complete is False,
+    )
+    natural = runtime.close(reason="R9a-natural", reader_grace=0.5)
+    h.check(
+        "R9.2a 正常路径：reader 收敛且无需取消",
+        natural.reader_converged and natural.reader_joined and natural.cancel_kind == "none",
+        {"cancel_kind": natural.cancel_kind, "stop": natural.drain_stop_reason, "seconds": natural.seconds},
+    )
+    h.measure(
+        "R9.3a 正常路径实测",
+        cancel_kind=natural.cancel_kind,
+        drain_stop_reason=natural.drain_stop_reason,
+        seconds=natural.seconds,
+        note="pywinpty terminate 会释放阻塞读，所以正常路径通常自然收敛（不是取消）",
+    )
+
+    # b) 取消路径（注入跳过 terminate）：进程仍活、read 仍阻塞 → 必须先等 grace，
+    #    再用"关闭 pty 句柄"取消，并证明 read 已返回、reader 已回收。
+    runtime_b, backend_b = new_runtime(["cmd.exe", "/k"], cap=1 << 20)
+    root_pid_b = backend_b.pid
+    h.measure("R9.0b PTY 根进程身份", **process_facts(root_pid_b))
+    time.sleep(1.5)
+    h.check("R9.1b reader 阻塞（进程仍活）", backend_b.alive() and runtime_b._reader.is_alive())
+    cancelled = runtime_b.close(
+        reason="R9b-injected-skip-terminate",
+        terminate=lambda force: None,  # 注入：不做 terminate，逼迫走取消路径
+        reader_grace=0.5,
+    )
+    h.check(
+        "R9.2b 需要取消时确实取消了并收敛",
+        cancelled.reader_cancelled is True and cancelled.cancel_kind == "backend-close"
+        and cancelled.reader_converged,
+        {"cancel_kind": cancelled.cancel_kind, "converged": cancelled.reader_converged},
+    )
+    h.check(
+        "R9.2c 未读到对端 EOF，因此不得声称输出完整",
+        runtime_b.exit.channel_eof is False and runtime_b.exit.output_complete is False
+        and cancelled.state_after is RuntimeState.EXITED,
+        {"channel_eof": runtime_b.exit.channel_eof, "state": cancelled.state_after.value},
+    )
+    h.check(
+        "R9.3b 取消前先等满 grace（不是立即杀读）",
+        cancelled.seconds >= 0.4,
+        {"seconds": cancelled.seconds, "grace": 0.5},
+    )
+    h.check(
+        "R9.4b 取消归因为 cancelled（实测 pywinpty WinError 10053，不是对端 EOF、也不是通道错误）",
+        cancelled.drain_stop_reason == "cancelled" and runtime_b.exit.channel_error is None
+        and runtime_b.exit.channel_eof is False and runtime_b.exit.output_complete is False,
+        {
+            "stop": cancelled.drain_stop_reason,
+            "err": runtime_b.exit.channel_error,
+            "channel_eof": runtime_b.exit.channel_eof,
+            "output_complete": runtime_b.exit.output_complete,
+        },
+    )
+    h.check("R9.5b 取消后进入 exited", cancelled.state_after is RuntimeState.EXITED and cancelled.ok, cancelled.error)
+    alive_after_cancel = process_facts(root_pid_b).get("exists")
+    if alive_after_cancel:  # 兜底清理，绝不留自建进程
+        try:
+            import psutil
+
+            psutil.Process(root_pid_b).kill()
+        except Exception:
+            pass
+    h.measure(
+        "R9.6b 取消路径实测（注入跳过 terminate）",
+        injected="skip-terminate",
+        cancel_kind=cancelled.cancel_kind,
+        drain_stop_reason=cancelled.drain_stop_reason,
+        seconds=cancelled.seconds,
+        process_alive_after_handle_close=bool(alive_after_cancel),
+        note=(
+            "关闭 pty 句柄是 pywinpty 上唯一可用的取消原语；句柄关闭同时会终止进程，"
+            "因此 close() 只在 terminate+整树成功后才允许取消"
+        ),
+    )
+
+
 # ---------------------------------------------------------------- cleanup
 
 
@@ -820,6 +1041,10 @@ def main() -> int:
         cmd=shutil.which("cmd"),
         less=shutil.which("less"),
         network_ports_opened=[],
+        ownership_policy=PROBE_OWNERSHIP.describe(),
+        factory="build_runtime（fail-closed，acknowledge_unowned_tree=True）",
+        require_startup_gate=False,
+        note="pywinpty spawn 无 Job 守卫/无原子赋值证据，生产层要求见报告 §7",
     )
     watchdog = Watchdog(args.hard_timeout, on_fire=force_stop_all)
     watchdog.start()
@@ -832,6 +1057,8 @@ def main() -> int:
         t_r5b_cleanup_failure_retains_owner,
         t_r6_real_tui_snapshot_vs_tail,
         t_r7_reconnect_gap_and_snapshot,
+        t_r8_identity_verified_cleanup,
+        t_r9_cancel_and_converge,
     )
     if args.only:
         wanted = [part.strip() for part in args.only.split(",") if part.strip()]

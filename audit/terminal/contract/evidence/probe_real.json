@@ -2,7 +2,7 @@
   "kind": "real",
   "note": "真实 pywinpty/ConPTY PTY + 真实子进程（cmd.exe/less.exe/ping.exe）；注入故障已标注 injected。",
   "python": "3.12.12",
-  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmptj9xVJ\\Scripts\\python.exe",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmp2o5VQR\\Scripts\\python.exe",
   "platform": "Windows-11-10.0.26200-SP0",
   "dependencies": {
     "pywinpty": "3.0.5",
@@ -10,9 +10,9 @@
     "psutil": "7.2.2"
   },
   "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
-  "started_at": "2026-10-03T00:47:56",
-  "seconds": 106.813,
-  "passed": 56,
+  "started_at": "2026-10-03T01:16:30",
+  "seconds": 112.032,
+  "passed": 76,
   "failed": 0,
   "results": [
     {
@@ -24,6 +24,14 @@
       "name": "R1.A2 output_complete 置位",
       "status": "pass",
       "detail": null
+    },
+    {
+      "name": "R1.A2b reader_done / output_complete 是两个不同事实",
+      "status": "pass",
+      "detail": {
+        "reader_done": true,
+        "reason": "eof"
+      }
     },
     {
       "name": "R1.A3 捕获到完整标记行",
@@ -48,6 +56,15 @@
       "name": "R1.A6 reader 线程收敛",
       "status": "pass",
       "detail": null
+    },
+    {
+      "name": "R1.A7 清理报告区分收敛与取消",
+      "status": "pass",
+      "detail": {
+        "converged": true,
+        "cancel": "none",
+        "stop": "eof"
+      }
     },
     {
       "name": "R1.B1 复现条件成立：开始读之前进程已退出",
@@ -135,7 +152,7 @@
     {
       "name": "R3.3 旧客户端 resize 被拒绝",
       "status": "pass",
-      "detail": "lease generation 1 != current 2"
+      "detail": "lease token 已被撤销"
     },
     {
       "name": "R3.4 迟到 resize 未影响真实终端",
@@ -218,7 +235,7 @@
       "status": "pass",
       "detail": {
         "children": [
-          6548
+          20472
         ]
       }
     },
@@ -234,7 +251,7 @@
       "status": "pass",
       "detail": {
         "recorded": [
-          6548
+          20472
         ],
         "still_alive": []
       }
@@ -251,7 +268,7 @@
       "status": "pass",
       "detail": {
         "state": "cleanup-failed",
-        "error": "terminate=error; terminate_error=RuntimeError('injected terminate failure (probe fault injection)')"
+        "error": "terminate=error; terminate_error=RuntimeError('injected terminate failure (probe fault injection)'); reader 未收敛（cancel=skipped-terminate-failed）：无法证明读已取消并回收，拒绝标记 exited"
       }
     },
     {
@@ -269,9 +286,17 @@
       "status": "pass",
       "detail": {
         "alive": [
-          37760,
-          31520
+          27464,
+          42928
         ]
+      }
+    },
+    {
+      "name": "R5b.6b 终止失败时不得用取消原语毁掉存活证据",
+      "status": "pass",
+      "detail": {
+        "cancel_kind": "skipped-terminate-failed",
+        "converged": false
       }
     },
     {
@@ -286,6 +311,15 @@
       "status": "pass",
       "detail": {
         "alive": []
+      }
+    },
+    {
+      "name": "R5b.8b 重试时 reader 收敛被证明",
+      "status": "pass",
+      "detail": {
+        "converged": true,
+        "cancel": "none",
+        "stop": "eof"
       }
     },
     {
@@ -435,6 +469,116 @@
       "detail": null
     },
     {
+      "name": "R8.1 能取到真实 FILETIME 身份",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R8.2 身份自比较通过",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R8.3 伪造创建时间不匹配（PID 复用防线）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R8.4 身份不符时拒绝终止",
+      "status": "pass",
+      "detail": {
+        "terminate": "refused-identity-mismatch",
+        "check": "mismatch"
+      }
+    },
+    {
+      "name": "R8.5 拒绝后真实进程仍然存活（未误杀）",
+      "status": "pass",
+      "detail": {
+        "alive": true
+      }
+    },
+    {
+      "name": "R8.6 拒绝时保留 owner 且不进入 exited",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed"
+      }
+    },
+    {
+      "name": "R8.8 用真实身份重试才收敛",
+      "status": "pass",
+      "detail": {
+        "state": "exited",
+        "check": "verified"
+      }
+    },
+    {
+      "name": "R8.9 重试后真实进程消失",
+      "status": "pass",
+      "detail": {
+        "alive": false
+      }
+    },
+    {
+      "name": "R9.1a reader 阻塞且未声明输出完整",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R9.2a 正常路径：reader 收敛且无需取消",
+      "status": "pass",
+      "detail": {
+        "cancel_kind": "none",
+        "stop": "eof",
+        "seconds": 0.25
+      }
+    },
+    {
+      "name": "R9.1b reader 阻塞（进程仍活）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "R9.2b 需要取消时确实取消了并收敛",
+      "status": "pass",
+      "detail": {
+        "cancel_kind": "backend-close",
+        "converged": true
+      }
+    },
+    {
+      "name": "R9.2c 未读到对端 EOF，因此不得声称输出完整",
+      "status": "pass",
+      "detail": {
+        "channel_eof": false,
+        "state": "exited"
+      }
+    },
+    {
+      "name": "R9.3b 取消前先等满 grace（不是立即杀读）",
+      "status": "pass",
+      "detail": {
+        "seconds": 0.859,
+        "grace": 0.5
+      }
+    },
+    {
+      "name": "R9.4b 取消归因为 cancelled（实测 pywinpty WinError 10053，不是对端 EOF、也不是通道错误）",
+      "status": "pass",
+      "detail": {
+        "stop": "cancelled",
+        "err": null,
+        "channel_eof": false,
+        "output_complete": false
+      }
+    },
+    {
+      "name": "R9.5b 取消后进入 exited",
+      "status": "pass",
+      "detail": null
+    },
+    {
       "name": "C1 所有自建进程已清理",
       "status": "pass",
       "detail": {
@@ -446,7 +590,7 @@
       "status": "pass",
       "detail": {
         "removed": [
-          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx"
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_x76fr7zo"
         ]
       }
     }
@@ -455,32 +599,44 @@
     {
       "name": "R0 环境",
       "python": "3.12.12",
-      "python_executable": "D:\\uv\\cache\\builds-v0\\.tmptj9xVJ\\Scripts\\python.exe",
-      "probe_pid": 49532,
+      "python_executable": "D:\\uv\\cache\\builds-v0\\.tmp2o5VQR\\Scripts\\python.exe",
+      "probe_pid": 32988,
       "probe_process": {
-        "pid": 49532,
+        "pid": 32988,
         "exists": true,
         "name": "python.exe",
-        "created_at": "2026-10-03T00:46:10",
+        "created_at": "2026-10-03T01:14:38",
         "cmdline": "E:\\software\\miniforge\\python.exe audit/terminal/contract/probe_real.py --json-out audit/terminal/contract/evidence/probe_real.json"
       },
-      "tmp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx",
+      "tmp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_x76fr7zo",
       "cmd": "C:\\Windows\\system32\\cmd.EXE",
       "less": "E:\\Git\\usr\\bin\\less.EXE",
-      "network_ports_opened": []
+      "network_ports_opened": [],
+      "ownership_policy": {
+        "mode": "service",
+        "lifecycle_owner": "pan-service",
+        "tree_guard_kind": "none",
+        "tree_guard": null,
+        "lease_grace_seconds": null,
+        "detached": false,
+        "notes": "真实 PTY 探针：pywinpty spawn 无 Job Object 守卫，显式确认无内核级守卫"
+      },
+      "factory": "build_runtime（fail-closed，acknowledge_unowned_tree=True）",
+      "require_startup_gate": false,
+      "note": "pywinpty spawn 无 Job 守卫/无原子赋值证据，生产层要求见报告 §7"
     },
     {
       "name": "cmd.exe",
-      "pid": 37432,
+      "pid": 29884,
       "exists": true,
-      "created_at": "2026-10-03T00:46:10",
+      "created_at": "2026-10-03T01:14:38",
       "cmdline": "C:\\Windows\\system32\\cmd.exe /c echo AAE-FINAL-MARKER-7 0123456789 & exit /b 7"
     },
     {
       "name": "R1.B1.1 退出后才开始读（确定性）",
       "attempt": 1,
-      "pid": 47240,
-      "child_created_at": "2026-10-03T00:46:18",
+      "pid": 46420,
+      "child_created_at": "2026-10-03T01:14:46",
       "alive_before_first_read": false,
       "pr_flow_bytes": 0,
       "bytes_read_after_alive_false": 65,
@@ -490,8 +646,8 @@
     {
       "name": "R1.B1.2 退出后才开始读（确定性）",
       "attempt": 2,
-      "pid": 4184,
-      "child_created_at": "2026-10-03T00:46:26",
+      "pid": 38364,
+      "child_created_at": "2026-10-03T01:14:55",
       "alive_before_first_read": false,
       "pr_flow_bytes": 0,
       "bytes_read_after_alive_false": 65,
@@ -501,8 +657,8 @@
     {
       "name": "R1.B2.1 持续读取（时序相关）",
       "attempt": 1,
-      "pid": 45684,
-      "child_created_at": "2026-10-03T00:46:34",
+      "pid": 39120,
+      "child_created_at": "2026-10-03T01:15:03",
       "pr_flow_bytes": 65,
       "bytes_read_after_alive_false": 0,
       "marker_in_pr_flow": true,
@@ -511,8 +667,8 @@
     {
       "name": "R1.B2.2 持续读取（时序相关）",
       "attempt": 2,
-      "pid": 49708,
-      "child_created_at": "2026-10-03T00:46:42",
+      "pid": 24732,
+      "child_created_at": "2026-10-03T01:15:11",
       "pr_flow_bytes": 65,
       "bytes_read_after_alive_false": 0,
       "marker_in_pr_flow": true,
@@ -536,9 +692,9 @@
     },
     {
       "name": "cmd.exe",
-      "pid": 49760,
+      "pid": 38724,
       "exists": true,
-      "created_at": "2026-10-03T00:46:50",
+      "created_at": "2026-10-03T01:15:19",
       "cmdline": "C:\\Windows\\system32\\cmd.exe"
     },
     {
@@ -577,10 +733,10 @@
     },
     {
       "name": "cmd.exe",
-      "pid": 13684,
+      "pid": 46776,
       "exists": true,
-      "created_at": "2026-10-03T00:47:03",
-      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx\\bulk.cmd"
+      "created_at": "2026-10-03T01:15:31",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_x76fr7zo\\bulk.cmd"
     },
     {
       "name": "R4.9 真实吞吐与内存上界",
@@ -588,7 +744,7 @@
       "retained_bytes": 262136,
       "dropped_bytes": 977897,
       "cap": 262144,
-      "seconds_to_exit": 28.75,
+      "seconds_to_exit": 29.484,
       "note": "客户端全程不读，PTY/进程未被拖死；内存上界由保留了 256KiB 证明"
     },
     {
@@ -600,19 +756,19 @@
     },
     {
       "name": "cmd.exe",
-      "pid": 49612,
+      "pid": 26596,
       "exists": true,
-      "created_at": "2026-10-03T00:47:31",
+      "created_at": "2026-10-03T01:16:01",
       "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
     },
     {
       "name": "R5.1 后代进程身份",
       "children": [
         {
-          "pid": 6548,
+          "pid": 20472,
           "exists": true,
           "name": "PING.EXE",
-          "created_at": "2026-10-03T00:47:34",
+          "created_at": "2026-10-03T01:16:04",
           "cmdline": "ping -n 60 127.0.0.1"
         }
       ]
@@ -620,29 +776,29 @@
     {
       "name": "R5.5 清理报告",
       "owned": [
-        49612,
-        6548
+        26596,
+        20472
       ],
       "remaining": [],
       "terminate": "returned",
-      "seconds": 0.25,
+      "seconds": 0.266,
       "interrupt_sent": true
     },
     {
       "name": "cmd.exe",
-      "pid": 37760,
+      "pid": 27464,
       "exists": true,
-      "created_at": "2026-10-03T00:47:35",
+      "created_at": "2026-10-03T01:16:04",
       "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
     },
     {
       "name": "R5b.1 后代进程身份",
       "children": [
         {
-          "pid": 31520,
+          "pid": 42928,
           "exists": true,
           "name": "PING.EXE",
-          "created_at": "2026-10-03T00:47:38",
+          "created_at": "2026-10-03T01:16:07",
           "cmdline": "ping -n 60 127.0.0.1"
         }
       ]
@@ -654,15 +810,18 @@
       "terminate_error": "RuntimeError('injected terminate failure (probe fault injection)')",
       "owner_retained": true,
       "alive_pids": [
-        37760,
-        31520
+        27464,
+        42928
       ]
     },
     {
       "name": "R5b.9 重试清理报告",
       "owned": [],
       "remaining": [],
-      "seconds": 0.266
+      "seconds": 0.25,
+      "reader_converged": true,
+      "reader_cancelled": false,
+      "cancel_kind": "none"
     },
     {
       "name": "R6.0 TUI 程序",
@@ -672,9 +831,9 @@
     },
     {
       "name": "cmd.exe",
-      "pid": 42956,
+      "pid": 5200,
       "exists": true,
-      "created_at": "2026-10-03T00:47:38",
+      "created_at": "2026-10-03T01:16:08",
       "cmdline": "C:\\Windows\\system32\\cmd.exe"
     },
     {
@@ -755,15 +914,15 @@
     },
     {
       "name": "R6.18 TUI 前后游标",
-      "cursor_before_tui": 402,
+      "cursor_before_tui": 519,
       "cursor_after": 6094
     },
     {
       "name": "cmd.exe",
-      "pid": 23536,
+      "pid": 48336,
       "exists": true,
-      "created_at": "2026-10-03T00:47:48",
-      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx\\reconnect.cmd"
+      "created_at": "2026-10-03T01:16:18",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /c C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_x76fr7zo\\reconnect.cmd"
     },
     {
       "name": "R7.3 重连窗口实测",
@@ -774,8 +933,61 @@
       "note": "序号是绝对字节偏移，跨重连可复用；gap 段必须用屏幕快照恢复而非补零"
     },
     {
+      "name": "cmd.exe",
+      "pid": 2940,
+      "exists": true,
+      "created_at": "2026-10-03T01:16:26",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /k",
+      "filetime": 134354349863047011
+    },
+    {
+      "name": "R8.7 拒绝清理报告",
+      "terminate_result": "refused-identity-mismatch",
+      "identity_check": "mismatch",
+      "error": "identity mismatch (refusing to terminate): recorded pid=2940 filetime=134354349863047011, live pid=2940 filetime=134354349873047011",
+      "alive_pid": 2940
+    },
+    {
+      "name": "R8.10 重试清理报告",
+      "reader_converged": true,
+      "reader_cancelled": false,
+      "cancel_kind": "none",
+      "drain_stop_reason": "eof",
+      "seconds": 0.25
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 32504,
+      "exists": true,
+      "created_at": "2026-10-03T01:16:26",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
+    },
+    {
+      "name": "R9.3a 正常路径实测",
+      "cancel_kind": "none",
+      "drain_stop_reason": "eof",
+      "seconds": 0.25,
+      "note": "pywinpty terminate 会释放阻塞读，所以正常路径通常自然收敛（不是取消）"
+    },
+    {
+      "name": "cmd.exe",
+      "pid": 15440,
+      "exists": true,
+      "created_at": "2026-10-03T01:16:28",
+      "cmdline": "C:\\Windows\\system32\\cmd.exe /k"
+    },
+    {
+      "name": "R9.6b 取消路径实测（注入跳过 terminate）",
+      "injected": "skip-terminate",
+      "cancel_kind": "backend-close",
+      "drain_stop_reason": "cancelled",
+      "seconds": 0.859,
+      "process_alive_after_handle_close": false,
+      "note": "关闭 pty 句柄是 pywinpty 上唯一可用的取消原语；句柄关闭同时会终止进程，因此 close() 只在 terminate+整树成功后才允许取消"
+    },
+    {
       "name": "C3 资源清单",
-      "runtimes": 8,
+      "runtimes": 11,
       "runtimes_created": [
         "term_probe_00",
         "term_probe_01",
@@ -784,14 +996,17 @@
         "term_probe_04",
         "term_probe_05",
         "term_probe_06",
-        "term_probe_07"
+        "term_probe_07",
+        "term_probe_08",
+        "term_probe_09",
+        "term_probe_10"
       ],
       "recorded_extra_pids": [
-        6548,
-        31520
+        20472,
+        42928
       ],
       "tmp_dirs": [
-        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_auhcurwx"
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan_pty_contract_probe_x76fr7zo"
       ]
     }
   ],

@@ -36,5 +36,18 @@ uv run --no-project --python E:/software/miniforge/python.exe \
 - 只创建和操作探针自己的进程；不触碰既有服务、Session、Worker、CLI thread。
 - 不打开任何监听端口（`ping` 只走 ICMP 回环）。
 - 只在 `%TEMP%\pan_pty_contract_probe_*` 写测试文件，结束时删除。
-- 注入故障（故意失败的 `terminate`）在结果里显式标注 `injected`。
+- 注入故障（故意失败的 `terminate`、跳过 terminate、伪造身份、伪造 lease token）在结果里显式标注
+  `injected` / `forged`，与真实行为分开报告。
 - MOCK 结果不得当作真实 CLI/PTY 证据；REAL 结果见 `probe_real.py` 的 JSON。
+
+## 契约要点（易踩坑）
+
+- 结束原因**必须分类**：只有对端真实 EOF（`drain_stop_reason == "eof"`）才允许 `channel_eof` /
+  `output_complete`；`cancelled`（我们自己关的通道）/ `channel-error` / `eof-timeout` / `stop-requested` 都不允许。
+- 真实 PTY（`pywinpty`）上"关闭 pty 句柄取消阻塞读"表现为 `ConnectionAbortedError`（WinError 10053），
+  归因为 `cancelled`；且关句柄**会终止进程**，所以 `close()` 只在"终止 + 整树"都成功后才允许取消。
+- reader 回收必须被证明（自然结束或取消后结束）；取消无效时拒绝 `exited` 并保留 owner。
+- 所有权布局经 `OwnershipPolicy` 注入，公共核心不按布局分支；`build_runtime` 是 fail-closed 工厂，
+  没有策略/没有守卫/未验收的 detach 一律拒绝。
+- 清理在任何终止动作**之前**核验身份（PID + 100ns FILETIME）；不匹配或探针失败即拒杀。
+- 输出边界是**字节流**：跨块与保留窗口起点都可能切断 UTF-8/CSI/OSC，序列重组归仿真器/快照。

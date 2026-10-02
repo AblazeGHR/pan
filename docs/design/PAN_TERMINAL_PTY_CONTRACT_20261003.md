@@ -7,6 +7,7 @@
 - PR 只读源码树：`D:/project/pan-worktrees/pr6-terminal-source-20261002`（`387a43ec4dfe699498bb0b95d7ceef212f905b99`）
 - 交付物：`audit/terminal/contract/`（契约原型 + 可运行探针 + JSON 证据）、本文档
 - 性质：**探索阶段交付**。未修改 `packages/` 下任何正式模块，未改正式依赖锁，未合入/推送，未重启任何服务。
+- 版本：首轮 `e70543da`；本文件为 MA 追加修正（结束原因分类 / reader 回收 / lease 撤销 / 输出边界 / 所有权工厂）后的 follow-up 版本。
 
 ---
 
@@ -23,7 +24,13 @@
 | C7 | 流中间加入的客户端（等价于重连/迟到观察者）**无法从后续字节推断模式状态**：`mid_stream_alt_screen=False`，而当时真实状态是 `True`；尾部文本通道结构上无法承载状态 | 实测（R6.8/R6.15/R6.17）+ 确定性测试（M10） |
 | C8 | 清理失败可保留 owner：注入终止失败后状态为 `cleanup-failed`、`owner_retained=true`、后端句柄未关闭、**真实进程仍然存活**（未谎报退出），重试后才进入 `exited` 且进程消失 | 实测（R5b，注入故障已标注） |
 | C9 | 所有权快照必须先于终止：`PsutilTreeTerminator.owned_pids` 在终止后才调用会返回空集（根 PID 已消失）。契约改为"先快照所有权→再终止→再核对残留"，报告中出现 `owned=[49612, 6548]` | 实测（R5.5）+ PR 源码（`driver.py:558-582`） |
-| C10 | terminal 命名空间与 session/worker 分离、lease generation、状态机合法性等契约逻辑全部通过（mock 73 项 0 失败） | 针对性测试（M1–M11） |
+| C10 | terminal 命名空间与 session/worker 分离、状态机合法性等契约逻辑全部通过（首轮 M1–M11 73 项；追加修正后 M1–M17 共 145 项，0 失败） | 针对性测试（M1–M17） |
+| C11 | **结束原因必须分类**：真实 EOF 才允许 `channel_eof`/`output_complete`；通道错误、`eof_grace` 超时、stop 请求一律不声明输出完整。实测 pywinpty 的"关闭句柄取消读"表现为 `ConnectionAbortedError`（WinError 10053），归因为独立的 `cancelled`（既不是通道错误也不是对端 EOF） | 实测（R9.4b）+ 确定性测试（M12） |
+| C12 | **reader 回收必须被证明**：正常路径 `terminate` 会释放阻塞读（自然收敛，`cancel_kind=none`）；需要取消时先等满 grace 再用关句柄取消并证明 `reader_converged`。取消无效则拒绝 `exited`、保留 owner（不能用 daemon 线程当回收保证） | 实测（R9.2a/R9.2b/R9.3b）+ 确定性测试（M13） |
+| C13 | **lease 撤销不可复活**：撤销后 send/resize/transfer 全部 `StaleLeaseError`，200 次 churn 无撤销后写入；伪造 `revocation_id` 的 token 被 `NotControlLeaseError` 拒绝；校验与写入在同一临界区 | 确定性测试（M14.4–M14.18） |
+| C14 | **清理身份核验可拒杀**：注入"身份不匹配"时清理拒绝终止（`refused-identity-mismatch`、`identity_check=mismatch`、owner 保留），**真实进程仍然存活**；换回真实身份重试才收敛且进程消失。FILETIME 精确比较，无可比字段视为不匹配 | 实测（R8.4–R8.9）+ 确定性测试（M17） |
+| C15 | **所有权布局中立 + fail-closed 工厂**：`lifecycle_owner` 仅声明性数据，`pan-service`/`runner`/`external-host` 三者行为一致；无策略/声明守卫却给 None/detach/external 四种情形全部被拒；`assigned`/`atomic_with_spawn`/`identity`/`handle_bound` 四要素缺一即拒绝进入 `running`（状态保持 `created`） | 确定性测试（M16.1–M16.11）+ 真实探针经工厂构造（R0） |
+| C16 | **输出边界是字节流不是序列流**（纠正先前过强表述）：跨块 UTF-8/CSI/OSC 会被切割；保留窗口起点可落在 `[38;5;196m` 内部并返回 gap。序列重组归仿真器/快照负责 | 确定性测试（M15.1–M15.7） |
 
 ---
 
@@ -94,10 +101,17 @@ class PtyBackend(Protocol):
 |---|---|
 | 序号 `seq` | 该字节在**流中的绝对偏移**，与保留窗口无关，跨重连可复用 |
 | 保留上界 | `retained_bytes <= max_bytes`（断言级） |
-| 驱逐 | 以**整块**为单位，不把一次 VT 序列从中间切断；单块大于上界时保留尾部并计入 gap |
+| 驱逐 | 以**整块**为单位，只避免"因驱逐在保留窗口**起点**额外制造残片"；**不保证** VT 完整性，单块大于上界时保留尾部并计入 gap |
 | `read_from(cursor, max_bytes=None) -> OutputPage` | 返回 `chunks / first_seq / next_cursor / gap / truncated` |
 | gap | `cursor < first_retained_seq` 时返回 `(cursor, first_retained_seq)`；**不补零**，要求客户端走快照恢复 |
 | 非法游标 | `cursor > total` 抛 `InvalidCursorError` |
+
+**边界是字节流，不是序列流（纠正先前过强表述）**：以下三种情况都会让 UTF-8 码点、CSI、OSC
+跨块切割，日志层无法也不应消除：① `read(size)` 的读取边界由后端/内核决定（ConPTY 一次写入
+可能分成多个读事件）；② 单块超上界时只保留尾部；③ 保留窗口起点 `first_retained_seq` 可能落在
+一条转义序列内部。实测（M15）：`logger` 容量 8 时窗口起点落在 `[38;5;196m` 内部
+（`window_start=9 > csi_start=5`）并返回 gap。因此契约要求 **序列重组与屏幕状态由仿真器/快照
+负责**；客户端遇到 gap 或窗口起点可疑时必须走快照恢复，而不是从窗口起点解析。
 
 策略选择（需 MA 确认产品语义）：**单条有界历史 + 快照恢复**，而**不是**每客户端独立缓冲。理由：慢客户端若各自排队
 就是 PR 的无界队列问题换了个位置；契约要求慢到丢窗口的客户端断开并从快照恢复。浏览器确认游标应在其渲染完成后上报。
@@ -112,13 +126,19 @@ CREATED ──> STARTING ──> RUNNING ──> EXITING ──> EXITED
    └──> EXITING             └──> LOST（通道错误/无法收敛）
 ```
 
-**三个不同事实，分开公布**（对应审查 §2 的"区分根进程退出、通道关闭和终端完成"）：
+**不同事实分开公布**（对应审查 §2 的"区分根进程退出、通道关闭和终端完成"；MA 追加修正：
+不得把错误/超时/stop 当作正常 EOF）：
 
-| 字段 | 含义 | 来源 |
+| 字段 | 含义 | 取值规则 |
 |---|---|---|
 | `process_exit_seen` + `code` | 根进程已退出、退出码 | `exit_code()` |
-| `channel_eof` | 读端到达 EOF | `read()` 抛 `EOFError` |
-| `output_complete` | 输出已完整（不再有字节） | drain 线程结束 |
+| `reader_done` | reader 线程结束 | **任何**结束原因都置位（含错误/取消） |
+| `channel_eof` | 读到**对端**真实 EOF | 仅 `drain_stop_reason == "eof"` |
+| `output_complete` | 输出完整 | **仅** `drain_stop_reason == "eof"` |
+| `drain_stop_reason` | 结束原因分类 | `eof` / `cancelled` / `channel-error` / `eof-timeout` / `stop-requested` |
+
+`close()` 报告另有 `reader_converged` / `reader_joined` / `reader_cancelled` / `cancel_kind`：
+只有 reader 被证明回收（自然结束或取消后结束）才允许进入 `exited`。
 
 实测时长差异（重要）：进程退出到通道 EOF 之间可以有**约 5 秒**延迟（scratch 测量：`isalive()` 在 3.08s 变假，
 `EOFError` 在 8.03s 到达，其间仍读到 19 字节尾部）。所以**不能**用一个"完成"事件把三者混在一起。
@@ -144,6 +164,23 @@ reader 契约（`_drain_loop`）：循环 `read()`，只有 `EOFError`（或通�
 - **尺寸跟随当前控制客户端**；resize 必须同时作用于 PTY 与客户端仿真器（见 R6.11）
 - 未授权/不存在 terminal id 直接失败；契约层面不接受"知道 ID 即可操作"
 
+**MA 追加修正后的撤销语义（M14 实测）**：
+
+- `detach(token)` 把该 token 的 `revocation_id` 记入 revoked 集合；控制权撤销时**同时自增
+  generation**。此后该 token 与"同一代副本"的 `send`/`resize`/`transfer` 全部 `StaleLeaseError`，
+  不再存在任何 `setdefault` 式复活路径（旧实现会复活，已删除）。
+- `revocation_id` 由 registry 生成的不透明随机串承担"同一控制权"的判定；`role`/`client_id`
+  是自报字段，伪造 token 即使自报 `role="control"`、世代正确，也会因
+  `holder.revocation_id != token.revocation_id` 被 `NotControlLeaseError` 拒绝。
+- **校验与操作在同一临界区**：`attach`/`transfer`/`detach`/`send`/`resize` 共用一个可重入锁，
+  "校验 → 写终端"原子，单 writer 顺序有保证。200 次"取控制权→写→撤销→再写"churn 无一次
+  撤销后写入（M14.18）。
+- 观察者 token 的失败原因稳定为"无权限"（先判权限类别再判世代），观察者撤销不影响其它观察者
+  （M14.16）；control 撤销**不会**误伤观察者（其有效性只由是否被撤销决定）。
+- **明确未实现范围**：真实身份认证与网络授权（把 token 绑定到 Pan 登录用户/连接/ACL）、跨进程
+  token 保密。已知边界：**复制 `revocation_id` 的 token 会被接受**（M14.19 如实记录为测量值），
+  所以授权必须由 Pan 现有入口在先完成，本 registry 只解决进程内单 writer + 撤销语义。
+
 ### 2.6 `ScreenObserver`：自动化观察者
 
 ```python
@@ -166,16 +203,72 @@ def wait_for(predicate, timeout, *, quiet_ms=0.0) -> WaitOutcome  # matched/time
 `pty_contract.py` 中不存在 `"Restore and fork the conversation"` / `"Never Mind"`）。
 `navigate_to_anchor`、`_settled_selected_row`、`_await_restore` 这类业务状态机整体留在 driver 层。
 
-### 2.8 能力扩展点：默认 managed / 显式 detach
+### 2.8 所有权策略与 fail-closed 工厂（**布局中立，不绑死服务持 Job / runner 布局**）
+
+产品语义已由用户决定（默认终端随 Pan 服务生死；显式 detach 保留原 PTY/进程；浏览器断连只释放连接），
+本节不再重复索要这些决定，只固化**接口形状**与**拒绝条件**。
 
 ```python
-class OwnershipMode(str, Enum): SERVICE = "service"; DETACHED = "detached"
-class OwnershipPolicy(Protocol): on_service_shutdown(report) -> CleanupReport; reconnect_hint(id) -> dict
-def require_detached_ownership(policy) -> None   # 未定型时抛 DetachedOwnershipNotImplemented
+class OwnershipMode(str, Enum): SERVICE = "service"; DETACHED = "detached"; EXTERNAL = "external"
+
+@dataclass(frozen=True)
+class OwnershipPolicy:
+    mode: OwnershipMode
+    lifecycle_owner: str            # "pan-service" | "runner" | "external-host" —— 仅数据，不参与分支
+    tree_guard_kind: str            # "job-object" | "process-group" | "none"
+    tree_guard: TreeTerminator | None
+    lease_grace_seconds: float | None = None
+    detached: bool = False
+    def describe() -> dict; def on_service_shutdown(runtime) -> CleanupReport; def reconnect_hint(id) -> dict
+
+def build_runtime(terminal_id, backend, *, ownership, acknowledge_unowned_tree=False, ...) -> PtyRuntime
 ```
 
-本阶段**只给接口，不给实现**：显式 detach 需要"保留原 PTY/进程 + 同 PID 重连"的证据，属生命周期 TA 的范围。
-`require_detached_ownership` 故意**显式失败**而不是静默降级为"重启代替 detach"（M9.4 断言）。default managed 不需要该策略。
+**布局中立性如何体现**：`lifecycle_owner` 只是声明性数据，公共核心**不按它分支**；`tree_guard` 是
+注入的 `TreeTerminator` 实现（Job Object / 进程组 / 其它都可以），接口不限定由谁持有句柄。
+实测（M16.5）：`lifecycle_owner` 取 `pan-service` / `runner` / `external-host` 三者行为一致，
+同一套 API 全部可用。所以布局 A（服务持 Job）、布局 B（runner 出生持 Job）、以及待验证的
+布局 C（A→B 句柄移交）都能用同一接口表达而不需要改契约。
+
+**fail-closed 工厂拒绝条件**（任一条不过就抛错，绝不静默降级）：
+
+| 条件 | 异常 |
+|---|---|
+| `ownership is None`（无默认布局） | `OwnershipPolicyRequired` |
+| 声明了 `tree_guard_kind` 但 `tree_guard is None` 且未显式确认 | `UnownedTreeRejected` |
+| `mode=DETACHED`（同 PID 重连证据未验收） | `DetachedOwnershipNotImplemented` |
+| `mode=EXTERNAL`（外部所有者生死/重连语义未验收） | `ExternalOwnershipNotYetValidated` |
+| 声明了树守卫但 `start()` 未给启动所有权证据 | `OwnershipGateError` |
+
+`JobObjectTreeTerminator` 在本阶段**故意只声明不实现**（构造即抛 `NotImplementedError` 并列出待验收项），
+避免把公共契约钉在某一种 Job 布局上。`PsutilTreeTerminator` 与 `NullTreeTerminator` 是探针级实现，
+`NullTreeTerminator` 必须配 `acknowledge_unowned_tree=True` 才可用（真实探针就是这么标注的）。
+
+### 2.9 启动所有权门禁与清理身份核验
+
+MA 追加要求的三项生产层约束，在契约层固化为**四要素**门禁（M16.6–M16.11）：
+
+```python
+@dataclass(frozen=True)
+class ProcessOwnershipEvidence:
+    assigned: bool                  # 必须为真（assign 失败不得 running）
+    atomic_with_spawn: bool         # 必须为真（消除 spawn→assign 逃逸窗口）
+    identity: ProcessIdentity | None    # PID + 100ns FILETIME
+    handle_bound_for_cleanup: bool  # 清理用赋值时的同一 handle
+    guard: str
+```
+
+- **spawn 后 assign 窗口**：`atomic_with_spawn` 为假即拒绝启动（挂起创建→赋值→恢复是唯一可接受形态）。
+- **assign 失败拒绝 running**：`assigned` 为假即拒绝；实测状态保持 `created`，从未进入 `running`。
+- **清理身份查验 + 同一 handle**：`identity` 缺失或 `handle_bound_for_cleanup` 为假都拒绝启动；
+  `close()` 在**任何终止动作之前**核验身份，不匹配或探针失败即**拒杀**并把状态置
+  `cleanup-failed` + 保留 owner（M17、R8）。`ProcessIdentity.matches` 对 FILETIME 精确比较、
+  无可比字段视为不匹配（fail-closed）。
+- 门禁证据中的身份会被 runtime 采用，作为后续清理核验的依据（不会事后另取一个身份）。
+
+**取消原语与其副作用**（R9 实测）：pywinpty 无读超时，"关闭 pty 句柄"是唯一可用的取消手段，且它
+**会同时终止进程**；因此 `close()` 只在"终止 + 整树"都成功后才允许取消，否则会毁掉"进程仍存活、
+owner 待重试"的证据（R5b.6b 断言）。取消触发的结束原因单列为 `cancelled`（见 §2.3）。
 
 ---
 
@@ -197,7 +290,8 @@ def require_detached_ownership(policy) -> None   # 未定型时抛 DetachedOwner
 | 无输出游标/退出码事件 | 无 | `read_from(cursor)` + `ExitInfo` | 重连与断点续传的基础 |
 | `_await_restore` L180–231 | 直接用 `session.proc.isalive()` + `session.text()` + `session.wait_for` | driver 只依赖 `AutomationContext` | 业务判定与传输解耦；`proc` 不再外泄给 driver |
 | `navigate_to_anchor` L800–871 / `_settled_selected_row` L781–797 | 直接 `session.send(chr(27)+"[A")`、`session.wait_for`、`session.text()` | 同样落在 driver 层，通过 `ctx.send_keys/screen_text/wait_for` | **CBC 业务菜单与键位语义留在 driver**，公共核心不实现 |
-| `rewind()` L619–778 `finally: session.close()` | 回滚结束即销毁 PTY | 上层用 runtime 状态机决定 `exited`/`cleanup-failed`/重试 | PR 语义（临时 PTY）保持可用；长期终端另走 registry |
+| 无所有权策略 / 无启动门禁 | spawn 后由上层各自决定，无显式声明 | `OwnershipPolicy` + `build_runtime`（fail-closed）+ `ProcessOwnershipEvidence` 四要素门禁（§2.8/§2.9） | 布局中立；assign 失败/未原子赋值/缺身份/未绑定 handle 一律拒绝进入 `running` |
+| `rewind()` 失败即关闭 | `finally: session.close()` | 状态机 + `CleanupReport`（含 `reader_converged` / `identity_check`） | 失败时不谎报 `exited`，保留 owner 可重试 |
 
 **接入结论**：`_PtySession` 不需要被"扩充成长期终端管理器"（审查结论不变）。PR 侧接入方式是让
 `_PtySession` 变成 `PtyRuntime + WinptyBackend` 的薄封装，`rewind()` 的菜单逻辑改写成
@@ -218,13 +312,13 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 # 迭代调试：追加 --only r1,r6
 ```
 
-最近一次完整运行：**56 passed / 0 failed / 106.8s**（退出码 0）。JSON 证据：
+最近一次完整运行：**76 passed / 0 failed / 113.1s**（退出码 0）。JSON 证据：
 `audit/terminal/contract/evidence/probe_real.json`。
 
 | 用例 | 关键测量 | 结果 |
 |---|---|---|
 | R0 | probe pid 49532（创建时间 2026-10-03T00:46:10）、`network_ports_opened: []` | 环境与身份已核验 |
-| R1.A | 短命 `cmd /c echo ... & exit /b 7`：`output_complete=true`、`code=7`、marker 完整、reader 收敛 | PASS（6 项） |
+| R1.A | 短命 shell 命令：`output_complete=true`、`drain_stop_reason=eof`、`code=7`、marker 完整、reader 收敛、清理报告 `reader_converged` | PASS（7 项） |
 | R1.B1 | 进程先退出再开始读：PR 控制流 `pr_flow_bytes=0`，随后读到 `65` 字节且含 marker，2/2 次（子进程 pid 47240 / 4184） | PASS（3 项） |
 | R1.B2.x | 持续读取（时序相关）：PR 控制流 65 字节、`after_alive_false=0`，2/2 次 | MEASURE（如实记录未命中） |
 | R2 | 交互 `cmd.exe`：`set AAEVAR=42` 后 `echo AAE-MARKER-%AAEVAR%` → 输出 `AAE-MARKER-42`（证明真执行而非回显），`exit 5` → `code=5` | PASS（5 项） |
@@ -234,7 +328,9 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 | R5b | **注入**终止失败：`cleanup-failed`、`owner_retained=true`、后端未关闭、真实进程仍存活（37760, 31520）→ 重试后 `exited` 且进程消失 | PASS（7 项） |
 | R6 | 真实 `less.exe` TUI（`E:\Git\usr\bin\less.EXE`）：进入 `?1049h`、快照 `alternate_screen=true`、`private_modes={1,7,25,1004,1049,9001}`、屏幕 23 行样本行、`scrollback_lines=0`；翻页重绘 1526B；resize 重绘 1938B 且快照尺寸 (30,100)；退出 `?1049l` 后模式复位但主屏未恢复；尾部 512B 重建与完整解析不一致 | PASS（11 项）+ 2 MEASURE |
 | R7 | 客户端离线期间 PTY 继续跑：`total=216,060`、`retained=65,475`、`gap=(0,150,585)`、尾部标记仍在 | PASS（4 项） |
-| C1–C3 | 全部自建进程已清理（`leftover: []`）、临时目录已删除、8 个 runtime 清单 | PASS（2 项）+ MEASURE |
+| R8 | 真实身份核验：录得 FILETIME `134354347461843768`；注入 +1s 的身份后清理**拒绝终止**（`refused-identity-mismatch`）、真实进程仍存活；换回真实身份重试才 `exited` 且进程消失 | PASS（8 项） |
+| R9 | reader 回收两路径：正常路径 `cancel_kind=none`/`eof`/0.25s 自然收敛；注入跳过 terminate 后阻塞在 read 上的 reader 经"等满 0.5s grace → 关句柄取消"收敛（`cancel_kind=backend-close`、0.875s、`drain_stop_reason=cancelled`、`channel_eof=False`、`output_complete=False`） | PASS（10 项） |
+| C1–C3 | 全部自建进程已清理（`leftover: []`）、临时目录已删除、11 个 runtime 清单 | PASS（2 项）+ MEASURE |
 
 R6 的关键观察（值得单独强调）：退出备用屏后 `pyte` 屏幕上仍是 TUI 残留（`LINE-0026...`），
 `pyte_shows_pre_tui_line=false`。**真实 xterm/Windows Terminal 客户端会自己维护 1049 备用屏缓冲**，
@@ -253,7 +349,7 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
     --json-out audit/terminal/contract/evidence/probe_mock.json
 ```
 
-最近一次：**73 passed / 0 failed / 3.1s**。用例分组：
+最近一次：**145 passed / 0 failed / 5.7s**。用例分组：
 
 | 组 | 覆盖 |
 |---|---|
@@ -266,6 +362,12 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 | M9 | terminal id 唯一 + 独立前缀；detach 扩展点未定型时显式失败（含依赖 lifecycle 说明） |
 | M10 | 真实 pyte 解析合成 VT：私有模式需 `<<5` 还原（1049 可见）、备用屏标志、光标、无滚动历史、`fidelity=partial`、尾部文本无状态通道 |
 | M11 | driver 边界：只能经 lease 写终端、不含生命周期 API、公共核心无 CBC 菜单字面量 |
+| M12 | 结束原因分类：只有 `eof` 才声明输出完整；`channel-error` / `eof-timeout` / `stop-requested` / `cancelled` 都不声明（含"自取消的传输层异常不算通道错误"） |
+| M13 | reader 回收：取消有效 → 收敛并 `exited`；取消无效 → `cleanup-failed` + 保留 owner + 拒绝 `exited`，释放后重试才收敛 |
+| M14 | lease：撤销后 send/resize/transfer 全拒且无写入（200 次 churn）、伪造 `revocation_id` 被拒、observer 越权被拒、撤销一个 observer 不影响其它、已知边界如实记录 |
+| M15 | 输出边界：跨块 UTF-8/CSI/OSC 拼接字节一致、逐块解码会破坏 UTF-8、窗口起点落在 CSI 内部并返回 gap、尾部文本视图丢状态 |
+| M16 | 所有权：四种拒绝条件、`lifecycle_owner` 三种取值布局中立、启动门禁四要素逐个拒绝且状态保持 `created`、service/detach 关闭语义 |
+| M17 | 清理身份核验：不匹配/探针失败拒杀且未调用 terminate、匹配与"进程已消失"正常收敛、`ProcessIdentity.matches` fail-closed 语义 |
 
 ---
 
@@ -280,44 +382,98 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 ---
 
+## 6A. 跨 TA 引用、验收状态与 adapter 无关边界
+
+### 6A.1 生命周期 TA（`4b20683`，**待 MA 验收**）
+
+引用其报告 `docs/design/PAN_TERMINAL_LIFECYCLE_JOBS_20261003.md`（只读树
+`D:/project/pan-worktrees/terminal-lifecycle-explore-20261003`）。该 TA 正在原 Session 返工，
+其工作树内还有未提交的 `job_handle_handoff.py` / `handoff_role.py` / `kill_identity_probe.py`，
+**未提交内容一律不作为证据引用**。
+
+**实测（可引用）**：runner 出生即持有 PTY + 自持 kill-on-close Job + 服务 lease + 显式 durable，
+满足正常退出/崩溃/同 PID 重连（s1–s5 58/58）；Job 侧：无 API 可把已存在进程摘出
+kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄关闭即整树终止、breakaway 仅限出生
+（job_object_probe A–E 6/6）。
+
+**推断（不可当结论）**：该报告 §4 规则 4 称"`DuplicateHandle` 只增加引用计数、不转移绑定"，
+并在 §6 据此得出"服务持 PTY → detach 迁移给独立 owner 在**本机内核语义下不可行**"。
+
+**必须区分两点**：
+
+1. **"不能移除 Job 成员" ≠ "不能通过 DuplicateHandle 移交 Job 句柄所有权"**。前者有实测支撑；
+   后者是推断。句柄复制后由 B 持有、A 关闭自己的句柄，只要"最后一个句柄关闭才终止"成立，
+   所有权就完成了移交——MA 已要求 A→B 移交探针验证，**在探针结论出来之前，本契约不把任何一种
+   Job 布局写成唯一方案**。
+2. **即使句柄移交成功，也不自动证明 ConPTY host/IO 可迁移**。pseudoconsole 与 IO 管道随创建进程
+   存活（创建者死亡 → 伪控制台销毁）、ConPTY 宿主进程的归属关系，均**未验证**。
+
+因此契约只固化"所有权策略 + fail-closed 工厂"的形状（§2.8/§2.9），把布局作为数据；
+`JobObjectTreeTerminator` 显式不提供实现。
+
+**接口影响（如实标注为待验收推断）**：若 A→B 移交成立，布局 C 可以用同一 `OwnershipPolicy` 表达
+（`lifecycle_owner` 变化 + 注入对应 `tree_guard`），**不需要改公共契约**；但 ConPTY IO 归属若无法
+迁移，"服务先持 PTY 再 detach"依然不可行，届时只能走"runtime 出生即拥有 PTY"的布局。
+
+### 6A.2 CBC 首轮报告边界（供后续整理，不改变本契约方向）
+
+- CBC `--serve` 的 PowerShell PTY 输入/SSE/resize/DELETE 与 ACP `initialize`/`session/new` **分别成功**，
+  但**没有**同一个 CBC Agent/backend/turn 与原生 TUI 绑定的证据；当前 headless CLI attach 失败
+  **不能排除**其它途径。原 TA 正在 review/纠正。
+- 因此本公共 PTY/Terminal core **保持 adapter-independent**：核心接口不出现任何 adapter 专属概念，
+  不把 CBC daemon/ACP 列为必选依赖，也不写成"已实现无中断 TUI"。
+- 若未来采用 CBC daemon/ACP，它是 **adapter runtime 扩展**（在 driver/扩展层实现），不是核心前提。
+
+---
+
 ## 7. 未验证项、失败项与待其他 TA 证据的决定
 
 **未验证（明确不做或无结论）**
 
-1. **显式 runtime detach / 同 PID 重连 / 父进程崩溃语义**：未实现（只有接口），属生命周期 TA。
-   Windows Job Object 所有权应在 spawn 时建立，本探针用 psutil 兜底并已知其顺序局限。
+1. **显式 runtime detach / 同 PID 重连 / 父进程崩溃语义**：未实现（工厂直接拒绝 DETACHED/EXTERNAL）。
+   依赖生命周期 TA 的验收结论、MA 要求的 A→B Job 句柄移交探针、以及 ConPTY host/IO 可迁移性（§6A.1）。
 2. **POSIX backend**：未实现、未测（仅 Windows/ConPTY 有实测证据）。
-3. **网页前端（xterm.js / fit / serialize）与 WS 协议**：未实现。这正是本阶段不承诺的能力。
+3. **真实浏览器与权威快照**：xterm.js / fit / serialize addon、WS 协议、浏览器渲染均**未实现、未验证**；
+   "权威仿真器快照"（能完整覆盖鼠标/粘贴/键盘协议/滚动历史的实现）也未验证——本阶段只有 pyte 的
+   `fidelity=partial` 观察者。这两项不能当作已交付能力。
 4. **服务生命周期（Pan 服务重启后默认终端结束、detach 终端保留）**：未测；需要在 Pan 服务内集成后才能验证。
-5. **未授权客户端隔离 / IPC 仅本机用户**：设计已写（§2.5），未实现、未测。
+5. **未授权客户端隔离 / IPC 仅本机用户 / 真实身份授权**：设计已写（§2.5），未实现、未测；
+   已知边界"复制 `revocation_id` 的 token 会被接受"已如实记录（M14.19）。
 6. **Agent takeover 与 held/生命周期锁的双 writer 问题**：未触碰。
-7. **真实 provider TUI（CBC / Codex）**：本探针刻意未启动 `cbc`/`codex`（避免触碰既有会话与认证）；真实 TUI 证据
-   由 CBC/Codex TA 提供。R6 用的是本机真实 `less.exe`（真实备用屏 TUI），不是 provider 原生 TUI。
+7. **真实 provider TUI（CBC / Codex）**：本探针刻意未启动 `cbc`/`codex`（避免触碰既有会话与认证）；
+   R6 用的是本机真实 `less.exe`（真实备用屏 TUI），不是 provider 原生 TUI（§6A.2）。
+8. **Job Object 相关**：spawn→assign 原子性、assign 失败、同一 handle 清理只在契约层以四要素门禁固化
+   （M16）；**没有**在真实 Job 上验证（真实探针明确 `acknowledge_unowned_tree=True`）。
 
 **已知失败/风险（如实记录）**
 
 1. **R1.B2（持续读取）未命中竞态**：真实 ConPTY 上"进程退出后仍有可读字节"是时序相关的，持续读取时 2/2 次未命中。
    因此不能声称"PR 每次短命令都丢尾输出"；正确的结论是"PR 的停止条件不是 EOF，因此在进程先退出的情形下会丢尾部
-   （已确定性复现）"。这也说明该缺陷的真实触发条件依赖读取时序。
-2. **reader 可能在 `close()` 之后仍阻塞在 `read()`**：`pywinpty` 无读超时；契约用 `join(timeout)` 收敛，超时后
-   `reader_joined=false`。该情形下 reader 是 daemon 线程、不再写入已关闭的句柄，但**尚未证明**在所有后端下都不会
-   延迟到进程退出后才回收。需要后端提供"关闭读端"原语（正式实现时确认）。
+   （已确定性复现）"。
+2. **取消原语的副作用**：pywinpty 上"关句柄"既是唯一取消手段、又会终止进程（R9 实测）。因此
+   `close()` 只在终止+整树成功后取消；若后端将来提供更细粒度的读端关闭，应替换 `_cancel_drain` 的实现。
+   现有证据只覆盖 pywinpty，未覆盖其它后端。
 3. **`PsutilTreeTerminator` 不是整树所有权的证明**：R5.3 的"后代消失"部分由 ConPTY 关闭时终止附着进程达成，
-   而 R5.5 的 `remaining=[]` 只覆盖"先前快照到的 PIDs"。正式实现必须用 Job Object。
-4. **`OutputLog` 的整块驱逐**：单块极大时（> 上界）保留尾部并产生 gap；这意味着 gap 可能落在**一个块内部**。
-   契约允许，但要求客户端一律走快照恢复，不能假设 gap 边界与块边界对齐。
-5. **R4 的 29.3 秒**是 `cmd` 的 `for /L` 生成速度，不是 PTY 吞吐上限；探针未测 PTY 吞吐上限。
+   而 R5.5 的 `remaining=[]` 只覆盖"先前快照到的 PIDs"。正式实现必须用 Job Object 或等价内核级守卫。
+4. **输出边界不是序列边界**（已纠正先前表述）：跨块/窗口起点都可能切断 UTF-8、CSI、OSC；gap 边界不保证落在
+   序列边界上，客户端必须走快照恢复（M15）。
+5. **R4 的 30.4 秒**是 `cmd` 的 `for /L` 生成速度，不是 PTY 吞吐上限；探针未测 PTY 吞吐上限。
+6. **M14.19 已知边界**：token 内容等价即可通过（`revocation_id` 不是对已读 token 者的秘密）。
 
 **待其他 TA 证据才能定型的决定（需 MA 归档）**
 
-| 决定 | 依赖 |
-|---|---|
-| 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：TUI 实际用到哪些模式（鼠标/粘贴/键盘协议/滚动） |
-| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | CBC TA / Codex TA |
-| 默认 managed 与显式 detach 的产品承诺边界、重连方法 | 生命周期 TA（同 PID 重连、父崩溃、Job 限制） |
-| detach 后是否需要独立 host 进程 | 生命周期 TA |
-| 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 |
-| 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 |
+| 决定 | 依赖 | 状态 |
+|---|---|---|
+| Job 布局（服务持 / runner 出生持 / A→B 句柄移交） | 生命周期 TA 返工后的验收 + MA 要求的移交探针 | 未决 |
+| ConPTY host/IO 是否可迁移 | 需要专门探针（本契约未测） | 未决 |
+| 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：实际用到的模式（鼠标/粘贴/键盘协议/滚动） | 未决 |
+| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | CBC TA / Codex TA（当前无可 bind 的 TUI 证据，见 §6A.2） | 未决 |
+| `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA（含崩溃与 reconcile） | 未决 |
+| 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 | 未决 |
+| 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 | 未决 |
+
+> 已由用户决定、本契约**不再重复索要**的语义：默认终端随 Pan 服务生死；浏览器/面板隐藏或断连只释放连接；
+> 显式关闭终端才终止；显式 runtime detach 后保留原 PTY/进程并可重连。这些已固化进 §2.8 的策略形状。
 
 ---
 
@@ -325,22 +481,29 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 **接口影响**
 
-- 新增公共核心（建议位置：`packages/core/terminal/`）：`pty_contract.py` 的接口可直接作为实现骨架，
-  但**必须**在正式实现里替换两处：`PsutilTreeTerminator` → 基于 Job Object 的 `TreeTerminator`；
-  `PyteScreenObserver` → 权威快照引擎（或明确降级为"自动化观察专用"）。
+- 新增公共核心（建议位置：`packages/core/terminal/`）：`pty_contract.py` 的接口可直接作为实现骨架。
+  正式实现**必须**替换：`PsutilTreeTerminator` → 内核级树守卫（Job Object 或等价物，布局由 §7 决定）；
+  `PyteScreenObserver` → 权威快照引擎（或明确降级为"自动化观察专用"）。公共核心**保持 adapter-independent**
+  （§6A.2），不引用任何 adapter 专属概念。
+- **生产层必须解决的三项**（契约已用门禁固化，但真机 Job 未验证）：
+  ① spawn→assign 原子化（挂起创建→赋值→恢复），消除逃逸窗口；② assign 失败/未原子赋值/缺身份/
+  未绑定 handle ⇒ **拒绝进入 `running`**；③ 清理前核验身份（PID + FILETIME）、用赋值时的同一 handle 终止。
 - PR #6 接入：`_PtySession` 变成 `PtyRuntime` 薄封装，`rewind()` 拆出 `AutomationDriver`。
-  **不改变回滚对外语义**，回滚测试（62 项）应保持通过；`rewind()` 失败路径改为区分 `exited` / `cleanup-failed`。
-- 对 `packages/core/background_jobs.py`：终端与 Pan Job 仍是两类对象；可共用底层 runtime owner，
-  但本阶段未修改其代码。Job 注册/日志/身份核验的比较留给生命周期 TA。
-- 依赖：正式接入需要新增 `pywinpty`（Windows 限定）+ 屏幕仿真依赖；本阶段未改锁文件，由 MA 在实施阶段决策。
+  **不改变回滚对外语义**，回滚测试（62 项）应保持通过；失败路径需区分 `exited` / `cleanup-failed`，
+  并且**不能**沿用"先判 isalive 再 read"的停止条件（R1）。
+- 对 `packages/core/background_jobs.py`：终端与 Pan Job 仍是两类对象；可共用底层 runtime owner/注册表/
+  身份核验代码路径，但**必须参数化生命周期策略**而非复用其"默认随 Pan 存活"语义。本阶段未改其代码。
+- 依赖：正式接入需要新增 `pywinpty`（Windows 限定）+ 屏幕仿真依赖；本阶段未改锁文件。
 
 **下一步建议（按依赖顺序）**
 
-1. MA 归档本报告 + `audit/terminal/contract/`，确认 §7 的 6 项决定里哪些可先定。
-2. 在实施阶段先落地 `PtyBackend + OutputLog + PtyRuntime`（无 UI），把 PR #6 的回滚接到公共核心并跑回滚测试。
-3. 快照引擎选型前，不承诺"网页 TUI 状态恢复"；`fidelity` 字段已为降级留出表达空间。
-4. 终端 registry / lease 落地后再做 WS 与 xterm.js 前端。
-5. detach 一律走生命周期 TA 的结论；`require_detached_ownership` 的显式失败可防止静默降级。
+1. MA 归档本报告 + `audit/terminal/contract/`；对生命周期 TA 的 `4b20683` 给出验收/返工结论，并把
+   MA 要求的 **A→B Job 句柄移交探针**与 **ConPTY host/IO 可迁移性**列入明确验证项（§6A.1）。
+2. 实施阶段先落地 `PtyBackend + OutputLog + PtyRuntime + build_runtime`（无 UI），把 PR #6 回滚接到公共核心
+   并跑回滚测试；同时按 §2.9 接入门禁（真机 Job 赋值 + 身份核验）。
+3. 快照引擎选型前不承诺"网页 TUI 状态恢复"；`fidelity` 字段已为降级留出表达空间。
+4. 终端 registry / lease 落地后再做 WS 与 xterm.js 前端；浏览器侧与权威快照（serialize addon）都属未验证项。
+5. 所有权布局一律经 `OwnershipPolicy` 注入；`JobObjectTreeTerminator` 实现前不放开 DETACHED/EXTERNAL。
 
 ---
 
@@ -348,21 +511,22 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 | 文件 | 说明 |
 |---|---|
-| `audit/terminal/contract/pty_contract.py` | 公共契约原型（接口 + 参考实现 + 确定性测试后端） |
+| `audit/terminal/contract/pty_contract.py` | 公共契约原型（接口 + 参考实现 + 所有权工厂 + 确定性测试后端） |
 | `audit/terminal/contract/probe_lib.py` | 探针工具（结果记录/JSON/进程身份核验/硬超时看门狗） |
-| `audit/terminal/contract/probe_real.py` | REAL 探针（R1–R7，真实 PTY + 真实子进程） |
-| `audit/terminal/contract/probe_mock.py` | MOCK 探针（M1–M11，确定性契约逻辑） |
+| `audit/terminal/contract/probe_real.py` | REAL 探针（R1–R9，真实 PTY + 真实子进程） |
+| `audit/terminal/contract/probe_mock.py` | MOCK 探针（M1–M17，确定性契约逻辑） |
 | `audit/terminal/contract/README.md` | 运行方式与边界声明 |
-| `audit/terminal/contract/evidence/probe_real.json` | REAL 运行 JSON（56 passed / 0 failed） |
-| `audit/terminal/contract/evidence/probe_mock.json` | MOCK 运行 JSON（73 passed） |
+| `audit/terminal/contract/evidence/probe_real.json` | REAL 运行 JSON（76 passed / 0 failed） |
+| `audit/terminal/contract/evidence/probe_mock.json` | MOCK 运行 JSON（145 passed / 0 failed） |
 | `docs/design/PAN_TERMINAL_PTY_CONTRACT_20261003.md` | 本文档 |
 
 ## 附录 B：清理核验
 
-- 自建 runtime 8 个（`term_probe_00..07`），额外记录 PID：6548（`ping.exe`，00:47:34 创建）、31520（`ping.exe`，00:47:38 创建）。
+- 自建 runtime 11 个（`term_probe_00..10`）；额外记录 PID：7060（`ping.exe`）、33556（`ping.exe`，01:12:07 创建）；
+  R8/R9 的身份核验与取消用例的进程也都在用例内单独核对（R8.9 确认消失、R9 兜底清理）。
 - 结束核对：`leftover: []`（无残留进程）；临时目录 `%TEMP%\pan_pty_contract_probe_*` 已删除。
 - 未打开监听端口；未触碰任何既有服务/Session/Worker/CLI thread。
-- 未修改 main / practical / 其它 TA 工作树 / `.workflow`。
+- 未修改 main / practical / 其它 TA 工作树 / `.workflow`；跨 TA 引用仅**只读**读取生命周期 TA 的已提交内容。
 
 ## 附录 C：官方参考
 

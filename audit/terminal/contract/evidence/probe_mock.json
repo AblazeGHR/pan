@@ -2,7 +2,7 @@
   "kind": "mock",
   "note": "确定性契约逻辑测试（ScriptedBackend）。不代表真实 CLI/PTY 行为。",
   "python": "3.12.12",
-  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmpivesJK\\Scripts\\python.exe",
+  "python_executable": "D:\\uv\\cache\\builds-v0\\.tmpaDw417\\Scripts\\python.exe",
   "platform": "Windows-11-10.0.26200-SP0",
   "dependencies": {
     "pywinpty": null,
@@ -10,9 +10,9 @@
     "psutil": "7.2.2"
   },
   "cwd": "D:\\project\\pan-worktrees\\terminal-contract-explore-20261003",
-  "started_at": "2026-10-03T00:43:11",
-  "seconds": 3.078,
-  "passed": 73,
+  "started_at": "2026-10-03T01:14:38",
+  "seconds": 5.609,
+  "passed": 145,
   "failed": 0,
   "results": [
     {
@@ -235,7 +235,7 @@
       "status": "pass",
       "detail": {
         "state": "cleanup-failed",
-        "error": "terminate=error; terminate_error=RuntimeError('terminate failed (injected)')"
+        "error": "terminate=error; terminate_error=RuntimeError('terminate failed (injected)'); reader 未收敛（cancel=skipped-terminate-failed）：无法证明读已取消并回收，拒绝标记 exited"
       }
     },
     {
@@ -324,12 +324,12 @@
     {
       "name": "M8.6 observer 不能写入",
       "status": "pass",
-      "detail": "observer lease cannot write to the terminal"
+      "detail": "observer lease 不能写入/改尺寸/转交控制权"
     },
     {
       "name": "M8.7 observer 不能改尺寸",
       "status": "pass",
-      "detail": "observer lease cannot resize the terminal"
+      "detail": "observer lease 不能写入/改尺寸/转交控制权"
     },
     {
       "name": "M8.8 控制权转交 generation 自增",
@@ -341,12 +341,12 @@
     {
       "name": "M8.9 旧客户端写入被拒绝",
       "status": "pass",
-      "detail": "lease generation 1 != current 2"
+      "detail": "lease token 已被撤销"
     },
     {
       "name": "M8.10 旧客户端 resize 被拒绝",
       "status": "pass",
-      "detail": "lease generation 1 != current 2"
+      "detail": "lease token 已被撤销"
     },
     {
       "name": "M8.11 新控制者可用",
@@ -457,6 +457,442 @@
       "name": "M11.3 公共核心不含 CBC 菜单字面量",
       "status": "pass",
       "detail": null
+    },
+    {
+      "name": "M12.1 真实 EOF：reader_done/channel_eof/output_complete 同时为真",
+      "status": "pass",
+      "detail": {
+        "reason": "eof"
+      }
+    },
+    {
+      "name": "M12.2 通道错误：reader_done 为真但 channel_eof/output_complete 为假",
+      "status": "pass",
+      "detail": {
+        "reason": "channel-error",
+        "err": "RuntimeError: boom"
+      }
+    },
+    {
+      "name": "M12.3 通道错误不被当作 output_complete",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M12.4 eof_grace 超时：reader_done 为真但 output_complete 为假",
+      "status": "pass",
+      "detail": {
+        "reason": "eof-timeout"
+      }
+    },
+    {
+      "name": "M12.5 stop-requested 不声明输出完整",
+      "status": "pass",
+      "detail": {
+        "reason": "stop-requested"
+      }
+    },
+    {
+      "name": "M12.7 自取消导致的传输异常归因为 cancelled（不是通道错误）",
+      "status": "pass",
+      "detail": {
+        "reason": "cancelled",
+        "err": null
+      }
+    },
+    {
+      "name": "M12.8 取消路径仍可收敛并进入 exited（输出完整性不冒充）",
+      "status": "pass",
+      "detail": {
+        "state": "exited",
+        "stop": "cancelled"
+      }
+    },
+    {
+      "name": "M13.1 取消有效：reader 收敛并进入 exited",
+      "status": "pass",
+      "detail": {
+        "converged": true,
+        "cancelled": true,
+        "cancel_kind": "backend-close",
+        "state": "exited",
+        "stop": "cancelled"
+      }
+    },
+    {
+      "name": "M13.2 取消手段被记录",
+      "status": "pass",
+      "detail": "backend-close"
+    },
+    {
+      "name": "M13.3 自取消不算对端 EOF（channel_eof 必须为假）",
+      "status": "pass",
+      "detail": "cancelled"
+    },
+    {
+      "name": "M13.4 取消无效：拒绝标记 exited",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed",
+        "error": "reader 未收敛（cancel=backend-close）：无法证明读已取消并回收，拒绝标记 exited"
+      }
+    },
+    {
+      "name": "M13.5 保留 owner",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M13.6 失败原因指向 reader 未收敛",
+      "status": "pass",
+      "detail": "reader 未收敛（cancel=backend-close）：无法证明读已取消并回收，拒绝标记 exited"
+    },
+    {
+      "name": "M13.7 释放后重试才进入 exited",
+      "status": "pass",
+      "detail": {
+        "state": "exited",
+        "error": null
+      }
+    },
+    {
+      "name": "M14.1 控制权可写入",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.2 撤销后控制权为空",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.3 撤销后 token 被标记",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.4 撤销后 send 被拒",
+      "status": "pass",
+      "detail": "lease token 已被撤销"
+    },
+    {
+      "name": "M14.5 撤销后 resize 被拒",
+      "status": "pass",
+      "detail": "lease token 已被撤销"
+    },
+    {
+      "name": "M14.6 撤销后 transfer 被拒",
+      "status": "pass",
+      "detail": "lease token 已被撤销"
+    },
+    {
+      "name": "M14.7 撤销后没有任何写入发生（不会被 setdefault 复活）",
+      "status": "pass",
+      "detail": {
+        "writes": 1
+      }
+    },
+    {
+      "name": "M14.8 伪造 token 被拒",
+      "status": "pass",
+      "detail": "StaleLeaseError: lease generation 1 != current 2"
+    },
+    {
+      "name": "M14.9 observer 不能写入",
+      "status": "pass",
+      "detail": "observer lease 不能写入/改尺寸/转交控制权"
+    },
+    {
+      "name": "M14.10 observer 不能 resize",
+      "status": "pass",
+      "detail": "observer lease 不能写入/改尺寸/转交控制权"
+    },
+    {
+      "name": "M14.11 observer 不能转交控制权",
+      "status": "pass",
+      "detail": "observer lease 不能写入/改尺寸/转交控制权"
+    },
+    {
+      "name": "M14.12 旧控制权 token 失效",
+      "status": "pass",
+      "detail": "lease token 已被撤销"
+    },
+    {
+      "name": "M14.13 旧控制权副本失效",
+      "status": "pass",
+      "detail": "lease token 已被撤销"
+    },
+    {
+      "name": "M14.14 新控制权可用",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.15 转交后新持有者正确",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.15b 伪造 revocation_id 的 token 被拒",
+      "status": "pass",
+      "detail": "token 不是当前控制权持有者（已被撤销、已转交或为伪造 token）"
+    },
+    {
+      "name": "M14.16 撤销一个 observer 不影响另一个",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.17 observer 撤销后自身失效",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M14.18 撤销与写入原子（200 次 churn 无撤销后写入）",
+      "status": "pass",
+      "detail": "ok"
+    },
+    {
+      "name": "M15.1 跨块拼接后字节完全一致",
+      "status": "pass",
+      "detail": {
+        "body": "e4b8ad"
+      }
+    },
+    {
+      "name": "M15.2 逐块解码会破坏 UTF-8（证明边界是字节而非序列）",
+      "status": "pass",
+      "detail": {
+        "per_chunk": "���"
+      }
+    },
+    {
+      "name": "M15.3 跨块 CSI 拼接后仍为完整序列",
+      "status": "pass",
+      "detail": {
+        "body": "b'a\\x1b[31mred'"
+      }
+    },
+    {
+      "name": "M15.4 保留窗口起点可以落在 CSI 内部（文档必须承认）",
+      "status": "pass",
+      "detail": {
+        "window_start": 9,
+        "csi_start": 5,
+        "gap": [
+          0,
+          9
+        ]
+      }
+    },
+    {
+      "name": "M15.5 该情形必须返回 gap 要求快照恢复",
+      "status": "pass",
+      "detail": {
+        "gap": [
+          0,
+          9
+        ]
+      }
+    },
+    {
+      "name": "M15.6 跨块 OSC 拼接后完整",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M15.7 尾部文本视图会同时丢掉 OSC 与 CSI（无法承载状态）",
+      "status": "pass",
+      "detail": {
+        "tail": "visible"
+      }
+    },
+    {
+      "name": "M16.1 无策略被拒",
+      "status": "pass",
+      "detail": "OwnershipPolicyRequired"
+    },
+    {
+      "name": "M16.2 声明守卫却给 None 被拒",
+      "status": "pass",
+      "detail": "UnownedTreeRejected"
+    },
+    {
+      "name": "M16.3 detach 未验收被拒",
+      "status": "pass",
+      "detail": "DetachedOwnershipNotImplemented"
+    },
+    {
+      "name": "M16.4 external 未验收被拒",
+      "status": "pass",
+      "detail": "ExternalOwnershipNotYetValidated"
+    },
+    {
+      "name": "M16.5 布局中立：lifecycle_owner=pan-service 可运行",
+      "status": "pass",
+      "detail": {
+        "owner": "pan-service"
+      }
+    },
+    {
+      "name": "M16.5 布局中立：lifecycle_owner=runner 可运行",
+      "status": "pass",
+      "detail": {
+        "owner": "runner"
+      }
+    },
+    {
+      "name": "M16.5 布局中立：lifecycle_owner=external-host 可运行",
+      "status": "pass",
+      "detail": {
+        "owner": "external-host"
+      }
+    },
+    {
+      "name": "M16.6 assign 失败拒绝 running",
+      "status": "pass",
+      "detail": "spawn 后 assign 失败或未赋值：拒绝进入 running（必须先终止再重试）"
+    },
+    {
+      "name": "M16.6 assign 失败拒绝 running（状态保持 created）",
+      "status": "pass",
+      "detail": {
+        "state": "created"
+      }
+    },
+    {
+      "name": "M16.7 非原子赋值拒绝 running",
+      "status": "pass",
+      "detail": "所有权赋值未与 spawn 原子化：存在 spawn→assign 逃逸窗口，拒绝进入 running"
+    },
+    {
+      "name": "M16.7 非原子赋值拒绝 running（状态保持 created）",
+      "status": "pass",
+      "detail": {
+        "state": "created"
+      }
+    },
+    {
+      "name": "M16.8 缺身份拒绝 running",
+      "status": "pass",
+      "detail": "缺少进程身份（PID + 创建时间）：无法在清理时核验，拒绝进入 running"
+    },
+    {
+      "name": "M16.8 缺身份拒绝 running（状态保持 created）",
+      "status": "pass",
+      "detail": {
+        "state": "created"
+      }
+    },
+    {
+      "name": "M16.9 清理未绑定同一 handle 拒绝 running",
+      "status": "pass",
+      "detail": "清理未绑定赋值时的同一 handle：按 PID 重新打开可能在 PID 复用时误杀，拒绝进入 running"
+    },
+    {
+      "name": "M16.9 清理未绑定同一 handle 拒绝 running（状态保持 created）",
+      "status": "pass",
+      "detail": {
+        "state": "created"
+      }
+    },
+    {
+      "name": "M16.10 声明守卫但无启动证据被拒",
+      "status": "pass",
+      "detail": "该 runtime 声明了树守卫但启动时未提供所有权证据：必须提供 (assigned, atomi"
+    },
+    {
+      "name": "M16.11 四要素齐全才进入 running 并带入身份",
+      "status": "pass",
+      "detail": {
+        "state": "running"
+      }
+    },
+    {
+      "name": "M16.12 未提供的 Job 实现不被契约绑死",
+      "status": "pass",
+      "detail": "JobObjectTreeTerminator 只在生产层实现；契约不做分支"
+    },
+    {
+      "name": "M16.13 策略可序列化描述（含 owner 与守卫）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M16.14 service 策略在服务关闭时终止终端",
+      "status": "pass",
+      "detail": {
+        "state": "exited"
+      }
+    },
+    {
+      "name": "M16.15 detach 策略不得在服务关闭时被终止",
+      "status": "pass",
+      "detail": "非 service 所有权在服务关闭时的语义未定型（需生命周期 TA 的同 PID 重连/崩溃证据与"
+    },
+    {
+      "name": "M17.1 身份不匹配拒绝终止",
+      "status": "pass",
+      "detail": "refused-identity-mismatch"
+    },
+    {
+      "name": "M17.2 未调用 terminate（不会误杀）",
+      "status": "pass",
+      "detail": {
+        "calls": []
+      }
+    },
+    {
+      "name": "M17.3 状态为 cleanup-failed 且保留 owner",
+      "status": "pass",
+      "detail": {
+        "state": "cleanup-failed"
+      }
+    },
+    {
+      "name": "M17.4 identity_check 标记 mismatch",
+      "status": "pass",
+      "detail": "mismatch"
+    },
+    {
+      "name": "M17.5 身份探针失败也拒杀",
+      "status": "pass",
+      "detail": {
+        "check": "probe-failed"
+      }
+    },
+    {
+      "name": "M17.6 身份匹配则正常清理",
+      "status": "pass",
+      "detail": {
+        "check": "verified",
+        "state": "exited"
+      }
+    },
+    {
+      "name": "M17.7 身份匹配时确实调用了 terminate",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M17.8 进程已消失时正常收敛",
+      "status": "pass",
+      "detail": "exited"
+    },
+    {
+      "name": "M17.9 FILETIME 精确比较（无容差）",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M17.10 PID 不同即不匹配",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "name": "M17.11 无可比字段视为不匹配（fail-closed）",
+      "status": "pass",
+      "detail": null
     }
   ],
   "measurements": [
@@ -491,6 +927,21 @@
         1047,
         1049
       ]
+    },
+    {
+      "name": "M12.6 四种结束原因的输出完整性",
+      "eof": [
+        "output_complete=True"
+      ],
+      "channel_error": [
+        false
+      ],
+      "note": "只有对端真实 EOF（drain_stop_reason=eof）才允许 output_complete=True；cancelled/错误/超时/stop 都不允许"
+    },
+    {
+      "name": "M14.19 已知边界：复制 revocation_id 的 token 会被接受",
+      "accepted": true,
+      "note": "进程内单 writer 语义成立；真实身份/网络授权未实现，必须由 Pan 入口先授权"
     }
   ],
   "psutil_terminator_available": true
