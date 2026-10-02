@@ -28,12 +28,19 @@ import {
  *   tui    — full-width role-bar rows with rendered Markdown (default)
  *   bubble — shrink-to-fit bubbles with rendered Markdown
  *   raw    — TUI rows, but each body shows the original text, unrendered
+ *
+ * Desktop (md+) shows all three as a segmented selector. On mobile the bar is
+ * too narrow for that, so the control collapses back to a single button that
+ * cycles through the same three modes on click.
  */
 const CHAT_VIEW_OPTIONS = [
-  { value: 'tui', label: 'Switch to TUI view', Icon: Monitor },
-  { value: 'bubble', label: 'Switch to Bubble view', Icon: MessageSquare },
-  { value: 'raw', label: 'Switch to Raw view', Icon: Code },
+  { value: 'tui', short: 'TUI', label: 'Switch to TUI view', Icon: Monitor },
+  { value: 'bubble', short: 'Bubble', label: 'Switch to Bubble view', Icon: MessageSquare },
+  { value: 'raw', short: 'Raw', label: 'Switch to Raw view', Icon: Code },
 ] as const;
+
+/** Mobile click cycle: TUI → Bubble → Raw → TUI. */
+const CHAT_VIEW_CYCLE = { tui: 'bubble', bubble: 'raw', raw: 'tui' } as const;
 
 function tokenCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -167,6 +174,14 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
       : null);
   const hasWorker = Boolean(effectiveWorkerId);
 
+  // Values for the collapsed mobile click-cycle control. Both lookups are total
+  // by construction (the union has exactly these three members).
+  const currentView = CHAT_VIEW_OPTIONS.find((option) => option.value === chatViewStyle)!;
+  const nextView = CHAT_VIEW_OPTIONS.find(
+    (option) => option.value === CHAT_VIEW_CYCLE[chatViewStyle],
+  )!;
+  const CurrentViewIcon = currentView.Icon;
+
   const handleCopy = (text: string) => {
     navigator.clipboard
       .writeText(text)
@@ -186,32 +201,46 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           >
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
-          {/* Chat presentation: three explicit modes in one selector. The
-              active mode is marked with aria-pressed, so Raw is never confused
-              with Bubble (ChatMessages keys `.bubble-mode` on `=== 'bubble'`). */}
-          <div
-            role="group"
-            aria-label="Chat view"
-            className="flex items-center gap-0.5 rounded border border-border-default bg-bg-tertiary p-0.5"
-          >
-            {CHAT_VIEW_OPTIONS.map(({ value, label, Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setChatViewStyle(value)}
-                aria-label={label}
-                aria-pressed={chatViewStyle === value}
-                title={label}
-                className={`rounded p-0.5 transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0 ${
-                  chatViewStyle === value
-                    ? 'bg-bg-primary text-text-primary'
-                    : 'text-text-tertiary hover:text-text-primary'
-                }`}
-              >
-                <Icon size={16} />
-              </button>
-            ))}
-          </div>
+          {/* Chat presentation. Desktop exposes an explicit three-mode
+              selector; mobile keeps the compact single button that cycles
+              TUI → Bubble → Raw. The active mode is never inferred from a
+              `!tui` check (ChatMessages keys `.bubble-mode` on `=== 'bubble'`),
+              so Raw is never confused with Bubble. */}
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={() => setChatViewStyle(nextView.value)}
+              aria-label={nextView.label}
+              title={`Chat view: ${currentView.short} — click to switch to ${nextView.short}`}
+              className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
+            >
+              <CurrentViewIcon size={16} />
+            </button>
+          ) : (
+            <div
+              role="group"
+              aria-label="Chat view"
+              className="flex items-center gap-0.5 rounded border border-border-default bg-bg-tertiary p-0.5"
+            >
+              {CHAT_VIEW_OPTIONS.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setChatViewStyle(value)}
+                  aria-label={label}
+                  aria-pressed={chatViewStyle === value}
+                  title={label}
+                  className={`rounded p-0.5 transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0 ${
+                    chatViewStyle === value
+                      ? 'bg-bg-primary text-text-primary'
+                      : 'text-text-tertiary hover:text-text-primary'
+                  }`}
+                >
+                  <Icon size={16} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
