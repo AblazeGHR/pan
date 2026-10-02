@@ -384,7 +384,14 @@ uv run --no-project --python "E:/software/miniforge/python.exe" \
 
 ## 6A. 跨 TA 引用、验收状态与 adapter 无关边界
 
-### 6A.1 生命周期 TA（`4b20683`，**待 MA 验收**）
+### 6A.1 生命周期 TA（首轮引用快照与集成校准）
+
+**MA 集成更新**：以下关于“待验收/返工中”的描述保留为 TA 当时的读取快照，不代表当前状态。
+生命周期 follow-up `9bd858e2` 已通过探索层审查并集成：Job 句柄跨进程移交 11/11、
+同句柄原始 FILETIME 身份核验 3/3、启动失败门禁等场景 67/67。
+推荐 runner 出生持有 PTY/guard + 默认 lease + 显式 durable detach；不是唯一可能布局。
+句柄移交不能证明 ConPTY host/IO 可迁移；生产原子 spawn、IPC 安全与真实服务接入仍待验证。
+原生 Adapter 无中断 TUI 已决定留后续探索，不作为首版或 PR6 接入前置。
 
 引用其报告 `docs/design/PAN_TERMINAL_LIFECYCLE_JOBS_20261003.md`（只读树
 `D:/project/pan-worktrees/terminal-lifecycle-explore-20261003`）。该 TA 正在原 Session 返工，
@@ -464,10 +471,10 @@ kill-on-close Job、加第二个 Job 不能中和 kill-on-close、最后句柄�
 
 | 决定 | 依赖 | 状态 |
 |---|---|---|
-| Job 布局（服务持 / runner 出生持 / A→B 句柄移交） | 生命周期 TA 返工后的验收 + MA 要求的移交探针 | 未决 |
+| Job 布局（服务持 / runner 出生持 / A→B 句柄移交） | 生命周期 follow-up 已验收 | 首版推荐 runner 出生持有；原子 spawn 尚需实现验证 |
 | ConPTY host/IO 是否可迁移 | 需要专门探针（本契约未测） | 未决 |
 | 屏幕快照引擎选型（pyte 只作自动化观察 vs xterm.js 作权威快照） | CBC/Codex TUI 探针：实际用到的模式（鼠标/粘贴/键盘协议/滚动） | 未决 |
-| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | CBC TA / Codex TA（当前无可 bind 的 TUI 证据，见 §6A.2） | 未决 |
+| 是否提供"保留原进程的无中断 TUI 切换"及首版范围 | Codex 被测目标 turn 在 TUI 退出后中断；CBC 未证实同 Agent 切换 | 已定：首版普通持久 PTY/Web 终端优先，原生无中断 TUI 延后 |
 | `mode=EXTERNAL` 的默认寿命/崩溃/重连语义 | 生命周期 TA（含崩溃与 reconcile） | 未决 |
 | 旧客户端 gap 恢复的产品语义（自动重放 vs 强制重连） | MA 产品决定 | 未决 |
 | 输出保留窗口大小与浏览器 ack 协议 | 与前端一起定 | 未决 |
