@@ -26,7 +26,7 @@
 | `packages/core/terminal/emulator.py` | `HeadlessEmulator`：`AuthoritativeEmulator` 实现 + runner 桥接（`feed_at`/`restore_screen`）+ sidecar 进程所有权 |
 | `packages/core/terminal/emulator_sidecar/sidecar.mjs` | 常驻 Node sidecar：帧协议、hold-back 供料、保守分类器、barrier 快照、reset、sticky 降级 |
 | `packages/core/terminal/emulator_sidecar/package.json` + `package-lock.json` | 精确 pin `@xterm/headless@6.0.0`、`@xterm/addon-serialize@0.14.0`（`node_modules/` 由仓库 `.gitignore` 忽略，不提交） |
-| `tests/test_terminal_emulator.py` | 42 项测试矩阵（28 首版 + 11 r2 + 3 r3；§9） |
+| `tests/test_terminal_emulator.py` | 48 项测试矩阵（28 首版 + 11 r2 + 3 r3 + 6 r4；§9） |
 | `docs/design/PAN_TERMINAL_EMULATOR_INTERFACES_20261003.md` | 本文件 |
 | `audit/terminal/implementation/emulator/**` | 先失败/后通过证据、复现脚本与清理扫描（旧 CBC 证据不覆盖） |
 
@@ -125,7 +125,19 @@ snap = emulator.snapshot(timeout=2.0)
   `_close_lock` 的时间；抢锁超时返回合法 `closed=false` + `close-lock-busy`
   诊断（可重试、不触碰另一调用的状态/缓存）；拿到锁后只用剩余预算，不重置
   deadline；已收敛缓存报告可返回但 `seconds` 恒为本次调用实际耗时。
-- `close()` 幂等、可重试；runner 的硬性兜底是自持 Job guard（§8）。
+- **`close()` 幂等、可重试；runner 的硬性兜底是自持 Job guard（§8）。**
+- **feed 出队批量合并（r4，F2）**：applier 出队时把紧随其后的**相邻连续**
+  feed 合并为单帧（`abs_start == 前一块 abs_end`），单批上限
+  `feed_batch_limit`（默认 **64 KiB**，构造参数；`1` == 禁用合并）。约束与语义：
+  **不跨**任何控制 op（resize/snapshot/barrier/reset/restore/shutdown）与
+  gap/duplicate；**仅出队即合并、不等候攒批**（队列只有一块时与旧行为一致，
+  小交互不变慢）；**byte 绝对偏移不变**（批的 `abs_start/abs_end` 精确覆盖）、
+  **单写回调 ack 真实性不变**（一批 = 一个 op = 一个 applied ack，cursor 跳到
+  批末真实 applied 位置）、clean 边界与协议 A 语义不变；被合并块的
+  `queue_ops/queue_bytes` **保持记账到批 ack/失败**（在途合并 buffer 计入原
+  FIFO 4 MiB / 8192 总预算，不提前释放）；队列拒绝（`feed_lag` sticky）、过期、
+  关闭语义均保持。诊断计数：`feed_batches`（发送的 feed 帧数）、
+  `feed_batched_ops`（被并入多块批的 op 数）、`max_feed_batch_bytes`。
 
 ### 3.3 控制面语义（全部有界）
 
@@ -281,6 +293,11 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
   `AssignProcessToJobObject` → **`is_member` 与同一 Job `active>=1` 核验**
   （false/unknown/查询失败一律 fail-closed，不 resume、不发布 ready）→
   `NtResumeProcess`。实测证据：`guard.member_pids()` 含 sidecar PID（测试断言）。
+- **握手三态统一失败（r4，组合发现 F1）**：spawn 后任一原因（**fatal 帧 /
+  启动超时 / ready 前 EOF 或读异常**）都不得成功构造——`_ready_event` 被 EOF
+  提前唤醒且 `_ready_info` 为空时，同样走统一 `_fail_startup`，抛
+  `EmulatorStartupError` 并携带 owner/residual（可重试收敛、无残留）；
+  spawn **前**失败（缺 Node/脚本）保持 `owner=None`（无资源可保，不误报）。
 - **runner 硬死不残留**：Job 句柄由 runner 进程持有；宿主进程死亡 → 内核关闭句柄 →
   sidecar（及 conhost）整树终止。测试以"子进程创建 emulator 后 `os._exit(7)`"实证
   （`test_runner_hard_death_kills_sidecar_via_job`）。
@@ -336,7 +353,7 @@ sidecar 对完成的序列即时分类（**无事件缓冲、无饱和上限**�
 E:/software/miniforge/python.exe -m pytest tests/test_terminal_emulator.py -q
 ```
 
-矩阵（r3 后 **42 项** = 28 首版 + 11 r2 + 3 r3）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、
+矩阵（r4 后 **48 项** = 28 首版 + 11 r2 + 3 r3 + 6 r4）：构造/身份/大数 cursor、缺 Node/缺脚本不可用、
 帧边界、主屏与备用屏 headless↔headless 对拍（协议 A）、split UTF-8/CSI/OSC、
 pending tail cursor 边界、resize 排序与 `resize_wait` 确认面、browserless >256 KiB +
 OutputLog 游标二次驱逐、applied 滞后、控制过期不执行、feed 快速有界、满队列 sticky
@@ -348,9 +365,14 @@ stderr join / 流关闭失败记账与重试、assign 后成员门禁五态 fail
 **r3 新增（并发窄修 F1/F2/F3）**：close 总预算含 `_close_lock` 排队（T2 短预算有界
 false + 锁忙诊断 + 不触碰另一调用状态、释放后重试 seconds 本次、timeout=0 边界不倒退）、
 owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引用可重试、幂等）、
-`kill_timeout` 剩余预算传递（三条路径一致，spy 断言实际传参）。
+`kill_timeout` 剩余预算传递（三条路径一致，spy 断言实际传参）；
+**r4 新增（组合发现 F1/F2）**：ready 前 EOF/读异常必须抛 `EmulatorStartupError`
+（owner/residual、retry 收敛；fatal/timeout/EOF 三态统一；spawn 前 owner=None 不误报）、
+相邻连续 feed 有界合并（批上限与内容对拍、不跨 gap/控制交错、prefix+UTF8/CSI/OSC
+等价、批次异常 ack 绑定、在途 buffer 计账不提前释放、溢出/close 在途原语义）。
 
-证据目录 `audit/terminal/implementation/emulator/`（旧证据不覆盖，r2 增量在 `evidence/r2/`）：
+证据目录 `audit/terminal/implementation/emulator/`（旧证据不覆盖，增量在
+`evidence/r2/`、`evidence/r3/`、`evidence/r4/`）：
 
 - `pre_fix/` 与 `pre_fix_log.json`：第一轮基线复现（**10 failed / 18 passed**）；
 - `post_fix_pytest.log` / `post_fix_verbose.log` / `post_fix_log.json`：第一轮修复后 **28 passed**；
@@ -372,6 +394,17 @@ owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引�
 - **`evidence/r3/source_blob_anchors.json`**：源 blob 锚定（`9cb550f7` 被审基线
   与 r3 后 blob 对照；含 sidecar 未动的等式证据）；
 - **`evidence/r3/cleanup_scan.json`**：r3 资源清理核验。
+- **`evidence/r4/pre_fix_r4_tests.txt`**：r4 六项定向测试在 `cd876291` 固定实现上
+  的失败证据（6 failed）；
+- **`evidence/r4/post_fix_r4_full_direct.txt` / `post_fix_r4_full_uv.txt`**：
+  r4 修复后全量 **48 passed**（直连与 uv 隔离各一次，分列）；
+- **`evidence/r4/probe_feed_throughput.py` / `pre_fix_throughput.json` /
+  `post_fix_throughput.json`**：F2 同机同输入（135 B/op × 2280 = 307,800 B）前后
+  吞吐/积压/barrier 与机器环境（pre：34.375 s / 66.3 ops/s / 8.74 KB/s、积压期
+  barrier 0.516 s unavailable；post：0.015 s / 152,000 ops/s / 20,039 KB/s、
+  5 批 max 65,475 B、积压期 barrier 0.078 s full）；
+- **`evidence/r4/summary.json`**：r4 结构化摘要；**`source_blob_anchors.json`**：
+  `cd876291` 基线 vs r4 后 blob（sidecar 等式证据）；**`cleanup_scan.json`**：清理核验。
 
 ---
 
@@ -422,6 +455,14 @@ owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引�
    （`min(剩余总预算, kill_timeout)`），**不是** OS 级 `TerminateProcess` 硬时限；
    进程终止完成的时刻由内核调度决定；超时窗口内未 signaled 时按"未确认退出"
    保留资源，由重试核验收敛。
+13. **feed 批量的性能口径（r4/F2）**：`evidence/r4` 的吞吐数字来自**同机、同输入**
+   （135 B/op × 2280 块）的确定性探针，只证明"按 op 固定往返被消除"；**不构成
+   跨机硬 SLA**，也不替代全量终端验收。合并只在**出队时队列内已有相邻连续 feed**
+   时发生——低频单块交互与旧行为逐字节一致；批量收益随积压形态变化。
+14. **真实 ConPTY 的 `partial` 是常态，不放宽白名单（r4/F3）**：`?9001`、`?25`、
+   OSC 标题等由真实 shell 产生且未验证序列化保真——保持保守降级（不改分类器、
+   不因"partial 常态化"扩大白名单）；客户端以 `recovery != full` 做 fail-closed，
+   需要 fresh view/基线重置提示。（P2/前端语义，属产品口径记录。）
 
 ---
 
@@ -454,3 +495,12 @@ owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引�
   §8 语义证据链）不扩共享实现。
   先失败证据：`evidence/r3/pre_fix_r3_tests.txt`（3 failed，对 `9cb550f7`）；
   修复后 42/42 直连与 uv 各一次（`post_fix_r3_full_{direct,uv}.txt`）。
+- `2026-10-03` **r4（组合验证发现 `7e6b30cb` 的 F1/F2，`evidence/r4/`）**：
+  F1 握手三态统一失败（spawn 后 fatal/超时/**ready 前 EOF 或读异常**一律
+  `_fail_startup` 携 owner/residual；spawn 前 owner=None 不误报）；
+  F2 出队批量合并相邻连续 feed（`feed_batch_limit` 默认 64 KiB；不跨 gap/控制 op；
+  偏移/ack/clean 边界/账本语义不变；诊断 `feed_batches/feed_batched_ops/
+  max_feed_batch_bytes`）；同机探针 135 B/op：8.74 → 20,039 KB/s、积压期 barrier
+  超时 → 亚百毫秒 full。F3 不放宽白名单（partial 常态保持降级）；F4/F5 不越界接线
+  （仅记录）。先失败证据 `pre_fix_r4_tests.txt`（6 failed，对 `cd876291`）；修复后
+  48/48 直连与 uv 各一次。

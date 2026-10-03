@@ -56,6 +56,7 @@ from packages.core.terminal.contracts import (
 )
 from packages.core.terminal.emulator import (
     EmulatorProtocolError,
+    EmulatorStartupError,
     EmulatorUnavailableError,
     HeadlessEmulator,
     _FrameReader,
@@ -423,15 +424,21 @@ def test_unknown_sequence_after_event_saturation_is_detected(emu_factory):
 
 
 def test_engine_op_error_is_sticky_degraded(emu_factory):
-    """feed 执行异常必须 sticky 降级且解析循环继续（初版仅记录 -> full）。"""
+    """feed 执行异常必须 sticky 降级且解析循环继续（初版仅记录 -> full）。
+
+    r4 语义适配：相邻连续 feed 会合并为单帧，注入错误作用于**整批**（显式失败、
+    不假成功）；因此用 barrier 让错误批先处理，再用**独立批**验证"循环继续"。
+    """
     emu = emu_factory()
     assert emu._test_inject_feed_error("next-feed")
     emu.feed_at(0, b"AAAA")
-    emu.feed_at(4, b"BBBB")
+    emu.barrier(timeout=20.0)  # 错误批先落账（其字节范围不被应用/不推进 applied）
+    emu.feed_at(4, b"BBBB")    # 独立批：错误被隔离，引擎仍可服务
     snap = emu.snapshot(timeout=20)
     assert snap.fidelity is Fidelity.PARTIAL
-    assert emu.engine_alive  # 错误被隔离，引擎仍可服务
+    assert emu.engine_alive
     assert "BBBB" in snap.serialized_screen
+    assert snap.cursor == 8
     snap2 = emu.snapshot(timeout=20)
     assert snap2.fidelity is Fidelity.PARTIAL  # sticky：不回到 full
     assert "ENGINE_OP_ERROR" in snap2.note
@@ -1311,3 +1318,197 @@ def test_kill_timeout_wired_to_remaining_budget(
                 identity_module.close_handle_checked(h)
             except Exception:  # noqa: BLE001
                 pass
+
+
+# ---------------------------------------------------------------------------
+# r4：组合发现 F1（ready 前 EOF 必须走统一启动失败）与 F2（相邻连续 feed 有界合并）
+#（先失败后通过：cd876291 固定副本上本段失败，修复后通过）
+# ---------------------------------------------------------------------------
+
+
+def test_handshake_eof_before_ready_fails_with_owner(tmp_path):
+    """F1：spawn 后、ready 前 EOF/读异常必须与 fatal/timeout 同走 `_fail_startup`：
+    抛 `EmulatorStartupError` 并携带 owner/residual（可重试收敛、无残留）；
+    spawn 前失败仍 owner=None（不误报）。"""
+    # ① spawn 前（脚本不存在）→ owner=None（不误报无资源场景）
+    with pytest.raises(EmulatorUnavailableError) as pre:
+        HeadlessEmulator(sidecar_path=str(tmp_path / "missing_sidecar.mjs"), startup_timeout=5.0)
+    assert pre.value.owner is None
+
+    # ② spawn 后 ready 前 EOF（stub 立即退出）→ 必须抛 + owner + retry 收敛
+    eof_stub = tmp_path / "exit_only.cjs"
+    eof_stub.write_text("process.exit(3);\n", encoding="utf-8")
+    captured: list = []
+    real_popen = emulator_module.subprocess.Popen
+
+    def spy_popen(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        captured.append(proc)
+        return proc
+
+    prev_popen = emulator_module.subprocess.Popen
+    emulator_module.subprocess.Popen = spy_popen
+    try:
+        with pytest.raises(EmulatorStartupError) as eof_err:
+            HeadlessEmulator(sidecar_path=str(eof_stub), startup_timeout=10.0)
+    finally:
+        emulator_module.subprocess.Popen = prev_popen
+    err = eof_err.value
+    assert err.owner is not None, "ready 前 EOF 必须携带可重试 owner"
+    assert isinstance(err.residual, dict) and err.residual.get("pid")
+    assert err.residual.get("process_exited") is True
+    out_eof = err.owner.retry_cleanup(timeout=8.0)
+    assert out_eof.get("closed") is True, out_eof
+    assert captured and (_same_handle_dead(captured[-1]) or captured[-1].poll() is not None)
+
+    # ③ spawn 后 fatal 帧 → 同一 `_fail_startup` 出口（owner/residual/重试收敛）
+    fatal_stub = tmp_path / "fatal.cjs"
+    fatal_stub.write_text(
+        "function send(h){const b=Buffer.from(JSON.stringify(h),'utf8');"
+        "const o=Buffer.alloc(8+b.length);o.writeUInt32LE(b.length,0);o.writeUInt32LE(b.length,4);"
+        "b.copy(o,8);process.stdout.write(o);}\n"
+        "send({v:1,type:'fatal',code:'injected-fatal',detail:'test'});\n"
+        "setTimeout(()=>process.exit(4),80);\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(EmulatorStartupError) as fatal_err:
+        HeadlessEmulator(sidecar_path=str(fatal_stub), startup_timeout=10.0)
+    assert fatal_err.value.owner is not None
+    assert fatal_err.value.owner.retry_cleanup(timeout=8.0).get("closed") is True
+
+
+def test_feed_batching_merges_adjacent_feeds(emu_factory):
+    """F2：相邻连续 feed 在有界上限内合并为单帧；批上限生效；内容与逐块一致。"""
+    emu = emu_factory(feed_batch_limit=4096)
+    ref = emu_factory(feed_batch_limit=1)  # 上限 1 == 禁用合并（等价旧行为）
+    block = b"BATCH-PAD-" + b"m" * 500  # 510B/块
+    total = 0
+    for _ in range(24):
+        emu.feed_at(total, block)
+        ref.feed_at(total, block)
+        total += len(block)
+    emu.barrier(timeout=20.0)
+    ref.barrier(timeout=20.0)
+    diag = emu.diagnostics()
+    counters = diag["counters"]
+    assert counters["feed_batches"] >= 3
+    assert counters["feed_batched_ops"] >= 12
+    assert counters["max_feed_batch_bytes"] <= 4096
+    assert int(diag["applied_cursor"]) == total
+    assert emu.snapshot(timeout=20.0).serialized_screen == ref.snapshot(timeout=20.0).serialized_screen
+    # 禁用合并的参照：每块一帧（batches == ops）
+    ref_diag = ref.diagnostics()
+    assert ref_diag["counters"]["feed_batches"] == ref_diag["counters"]["feed_ops"] == 24
+
+
+def test_feed_batching_stops_at_gap_and_control(emu_factory):
+    """F2：合并不跨 seq gap / duplicate，也不跨控制交错（resize/snapshot/barrier/
+    reset/restore）；byte 绝对偏移与 gap 诊断语义不变。"""
+    emu = emu_factory(feed_batch_limit=1 << 20)  # 大上限：若不设边界会全部合并
+    emu.feed_at(0, b"A" * 100)      # A1
+    emu.feed_at(100, b"B" * 100)    # A2（与 A1 连续 → 应合并）
+    emu.feed_at(250, b"C" * 100)    # gap 50B → 不跨
+    emu.resize(30, 100)             # 控制 op 打断
+    emu.feed_at(350, b"D" * 100)    # resize 之后 → 不与 C 合并
+    emu.barrier(timeout=20.0)
+    diag = emu.diagnostics()
+    counters = diag["counters"]
+    assert counters["feed_batched_ops"] == 2, counters  # 只有 A1+A2 成批
+    assert counters["feed_batches"] == 3, counters      # (A1+A2), C, D
+    assert int(diag["applied_cursor"]) == 450
+    assert diag["gap_ranges"], "gap 诊断必须保留"
+    assert diag["applied_resize"] == [30, 100]
+
+
+def test_feed_batching_prefix_split_utf8_csi_osc_equivalence(emu_factory):
+    """F2：把跨块 UTF-8/CSI/OSC 序列拆进多个 feed 后合并，行为与不合并逐字节等价
+    （协议 A 对拍 + clean 边界不变）。"""
+    stream = (
+        b"head-" + "中".encode("utf-8") + b"-mid\r\n"
+        b"\x1b[31mRED\x1b[0m \x1b[1;32mGRN\x1b[0m\r\n"
+        b"\x1b]0;title-split\x07tail"
+    )
+    batched = emu_factory(feed_batch_limit=1 << 20)
+    plain = emu_factory(feed_batch_limit=1)
+    for target in (batched, plain):
+        seq = 0
+        for offset in range(0, len(stream), 3):  # 3B 小块：序列大量跨块
+            part = stream[offset : offset + 3]
+            target.feed_at(seq, part)
+            seq += len(part)
+    snap_b = batched.snapshot(timeout=20.0)
+    snap_p = plain.snapshot(timeout=20.0)
+    assert snap_b.serialized_screen == snap_p.serialized_screen
+    assert snap_b.cursor == len(stream) == snap_p.cursor
+    assert snap_b.fidelity is Fidelity.PARTIAL  # OSC 标题 → 保守降级（不因合并变化）
+    # 协议 A 恢复（从 cursor 重拉）与直喂等价
+    restored = emu_factory(feed_batch_limit=1 << 20, start_cursor=snap_b.cursor)
+    assert restored.restore_screen(snap_b.serialized_screen)
+    assert restored.snapshot(timeout=20.0).serialized_screen == snap_b.serialized_screen
+
+
+def test_feed_batching_error_ack_binds_batch(emu_factory):
+    """F2：批次异常 ack 仍绑定批 op（sticky 降级、解析循环继续、后续批正常）。"""
+    emu = emu_factory(feed_batch_limit=1 << 20)
+    assert emu._test_inject_feed_error("next-feed")
+    emu.feed_at(0, b"AAAA")
+    emu.feed_at(4, b"BBBB")  # 与上块连续 → 同批（错误作用于整批）
+    emu.barrier(timeout=20.0)  # 排空：确定错误批已处理（C 不会被并入错误批）
+    emu.feed_at(8, b"CCCC")  # 错误批之后的新批 → 正常
+    snap = emu.snapshot(timeout=20.0)
+    assert snap.fidelity is Fidelity.PARTIAL
+    assert "CCCC" in snap.serialized_screen
+    assert snap.cursor == 12  # 错误批未应用（0），C 批应用至 12
+    assert emu.diagnostics()["counters"].get("engine_op_errors", 0) >= 1
+    assert emu.engine_alive
+
+
+def test_feed_batching_accounting_in_flight_and_close(emu_factory, monkeypatch):
+    """F2：在途合并 buffer 计账在原 FIFO 预算内（发送时未提前释放）；
+    队列溢出/close 在途保持原语义（sticky/保 owner/收敛）。"""
+    emu = emu_factory(feed_batch_limit=1 << 20)
+    sent: list = []
+    real_send = HeadlessEmulator._send_op
+
+    def spy_send(self, op):
+        with self._lock:
+            snapshot = (len(op.data or b""), self._queue_ops, self._queue_bytes)
+        sent.append({"kind": op.kind, "batch_bytes": snapshot[0],
+                     "queue_ops": snapshot[1], "queue_bytes": snapshot[2]})
+        return real_send(self, op)
+
+    monkeypatch.setattr(HeadlessEmulator, "_send_op", spy_send)
+    block = b"z" * 1024
+    total = 0
+    for _ in range(8):
+        emu.feed_at(total, block)
+        total += len(block)
+    emu.barrier(timeout=20.0)
+    feed_sends = [s for s in sent if s["kind"] == "feed"]
+    assert feed_sends, "未观察到 feed 发送"
+    for item in feed_sends:
+        assert item["queue_bytes"] >= item["batch_bytes"], (
+            "在途合并 buffer 必须仍计入 queue_bytes（不提前释放）",
+            item,
+        )
+    diag = emu.diagnostics()
+    assert int(diag["applied_cursor"]) == total
+    # 队列溢出（stall 中）：feed_lag sticky 原语义
+    emu2 = emu_factory(feed_batch_limit=4096, max_queue_bytes=8192, max_queue_ops=64)
+    assert emu2._test_stall(1500)
+    for i in range(40):
+        emu2.feed_at(i * 1024, block)
+    assert emu2.feed_lag is True
+    time.sleep(1.8)
+    snap2 = emu2.snapshot(timeout=20.0)
+    assert snap2.fidelity is Fidelity.PARTIAL
+    assert snap2.recovery is Recovery.DEGRADED
+    # close 在途（合并批已发出/排队中）必须收敛且保 owner 语义
+    emu3 = emu_factory(feed_batch_limit=1 << 20)
+    assert emu3._test_stall(1200)
+    seq = 0
+    for _ in range(16):
+        emu3.feed_at(seq, block)
+        seq += len(block)
+    report = emu3.close(timeout=10.0)
+    assert report.closed is True, report.as_dict()

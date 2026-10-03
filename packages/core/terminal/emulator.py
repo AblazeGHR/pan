@@ -102,6 +102,7 @@ DEFAULT_CONTROL_TIMEOUT = 2.0
 DEFAULT_STARTUP_TIMEOUT = 15.0
 DEFAULT_SHUTDOWN_TIMEOUT = 5.0
 DEFAULT_KILL_TIMEOUT = 5.0
+DEFAULT_FEED_BATCH_LIMIT = 64 * 1024  # F2：出队合并批的单帧字节上限（建议 64 KiB）
 
 _CREATE_SUSPENDED = 0x00000004
 _CREATE_NO_WINDOW = 0x08000000
@@ -271,6 +272,7 @@ class _Op:
     target: str = ""
     call: _ControlCall | None = None
     ledger_applied: bool = False  # reset 账本只应用一次（ack 路径回填）
+    merged_ops: list["_Op"] | None = None  # F2：合并批的原始 feed 块（含首块）
 
 
 class _FrameReader:
@@ -619,6 +621,7 @@ class HeadlessEmulator:
         startup_timeout: float = DEFAULT_STARTUP_TIMEOUT,
         shutdown_timeout: float = DEFAULT_SHUTDOWN_TIMEOUT,
         kill_timeout: float = DEFAULT_KILL_TIMEOUT,
+        feed_batch_limit: int = DEFAULT_FEED_BATCH_LIMIT,
     ) -> None:
         # --- immutable configuration -------------------------------------
         self._cols = max(1, int(cols))
@@ -635,6 +638,8 @@ class HeadlessEmulator:
         self._startup_timeout = max(0.1, float(startup_timeout))
         self._shutdown_timeout = max(0.1, float(shutdown_timeout))
         self._kill_timeout = max(0.1, float(kill_timeout))
+        # F2：出队合并批的上限（1 == 禁用合并；仅在 applier 出队时按需合并）。
+        self._feed_batch_limit = max(1, int(feed_batch_limit))
 
         # --- producer-side ledger (absolute byte offsets) -----------------
         self._lock = threading.RLock()
@@ -671,6 +676,9 @@ class HeadlessEmulator:
             "resize_rejected": 0,
             "resize_confirmed": 0,
             "engine_op_errors": 0,
+            "feed_batches": 0,       # F2：实际发送的 feed 帧数（含单块帧）
+            "feed_batched_ops": 0,   # F2：被并入多块批的原始 feed op 数（含批首块）
+            "max_feed_batch_bytes": 0,
         }
 
         self._reset_count = 0
@@ -828,6 +836,14 @@ class HeadlessEmulator:
             )
         if self._startup_failure is not None:
             self._fail_startup(f"sidecar 不可用：{self._startup_failure}")
+        # F1（组合发现）：ready 事件也可能被 EOF/读异常提前唤醒（_note_engine_failure）；
+        # 无 ready_info 即握手从未成立 —— 与 fatal/timeout 走同一 _fail_startup
+        # （携带 owner/residual），绝不成功构造出 dead engine。
+        if self._ready_info is None:
+            note = self._engine_error_note or "handshake-aborted-before-ready"
+            self._fail_startup(
+                f"sidecar 握手前中止（{note}）；stderr={self._stderr_digest()!r}"
+            )
 
         self._applier_thread = threading.Thread(
             target=self._applier_loop, name="emulator-applier", daemon=True
@@ -1015,9 +1031,55 @@ class HeadlessEmulator:
         return True
 
     def _release_op_locked(self, op: _Op) -> None:
-        self._queue_ops = max(0, self._queue_ops - 1)
+        # F2：合并批释放全部原始块（ops 计数按块数；字节按批 payload 总长）。
+        released_ops = len(op.merged_ops) if op.merged_ops else 1
+        self._queue_ops = max(0, self._queue_ops - released_ops)
         if op.data:
             self._queue_bytes = max(0, self._queue_bytes - len(op.data))
+
+    def _maybe_merge_feed_locked(self, op: _Op) -> _Op:
+        """F2：出队时把紧随其后的相邻连续 feed 合并为单帧（同队列，无额外队列）。
+
+        - 只合并 ``kind=="feed"`` 且无 call 的块；遇到任何控制 op（resize/snapshot/
+          barrier/reset/restore/shutdown/测试钩子）立即停止（不跨控制交错）；
+        - 只在 ``abs_start == 前一块 abs_end``（严格连续）时合并；gap/duplicate 立即停止；
+        - 单批上限 ``feed_batch_limit``（默认 64 KiB）；**出队即合并，不等候攒批**，
+          因此小交互（队列只有一块时）与旧行为完全一致；
+        - 账本不提前释放：被合并块的 ``queue_ops/queue_bytes`` 保持到批 ack/失败；
+          绝对偏移（abs_start/abs_end）与单写回调 ack 语义不变。
+        """
+        if op.kind != "feed" or op.call is not None:
+            return op
+        merged = [op]
+        total = len(op.data or b"")
+        while self._ops and total < self._feed_batch_limit:
+            nxt = self._ops[0]
+            if nxt.kind != "feed" or nxt.call is not None:
+                break
+            if nxt.abs_start != merged[-1].abs_end:
+                break
+            nxt_len = len(nxt.data or b"")
+            if total + nxt_len > self._feed_batch_limit:
+                break
+            self._ops.popleft()
+            merged.append(nxt)
+            total += nxt_len
+        self._count_locked("feed_batches")
+        if len(merged) == 1:
+            return op
+        batch = _Op(
+            op_id=self._next_op_id,
+            kind="feed",
+            data=b"".join(m.data or b"" for m in merged),
+            abs_start=merged[0].abs_start,
+            abs_end=merged[-1].abs_end,
+        )
+        self._next_op_id += 1
+        batch.merged_ops = merged
+        self._count_locked("feed_batched_ops", len(merged))
+        if total > self._counters.get("max_feed_batch_bytes", 0):
+            self._counters["max_feed_batch_bytes"] = total
+        return batch
 
     def _finish_call(self, call: _ControlCall, *, failure: str | None = None) -> None:
         if failure is not None and call.failure is None:
@@ -1493,6 +1555,8 @@ class HeadlessEmulator:
                     self._count_locked("control_expired_skipped")
                     skip = True
                 else:
+                    # F2：出队即合并相邻连续 feed（同队列、无额外队列、不等候攒批）。
+                    op = self._maybe_merge_feed_locked(op)
                     # `sent` 与过期检查在同一临界区：调用方超时后读 `sent`
                     # 即可精确区分"仍在排队（不执行）"与"已在途（结果未知）"。
                     if op.call is not None:

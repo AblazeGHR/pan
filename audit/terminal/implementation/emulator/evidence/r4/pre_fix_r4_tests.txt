@@ -1,0 +1,173 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- E:\software\miniforge\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 48 items / 42 deselected / 6 selected
+
+tests/test_terminal_emulator.py::test_handshake_eof_before_ready_fails_with_owner FAILED [ 16%]
+tests/test_terminal_emulator.py::test_feed_batching_merges_adjacent_feeds FAILED [ 33%]
+tests/test_terminal_emulator.py::test_feed_batching_stops_at_gap_and_control FAILED [ 50%]
+tests/test_terminal_emulator.py::test_feed_batching_prefix_split_utf8_csi_osc_equivalence FAILED [ 66%]
+tests/test_terminal_emulator.py::test_feed_batching_error_ack_binds_batch FAILED [ 83%]
+tests/test_terminal_emulator.py::test_feed_batching_accounting_in_flight_and_close FAILED [100%]
+
+================================== FAILURES ===================================
+______________ test_handshake_eof_before_ready_fails_with_owner _______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1329/test_handshake_eof_before_read0')
+
+    def test_handshake_eof_before_ready_fails_with_owner(tmp_path):
+        """F1：spawn 后、ready 前 EOF/读异常必须与 fatal/timeout 同走 `_fail_startup`：
+        抛 `EmulatorStartupError` 并携带 owner/residual（可重试收敛、无残留）；
+        spawn 前失败仍 owner=None（不误报）。"""
+        # ① spawn 前（脚本不存在）→ owner=None（不误报无资源场景）
+        with pytest.raises(EmulatorUnavailableError) as pre:
+            HeadlessEmulator(sidecar_path=str(tmp_path / "missing_sidecar.mjs"), startup_timeout=5.0)
+        assert pre.value.owner is None
+    
+        # ② spawn 后 ready 前 EOF（stub 立即退出）→ 必须抛 + owner + retry 收敛
+        eof_stub = tmp_path / "exit_only.cjs"
+        eof_stub.write_text("process.exit(3);\n", encoding="utf-8")
+        captured: list = []
+        real_popen = emulator_module.subprocess.Popen
+    
+        def spy_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            captured.append(proc)
+            return proc
+    
+        prev_popen = emulator_module.subprocess.Popen
+        emulator_module.subprocess.Popen = spy_popen
+        try:
+>           with pytest.raises(EmulatorStartupError) as eof_err:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE EmulatorStartupError
+
+tests\test_terminal_emulator.py:1346: Failed
+__________________ test_feed_batching_merges_adjacent_feeds ___________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x00000239C609BB00>
+
+    def test_feed_batching_merges_adjacent_feeds(emu_factory):
+        """F2：相邻连续 feed 在有界上限内合并为单帧；批上限生效；内容与逐块一致。"""
+>       emu = emu_factory(feed_batch_limit=4096)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:1376: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+kwargs = {'feed_batch_limit': 4096, 'startup_timeout': 30.0}
+
+    def make(**kwargs) -> HeadlessEmulator:
+        kwargs.setdefault("startup_timeout", 30.0)
+>       emu = HeadlessEmulator(**kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: HeadlessEmulator.__init__() got an unexpected keyword argument 'feed_batch_limit'
+
+tests\test_terminal_emulator.py:87: TypeError
+_________________ test_feed_batching_stops_at_gap_and_control _________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x00000239C609BF60>
+
+    def test_feed_batching_stops_at_gap_and_control(emu_factory):
+        """F2：合并不跨 seq gap / duplicate，也不跨控制交错（resize/snapshot/barrier/
+        reset/restore）；byte 绝对偏移与 gap 诊断语义不变。"""
+>       emu = emu_factory(feed_batch_limit=1 << 20)  # 大上限：若不设边界会全部合并
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:1401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+kwargs = {'feed_batch_limit': 1048576, 'startup_timeout': 30.0}
+
+    def make(**kwargs) -> HeadlessEmulator:
+        kwargs.setdefault("startup_timeout", 30.0)
+>       emu = HeadlessEmulator(**kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: HeadlessEmulator.__init__() got an unexpected keyword argument 'feed_batch_limit'
+
+tests\test_terminal_emulator.py:87: TypeError
+__________ test_feed_batching_prefix_split_utf8_csi_osc_equivalence ___________
+
+emu_factory = <function emu_factory.<locals>.make at 0x00000239C6099EE0>
+
+    def test_feed_batching_prefix_split_utf8_csi_osc_equivalence(emu_factory):
+        """F2：把跨块 UTF-8/CSI/OSC 序列拆进多个 feed 后合并，行为与不合并逐字节等价
+        （协议 A 对拍 + clean 边界不变）。"""
+        stream = (
+            b"head-" + "中".encode("utf-8") + b"-mid\r\n"
+            b"\x1b[31mRED\x1b[0m \x1b[1;32mGRN\x1b[0m\r\n"
+            b"\x1b]0;title-split\x07tail"
+        )
+>       batched = emu_factory(feed_batch_limit=1 << 20)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:1425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+kwargs = {'feed_batch_limit': 1048576, 'startup_timeout': 30.0}
+
+    def make(**kwargs) -> HeadlessEmulator:
+        kwargs.setdefault("startup_timeout", 30.0)
+>       emu = HeadlessEmulator(**kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: HeadlessEmulator.__init__() got an unexpected keyword argument 'feed_batch_limit'
+
+tests\test_terminal_emulator.py:87: TypeError
+__________________ test_feed_batching_error_ack_binds_batch ___________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x00000239C609A200>
+
+    def test_feed_batching_error_ack_binds_batch(emu_factory):
+        """F2：批次异常 ack 仍绑定批 op（sticky 降级、解析循环继续、后续批正常）。"""
+>       emu = emu_factory(feed_batch_limit=1 << 20)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:1446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+kwargs = {'feed_batch_limit': 1048576, 'startup_timeout': 30.0}
+
+    def make(**kwargs) -> HeadlessEmulator:
+        kwargs.setdefault("startup_timeout", 30.0)
+>       emu = HeadlessEmulator(**kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: HeadlessEmulator.__init__() got an unexpected keyword argument 'feed_batch_limit'
+
+tests\test_terminal_emulator.py:87: TypeError
+______________ test_feed_batching_accounting_in_flight_and_close ______________
+
+emu_factory = <function emu_factory.<locals>.make at 0x00000239C609A840>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000239C6053740>
+
+    def test_feed_batching_accounting_in_flight_and_close(emu_factory, monkeypatch):
+        """F2：在途合并 buffer 计账在原 FIFO 预算内（发送时未提前释放）；
+        队列溢出/close 在途保持原语义（sticky/保 owner/收敛）。"""
+>       emu = emu_factory(feed_batch_limit=1 << 20)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_emulator.py:1461: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+kwargs = {'feed_batch_limit': 1048576, 'startup_timeout': 30.0}
+
+    def make(**kwargs) -> HeadlessEmulator:
+        kwargs.setdefault("startup_timeout", 30.0)
+>       emu = HeadlessEmulator(**kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: HeadlessEmulator.__init__() got an unexpected keyword argument 'feed_batch_limit'
+
+tests\test_terminal_emulator.py:87: TypeError
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_emulator.py::test_handshake_eof_before_ready_fails_with_owner
+FAILED tests/test_terminal_emulator.py::test_feed_batching_merges_adjacent_feeds
+FAILED tests/test_terminal_emulator.py::test_feed_batching_stops_at_gap_and_control
+FAILED tests/test_terminal_emulator.py::test_feed_batching_prefix_split_utf8_csi_osc_equivalence
+FAILED tests/test_terminal_emulator.py::test_feed_batching_error_ack_binds_batch
+FAILED tests/test_terminal_emulator.py::test_feed_batching_accounting_in_flight_and_close
+====================== 6 failed, 42 deselected in 0.50s =======================
