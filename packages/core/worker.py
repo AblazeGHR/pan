@@ -907,11 +907,13 @@ def _commit_usage_enrichment(
             s.raw_usage = candidate_raw
             s.total_usage = candidate_total
         applied, applied_model = _merge_usage_enrichment_state(s, snapshot)
-        s.usage_enrichment_pending = [
-            candidate for candidate in (s.usage_enrichment_pending or [])
-            if not isinstance(candidate, dict)
-            or candidate.get("key") != job.get("key")
-        ]
+        # Preserve the list terminal processing appends to on the event loop.
+        # Replacing it from this writer thread could strand an append holding
+        # the previous list reference. Remove only this job, in place.
+        pending = s.usage_enrichment_pending
+        for candidate in list(pending):
+            if isinstance(candidate, dict) and candidate.get("key") == job.get("key"):
+                pending.remove(candidate)
         removed = True
         _sess._save_body(s)
     except BaseException:

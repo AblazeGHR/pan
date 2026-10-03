@@ -258,3 +258,54 @@ def test_new_native_import_starts_with_accounted_cursor(isolated, monkeypatch, t
     assert adapter.enrich_after_result(worker._make_usage_enrichment_snapshot(s)) is None
     sess._cache.pop(s.id)
     assert sess.get(s.id).adapter_config == s.adapter_config
+
+
+def test_terminal_append_during_job_removal_is_drained(isolated, monkeypatch):
+    """Pause the writer's list snapshot while the real terminal path appends."""
+    adapter = setup_native(monkeypatch, "opencode")
+    s = new_session("opencode")
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+    original_enrich = adapter.enrich_after_result
+    def enrich(snapshot):
+        calls.append(1)
+        return original_enrich(snapshot)
+    adapter.enrich_after_result = enrich
+    for key in ("first", "second"):
+        worker._usage_enrichment_adapters[key] = adapter
+
+    class PausedSnapshotList(list):
+        armed = False
+        def __iter__(self):
+            before = list(list.__iter__(self))
+            pause = self.armed
+            self.armed = False
+            yield from before
+            if pause:
+                entered.set()
+                assert release.wait(10), "append barrier timed out"
+
+    pending = PausedSnapshotList(s.usage_enrichment_pending)
+    s.usage_enrichment_pending = pending
+    async def scenario():
+        await sess.save_async(s)
+        pending.armed = True
+        task = asyncio.create_task(worker._run_usage_enrichment(s.id))
+        try:
+            assert await asyncio.to_thread(entered.wait, 10)
+            key = worker._queue_usage_enrichment(s, adapter, task_id="third",
+                task_seq=3, worker_id="fixture", generation=0)
+            release.set()
+            await asyncio.wait_for(task, 10)
+            assert key not in worker._usage_enrichment_adapters
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+    assert s.usage_enrichment_pending is pending
+    assert len(calls) == 3
+    assert values(s) == (110, 55)
+    sess._cache.pop(s.id)
+    assert sess.get(s.id).usage_enrichment_pending == []
