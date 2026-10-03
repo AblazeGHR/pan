@@ -13,8 +13,22 @@ from packages.core.adapters import CodexAdapter
 
 
 def _no_ts(entries):
-    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
-    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+    """剥掉 append_history 打的 ts 与 messageId 字段，便于断言消息本体。
+
+    messageId 是 append_history 在追加边界分配的身份（见
+    ``Session.append_history`` 与 ``b553e929``），属于传输/身份元数据而非
+    消息业务形状。身份本身由 ``_message_ids`` 单独显式断言，避免"为了对齐
+    业务断言而顺手忽略身份"导致身份契约失去覆盖。
+    """
+    return [
+        {k: v for k, v in e.items() if k not in ("ts", "messageId")}
+        for e in entries
+    ]
+
+
+def _message_ids(entries):
+    """取出每行的 Pan 消息身份，供身份契约显式断言。"""
+    return [e.get("messageId") for e in entries]
 
 
 def test_codex_worker_branch_uses_sessions_provider(monkeypatch):
@@ -48,6 +62,11 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
 
     assert asyncio.run(worker.steer_worker(live.worker_id, " focus here ")) is None
     assert _no_ts(session.history) == [{"role": "user", "content": "focus here"}]
+    # steer 写入的是可搜索正文，append_history 必须给它分配 Pan 身份。
+    (steer_id,) = _message_ids(session.history)
+    assert _sess.is_pan_message_id(steer_id), (
+        f"steer history must carry a Pan messageId, got {steer_id!r}"
+    )
 
     worker.workers.clear()
     _sess._cache.clear()
@@ -122,7 +141,12 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
 
     assert isinstance(result, worker.Worker)
     assert child.cli_session_id == "thread-child"
-    assert child.history == [{"role": "user", "content": "old"}]
+    assert _no_ts(child.history) == [{"role": "user", "content": "old"}]
+    # 分支导入的 provider 正文同样要经assign_pan_message_ids 拿到 Pan 身份。
+    (forked_id,) = _message_ids(child.history)
+    assert _sess.is_pan_message_id(forked_id), (
+        f"branched history must carry a Pan messageId, got {forked_id!r}"
+    )
     assert child.model == "gpt-5.4-mini"
     assert child.permission_mode == "workspace-write"
     assert child.original_prompt == "Be concise."
@@ -180,6 +204,11 @@ def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
     assert asyncio.run(worker.steer_worker(live.worker_id, "after cancel")) is None
     stdin.write.assert_called_once()
     assert _no_ts(session.history) == [{"role": "user", "content": "after cancel"}]
+    # 解除编辑锁后 steer 写入的正文同样必须带 Pan 身份。
+    (steer_id,) = _message_ids(session.history)
+    assert _sess.is_pan_message_id(steer_id), (
+        f"steer history must carry a Pan messageId, got {steer_id!r}"
+    )
 
     worker.workers.clear()
     worker._queue_locks.clear()
@@ -210,6 +239,11 @@ def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
     )
     assert save.await_count == 2
     assert _no_ts(session.history) == [{"role": "user", "content": "retry this"}]
+    # 落盘重试不得重复追加正文，身份也只应分配一次。
+    (steer_id,) = _message_ids(session.history)
+    assert _sess.is_pan_message_id(steer_id), (
+        f"steer history must carry a Pan messageId, got {steer_id!r}"
+    )
 
     worker.workers.clear()
     _sess._cache.clear()

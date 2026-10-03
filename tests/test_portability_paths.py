@@ -44,8 +44,13 @@ def test_norm_path_posix_branch(monkeypatch):
     assert codex_sessions._norm_path("/home/user/Proj") != codex_sessions._norm_path("/home/user/proj")
     # 反斜杠是合法文件名字符，不得当分隔符归一
     assert codex_sessions._norm_path("/home/a\\b") == "/home/a\\b"
-    # 剥 \\?\ 前缀行为保留
-    assert codex_sessions._norm_path("\\\\?\\/home/x") == "/home/x"
+    # ``\\?\`` 是 Windows 长路径前缀，只在 Windows 剥（``5ca5d70a``）。
+    # POSIX 上前导反斜杠是合法文件名字符，剥掉会破坏真实文件名；
+    # 旧实现跨平台无条件替换才是 bug（见 ``5ca5d70a`` 之前的
+    # ``str.replace("\\\\?\\", "")``）。
+    assert codex_sessions._norm_path("\\\\?\\/home/x") == "\\\\?\\/home/x"
+    # POSIX 侧仍需归一重复/尾部分隔符（normpath 语义）
+    assert codex_sessions._norm_path("/home//x/") == "/home/x"
 
 
 # ── kimi _same_path ───────────────────────────────────────────

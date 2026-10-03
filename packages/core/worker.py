@@ -910,13 +910,25 @@ async def _run_usage_enrichment(session_id: str) -> None:
             # Provider success: merge only its usage delta and snapshot cursor
             # changes.  Live usage/config updates win when the same field was
             # changed after the snapshot was taken.
+            #
+            # ``accumulate_raw_usage`` is additive and mutates the nested
+            # per-model dicts in place, so it cannot simply be "undone" by
+            # re-running the merge: a rollback that restores the durable job
+            # while leaving the accumulated usage in place double-counts every
+            # retried terminal (request_count 1 -> 2).  Snapshot the pre-apply
+            # usage so the job and its accounting are rolled back together.
             removed = False
+            applied_usage = False
+            raw_usage_before = total_usage_before = None
             try:
                 if enrichment:
+                    raw_usage_before = copy.deepcopy(s.raw_usage)
+                    total_usage_before = copy.deepcopy(s.total_usage)
                     prev_total = s.total_usage
                     s.raw_usage = _sess.accumulate_raw_usage(
                         s.raw_usage, enrichment)
                     s.total_usage = _sess.compute_total_usage(s.raw_usage)
+                    applied_usage = True
                     prev_credit = prev_total.get("credit", 0) if prev_total else 0
                     new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
                     _log.info(
@@ -939,13 +951,22 @@ async def _run_usage_enrichment(session_id: str) -> None:
             except asyncio.CancelledError:
                 if removed and _enrichment_job(s, job.get("key")) is None:
                     s.usage_enrichment_pending.insert(0, job)
+                if applied_usage:
+                    # The retried job would otherwise account the same
+                    # provider usage twice.
+                    s.raw_usage = raw_usage_before
+                    s.total_usage = total_usage_before
                 raise
             except Exception as exc:
                 # A failed save must not turn a successful provider lookup into
-                # a lost durable job.  Keep merged live usage/config, restore
-                # the job, and retry; compare-and-merge makes the retry safe.
+                # a lost durable job.  Restore the job *and* the usage this job
+                # applied, so the retry accounts it exactly once; the snapshot
+                # merge above is compare-and-merge and stays safe to repeat.
                 if removed and _enrichment_job(s, job.get("key")) is None:
                     s.usage_enrichment_pending.insert(0, job)
+                if applied_usage:
+                    s.raw_usage = raw_usage_before
+                    s.total_usage = total_usage_before
                 if await retry_job(s, job, exc):
                     continue
                 return
