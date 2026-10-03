@@ -279,8 +279,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       sessionId,
       editToken,
       () => get().edits[sessionId] ?? null,
-      (edit) => (get().queues[sessionId] ?? []).find((candidate) =>
-        queueIdMatches(candidate.id, edit.id))?.meta?.revision,
+      (edit) => edit.revision,
       (expiresAt) => {
         const active = get().edits[sessionId];
         if (!active || active.editToken !== editToken) return;
@@ -642,8 +641,10 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     const serverToken = clientMessageId();
     const edit: QueuedEdit = {
       id: item.id,
-      text: item.text,
-      originalText: item.text,
+      // Never expose a truncated report preview as an editable body.
+      text: '',
+      originalText: '',
+      revision: item.meta?.revision,
       index: items.findIndex((candidate) => queueIdMatches(candidate.id, id)),
       createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
       editToken,
@@ -656,8 +657,11 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         [sid]: edit,
       },
     }));
-    void acquireSessionQueueItemEdit(sid, item.id, serverToken, item.meta?.revision)
-      .then(({ expiresAt }) => {
+    void acquireSessionQueueItemEdit(sid, item.id, serverToken, item.meta?.revision, true)
+      .then(({ expiresAt, text, bodyFormat, revision }) => {
+        if (typeof text !== 'string' || typeof revision !== 'number') {
+          throw new Error('编辑锁未返回完整正文，无法安全编辑');
+        }
         const current = get().edits[sid];
         if (!current || current.editToken !== editToken) {
           // A canceled or removed edit may acquire its server lease after the
@@ -685,7 +689,10 @@ export const useQueueStore = create<QueueStore>((set, get) => {
               set((state) => ({
                 edits: {
                   ...state.edits,
-                  [sid]: { ...latest, acquiring: false, releasing: false, cancelRequested: false },
+                  [sid]: {
+                    ...latest, acquiring: false, releasing: false, cancelRequested: false,
+                    text, originalText: text, bodyFormat, revision, leaseExpiresAt: expiresAt,
+                  },
                 },
               }));
               startLeaseRenewal(sid, editToken);
@@ -699,12 +706,19 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         const acquired: QueuedEdit = {
           ...current,
           acquiring: false,
+          text,
+          originalText: text,
+          bodyFormat,
+          revision,
           leaseExpiresAt: expiresAt,
         };
         set((state) => ({ edits: { ...state.edits, [sid]: acquired } }));
         startLeaseRenewal(sid, editToken);
       })
       .catch((error) => {
+        // A malformed body response can follow a successful lease acquisition,
+        // even after this Session/edit has disappeared. Release only our token.
+        void releaseSessionQueueItemEdit(sid, item.id, serverToken).catch(() => {});
         const current = get().edits[sid];
         if (!current || current.editToken !== editToken) return;
         stopEditLeaseRenewal(sid, editToken);
@@ -738,7 +752,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       return;
     }
     const editToken = edit.editToken ?? ++editTokenSeq;
-    const text = edit.text.trim() ? edit.text : edit.originalText;
+    const text = edit.text;
     stopEditLeaseRenewal(sid, editToken);
     set((state) => {
       const current = state.edits[sid];
@@ -751,7 +765,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           sid,
           edit.id,
           text,
-          item.meta?.revision,
+          edit.revision,
           edit.serverToken,
         );
         const active = get().edits[sid];

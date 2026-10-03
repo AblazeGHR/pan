@@ -751,20 +751,33 @@ export async function acquireSessionQueueItemEdit(
   itemId: string,
   editToken: string,
   expectedRevision?: number,
-): Promise<{ expiresAt: number }> {
+  includeBody = false,
+): Promise<{
+  expiresAt: number;
+  text?: string;
+  bodyFormat?: 'text' | 'json' | 'parts';
+  revision?: number;
+}> {
   const data = await request<{
     ok?: boolean;
     expiresAt?: number;
+    text?: string;
+    bodyFormat?: 'text' | 'json' | 'parts';
+    revision?: number;
     error?: { message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue/${itemId}/edit`, {
     method: 'POST',
-    body: JSON.stringify({ editToken, expectedRevision }),
+    body: JSON.stringify({ editToken, expectedRevision, includeBody }),
   });
   if (!data.ok || typeof data.expiresAt !== 'number') {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
     throw new Error(error || '无法锁定正在编辑的队列消息');
   }
-  return { expiresAt: data.expiresAt };
+  if (includeBody && (typeof data.text !== 'string' || typeof data.revision !== 'number'
+      || !['text', 'json', 'parts'].includes(data.bodyFormat || ''))) {
+    throw new Error('编辑接口未返回完整正文；为避免覆盖预览内容，已停止编辑');
+  }
+  return { expiresAt: data.expiresAt, text: data.text, bodyFormat: data.bodyFormat, revision: data.revision };
 }
 
 export async function releaseSessionQueueItemEdit(

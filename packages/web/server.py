@@ -7132,6 +7132,126 @@ async def api_session_queue_item_lock(session_id: str, item_id: str, data: dict)
     return {"ok": True, **snapshot}
 
 
+def _queue_edit_json(value) -> str:
+    """Encode only faithful JSON values; never coerce tuple/key/NaN data."""
+    def validate(node):
+        if node is None or type(node) in {str, bool, int}:
+            return
+        if type(node) is float and math.isfinite(node):
+            return
+        if type(node) is list:
+            for child in node:
+                validate(child)
+            return
+        if type(node) is dict and all(type(key) is str for key in node):
+            for child in node.values():
+                validate(child)
+            return
+        raise ValueError("Queue body contains a value that cannot be edited losslessly as JSON")
+    validate(value)
+    return json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
+
+
+def _queue_parse_edit_json(text: str):
+    def reject_constant(value):
+        raise ValueError(f"Invalid JSON constant: {value}")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    result = json.loads(text, parse_constant=reject_constant, object_pairs_hook=unique_object)
+    _queue_edit_json(result)  # Also rejects exponent overflow to infinity.
+    return result
+
+
+def _queue_edit_parts_template(parts: list) -> list:
+    """Expose text slots around attachments without removing any original part."""
+    template = []
+    for part in parts:
+        if part.get("type") == "attachment" and (
+                not template or template[-1].get("type") == "attachment"):
+            template.append({"type": "text", "text": ""})
+        template.append(part)
+    if template and template[-1].get("type") == "attachment":
+        template.append({"type": "text", "text": ""})
+    return template
+
+
+def _queue_edit_equal(first, second) -> bool:
+    # JSON's bool/int and int/float values must not compare as Python aliases.
+    return json.dumps(first, sort_keys=True, allow_nan=False) == json.dumps(
+        second, sort_keys=True, allow_nan=False)
+
+
+def _queue_edit_body(item: dict) -> tuple[str, str, str]:
+    """Return storage field, full editor body and format, without row decoration."""
+    kind = worker._queue_item_kind(item)
+    if item.get("type") is None and isinstance(item.get("text"), str):
+        kind = "task"  # Mirror the consumer's legacy text-envelope migration.
+    if kind not in {"task", "report", "qq", "wechat"}:
+        raise ValueError("Unknown queue item kind cannot be edited losslessly")
+    field = "result" if kind == "report" else "text"
+    value = item.get(field)
+    if field == "text" and not isinstance(value, str):
+        raise ValueError("Task/channel body must be a string")
+    parts = item.get("parts")
+    if field == "text" and isinstance(parts, list) and any(
+            not isinstance(part, dict) or part.get("type") != "text"
+            or set(part) - {"type", "text", "value"} for part in parts):
+        if any(not isinstance(part, dict) or part.get("type") not in {"text", "attachment"}
+               for part in parts):
+            raise ValueError("Unknown structured part cannot be edited losslessly")
+        public_parts = [{key: value for key, value in part.items() if key != "__serverPath"}
+                        for part in _queue_edit_parts_template(parts)]
+        return field, _queue_edit_json(public_parts), "parts"
+    if kind == "task" and isinstance(parts, list) and parts:
+        # Parts are authoritative for task dispatch; do not edit a stale text
+        # fallback that could omit the tail of a structured text-only message.
+        values = [part.get("text", part.get("value")) for part in parts]
+        if not all(isinstance(part_text, str) for part_text in values):
+            raise ValueError("Text parts require string values")
+        value = "".join(values)
+    if isinstance(value, str):
+        return field, value, "text"
+    return field, _queue_edit_json(value), "json"
+
+
+def _queue_edit_parts(session_id: str, original: list, text: str) -> tuple[list, str]:
+    """Edit text fields only, keeping attachment occurrences and metadata intact."""
+    original = _queue_edit_parts_template(original)
+    edited = _queue_parse_edit_json(text)
+    if not isinstance(edited, list) or len(edited) != len(original):
+        raise ValueError("Keep all structured parts in their original order; edit text fields only")
+    updated = []
+    for before, after in zip(original, edited):
+        public = {key: value for key, value in before.items() if key != "__serverPath"}
+        if before.get("type") == "text":
+            field = "text" if "text" in before else "value"
+            if not isinstance(after, dict) or not isinstance(after.get(field), str):
+                raise ValueError("Text parts require a string text field")
+            protected = dict(after)
+            protected[field] = public.get(field)
+            if not _queue_edit_equal(protected, public):
+                raise ValueError("Only text fields may change; preserve all part metadata")
+            updated.append({**before, field: after[field]})
+        else:
+            if not _queue_edit_equal(after, public):
+                raise ValueError("Attachment references, metadata and order cannot change")
+            updated.append(dict(before))
+    normalized, canonical, error = _normalize_message_parts(session_id, updated)
+    if error is not None:
+        raise ValueError(error["message"])
+    # Retain metadata not involved in normalization, with canonical attachment
+    # paths supplied by the existing Session registry validation.
+    preserved = [{**part, **canonical_part} for part, canonical_part in zip(updated, normalized)]
+    return preserved, canonical
+
+
 @app.post("/api/sessions/{session_id}/queue/{item_id}/edit")
 async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict):
     """Acquire or renew the lease that keeps an edited item out of Worker hand-off."""
@@ -7143,18 +7263,23 @@ async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict)
         return _queue_error("invalid_edit_token", "editToken is required")
     expected = data.get("expectedRevision")
     async with worker.queue_lock(session_id):
+        if s.readonly_session:
+            return _queue_error("readonly_session", "Readonly Session cannot be edited", s)
         target = next((it for it in s.queue_pending or []
                        if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
         if target is None:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
-        if (worker._queue_item_kind(target) != "task"
-                or worker._task_source(target) != "user"):
-            return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         current_revision = int(target.get("revision", 1))
         if expected is not None and expected != current_revision:
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
+        try:
+            _, full_text, body_format = _queue_edit_body(target)
+        except (ValueError, TypeError, RecursionError) as error:
+            return _queue_error("queue_body_not_editable", str(error), s)
+        body = ({"text": full_text, "bodyFormat": body_format, "revision": current_revision}
+                if data.get("includeBody", True) else {})
         previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
         lease, conflict = worker.acquire_queue_edit_lock(s, item_id, token)
         if conflict or lease is None:
@@ -7167,7 +7292,7 @@ async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict)
             else:
                 s.queue_edit_locks.pop(item_id, None)
             raise
-    return {"ok": True, "editToken": token, "expiresAt": lease["expiresAt"]}
+    return {"ok": True, "editToken": token, "expiresAt": lease["expiresAt"], **body}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/edit/release")
@@ -7194,7 +7319,7 @@ async def api_session_queue_edit_release(session_id: str, item_id: str, data: di
 
 @app.patch("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_update(session_id: str, item_id: str, data: dict):
-    """Edit only a queued user task, retaining its durable identity."""
+    """Edit a queued body, retaining its original kind and durable identity."""
     s = _summary_session_get(session_id)
     if not s:
         return {"ok": False, "error": "Session not found"}
@@ -7204,42 +7329,37 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     if not isinstance(edit_token, str) or not edit_token:
         return _queue_error("invalid_edit_token", "editToken is required")
     async with worker.queue_lock(session_id):
+        if s.readonly_session:
+            return _queue_error("readonly_session", "Readonly Session cannot be edited", s)
         target = next((it for it in s.queue_pending or []
                        if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
         if target is None:
             if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
-                return _queue_error("queue_item_not_editable", "Only queued user task messages can be edited", s)
+                return _queue_error("queue_item_not_editable", "Only queued messages can be edited", s)
             return _queue_error("not_found", "Queue item not found", s)
-        if (worker._queue_item_kind(target) != "task"
-                or worker._task_source(target) != "user"):
-            return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         lease = worker._active_queue_edit_lock(s, item_id)
         if (lease is None
                 or lease.get("tokenHash") != worker._queue_edit_token_digest(edit_token)):
             return _queue_error("queue_item_edit_expired", "Edit lease expired; reopen the editor", s)
-        if not isinstance(text, str) or not text.strip():
-            return _queue_error("text_required", "text is required", s)
+        if not isinstance(text, str):
+            return _queue_error("text_required", "text must be a string", s)
         normalized_parts = None
-        if isinstance(target.get("parts"), list):
-            parts = target["parts"]
-            # The rich-text composer also supplies parts for plain text.
-            # Editing that queue row must update both representations. Keep
-            # attachment-bearing parts immutable here: the plain queue editor
-            # cannot safely remap attachment occurrences from arbitrary text.
-            if all(isinstance(part, dict) and part.get("type") == "text" for part in parts):
-                parts = [{"type": "text", "text": text}]
-            normalized_parts, canonical_text, parts_error = _normalize_message_parts(
-                session_id, parts)
-            if parts_error is not None:
-                return _queue_error(parts_error["code"], parts_error["message"], s)
-            if text != canonical_text:
-                return _queue_error(
-                    "parts_text_conflict",
-                    "Queued message text must match its structured attachment parts",
-                    s,
-                )
+        try:
+            field, _, body_format = _queue_edit_body(target)
+            new_value = _queue_parse_edit_json(text) if body_format == "json" else text
+            if body_format == "parts":
+                normalized_parts, new_value = _queue_edit_parts(session_id, target["parts"], text)
+            elif field == "text" and isinstance(target.get("parts"), list):
+                normalized_parts, new_value, error = _normalize_message_parts(
+                    session_id, [{"type": "text", "text": text}])
+                if error is not None:
+                    return _queue_error(error["code"], error["message"], s)
+            if field == "text" and not new_value.strip():
+                return _queue_error("text_required", "text is required", s)
+        except (ValueError, TypeError, RecursionError) as error:
+            return _queue_error("invalid_queue_body", str(error), s)
         current_revision = int(target.get("revision", 1))
         if expected is not None and expected != current_revision:
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
@@ -7247,7 +7367,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         old_ledger = dict(s.queue_delivery_ledger.get(item_id, {}))
         old_edit_lease = dict(lease)
         old_queue_revision = s.queue_revision
-        target["text"] = text
+        target[field] = new_value
         if normalized_parts is not None:
             target["parts"] = normalized_parts
         target["revision"] = current_revision + 1

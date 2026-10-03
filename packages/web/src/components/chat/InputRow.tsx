@@ -1309,6 +1309,9 @@ export function InputRow() {
       {queueEdit && (
         <div data-testid="queue-composer-edit" className="flex shrink-0 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
           <p className="text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
+          {queueEdit.acquiring && <p className="text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
+          {queueEdit.bodyFormat === 'json' && <p className="text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
+          {queueEdit.bodyFormat === 'parts' && <p className="text-xs text-text-secondary">此消息含附件；仅修改 text 类型片段的 text/value 正文。请保留全部片段、顺序和附件字段。</p>}
           {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
           <div className="flex gap-2">
             <textarea key={`${currentSessionId}:${queueEdit.editToken}`} autoFocus aria-label="队列消息正文"

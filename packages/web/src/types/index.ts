@@ -1171,6 +1171,9 @@ export interface QueuedEdit {
   releasing?: boolean;
   cancelRequested?: boolean;
   leaseExpiresAt?: number;
+  /** Body/revision captured under the edit lease, independent of the row preview. */
+  revision?: number;
+  bodyFormat?: 'text' | 'json' | 'parts';
   /** Keep the draft available for copying when the lease or item is invalid. */
   error?: string;
 }

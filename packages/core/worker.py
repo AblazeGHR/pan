@@ -2149,7 +2149,8 @@ def _select_queue_unit(s) -> list[dict] | None:
                 # A locked row remains in place and ends this delivery batch.
                 break
             if (_queue_item_kind(follower) not in {"report", "qq", "wechat"}
-                    or not _is_dispatchable(follower)):
+                    or not _is_dispatchable(follower)
+                    or queue_item_edit_locked(s, _queue_item_id(follower))):
                 break
             unit.append(follower)
         return unit
@@ -2177,7 +2178,8 @@ def _task_status_queued(w: Worker, item: dict) -> None:
     })
 
 
-async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> bool:
+async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
+                              expected_revisions: list[int] | None = None) -> bool:
     """Persist reservation/writing states and the user history before hand-off."""
     if not _process_alive(w):
         return False
@@ -2190,6 +2192,11 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
             # Selection happens before reservation. Re-select under the lock
             # so a pause toggle or queue reorder between those steps cannot
             # reserve a task that has just been overtaken by the FIFO head.
+            return False
+        if expected_revisions is not None and expected_revisions != [
+                item.get("revision", 1) for item in items]:
+            # An edit may finish while memory projection awaits. Do not hand
+            # off text computed from the old body after its lease is released.
             return False
         for item in items:
             if (not any(existing is item for existing in s.queue_pending)
@@ -2408,6 +2415,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
     """Reserve one FIFO unit, hand it to the adapter, and wait for completion."""
     if not items:
         return
+    expected_revisions = [item.get("revision", 1) for item in items]
     kind = _queue_item_kind(items[0])
     if kind == "task":
         if not _is_valid_task_item(items[0]) or _task_source(items[0]) is None:
@@ -2439,7 +2447,8 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         text = await _maybe_inject_memory(s, projected_text)
         # History/UI keeps the safe Markdown fallback, while only the adapter
         # receives the server-path projection in ``text``.
-        history_added = await _reserve_queue_unit(w, s, items, history_text)
+        history_added = await _reserve_queue_unit(
+            w, s, items, history_text, expected_revisions=expected_revisions)
         if not history_added and any(_delivery_state(item) == _DELIVERY_QUEUED
                                      for item in items):
             # A failed reservation has already placed the item back in queue.
