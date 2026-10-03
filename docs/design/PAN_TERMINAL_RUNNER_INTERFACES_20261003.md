@@ -300,10 +300,13 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
   属性"的保守近似——runner **没有与快照历史世代的原子绑定**（来源值在快照之后读取）。
   透出 `true` 需同时满足：快照存在、`recovery ∈ {full, partial}`、无 `feed_lag`、
   `reset_unconfirmed` 非 true，且**基线交叉**成立。
-- **基线交叉（同一次 `diagnostics()` 读取内的 `baseline_cursor`）**：仅**合法 int（非 bool）
-  或 ASCII 十进制字符串**参与比较（未知/非法/空白**不造值**，不加约束）；
+- **基线交叉（同一次 `diagnostics()` 读取内的 `baseline_cursor`）**：仅**合法 int（非 bool、
+  非负）或十进制字符串**参与比较——字符串**允许两侧空白**，去空白后须为 ASCII 数字、
+  **可带一个正号 `+`**；**负数**（int 或字符串）代表非法绝对偏移，一律视为未知；
+  **超长 ASCII 数字**（CPython 整型转换默认 4300 位上限之上）解析失败 → 未知且**不抛错**。
+  未知/非法**不造值**、不加约束（不得机械降级 `cursors_valid`）；
   若 `baseline_cursor > snap.cursor` → 快照早于最近一次已确认 reset → `null`。
-  大整数按 Python int 精确比较（禁浮点/截断）。
+  合法大整数按 Python int 精确比较（禁浮点/截断）。
 - `null` / `false` / `reset_unconfirmed=true` 一律**不得**作为完整续流依据（`recovery != full`
   或本字段非 true 均应 fresh-view）。
 - **上下文/截断**：`cursors_valid` **不得单独**解释为"完整恢复"——`detail` 处于缩减态
@@ -614,6 +617,12 @@ class RunnerClient:
   - **O7**：`LOST` 不再映射为 exit 0（未证明 → 退出码 6）。
   - 测试 19 → **31 项**（新增 12 项门控/真机；直连 + uv 各一次，core129+broadcast8
     隔离 pyte 另列）。
+- `2026-10-03` **F5 r3 观测兜底（独立审查 `68e0656e` MA 注意 1/2；先在 6ca 只读副本
+  失败见证后修复）**：`_ledger_int_or_none` 对**超长 ASCII 数字**（默认 4300 位上限之上）
+  `int()` 的 ``ValueError`` 捕获并回落未知（观测面不再额外抛错；未知 baseline 按现有确认
+  来源规则**不约束、不机械降级**）；解析口径写明：字符串允许两侧空白、去空白后 ASCII 数字、
+  可带一个正号 `+`；**负数（int/字符串）统一未知**（非法绝对偏移）。测试 47 → **50**
+  （新增 3 项：解析矩阵 / 超长数字端到端不抛+未知回退 / 空白+负数+2^53 兼容回归锁）。
 - `2026-10-03` **F5 收尾（窄化诚实性；先失败后通过）**：来源**严格 bool**（真值型非 bool
   → null，不 bool 强转）；`cursors_valid=true` 的来源契约=自含 reset 未确认判定；
   **baseline 交叉**（同一次 diagnostics 读取的 `baseline_cursor`，仅合法 int 非 bool 或

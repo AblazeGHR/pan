@@ -1,0 +1,23 @@
+{
+  "parent_head": "6ca24bb6f032dcae9ecffecfa2792c77942e8320",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/runner-observability/r3/README.md": {
+      "blob": "f8a14918296d15feb2b5b9d5819a85682c7fd2fa",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_RUNNER_INTERFACES_20261003.md": {
+      "blob": "be7e15fa604bfb7875f8a6fcb8df65040661f48e",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner.py": {
+      "blob": "dc196258449852c368cf292b073a56fb252373a2",
+      "mode": "100644"
+    },
+    "tests/test_terminal_runner.py": {
+      "blob": "8460f743b277849ffc495a8ea7399b66172c8a50",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 F5 r3 的 runner.py / 测试 / 接口文档 / r3 README；上层旧证据（e822/r2/43 项）零覆盖。"
+}

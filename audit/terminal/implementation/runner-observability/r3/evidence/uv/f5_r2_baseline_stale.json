@@ -1,0 +1,6 @@
+{
+  "int_stale_unknown": true,
+  "str_stale_unknown": true,
+  "bool_no_coercion": true,
+  "invalid_no_value": true
+}

@@ -1,0 +1,5 @@
+{
+  "whitespace_plus_stale_unknown": true,
+  "negative_unknown_no_constraint": true,
+  "bigint_precision_regression": true
+}

@@ -1,0 +1,7 @@
+{
+  "whitespace_plus_compat": true,
+  "negative_none": true,
+  "bool_none": true,
+  "long_digits_4300_ok": true,
+  "long_digits_4301_plus_none_no_raise": true
+}

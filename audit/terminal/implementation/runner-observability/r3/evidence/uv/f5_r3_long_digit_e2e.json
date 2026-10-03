@@ -1,0 +1,9 @@
+{
+  "cases": [
+    4301,
+    5000
+  ],
+  "snapshot_no_raise": true,
+  "unknown_baseline_no_constraint": true,
+  "no_mechanical_downgrade": true
+}

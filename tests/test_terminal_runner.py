@@ -2490,3 +2490,118 @@ def test_f5_r2_reset_completion_gate_snapshot_before_after(tmp_path):
         {"before_reset_cursor": 7, "baseline": 40, "after_reset_cursor": 40,
          "before_unknown": True, "after_true": True},
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# F5 r3 收尾（MA 注意 1/2）：ledger 解析边界 —— 空白/+ 兼容、负数 None、
+# 超长 ASCII 数字不抛（CPython 4300 位 int() 上限）、未知 baseline 不造值不降级。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_f5_r3_ledger_int_parser_matrix():
+    """`_ledger_int_or_none` 边界矩阵（受信观测面低危收尾；非远程绕过面）。
+
+    - 合法 int（非 bool）与十进制字符串（两侧空白允许、去空白后可带一个 `+`）；
+    - **负数**（int 或字符串）统一 None（非法绝对偏移，不造值）；
+    - bool → None；非法/纯空白/浮点/全角/内嵌空白/孤立符号 → None；
+    - **超长 ASCII 数字**：CPython `int()` 默认 4300 位上限——4300 位成功（合法偏移），
+      4301+ 位解析失败 → None（**不抛错**）。
+    """
+    parser = runner_module._ledger_int_or_none
+    # 合法 int / 2^53 精确
+    assert parser(0) == 0 and parser(100) == 100
+    assert parser(2**53 + 1) == 2**53 + 1
+    # 十进制字符串：两侧空白 + 可选正号
+    assert parser("100") == 100
+    assert parser(" 100 ") == 100 and parser("\t100\n") == 100
+    assert parser("+100") == 100 and parser(" +100 ") == 100
+    assert parser("0") == 0
+    # 负数（int/字符串）统一 None
+    assert parser(-1) is None and parser(-(2**53)) is None
+    assert parser("-100") is None and parser(" -100 ") is None
+    # bool
+    assert parser(True) is None and parser(False) is None
+    # 非法字符 / 纯空白 / 浮点 / 全角 / 内嵌空白 / 孤立符号
+    for bad in ("", "   ", "abc", "1.5", "1_000", "１００", "12٣", "100x",
+                "+", "-", "--5", "++5", "+ 5", "5 5", "1e3"):
+        assert parser(bad) is None, f"非法基线不得造值：{bad!r}"
+    # 超长 ASCII 数字：4300 位（=默认上限）成功；4301+ 位不抛、None
+    assert isinstance(parser("9" * 4300), int)
+    for digits in (4301, 5000, 20000):
+        assert parser("9" * digits) is None, f"{digits} 位超长数字必须 None（不抛）"
+    record_evidence(
+        "f5_r3_parser_matrix",
+        {
+            "whitespace_plus_compat": True,
+            "negative_none": True,
+            "bool_none": True,
+            "long_digits_4300_ok": True,
+            "long_digits_4301_plus_none_no_raise": True,
+        },
+    )
+
+
+def test_f5_r3_long_digit_baseline_snapshot_no_raise(tmp_path):
+    """端到端：`baseline_cursor` 为超长 ASCII 数字（4301/5000 位）→ snapshot **不抛**、
+    detail 可解析；**未知 baseline 回退为不约束**（cursors_valid 保持 True，
+    不机械改成 false/null —— 按现有确认来源规则）。"""
+    for digits in (4301, 5000):
+        emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+        emulator.cursor = 0
+        emulator._baseline = "9" * digits
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5r3_long_{digits}", emulator)
+        payload = runner.snapshot(timeout_ms=500)  # 修复前此处抛 ValueError
+        detail = _snapshot_detail(payload)
+        assert payload["status"] == "running"
+        assert detail["cursors_valid"] is True, (
+            "超长（未知）baseline 必须回退为不约束，不得机械降级为 false/null"
+        )
+        assert detail["reset_unconfirmed"] is False
+        assert payload["size"] == len("SCREEN")
+    record_evidence(
+        "f5_r3_long_digit_e2e",
+        {
+            "cases": [4301, 5000],
+            "snapshot_no_raise": True,
+            "unknown_baseline_no_constraint": True,
+            "no_mechanical_downgrade": True,
+        },
+    )
+
+
+def test_f5_r3_whitespace_plus_negative_baseline_behavior_lock(tmp_path):
+    """兼容/回归锁：两侧空白与 `+` 照旧参与 stale 比较（→unknown）；负数（int/字符串）
+    一律未知（不约束 → true）；2^53 大整数精确回归。"""
+    # 空白与 + 兼容（stale：baseline 100 > cursor 50）
+    for baseline in (" 100 ", "\t100\n", "+100", " +100 "):
+        emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+        emulator.cursor = 50
+        emulator._baseline = baseline
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5r3_ws_{len(baseline)}", emulator)
+        detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+        assert detail["cursors_valid"] is None, f"{baseline!r} 应参与 stale 比较"
+    # 负数：未知（不造值）→ 不约束 → true
+    for baseline in (-5, "-5", " -5 "):
+        emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+        emulator.cursor = 0
+        emulator._baseline = baseline
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5r3_neg_{type(baseline).__name__}_{str(baseline).strip()}", emulator)
+        detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+        assert detail["cursors_valid"] is True, f"负基线({baseline!r}) 不得代表偏移语义"
+    # 2^53 精确回归（stale / 追平）
+    big = 2**53 + 987654
+    for cursor, expected in ((big - 1, None), (big, True)):
+        emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+        emulator.cursor = cursor
+        emulator._baseline = str(big)
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5r3_big_{cursor == big}", emulator)
+        detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+        assert detail["cursors_valid"] is expected
+    record_evidence(
+        "f5_r3_compat_locks",
+        {
+            "whitespace_plus_stale_unknown": True,
+            "negative_unknown_no_constraint": True,
+            "bigint_precision_regression": True,
+        },
+    )

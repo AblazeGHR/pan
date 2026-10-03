@@ -1,0 +1,8 @@
+F5 r3 先失败源证明（固定只读副本 == 6ca24bb6）
+generated_at: 2026-10-03 08:56:50
+method: git archive 6ca24bb6 packages tests -> 临时只读副本；新测试仅追加到副本 tests 文件
+copy_dir: C:\Users\14709\AppData\Local\Temp\f5r3-6ca-1wUo
+copy_runner_blob: 070b6c05fa0f08b9fc108ee9fbcb2ece0f887027
+copy_runner_sha256: 656172bee2b525b4771fc9d90c8294d2f942309d9904bb8fee045789d319b9ec
+commit_6ca_runner_blob: 070b6c05fa0f08b9fc108ee9fbcb2ece0f887027
+equality: TRUE

@@ -180,19 +180,26 @@ _PRESERVE_DETAIL_KEYS: tuple[str, ...] = ("cursors_valid", "reset_unconfirmed")
 def _ledger_int_or_none(value: Any) -> int | None:
     """F5：账本类整数（如 ``baseline_cursor``）的保守解析。
 
-    只接受**合法 int（非 bool）**或**ASCII 十进制字符串**（可带 ``+``/``-`` 符号）；
-    其余（bool、浮点、空白、含其它字符、超长非数字）一律 ``None``——**未知不造值**。
-    Python int 无界：2^53 以上大整数精确比较（禁浮点/截断）。
+    只接受**合法 int（非 bool，且非负）**或**十进制字符串**：允许两侧空白，去空白后
+    须为 ASCII 数字、可带一个正号 ``+``；其余（bool、浮点、空白、其他字符、全角数字、
+    负数）一律 ``None``——**未知不造值**。负数在任一侧都代表非法绝对偏移 → ``None``。
+    **超长 ASCII 数字**：CPython 整型字符串转换有位数上限（默认 4300 位），``int()``
+    可能抛 ``ValueError``——此处捕获并回落 ``None``（观测面**不额外抛错**）。
+    Python int 无界：合法大整数精确比较（禁浮点/截断）。
     """
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
-        return int(value)
+        return int(value) if value >= 0 else None
     if isinstance(value, str):
         text = value.strip()
-        digits = text[1:] if text[:1] in ("+", "-") else text
-        if digits and digits.isascii() and digits.isdigit():
-            return int(text)
+        if text[:1] == "+":
+            text = text[1:]
+        if text and text.isascii() and text.isdigit():
+            try:
+                return int(text)
+            except ValueError:  # 超长（默认 4300 位上限）：未知不造值、不抛
+                return None
     return None
 
 

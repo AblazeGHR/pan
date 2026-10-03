@@ -1,0 +1,56 @@
+{
+  "collected_at": "2026-10-03 08:56:21",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "6ca24bb6f032dcae9ecffecfa2792c77942e8320",
+  "pre_fix_evidence": true,
+  "steps": {
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 0.59,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA",
+        "-k",
+        "f5"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_r3_long_digit_baseline_snapshot_no_raise\nPASSED tests/test_terminal_runner.py::test_f5_r3_whitespace_plus_negative_baseline_behavior_lock"
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 1.47,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA",
+        "-k",
+        "f5"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_r3_long_digit_baseline_snapshot_no_raise\nPASSED tests/test_terminal_runner.py::test_f5_r3_whitespace_plus_negative_baseline_behavior_lock"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  }
+}
