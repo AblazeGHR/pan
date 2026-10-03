@@ -848,7 +848,10 @@ function isCurrentWorkerEvent(e: StreamEvent, terminal = false): boolean {
     e.generation < known.generation
   ) return false;
   // A late terminal event from an older worker must not clear the replacement.
-  if (terminal && known?.id && e.workerId && known.id !== e.workerId) return false;
+  const newerGeneration = e.generation !== undefined && known?.generation !== undefined
+    && e.generation > known.generation;
+  if ((terminal || e.type === 'worker.stream') && known?.id && e.workerId
+      && known.id !== e.workerId && !newerGeneration) return false;
   return true;
 }
 
@@ -865,6 +868,7 @@ function handleWorkerUpdate(
     status,
     {
       serverEpoch: e.serverEpoch || e.eventEpoch,
+      lastLegalWorkerState: e.session?.lastLegalWorkerState,
       workerId: e.workerId,
       generation: e.generation,
       taskSeq: e.taskSeq,

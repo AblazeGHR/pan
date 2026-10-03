@@ -1062,6 +1062,44 @@ describe('useWebSocket worker.result wiring', () => {
     ).toBe('idle');
   });
 
+  it('settles runtime and legal state atomically from the terminal event summary', () => {
+    useSessionStore.getState().updateSession('B', {
+      workerId: 'w1', workerStatus: 'running', lastLegalWorkerState: 'running',
+    });
+    renderHook(() => useWebSocket());
+    const mismatches: string[] = [];
+    const stop = useSessionStore.subscribe(state => {
+      const session = state.sessions.find(row => row.id === 'B');
+      if (session?.lastLegalWorkerState === 'running' && session.workerStatus === 'idle') {
+        mismatches.push('false mismatch');
+      }
+    });
+    act(() => wsMock.trigger('worker.result', {
+      type: 'worker.result', sessionId: 'B', workerId: 'w1', generation: 1,
+      taskSeq: 1, status: 'done', result: 'reply',
+      session: { lastLegalWorkerState: 'idle' },
+    }));
+    stop();
+    expect(mismatches).toEqual([]);
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B'))
+      .toMatchObject({ workerStatus: 'idle', lastLegalWorkerState: 'idle' });
+  });
+
+  it('accepts a newer-generation result when the replacement spawn was missed', () => {
+    useWorkerStore.getState().updateWorker('B', 'old', 'running', 1);
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('worker.result', {
+      type: 'worker.result', sessionId: 'B', workerId: 'new', generation: 2,
+      taskSeq: 1, status: 'done', result: 'replacement answer',
+      session: { lastLegalWorkerState: 'idle' },
+    }));
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B'))
+      .toMatchObject({ workerId: 'new', workerStatus: 'idle' });
+    expect(useWorkerStore.getState().workers.B).toMatchObject({ id: 'new', status: 'idle' });
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B')?.history)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ content: 'replacement answer' })]));
+  });
+
   it('ignores an out-of-order running status from an older worker generation', () => {
     useWorkerStore.setState({
       workers: { A: { id: 'w2', sessionId: 'A', status: 'idle', generation: 5 } },

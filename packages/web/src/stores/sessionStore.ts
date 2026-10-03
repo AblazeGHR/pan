@@ -484,6 +484,7 @@ export interface TerminalCoverage {
 
 export interface LiveStreamMeta {
   serverEpoch?: string;
+  lastLegalWorkerState?: string | null;
   workerId?: string;
   generation?: number;
   taskSeq?: number;
@@ -620,6 +621,16 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
   return false;
 }
 
+function workerStatusMetadata(meta: LiveStreamMeta): Partial<Session> {
+  return {
+    ...(meta.generation !== undefined ? { workerGeneration: meta.generation } : {}),
+    ...(meta.taskSeq !== undefined ? { workerTaskSeq: meta.taskSeq } : {}),
+    ...(meta.taskId !== undefined ? { workerTaskId: meta.taskId } : {}),
+    ...(meta.lastLegalWorkerState !== undefined
+      ? { lastLegalWorkerState: meta.lastLegalWorkerState } : {}),
+  };
+}
+
 function isBlockedByTerminal(
   incoming: LiveStreamMeta,
   terminal: TerminalWatermark | undefined,
@@ -689,22 +700,42 @@ function sameSessionSnapshot(previous: Session, next: Session, server: Session):
 const SUMMARY_PROJECTION_FIELDS = [
   'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
-  'workerStatus', 'workerId', 'workerGeneration', 'workerTaskId', 'workerTaskSeq',
 ] as const;
 
+/** Worker generation/task cursors are independent of history summaryRevision. */
+function preserveNewerWorker(current: Session, incoming: Session, terminal?: TerminalWatermark): Session {
+  const olderGeneration = typeof current.workerGeneration === 'number'
+    && typeof incoming.workerGeneration === 'number'
+    && incoming.workerGeneration < current.workerGeneration;
+  const olderTask = current.workerId === incoming.workerId
+    && current.workerGeneration === incoming.workerGeneration
+    && typeof current.workerTaskSeq === 'number'
+    && typeof incoming.workerTaskSeq === 'number'
+    && incoming.workerTaskSeq < current.workerTaskSeq;
+  const completedTask = incoming.workerStatus === 'running' && terminal
+    && typeof incoming.workerTaskSeq === 'number' && typeof terminal.taskSeq === 'number'
+    && incoming.workerTaskSeq <= terminal.taskSeq
+    && sameWorkerGeneration({ workerId: incoming.workerId ?? undefined,
+      generation: incoming.workerGeneration ?? undefined }, terminal);
+  if (!olderGeneration && !olderTask && !completedTask) return incoming;
+  return { ...incoming, workerId: current.workerId, workerStatus: current.workerStatus,
+    workerGeneration: current.workerGeneration, workerTaskId: current.workerTaskId,
+    workerTaskSeq: current.workerTaskSeq, lastLegalWorkerState: current.lastLegalWorkerState };
+}
+
 /** A delayed HTTP/WS snapshot must not roll a newer summary projection back. */
-function preserveNewerSummary(current: Session, incoming: Session): Session {
+function preserveNewerSummary(current: Session, incoming: Session, terminal?: TerminalWatermark): Session {
   const currentRevision = current.summaryRevision;
   const incomingRevision = incoming.summaryRevision;
   if (typeof currentRevision !== 'number'
       || currentRevision <= (typeof incomingRevision === 'number' ? incomingRevision : -1)) {
-    return preserveNewerQueue(current, preserveNewerUnread(current, incoming));
+    return preserveNewerWorker(current, preserveNewerQueue(current, preserveNewerUnread(current, incoming)), terminal);
   }
   const preserved = { ...incoming, summaryRevision: currentRevision };
   for (const field of SUMMARY_PROJECTION_FIELDS) {
     if (field in current) Object.assign(preserved, { [field]: current[field] });
   }
-  return preserveNewerQueue(current, preserveNewerUnread(current, preserved));
+  return preserveNewerWorker(current, preserveNewerQueue(current, preserveNewerUnread(current, preserved)), terminal);
 }
 
 // ── Transcript helpers ──────────────────────────────────────────────────────
@@ -719,7 +750,10 @@ function ensureTranscript(
   session: Session,
 ): SessionTranscript {
   const existing = transcripts?.[session.id];
-  if (existing && !transcriptIsStale(existing, session)) return existing;
+  // A versioned window is replaced only by mergeWindowPage's authoritative
+  // epoch/revision comparison. Summary metadata does not carry replacement
+  // rows and must never re-tag the mirrored display as a new durable window.
+  if (existing && (existing.window.epoch || !transcriptIsStale(existing, session))) return existing;
   return {
     window: windowFromSession(session),
     runtime: [],
@@ -1426,11 +1460,12 @@ function applyHistoryPageToState(
   sessionId: string,
   page: HistoryPage,
   base?: SessionTranscript,
+  preparedMerge?: ReturnType<typeof mergeWindowPage>,
 ): Partial<SessionStore> {
   const session = sessionOf(s, sessionId);
   if (!session) return s;
   const transcript = base ?? ensureTranscript(s.sessionTranscripts, session);
-  const merged = mergeWindowPage(transcript.window, page);
+  const merged = preparedMerge ?? mergeWindowPage(transcript.window, page);
   if (!merged.accepted) {
     // A page that neither adds an offset nor advances the revision is not an
     // error — a focus refresh of an unchanged window is exactly this — but the
@@ -1668,9 +1703,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const pinStateTouchedDuringFetch =
             (s._pinStateTouchedSeq ?? 0) > pinTouchedAtStart;
           const snapshotIsTransientDone = sess.workerStatus === 'done';
-          const preserveLocalWorker =
+          const newerGeneration = typeof sess.workerGeneration === 'number'
+            && typeof cur.workerGeneration === 'number'
+            && sess.workerGeneration > cur.workerGeneration;
+          const preserveLocalWorker = !newerGeneration && (
             touchedDuringFetch ||
-            (touchedBefore && (cur.workerStatus === null || snapshotIsTransientDone));
+            (touchedBefore && (cur.workerStatus === null || snapshotIsTransientDone))
+          );
           let next = sess;
           // summary=1 intentionally omits history.  Do not let that empty
           // projection erase a loaded/local history that is needed when the
@@ -1751,17 +1790,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               // it is the destroy/crash transition, not a missing value.
               workerStatus: cur.workerStatus,
               workerId: cur.workerId,
+              lastLegalWorkerState: cur.lastLegalWorkerState,
+              workerGeneration: cur.workerGeneration,
+              workerTaskId: cur.workerTaskId,
+              workerTaskSeq: cur.workerTaskSeq,
             };
           }
-          // summary=1 omits workerId (server.py `_session_summary`) — carry the
-          // last-known value forward so the toolbar / worker actions keep
+          // Legacy summaries can omit workerId. Carry the last-known value
+          // forward only when the identity is absent so the toolbar / worker actions keep
           // resolving the worker after a plain list refresh. Only when the
           // server still reports a live worker (workerStatus present): once the
           // worker is killed/crashed the summary flips workerStatus to null,
           // and a dead workerId must not keep the action buttons alive.
           const carryWorkerId = preserveLocalWorker
             ? cur.workerId
-            : (cur.workerId && sess.workerStatus ? cur.workerId : sess.workerId);
+            : ('workerId' in sess
+              ? sess.workerId
+              : (cur.workerId && sess.workerStatus ? cur.workerId : undefined));
           // summary=1 omits the per-session settings — keep the current
           // session's known values (loaded on demand via the settings popover)
           // across refreshes so the pills / effort select don't flip to
@@ -1826,7 +1871,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               next = mergeSessionSettingPatch(next, mutation?.authoritative);
             }
           }
-          next = preserveNewerSummary(cur, next);
+          next = preserveNewerSummary(cur, next, s.terminalWatermarks[sid]);
           return sameSessionSnapshot(cur, next, sess) ? cur : next;
         });
         const consumedEventIds = new Set(sessions.map((sess) => sess.id));
@@ -3009,8 +3054,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const session = sessionOf(s, sessionId);
       if (!session) return s;
       const base = ensureTranscript(s.sessionTranscripts, session);
-      accepted = mergeWindowPage(base.window, page).accepted;
-      return applyHistoryPageToState(s, sessionId, page);
+      // Reuse this merge: copying and tagging a long loaded window twice
+      // contributes no additional authority check inside the same store set.
+      const merged = mergeWindowPage(base.window, page);
+      accepted = merged.accepted;
+      return applyHistoryPageToState(s, sessionId, page, base, merged);
     });
     return accepted;
   },
@@ -3080,7 +3128,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return {
           liveStreamBuffers: nextBuffers,
           sessions: s.sessions.map((session) => session.id === sessionId
-            ? { ...session, workerId: meta.workerId ?? session.workerId, workerStatus: status }
+            ? { ...session, workerId: meta.workerId ?? session.workerId, workerStatus: status,
+                ...workerStatusMetadata(meta) }
             : session),
           _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
         };
@@ -3092,6 +3141,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               ...session,
               workerId: terminal ? null : meta.workerId ?? session.workerId,
               workerStatus: status,
+              ...workerStatusMetadata(meta),
             }
           : session),
         _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
@@ -3572,6 +3622,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                   ? s.sessionSettingMutations[id].patch
                   : undefined,
               ),
+              s.terminalWatermarks[id],
             )
           : session,
       ),

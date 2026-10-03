@@ -1,4 +1,4 @@
-/* global window, process, setTimeout, URL, Event, console */
+/* global window, document, MutationObserver, process, setTimeout, URL, Event, console */
 // Isolated Chromium regression for T-030 (done indicator latency).
 //
 // Serves the production build from `dist/` on a loopback-only, isolated port and
@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 
-const DIST = path.resolve('dist');
+const DIST = path.resolve(process.env.PAN_DONE_INDICATOR_DIST || 'dist');
 const PORT = Number(process.env.PAN_DONE_INDICATOR_E2E_PORT || 8766);
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -41,12 +41,17 @@ const MIME = {
 };
 
 // ── "Server" state the REST endpoints report ──
+let currentTaskSeq = 1;
 const session = (workerStatus, workerId = 'w1') => ({
   id: 'A',
   name: 'Alpha',
   adapter: 'cbc',
   workerStatus,
   workerId,
+  workerGeneration: 1,
+  workerTaskSeq: currentTaskSeq,
+  lastLegalWorkerState: workerStatus,
+  summaryRevision: 10,
   historyTotal: 1,
   lastMessage: 'seed',
   alwaysThinkingEnabled: false,
@@ -142,6 +147,14 @@ try {
   const card = page.locator('[data-session-card-id="A"]');
   await card.waitFor({ state: 'visible', timeout: 15000 });
 
+  await page.evaluate(() => {
+    window.__indicatorRedFlashes = [];
+    new MutationObserver(() => {
+      const dot = document.querySelector('[data-session-card-id="A"] span.rounded-full');
+      if (dot?.classList.contains('bg-danger')) window.__indicatorRedFlashes.push(dot.title);
+    }).observe(document.body, { subtree: true, attributes: true, childList: true });
+  });
+
   const dot = card.locator('span.rounded-full').first();
   const dotClass = async () => (await dot.getAttribute('class')) || '';
 
@@ -178,7 +191,8 @@ try {
       window.__emitWs({
         type: 'worker.result',
         sessionId: 'A',
-        workerId: 'w1',
+        workerId: 'w1', generation: 1, taskSeq: 1,
+        session: { lastLegalWorkerState: 'idle' },
         status: 'done',
         result: 'finished',
       }),
@@ -192,12 +206,14 @@ try {
     'focus recovery corrects a stale running dot after a missed terminal event',
     async () => {
       // A new turn starts: the backend pushes "running" and agrees via REST.
+      currentTaskSeq = 2;
       sessionsState = [session('running')];
       await page.evaluate(() =>
         window.__emitWs({
           type: 'worker.status',
           sessionId: 'A',
-          workerId: 'w1',
+          workerId: 'w1', generation: 1, taskSeq: 2,
+          session: { lastLegalWorkerState: 'running' },
           status: 'running',
         }),
       );
@@ -206,12 +222,19 @@ try {
       // The completion event never reaches this client; only the authoritative
       // REST snapshot knows the worker settled. 'A' is also the most recently
       // touched session — the case the old global-counter guard shielded forever.
-      sessionsState = [session('idle')];
+      // The history summary cursor may lag while runtime truth is fresh.
+      sessionsState = [{ ...session('idle'), summaryRevision: 9 }];
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       const elapsed = await waitForDot('bg-success', 5000);
       return `recovered ${elapsed}ms after focus`;
     },
   );
+
+  await runCase('normal completion never flashes a false legal-running mismatch', async () => {
+    const flashes = await page.evaluate(() => window.__indicatorRedFlashes);
+    assert.deepEqual(flashes, []);
+    return 'no red flashes';
+  });
 
   await runCase('no requests to protected ports and no page errors', async () => {
     assert.deepEqual(
