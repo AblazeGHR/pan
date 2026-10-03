@@ -1731,3 +1731,130 @@ def test_r3_status_remains_standard_json(tmp_path):
     parsed = json.loads(raw, parse_constant=_reject)
     assert parsed["engine"]["startup"]["residual"]["cleanup_seconds"] is None
     record_evidence("r3_n2_standard_json", {"standard_json": True})
+
+
+# ── P2 接线：可选 cwd / shell_argv 透传（默认行为逐字不变）────────────────
+
+
+class _RunnerKwargsSpy:
+    """记录 ``TerminalRunner`` 实际收到的 kwargs（生产装配路径，仅观察）。"""
+
+    def __init__(self) -> None:
+        self.kwargs: dict[str, Any] = {}
+
+    def run(self) -> int:
+        return 0
+
+
+def _spy_runner_kwargs(monkeypatch, tmp_path, terminal_id: str, **launcher_kwargs) -> dict:
+    spy = _RunnerKwargsSpy()
+    real_runner = launcher_module.TerminalRunner
+    monkeypatch.setattr(
+        launcher_module, "TerminalRunner",
+        lambda *args, **kwargs: (spy.kwargs.update(kwargs), spy)[1],
+    )
+    launcher = TerminalLauncher(
+        terminal_id, tmp_path / "secrets" / f"{terminal_id}.secret",
+        status_dir=tmp_path / "status",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        **launcher_kwargs,
+    )
+    assert launcher.run() == 0
+    assert launcher_module.TerminalRunner is not real_runner  # 确已替换
+    return spy.kwargs
+
+
+def test_optional_cwd_and_shell_argv_reach_runner(monkeypatch, tmp_path):
+    """可选接线：cwd / shell_argv 透传给 TerminalRunner（供真实 cwd 验证）。"""
+    kwargs = _spy_runner_kwargs(
+        monkeypatch, tmp_path, "term_cwdopt", cwd=str(tmp_path), shell_argv=("pwsh.exe", "-NoLogo")
+    )
+    assert kwargs["cwd"] == str(tmp_path)
+    assert tuple(kwargs["shell_argv"]) == ("pwsh.exe", "-NoLogo")
+
+
+def test_default_launcher_passes_none_cwd_and_shell(monkeypatch, tmp_path):
+    """默认（不传）时传给 runner 的仍是 None —— 与接线前逐字等价。"""
+    kwargs = _spy_runner_kwargs(monkeypatch, tmp_path, "term_cwddef")
+    assert kwargs["cwd"] is None
+    assert kwargs["shell_argv"] is None, "缺省必须让 runner 用自带 cmd.exe /q /d"
+    # 既有尺寸/列数接线不受影响
+    assert kwargs["rows"] == launcher_module.DEFAULT_ROWS
+    assert kwargs["cols"] == launcher_module.DEFAULT_COLS
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (None, None),
+        ("", None),
+        ('["pwsh.exe","-NoLogo"]', ["pwsh.exe", "-NoLogo"]),
+        ('  ["cmd.exe"]  ', ["cmd.exe"]),
+    ],
+)
+def test_shell_argv_cli_parsing_accepts_json_arrays(raw, expected):
+    """CLI：--shell-argv 接受 JSON 数组（缺省/空串 = 不改变默认）。"""
+    assert launcher_module._parse_shell_argv(raw) == expected
+
+
+@pytest.mark.parametrize("bad", ["not-json", "{}", "[]", "[1]", '[""]', "[null]", "123"])
+def test_shell_argv_cli_parsing_rejects_invalid(bad):
+    """非法 shell argv → ValueError（不静默接受、不部分执行）。"""
+    with pytest.raises(ValueError):
+        launcher_module._parse_shell_argv(bad)
+
+
+def test_main_rejects_invalid_shell_argv_as_usage_error(tmp_path, capsys):
+    """main()：非法 --shell-argv → 用法错误码 2，且不落盘、不回显 argv 原文。"""
+    secret = tmp_path / "secrets" / "term_bad.secret"
+    code = launcher_module.main([
+        "--terminal-id", "term_bad", "--secret-file", str(secret),
+        "--shell-argv", "not-json",
+    ])
+    assert code == 2, "非法 shell argv 必须是用法错误"
+    assert not (tmp_path / "launcher-status").exists(), "用法错误不得派生任何文件"
+    assert "not-json" not in capsys.readouterr().err
+
+
+def test_cwd_and_shell_cli_flags_reach_constructor(monkeypatch, tmp_path):
+    """CLI：--cwd / --shell-argv 经 main() 传入 TerminalLauncher 构造。"""
+    seen: dict[str, Any] = {}
+
+    class _StubLauncher:
+        def __init__(self, terminal_id, secret_file, **kwargs):
+            seen.update(kwargs)
+
+        def run(self) -> int:
+            return 0
+
+    monkeypatch.setattr(launcher_module, "TerminalLauncher", _StubLauncher)
+    code = launcher_module.main([
+        "--terminal-id", "term_cli", "--secret-file", str(tmp_path / "s.secret"),
+        "--cwd", str(tmp_path), "--shell-argv", '["pwsh.exe","-NoLogo"]',
+    ])
+    assert code == 0
+    assert seen["cwd"] == str(tmp_path)
+    assert seen["shell_argv"] == ["pwsh.exe", "-NoLogo"]
+    record_evidence(
+        "p2_optional_cwd_shell_cli",
+        {"cwd": seen["cwd"], "shell_argv": seen["shell_argv"], "exit_code": code},
+    )
+
+
+def test_main_without_new_flags_keeps_defaults(monkeypatch, tmp_path):
+    """不带新flag 时构造参数为 None（既有调用方零影响）。"""
+    seen: dict[str, Any] = {}
+
+    class _StubLauncher:
+        def __init__(self, terminal_id, secret_file, **kwargs):
+            seen.update(kwargs)
+
+        def run(self) -> int:
+            return 0
+
+    monkeypatch.setattr(launcher_module, "TerminalLauncher", _StubLauncher)
+    assert launcher_module.main([
+        "--terminal-id", "term_cli2", "--secret-file", str(tmp_path / "s.secret"),
+    ]) == 0
+    assert seen["cwd"] is None and seen["shell_argv"] is None
+

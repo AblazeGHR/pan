@@ -263,6 +263,8 @@ class TerminalLauncher:
         *,
         rows: int = DEFAULT_ROWS,
         cols: int = DEFAULT_COLS,
+        cwd: str | None = None,
+        shell_argv: Sequence[str] | None = None,
         engine_total_budget: float = ENGINE_TOTAL_BUDGET_SECONDS,
         engine_close_attempt_budget: float = ENGINE_CLOSE_ATTEMPT_BUDGET_SECONDS,
         engine_cleanup_retry_interval: float = ENGINE_CLEANUP_RETRY_INTERVAL_SECONDS,
@@ -274,6 +276,11 @@ class TerminalLauncher:
         self._secret_file = Path(secret_file)
         self._rows = int(rows)
         self._cols = int(cols)
+        # cwd / shell_argv 是**可选接线**（P2 服务的真实 cwd/shell 配置）：默认
+        # None 时行为与接线前完全一致（TerminalRunner 使用其自带默认 shell、
+        # 不设置 cwd）。
+        self._cwd = str(cwd) if cwd is not None else None
+        self._shell_argv = tuple(str(item) for item in shell_argv) if shell_argv is not None else None
         self._engine_total_budget = max(0.0, float(engine_total_budget))
         self._engine_attempt_budget = float(engine_close_attempt_budget)
         self._engine_retry_interval = max(0.0, float(engine_cleanup_retry_interval))
@@ -419,6 +426,8 @@ class TerminalLauncher:
             rows=self._rows,
             cols=self._cols,
             emulator=engine,
+            cwd=self._cwd,
+            shell_argv=self._shell_argv,
         )
 
     # ------------------------------------------------------ 引擎收尾（§4）
@@ -684,7 +693,32 @@ def _parse_argv(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--secret-file", required=True, help="<root>/secrets/<terminal_id>.secret")
     parser.add_argument("--rows", type=int, default=DEFAULT_ROWS)
     parser.add_argument("--cols", type=int, default=DEFAULT_COLS)
+    # 可选接线（默认缺省 = 与接线前行为一致）：真实 cwd 与替代 shell。
+    parser.add_argument("--cwd", default=None)
+    parser.add_argument(
+        "--shell-argv",
+        default=None,
+        help="JSON 数组形式的 shell argv（缺省 = TerminalRunner 默认 cmd.exe /q /d）",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
+
+
+def _parse_shell_argv(raw: str | None) -> list[str] | None:
+    """``--shell-argv`` 的 JSON 数组解析；缺省或空串 → ``None``（保持默认）。"""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("shell argv is not valid JSON") from exc
+    if not isinstance(parsed, list) or not parsed:
+        raise ValueError("shell argv must be a non-empty JSON array")
+    if not all(isinstance(item, str) and item for item in parsed):
+        raise ValueError("shell argv items must be non-empty strings")
+    return [str(item) for item in parsed]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -693,11 +727,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = _parse_argv(argv)
     except SystemExit as exc:  # argparse 已输出用法
         return int(exc.code or 2)
+    try:
+        shell_argv = _parse_shell_argv(args.shell_argv)
+    except ValueError:
+        # 用法错误（与 argparse 退出码一致）；不落盘、不输出 argv 原文。
+        return 2
     launcher = TerminalLauncher(
         args.terminal_id,
         args.secret_file,
         rows=int(args.rows),
         cols=int(args.cols),
+        cwd=args.cwd,
+        shell_argv=shell_argv,
     )
     try:
         return int(launcher.run())
