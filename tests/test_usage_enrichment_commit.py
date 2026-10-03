@@ -29,7 +29,11 @@ are local doubles, and every Session is bound to pytest's ``tmp_path``.
 
 import asyncio
 import copy
+import inspect
+import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -133,59 +137,196 @@ def _no_retry_delay(monkeypatch):
 # ── 1. cancellation is not evidence of "not persisted" ──
 
 
-def test_cancelled_after_persisted_save_keeps_memory_with_disk(monkeypatch, tmp_path):
-    """A cancelled-but-persisted attempt must not roll memory back.
+def _patch_save(monkeypatch, save_impl):
+    """Route the commit's durable write through ``save_impl(sess)``.
 
-    ``await_persistence`` waits for the shielded writer to finish and only
-    then re-raises ``CancelledError``, so disk already holds the new accounting.
-    Rolling memory back here forks memory from disk; the next unrelated save
-    would then overwrite the correct on-disk numbers with the stale snapshot,
-    and the durable job is already gone from both sides.
+    ``worker._await_usage_commit`` persists via ``session.save_async_outcome``,
+    which runs ``session._save_body`` in the save executor thread -- so the
+    replacement must be **sync**; an async one would never be awaited.
+
+    ``save_impl`` receives the Session and may raise to fail the write.
+    """
+    if inspect.iscoroutinefunction(save_impl):
+        raise AssertionError(
+            "_save_body runs in the save executor thread; use a sync callable")
+
+    def _body(sess, **kwargs):
+        return save_impl(sess)
+
+    monkeypatch.setattr(_sess, "_save_body", _body)
+    return _body
+
+
+def _disk_usage(session_id, tmp_path):
+    """Re-read the durable record from disk (no in-memory state involved)."""
+    path = tmp_path / "sessions" / (session_id + ".json")
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8")).get("raw_usage")
+
+
+def test_real_cancel_during_successful_write_commits(monkeypatch, tmp_path):
+    """Real task.cancel() while a *successful* write is in flight.
+
+    The writer is slowed so the cancellation provably lands before the write
+    finishes. The durable record is then re-read from disk and compared with
+    memory, the durable job and the provider cursor: all must agree.
     """
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     _no_retry_delay(monkeypatch)
 
-    sid = "ses_cancel_persisted"
+    sid = "ses_cancel_ok"
     adapter = _make_cursor_adapter({0: _delta()})
     s = _new_session(sid, tmp_path)
     w = _new_worker(sid, adapter)
     worker._usage_enrichment_adapters["task:cursor-1"] = adapter
     _seed_job(s, w)
-
     s.raw_usage = {"m": _usage("m", 2, 20, 0.5)}
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
     baseline_rc = 2
 
-    real_save = _sess.save_async
+    real_save_body = _sess._save_body
+    started = threading.Event()
 
-    async def save_then_cancel(sess):
-        # Real durable write first (goes through the shielded writer and
-        # touches disk), then the caller is cancelled while awaiting.
-        await real_save(sess)
-        raise asyncio.CancelledError()
+    def slow_save_body(sess, **kwargs):
+        started.set()
+        time.sleep(0.25)          # cancellation lands inside this window
+        return real_save_body(sess, **kwargs)
 
-    monkeypatch.setattr(_sess, "save_async", save_then_cancel)
+    monkeypatch.setattr(_sess, "_save_body", slow_save_body)
 
     async def scenario():
-        await worker._run_usage_enrichment(sid)
+        task = asyncio.ensure_future(worker._run_usage_enrichment(sid))
+        while not started.is_set():
+            await asyncio.sleep(0.005)
+        task.cancel()               # real cancel, mid-write
+        return task
 
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(scenario())
+    task = asyncio.run(scenario())
+    assert task.cancelled(), "the cancellation must reach the caller"
 
-    assert s.raw_usage["m"]["request_count"] == baseline_rc + 1, (
-        f"committed-then-cancelled must keep memory in step with disk: {s.raw_usage}"
+    disk = _disk_usage(sid, tmp_path)
+    assert disk is not None, "durable record must exist after a successful write"
+    assert disk["m"]["request_count"] == baseline_rc + 1, f"on disk: {disk}"
+    # memory, disk, job and cursor must all agree the commit happened
+    assert s.raw_usage["m"]["request_count"] == disk["m"]["request_count"], s.raw_usage
+    assert s.total_usage["prompt_tokens"] == disk["m"]["rawUsage"]["prompt_tokens"], (
+        f"total disagrees with disk: {s.total_usage}"
     )
-    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 20 + 100, s.raw_usage
-    assert s.total_usage["prompt_tokens"] == 20 + 100, s.total_usage
-    assert s.usage_enrichment_pending == [], (
-        "a persisted commit must not resurrect the durable job in memory"
-    )
-    assert s.adapter_config.get("prev_usage_ts") == 1, (
-        f"provider cursor must stay committed with the usage: {s.adapter_config}"
-    )
-    print("PASS: cancel-after-persist keeps memory in step with disk")
+    assert s.usage_enrichment_pending == [], "committed job must not be resurrected"
+    assert s.adapter_config.get("prev_usage_ts") == 1, s.adapter_config
+    print("PASS: real cancel during a successful write keeps memory == disk")
     _cleanup()
+
+
+def test_real_cancel_during_failing_write_rolls_back(monkeypatch, tmp_path):
+    """Real task.cancel() while a *failing* write is in flight.
+
+    await_persistence consumes the writer's real exception and re-raises the
+    cancellation, so CancelledError alone cannot say whether bytes landed. The
+    decision must follow the writer's verifiable result: here nothing is on
+    disk, so usage, cursor and job all roll back and the terminal is accounted
+    exactly once after the replay.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_cancel_fail"
+    adapter = _make_cursor_adapter({0: _delta()})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+    s.raw_usage = {"m": _usage("m", 2, 20, 0.5)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+    baseline_rc = 2
+
+    real_save_body = _sess._save_body
+    started = threading.Event()
+    fail = {"on": True}
+
+    def slow_failing_save_body(sess, **kwargs):
+        started.set()
+        time.sleep(0.25)
+        if fail["on"]:
+            raise OSError("disk full")
+        return real_save_body(sess, **kwargs)
+
+    monkeypatch.setattr(_sess, "_save_body", slow_failing_save_body)
+
+    async def scenario():
+        task = asyncio.ensure_future(worker._run_usage_enrichment(sid))
+        while not started.is_set():
+            await asyncio.sleep(0.005)
+        task.cancel()                # real cancel, mid failing write
+        return task
+
+    task = asyncio.run(scenario())
+    assert task.cancelled()
+
+    assert _disk_usage(sid, tmp_path) is None, "a failed write must leave no record"
+    assert [j["key"] for j in (s.usage_enrichment_pending or [])] == [
+        "task:cursor-1"], s.usage_enrichment_pending
+    assert s.raw_usage["m"]["request_count"] == baseline_rc, (
+        f"uncommitted usage must roll back: {s.raw_usage}"
+    )
+    assert s.adapter_config.get("prev_usage_ts") is None, (
+        f"uncommitted cursor must roll back too: {s.adapter_config}"
+    )
+
+    # Replay with a working writer: accounted exactly once, on disk too.
+    monkeypatch.setattr(_sess, "_save_body", real_save_body)
+    asyncio.run(worker._run_usage_enrichment(sid))
+    disk = _disk_usage(sid, tmp_path)
+    assert s.raw_usage["m"]["request_count"] == baseline_rc + 1, s.raw_usage
+    assert disk["m"]["request_count"] == baseline_rc + 1, f"disk: {disk}"
+    assert s.usage_enrichment_pending == []
+    print("PASS: real cancel during a failing write rolls back and replays once")
+    _cleanup()
+
+
+def test_cancelled_save_with_no_write_is_not_committed(monkeypatch, tmp_path):
+    """A save raising CancelledError without writing is NOT a commit.
+
+    Guards the exact misclassification found in review: retirement of the writer
+    is not evidence of a successful write.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_cancel_nowrite"
+    adapter = _make_cursor_adapter({0: _delta()})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+
+    def cancel_without_writing(sess, **kwargs):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(_sess, "_save_body", cancel_without_writing)
+
+    async def scenario():
+        with pytest.raises(asyncio.CancelledError):
+            await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    assert _disk_usage(sid, tmp_path) is None
+    assert s.raw_usage["m"]["request_count"] == 1, (
+        f"an unwritten save must not count as committed: {s.raw_usage}"
+    )
+    assert [j["key"] for j in (s.usage_enrichment_pending or [])] == [
+        "task:cursor-1"], s.usage_enrichment_pending
+    assert s.adapter_config.get("prev_usage_ts") is None, s.adapter_config
+    print("PASS: a cancelled save with no write is not a commit")
+    _cleanup()
+
 
 
 # ── 2. usage and provider cursor commit/roll back as one unit ──
@@ -216,12 +357,12 @@ def test_save_failure_rolls_back_usage_and_cursor_together(monkeypatch, tmp_path
 
     saves = []
 
-    async def flaky_save(sess):
+    def flaky_save(sess):
         saves.append(1)
         if len(saves) == 1:
             raise OSError("transient save failure")
 
-    monkeypatch.setattr(_sess, "save_async", flaky_save)
+    _patch_save(monkeypatch, flaky_save)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
@@ -270,12 +411,12 @@ def test_cursor_not_advanced_when_rollback_happens(monkeypatch, tmp_path):
 
     saves = []
 
-    async def flaky_save(sess):
+    def flaky_save(sess):
         saves.append(1)
         if len(saves) == 1:
             raise OSError("transient save failure")
 
-    monkeypatch.setattr(_sess, "save_async", flaky_save)
+    _patch_save(monkeypatch, flaky_save)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
@@ -301,10 +442,11 @@ def test_rollback_preserves_concurrent_usage_writer(monkeypatch, tmp_path):
     Session-scoped enrichment lock, so it can commit while this attempt awaits
     the disk. A whole-snapshot restore would discard it.
 
-    Reimport recomputes usage from the provider's own totals, so its numbers
-    already include this terminal: the attempt is therefore *superseded* -- the
-    cursor stays advanced and the job is consumed rather than replayed on top of
-    the newer base (which would double-count).
+    There is deliberately **no** "superseded" shortcut here: the reimport read
+    the provider before this attempt published, so nothing proves its total
+    already contains this terminal. The job is therefore replayed and the delta
+    is applied to whatever the live usage is -- which is why the total ends up
+    one higher than the reimport wrote.
     """
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
@@ -320,38 +462,34 @@ def test_rollback_preserves_concurrent_usage_writer(monkeypatch, tmp_path):
     s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
 
-    saves: list[int] = []
-
-    async def save_with_reimport(sess):
-        # The reimport writer commits provider-recomputed totals mid-flight.
-        if not saves:
+    def save_then_reimport(sess):
+        if len(saves) == 0:
             saves.append(1)
+            # A reimport commits a recomputed total mid-flight.
             sess.raw_usage = copy.deepcopy({"m": _usage("m", 99, 990, 9.9)})
             sess.total_usage = _sess.compute_total_usage(sess.raw_usage)
             raise OSError("transient save failure")
 
-    monkeypatch.setattr(_sess, "save_async", save_with_reimport)
+    saves: list[int] = []
+    _patch_save(monkeypatch, save_then_reimport)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
 
     asyncio.run(scenario())
 
-    # The reimported totals survive untouched...
-    assert s.raw_usage["m"]["request_count"] == 99, (
-        f"concurrent writer's usage was clobbered: {s.raw_usage}"
+    # The reimport's total is the base; the replayed job added its delta once.
+    assert s.raw_usage["m"]["request_count"] == 100, (
+        f"expected reimport base 99 + one replayed delta: {s.raw_usage}"
     )
-    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 990, s.raw_usage
-    assert s.total_usage["prompt_tokens"] == 990, s.total_usage
-    # ...and the superseded job is consumed instead of double-counted.
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 990 + 100, s.raw_usage
+    assert s.total_usage["prompt_tokens"] == 990 + 100, (
+        f"total must match the raw usage it summarises: {s.total_usage}"
+    )
     assert s.usage_enrichment_pending == [], s.usage_enrichment_pending
-    assert s.adapter_config.get("prev_usage_ts") == 1, (
-        f"a superseded attempt must leave the cursor advanced: {s.adapter_config}"
-    )
-    assert len(adapter.calls) == 1, (
-        f"a superseded job must not be replayed, got {adapter.calls}"
-    )
-    print("PASS: a concurrent writer supersedes without clobber or double-count")
+    # The job was replayed rather than dropped, and settled exactly once more.
+    assert len(adapter.calls) == 2, f"expected one replay, got {adapter.calls}"
+    print("PASS: a concurrent writer's usage is preserved and reconciled")
     _cleanup()
 
 
@@ -377,12 +515,12 @@ def test_rollback_keeps_own_usage_when_no_concurrent_writer(monkeypatch, tmp_pat
 
     saves = []
 
-    async def flaky_save(sess):
+    def flaky_save(sess):
         saves.append(1)
         if len(saves) == 1:
             raise OSError("transient save failure")
 
-    monkeypatch.setattr(_sess, "save_async", flaky_save)
+    _patch_save(monkeypatch, flaky_save)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
@@ -400,15 +538,14 @@ def test_rollback_keeps_own_usage_when_no_concurrent_writer(monkeypatch, tmp_pat
     _cleanup()
 
 
-def test_partial_accumulate_failure_leaves_session_untouched(monkeypatch, tmp_path):
-    """A raise while building the new usage must not half-apply it.
+def test_provider_failure_before_accumulate_keeps_session_intact(monkeypatch, tmp_path):
+    """A provider failure *before* accumulation must leave the Session intact.
 
-    The candidate is computed off to the side, so an exception during
-    accumulation leaves both the Session and the durable job consistent --
-    no partially-accumulated per-model dicts with nothing left to replay them.
-
-    The provider raises once and then yields no entries, and the save drops the
-    pending job, so the durable loop terminates after a single attempt.
+    This is the "the lookup blew up" path, not the half-applied-accumulation
+    path (that one is covered by
+    ``test_accumulate_exception_does_not_mutate_session_usage``, which really
+    does raise inside ``accumulate_raw_usage``). Here the provider fails, so no
+    candidate is ever built and nothing is published.
     """
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
@@ -436,10 +573,10 @@ def test_partial_accumulate_failure_leaves_session_untouched(monkeypatch, tmp_pa
     s.raw_usage = copy.deepcopy(before)
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
 
-    async def save_drop_job(sess):
+    def save_drop_job(sess):
         sess.usage_enrichment_pending = []
 
-    monkeypatch.setattr(_sess, "save_async", save_drop_job)
+    _patch_save(monkeypatch, save_drop_job)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
@@ -503,12 +640,12 @@ def test_accumulate_exception_does_not_mutate_session_usage(monkeypatch, tmp_pat
     # Drop the job after the first failed attempt so the loop terminates.
     attempts = {"n": 0}
 
-    async def save_then_drop(sess):
+    def save_then_drop(sess):
         attempts["n"] += 1
         sess.usage_enrichment_pending = []
         raise OSError("transient save failure")
 
-    monkeypatch.setattr(_sess, "save_async", save_then_drop)
+    _patch_save(monkeypatch, save_then_drop)
 
     async def scenario():
         await worker._run_usage_enrichment(sid)
@@ -523,4 +660,356 @@ def test_accumulate_exception_does_not_mutate_session_usage(monkeypatch, tmp_pat
     )
     assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 30, s.raw_usage
     print("PASS: candidate build is isolated from the live Session")
+    _cleanup()
+
+
+# ── faithful reimport interleaving (HTTP reimport, not a hand-made number) ──
+#
+# ``packages/web/server.py`` recomputes usage from the provider:
+#   raw_usage_entries = provider.get_raw_usage(session_id, cwd)   # read
+#   existing.raw_usage = sess.accumulate_raw_usage(None, entries) # recompute
+# and it does NOT hold the Session-scoped enrichment lock. The read happens
+# before this enrichment attempt publishes, so reimport can commit a *stale*
+# total. Nothing here asserts that such a total "already includes" the current
+# terminal -- the job is always replayed and reconciled against live state.
+
+
+def test_stale_reimport_total_is_reconciled_by_replay(monkeypatch, tmp_path):
+    """A reimport that committed a *stale* total must not lose this terminal.
+
+    The reimport read the provider before this attempt published, so its total
+    does not contain the pending delta. The job must therefore be replayed: the
+    provider is re-read and the delta is applied to the *current* usage, so the
+    terminal ends up accounted exactly once on top of the reimported base.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_stale_reimport"
+    # cursor 0 -> the first delta; after the reimport resets usage the adapter
+    # still reports the same provider entry, so a replay sees it again.
+    adapter = _make_cursor_adapter({0: _delta(prompt=100, credit=0.25)})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+
+    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+
+    saves = []
+
+    def save_then_reimport(sess):
+        if len(saves) == 0:
+            saves.append(1)
+            # A reimport that read the provider *earlier*: its recomputed total
+            # only knows about the pre-existing usage, not the pending delta.
+            sess.raw_usage = copy.deepcopy({"m": _usage("m", 5, 50, 1.0)})
+            sess.total_usage = _sess.compute_total_usage(sess.raw_usage)
+            raise OSError("save failed after reimport committed")
+
+    _patch_save(monkeypatch, save_then_reimport)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    # The reimport's total is intact (not clobbered by a stale snapshot)...
+    assert s.raw_usage["m"]["request_count"] >= 5, s.raw_usage
+    # ...and this terminal was not lost: the replay re-read the provider.
+    assert len(adapter.calls) >= 2, (
+        f"the job must be replayed against live usage, calls={adapter.calls}"
+    )
+    # No double counting and no loss: the delta landed exactly once on the
+    # reimported base (50 prompt tokens of provider history + one 100-token
+    # delta), and the totals agree with each other.
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 150, (
+        f"stale reimport total must be reconciled by exactly one delta: {s.raw_usage}"
+    )
+    assert s.total_usage["prompt_tokens"] == 150, s.total_usage
+    assert s.usage_enrichment_pending == [], s.usage_enrichment_pending
+    print("PASS: a stale reimport total is reconciled by the replay")
+    _cleanup()
+
+
+def test_second_pending_job_is_drained_after_first(monkeypatch, tmp_path):
+    """A failing first job must not strand the second pending job.
+
+    The durable loop is a `while True` over ``usage_enrichment_pending``; a
+    rolled-back job is re-queued at the front and the loop must keep going so a
+    later job is still processed (and the earlier one eventually settles).
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_two_jobs"
+    adapter = _make_cursor_adapter({0: _delta(prompt=10, credit=0.1)})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:a"] = adapter
+    worker._usage_enrichment_adapters["task:b"] = adapter
+
+    first = _seed_job(s, w, key="task:a")
+    second = dict(first)
+    second.update({"key": "task:b", "taskId": "task:b"})
+    s.usage_enrichment_pending = [first, second]
+
+    s.raw_usage = {"m": _usage("m", 0, 0, 0.0)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+
+    attempts = {"n": 0}
+
+    def flaky(sess):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise OSError("first save fails")
+
+    _patch_save(monkeypatch, flaky)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    # Both jobs settled: nothing left pending.
+    assert s.usage_enrichment_pending == [], (
+        f"a job was stranded: {s.usage_enrichment_pending}"
+    )
+    # job:a failed once and replayed; job:b was drained in the same loop.
+    assert len(adapter.calls) >= 3, (
+        f"expected a replay plus the second job, calls={adapter.calls}"
+    )
+    print("PASS: the durable loop drains every pending job")
+    _cleanup()
+
+
+def test_restart_recovery_replays_persisted_job(monkeypatch, tmp_path):
+    """A job left pending by a crash is picked up by the recovery scan.
+
+    Simulates a restart: the Session is written with a pending job, the process
+    state is cleared, and ``recover_pending_usage_enrichment`` must schedule it
+    again so the terminal is not silently dropped.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_restart"
+    adapter = _make_cursor_adapter({0: _delta(prompt=7, credit=0.7)})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+    s.raw_usage = {"m": _usage("m", 0, 0, 0.0)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+
+    # Persist the pending job, then "restart": drop in-memory state.
+    asyncio.run(_sess.save_async(s))
+    _cleanup()
+
+    reloaded = _sess.get(sid)
+    assert reloaded is not None, "the session must reload from disk"
+    assert [j["key"] for j in (reloaded.usage_enrichment_pending or [])] == [
+        "task:cursor-1"], reloaded.usage_enrichment_pending
+
+    # Scheduling needs a running loop (it creates the durable worker task), so
+    # the recovery scan runs inside one.
+    async def run_recovery():
+        scheduled = worker.recover_pending_usage_enrichment()
+        task = worker._usage_enrichment_tasks.get(sid)
+        # The durable worker must actually be running, not just registered.
+        await asyncio.sleep(0)
+        return scheduled, (task is not None and not task.done())
+
+    scheduled, task_running = asyncio.run(run_recovery())
+    assert scheduled == 1, f"recovery must schedule the pending job, got {scheduled}"
+    assert task_running, "the recovered durable worker must be running"
+    print("PASS: a persisted pending job is recovered after restart")
+    _cleanup()
+
+
+def test_rollback_never_takes_back_a_field_a_concurrent_writer_moved(
+        monkeypatch, tmp_path):
+    """A cursor a concurrent writer moved after our merge must survive.
+
+    This is the ownership rule in ``_restore_usage_enrichment_state``: a field is
+    only taken back while it still holds the value *this attempt* wrote. The
+    merge recorded that it wrote ``prev_usage_ts``; a concurrent writer then moves
+    that same field while the save is in flight. If the rollback restored the
+    provider's value regardless of who owns the field now, it would hand the
+    field back to a stale cursor and undo the other writer's commit.
+
+    ``other_cursor`` is the control: nothing else touches it, so it must come
+    back to the provider's value.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_cursor_owner"
+    adapter = _make_cursor_adapter({0: _delta()})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+
+    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+    s.adapter_config["prev_usage_ts"] = 0
+
+    real_save_body = _sess._save_body
+    saves: list[int] = []
+
+    def save_then_concurrent(sess):
+        if len(saves) == 0:
+            saves.append(1)
+            # A concurrent writer (reimport / settings) moves the SAME cursor
+            # field after our merge already wrote it.
+            sess.adapter_config["prev_usage_ts"] = 99
+            raise OSError("transient save failure")
+        sess.usage_enrichment_pending = []
+        return real_save_body(sess)
+
+    _patch_save(monkeypatch, save_then_concurrent)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    assert s.adapter_config.get("prev_usage_ts") == 99, (
+        f"rollback took back a cursor a concurrent writer owns: {s.adapter_config}"
+    )
+    print("PASS: rollback never takes back a field a concurrent writer moved")
+    _cleanup()
+
+
+def test_rollback_never_takes_back_a_field_the_merge_skipped(
+        monkeypatch, tmp_path):
+    """A field the merge *skipped* is never rolled back, even on a value match.
+
+    ``_merge_usage_enrichment_state`` refuses to overwrite a cursor a concurrent
+    writer already moved, and does not record it as applied. If the rollback
+    restored "every field the snapshot touched" it would later see the live value
+    equal the snapshot's value and hand the field back -- undoing a write this
+    attempt never made. Here the concurrent writer sets the field to exactly the
+    value the provider wanted, so only the ``applied`` bookkeeping distinguishes
+    the two cases.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_skipped_cursor"
+    adapter = _make_cursor_adapter({0: _delta()})
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+
+    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+
+    # Pre-existing cursor; the adapter's lookup will try to advance it to 1.
+    s.adapter_config["prev_usage_ts"] = 0
+    saves: list[int] = []
+
+    def save_after_merge(sess):
+        if len(saves) == 0:
+            saves.append(1)
+            # Capture the value the concurrent writer's write left behind,
+            # observed *before* any rollback could touch it.
+            observed.append(dict(sess.adapter_config))
+            raise OSError("transient save failure")
+        sess.usage_enrichment_pending = []
+        return real_save_body(sess)
+
+    observed: list[dict] = []
+
+    def enrich_moving_cursor(sess):
+        # A concurrent writer changes the field *during* the lookup, so the
+        # compare-and-merge skips it (current != before).
+        sess.adapter_config["prev_usage_ts"] = 1
+        return _delta()
+
+    adapter.enrich_after_result = enrich_moving_cursor
+    _patch_save(monkeypatch, save_after_merge)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    # At the moment the failed save ran, the field held the concurrent writer's
+    # value; a rollback that restored unapplied fields would have reverted it to
+    # the provider's pre-lookup value.
+    assert observed, "the failing save must have been observed"
+    assert observed[0].get("prev_usage_ts") == 1, observed[0]
+    print("PASS: a field the merge skipped is not rolled back")
+    _cleanup()
+
+
+def test_cursor_only_change_rolls_back_with_save_failure(monkeypatch, tmp_path):
+    """A save failure with *no* usage delta must still roll the cursor back.
+
+    The provider can advance its cursor and report nothing new (already-counted
+    entries). The commit then has no usage to apply, but the cursor moved; if the
+    save fails and only the usage were rolled back, the cursor would stay
+    advanced and the replayed lookup would find no entries -- losing whatever the
+    cursor was standing in for.
+    """
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    _no_retry_delay(monkeypatch)
+
+    sid = "ses_cursor_only"
+    # Returns entries for cursor 0 but leaves the cursor advanced by the adapter.
+    adapter = _make_cursor_adapter({})
+    cursor_calls = []
+
+    def enrich_advancing_cursor(sess):
+        cursor_calls.append(1)
+        sess.set_adapter_field("prev_usage_ts", 1)
+        return None  # no new usage entries
+
+    adapter.enrich_after_result = enrich_advancing_cursor
+    s = _new_session(sid, tmp_path)
+    w = _new_worker(sid, adapter)
+    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+    _seed_job(s, w)
+    s.raw_usage = {"m": _usage("m", 2, 20, 0.5)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+    s.adapter_config["prev_usage_ts"] = 0
+
+    real_save_body = _sess._save_body
+    attempts = {"n": 0}
+
+    def fail_first_save(sess):
+        # Only the commit's own save fails; the retry-state save inside
+        # retry_job must succeed, otherwise the durable loop spins forever.
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise OSError("disk full")
+        # On the replay let the provider path finish and settle the job.
+        sess.usage_enrichment_pending = []
+        return real_save_body(sess)
+
+    _patch_save(monkeypatch, fail_first_save)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+
+    asyncio.run(scenario())
+
+    assert cursor_calls, "the provider must have been consulted"
+    # Usage untouched (no delta was ever applied)...
+    assert s.raw_usage["m"]["request_count"] == 2, s.raw_usage
+    # ...and the cursor advanced by the uncommitted attempt is rolled back.
+    assert s.adapter_config.get("prev_usage_ts") in (0, None), (
+        f"an uncommitted cursor-only change must roll back: {s.adapter_config}"
+    )
+    print("PASS: a cursor-only change rolls back with its save failure")
     _cleanup()

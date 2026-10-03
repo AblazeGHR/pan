@@ -2396,6 +2396,182 @@ async def await_persistence(future):
         raise
 
 
+class DurableOutcome:
+    """Verifiable result of one durable write attempt.
+
+    ``await_persistence`` deliberately hides the underlying failure: when the
+    caller is cancelled while the writer fails, it consumes the real exception
+    and re-raises ``CancelledError``.  A caller therefore cannot treat
+    ``CancelledError`` as evidence that the bytes landed -- "the writer
+    retired" is not "the write succeeded".
+
+    This result is only ever set from an *observable* outcome:
+
+    * ``succeeded`` -- the writer future completed without raising, i.e. the
+      filesystem operation returned normally.
+    * ``failed`` -- the writer future completed with an exception.
+    * ``cancelled_before_completion`` -- the future itself was cancelled and
+      never ran to a result.
+
+    ``succeeded`` is the only value that may be treated as committed.
+    """
+
+    __slots__ = ("succeeded", "error", "cancelled")
+
+    def __init__(self):
+        self.succeeded = False
+        self.cancelled = False
+        self.error: BaseException | None = None
+
+
+async def _persist_async_outcome(
+    session_id: str, operation, outcome: DurableOutcome | None = None,
+) -> DurableOutcome:
+    """Run one ordered durable operation and report its verifiable outcome.
+
+    Mirrors :func:`_persist_async` -- same ticket, same shielded writer, same
+    "cancellation waits for the writer to retire" contract -- but observes the
+    writer future *before* ``await_persistence`` erases its exception, so the
+    caller learns whether the write actually succeeded.
+
+    Pass ``outcome`` to observe a caller-owned object; the same instance is
+    filled in place, which is what lets a caller that was cancelled still read
+    the writer's verdict after the cancellation propagated.
+    """
+    if outcome is None:
+        outcome = DurableOutcome()
+
+    state, ticket, enqueued_at = _reserve_save_ticket(session_id)
+    try:
+        context = contextvars.copy_context()
+        result = state.submit_async(
+            ticket, lambda: context.run(
+                _run_persistence_ticket, state, ticket, enqueued_at, operation,
+            ),
+        )
+    except BaseException:
+        state.cancel_before_begin(ticket)
+        raise
+    inner = asyncio.wrap_future(result)
+
+    async def _await_writer_settled() -> None:
+        """Wait for the writer future to settle, ignoring our own cancellation.
+
+        Returns the writer's verdict through ``outcome`` rather than raising, so
+        repeated cancellations of the caller cannot cut the observation short.
+        The writer future is a ``wrap_future`` over a thread future, so its
+        completion is delivered on a later loop turn; keep waiting until it is
+        genuinely done instead of assuming an already-checked state.
+        """
+        while True:
+            try:
+                await asyncio.shield(inner)
+            except asyncio.CancelledError:
+                # Absorb: the writer must be allowed to finish. Inspecting it
+                # here (rather than assuming) is what makes the verdict real.
+                if inner.done():
+                    break
+                continue
+            except BaseException as exc:
+                outcome.error = exc
+                return
+            else:
+                break
+        if inner.cancelled():
+            outcome.cancelled = True
+            return
+        error = inner.exception()
+        if error is None:
+            outcome.succeeded = True
+        else:
+            outcome.error = error
+
+    task = asyncio.ensure_future(_await_writer_settled())
+    cancelled = False
+    while True:
+        try:
+            await asyncio.shield(task)
+            break
+        except asyncio.CancelledError:
+            # The caller was cancelled. Keep waiting for the writer to settle so
+            # the outcome is the writer's *verifiable* result, then let the
+            # cancellation propagate (unchanged contract).
+            cancelled = True
+            if task.done():
+                break
+            continue
+        except BaseException as exc:
+            if outcome.error is None:
+                outcome.error = exc
+            break
+    if cancelled:
+        raise asyncio.CancelledError()
+    if outcome.error is not None:
+        raise outcome.error
+    return outcome
+
+
+async def _save_with_outcome(s: Session, *, force_full: bool = False) -> DurableOutcome:
+    """``save_async`` variant that reports the writer's verifiable outcome."""
+    return await _persist_async_outcome(
+        s.id, lambda: _save_body(s, force_full=force_full))
+
+
+class _SaveOutcomeAwaitable:
+    """Awaitable that yields a :class:`DurableOutcome` even when cancelled.
+
+    ``await`` returns the outcome on a clean finish and re-raises the original
+    failure otherwise, but the outcome object is always reachable by the caller
+    so a cancellation can still be classified by what the writer actually did.
+    """
+
+    __slots__ = ("_outcome", "_error", "_cancelled", "_session", "_force_full")
+
+    def __init__(self, session: Session, *, force_full: bool = False):
+        self._outcome = DurableOutcome()
+        self._error: BaseException | None = None
+        self._cancelled = False
+        self._session = session
+        self._force_full = force_full
+
+    def __await__(self):
+        return self._run().__await__()
+
+    async def _run(self) -> DurableOutcome:
+        try:
+            # Fill the caller-owned outcome in place so it is readable even when
+            # the cancellation below propagates before this coroutine returns.
+            return await _persist_async_outcome(
+                self._session.id,
+                lambda: _save_body(self._session, force_full=self._force_full),
+                outcome=self._outcome,
+            )
+        except asyncio.CancelledError:
+            self._cancelled = True
+            raise
+        except BaseException as exc:
+            self._error = exc
+            if self._outcome.error is None:
+                self._outcome.error = exc
+            raise
+
+    @property
+    def outcome(self) -> DurableOutcome:
+        """The writer's verifiable result (valid once the await finishes)."""
+        return self._outcome
+
+
+def save_async_outcome(s: Session, *, force_full: bool = False):
+    """Start a Session save whose durable outcome the caller can inspect.
+
+    ``await`` behaves like :func:`save_async` (cancellation still propagates
+    after the writer retires), but the returned object's ``.outcome`` reports
+    what the writer actually did -- so a cancelled save is never mistaken for a
+    successful commit. Only ``outcome.succeeded`` may be treated as committed.
+    """
+    return _SaveOutcomeAwaitable(s, force_full=force_full)
+
+
 async def save_async(s: Session, *, force_full: bool = False):
     """Async save for high-frequency worker calls, ordered per Session.
 

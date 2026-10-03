@@ -322,12 +322,21 @@ def test_usage_enrichment_rollback_does_not_double_count(monkeypatch, tmp_path):
     s.usage_enrichment_pending = [job]
     worker._usage_enrichment_adapters[job["key"]] = adapter
 
+    # The usage commit persists through ``session._save_body``, which runs in the
+    # save executor thread; that is the seam to make fail. Patching the public
+    # ``save_async`` coroutine is no longer on this path.
     saves = []
-    async def flaky_save(sess):
+
+    def flaky_save(sess, **kwargs):
         saves.append(1)
         if len(saves) == 1:
             raise OSError("transient save failure")
-    monkeypatch.setattr(_sess, "save_async", flaky_save)
+        if len(saves) >= 3:
+            # Let the durable loop settle instead of retrying forever.
+            sess.usage_enrichment_pending = []
+        return None
+
+    monkeypatch.setattr(_sess, "_save_body", flaky_save)
     monkeypatch.setattr(worker, "_ENRICH_RETRY_BASE_SEC", 0)
     monkeypatch.setattr(worker, "_ENRICH_RETRY_MAX_SEC", 0)
 
