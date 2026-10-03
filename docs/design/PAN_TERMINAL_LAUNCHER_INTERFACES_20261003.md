@@ -140,7 +140,8 @@ python -m packages.core.terminal.launcher \
   `stderr-write-failed`（类型名），**不向已坏的 stderr 递归报告**、不重试、不新增线程；
   `run()` / `main()` 的退出码与引擎收尾完全不受影响（`main()` 仍返回原定的
   0/3/4/6/7/8 或兜底 5，不退化为 traceback 退出）。触发条件为**同用户本地**
-  （stderr 与状态目录同时异常），无远程输入、无 token/secret 涉入。
+  故障：退出公告只需 stderr 不可写即可触发；状态写失败公告路径才需叠加状态写失败。
+  无远程输入、无 token/secret 涉入。
 - **N2：`cleanup_seconds` 只接受有限合法数值**——`int`/`float`（`bool` 不算）且
   `math.isfinite()` 为真才保留；`nan` / `±inf` / 转换异常（如超大 int 的
   `OverflowError`）/ 非数值 → `None`（不造值）。保证状态文件是**标准 JSON**：绝不写出
