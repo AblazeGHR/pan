@@ -1,0 +1,7 @@
+{
+  "feed_lag": true,
+  "runner_fidelity": "unavailable",
+  "runner_recovery": "degraded",
+  "engine_recovery": "degraded",
+  "no_fake_full": true
+}

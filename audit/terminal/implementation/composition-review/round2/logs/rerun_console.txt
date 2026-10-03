@@ -1,0 +1,3 @@
+direct13 {'returncode': 0, 'seconds': 59.47, 'passed_lines': 13, 'failed_lines': 0, 'summary_line': '13 passed in 58.84s', 'stderr_len': 0}
+uv13 {'returncode': 0, 'seconds': 59.69, 'passed_lines': 13, 'failed_lines': 0, 'summary_line': '13 passed in 58.63s', 'stderr_len': 0}
+RC=0

@@ -1,0 +1,7 @@
+{
+  "close_zero_closed": false,
+  "close_zero_detail": "graceful-skipped-no-budget, streams-retained-reader-active",
+  "retry_closed": true,
+  "idempotent_final": true,
+  "note": "测试宿主显式收尾；生产 launcher 未批准/未实现；Job 兜底布局不泛化"
+}

@@ -1,0 +1,24 @@
+{
+  "collected_at": "2026-10-03 09:24:21",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "3a579da64c249af35fb20fbfcab6340263d10fa6",
+  "steps": {
+    "direct13": {
+      "returncode": 0,
+      "seconds": 59.47,
+      "passed_lines": 13,
+      "failed_lines": 0,
+      "summary_line": "13 passed in 58.84s",
+      "stderr_len": 0
+    },
+    "uv13": {
+      "returncode": 0,
+      "seconds": 59.69,
+      "passed_lines": 13,
+      "failed_lines": 0,
+      "summary_line": "13 passed in 58.63s",
+      "stderr_len": 0
+    }
+  }
+}

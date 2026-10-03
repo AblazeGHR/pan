@@ -1,0 +1,104 @@
+{
+  "session_a": {
+    "window": {
+      "total": 378401,
+      "applied": 246,
+      "first_retained": 116354
+    },
+    "gap_read": {
+      "gap": [
+        246,
+        116354
+      ],
+      "gap_start_equals_applied": true,
+      "data_nonempty": true
+    },
+    "fresh_view": {
+      "reset_count": 0,
+      "no_auto_reset": true,
+      "pty_same_pid": true,
+      "shell_alive": true
+    },
+    "catch_up": {
+      "total_stable": 378401,
+      "caught": true
+    },
+    "refetch": {
+      "cursor": 378401,
+      "cursor_equals_total": true,
+      "read_no_gap": true
+    },
+    "resize": {
+      "status": "ok",
+      "pty_resize": "ok",
+      "emulator_resize": "ok",
+      "engine_confirmed": true,
+      "applied_resize": [
+        30,
+        100
+      ]
+    },
+    "stall_heartbeat": {
+      "latencies": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "independent_ok": true,
+      "slow_snapshot_degraded": true
+    },
+    "normal_stop": {
+      "close_status": "exited",
+      "exit_code": 0,
+      "emulator_close": {
+        "closed": true,
+        "graceful": true,
+        "forced": true,
+        "process_exited": true,
+        "guard_closed": true,
+        "reader_joined": true,
+        "stderr_joined": true,
+        "applier_joined": true,
+        "streams_closed": true,
+        "job_verified": true,
+        "detail": "ok",
+        "seconds": 0.015999999988707714
+      },
+      "shell_dead": true,
+      "sidecar_dead": true
+    },
+    "cleanup_trace": {}
+  },
+  "session_b": {
+    "runner_terminate": {
+      "pid": 44420,
+      "requestedCreateTimeFiletime": 134354645233669031,
+      "opened": true,
+      "createTimeFiletime": 134354645233669031,
+      "filetimeMatch": true,
+      "running": true,
+      "terminated": true,
+      "detail": "terminated"
+    },
+    "shell_dead": true,
+    "sidecar_dead": true,
+    "launcher_exit_code_nonzero": true,
+    "kernel_guard_note": "已测布局；不泛化"
+  },
+  "verdict": {
+    "eviction_window_captured": true,
+    "gap_explicit": true,
+    "fresh_view_no_auto_reset_pty_alive": true,
+    "catch_up_refetch_no_gap": true,
+    "resize_split_engine_only": true,
+    "independent_heartbeat_ok": true,
+    "normal_stop_clean": true,
+    "hard_kill_layout": true,
+    "zero_residue": true
+  },
+  "generated_at": "2026-10-03 09:28:43",
+  "injection_only": true,
+  "note": "组合 r2 审查独立门控（round2；对照 docs/design/PAN_TERMINAL_COMPOSITION_SECURITY_REVIEW_20261003_ROUND2.md）"
+}

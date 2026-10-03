@@ -1,0 +1,20 @@
+{
+  "exit_code": 0,
+  "emulator_close": {
+    "closed": true,
+    "graceful": true,
+    "forced": true,
+    "process_exited": true,
+    "guard_closed": true,
+    "reader_joined": true,
+    "stderr_joined": true,
+    "applier_joined": true,
+    "streams_closed": true,
+    "job_verified": true,
+    "detail": "ok",
+    "seconds": 0.014999999999417923
+  },
+  "shell_dead": true,
+  "sidecar_dead": true,
+  "sidecar_pid": 48040
+}

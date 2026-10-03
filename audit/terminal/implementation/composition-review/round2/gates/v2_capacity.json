@@ -1,0 +1,41 @@
+{
+  "capacity": {
+    "stream_bytes": 304000,
+    "producer_feed_ops": 2252,
+    "applied_bytes": 304000,
+    "single_monotonic_seconds": 0.094,
+    "engine_feed_batches": 5,
+    "engine_feed_batched_ops": 2252,
+    "max_feed_batch_bytes": 65475,
+    "r3_reference_seconds_135b": 35.1,
+    "improvement_factor_vs_r3": 373.4,
+    "batches_lt_ops": true,
+    "max_batch_within_64k": true,
+    "applied_reached": true,
+    "fidelity_clean_stream": "full",
+    "recovery_clean_stream": "full"
+  },
+  "partial_osc": {
+    "fidelity": "partial",
+    "recovery": "partial",
+    "reasons": [],
+    "note": "protocol=A(cursor=304028, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=WINDOW_TITLE_OSC_UNVERIFIED",
+    "not_full": true,
+    "note_carries_reason": true
+  },
+  "close": {
+    "closed": true,
+    "job_verified": true
+  },
+  "verdict": {
+    "single_monotonic_reached": true,
+    "faster_than_r3_reference": true,
+    "batching_effective": true,
+    "clean_stream_full": true,
+    "osc_partial_not_upgraded": true,
+    "close_clean": true
+  },
+  "generated_at": "2026-10-03 09:28:33",
+  "injection_only": true,
+  "note": "组合 r2 审查独立门控（round2；对照 docs/design/PAN_TERMINAL_COMPOSITION_SECURITY_REVIEW_20261003_ROUND2.md）"
+}

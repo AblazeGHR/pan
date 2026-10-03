@@ -1,0 +1,82 @@
+{
+  "runner_detail": {
+    "schema_version": 1,
+    "terminal_id": "term_e12a17ae9acd",
+    "runner_state": "running",
+    "runtime_state": "running",
+    "pid": 15388,
+    "process_created_at_filetime": "134354643317647753",
+    "rows": 30,
+    "cols": 100,
+    "detached": false,
+    "durability": {
+      "capable": false,
+      "ambient_job": true,
+      "detail": "host ambient Job present: cannot prove runner survives the job's close (KILL_ON_JOB_CLOSE may kill the tree); detach refused (fail-closed)"
+    },
+    "lease": {
+      "established": true,
+      "owner": "pan-compose-owner",
+      "generation": 2,
+      "age_ms": 0,
+      "grace_ms": 2000
+    },
+    "lifecycle": {
+      "closing": false,
+      "finalize_outcome": null,
+      "expiry_in_progress": false,
+      "expiry_reason": null,
+      "exit_reason": "ok",
+      "accept_failure": null,
+      "startup_cleanup_converged": true
+    },
+    "exit": {
+      "seen": false,
+      "code": null,
+      "reason": "unknown",
+      "reader_done": false,
+      "drain_stop_reason": "unknown"
+    },
+    "cleanup": null,
+    "consumer": {
+      "failed": false,
+      "count": 0,
+      "gap_seen": false
+    },
+    "snapshot": {
+      "engine": "injected",
+      "fidelity": "partial",
+      "recovery": "partial",
+      "feed_lag": false,
+      "feed_at": true
+    },
+    "input_worker": {
+      "in_flight": false,
+      "completed": 0,
+      "last_status": "none"
+    },
+    "close_worker": {
+      "in_flight": false,
+      "finished": false,
+      "error_type": null
+    },
+    "connections": {
+      "accepted": 2,
+      "active": 2
+    },
+    "observers": 0,
+    "pty_resize": "ok",
+    "emulator_resize": "ok"
+  },
+  "pty_actual": [
+    30,
+    100
+  ],
+  "engine_confirmed": true,
+  "engine_applied": [
+    30,
+    100
+  ],
+  "expired_refused": true,
+  "no_three_way_claim_on_refusal": true
+}
