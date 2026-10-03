@@ -38,3 +38,9 @@ F1 ready 前 EOF 的启动 owner 缺口、F2 每 feed 往返容量瓶颈已独�
 ## 下一出口
 
 F1/F2 修复及独立复验、F5 实施及独立复验、固定组合测试对修复后的重验与真实 launcher 生命周期闭环后，才评估 P2。Ctrl-C、真实 durable detach、浏览器、长稳、跨用户/主机及 POSIX 仍未验收。未合主线/PR、push、build 或重启。
+
+## 2026-10-03 后续验收状态（不倒写首轮）
+
+F1/F2 已按 emulator r4 独立审查 417137fb 接受并隔离集成（见仿真器 r4 接受文档）。F5 实现至 29d535bc 经最终独立审查 7141d4dd 接受并隔离集成；MA 在集成树定向 12 passed / 38 deselected（见 PAN_TERMINAL_RUNNER_F5_ACCEPTANCE_20261003.md）。I3 的确认语义校准为保守近似，无历史世代原子绑定；unknown baseline 不造值、不约束，来源需自含 reset 未确认语义。
+
+修正后真实组合与宿主 launcher 的生命周期/失败收尾仍待验证。生产 launcher 尚未实现/批准，本轮组合只能使用明确标注的测试宿主，不得把它称为服务接入完成；P2 门保持。
