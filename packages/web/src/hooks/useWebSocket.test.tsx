@@ -1602,7 +1602,8 @@ describe('useWebSocket agent-injected message sync', () => {
     expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('A');
   });
 
-  it('applies an external queue item immediately before reconciling the snapshot', async () => {
+  it('applies a consecutive external queue item without a redundant snapshot GET', async () => {
+    apiMock.fetchSessionQueue.mockClear();
     const stale: unknown[] = [];
     Object.defineProperty(stale, 'queueRevision', { value: 3 });
     apiMock.fetchSessionQueue.mockResolvedValue(stale);
@@ -1635,6 +1636,32 @@ describe('useWebSocket agent-injected message sync', () => {
       '外部入队消息',
     ]);
     expect(useQueueStore.getState().queueRevisions.A).toBe(4);
+    expect(apiMock.fetchSessionQueue).not.toHaveBeenCalled();
+  });
+
+  it('repairs a queue revision gap once and keeps legacy event reconciliation', async () => {
+    apiMock.fetchSessionQueue.mockClear();
+    useQueueStore.setState({ queues: { A: [] }, agentQueues: { A: [] }, queueRevisions: { A: 3 }, agentQueueLoadSeq: {} });
+    renderHook(() => useWebSocket());
+    await flushTrigger('queue.item_added', {
+      type: 'queue.item_added', sessionId: 'A', queueRevision: 5,
+      item: { id: 'q-gap', queueItemId: 'q-gap', type: 'task', kind: 'task', text: 'gap', deliveryState: 'queued' },
+    });
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledTimes(1);
+    apiMock.fetchSessionQueue.mockClear();
+    await flushTrigger('queue.item_removed', { type: 'queue.item_removed', sessionId: 'A', queueItemId: 'q-gap' });
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses a complete queue snapshot without a GET and repairs missing event payloads', async () => {
+    apiMock.fetchSessionQueue.mockClear();
+    useQueueStore.setState({ queues: { A: [] }, agentQueues: { A: [] }, queueRevisions: { A: 3 }, agentQueueLoadSeq: {} });
+    renderHook(() => useWebSocket());
+    await flushTrigger('queue.snapshot', { type: 'queue.snapshot', sessionId: 'A', queueRevision: 6, items: [] });
+    expect(useQueueStore.getState().queueRevisions.A).toBe(6);
+    expect(apiMock.fetchSessionQueue).not.toHaveBeenCalled();
+    await flushTrigger('queue.item_added', { type: 'queue.item_added', sessionId: 'A', queueRevision: 7 });
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledTimes(1);
   });
 
   it('renders a delivered queue message immediately and keeps it across a stale refresh', async () => {

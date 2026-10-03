@@ -1823,6 +1823,17 @@ async def _send_resync_snapshot(
     ws: WebSocket, session_ids: list[str] | None = None, *,
     include_all_sessions: bool = False, include_identity: bool = False,
 ) -> bool:
+    # Warm existing bounded tail caches off the event loop. Build the final
+    # snapshot synchronously as before: history_page rechecks file signatures
+    # and revisions, and event/worker/queue boundaries retain their semantics.
+    # A concurrent change deliberately invalidates the warmed cache.
+    requested = sorted({sid for sid in (session_ids or [])
+                        if isinstance(sid, str) and sid})
+    # Hot worker Sessions already have in-memory history. Avoid inserting a
+    # new await into their existing stream/replay ordering for no I/O benefit.
+    if any(sid not in sess._cache or not getattr(sess._cache[sid], "_history_loaded", True)
+           for sid in requested):
+        await _store_read(_warm_resync_history, requested)
     return await _send_ws(
         ws,
         _resync_snapshot(
@@ -1832,6 +1843,18 @@ async def _send_resync_snapshot(
         ),
         kind="agent" if ws in agent_clients else "dashboard",
     )
+
+
+def _warm_resync_history(session_ids: list[str]) -> None:
+    # The first list_all initializes the shallow registry; doing it after
+    # warming an individual Session would replace that Session's page cache.
+    sess.list_all(load_history=False)
+    for sid in session_ids:
+        current = _summary_session_get(sid)
+        if (isinstance(current, sess.Session)
+                and not getattr(current, "_history_loaded", True)
+                and sess.is_complete_summary_projection(current.summary_projection)):
+            sess.history_page(sid, limit=_RESYNC_HISTORY_LIMIT)
 
 
 async def _replay_agent_results(

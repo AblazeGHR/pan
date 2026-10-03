@@ -440,7 +440,18 @@ export function useWebSocket() {
     for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.item_delivered', 'queue.snapshot']) {
       unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => {
         useQueueStore.getState().applyQueueEvent(e);
-        refreshAgentQueue(e.sessionId);
+        // Versioned events already update the projection; the queue store
+        // requests a full repair when revisions are missing from the sequence.
+        // Legacy events have no such guarantee and still need a durable GET.
+        const queueEvent = e as Parameters<ReturnType<typeof useQueueStore.getState>['applyQueueEvent']>[0];
+        const completePayload = e.type === 'queue.snapshot'
+          ? Array.isArray(queueEvent.items)
+          : e.type === 'queue.item_delivered'
+            ? Array.isArray(e.queueItemIds)
+            : e.type === 'queue.item_removed'
+              ? typeof queueEvent.queueItemId === 'string'
+              : !!e.item;
+        if (e.queueRevision === undefined || !completePayload) refreshAgentQueue(e.sessionId);
         // 队列事件附带的最新 Session 摘要（queuePendingCount / queueAllLocked /
         // queueRevision）就地合入卡片徽标；缺失时由既有防抖列表刷新兜底。
         if (e.sessionId && e.session) {
