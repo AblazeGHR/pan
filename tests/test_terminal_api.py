@@ -27,6 +27,7 @@ import os
 import sys
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -106,9 +107,12 @@ class FakeService:
         self.reconcile_result: Any = {"buckets": {}, "counts": {}, "records": 0}
         self.reconcile_error: BaseException | None = None
         self.reconcile_gate: _Gate | None = None
-        self.shutdown_result: Any = {"exited": [], "unconfirmed": [], "secrets_retained": False}
+        self.shutdown_result: Any = {
+            "unconfirmed": [], "secrets_retained": False, "budget_exhausted": False,
+        }
         self.shutdown_delay = 0.0
         self.shutdown_error: BaseException | None = None
+        self.shutdown_gate: _Gate | None = None
 
     def _record(self, name: str, *args: Any, **kwargs: Any) -> None:
         with self._lock:
@@ -181,6 +185,8 @@ class FakeService:
         self._record("shutdown", budget=budget)
         if self.shutdown_delay:
             time.sleep(float(self.shutdown_delay))
+        if self.shutdown_gate is not None:
+            self.shutdown_gate.enter()
         if self.shutdown_error is not None:
             raise self.shutdown_error
         return self.shutdown_result
@@ -280,6 +286,8 @@ _ORIGIN_REJECTIONS = [
     "http://127.0.0.1:8768/?q=1",
     "http://*:8768",
     "http://localhost:8768 ",  # 前后空白
+    "http://127.0.0.1:8768/",   # r2：尾斜杠也是 path → 拒绝
+    "http://[broken",           # r2：畸形 URL（urlsplit ValueError）→ 静态 403
 ]
 
 
@@ -1000,7 +1008,9 @@ def test_shutdown_timeout_keeps_references_and_consumes_late_result():
         await wait_ready(runtime)
         report = await terminal_api.stop_runtime(app, runtime=runtime)
         assert report["status"] == "unconfirmed"
-        assert report["unconfirmed"] is True
+        assert report["confirmed"] is False
+        assert report["secrets_retained"] is True
+        assert "budget-timeout" in report["problems"]
         assert report["retained_service"] is True
         assert runtime.service is service
         # 超时后 REST 准入已关
@@ -1028,9 +1038,10 @@ def test_shutdown_error_reported_not_faked_success():
         app = await start_app(runtime)
         await wait_ready(runtime)
         report = await terminal_api.stop_runtime(app, runtime=runtime)
-        assert report["status"] == "failed"
-        assert report["unconfirmed"] is True
-        assert report["error_type"] == "RuntimeError"
+        assert report["status"] == "unconfirmed"
+        assert report["confirmed"] is False
+        assert "shutdown-error" in report["problems"]
+        assert report["secrets_retained"] is True
         assert "SECRET-TOKEN-XYZ" not in json.dumps(report)
         assert runtime.service is service
 
@@ -1222,5 +1233,383 @@ def test_real_isolated_asgi_chain_create_read_snapshot_close(tmp_path):
                 _cleanup_owned_terminal(service, terminal_id)
             report = await terminal_api.stop_runtime(app, runtime=runtime)
             assert report.get("status") in ("confirmed", "no-service", "unconfirmed")
+
+    asyncio.run(scenario())
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑧ r2 窄修：真实报告消费 / 槽类型分离 / 关门复查 / normalization / 尺寸 /
+#    流式 body 上限 / lifespan finally
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class _StreamRequest:
+    """最小请求替身：只提供 ``stream()``（用于直接驱动 ``read_json_object``）。"""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = list(chunks)
+        self.pulled = 0
+
+    async def stream(self):
+        for chunk in self._chunks:
+            self.pulled += 1
+            yield chunk
+
+
+def test_shutdown_consumes_real_service_report_and_never_fakes_confirmed():
+    """① confirmed 只在真实报告四条件齐备时给出；畸形/缺证/残留 → unconfirmed。"""
+
+    async def scenario() -> None:
+        normal = {"unconfirmed": [], "secrets_retained": False, "budget_exhausted": False}
+        cases: list[tuple[Any, bool, list[str]]] = [
+            (normal, True, []),
+            (normal | {"note": "SECRET-TOKEN-XYZ"}, True, []),          # 自由文本不复制
+            ({"unconfirmed": ["term_a"], "secrets_retained": True, "budget_exhausted": False},
+             False, ["term_a"]),
+            ({"unconfirmed": ["term_b", "term_a"], "secrets_retained": False, "budget_exhausted": False},
+             False, ["term_a", "term_b"]),
+            ({"unconfirmed": [], "secrets_retained": True, "budget_exhausted": False}, False, []),
+            ({"unconfirmed": [], "secrets_retained": False, "budget_exhausted": True}, False, []),
+            ({"unconfirmed": [], "secrets_retained": False}, False, []),   # 缺 budget 证据
+            ({"unconfirmed": "term_a", "secrets_retained": False, "budget_exhausted": False}, False, []),
+            ({"unconfirmed": [], "secrets_retained": "no", "budget_exhausted": False}, False, []),
+            ({}, False, []),
+            (None, False, []),
+            ("boom SECRET-TOKEN-XYZ", False, []),
+            (["term_a"], False, []),
+        ]
+        for report, expect_confirmed, expected_ids in cases:
+            service = FakeService()
+            service.shutdown_result = report
+            runtime = make_runtime(service, shutdown_budget=1.0)
+            app = await start_app(runtime)
+            await wait_ready(runtime)
+            result = await terminal_api.stop_runtime(app, runtime=runtime)
+            assert result["confirmed"] is expect_confirmed, (report, result)
+            assert (result["status"] == "confirmed") is expect_confirmed
+            assert result["unconfirmed"] == expected_ids, (report, result)
+            assert result["unconfirmed_count"] == len(expected_ids)
+            assert result["secrets_retained"] is (not expect_confirmed), (report, result)
+            if not expect_confirmed:
+                assert result["problems"], report
+            assert "SECRET-TOKEN-XYZ" not in json.dumps(result)
+
+    asyncio.run(scenario())
+
+
+def test_shutdown_clean_report_with_inflight_request_is_not_confirmed():
+    """四条件之一（无在途请求）不满足：报告再干净也不得报 confirmed。"""
+
+    async def scenario() -> None:
+        service = FakeService()
+        gate = _Gate(target=1)
+        service.gates["list"] = gate
+        runtime = make_runtime(service, max_inflight=4, shutdown_budget=1.0)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        in_flight = asyncio.create_task(runtime.call(lambda: service.list()))
+        await asyncio.to_thread(gate.entered.wait, 10.0)
+        assert runtime.inflight == 1
+        result = await runtime.shutdown()
+        assert result["confirmed"] is False
+        assert "request-in-flight" in result["problems"]
+        gate.release.set()
+        await asyncio.gather(in_flight, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
+def test_shutdown_does_not_steal_request_slots_and_retire_is_idempotent():
+    """② shutdown 完成不得扣请求槽；重复 retire 不偷减。"""
+
+    async def scenario() -> None:
+        # 台账级：同一 token 重复释放是 no-op
+        ledger = terminal_api._SlotLedger(2)
+        token = object()
+        assert ledger.acquire(token) is True and ledger.count == 1
+        assert ledger.release(token) is True and ledger.count == 0
+        assert ledger.release(token) is False and ledger.count == 0
+        assert ledger.acquire(token) is True and ledger.count == 1
+
+        service = FakeService()
+        gate = _Gate(target=4)
+        service.gates["list"] = gate
+        runtime = make_runtime(service, max_inflight=4, shutdown_budget=1.0)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        tasks = [asyncio.create_task(runtime.call(lambda: service.list())) for _ in range(4)]
+        await asyncio.to_thread(gate.entered.wait, 10.0)
+        assert runtime.inflight == 4
+        # shutdown 走完（服务报告"干净"）也不得动请求槽
+        result = await runtime.shutdown()
+        assert runtime.inflight == 4, "shutdown 不得扣请求槽"
+        assert result["confirmed"] is False and "request-in-flight" in result["problems"]
+        assert runtime.service is service
+        # 同一请求任务重复回收：只减一次
+        holder = next(iter(runtime._slot_token))
+        runtime._retire_request(holder)
+        assert runtime.inflight == 3
+        runtime._retire_request(holder)
+        assert runtime.inflight == 3, "重复 retire 不得再减"
+        gate.release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        deadline = time.monotonic() + 5.0
+        while runtime.inflight and time.monotonic() < deadline:
+            await asyncio.sleep(0.01)
+        assert runtime.inflight == 0
+
+    asyncio.run(scenario())
+
+
+def test_call_after_closing_is_rejected_with_503_not_500():
+    """③ 关门后 r.call 拒绝（零业务执行）；_execute 映射 503 而非 500。"""
+
+    async def scenario() -> None:
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        await runtime.shutdown()
+        assert runtime.state == terminal_api.STATE_STOPPED
+        with pytest.raises(terminal_api.GateRejected) as excinfo:
+            await runtime.call(lambda: service.create())
+        assert (excinfo.value.status_code, excinfo.value.code) == (503, "closing")
+        assert service.names() == [], "关门后到达的调用必须零业务执行"
+        assert runtime.inflight == 0
+        # 门已过的调用：_execute 必须按 GateRejected → 503（不是 500）
+        response = await terminal_api._execute(runtime, lambda: service.create())
+        assert response.status_code == 503
+        assert json.loads(bytes(response.body)) == {"ok": False, "error": {"code": "closing"}}
+        assert service.names() == []
+
+    asyncio.run(scenario())
+
+
+def test_gate_passed_then_body_paused_then_shutdown_blocks_business():
+    """③ 端到端时序：gate 已过 → body 暂停 → shutdown 关门 → 释放 body → 零业务执行。"""
+
+    async def scenario() -> None:
+        service = FakeService()
+        service.results["create"] = sample_view()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def body():
+            started.set()
+            await release.wait()
+            yield b"{}"
+
+        async with make_client(app, origin=ORIGIN, timeout=30.0) as client:
+            request_task = asyncio.create_task(
+                client.post(
+                    "/api/terminals", content=body(),
+                    headers={"content-type": "application/json"},
+                )
+            )
+            await asyncio.wait_for(started.wait(), 5.0)
+            # 此刻 gate 已过、body 未到：shutdown 关门
+            await runtime.shutdown()
+            release.set()
+            response = await asyncio.wait_for(request_task, 10.0)
+        assert response.status_code == 503
+        assert response.json() == {"ok": False, "error": {"code": "closing"}}
+        assert service.names() == [], "关门后到达的请求必须零业务执行"
+
+    asyncio.run(scenario())
+
+
+def test_normalize_origin_malformed_and_trailing_path_are_static():
+    """④ 畸形 URL/authority 捕 ValueError → None；明确无 path（含尾 / 拒绝）。"""
+
+    assert terminal_api.normalize_origin("http://[broken") is None
+    assert terminal_api.normalize_origin("http://127.0.0.1:abc") is None
+    assert terminal_api.normalize_origin("http://127.0.0.1:8768/") is None
+    assert terminal_api.normalize_origin("http://127.0.0.1:8768/x") is None
+    assert terminal_api.normalize_origin("http://127.0.0.1:8768") == "http://127.0.0.1:8768"
+    assert terminal_api._normalize_authority("[broken") is None
+    assert terminal_api._normalize_authority("127.0.0.1:8768") == "127.0.0.1:8768"
+    # 配置 fail-closed
+    for bad in ("http://[broken", "http://127.0.0.1:8768/", "http://127.0.0.1:abc"):
+        allowlist = terminal_api.build_allowlist({"PAN_TERMINAL_ALLOWED_ORIGINS": bad}, port=8768)
+        assert allowlist.config_valid is False, bad
+        assert allowlist.origins == frozenset()
+
+    async def scenario() -> None:
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        for bad in ("http://[broken", "http://127.0.0.1:8768/"):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+                base_url=f"http://{AUTHORITY}", headers={"origin": bad},
+                timeout=httpx.Timeout(10.0),
+            ) as client:
+                response = await client.get("/api/terminals")
+            assert response.status_code == 403, (bad, response.status_code)
+            assert response.json() == {"ok": False, "error": {"code": "forbidden-origin"}}
+        assert service.names() == []
+        # 合法正控保留
+        async with make_client(app, origin=ORIGIN) as client:
+            assert (await client.get("/api/terminals")).status_code == 200
+
+    asyncio.run(scenario())
+
+
+def test_create_rows_and_cols_match_service_bounds():
+    """附：rows 上限统一到核心已接受的 500，cols 到 1000（不维持 501..1000 假可用）。"""
+
+    async def scenario() -> None:
+        service = FakeService()
+        service.results["create"] = sample_view()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        async with make_client(app, origin=ORIGIN) as client:
+            assert (await client.post("/api/terminals", json={"rows": 500, "cols": 1000})).status_code == 200
+            assert (await client.post("/api/terminals", json={"rows": 501})).status_code == 422
+            assert (await client.post("/api/terminals", json={"cols": 1001})).status_code == 422
+            assert (await client.post("/api/terminals", json={"rows": 1000})).status_code == 422
+        created = [call for call in service.calls if call[0] == "create"]
+        assert created[0][2]["rows"] == 500 and created[0][2]["cols"] == 1000
+
+    asyncio.run(scenario())
+
+
+def test_request_body_cap_and_bad_json_are_static_422():
+    """附：body 超 64 KiB 立即拒绝（未先无界读）；坏 JSON/深嵌套/非法 UTF-8 → 静态 422。"""
+
+    async def scenario() -> None:
+        # 逐块累计：越界那一块一到就拒，不继续拉取
+        over = _StreamRequest([b"x" * (terminal_api.MAX_JSON_BODY + 1), b"SENTINEL"])
+        with pytest.raises(terminal_api.BodyError) as excinfo:
+            await terminal_api.read_json_object(over, allow_empty=True)
+        assert excinfo.value.code == "invalid-body"
+        assert over.pulled == 1, "应在越界块处立即拒绝，不读完整个 body"
+
+        # 深嵌套 → RecursionError → invalid-json（静态，非 500）
+        deep = b"[" * 6000 + b"]" * 6000
+        assert len(deep) <= terminal_api.MAX_JSON_BODY
+        with pytest.raises(terminal_api.BodyError) as excinfo:
+            await terminal_api.read_json_object(_StreamRequest([deep]), allow_empty=True)
+        assert excinfo.value.code == "invalid-json"
+
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        async with make_client(app, origin=ORIGIN) as client:
+            big = b'{"cwd":"' + b"x" * (terminal_api.MAX_JSON_BODY + 1) + b'"}'
+            response = await client.post(
+                "/api/terminals", content=big, headers={"content-type": "application/json"}
+            )
+            assert response.status_code == 422
+            assert response.json() == {"ok": False, "error": {"code": "invalid-body"}}
+            deep_response = await client.post(
+                "/api/terminals", content=deep, headers={"content-type": "application/json"}
+            )
+            assert deep_response.status_code == 422
+            assert deep_response.json()["error"]["code"] in ("invalid-json", "invalid-body")
+            utf8_response = await client.post(
+                "/api/terminals", content=b"\xff\xfe{}", headers={"content-type": "application/json"}
+            )
+            assert utf8_response.status_code == 422
+            assert utf8_response.json()["error"]["code"] == "invalid-json"
+            list_response = await client.post(
+                "/api/terminals", content=b"[1,2]", headers={"content-type": "application/json"}
+            )
+            assert list_response.status_code == 422
+            assert list_response.json()["error"]["code"] == "invalid-body"
+            for response in (deep_response, utf8_response):
+                assert "RecursionError" not in response.text
+                assert "Traceback" not in response.text
+        assert service.names() == []
+
+    asyncio.run(scenario())
+
+
+def test_single_flight_shutdown_reuses_inflight_task_and_consumes_late_result():
+    """A：并发/超时重试复用同一 in-flight task；已结束未证明允许幂等重试；迟到消费。"""
+
+    async def scenario() -> None:
+        service = FakeService()
+        gate = _Gate(target=1)
+        service.shutdown_gate = gate
+        runtime = make_runtime(service, shutdown_budget=0.2)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        first = asyncio.create_task(runtime.shutdown())
+        await asyncio.to_thread(gate.entered.wait, 10.0)
+        second = asyncio.create_task(runtime.shutdown())  # 复用同一 task
+        r1 = await asyncio.wait_for(first, 10.0)
+        r2 = await asyncio.wait_for(second, 10.0)
+        shutdown_calls = [call for call in service.calls if call[0] == "shutdown"]
+        assert len(shutdown_calls) == 1, "并发 shutdown 必须复用同一 task，不叠加"
+        for result in (r1, r2):
+            assert result["status"] == "unconfirmed" and result["confirmed"] is False
+            assert "budget-timeout" in result["problems"]
+        # 迟到结果被真实消费（不是永远缓存的失败）
+        gate.release.set()
+        deadline = time.monotonic() + 5.0
+        while runtime.tracked_tasks and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+        assert runtime.tracked_tasks == 0
+        # 已结束但未证明 → 同一 service 幂等重试（**新调用**），并如实消费新报告；
+        # 不是"把上一轮失败永久缓存"。
+        service.shutdown_result = {
+            "unconfirmed": [], "secrets_retained": False, "budget_exhausted": False,
+        }
+        third = await runtime.shutdown()
+        assert third["confirmed"] is True
+        assert third["status"] == "confirmed"
+        assert len([call for call in service.calls if call[0] == "shutdown"]) == 2
+        assert runtime.service is service
+        assert runtime.inflight == 0
+
+    asyncio.run(scenario())
+
+
+def test_terminal_lifespan_runs_stop_on_exception():
+    """D：terminal_lifespan 用 try/finally —— 体异常也必须请求收尾。"""
+
+    class _Boom(Exception):
+        pass
+
+    async def scenario() -> None:
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = FastAPI()
+        app.include_router(terminal_api.router)
+
+        @asynccontextmanager
+        async def boom_lifespan(target_app):
+            async with terminal_api.terminal_lifespan(target_app, runtime=runtime):
+                await wait_ready(runtime)
+                yield
+                raise _Boom()  # lifespan 体异常
+
+        with pytest.raises(_Boom):
+            async with boom_lifespan(app):
+                pass
+        assert "shutdown" in [call[0] for call in service.calls], "异常也必须请求收尾"
+
+        # 正常路径同样收尾
+        ok_service = FakeService()
+        ok_runtime = make_runtime(ok_service)
+        ok_app = FastAPI()
+        ok_app.include_router(terminal_api.router)
+
+        @asynccontextmanager
+        async def ok_lifespan(target_app):
+            async with terminal_api.terminal_lifespan(target_app, runtime=ok_runtime):
+                await wait_ready(ok_runtime)
+                yield
+
+        async with ok_lifespan(ok_app):
+            assert ok_runtime.state == terminal_api.STATE_READY
+        assert "shutdown" in [call[0] for call in ok_service.calls]
 
     asyncio.run(scenario())

@@ -1,0 +1,72 @@
+{
+  "task": "T-TERMINAL-PTY-20261003/rest/impl/1 (r2 narrow fix)",
+  "base_commit": "d8ed782e",
+  "start_head_of_batch": "d8ed782e",
+  "scope": [
+    "packages/web/terminal_api.py",
+    "packages/web/server.py (thin lifespan wiring only)",
+    "tests/test_terminal_api.py (own tests)",
+    "docs/design/PAN_TERMINAL_REST_INTERFACES_20261004.md",
+    "audit/terminal/implementation/rest/r2/**"
+  ],
+  "blob_anchors": {
+    "packages/web/terminal_api.py": "853c7c1b93397d93dcf1578cd0a4e541d3e1a6e0",
+    "packages/web/server.py": "bc666a032de6fb140bb715a0b8856494b3295598",
+    "tests/test_terminal_api.py": "3fcaedd75f70c229219ca3dccb430fba94d90210",
+    "docs/design/PAN_TERMINAL_REST_INTERFACES_20261004.md": "f97a985859fd98160a3e6d26d386f5ab4e7ee928"
+  },
+  "runs": [
+    {
+      "layer": "d8 archive (pre-fix, expected failures)",
+      "how": "git archive d8ed782e | tar -x -C <temp>; copy new tests/test_terminal_api.py in; run",
+      "result": "13 failed, 24 passed, 1 skipped",
+      "failed_are": "exactly the r2 fault-targeting tests",
+      "passed_are": "positive controls / unrelated pre-existing behaviour",
+      "logs": ["evidence_d8/pytest_pre_fix.txt", "evidence_d8/positive_controls.txt"]
+    },
+    {
+      "layer": "direct",
+      "command": "E:/software/miniforge/python.exe -m pytest tests/test_terminal_api.py -o addopts= -q -p no:cacheprovider",
+      "result": "38 passed",
+      "seconds": 7.9,
+      "log": "evidence_direct/pytest_post_fix.txt"
+    },
+    {
+      "layer": "uv",
+      "command": "uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout -- python -m pytest tests/test_terminal_api.py -o addopts= -q -p no:cacheprovider",
+      "result": "38 passed",
+      "seconds": 8.45,
+      "log": "evidence_uv/pytest_post_fix.txt"
+    },
+    {
+      "layer": "direct (adjacent pure logic; imports packages.web.server)",
+      "command": "E:/software/miniforge/python.exe -m pytest tests/test_addressing_compat.py -o addopts= -q -p no:cacheprovider",
+      "result": "24 passed",
+      "log": "evidence_direct/adjacent-addressing.txt"
+    }
+  ],
+  "not_rerun": [
+    "real ConPTY/ASGI chain (kept as-is, not retracted; skipped inside the d8 archive because node_modules is gitignored)",
+    "shared core / launcher / IPC / emulator suites",
+    "full-repo test run"
+  ],
+  "fixes": {
+    "1_shutdown_report": "runtime.shutdown consumes the real service report via _classify_shutdown; confirmed only when Mapping has empty-list unconfirmed AND secrets_retained is exactly False AND budget_exhausted is exactly False AND no in-flight request / unfinished reconcile; otherwise unconfirmed with static problems + counts + public terminal ids only",
+    "2_slot_types": "request slots tracked by token in _SlotLedger; _retire_request releases exactly once for slot-holding tasks; _retire_lifecycle never touches request slots; all results/exceptions consumed",
+    "3_closing_gate": "call() re-checks readiness in the same no-await region as slot admission; after closing it raises GateRejected; _execute maps GateRejected to its 503 (not 500)",
+    "4_normalization": "urlsplit ValueError (malformed URL/authority) caught -> None / config fail-closed; origin must have no path (trailing slash rejected)",
+    "5_rows_bounds": "REST rows 1..500 / cols 1..1000, unified with the accepted service gate",
+    "6_streaming_body": "read_json_object accumulates via request.stream() and rejects immediately past 64 KiB; bad UTF-8 / bad JSON / RecursionError -> static 422",
+    "7_lifespan_finally": "server yield + stop_runtime go through terminal_lifespan (try/finally); exception/cancel still requests cleanup"
+  },
+  "verified_gates": [
+    "clean report -> confirmed (positive control); non-empty unconfirmed -> unconfirmed with ids; secrets_retained True / budget_exhausted missing / malformed / non-Mapping -> unconfirmed; clean report + in-flight request -> unconfirmed",
+    "4 in-flight requests: shutdown completion keeps inflight==4; repeated _retire_request decrements once",
+    "after closing: call rejected (503 closing) with zero service calls; gate-passed + body-paused + closed -> 503, zero business execution",
+    "malformed origin http://[broken and trailing-slash origin -> 403 (not 500); legal origin -> 200; malformed allowlist config -> fail-closed",
+    "concurrent/timeout shutdown reuses a single in-flight task; late result consumed; finished-but-unproven retries the same service idempotently",
+    "rows 500 ok / 501 rejected / 1000 rejected; cols 1000 ok / 1001 rejected",
+    "body 64KiB+1 rejected without draining; deep nesting -> invalid-json; bad UTF-8 -> invalid-json; non-object -> invalid-body",
+    "terminal_lifespan runs stop on body exception and on normal exit"
+  ]
+}

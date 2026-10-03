@@ -30,8 +30,10 @@ import base64
 import ipaddress
 import json
 import os
+import re
 import sys
 import threading
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 from urllib.parse import urlsplit
@@ -65,8 +67,15 @@ DEFAULT_MAX_INFLIGHT = 4
 #: shutdown 总预算（含取锁与全部等待）；与 service 默认同值。
 DEFAULT_SHUTDOWN_BUDGET_SECONDS = 20.0
 
-SIZE_MIN = 1
-SIZE_MAX = 1000
+# 尺寸边界与 ``TerminalService.create`` 已接受的门**一致**（rows ≤ 500 / cols ≤ 1000）。
+# r2 修正：任务书原写 rows 1..1000，与已接受核心不一致；此处统一到核心口径，
+# 不维持 501..1000 的"假可用"（不改核心）。
+ROWS_MIN = 1
+ROWS_MAX = 500
+ROWS_DEFAULT = 24
+COLS_MIN = 1
+COLS_MAX = 1000
+COLS_DEFAULT = 80
 STRING_MAX = 4096
 MAX_BYTES_MIN = 1
 MAX_BYTES_MAX = 131072
@@ -207,6 +216,18 @@ def _optional_string_field(
     return value, None
 
 
+#: 报告字段缺证哨兵（区分"缺字段"与"值为 None"）。
+_MISSING = object()
+
+#: 公共终端 id 形态（用于从服务报告里只提取**公共标识**，不复制自由文本）。
+_PUBLIC_TERMINAL_ID_RE = re.compile(r"^term_[A-Za-z0-9_-]{1,64}$")
+
+
+def _public_terminal_id(value: Any) -> str | None:
+    """仅当形如公共 ``terminal_id`` 时返回，否则 ``None``（不透传自由文本）。"""
+    return value if isinstance(value, str) and _PUBLIC_TERMINAL_ID_RE.match(value) else None
+
+
 def validate_terminal_id(terminal_id: Any) -> str:
     """调用 service 之前完成 id 校验（权威校验器；非 Windows 走同形回退）。"""
     try:
@@ -227,18 +248,21 @@ def validate_terminal_id(terminal_id: Any) -> str:
 
 
 def _normalize_authority(netloc: Any) -> str | None:
+    """authority → ``host[:port]``；畸形（含 ``ValueError``）一律 ``None``。"""
     if not isinstance(netloc, str):
         return None
     raw = netloc.strip().lower()
     if not raw or any(ch in raw for ch in "@/?#"):
         return None
-    parts = urlsplit("//" + raw)
-    host = parts.hostname
-    if not host:
-        return None
     try:
+        parts = urlsplit("//" + raw)
+        host = parts.hostname
         port = parts.port
     except ValueError:
+        # r2：``urlsplit``/``hostname``/``port`` 对畸形 authority（如 ``[broken``）抛
+        # ``ValueError``；必须捕获归 ``None``，不得冒泡成未捕获 500。
+        return None
+    if not host:
         return None
     return f"{host}:{port}" if port is not None else host
 
@@ -246,7 +270,8 @@ def _normalize_authority(netloc: Any) -> str | None:
 def normalize_origin(value: Any) -> str | None:
     """规范化 origin（scheme + authority）；非法一律 ``None``（fail-closed）。
 
-    只接受合法 http/https origin：无 path/query/fragment/userinfo/wildcard/null。
+    只接受合法 http/https origin：**无 path**（含尾 ``/`` 一律拒绝）、无 query/fragment/
+    userinfo/wildcard/null。畸形 URL/authority（``urlsplit`` 抛 ``ValueError``）→ ``None``。
     """
     if not isinstance(value, str):
         return None
@@ -256,12 +281,20 @@ def normalize_origin(value: Any) -> str | None:
         return None
     if "*" in value:
         return None
-    parts = urlsplit(value)
+    try:
+        parts = urlsplit(value)
+        host = parts.hostname
+        port = parts.port  # 畸形端口（如 ``:abc``）在此抛 ValueError
+    except ValueError:
+        # r2：``http://[broken`` 之类畸形 origin 必须静态归 ``None``（→ 请求 403 /
+        # 配置 fail-closed），而不是未捕获异常。
+        return None
     if parts.scheme not in ("http", "https"):
         return None
-    if not parts.netloc:
+    if not parts.netloc or not host:
         return None
-    if parts.path not in ("", "/"):
+    if parts.path:
+        # 明确无 path：``"/"`` 也算 path（尾斜杠拒绝），匹配 brief。
         return None
     if parts.query or parts.fragment:
         return None
@@ -346,30 +379,37 @@ def build_allowlist(env: Mapping[str, str], *, port: int) -> Allowlist:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class _Slots:
-    """非阻塞计数器（满则拒绝，绝不扩容排队）。"""
+class _SlotLedger:
+    """**请求槽**台账（满则拒绝，绝不扩容排队）。
+
+    r2：按 **token 身份**记账——同一 token 重复 ``release`` 是 no-op（不偷减别的槽），
+    且只有持有请求槽的任务才能释放（生命周期任务走别的路径，绝不扣请求槽）。
+    """
 
     def __init__(self, limit: int) -> None:
         self._limit = max(1, int(limit))
-        self._count = 0
+        self._holders: set[object] = set()
         self._lock = threading.Lock()
 
     @property
     def count(self) -> int:
         with self._lock:
-            return self._count
+            return len(self._holders)
 
-    def try_acquire(self) -> bool:
+    def acquire(self, token: object) -> bool:
         with self._lock:
-            if self._count >= self._limit:
+            if len(self._holders) >= self._limit:
                 return False
-            self._count += 1
+            self._holders.add(token)
             return True
 
-    def release(self) -> None:
+    def release(self, token: object) -> bool:
+        """仅当该 token 仍持有槽时释放一次；否则 no-op（幂等，不误减）。"""
         with self._lock:
-            if self._count > 0:
-                self._count -= 1
+            if token not in self._holders:
+                return False
+            self._holders.discard(token)
+            return True
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -409,7 +449,7 @@ class TerminalRuntime:
         self.disabled_reason = str(disabled_reason)
         self.allowlist = allowlist
         self._service_factory = service_factory or (lambda: TerminalService())
-        self._slots = _Slots(max_inflight)
+        self._ledger = _SlotLedger(max_inflight)
         self.shutdown_budget = max(0.0, float(shutdown_budget))
 
         self.service: Any | None = None
@@ -418,6 +458,8 @@ class TerminalRuntime:
         self.reconcile_report: dict[str, Any] | None = None
 
         self._tasks: set[asyncio.Task] = set()
+        #: r2：请求任务 → 槽 token；只有这里的任务才允许扣请求槽。
+        self._slot_token: dict[asyncio.Task, object] = {}
         self._tasks_lock = threading.Lock()
         self._reconcile_task: asyncio.Task | None = None
         self._shutdown_task: asyncio.Task | None = None
@@ -426,7 +468,8 @@ class TerminalRuntime:
     # ------------------------------------------------------------ 观测
     @property
     def inflight(self) -> int:
-        return self._slots.count
+        """在途**请求**槽数（生命周期任务不占槽）。"""
+        return self._ledger.count
 
     @property
     def tracked_tasks(self) -> int:
@@ -471,38 +514,59 @@ class TerminalRuntime:
     async def call(self, fn: Callable[[], Any]) -> Any:
         """在事件循环外执行同步 service 方法（4 槽有界、可追踪、取消不误报）。
 
-        - 槽位在**真实完成**（线程结束）后才释放：HTTP 取消/断开不取消底层线程，
-          也不提前归还槽位；
+        - **取槽与就绪复查在同一"无 await"区**（r2）：即使调用方已通过入口 gate，
+          只要此间 ``shutdown`` 已关门（``closing``/``stopped``）就会被拒
+          （``GateRejected``），**零业务执行**；
+        - 槽位在**真实完成**（线程结束）后才释放，按 token **恰好一次**；HTTP
+          取消/断开不取消底层线程，也不提前归还槽位；
         - 满槽 → :class:`Busy`（不排队、不等待）；
         - 线程异常原样冒泡（由调用方映射为静态 code），并保证异常被消费。
         """
-        if not self._slots.try_acquire():
+        token = object()  # 占位 token：任务创建前先占槽（与就绪复查同区，无 await）
+        if not self._ledger.acquire(token):
             raise Busy("busy")
+        try:
+            self._check_ready()
+        except GateRejected:
+            self._ledger.release(token)
+            raise
         task = asyncio.create_task(asyncio.to_thread(fn), name="pan-terminal-rest")
         with self._tasks_lock:
             self._tasks.add(task)
+            self._slot_token[task] = token
         try:
             result = await asyncio.shield(task)
         except asyncio.CancelledError:
             # 调用方取消（客户端断开）：保留 task 与槽位引用，完成时统一回收。
-            task.add_done_callback(self._retire)
+            task.add_done_callback(self._retire_request)
             raise
         except BaseException:
-            self._retire(task)
+            self._retire_request(task)
             raise
         # 成功路径同样必须回收（``else`` 在 ``return`` 时不会执行）。
-        self._retire(task)
+        self._retire_request(task)
         return result
 
-    def _retire(self, task: asyncio.Task) -> None:
-        """任务终结：消费结果/异常，释放槽位（恰好一次）。"""
+    def _consume(self, task: asyncio.Task) -> None:
+        """移出追踪集并**消费**结果/异常（迟到结果不裸泄漏）。"""
         with self._tasks_lock:
             self._tasks.discard(task)
         try:
             task.exception()
         except BaseException:  # noqa: BLE001 - 迟到异常在此被消费，不裸泄漏
             pass
-        self._slots.release()
+
+    def _retire_request(self, task: asyncio.Task) -> None:
+        """**请求**任务终结：消费 + 按 token **恰好一次**释放请求槽。"""
+        self._consume(task)
+        with self._tasks_lock:
+            token = self._slot_token.pop(task, None)
+        if token is not None:
+            self._ledger.release(token)
+
+    def _retire_lifecycle(self, task: asyncio.Task) -> None:
+        """**生命周期**任务（reconcile/shutdown）终结：只消费，**绝不**扣请求槽。"""
+        self._consume(task)
 
     # ------------------------------------------------------------ 生命周期
     async def startup(self) -> None:
@@ -518,6 +582,9 @@ class TerminalRuntime:
             return
         self.state = STATE_STARTING
         self._reconcile_task = asyncio.create_task(self._run_reconcile(), name="pan-terminal-reconcile")
+        with self._tasks_lock:
+            self._tasks.add(self._reconcile_task)
+        self._reconcile_task.add_done_callback(self._retire_lifecycle)
 
     async def _run_reconcile(self) -> None:
         try:
@@ -536,43 +603,129 @@ class TerminalRuntime:
             self.reconcile_report = report if isinstance(report, dict) else None
             self.state = STATE_READY
 
-    async def shutdown(self) -> dict[str, Any]:
-        """先关 REST 准入，再在事件循环外按总预算收敛同一 service。"""
-        self.state = STATE_CLOSING
-        service = self.service
-        if service is None:
-            self.state = STATE_STOPPED
-            return {"status": "no-service", "unconfirmed": False}
-        budget = self.shutdown_budget
+    def _ensure_shutdown_task(self, service: Any, budget: float) -> asyncio.Task:
+        """单飞：在途的 shutdown task **复用**（不叠加）；已完成则消费后幂等重试。
+
+        返回的 task 在创建时即挂 ``_retire_lifecycle`` 完成回调，因此无论谁在等待，
+        它的结果/异常都会被消费（不会"永远缓存失败"）。
+        """
+        task = self._shutdown_task
+        if task is not None and not task.done():
+            return task
+        if task is not None:
+            self._consume(task)  # 消费上一轮迟到结果；随后允许同一 service 幂等重试
+            self._shutdown_task = None
         task = asyncio.create_task(
             asyncio.to_thread(service.shutdown, budget=budget), name="pan-terminal-shutdown"
         )
         with self._tasks_lock:
             self._tasks.add(task)
+        task.add_done_callback(self._retire_lifecycle)
         self._shutdown_task = task
-        try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=budget)
-        except asyncio.TimeoutError:
-            # 超时：保留 service 与 task 引用，交由完成回调消费；不裸释放、不报成功。
-            task.add_done_callback(self._retire)
-            self.state = STATE_STOPPED
-            self._shutdown_report = {"status": "unconfirmed", "unconfirmed": True}
-            return dict(self._shutdown_report)
-        except asyncio.CancelledError:
-            task.add_done_callback(self._retire)
-            raise
-        except Exception as exc:  # noqa: BLE001 - 如实报告失败，保留 service 引用
-            self._retire(task)
+        return task
+
+    def _classify_shutdown(
+        self, report: Any, *, timed_out: bool, error_type: str | None
+    ) -> dict[str, Any]:
+        """把**真实服务报告**归一为静态分类（不复制自由文本）。
+
+        ``confirmed`` 只有四条件**同时**成立才可报：
+        ① 报告是 Mapping 且 ``unconfirmed`` 是**空列表**；② ``secrets_retained`` 为真
+        ``False``；③ ``budget_exhausted`` 不为 ``True``；④ 本层无在途请求、无未完成
+        reconcile。未知/畸形/缺证/有残留 → ``unconfirmed``（**调用完成 ≠ 清理证明**）。
+        """
+        problems: list[str] = []
+        unconfirmed: list[str] = []
+        secrets_retained: bool | None = None
+        budget_exhausted: bool | None = None
+        if timed_out:
+            problems.append("budget-timeout")
+        if error_type is not None:
+            problems.append("shutdown-error")
+        if not isinstance(report, Mapping):
+            problems.append("service-report-missing")
+        else:
+            raw_unconfirmed = report.get("unconfirmed", _MISSING)
+            if isinstance(raw_unconfirmed, list):
+                unconfirmed = sorted({item for item in map(_public_terminal_id, raw_unconfirmed) if item})
+                if raw_unconfirmed:
+                    problems.append("service-unconfirmed")
+            else:
+                problems.append("unconfirmed-evidence-missing")
+            raw_secrets = report.get("secrets_retained", _MISSING)
+            if raw_secrets is False:
+                secrets_retained = False
+            elif isinstance(raw_secrets, bool):
+                secrets_retained = True
+                problems.append("secrets-retained")
+            else:
+                problems.append("secrets-evidence-missing")
+            raw_budget = report.get("budget_exhausted", _MISSING)
+            if raw_budget is True:
+                budget_exhausted = True
+                problems.append("service-budget-exhausted")
+            elif raw_budget is False:
+                budget_exhausted = False
+            else:
+                # 缺证：既非 True 也非 False（缺失/None/非 bool）→ 不确认。
+                budget_exhausted = None
+                problems.append("budget-evidence-missing")
+        if self.inflight > 0:
+            problems.append("request-in-flight")
+        if self._reconcile_task is not None and not self._reconcile_task.done():
+            problems.append("reconcile-in-flight")
+        confirmed = not problems
+        return {
+            "status": "confirmed" if confirmed else "unconfirmed",
+            "confirmed": bool(confirmed),
+            # 未确认时的公共 id（service 报告的未收敛终端）；无法确认则空列表。
+            "unconfirmed": unconfirmed,
+            "unconfirmed_count": len(unconfirmed),
+            "problems": sorted(set(problems)),
+            # 不得假报 False：只有 confirmed（含 secrets_retained 真 False）才是 False。
+            "secrets_retained": False if confirmed else True,
+            "budget_exhausted": budget_exhausted,
+        }
+
+    async def shutdown(self) -> dict[str, Any]:
+        """先关 REST 准入，再在事件循环外按总预算收敛同一 service（单飞）。
+
+        - 并发/超时重试**复用同一尚在途 task**（不叠加）；已结束但未证明时允许对
+          同一 service 幂等重试，迟到结果被真实消费；
+        - 返回值来自 :meth:`_classify_shutdown`（消费真实服务报告），**不再**把
+          "调用完成"当作清理证明。
+        """
+        self.state = STATE_CLOSING
+        service = self.service
+        if service is None:
             self.state = STATE_STOPPED
             self._shutdown_report = {
-                "status": "failed",
-                "unconfirmed": True,
-                "error_type": type(exc).__name__,
+                "status": "unconfirmed", "confirmed": False, "unconfirmed": [],
+                "unconfirmed_count": 0, "problems": ["no-service"],
+                "secrets_retained": True, "budget_exhausted": None,
             }
             return dict(self._shutdown_report)
-        self._retire(task)
+        budget = self.shutdown_budget
+        task = self._ensure_shutdown_task(service, budget)
+        try:
+            report = await asyncio.wait_for(asyncio.shield(task), timeout=budget)
+        except asyncio.TimeoutError:
+            # 超时：保留 service 与 task 引用（下一次调用复用同一 task）；不报成功。
+            self.state = STATE_STOPPED
+            self._shutdown_report = self._classify_shutdown(None, timed_out=True, error_type=None)
+            return dict(self._shutdown_report)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 如实报告失败，保留 service 引用
+            self.state = STATE_STOPPED
+            self._shutdown_task = None  # 已结束：允许同一 service 幂等重试
+            self._shutdown_report = self._classify_shutdown(
+                None, timed_out=False, error_type=type(exc).__name__
+            )
+            return dict(self._shutdown_report)
         self.state = STATE_STOPPED
-        self._shutdown_report = {"status": "confirmed", "unconfirmed": False}
+        self._shutdown_task = None
+        self._shutdown_report = self._classify_shutdown(report, timed_out=False, error_type=None)
         return dict(self._shutdown_report)
 
 
@@ -794,16 +947,33 @@ class BodyError(Exception):
 
 
 async def read_json_object(request: Request, *, allow_empty: bool) -> dict[str, Any]:
-    raw = await request.body()
-    if len(raw) > MAX_JSON_BODY:
-        raise BodyError("invalid-body")
+    """按 ``request.stream()`` **逐块**累计 body；超过 64 KiB **立即**拒绝。
+
+    r2：不再先调用无界的 ``request.body()``（那会把任意大的 body 完整读进内存后才判上限）。
+    坏 body（非法 UTF-8 / 非法 JSON / 深嵌套触发 ``RecursionError``）一律静态 422。
+    """
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > MAX_JSON_BODY:
+            raise BodyError("invalid-body")
+        chunks.append(chunk)
+    raw = b"".join(chunks)
     if not raw.strip():
         if allow_empty:
             return {}
         raise BodyError("invalid-body")
     try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError):
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise BodyError("invalid-json") from None
+    try:
+        payload = json.loads(text)
+    except RecursionError:
+        # 深嵌套（如 ``[[[...]]]``）在 C 扫描器里可能抛 RecursionError（非 ValueError）。
+        raise BodyError("invalid-json") from None
+    except ValueError:
         raise BodyError("invalid-json") from None
     if not isinstance(payload, dict):
         raise BodyError("invalid-body")
@@ -840,6 +1010,9 @@ async def _execute(runtime: TerminalRuntime, handler: Callable[[], Any]) -> JSON
         return fail(429, "busy")
     except SnapshotTooLarge:
         return fail(502, "snapshot-too-large")
+    except GateRejected as rejected:
+        # r2：``call`` 内的关门复查（closing/unavailable…）按对应 503 返回，**不是** 500。
+        return fail(rejected.status_code, rejected.code)
     except Exception as exc:  # noqa: BLE001 - 只映射静态分类
         status_code, code = service_error(exc)
         return fail(status_code, code)
@@ -895,10 +1068,10 @@ async def create_terminal(request: Request) -> JSONResponse:
     if set(payload) - allowed:
         # 拒绝额外字段（context/created_by/trusted_local/terminal_id/token/shell_argv…）
         return fail(422, "unknown-field")
-    rows, error = _bounded_field(payload, "rows", 24, SIZE_MIN, SIZE_MAX)
+    rows, error = _bounded_field(payload, "rows", ROWS_DEFAULT, ROWS_MIN, ROWS_MAX)
     if error:
         return fail(422, error)
-    cols, error = _bounded_field(payload, "cols", 80, SIZE_MIN, SIZE_MAX)
+    cols, error = _bounded_field(payload, "cols", COLS_DEFAULT, COLS_MIN, COLS_MAX)
     if error:
         return fail(422, error)
     cwd, error = _optional_string_field(payload, "cwd")
@@ -1091,8 +1264,33 @@ async def stop_runtime(app: Any, *, runtime: TerminalRuntime | None = None) -> d
     """lifespan 停止：先关 REST 准入，再按总预算收敛 service。"""
     active = runtime if runtime is not None else getattr(app.state, "terminal_runtime", None)
     if not isinstance(active, TerminalRuntime):
-        return {"status": "absent", "unconfirmed": False}
+        return {
+            "status": "unconfirmed", "confirmed": False, "unconfirmed": [],
+            "unconfirmed_count": 0, "problems": ["no-runtime"],
+            "secrets_retained": True, "budget_exhausted": None,
+            "retained_service": False, "tracked_tasks": 0,
+        }
     report = await active.shutdown()
     report["retained_service"] = active.service is not None
     report["tracked_tasks"] = active.tracked_tasks
     return report
+
+
+@asynccontextmanager
+async def terminal_lifespan(
+    app: Any,
+    *,
+    runtime: TerminalRuntime | None = None,
+    **kwargs: Any,
+):
+    """真实 server 用的**可独立测试** lifespan 片段。
+
+    ``yield`` 与 ``stop_runtime`` 走 **try/finally**：即使 lifespan 体异常或被取消，
+    也一定请求收尾（先关 REST 准入，再按总预算收敛同一 service）。等待 shield 与引用
+    保留规则由 :meth:`TerminalRuntime.shutdown` 保持（不裸释放、不报成功）。
+    """
+    active = await start_runtime(app, runtime=runtime, **kwargs)
+    try:
+        yield active
+    finally:
+        await stop_runtime(app, runtime=active)

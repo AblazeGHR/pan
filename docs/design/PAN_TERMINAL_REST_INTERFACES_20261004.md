@@ -48,9 +48,14 @@ MCP、前端、依赖清单与锁、`.workflow`。`terminal_api` **禁止** impo
 ### 2.1 请求字段（严格，拒绝额外字段）
 
 - **POST /api/terminals**：JSON 仅 `rows`（默认 24）、`cols`（默认 80）、`cwd`（可空）、
-  `workspace_id`/`session_id`（**仅元数据**）。**真整数**（非 bool）`1..1000`；字符串最长 4096。
+  `workspace_id`/`session_id`（**仅元数据**）。**真整数**（非 bool）：`rows 1..500`、
+  `cols 1..1000`（r2 统一到 `TerminalService.create` 已接受的门；任务书原写 `1..1000`
+  为尺寸笔误，**不维持** `rows 501..1000` 的假可用）；字符串最长 4096。
   额外字段一律拒绝——尤其 `context` / `created_by` / `trusted_local` / `terminal_id` /
   `token` / `shell_argv`（**body 身份伪造零作用**）。
+- **body 读取（r2）**：按 `request.stream()` **逐块**累计，累计超过 **64 KiB 立即**返回
+  静态 422 `invalid-body`（**不**先调用无界的 `request.body()` 把任意大 body 读进内存）；
+  非法 UTF-8 / 非法 JSON / 深嵌套触发 `RecursionError` 的坏 body 一律静态 422 `invalid-json`。
 - **GET /{id}/read**：`cursor` 为 ASCII 非负十进制字符串（缺省 `"0"`，范围 uint64）；
   `max_bytes` 真实十进制整数 `1..131072`（默认 65536）。前导零允许（`"007"` ≡ 7）。
 - **POST /{id}/snapshot**：JSON 仅 `timeout_ms`（真整数 `1..5000`，默认 5000）；可空体。
@@ -107,7 +112,7 @@ MCP、前端、依赖清单与锁、`.workflow`。`terminal_api` **禁止** impo
 | 503 | `terminal-disabled` | 非 Windows 或非 loopback 绑定未显式放行 |
 | 503 | `not-ready` | 启动中（reconcile 未完成） |
 | 503 | `terminal-unavailable` | reconcile 失败（保留 service 引用与静态失败状态，**不假 ready**） |
-| 503 | `closing` | shutdown 已开始（REST 准入已关） |
+| 503 | `closing` | shutdown 已开始（REST 准入已关）；**也包括**已通过入口 gate、但在取槽复查时发现已关门的在途请求（r2） |
 | 500 | `internal-error` | 未归类的异常（**零**异常文本回显） |
 
 ## 5. 入口安全（先于任何服务调用/实例创建）
@@ -150,6 +155,30 @@ MCP、前端、依赖清单与锁、`.workflow`。`terminal_api` **禁止** impo
   `unconfirmed` 并**保留 service/tasks 引用**与完成消费，**不裸释放、不报成功**、
   不依赖 `executor.shutdown(wait=True)` 卡住 loop。既有其他 server 起停顺序/语义未重构。
 
+### 6.1 r2 窄修（MA 亲验四项 + 局部修正）
+
+- **① 消费真实服务报告**：`runtime.shutdown` 的返回值由 `_classify_shutdown` 从
+  `service.shutdown(...)` 的**实际报告**归一，**不再**把"调用完成"当清理证明。
+  `confirmed` 只在四条件**同时**成立时给出：
+  ① 报告是 Mapping 且 `unconfirmed` 是**空列表**；② `secrets_retained` 为真 `False`；
+  ③ `budget_exhausted` 为真 `False`（`True` 或缺失/非 bool 均不确认）；④ 本层**无在途请求、
+  无未完成 reconcile**。其余（未知/畸形/缺证/有残留/超时/service 异常）一律 `unconfirmed`，
+  报告只含**静态分类 `problems` + 计数 + 必要公共 terminal id**，**不复制自由文本**。
+  `secrets_retained` 只有 `confirmed` 时才是 `False`（不得假报）。
+- **② 请求槽与生命周期任务分类型**：请求槽由 `_SlotLedger` 按 **token 身份**记账；
+  `_retire_request` 只在任务**确实持有请求槽**时释放一次（重复调用是 no-op，不偷减别的槽）；
+  `reconcile`/`shutdown` 走 `_retire_lifecycle`，**绝不**扣请求槽。所有结果/异常都被消费。
+- **③ 关门复查**：`call` 在**取槽与就绪复查的同一"无 await 区"**内再跑一次 `_check_ready`；
+  已通过入口 gate、但此间 `shutdown` 关门的调用被拒（`GateRejected`），**零业务执行**；
+  `_execute` 把 `GateRejected` 映射为**对应 503**（不是 500）。
+- **④ normalization 稳健**：畸形 URL/authority（如 `http://[broken`、`http://host:abc`）
+  由 `urlsplit` 抛出的 `ValueError` 一律捕获归 `None` → 请求静态 **403 `forbidden-origin`** /
+  配置 **fail-closed**，不得冒泡成未捕获 500。origin **明确无 path**（尾斜杠 `/` 也算 path → 拒绝）。
+- **单飞**：并发/超时重试**复用同一尚在途的 shutdown task**（不叠加）；已结束但未证明时允许
+  对**同一 service 幂等重试**（新调用），迟到结果被真实消费而非永久缓存失败。
+- **lifespan finally**：真实 server 的 `yield` 与其收尾经 `terminal_lifespan`（内部
+  **try/finally**）接入；lifespan 体异常/取消也一定请求收尾。等待 shield 与引用保留规则不变。
+
 ## 7. 重点 gate 的落点（与任务书逐条对应）
 
 | 任务书 gate | 落点 | 断言 |
@@ -163,20 +192,28 @@ MCP、前端、依赖清单与锁、`.workflow`。`terminal_api` **禁止** impo
 | 游标**精确** | `_parse_uint64` / `_parse_bounded_int_str` | float/bool/负/科学计数/十六进制/空白/全角/超 uint64 → 422；`007`→7 |
 | 快照**降级** | 不作升级、不自动 reset | `reasons==[]` 不升级；`reset_unconfirmed:"true"` → null；`applied_evicted` 提示；`auto_reset_applied=false` |
 | 秘密**不外泄** | 白名单投影 + 静态错误 | 出口无 `pipe`/`pan-terminal-`/token；异常文本不回显 |
+| **r2**：报告未收敛**不假 confirmed** | `_classify_shutdown` | 非空 `unconfirmed`/`secrets_retained=True`/`budget_exhausted` 缺失/畸形 → `unconfirmed`；干净报告 + 无在途/无 reconcile → `confirmed` |
+| **r2**：请求槽**不被生命周期偷减** | `_SlotLedger` token + `_retire_request`/`_retire_lifecycle` 分型 | 4 在途时 shutdown 完成仍 `inflight==4`；重复 `_retire_request` 不二次扣减 |
+| **r2**：关门后**零业务执行** | `call` 取槽同区复查 `_check_ready` | gate 已过 + body 暂停 + 关门 → 释放 body 得 503 `closing` 且 `service` 零调用 |
+| **r2**：畸形 origin **静态 403** | `normalize_origin` 捕 `ValueError` | `http://[broken`、尾斜杠 `/` → 403/`config fail-closed`，不 500 |
+| **r2**：lifespan **finally** | `terminal_lifespan`（try/finally） | 体异常仍请求收尾；`_execute` 对 `GateRejected` 映射 503 而非 500 |
 
 ### 7.1 已知偏离/矛盾（如实报告，不擅自选另一方案）
 
-- **`rows` 范围不一致（确定性接口矛盾）**：本任务书规定 REST **`rows`/`cols` 真整数 `1..1000`**，
-  但已接受 `TerminalService.create` 内部门为 **`1 <= rows <= 500`**、`cols <= 1000`
-  （`service.py` 抛 `StartupFailed("invalid-size")`）。本批**按任务书实现 REST 校验 `1..1000`**，
-  并把 service 侧 `invalid-size` 如实归为 **422 `invalid-size`**（输入分类），而非 502 `startup-failed`。
-  即：`rows∈[501,1000]` 能通过 REST 校验，但会被 service 拒绝为 422。**未**擅自把 REST 校验收窄为 500。
+- **`rows` 范围不一致——已在 r2 收敛**：首版按任务书实现 REST 校验 `1..1000`，而已接受
+  `TerminalService.create` 内部门为 `rows <= 500`。MA 判定任务书尺寸约束有误，r2 **统一到核心口径**：
+  REST `rows 1..500` / `cols 1..1000`，**不维持** `rows 501..1000` 的假可用；核心未改。
+  `service_error` 仍保留 `StartupFailed("invalid-size") → 422` 的映射作为纵深防御（REST 侧
+  已不可达）。
 - **`snapshot-too-large` 的状态码**：任务书只指定静态 code，未指定状态码。本批取 **502**
   （上游 runtime 产出的屏幕无法忠实服务），并在 §4 显式登记。
 - **`Sec-Fetch-Site` 缺失不单独拒绝**：任务书明确（本地客户端/测试可无），因此仅有 Origin 强校验。
 - **reconcile 失败的就绪 code**：任务书只写"closing/unavailable 503"。本批细分为
   `not-ready`（启动中）/`terminal-unavailable`（失败）/**`terminal-disabled`**（禁用），
   以免与 create 的 502 `startup-failed` 撞码。
+- **`budget_exhausted` 缺失视为缺证**：MA 的判据写作"`budget_exhausted` 不 True"（字面允许缺失），
+  本批按"缺证 → unconfirmed"取**更保守**口径：非 `False` 即不确认（已被接受的
+  `service.shutdown` 总会返回该字段）。
 
 ## 8. 明确未承诺 / 未验收
 
@@ -196,3 +233,7 @@ MCP、前端、依赖清单与锁、`.workflow`。`terminal_api` **禁止** impo
   实测修正一处真实缺陷：`TerminalRuntime.call` 原用 `try/else` + `return`，导致**成功路径
   `else` 不执行、槽位不回收**（首个四槽用例暴露：取消 1 个后 `inflight` 应为 0 却为 3）。
   改为成功后显式回收；测试由失败转通过。
+- `2026-10-04` **r2 窄修**（MA 亲验四项 + 局部修正；只改 `terminal_api.py` / server 薄接入 /
+  本文件 / 自身 tests / 新 `audit/.../rest/r2/**`；旧证据与 brief 不动）：
+  见 §6.1。逐项证据见 `audit/terminal/implementation/rest/r2/README.md`
+  （含 d8 `git archive` 副本上的**先失败**日志与修后直连/uv 计数）。
