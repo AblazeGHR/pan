@@ -241,8 +241,14 @@ async def lifespan(app: FastAPI):
 
     qq_config = load_config().get("qq") or {}
     await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
-    
+
+    # ── 终端 REST 运行期（P2 第一批：薄接入；只构造 service + 安排一次 reconcile） ──
+    await terminal_api.start_runtime(app)
+
     yield
+
+    # ── 终端 REST 运行期收尾（先关 REST 准入，再按总预算收敛同一 service） ──
+    await terminal_api.stop_runtime(app)
     await asyncio.to_thread(gateway_plugins.stop_all)
     # Request cancellation at a Session boundary.  The bounded wait protects
     # shutdown from a stuck/slow disk while the shield and done callback keep
@@ -8362,6 +8368,11 @@ from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启�
 
 jobs_api.bind(broadcast=broadcast)
 app.include_router(jobs_api.router)
+
+# ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
+from packages.web import terminal_api  # noqa: E402  延迟导入避免启动期循环
+
+app.include_router(terminal_api.router)
 
 
 @app.get("/api/adapter/config")
