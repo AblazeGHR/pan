@@ -463,7 +463,7 @@ pipe 独占（`FILE_FLAG_FIRST_PIPE_INSTANCE`）+ registry 记录共同保证单
 | T14 | assign 失败门禁 | 注入 assign 失败 | 不发布 running/不开端点；仅清理自有后代；API 返回明确错误 |
 | T15 | 迟到输入/resize | 控制权转交后旧客户端重放 | `StaleLeaseError` 拒绝，终端状态不变 |
 | T16 | PR6 回滚回归 | 集成树 | 62 项通过 + 回滚 E2E 通过（必做验收） |
-| T17 | **Browserless 恢复** | 创建后不打开任何浏览器，产出 > 256 KiB（触发游标窗口驱逐）再打开浏览器 | runner 内仿真器全程消费；新浏览器拿到的权威快照仍含被驱逐前的屏幕状态；`recovery=full`（引擎已验证） |
+| T17 | **Browserless 恢复** | 创建后不打开任何浏览器，产出 > 256 KiB（触发游标窗口驱逐）再打开浏览器 | runner 内仿真器全程消费；快照与单遍续流对拍、游标/积压可观测。受支持且已验证、无 gap/lag/reset 未确认的能力矩阵场景才验 `fidelity=full/recovery=full`；检测到未验证模式的真实 shell 场景验 partial/degraded 原因与 UI 明示，不假称完整恢复。真实浏览器对拍仍须 P3 独立验收 |
 | T18 | shutdown/快速 restart | 正常关闭后立即重启隔离 Pan | 旧 managed 全部收敛 `exited`；无幽灵 runner/pipe；状态无 `lost` 误标；记录与进程一一对应 |
 | T19 | 供料降级诚实性 | 注入仿真器停滞（打满 feed 队列） | `feed_lag` → 快照 `recovery=degraded`；客户端收到显式重打基线提示；**无静默全恢复** |
 | T20 | detach 凭证跨 Pan 恢复 | detach → 杀 Pan → 新 Pan（同用户）启动 | DPAPI 秘密解密成功、身份核验通过、re-attach 同 PID/FILETIME；伪造 pipe 被 T13 覆盖 |
