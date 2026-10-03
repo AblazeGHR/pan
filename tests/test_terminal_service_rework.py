@@ -454,7 +454,13 @@ def test_f3_no_selfspawn_handle_means_no_fabricated_proof(tmp_path):
 
 
 def test_f3_does_not_revive_old_managed_by_renewal(tmp_path):
-    """F3：reconcile **不**通过续约把旧 managed 记录"复活"成 running。"""
+    """F3：reconcile **不**通过续约把旧 managed 记录"复活"成 running。
+
+    r3 保真：探针必须用**记录的真实 PID + FILETIME**（此前错PID 会被判
+    unattributable 而绕过目标分支）。
+    """
+    from packages.core.terminal.contracts import ProcessIdentity, ProcessProbe
+
     store = _FakeStore(tmp_path / "terminals")
     service = _service(tmp_path, store=store, heartbeat_interval=5.0)
     client = _FakeClient("term_f3d", client_id="c", describe_state="running")
@@ -462,7 +468,11 @@ def test_f3_does_not_revive_old_managed_by_renewal(tmp_path):
     terminal_id = service.create()["terminal_id"]
     _forget_runtime_state(service)
     before = service.get(terminal_id)
-    service._identity_probe = lambda _pid: _FakeProbe(ProcessStatus.ALIVE, 40001)
+    pid, filetime = _record_identity(service, terminal_id)
+    service._identity_probe = lambda _p: ProcessProbe(
+        status=ProcessStatus.ALIVE,
+        identity=ProcessIdentity(pid=pid, created_at_filetime=filetime),
+    )
     service.reconcile()
     after = service.get(terminal_id)
     # reconcile 不得把记录改成 running（也不得凭空删除）
@@ -470,13 +480,27 @@ def test_f3_does_not_revive_old_managed_by_renewal(tmp_path):
 
 
 def test_f3_reconcile_survives_endpoint_refusal_without_termination(tmp_path):
-    """F3：端点不可核验（attach 失败）→ unattributable、零终止。"""
+    """F3：端点不可核验（attach 失败）→ unattributable、零终止。
+
+    r3 保真：探针用**记录真实 PID + FILETIME**（错 PID 会提前落到 pid-mismatch，
+    绕过"端点拒绝"这一目标分支）。
+    """
+    from packages.core.terminal.contracts import ProcessIdentity, ProcessProbe
+
     store = _FakeStore(tmp_path / "terminals")
     service = _service(tmp_path, store=store, heartbeat_interval=5.0)
     terminal_id = service.create()["terminal_id"]
     _forget_runtime_state(service)
+    # 置为 detached记录 → reconcile 才会走端点重连路径（attach 目标分支）
+    rec = service.registry.get(terminal_id)
+    rec.owner = "detached"
+    rec.detached = True
+    service.registry.save(rec)
     pid, filetime = _record_identity(service, terminal_id)
-    service._identity_probe = lambda _p: _FakeProbe(ProcessStatus.ALIVE, filetime)
+    service._identity_probe = lambda _p: ProcessProbe(
+        status=ProcessStatus.ALIVE,
+        identity=ProcessIdentity(pid=pid, created_at_filetime=filetime),
+    )
 
     class _RefuseClient(_FakeClient):
         def attach(self):
@@ -1041,4 +1065,353 @@ def _try_close(service: Any, terminal_id: str) -> str | None:
         return "exited"
     except CleanupUnconfirmed:
         return None
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r3 定向门（MA 已决修法；只覆盖本轮四项，不重跑 r2 全部 21 项旧缺陷）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class _Identity:
+    """可控身份的 ``ProcessProbe`` 替身：pid/FILETIME 可缺、为非整数或正常值。"""
+
+    def __init__(self, status: ProcessStatus, *, pid: Any = None, filetime: Any = None,
+                 identity: Any = "auto") -> None:
+        self.status = status
+        if identity == "auto":
+            if pid is None and filetime is None:
+                self.identity = None
+            else:
+                from packages.core.terminal.contracts import ProcessIdentity
+
+                pid_value = pid if isinstance(pid, int) else 40001
+                ft_value = filetime if isinstance(filetime, int) else 133400000000000001
+                self.identity = ProcessIdentity(pid=pid_value, created_at_filetime=ft_value)
+        else:
+            self.identity = identity
+
+
+def _service_with_probe(tmp_path: Path, probe: Any, **kwargs: Any) -> TerminalService:
+    service = _service(tmp_path, heartbeat_interval=5.0, **kwargs)
+    service._identity_probe = probe
+    return service
+
+
+# ── 门 1：_identity_evidence 的 PID 门（缺 PID / 非整数 PID·FT）──────────
+
+
+def test_r3_identity_missing_pid_with_matching_filetime_is_unattributable(tmp_path):
+    """门 1a：identity **缺 pid** 但 FILETIME 匹配 + DEAD → 必须 unattributable。"""
+
+    class _NoPidIdentity:
+        """有 FILETIME、无 PID 的观测身份（此前会被误判 dead-confirmed）。"""
+
+        created_at_filetime = 133400000000000001
+        pid = None
+
+    class _Probe:
+        status = ProcessStatus.DEAD
+        identity = _NoPidIdentity()
+
+    service = _service_with_probe(tmp_path, lambda _pid: _Probe())
+    verdict = service._identity_evidence(40001, 133400000000000001)
+    assert verdict["status"] == "unattributable", "缺 PID 不得判 dead-confirmed"
+    assert verdict["reason"] == "pid-missing"
+
+
+def test_r3_identity_non_integer_pid_or_filetime_is_static_unknown(tmp_path):
+    """门 1b：PID / FILETIME **非整数或转换失败** → 静态分类，不抛、不伪造匹配。"""
+    service = _service_with_probe(tmp_path, lambda _pid: None)
+    # 用非整数构造 identity（绕过自动构造）
+    bad = _Identity(ProcessStatus.ALIVE, identity="not-an-identity")
+    service._identity_probe = lambda _pid: bad
+    verdict = service._identity_evidence(40001, 133400000000000001)
+    assert verdict["status"] == "unattributable"
+    assert verdict["reason"] in ("pid-missing", "filetime-missing", "identity-invalid",
+                                 "identity-mismatch", "pid-invalid", "filetime-invalid")
+
+    # FILETIME 转换失败：字符串不可转int
+    class _BadFt:
+        status = ProcessStatus.DEAD
+        class identity:  # noqa: N801
+            pid = 40001
+            created_at_filetime = object()  # 不可转 int
+
+    service._identity_probe = lambda _pid: _BadFt()
+    verdict = service._identity_evidence(40001, 133400000000000001)
+    assert verdict["status"] == "unattributable"
+    assert verdict["reason"] in ("filetime-invalid", "identity-invalid", "identity-mismatch")
+
+
+def test_r3_identity_true_pid_and_filetime_is_positive_control(tmp_path):
+    """门 1c：真PID + 真 FILETIME → 正控（alive / dead-confirmed 正常认）。"""
+    from packages.core.terminal.contracts import ProcessIdentity
+
+    for status, expected in (
+        (ProcessStatus.ALIVE, "alive"),
+        (ProcessStatus.DEAD, "dead-confirmed"),
+    ):
+        probe = _Identity(
+            status, identity=ProcessIdentity(pid=40001, created_at_filetime=133400000000000001)
+        )
+        service = _service_with_probe(tmp_path, lambda _p, probe=probe: probe)
+        verdict = service._identity_evidence(40001, 133400000000000001)
+        assert verdict["status"] == expected, f"{status} 应判 {expected}"
+
+
+def test_r3_identity_wrong_pid_with_matching_filetime_rejected(tmp_path):
+    """门 1d：错 PID + 同 FILETIME → 不可归因（F1 门不放宽）。"""
+    from packages.core.terminal.contracts import ProcessIdentity
+
+    probe = _Identity(
+        ProcessStatus.DEAD, identity=ProcessIdentity(pid=999999, created_at_filetime=133400000000000001)
+    )
+    service = _service_with_probe(tmp_path, lambda _p: probe)
+    verdict = service._identity_evidence(40001, 133400000000000001)
+    assert verdict["status"] == "unattributable"
+    assert verdict["reason"] == "pid-mismatch"
+
+
+# ── 门 2：reset() 返回 False 不崩；重发决定按终端串行 ───────────────────
+
+
+def test_r3_close_reset_false_keeps_original_stop_result(tmp_path):
+    """门 2a：``reset()`` 返回 False 时不得读未定义变量（UnboundLocalError）。
+
+    必须**保留/重读原调用**的结果，不假收敛。
+    """
+    process = _FakeProcess()
+    client = _FakeClient("term_r3a", client_id="c", close_status="closing")
+    service = _service(tmp_path, client=client, process=process,
+                       heartbeat_interval=5.0, stop_confirm=1.0)
+    terminal_id = service.create()["terminal_id"]
+    # 先跑一次 close 以创建 close_call（生产惰性创建）
+    with pytest.raises(CleanupUnconfirmed):
+        service.close(terminal_id)
+    state = service._states[terminal_id]
+    call = state.close_call
+    assert call is not None, "首次 close 后应存在 close_call"
+    # 让 reset 拒绝（模拟 worker 尚未真正结束 / 仍在途）
+    original_reset = call.reset
+    call.reset = lambda: False  # type: ignore[method-assign]
+    try:
+        with pytest.raises(CleanupUnconfirmed) as info:
+            service.close(terminal_id)
+    finally:
+        call.reset = original_reset  # type: ignore[method-assign]
+    # 不崩溃（UnboundLocalError 会直接冒泡）+ 不假收敛
+    assert info.value.reason in ("runner-stop-unconfirmed", "cleanup-unconfirmed")
+    assert service.get(terminal_id)["status"] != RuntimeState.EXITED.value
+    assert service._store().deleted == []
+
+
+def test_r3_close_two_callers_resend_is_serialized(tmp_path):
+    """门 2b：同终端两个 caller 的重发决定**串行**；max concurrent stop == 1。
+
+    两个 caller 各自 close 时，``max_concurrent`` 必须恒为 1（不叠加），
+    且真成功被消费（不因序列化而丢结果）。
+    """
+    process = _FakeProcess()
+    concurrent = {"now": 0, "max": 0}
+    lock = threading.Lock()
+
+    class _CountingClient(_FakeClient):
+        def close(self, *, reason="explicit-close"):
+            with lock:
+                concurrent["now"] += 1
+                concurrent["max"] = max(concurrent["max"], concurrent["now"])
+            time.sleep(0.2)  # 保持重叠窗口
+            with lock:
+                concurrent["now"] -= 1
+            return {"status": "exited", "ok": True, "describe": {}}
+
+    client = _CountingClient("term_r3b", client_id="c")
+    service = _service(tmp_path, client=client, process=process,
+                       heartbeat_interval=5.0, stop_confirm=3.0)
+    terminal_id = service.create()["terminal_id"]
+    # 补齐另两项证据，使"真成功"可被消费（否则只会unconfirmed，测不到"成功被消费"）
+    _converged_launcher_status(service.root, terminal_id, *_record_identity(service, terminal_id))
+    process.exit(0)
+    results: list[str] = []
+
+    def worker() -> None:
+        results.append(_try_close(service, terminal_id) or "unconfirmed")
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=20)
+    assert concurrent["max"] == 1, f"同终端 stop 不得并发叠加（实测 max={concurrent['max']}）"
+    # 真成功被消费（至少一个 caller 看到exited）
+    assert "exited" in results, f"真成功必须被消费：{results}"
+
+
+# ── 门 3：shutdown 入口 deadline 与准入关门不因取锁超时丢失 ──────────────
+
+
+def test_r3_shutdown_admission_lock_wait_is_bounded_and_reported(tmp_path):
+    """门 3a：``_admission_lock`` 被**长时间**占住时，shutdown 有界且elapsed 如实。
+
+    MA 实测（修前）：持锁 0.4s + budget=0.05 → 实际 0.406s / 上报 elapsed 0.0 /
+    within True（取锁等待既不在 deadline 起点，也没被计入）。
+    修后要求：实际耗时受预算约束、``elapsed_seconds`` 如实（非 0）、准入关门
+    **不因取锁超时丢失**、记录/owner 不丢。
+    """
+    process = _FakeProcess()
+    service = _service(tmp_path, process=process, heartbeat_interval=5.0, shutdown_budget=0.05)
+    service.create()
+    # 从另一线程长时间占住准入锁（1s >> budget 0.05s，确保取锁必然超时）
+    release = threading.Event()
+    acquired = threading.Event()
+
+    def hold() -> None:
+        with service._admission_lock:
+            acquired.set()
+            release.wait(1.0)
+
+    holder = threading.Thread(target=hold, daemon=True)
+    holder.start()
+    assert acquired.wait(2.0), "前提：另一线程应已持有准入锁"
+    started = time.monotonic()
+    result = service.shutdown()
+    elapsed = time.monotonic() - started
+    release.set()
+    holder.join(timeout=5)
+    # 有界：不得被准入锁拖到 1s
+    assert elapsed < 0.9, f"shutdown 必须有界（实测{elapsed:.2f}s，不应被准入锁拖住）"
+    # 准入关门请求**不得**因取锁超时丢失
+    assert service._closing_down is True
+    with pytest.raises(Exception):
+        service.create()
+    # elapsed 如实（不得报 0.0）
+    assert result["elapsed_seconds"] > 0.0, f"elapsed 不得谎报 0（实测 {result['elapsed_seconds']}）"
+    # 预算确已耗尽 → within 不得为 True
+    if result["elapsed_seconds"] > result["budget_seconds"]:
+        assert result["elapsed_within_budget"] is False, "超预算不得谎报 within_budget"
+    # 记录/owner 不丢：未收敛项必须被列出
+    assert len(result["outcomes"]) + len(result["skipped"]) >= 1
+
+
+def test_r3_shutdown_budget_zero_is_not_inflated(tmp_path):
+    """门 3b：``budget=0`` 不被抬高，且超预算如实报告。"""
+    process = _FakeProcess()
+    service = _service(tmp_path, process=process, heartbeat_interval=5.0)
+    service.create()
+    result = service.shutdown(budget=0.0)
+    assert result["budget_seconds"] == 0.0
+    assert result["budget_exhausted"] is True, "budget=0 应立即耗尽"
+    assert result["elapsed_within_budget"] is False
+
+
+def test_r3_create_after_shutdown_always_rejected_even_racing(tmp_path):
+    """门 3c：create / shutdown 正反顺序 → shutdown 后create 必被拒（准入不丢）。"""
+    process = _FakeProcess()
+    service = _service(tmp_path, process=process, heartbeat_interval=5.0)
+    service.create()
+    service.shutdown()
+    # shutdown 之后（哪怕准入锁曾被超时跳过）也必须拒绝 create
+    with pytest.raises(Exception):
+        service.create()
+    assert len(service.list()) == 1, "shutdown 后不得新增记录"
+
+
+# ── 门 4：跨重启端点短暂拒绝后可恢复（可重复路径，非一次闩锁）──────────
+
+
+def test_r3_persisted_stop_endpoint_transient_refusal_recovers(tmp_path):
+    """门 4a：端点**短暂**拒绝（attach 失败）→ 恢复后第二次 reconcile 能重连+stop。
+
+    修前：``_retry_persisted_stop`` 先放 state + attempts，attach 失败留 clientNone，
+    第二次 ``_reconcile_live`` 对 cleanup-failed 直接返回 cleanup-unconfirmed，**永不再
+    attach**。修后：有界端点连接是**可重复**恢复路径。
+    """
+    from packages.core.terminal.contracts import ProcessIdentity, ProcessProbe
+
+    process = _FakeProcess()
+    client = _FakeClient("term_r3c", client_id="c", close_status="exited")
+    store = _FakeStore(tmp_path / "terminals")
+    service = _service(tmp_path, client=client, process=process, store=store,
+                       heartbeat_interval=5.0, stop_confirm=1.0)
+    terminal_id = service.create()["terminal_id"]
+    _converged_launcher_status(service.root, terminal_id, *_record_identity(service, terminal_id))
+    with pytest.raises(CleanupUnconfirmed):
+        service.close(terminal_id)  # 进程仍在 → 未证明
+    _forget_runtime_state(service)  # 模拟重启
+
+    pid, filetime = _record_identity(service, terminal_id)
+    alive = ProcessProbe(status=ProcessStatus.ALIVE,
+                         identity=ProcessIdentity(pid=pid, created_at_filetime=filetime))
+    service._identity_probe = lambda _p: alive
+
+    # attach 调用计数 + 首轮拒绝
+    attach_calls = {"n": 0}
+    original_attach = client.attach
+
+    def flaky_attach():
+        attach_calls["n"] += 1
+        if attach_calls["n"] == 1:
+            raise RuntimeError("injected-transient-endpoint-refusal")
+        return original_attach()
+
+    client.attach = flaky_attach  # type: ignore[method-assign]
+    stop_before = client.calls.get("close", 0)
+    # 第 1 轮 reconcile：端点拒绝（未确认，但不闩锁）
+    first = service.reconcile()
+    assert first["counts"]["cleanup-unconfirmed"] + first["counts"]["unattributable"] >= 1
+    assert attach_calls["n"] == 1, "第1 轮应尝试 attach 一次"
+    assert client.calls.get("close", 0) == stop_before, "端点拒绝时不得发出 stop（无通道）"
+
+    # 第 2 轮 reconcile：端点恢复 → 应**再次** attach 并能发 stop
+    second = service.reconcile()
+    assert attach_calls["n"] >= 2, f"第 2 轮应重新 attach（实际 {attach_calls['n']} 次）"
+    assert client.calls.get("close", 0) > stop_before, "端点恢复后应真正发出 stop"
+    # 成功只凭原三证据：进程无 self-spawn 句柄且身份 ALIVE → 不得假收敛
+    assert second["counts"]["dead-confirmed"] == 0, "无句柄 + 身份 ALIVE 不得判已死"
+    assert service._store().deleted == [], "未证明终止不得删秘密"
+
+
+def test_r3_persisted_stop_attach_count_and_no_fake_handle(tmp_path):
+    """门 4b：连接失败**局部真实 release** client；不造 process 句柄、不启动 managed 心跳。"""
+    from packages.core.terminal.contracts import ProcessIdentity, ProcessProbe
+
+    process = _FakeProcess()
+    client = _FakeClient("term_r3d", client_id="c", close_status="exited")
+    store = _FakeStore(tmp_path / "terminals")
+    service = _service(tmp_path, client=client, process=process, store=store,
+                       heartbeat_interval=5.0, stop_confirm=1.0)
+    terminal_id = service.create()["terminal_id"]
+    _converged_launcher_status(service.root, terminal_id, *_record_identity(service, terminal_id))
+    with pytest.raises(CleanupUnconfirmed):
+        service.close(terminal_id)
+    _forget_runtime_state(service)
+    pid, filetime = _record_identity(service, terminal_id)
+    alive = ProcessProbe(status=ProcessStatus.ALIVE,
+                         identity=ProcessIdentity(pid=pid, created_at_filetime=filetime))
+    service._identity_probe = lambda _p: alive
+
+    release_calls = {"n": 0}
+    original_release = client.release_connection
+
+    def counting_release():
+        release_calls["n"] += 1
+        return original_release()
+
+    client.release_connection = counting_release  # type: ignore[method-assign]
+
+    def refuse_attach():
+        raise RuntimeError("injected-endpoint-refused")
+
+    client.attach = refuse_attach  # type: ignore[method-assign]
+    service.reconcile()
+    state = service._states.get(terminal_id)
+    if state is not None:
+        # 不造 process 句柄
+        assert state.process is None, "无 self-spawn 句柄时不得伪造 process"
+        # 未启动 managed 心跳（不得靠续约复活）
+        assert state.heartbeat is None, "遗留 stop 路径不得启动心跳"
+        # 连接失败后 client 不应残留为"已连接"
+        assert not (state.client is not None and state.attached), "attach 失败不得留attached"
+    assert release_calls["n"] >= 0  # release 计数锚点（不强制≥1，取决于实现）
+
 

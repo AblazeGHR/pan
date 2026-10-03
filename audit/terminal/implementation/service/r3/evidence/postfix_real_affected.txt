@@ -1,0 +1,7 @@
+# r3 POST-FIX: affected REAL-layer tests only (restart recovery + close retry), once each
+# cmd: python -m pytest tests/test_terminal_service_rework.py -o addopts= -q -p no:cacheprovider --timeout=200 -k 'real_restart or real_close_failure'
+# NOT re-run: full 41 / full 31 real-machine, adjacent 40, launcher/core/full suite
+
+..                                                                       [100%]
+2 passed, 40 deselected in 11.01s
+rc=0

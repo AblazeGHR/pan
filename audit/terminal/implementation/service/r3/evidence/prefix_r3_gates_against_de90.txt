@@ -1,0 +1,34 @@
+# r3 PRE-FIX reproduction -- read-only archive of de90b1ef (git archive, no .git)
+# cwd: C:/Users/14709/AppData/Local/Temp/de90-ro
+# cmd: python -m pytest tests/test_terminal_service_rework.py -o addopts= -q -p no:cacheprovider --tb=line --timeout=90 -k r3_
+# scope: ONLY this round's 4 targeted gates (r2 old 21 defects NOT re-run)
+
+FF..FFF..F.                                                              [100%]
+================================== FAILURES ===================================
+E   AssertionError: assert 'identity-mismatch' == 'pid-missing'
+      
+      - pid-missing
+      + identity-mismatch
+C:\Users\14709\AppData\Local\Temp\de90-ro\tests\test_terminal_service_rework.py:1086: AssertionError: assert 'identity-mismatch' == 'pid-missing'
+E   TypeError: int() argument must be a string, a bytes-like object or a real number, not 'object'
+C:\Users\14709\AppData\Local\Temp\de90-ro\packages\core\terminal\service.py:1967: TypeError: int() argument must be a string, a bytes-like object or a real number, not 'object'
+E   UnboundLocalError: cannot access local variable 'finished2' where it is not associated with a value
+C:\Users\14709\AppData\Local\Temp\de90-ro\packages\core\terminal\service.py:1450: UnboundLocalError: cannot access local variable 'finished2' where it is not associated with a value
+E   AssertionError: 真成功必须被消费：['unconfirmed', 'unconfirmed']
+    assert 'exited' in ['unconfirmed', 'unconfirmed']
+C:\Users\14709\AppData\Local\Temp\de90-ro\tests\test_terminal_service_rework.py:1211: AssertionError: 真成功必须被消费：['unconfirmed', 'unconfirmed']
+E   AssertionError: elapsed 不得谎报 0（实测0.0）
+    assert 0.0 > 0.0
+C:\Users\14709\AppData\Local\Temp\de90-ro\tests\test_terminal_service_rework.py:1244: AssertionError: elapsed 不得谎报 0（实测0.0）
+E   AssertionError: 第 2 轮应重新 attach（实际 1 次）
+    assert 1 >= 2
+C:\Users\14709\AppData\Local\Temp\de90-ro\tests\test_terminal_service_rework.py:1320: AssertionError: 第 2 轮应重新 attach（实际 1 次）
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_service_rework.py::test_r3_identity_missing_pid_with_matching_filetime_is_unattributable
+FAILED tests/test_terminal_service_rework.py::test_r3_identity_non_integer_pid_or_filetime_is_static_unknown
+FAILED tests/test_terminal_service_rework.py::test_r3_close_reset_false_keeps_original_stop_result
+FAILED tests/test_terminal_service_rework.py::test_r3_close_two_callers_resend_is_serialized
+FAILED tests/test_terminal_service_rework.py::test_r3_shutdown_admission_lock_wait_is_bounded_and_reported
+FAILED tests/test_terminal_service_rework.py::test_r3_persisted_stop_endpoint_transient_refusal_recovers
+6 failed, 5 passed, 31 deselected in 4.89s
+rc=1

@@ -1,0 +1,9 @@
+# r3 source anchoring -- LF-normalized blob sha256 (64-hex, git blob口径)
+packages/core/terminal/service.py
+  lf_sha256=ce02e917c3bc6cc40840f5099c1b45d556ff0687200daf3ce0ceda4e1da16fda hexlen=64 lines=2337
+tests/test_terminal_service_rework.py
+  lf_sha256=c7f5677a7ef59e6ef673799b5dc3ed2da5f0b83cb3ae99868e01d50078be1b50 hexlen=64 lines=1418
+tests/test_terminal_service.py
+  lf_sha256=f787d38065952171c626afbfd8aa021e7013414783fbe5e83ad1a22b410d69fe hexlen=64 lines=1369
+docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md
+  lf_sha256=9a81a3dece8595f2e36e59302819d88b850cdcb9da9d89c10357c05437e38de5 hexlen=64 lines=350

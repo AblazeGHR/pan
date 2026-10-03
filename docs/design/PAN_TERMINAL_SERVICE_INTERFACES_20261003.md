@@ -1,4 +1,4 @@
-# Pan TerminalService 接口与预算纪律（P2 第一批，2026-10-03；r2 返工后修订）
+# Pan TerminalService 接口与预算纪律（P2 第一批，2026-10-03；r2 返工 / r3 窄修后修订）
 
 > **r2 修订（独立审查 `d7905408` 判返工后）**：F1–F10 已闭环。本节标 **r2** 的条目
 > 覆盖首版语义；未标者沿用首版。首版口径**不再适用于**被 r2 修订的条目。
@@ -333,3 +333,17 @@ owner/record/secret 可重试；**不标 exited/lost**；**绝不使用 `caller_
   其余路径（`_mark_unproven` / `_stop_heartbeat` / `_require_client` /
   `_release_client`）**不取**该锁——属性赋值在CPython 下是原子的，避免"等锁超时后
   再取同一把锁"造成二次挂死。
+
+- `2026-10-03` **r3 窄修（MA 已决修法的执行；只改 `service.py` + 本文 + 回归 +
+  本目录证据）**：
+
+  | # | 修订 |
+  | --- | --- |
+  | 1 | `_identity_evidence`：**缺 `observed_pid` → `unattributable`（`pid-missing`）**——FILETIME 单独相同不足以认定同一进程；PID/FILETIME **非整数或转换失败**归入静态分类（`pid-invalid` / `filetime-missing` / `filetime-invalid` / `identity-missing`），**不抛异常、不伪造匹配**。正控（真 PID+FT）/ 错 PID / 缺 PID 三类均有门控 |
+  | 2 | `_close_state`：`call.reset()` 返回 `False` 时**保留/重读原调用**结果（此前 `finished2` 未初始化 → `UnboundLocalError`），不读未定义变量、不假收敛；同终端"判定+重发"由**独立 `close_op_lock`** 串行（`threading.Lock`），锁等待计入本次 deadline，且**不包裹**阻塞 stop 调用（避免让其它预算路径无界） |
+  | 3 | `shutdown`：**入口即起 deadline**（取锁等待不再发生在 `started` 之前）；准入关门请求**不因取锁超时丢失**——先置无锁 `Event`，`_admit` 在准入临界区复查 `标志 or Event`；准入锁**有界**取锁，超时如实继续收敛；`elapsed_within_budget` 仅容忍 1ms 浮点噪声（**不得**再把超时报成 within）。**不**把普通 registry I/O 声称为 OS 硬 SLA |
+  | 4 | 跨重启端点**可重复**恢复：`_retry_persisted_stop` 不再是"一次 attempt 永久闩锁"；身份/秘密**每轮重核**，端点连接抽为 `_attach_persisted_stop_client`（失败**局部真实 `release_connection`**、保留**可重试 state**）；`_reconcile_live` 对"无句柄且无 client"的 cleanup-failed 记录**重新路由**回该路径（此前直接返回、永不再 attach）。**不**造 process 句柄、**不**启动 managed 心跳；成功仍只凭原三项证据 |
+
+  r3 未改共享协议/未扩架构；`_FakeProbe`（原测试替身）新增**显式 `pid` 参数**，需要
+  "匹配"语义的调用点传记录真实 PID——**不放宽生产门、不删断言、不触碰心跳卫生区**。
+

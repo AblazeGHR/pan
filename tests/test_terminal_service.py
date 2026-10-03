@@ -137,15 +137,21 @@ class _FakeStore:
 
 
 class _FakeProbe:
-    """``ProcessProbe`` 替身（构造指定三态）。"""
+    """``ProcessProbe`` 替身（构造指定三态）。
 
-    def __init__(self, status: ProcessStatus, filetime: int | None = None) -> None:
+    ``pid`` 显式可选：身份比对要求 **PID 与raw FILETIME 同时匹配**，因此需要
+    "匹配"语义的用例必须传入记录中的真实 PID；缺省保留历史行为（``pid=1``），
+    以便"错 PID"类负例仍能表达错配。**不放宽生产门**。
+    """
+
+    def __init__(self, status: ProcessStatus, filetime: int | None = None,
+                 pid: int = 1) -> None:
         self.status = status
         self.identity = None
         if filetime is not None:
             from packages.core.terminal.contracts import ProcessIdentity
 
-            self.identity = ProcessIdentity(pid=1, created_at_filetime=filetime)
+            self.identity = ProcessIdentity(pid=int(pid), created_at_filetime=filetime)
 
 
 class _FakeClient:
@@ -963,7 +969,11 @@ def test_reconcile_dead_confirmed_with_matching_identity(tmp_path):
     service = _make_service(tmp_path, process=process, heartbeat_interval=5.0, probe=probe)
     terminal_id = service.create()["terminal_id"]
     record = service.get(terminal_id)
-    probes[int(record["pid"])] = _FakeProbe(ProcessStatus.DEAD, int(record["process_created_at_filetime"]))
+    probes[int(record["pid"])] = _FakeProbe(
+        ProcessStatus.DEAD,
+        int(record["process_created_at_filetime"]),
+        pid=int(record["pid"]),
+    )
     result = service.reconcile()
     assert result["counts"]["dead-confirmed"] == 1
     assert service.get(terminal_id)["status"] == RuntimeState.EXITED.value

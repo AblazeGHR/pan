@@ -1,0 +1,10 @@
+# r3 POST-FIX: pure-logic targeted, BOTH service suites (direct)
+# cmd: python -m pytest tests/test_terminal_service_rework.py tests/test_terminal_service.py -o addopts= -q -p no:cacheprovider --timeout=200 -k 'not real'
+# env: windows; python: E:/software/miniforge/python.exe
+# python_version: 3.12.12
+# platform: Windows-11-10.0.26200-SP0
+
+........................................................................ [ 93%]
+.....                                                                    [100%]
+77 passed, 6 deselected in 11.57s
+rc=0
