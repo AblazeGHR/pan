@@ -1,0 +1,18 @@
+{
+  "runner_fidelity": "partial",
+  "runner_recovery": "partial",
+  "engine_fidelity": "partial",
+  "engine_recovery": "partial",
+  "engine_reasons": [],
+  "no_upgrade": true,
+  "marker_intact": true,
+  "utf8_intact": true,
+  "f5_fields": {
+    "cursors_valid": true,
+    "reset_unconfirmed": false
+  },
+  "node_reason_layer": {
+    "node_reason_in_note": true,
+    "python_reasons": []
+  }
+}

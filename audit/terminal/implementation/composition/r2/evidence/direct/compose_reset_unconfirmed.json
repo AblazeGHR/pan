@@ -1,0 +1,10 @@
+{
+  "injected_sidecar": true,
+  "reset_snapshot_note": "reset-timeout after 0.3s (request skipped if still queued; not executed late); cursor=334 (applied, != producer frontier 334); queue_ops=1; reset unconfirmed (may still execute if already sent): re-baseline state unknown",
+  "reset_unconfirmed": true,
+  "cursors_valid_false": true,
+  "runner_recovery_during": "degraded",
+  "reset_count_after_ack": 1,
+  "recovery_after_reset": "partial",
+  "no_fake_full": true
+}

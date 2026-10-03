@@ -1,0 +1,19 @@
+{
+  "parent_head": "7e94f13ac643e8942673fd169929a3789ed7ee20",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/composition/r2/README.md": {
+      "blob": "b50a4c40588602202a6eae1182bf2dcc8c93aaca",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_COMPOSITION_REVIEW_20261003_ROUND2.md": {
+      "blob": "9db86e13ec48ef84de690bc08541fad758156d52",
+      "mode": "100644"
+    },
+    "tests/test_terminal_composition.py": {
+      "blob": "aa7639cd5fa6b7ed00918d09d66cf6d36e07e1ce",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定组合 r2 的测试/ROUND2 报告/r2 README；首轮证据（7e 导入）历史不刷新。"
+}

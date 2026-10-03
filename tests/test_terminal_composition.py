@@ -743,6 +743,7 @@ def test_composition_browserless_feed_eviction_protocol_a_single_consumption(
     )
     assert len(content) > 262144
     blob.write_bytes(content)
+    submit_at = time.monotonic()  # F2 容量口径：单一 monotonic 从首次提交起算（不扣 probe 窗口）
     client.input(f'type "{blob}"\r'.encode("utf-8"))
     total = _wait_until(
         lambda: client.describe()["total_bytes"] if client.describe()["total_bytes"] > 262144 else None,
@@ -756,6 +757,8 @@ def test_composition_browserless_feed_eviction_protocol_a_single_consumption(
     total_now = client.describe()["total_bytes"]
     backlog = session.control("diagnostics")
     snap = _wait_engine_caught_up(session, client, total_now)
+    catch_up_seconds = round(time.monotonic() - submit_at, 3)
+    caught_diag = session.control("diagnostics")
     assert int(snap["cursor"]) == int(total_now), (
         f"applied cursor 未追平：cursor={snap['cursor']} total={total_now}"
     )
@@ -810,14 +813,21 @@ def test_composition_browserless_feed_eviction_protocol_a_single_consumption(
             "checker_serialized_equal": True,
             "fidelity": fidelity,
             "recovery": recovery,
-            "engine_backlog_observation": {
-                "feed_ops": backlog.get("counters", {}).get("feed_ops"),
-                "queue_bytes_at_production_end": backlog.get("queue_bytes"),
-                "queue_ops_at_production_end": backlog.get("queue_ops"),
-                "applied_cursor_at_production_end": backlog.get("applied_cursor"),
+            "capacity_observation": {
+                "measure": "单一 monotonic：首次提交 → applied==total（不扣除任何 probe 窗口）",
+                "catch_up_seconds": catch_up_seconds,
+                "producer_feed_ops": backlog.get("counters", {}).get("feed_ops"),
+                "engine_feed_batches": caught_diag.get("counters", {}).get("feed_batches"),
+                "engine_feed_batched_ops": caught_diag.get("counters", {}).get("feed_batched_ops"),
+                "max_feed_batch_bytes": caught_diag.get("counters", {}).get("max_feed_batch_bytes"),
+                "pre_catch_up": {
+                    "applied_cursor": backlog.get("applied_cursor"),
+                    "queue_ops": backlog.get("queue_ops"),
+                    "queue_bytes": backlog.get("queue_bytes"),
+                },
                 "note": (
-                    "真实 ConPTY 小读块 + applier 单飞 → 生产端突发远超引擎排空速率；"
-                    "adapter 不阻塞 reader，积压可见（本套件等待追平，未假称即时）"
+                    "同机探针（本机 80×24+scrollback=1000）合并批上限 64KiB（emulator r4 F2）；"
+                    "producer feed op 数与实际引擎帧数分列，不外推跨机硬 SLA"
                 ),
             },
             "emulator_close": final["emulator_close"],
@@ -849,7 +859,6 @@ def test_composition_utf8_osc_boundaries_no_fake_full(composed, tmp_path):
     runner_snap = _wait_engine_caught_up(session, client, total_now, timeout=180.0)
     engine_snap = session.control("snapshot", wait=10.0)
     diagnostics = session.control("diagnostics")
-    detail = json.loads(runner_snap.get("detail") or "{}")
     fidelity, recovery = _enum_str(runner_snap["fidelity"]), _enum_str(runner_snap["recovery"])
     # 不得升级引擎状态（runner 用自己的降级位，但不允许优于引擎自报）
     assert _FIDELITY_RANK[fidelity] <= _FIDELITY_RANK[_enum_str(engine_snap["fidelity"])]
@@ -857,6 +866,17 @@ def test_composition_utf8_osc_boundaries_no_fake_full(composed, tmp_path):
     # full 仅当引擎 reasons 为空（诚实性）
     if fidelity == "full" and recovery == "full":
         assert diagnostics["reasons"] == [], f"有 reasons 却报 full：{diagnostics['reasons']}"
+    # F5 机器字段（真实 engine↔runner↔IPC）：存在且 bool-or-null（unknown）；不解析 note
+    for field in ("cursors_valid", "reset_unconfirmed"):
+        assert field in runner_snap, f"F5 字段缺失：{field}"
+        assert runner_snap[field] is None or isinstance(runner_snap[field], bool), (
+            f"{field} 必须是 bool 或 null：{runner_snap[field]!r}"
+        )
+    # 原因分层：node 未验证序列原因仅在 note；Python diagnostics.reasons 为空不得升级
+    note_text = str(runner_snap.get("note") or "")
+    node_reason_in_note = "reasons=" in note_text
+    if node_reason_in_note and diagnostics["reasons"] == []:
+        assert recovery != "full", "仅有 node note 原因（python reasons 空）时不得报 full"
     # UTF-8 内容完好（标记与中文字符均在屏幕状态里）
     assert "COMP-MARK-OSC" in runner_snap["serialized_screen"]
     assert "中" in runner_snap["serialized_screen"]
@@ -875,6 +895,14 @@ def test_composition_utf8_osc_boundaries_no_fake_full(composed, tmp_path):
             "no_upgrade": True,
             "marker_intact": True,
             "utf8_intact": True,
+            "f5_fields": {
+                "cursors_valid": runner_snap.get("cursors_valid"),
+                "reset_unconfirmed": runner_snap.get("reset_unconfirmed"),
+            },
+            "node_reason_layer": {
+                "node_reason_in_note": node_reason_in_note,
+                "python_reasons": diagnostics["reasons"][:8],
+            },
         },
     )
 
@@ -980,9 +1008,15 @@ def test_composition_reset_unconfirmed_no_fake_full(composed, tmp_path):
     diag = session.control("diagnostics")
     assert diag["reset_unconfirmed"] is True
     assert diag["cursors_valid"] is False
-    runner_snap = client.snapshot(timeout_ms=4000)
+    # 未确认窗口内的 runner 快照：control op 排在在途 reset 之后，长超时会等迟到 ack 回填；
+    # 用短超时（200ms < stub 的 1.0s ack 延迟）在窗口内取保守字段。
+    runner_snap = client.snapshot(timeout_ms=200)
     fidelity, recovery = _enum_str(runner_snap["fidelity"]), _enum_str(runner_snap["recovery"])
     assert recovery != "full", "reset 未确认期间不得声称 full"
+    # F5 真路径：reset 未确认 → reset_unconfirmed=true；引擎 cursors_valid 属性在
+    # 未确认期本身为 False → 透出 False（最强 fail-closed；unknown 亦可接受但不出现）
+    assert runner_snap.get("reset_unconfirmed") is True, runner_snap.get("reset_unconfirmed")
+    assert runner_snap.get("cursors_valid") is False, runner_snap.get("cursors_valid")
     # 迟到 ack：账本一次回填、禁止解除；reset 后仍不假 full（reset 不恢复历史）
     _wait_until(
         lambda: session.control("diagnostics")["reset_unconfirmed"] is False, 8.0, interval=0.2
@@ -992,6 +1026,9 @@ def test_composition_reset_unconfirmed_no_fake_full(composed, tmp_path):
     assert int(diag2["reset_count"]) == 1, "迟到 ack 只允许回填一次"
     after = client.snapshot(timeout_ms=4000)
     assert _enum_str(after["recovery"]) != "full", "reset 之后不得假 full"
+    # 迟到 ack 回填后：reset_unconfirmed=false；baseline==applied（stub 回填）→ cursors_valid=true
+    assert after.get("reset_unconfirmed") is False, after.get("reset_unconfirmed")
+    assert after.get("cursors_valid") is True, after.get("cursors_valid")
     assert client.close()["status"] == "exited"
     final = session.wait_report("finished")
     assert final["exit_code"] == runner_module.RUNNER_EXIT_OK
@@ -1013,8 +1050,8 @@ def test_composition_reset_unconfirmed_no_fake_full(composed, tmp_path):
 def test_composition_startup_engine_failure_keeps_owner(tmp_path):
     """启动引擎失败三态（真实 node 进程）：
     ① spawn 前校验失败 → EmulatorStartupError，无资源（owner=None 合理）；
-    ② spawn 后 **ready 前 EOF** → 现状：**不抛**、无 owner，直接构造出 dead engine
-       （缺陷记录 F1；下游快照仍诚实 unavailable/none，不假 full）；
+    ② spawn 后 **ready 前 EOF** → **必须** EmulatorStartupError 带可重试 owner
+       （emulator r4 F1 修复；组合发现闭环：retry 收敛、无残留）；
     ③ spawn 后 `fatal` 帧 → EmulatorStartupError 带 owner，可重试收敛、无残留。"""
     # ① spawn 前：脚本不存在
     missing = tmp_path / "missing_sidecar.mjs"
@@ -1023,32 +1060,23 @@ def test_composition_startup_engine_failure_keeps_owner(tmp_path):
     pre = excinfo.value
     assert pre.owner is None, "spawn 前失败不得伪造 owner"
 
-    # ② spawn 后 ready 前 EOF（注入 stub 立即退出）
+    # ② spawn 后 ready 前 EOF（注入 stub 立即退出）→ r4 F1 修复：与 fatal/timeout 同路径
+    #    fail-closed；必须带可重试 owner、retry 收敛、无残留（不再构造 dead engine）
     exit_only = tmp_path / "exit_only_sidecar.cjs"
     exit_only.write_text("process.exit(3);\n", encoding="utf-8")
-    eof_defect: dict[str, Any] = {}
-    try:
-        emu = HeadlessEmulator(sidecar_path=str(exit_only), startup_timeout=10.0)
-    except EmulatorStartupError as exc:  # 若未来修为启动错误，本记录同步更新
-        eof_defect = {"raised": True, "error": type(exc).__name__, "has_owner": exc.owner is not None}
-    else:
-        snap = emu.snapshot(timeout=1.0)
-        diag = emu.diagnostics()
-        eof_defect = {
-            "raised": False,
-            "engine_dead": bool(diag["engine_dead"]),
-            "engine_alive": bool(emu.engine_alive),
-            "snapshot_fidelity": _enum_str(snap.fidelity),
-            "snapshot_recovery": _enum_str(snap.recovery),
-            "honest_unavailable": _enum_str(snap.fidelity) == "unavailable"
-            and _enum_str(snap.recovery) == "none",
-            "finding": (
-                "F1: spawn 后、ready 前 EOF 不抛启动错误且无 owner/重试入口；"
-                "构造出 dead engine（快照诚实 unavailable/none；与 fatal 路径不一致）"
-            ),
-        }
-        close_report = emu.close(timeout=10.0)
-        eof_defect["close_closed"] = bool(close_report.closed)
+    with pytest.raises(EmulatorStartupError) as excinfo_eof:
+        HeadlessEmulator(sidecar_path=str(exit_only), startup_timeout=10.0)
+    eof_error = excinfo_eof.value
+    assert eof_error.owner is not None, "ready 前 EOF 必须带可重试 owner（r4 F1 修复）"
+    eof_residual = dict(eof_error.residual or {})
+    eof_report = eof_error.owner.retry_cleanup(timeout=10.0)
+    assert eof_report.get("closed") is True, eof_report
+    eof_dead = True
+    eof_pid = eof_residual.get("pid")
+    if eof_pid:
+        eof_filetime = eof_residual.get("filetime") or eof_residual.get("created_at_filetime")
+        eof_dead = wait_dead(int(eof_pid), 8.0, int(eof_filetime) if eof_filetime else None)
+    assert eof_dead, "ready 前 EOF 失败不得留下 node 残留"
 
     # ③ spawn 后 fatal 帧（真实 node 已入 Job）→ 必须带 owner 并可重试收敛
     fatal = tmp_path / "fatal_sidecar.cjs"
@@ -1080,7 +1108,13 @@ def test_composition_startup_engine_failure_keeps_owner(tmp_path):
         {
             "pre_spawn_error": type(pre).__name__,
             "pre_spawn_owner_none": True,
-            "post_spawn_eof": eof_defect,
+            "post_spawn_eof": {
+                "error": type(eof_error).__name__,
+                "has_owner": True,
+                "retry_cleanup": eof_report,
+                "no_residue": bool(eof_dead),
+                "fix": "emulator r4 F1：ready 前 EOF 与 fatal/timeout 同路径 fail-closed",
+            },
             "post_spawn_fatal": {
                 "error": type(error).__name__,
                 "seconds": elapsed,
@@ -1271,5 +1305,109 @@ def test_composition_detach_refused_under_constraint_zero_change(composed):
             "durability": before["durability"],
             "detach_status": result["status"],
             "zero_state_change": True,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# composition r2 新增门控（修正后真实验收）：驱逐 gap/fresh-view、引擎宿主收尾预算
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@requires_sidecar
+def test_composition_r2_eviction_gap_fresh_view_and_catch_up(composed, tmp_path):
+    """协议 A 驱逐边界：applied < first_retained 时 `read(applied)` **显式 gap** →
+    fresh-view 语义（**不自动 reset、不杀 PTY**）；追平后重取快照无 gap。
+    宿主 = 测试 launcher（非生产 launcher）。"""
+    session = composed()
+    client = session.client("pan-compose-owner")
+    client.heartbeat()
+    describe0 = session.control("describe")
+    session.note_shell(describe0)
+
+    big = b"".join((b"GAP-PAD-%05d " % index) + b"x" * 40 + b"\r\n" for index in range(3200))
+    first = tmp_path / "gap1.txt"
+    second = tmp_path / "gap2.txt"
+    first.write_bytes(big)
+    second.write_bytes(big)
+
+    # 停滞引擎（3s）期间生产 >2×256KiB：applied 落在驱逐窗口之前（真实边界）。
+    assert session.control("test_stall", ms=3000) is True
+    client.input(f'type "{first}"\r'.encode("utf-8"))
+    client.input(f'type "{second}"\r'.encode("utf-8"))
+
+    window: dict[str, int] = {}
+
+    def _capture_window():
+        total = int(client.describe()["total_bytes"])
+        if total <= 262144 + 65536:
+            return None
+        applied = int(session.control("diagnostics")["applied_cursor"])
+        retained = int(client.describe()["first_retained_seq"])
+        if applied < retained:
+            window.update({"total": total, "applied": applied, "first_retained": retained})
+            return dict(window)
+        return None
+
+    assert _wait_until(_capture_window, 30.0, interval=0.05), (
+        f"未捕获 applied < first_retained 的驱逐窗口：{window}"
+    )
+    applied = int(window["applied"])
+    page = client.read(applied)
+    assert page["gap"] is not None, "applied 被驱逐时必须返回显式 gap（不得假续流）"
+    assert int(page["gap"][0]) == applied
+    assert page["data"], "gap 页应携带窗口内可用数据（从 first_retained 起）"
+    # fresh-view 语义：不自动 reset、不杀 PTY
+    mid_diag = session.control("diagnostics")
+    assert int(mid_diag["reset_count"]) == 0, "fresh-view 不得自动调用 reset_baseline"
+    assert int(session.control("describe")["pid"]) == int(describe0["pid"])
+    assert not process_dead(session.shell_pid, session.shell_filetime)
+
+    # 追平后重取：cursor == total、read(cursor) 无 gap。
+    total_stable = _wait_total_stable(client, timeout=60.0)
+    snap = _wait_engine_caught_up(session, client, total_stable, timeout=180.0)
+    assert int(snap["cursor"]) == int(total_stable)
+    page2 = client.read(int(snap["cursor"]))
+    assert page2["gap"] is None and page2["data"] == b""
+    assert int(session.control("diagnostics")["reset_count"]) == 0
+
+    assert client.close()["status"] == "exited"
+    final = session.wait_report("finished")
+    assert final["exit_code"] == runner_module.RUNNER_EXIT_OK
+    record_evidence(
+        "compose_r2_eviction_gap_fresh_view",
+        {
+            "window": {k: int(v) for k, v in window.items()},
+            "gap_returned": True,
+            "gap_start_equals_applied": True,
+            "no_auto_reset": True,
+            "pty_alive_during_downgrade": True,
+            "catch_up_refetch_no_gap": True,
+            "note": "fresh-view 是显示层策略；不自动 reset_baseline、不结束 PTY",
+        },
+    )
+
+
+def test_composition_r2_engine_close_budget_owner_retryable():
+    """引擎宿主（测试宿主语义）收尾预算与 owner 重试：`close(timeout=0)` 不收敛 →
+    `closed=false` 且有界报告 → 有界重试收敛。不称生产 launcher、不泛化 Job 兜底布局。"""
+    emulator = HeadlessEmulator(cols=80, rows=24)
+    try:
+        first = emulator.close(timeout=0.0)
+        second = emulator.close(timeout=15.0)
+    finally:
+        final_report = emulator.close(timeout=15.0)
+    assert first.closed is False, first.as_dict()
+    assert first.process_exited is False and first.stderr_joined is False
+    assert second.closed is True, second.as_dict()
+    assert final_report.closed is True
+    record_evidence(
+        "compose_r2_engine_close_budget",
+        {
+            "close_zero_closed": bool(first.closed),
+            "close_zero_detail": first.detail,
+            "retry_closed": bool(second.closed),
+            "idempotent_final": bool(final_report.closed),
+            "note": "测试宿主显式收尾；生产 launcher 未批准/未实现；Job 兜底布局不泛化",
         },
     )
