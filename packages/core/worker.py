@@ -336,6 +336,7 @@ _recovery_required: set[str] = set()
 # emits a generic wake-up and never stores queue payload.
 _queue_retry_tasks: dict[str, asyncio.Task] = {}
 _queue_locks: dict[str, asyncio.Lock] = {}
+_unread_done_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_tasks: dict[str, asyncio.Task] = {}
 _usage_enrichment_adapters: dict[str, CliAdapter] = {}
@@ -352,6 +353,11 @@ _ENRICH_RETRY_MAX_SEC = 30.0
 def queue_lock(session_id: str) -> asyncio.Lock:
     """Serialize queue API mutations and Worker reservation decisions per Session."""
     return _queue_locks.setdefault(session_id, asyncio.Lock())
+
+
+def unread_done_lock(session_id: str) -> asyncio.Lock:
+    """Serialize done generation commits with durable read-cursor acknowledgements."""
+    return _unread_done_locks.setdefault(session_id, asyncio.Lock())
 
 
 def _queue_edit_token_digest(token: str) -> str:
@@ -999,6 +1005,13 @@ async def _persist_terminal_state(
     w: Worker, s, status: str, result_text: str | None,
 ) -> dict | None:
     """Persist the minimum terminal fact set before any completion broadcast."""
+    async with unread_done_lock(w.session_id):
+        return await _persist_terminal_state_locked(w, s, status, result_text)
+
+
+async def _persist_terminal_state_locked(
+    w: Worker, s, status: str, result_text: str | None,
+) -> dict | None:
     if w._terminal_handled:
         _log.warning(
             "[Worker %s] duplicate terminal event ignored generation=%s",

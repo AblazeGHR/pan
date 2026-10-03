@@ -1,10 +1,12 @@
 """T-062.6a per-Session persistence ordering and contention regressions."""
 
 import asyncio
+import contextvars
 import json
 import sys
 import threading
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 import pytest
@@ -99,6 +101,240 @@ def test_same_session_flushes_are_fifo_and_do_not_duplicate_history(monkeypatch)
     assert batches == [[first], [second]]
     assert session._hist_persisted == 2
     assert _jsonl(session.id) == [first, second]
+
+
+def test_sync_save_after_async_reservation_does_not_deadlock(monkeypatch):
+    """A sync API save can arrive before a scheduled async writer Task runs."""
+    session = _sess.create(name="sync-after-async")
+    session.history.append({"role": "user", "content": "persist-once"})
+    state = _sess._SAVE_STATES[session.id]
+    original_wait = state.condition.wait
+
+    def bounded_wait(timeout=None):
+        # Bound the old implementation's deadlock without relying on an
+        # asyncio timeout (the event loop itself is the blocked thread).
+        if not original_wait(timeout=2):
+            raise TimeoutError("save ticket depended on the blocked event loop")
+        return True
+
+    monkeypatch.setattr(state.condition, "wait", bounded_wait)
+
+    async def scenario():
+        async_save = asyncio.create_task(_sess.save_async(session))
+        await asyncio.sleep(0)
+        # The async save has reserved its ticket.  Do not yield again before
+        # the synchronous API save; deferred to_thread submission deadlocks.
+        try:
+            _sess.save(session)
+        finally:
+            await async_save
+
+    asyncio.run(scenario())
+    assert _jsonl(session.id) == [{"role": "user", "content": "persist-once"}]
+    assert state.pending == 0
+    assert not state.active
+    assert state.serving_ticket == state.next_ticket
+
+
+def test_executor_submission_failure_retires_ticket(monkeypatch):
+    """An executor rejection must not strand all later saves of the Session."""
+    session = _sess.create(name="submit-failure")
+    session.history.append({"role": "user", "content": "retry-after-rejection"})
+
+    async def scenario():
+        with monkeypatch.context() as patch:
+            def reject_submission(*args, **kwargs):
+                raise RuntimeError("executor rejected submission")
+
+            patch.setattr(_sess._SAVE_EXECUTOR, "submit", reject_submission)
+            with pytest.raises(RuntimeError, match="executor rejected"):
+                await _sess.save_async(session)
+        await _sess.save_async(session)
+
+    asyncio.run(scenario())
+    assert _jsonl(session.id) == [
+        {"role": "user", "content": "retry-after-rejection"}]
+    state = _sess._SAVE_STATES[session.id]
+    assert state.pending == 0
+    assert state.serving_ticket == state.next_ticket
+
+
+def test_same_session_backlog_leaves_threads_for_other_sessions(monkeypatch):
+    """Waiting saves of A cannot exhaust the pool and strand Session B."""
+    first = _sess.create(name="backlog-a")
+    second = _sess.create(name="backlog-b")
+    entered = threading.Event()
+    release = threading.Event()
+    original_body = _sess._save_body
+
+    def blocked_body(s, force_full=False):
+        if s.id == first.id:
+            entered.set()
+            assert release.wait(3), "blocked Session was not released"
+        return original_body(s, force_full=force_full)
+
+    monkeypatch.setattr(_sess, "_save_body", blocked_body)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        monkeypatch.setattr(_sess, "_SAVE_EXECUTOR", executor, raising=False)
+
+        async def scenario():
+            # Also bound the legacy default executor, so this regression
+            # exercises the old starvation rather than hiding it with spare threads.
+            asyncio.get_running_loop().set_default_executor(executor)
+            active = asyncio.create_task(_sess.save_async(first))
+            assert await asyncio.to_thread(entered.wait, 2)
+            backlog = [asyncio.create_task(_sess.save_async(first)) for _ in range(8)]
+            other = asyncio.create_task(_sess.save_async(second))
+            try:
+                await asyncio.wait_for(asyncio.shield(other), timeout=1)
+                assert not active.done()
+                assert _sess.save_diagnostics(first.id)["queueDepth"] == 8
+            finally:
+                release.set()
+                await asyncio.gather(active, other, *backlog, return_exceptions=True)
+
+        asyncio.run(scenario())
+    assert _sess.save_diagnostics(first.id)["queueDepth"] == 0
+
+
+def test_queued_save_survives_repeated_cancellation(monkeypatch):
+    """An awaiting task must keep its ticket until the queued write retires."""
+    session = _sess.create(name="cancel-queued-twice")
+    entered = threading.Event()
+    release = threading.Event()
+    original_body = _sess._save_body
+
+    def blocked_body(s, force_full=False):
+        entered.set()
+        assert release.wait(3), "active writer was not released"
+        return original_body(s, force_full=force_full)
+
+    monkeypatch.setattr(_sess, "_save_body", blocked_body)
+
+    async def scenario():
+        active = asyncio.create_task(_sess.save_async(session))
+        assert await asyncio.to_thread(entered.wait, 2)
+        queued = asyncio.create_task(_sess.save_async(session))
+        await asyncio.sleep(0)
+        try:
+            for _ in range(2):
+                queued.cancel()
+                await asyncio.sleep(0)
+            assert not queued.done()
+        finally:
+            release.set()
+            await active
+            with pytest.raises(asyncio.CancelledError):
+                await queued
+        await _sess.save_async(session)
+
+    asyncio.run(scenario())
+    state = _sess._SAVE_STATES[session.id]
+    assert state.serving_ticket == state.next_ticket
+    assert state.async_jobs == {}
+
+
+def test_async_writer_preserves_context_and_does_not_use_default_executor(monkeypatch):
+    session = _sess.create(name="context-write")
+    marker = contextvars.ContextVar("persistence_test_marker", default=None)
+    seen = []
+    original_body = _sess._save_body
+
+    def capture(s, force_full=False):
+        seen.append(marker.get())
+        return original_body(s, force_full=force_full)
+
+    monkeypatch.setattr(_sess, "_save_body", capture)
+
+    async def scenario():
+        marker.set("caller-context")
+        with monkeypatch.context() as patch:
+            def reject_default_executor(*args, **kwargs):
+                raise AssertionError("save depends on the provider/default executor")
+            patch.setattr(asyncio.get_running_loop(), "run_in_executor", reject_default_executor)
+            await _sess.save_async(session)
+
+    asyncio.run(scenario())
+    assert seen == ["caller-context"]
+
+
+def test_async_backlog_advances_while_event_loop_is_in_a_sync_save(monkeypatch):
+    """The active writer, rather than an event-loop callback, starts the next save."""
+    session = _sess.create(name="async-async-sync")
+    entered = threading.Event()
+    release = threading.Event()
+    original_body = _sess._save_body
+
+    def blocked_body(s, force_full=False):
+        entered.set()
+        assert release.wait(2), "writer was not released"
+        return original_body(s, force_full=force_full)
+
+    monkeypatch.setattr(_sess, "_save_body", blocked_body)
+    state = _sess._SAVE_STATES[session.id]
+    original_wait = state.condition.wait
+
+    def bounded_wait(timeout=None):
+        if not original_wait(timeout=2):
+            raise TimeoutError("queued writer needed the blocked event loop")
+        return True
+
+    monkeypatch.setattr(state.condition, "wait", bounded_wait)
+
+    async def scenario():
+        first = asyncio.create_task(_sess.save_async(session))
+        assert await asyncio.to_thread(entered.wait, 2)
+        second = asyncio.create_task(_sess.save_async(session))
+        await asyncio.sleep(0)
+        timer = threading.Timer(0.05, release.set)
+        timer.start()
+        try:
+            _sess.save(session)
+        finally:
+            release.set()
+            timer.join()
+            await asyncio.gather(first, second)
+
+    asyncio.run(scenario())
+    assert state.serving_ticket == state.next_ticket
+
+
+def test_queued_submission_rejection_releases_following_tickets(monkeypatch):
+    """Submission can fail when a writer thread advances a previously queued save."""
+    session = _sess.create(name="reject-queued")
+    entered = threading.Event()
+    release = threading.Event()
+    original_body = _sess._save_body
+
+    def blocked_body(s, force_full=False):
+        entered.set()
+        assert release.wait(2), "first writer was not released"
+        return original_body(s, force_full=force_full)
+
+    monkeypatch.setattr(_sess, "_save_body", blocked_body)
+
+    async def scenario():
+        first = asyncio.create_task(_sess.save_async(session))
+        assert await asyncio.to_thread(entered.wait, 2)
+        with monkeypatch.context() as patch:
+            def reject(*args, **kwargs):
+                raise RuntimeError("queued submission rejected")
+
+            patch.setattr(_sess._SAVE_EXECUTOR, "submit", reject)
+            second = asyncio.create_task(_sess.save_async(session))
+            third = asyncio.create_task(_sess.save_async(session))
+            await asyncio.sleep(0)
+            release.set()
+            await first
+            for rejected in (second, third):
+                with pytest.raises(RuntimeError, match="queued submission rejected"):
+                    await rejected
+        await _sess.save_async(session)
+
+    asyncio.run(scenario())
+    state = _sess._SAVE_STATES[session.id]
+    assert state.serving_ticket == state.next_ticket
+    assert state.async_jobs == {}
 
 
 def test_history_replace_keeps_append_after_blocked_full_flush(monkeypatch):

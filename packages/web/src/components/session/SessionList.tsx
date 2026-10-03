@@ -4,7 +4,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
-import { effectiveWorkspaceIds, getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, effectiveWorkspaceIds, getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
 import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX, buildManagerEdges, collectDescendants, movePinnedSessionId, orderPinnedWithinGroups, sessionPinGroupKey } from './sessionDrag';
@@ -475,7 +475,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const [railZone, setRailZone] = useState(false);
   const [railTarget, setRailTarget] = useState<string | null>(null);
   const railZoneRef = useRef(false);
-  const railTargetName = railTarget && railTarget !== 'all'
+  // 'all' and the virtual 'ungrouped' tab both mean "no membership"; neither
+  // resolves to a workspace name.
+  const railTargetName = railTarget && railTarget !== ALL_WORKSPACES && railTarget !== UNGROUPED_WORKSPACES
     ? workspaces.find((w) => w.id === railTarget)?.name ?? '工作区'
     : null;
   /** Currently highlighted rail tab element (Tailwind ring utilities). */
@@ -855,15 +857,20 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           });
         return;
       }
+      // The virtual scopes ('all' / 'ungrouped') are not workspace ids: both
+      // map to `null`, which moveSessions turns into the existing "no
+      // membership" request (`workspaceIds: []`). A sentinel must never be
+      // sent to the backend as a real workspace.
+      const clearsMembership = railTargetId === ALL_WORKSPACES || railTargetId === UNGROUPED_WORKSPACES;
       void useWorkspaceStore.getState()
-        .moveSessions([dragged.id], railTargetId === 'all' ? null : railTargetId)
+        .moveSessions([dragged.id], clearsMembership ? null : railTargetId)
         .then((changed) => {
           if (changed.length === 0) {
-            showToast(railTargetId === 'all' ? '该会话当前未归属任何工作区' : '该会话已在该工作区', 'error');
+            showToast(clearsMembership ? '该会话当前未归属任何工作区' : '该会话已在该工作区', 'error');
             return;
           }
           const followed = changed.length - 1;
-          const label = railTargetId === 'all'
+          const label = clearsMembership
             ? null
             : useWorkspaceStore.getState().workspaces.find((w) => w.id === railTargetId)?.name ?? '工作区';
           if (!label) showToast(`已将「${dragged.name}」移出工作区（未分组）`);
@@ -1160,8 +1167,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           : railZone
           ? (railTarget === CREATE_WORKSPACE_DROP_TARGET_ID
             ? `新建「${dragSession?.name || 'Untitled'}」工作区（重名自动编号）`
-            : railTarget === 'all'
-            ? '放到「全部」= 移出工作区（未分组）'
+            : railTarget === ALL_WORKSPACES || railTarget === UNGROUPED_WORKSPACES
+            ? '放到「全部」或「无工作区」= 移出工作区（未分组）'
             : railTarget
               ? `移入「${railTargetName}」（管理者会话的子孙会跟随）`
               : '放到某个工作区标签上')

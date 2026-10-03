@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { ALL_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
 import type { Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
@@ -84,8 +84,11 @@ export function WorkspaceRail({
   }, [loaded, loadWorkspaces]);
 
   // The remembered workspace may have been deleted elsewhere → fall back.
+  // 'all' and the virtual 'ungrouped' scope are not workspace ids, so they are
+  // never "missing" and must survive this reconciliation.
   useEffect(() => {
     if (!loaded) return;
+    if (activeWorkspaceId === UNGROUPED_WORKSPACES) return;
     if (activeWorkspaceId !== ALL_WORKSPACES && !workspaces.some((w) => w.id === activeWorkspaceId)) {
       setActiveWorkspace(ALL_WORKSPACES);
     }
@@ -93,8 +96,13 @@ export function WorkspaceRail({
 
   const memberStats = useMemo(() => {
     const stats = new Map<string, { count: number; workerStatus: string | null }>();
+    let ungroupedCount = 0;
     for (const session of sessions) {
-      for (const id of effectiveWorkspaceIds(session, sessions)) {
+      const effective = effectiveWorkspaceIds(session, sessions);
+      // Same rule as the 'ungrouped' scope filter: a child of a managed root
+      // inherits the root's membership, so it is NOT counted here.
+      if (effective.length === 0) ungroupedCount += 1;
+      for (const id of effective) {
         const current = stats.get(id) ?? { count: 0, workerStatus: null };
         current.count += 1;
         const candidate = session.workerStatus ?? '';
@@ -104,11 +112,13 @@ export function WorkspaceRail({
         stats.set(id, current);
       }
     }
-    return stats;
+    return { stats, ungroupedCount };
   }, [sessions]);
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
     ? '全部'
+    : activeWorkspaceId === UNGROUPED_WORKSPACES
+    ? '无工作区'
     : workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部';
 
   const switchTo = useCallback((id: string) => {
@@ -209,7 +219,10 @@ export function WorkspaceRail({
     if (!drag?.active) return;
     for (const el of document.querySelectorAll<HTMLElement>('[data-workspace-tab-id]')) {
       const id = el.dataset.workspaceTabId!;
-      if (id === drag.id || id === ALL_WORKSPACES || id === CREATE_WORKSPACE_DROP_TARGET_ID) continue;
+      // 'all' and the virtual 'ungrouped' scope are not persisted workspace
+      // rows: they must never receive a reorder hint, or the sentinel would be
+      // spliced into the order sent to the backend.
+      if (id === drag.id || id === ALL_WORKSPACES || id === UNGROUPED_WORKSPACES || id === CREATE_WORKSPACE_DROP_TARGET_ID) continue;
       const rect = el.getBoundingClientRect();
       if (lastYRef.current >= rect.top && lastYRef.current < rect.bottom) {
         setCurrentDropHint({ id, place: lastYRef.current < rect.top + rect.height / 2 ? 'before' : 'after' });
@@ -413,9 +426,36 @@ export function WorkspaceRail({
             </span>
           </div>
 
+          {/* Virtual "no workspace" scope, pinned directly under "全部".
+              It is a read-only aggregation over sessions whose EFFECTIVE
+              membership is empty (manager inheritance applied) — never a real
+              Workspace row, so it carries no id the backend could receive:
+              the scope key is the UNGROUPED_WORKSPACES sentinel, and
+              `updateDropHint` skips it so it can never join the persisted
+              workspace order. */}
+          <div
+            data-workspace-tab-id={UNGROUPED_WORKSPACES}
+            data-testid="workspace-tab-ungrouped"
+            role="button"
+            tabIndex={0}
+            className={tabClass(activeWorkspaceId === UNGROUPED_WORKSPACES, false, null)}
+            title="没有归属任何工作区的会话（虚拟视图，不产生归属）"
+            onClick={() => switchTo(UNGROUPED_WORKSPACES)}
+            onKeyDown={(e) => { if (e.key === 'Enter') switchTo(UNGROUPED_WORKSPACES); }}
+          >
+            <Layers size={mobileDrawer ? 11 : 12} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">无工作区</span>
+            <span
+              data-testid="workspace-count-ungrouped"
+              className={`shrink-0 rounded-full border border-border-muted bg-bg-tertiary ${mobileDrawer ? 'px-1 text-[9px]' : 'px-1.5 text-[10px]'} leading-4 text-text-tertiary`}
+            >
+              {memberStats.ungroupedCount}
+            </span>
+          </div>
+
           {workspaces.map((workspace) => {
             const isEditing = editing?.id === workspace.id;
-            const memberStat = memberStats.get(workspace.id);
+            const memberStat = memberStats.stats.get(workspace.id);
             if (isEditing) {
               return (
                 <div key={workspace.id} className="flex items-center gap-1.5 px-2 py-1">
@@ -573,8 +613,8 @@ export function WorkspaceRail({
             <p className="text-xs leading-relaxed text-text-secondary">
               确定删除工作区「<span className="text-text-primary">{deleteTarget.name}</span>」？
               会话不会被删除，只会解除归属（变为未分组）。
-              {(memberStats.get(deleteTarget.id)?.count ?? 0) > 0 && (
-                <> 当前有 <span className="text-text-primary">{memberStats.get(deleteTarget.id)?.count}</span> 个会话在该工作区。</>
+              {(memberStats.stats.get(deleteTarget.id)?.count ?? 0) > 0 && (
+                <> 当前有 <span className="text-text-primary">{memberStats.stats.get(deleteTarget.id)?.count}</span> 个会话在该工作区。</>
               )}
             </p>
             <div className="flex justify-end gap-2">

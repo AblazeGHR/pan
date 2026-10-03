@@ -5681,7 +5681,7 @@ async def api_delete_workspace(workspace_id: str):
         # Only roots persist membership. Children follow automatically.
         if not session.managed_by and workspace_id in session.workspace_ids:
             session.workspace_ids.remove(workspace_id)
-            sess.save(session)
+            await sess.save_async(session)
     workspaces.delete(workspace_id)
     await broadcast({"type": "workspace.deleted", "workspaceId": workspace_id})
     return {"ok": True, "workspaceId": workspace_id}
@@ -5715,10 +5715,10 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
             # A Workspace membership update is a move: replace any previous
             # membership instead of accumulating another Workspace id.
             session.workspace_ids = [workspace_id]
-            sess.save(session)
+            await sess.save_async(session)
         elif has and not should:
             session.workspace_ids = []
-            sess.save(session)
+            await sess.save_async(session)
     await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
                      "sessionIds": [s.id for s in sess.list_all(load_history=False)
                                      if workspace_id in sess.effective_workspace_ids(s)]})
@@ -5768,7 +5768,7 @@ async def api_set_session_workspaces(session_id: str, data: dict):
     if session.managed_by:
         return {"ok": False, "error": {"code": "managed_session", "message": "Detach a managed Session before changing its workspace"}}
     session.workspace_ids = list(workspace_ids)
-    sess.save(session)
+    await sess.save_async(session)
     await broadcast({"type": "session.workspaceUpdated", "sessionId": session_id,
                      "workspaceIds": sess.effective_workspace_ids(session)})
     return {"ok": True, "session": _session_to_api(session)}
@@ -5882,8 +5882,8 @@ async def api_ack_session_unread_done(session_id: str, data: dict | None = None)
     ack is in flight stays unread.  There is deliberately no bare "clear
     everything" mode — the observed cursor is the only race boundary.
 
-    On persistence failure the in-memory cursor/count are rolled back and no
-    success is returned or broadcast, so a later GET cannot mask an
+    The new cursor is published only after persistence succeeds.  A failure
+    returns no success or broadcast, so a later GET cannot mask an
     unpersisted clear.  Permission boundary is the same as every other Session
     route; history, terminal results and report routes are untouched.
 
@@ -5897,49 +5897,55 @@ async def api_ack_session_unread_done(session_id: str, data: dict | None = None)
         return {"ok": False, "error": {
             "code": "invalid_params",
             "message": "observed (non-negative done generation) is required"}}
-    s = sess.get(session_id)
-    if not s:
-        return {"ok": False, "error": {
-            "code": "session_not_found",
-            "message": f"Session {session_id} not found"}}
-    # The read-modify-write below has no await: the cursor can only change
-    # fully before or fully after this ack (worker increments run on the same
-    # event loop), so a concurrent done is either behind the observed cursor
-    # or stays unread.
-    generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
-    prev_read = max(0, int(getattr(s, "unread_done_read_generation", 0) or 0))
-    prev_count = max(0, int(getattr(s, "unread_done_count", 0) or 0))
-    observed = min(observed_raw, generation)
-    new_read = max(prev_read, observed)
-    remaining = generation - new_read
-    if new_read != prev_read:
-        s.unread_done_read_generation = new_read
-        s.unread_done_count = remaining
-        try:
-            sess.save(s)
-        except OSError as exc:
-            # Restore memory to the durable state; without this a later GET
-            # would expose a clear that never reached disk.
-            s.unread_done_read_generation = prev_read
-            s.unread_done_count = prev_count
+    # Finish the acknowledgement even if the client disconnects.  Cancelling
+    # after a successful disk write must not roll back its durable read cursor.
+    return await sess.await_persistence(asyncio.create_task(
+        _ack_session_unread_done(session_id, observed_raw)))
+
+
+async def _ack_session_unread_done(session_id: str, observed_raw: int):
+    async with worker.unread_done_lock(session_id):
+        # Selected/active Sessions normally already have a canonical cache
+        # object. Avoid queueing that memory lookup behind unrelated cold
+        # reads. Cache misses still use the dedicated read thread, and the
+        # commit rechecks file existence inside the Session write gate.
+        s = sess.get_cached(session_id)
+        if s is None:
+            s = await _store_read(sess.get, session_id, load_history=False)
+        if not s:
             return {"ok": False, "error": {
-                "code": "ack_persist_failed",
-                "message": str(exc) or "Could not persist unread ack"}}
-        except Exception:
-            s.unread_done_read_generation = prev_read
-            s.unread_done_count = prev_count
-            raise
-        await broadcast({
-            "type": "session.updated",
-            "sessionId": s.id,
-            "session": _session_summary(s),
-        })
-    return {
-        "ok": True,
-        "unreadDoneCount": remaining,
-        "unreadDoneGeneration": generation,
-        "unreadDoneReadGeneration": new_read,
-    }
+                "code": "session_not_found",
+                "message": f"Session {session_id} not found"}}
+        # This transaction and the terminal commit share unread_done_lock.  A new
+        # done cannot interleave with the awaited cursor commit.
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        prev_read = max(0, int(getattr(s, "unread_done_read_generation", 0) or 0))
+        observed = min(observed_raw, generation)
+        new_read = max(prev_read, observed)
+        remaining = generation - new_read
+        if new_read != prev_read:
+            try:
+                await sess.ack_unread_done_async(s, new_read)
+            except FileNotFoundError:
+                return {"ok": False, "error": {
+                    "code": "session_not_found",
+                    "message": f"Session {session_id} not found"}}
+            except OSError as exc:
+                # The cursor was staged and never published on failure.
+                return {"ok": False, "error": {
+                    "code": "ack_persist_failed",
+                    "message": str(exc) or "Could not persist unread ack"}}
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": s.id,
+                "session": _session_summary(s),
+            })
+        return {
+            "ok": True,
+            "unreadDoneCount": remaining,
+            "unreadDoneGeneration": generation,
+            "unreadDoneReadGeneration": new_read,
+        }
 
 
 @app.post("/api/sessions/pins/order")
@@ -7418,7 +7424,7 @@ async def api_update_session(session_id: str, data: dict):
     # MCP servers 增删或执行模式切换都需要重启 worker 才生效
     require_restart = (old_mcp_servers != new_mcp_servers
                        or old_output_mode != new_output_mode)
-    sess.save(s)
+    await sess.save_async(s)
     await broadcast({
         "type": "session.updated",
         "sessionId": s.id,
@@ -7463,7 +7469,7 @@ async def api_rename_session(session_id: str, data: dict):
 
     old_name = s.name
     s.name = new_name
-    sess.save(s)
+    await sess.save_async(s)
 
     # G7: 把重命名持久化进 adapter 原生存储（按 provider 统一调用，P0-2）。
     # kimi/opencode 显式回写 state.json / SQLite；cbc 追加 custom-title 事件
@@ -7718,7 +7724,7 @@ async def api_session_handoff(session_id: str, data: dict):
     if switched and copy_settings:
         b.adapter_config = sanitize_adapter_config(
             new_adapter_name, b.adapter_config, model=b.model)
-        sess.save(b)
+        await sess.save_async(b)
     await broadcast({
         "type": "session.renamed",
         "sessionId": a.id,
@@ -9390,7 +9396,7 @@ async def api_spawn(data: dict):
             _apply_session_updates(s, data)
         except ValueError as e:
             return {"error": str(e)}
-        sess.save(s)
+        await sess.save_async(s)
     else:
         try:
             params = _build_session_params(data)
@@ -9696,7 +9702,7 @@ async def api_report_subscribe(data: dict):
     # claim 内部已自动 report_subscribe；此处 add 幂等，保留作防御性兜底。
     sess.claim(manager_id, session_id)
     manager.report_subscriptions.add(session_id)
-    sess.save(manager)
+    await sess.save_async(manager)
     return {
         "managerId": manager_id,
         "sessionId": session_id,
@@ -9716,7 +9722,7 @@ async def api_report_unsubscribe(data: dict):
     if not manager:
         return {"error": f"Manager session {manager_id} not found"}
     manager.report_subscriptions.discard(session_id)
-    sess.save(manager)
+    await sess.save_async(manager)
     return {
         "managerId": manager_id,
         "sessionId": session_id,
@@ -9747,7 +9753,7 @@ async def api_set_reports_to_manager(session_id: str, data: dict):
         manager.report_subscriptions.add(session_id)
     else:
         manager.report_subscriptions.discard(session_id)
-    sess.save(manager)
+    await sess.save_async(manager)
     await broadcast({"type": "session.updated", "sessionId": manager_id})
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id, "managerId": manager_id,
@@ -9774,7 +9780,7 @@ def _channel_subscriptions(s, channel: str) -> set:
     return subs if isinstance(subs, set) else set()
 
 
-def _channel_subscribe(channel: str, data: dict) -> dict:
+async def _channel_subscribe(channel: str, data: dict) -> dict:
     """订阅某通道会话的 inbox 更新提醒（通道无关实现）。
 
     Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
@@ -9797,7 +9803,7 @@ def _channel_subscribe(channel: str, data: dict) -> dict:
         return {"error": f"Session {session_id} not found"}
     target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     _channel_subscriptions(s, channel).add(target_key)
-    sess.save(s)
+    await sess.save_async(s)
     subs = _channel_subscriptions(s, channel)
     return {
         "sessionId": session_id,
@@ -9807,7 +9813,7 @@ def _channel_subscribe(channel: str, data: dict) -> dict:
     }
 
 
-def _channel_unsubscribe(channel: str, data: dict) -> dict:
+async def _channel_unsubscribe(channel: str, data: dict) -> dict:
     """取消订阅某通道会话的 inbox 更新提醒（通道无关实现）。"""
     session_id = (data.get("sessionId") or "").strip()
     target_type = (data.get("target_type") or "").strip().lower()
@@ -9820,7 +9826,7 @@ def _channel_unsubscribe(channel: str, data: dict) -> dict:
         return {"error": f"Session {session_id} not found"}
     target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     _channel_subscriptions(s, channel).discard(target_key)
-    sess.save(s)
+    await sess.save_async(s)
     subs = _channel_subscriptions(s, channel)
     return {
         "sessionId": session_id,
@@ -9875,13 +9881,13 @@ async def api_qq_subscribe(data: dict):
     响应字段（qqTarget / qqSubscriptions）保持不变，前端 Postbox 与 pan-qq
     MCP 零感知——实现已转调通道无关的 _channel_subscribe。
     """
-    return _channel_subscribe("qq", data)
+    return await _channel_subscribe("qq", data)
 
 
 @app.post("/api/qq/unsubscribe")
 async def api_qq_unsubscribe(data: dict):
     """取消订阅某 QQ 会话的 inbox 更新提醒（转调 _channel_unsubscribe）。"""
-    return _channel_unsubscribe("qq", data)
+    return await _channel_unsubscribe("qq", data)
 
 
 @app.put("/api/sessions/{session_id}/msg-bridge")
@@ -9903,7 +9909,7 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
     # QQ/system/browser group; WeChat and queued reports are independent.
     target.qq_subscriptions.clear()
     target.notification_settings = {"browser": False, "system": enabled}
-    sess.save(target)
+    await sess.save_async(target)
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id,
             "msgBridgeEnabled": _msg_bridge_enabled(target),
@@ -9934,13 +9940,13 @@ async def api_wechat_subscribe(data: dict):
 
     响应字段 wechatTarget / wechatSubscriptions（与 QQ 端点平行命名）。
     """
-    return _channel_subscribe("wechat", data)
+    return await _channel_subscribe("wechat", data)
 
 
 @app.post("/api/wechat/unsubscribe")
 async def api_wechat_unsubscribe(data: dict):
     """取消订阅某微信会话的 inbox 更新提醒。"""
-    return _channel_unsubscribe("wechat", data)
+    return await _channel_unsubscribe("wechat", data)
 
 
 @app.post("/api/wechat/notify")
@@ -10219,7 +10225,7 @@ async def api_readonly(data: dict):
         return {"ok": False, "error": {"code": "state_changed",
                 "message": "The readonly setting changed; refresh and retry"}}
     target.readonly_session = enabled
-    sess.save(target)
+    await sess.save_async(target)
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "managerId": manager_id, "sessionId": session_id,
             "readonlySession": target.readonly_session}
@@ -10673,7 +10679,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 existing.total_usage = total_usage
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
                 # 头部误判为已落盘而跳过）
-                sess.save_full(existing)
+                await sess.save_async(existing, force_full=True)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -10689,7 +10695,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         existing.raw_usage = raw_usage
         existing.total_usage = total_usage
         existing.last_result = None
-        sess.save_full(existing)
+        await sess.save_async(existing, force_full=True)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,
@@ -10832,7 +10838,7 @@ async def api_worker_settings(worker_id: str, data: dict):
         _apply_session_updates(s, data)
     except ValueError as e:
         return {"error": str(e)}
-    sess.save(s)
+    await sess.save_async(s)
 
     adapter = get_adapter(s.adapter)
     extra_args: list[str] = []
@@ -10885,7 +10891,7 @@ async def api_rename(worker_id: str, data: dict):
 
     old_name = s.name
     s.name = new_name
-    sess.save(s)
+    await sess.save_async(s)
     await broadcast({
         "type": "session.renamed",
         "sessionId": s.id,

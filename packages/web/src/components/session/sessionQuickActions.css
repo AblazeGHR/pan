@@ -145,8 +145,9 @@
   pointer-events: auto;
 }
 
-/* 黄色圆底未读数字：单数字为圆，多位自然放宽成胶囊（>99 显示 99+）；文本色
-   取 --color-bg-primary —— 暗色主题为深色、亮色主题为白色，均与黄底形成对比。 */
+/* 未读 done 徽标：与 Session 卡片上方小组件按钮的激活态、工作区 Session 数徽标
+   同一视觉语言 —— 语义色高亮数字 + 同色系描边，底色为较深的同色系透明背景。
+   单数字为圆，多位自然放宽成胶囊（>99 显示 99+）。双击可清零，故保留 pointer。 */
 .session-unread-done-badge {
   display: inline-flex;
   align-items: center;
@@ -154,10 +155,11 @@
   flex: 0 0 auto;
   min-width: 14px;
   height: 14px;
-  padding: 0 3px;
+  padding: 0 4px;
   border-radius: 999px;
-  background: var(--color-warning);
-  color: var(--color-bg-primary);
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 44%, transparent);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -165,15 +167,19 @@
   cursor: pointer;
   user-select: none;
   pointer-events: auto;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .session-unread-done-badge:hover {
-  filter: brightness(1.12);
+  background-color: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 60%, transparent);
 }
 
-/* 队列数徽标：只读展示，默认蓝底；队列非空且每个待处理项都带真实锁（手动锁/
-   自动 report 锁）时为红底。cursor 保持 default 以区别于可双击清零的 done
-   徽标；点击/双击事件在组件里全部拦截，不会触发卡片选中或任何队列操作。 */
+/* 队列数徽标：只读展示，默认语义色为 accent；队列非空且每个待处理项都带真实锁
+   （手动锁/自动 report 锁）时切到 danger。cursor 保持 default 以区别于可双击清零的
+   done 徽标；点击/双击事件在组件里全部拦截，不会触发卡片选中或任何队列操作。 */
 .session-queue-badge {
   display: inline-flex;
   align-items: center;
@@ -181,10 +187,11 @@
   flex: 0 0 auto;
   min-width: 14px;
   height: 14px;
-  padding: 0 3px;
+  padding: 0 4px;
   border-radius: 999px;
-  background: var(--color-accent);
-  color: var(--color-bg-primary);
+  color: var(--color-accent);
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 44%, transparent);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -192,8 +199,13 @@
   cursor: default;
   user-select: none;
   pointer-events: auto;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .session-queue-badge-locked {
-  background: var(--color-danger);
+  color: var(--color-danger);
+  background-color: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 44%, transparent);
 }

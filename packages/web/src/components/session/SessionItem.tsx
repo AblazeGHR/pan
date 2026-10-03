@@ -474,8 +474,8 @@ export const SessionItem = memo(function SessionItem({
                 // 队列数徽标（done 徽标左侧，独立于 done 计数）。只读：单击 /
                 // 双击只拦截卡片事件，不清零、不删消息、不隐藏计数，数值只随
                 // 真实队列变化减少。非空且所有待处理项都带真实锁（手动锁 /
-                // 自动 report 锁）时红底，任一条未锁保持蓝底；与可双击清零的
-                // 黄色 done 徽标以颜色、光标（default）与文案区分。
+                // 自动 report 锁）时用 danger 色系，否则用 accent 色系；与可双击
+                // 清零的 done 徽标以色系、光标（default）与文案区分。
                 <span
                   className={`session-queue-badge${queueAllLocked ? ' session-queue-badge-locked' : ''}`}
                   data-testid="session-queue-badge"
