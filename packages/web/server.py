@@ -10675,8 +10675,13 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
             w._replaying = True
             try:
                 sess.replace_history(existing, history)
-                existing.raw_usage = raw_usage
-                existing.total_usage = total_usage
+                # Shared usage-commit gate: serializes against a durable usage
+                # enrichment that is between its provider lookup and its commit,
+                # re-seeds the providers' dedup cursors to the recomputed total,
+                # and bumps the revision so an enrichment that looked up against
+                # the previous base re-reads the provider instead of re-adding a
+                # delta this fresh total may already contain.
+                sess.replace_usage_totals(existing, raw_usage)
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
                 # 头部误判为已落盘而跳过）
                 await sess.save_async(existing, force_full=True)
@@ -10692,8 +10697,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         if w:
             await worker.kill_worker(w.worker_id)
         sess.replace_history(existing, history)
-        existing.raw_usage = raw_usage
-        existing.total_usage = total_usage
+        # See the live-worker branch above: same shared usage-commit gate.
+        sess.replace_usage_totals(existing, raw_usage)
         existing.last_result = None
         await sess.save_async(existing, force_full=True)
         await broadcast({

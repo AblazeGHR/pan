@@ -1564,6 +1564,27 @@ class Session:
             if isinstance(item, str) and item
         ))[-ACCEPTED_INPUT_ID_MAX:]
         self._summary_lock = threading.RLock()
+        # Serializes every *whole-Session* usage rewrite: the durable usage
+        # enrichment commit (worker._run_usage_enrichment) and the HTTP
+        # reimport path in packages/web/server.py.
+        #
+        # Both replace ``raw_usage``/``total_usage`` as a unit, and providers
+        # dedup differently: cbc diffs the provider's entries against
+        # ``raw_usage.request_count``, while codex/kimi/opencode keep an
+        # explicit ``*_prev_usage`` / ``*_last_usage_ts`` cursor in
+        # ``adapter_config`` that a reimport does not touch. So a reimport that
+        # lands between an enrichment lookup and its commit can leave the two
+        # halves disagreeing: the cursor still points at the pre-reimport
+        # position, and a blind replay re-adds a delta the fresh total already
+        # contains. Taking this lock on both sides makes the rewrite atomic
+        # with respect to the lookup+commit, instead of relying on comparing
+        # object identities to guess what a concurrent writer meant.
+        self._usage_commit_lock = threading.RLock()
+        # Bumped whenever a whole-Session usage rewrite lands. The enrichment
+        # records the value it saw before its provider lookup; if it changed,
+        # the lookup ran against a usage base that no longer exists and the
+        # provider must be re-read before anything is accumulated.
+        self._usage_revision = 0
         # worker.py validates/rebuilds the persisted map once, then marks this
         # private flag.  Treat even version-1 data as not yet reconciled with
         # queue_pending/ledger: a crash can commit those fields separately.
@@ -2511,65 +2532,50 @@ async def _persist_async_outcome(
     return outcome
 
 
-async def _save_with_outcome(s: Session, *, force_full: bool = False) -> DurableOutcome:
-    """``save_async`` variant that reports the writer's verifiable outcome."""
-    return await _persist_async_outcome(
-        s.id, lambda: _save_body(s, force_full=force_full))
+def save_async_outcome(s: Session, outcome: DurableOutcome | None = None,
+                       *, force_full: bool = False) -> DurableOutcome:
+    """Start a Session save whose durable result the caller can inspect.
+
+    Awaiting the returned :class:`DurableOutcome` behaves like
+    :func:`save_async` -- a cancellation is propagated only after the writer
+    retires, and a writer failure is raised -- but ``outcome`` is filled in place
+    either way, so a caller that was cancelled can still tell whether the bytes
+    reached the filesystem. Only ``outcome.succeeded`` may be treated as
+    committed; see :class:`DurableOutcome`.
+    """
+    return _SaveOutcomeAwaitable(s, outcome, force_full=force_full)
 
 
 class _SaveOutcomeAwaitable:
-    """Awaitable that yields a :class:`DurableOutcome` even when cancelled.
+    """Awaitable wrapper that records the writer's result on a caller-owned object.
 
-    ``await`` returns the outcome on a clean finish and re-raises the original
-    failure otherwise, but the outcome object is always reachable by the caller
-    so a cancellation can still be classified by what the writer actually did.
+    Kept deliberately thin: it exists only so the outcome object is filled in
+    place even when the caller's await is cancelled before this coroutine can
+    return it.
     """
 
-    __slots__ = ("_outcome", "_error", "_cancelled", "_session", "_force_full")
+    __slots__ = ("_session", "_outcome", "_force_full")
 
-    def __init__(self, session: Session, *, force_full: bool = False):
-        self._outcome = DurableOutcome()
-        self._error: BaseException | None = None
-        self._cancelled = False
+    def __init__(self, session: Session, outcome: DurableOutcome | None,
+                 force_full: bool):
         self._session = session
+        self._outcome = outcome if outcome is not None else DurableOutcome()
         self._force_full = force_full
-
-    def __await__(self):
-        return self._run().__await__()
-
-    async def _run(self) -> DurableOutcome:
-        try:
-            # Fill the caller-owned outcome in place so it is readable even when
-            # the cancellation below propagates before this coroutine returns.
-            return await _persist_async_outcome(
-                self._session.id,
-                lambda: _save_body(self._session, force_full=self._force_full),
-                outcome=self._outcome,
-            )
-        except asyncio.CancelledError:
-            self._cancelled = True
-            raise
-        except BaseException as exc:
-            self._error = exc
-            if self._outcome.error is None:
-                self._outcome.error = exc
-            raise
 
     @property
     def outcome(self) -> DurableOutcome:
         """The writer's verifiable result (valid once the await finishes)."""
         return self._outcome
 
+    def __await__(self):
+        return self._run().__await__()
 
-def save_async_outcome(s: Session, *, force_full: bool = False):
-    """Start a Session save whose durable outcome the caller can inspect.
-
-    ``await`` behaves like :func:`save_async` (cancellation still propagates
-    after the writer retires), but the returned object's ``.outcome`` reports
-    what the writer actually did -- so a cancelled save is never mistaken for a
-    successful commit. Only ``outcome.succeeded`` may be treated as committed.
-    """
-    return _SaveOutcomeAwaitable(s, force_full=force_full)
+    async def _run(self) -> DurableOutcome:
+        return await _persist_async_outcome(
+            self._session.id,
+            lambda: _save_body(self._session, force_full=self._force_full),
+            outcome=self._outcome,
+        )
 
 
 async def save_async(s: Session, *, force_full: bool = False):
@@ -3841,6 +3847,130 @@ def accumulate_raw_usage(existing: dict | None, entries: list[dict]) -> dict:
                 "rawUsage": ru,
             }
     return result
+
+
+def replace_usage_totals(s, raw_usage: dict | None) -> None:
+    """Install a whole-Session usage total under the shared usage commit lock.
+
+    Every writer that *replaces* ``raw_usage``/``total_usage`` -- the HTTP
+    reimport in ``packages/web/server.py`` and the branch fork in
+    ``worker.branch_worker`` -- must go through here, so it cannot interleave
+    with a durable usage enrichment that is between its provider lookup and its
+    own commit.
+
+    The lock alone is not enough, because the enrichment holds it only around
+    its own write while the *provider lookup* is an await: a reimport that
+    completes during that await still invalidates the base the lookup ran
+    against. Bumping ``_usage_revision`` lets the enrichment detect that
+    precisely, instead of guessing from object identity whether a concurrent
+    writer's total already contains its delta.
+
+    The installed total also re-seeds the providers' dedup cursors, because they
+    are absolute positions that must agree with what ``raw_usage`` now reflects.
+    They live in ``adapter_config`` and a recompute does not touch them:
+
+    * ``codex_prev_usage`` / ``opencode_prev_usage`` -- the provider's absolute
+      token totals that the next delta is subtracted from;
+    * ``kimi_last_usage_ts`` -- the newest usage-record timestamp.
+
+    Leaving them stale is what makes a replay double-count: the provider still
+    reports its absolute position, so a delta that the fresh total already
+    includes looks new again. Dropping them is equally wrong -- it erases the
+    baseline and makes the next lookup report the *whole* session as new. They
+    are re-seeded to the recomputed total instead, so the next lookup's delta is
+    measured from what is already accounted.
+
+    cbc needs none of this: it dedups against ``raw_usage.request_count``, which
+    the recompute just replaced, so it is self-consistent by construction.
+    """
+    with s._usage_commit_lock:
+        s.raw_usage = raw_usage
+        s.total_usage = compute_total_usage(raw_usage)
+        _reseed_provider_usage_cursors(s, raw_usage)
+        s._usage_revision = int(getattr(s, "_usage_revision", 0) or 0) + 1
+
+
+# Provider dedup cursors that a whole-Session usage recompute must re-seed.
+# Verified against the adapters that write them via ``set_adapter_field``:
+# codex/adapter.py, opencode/adapter.py and kimi/adapter.py. claude keeps no
+# persistent usage cursor and cbc dedups on ``raw_usage.request_count``.
+_PROVIDER_USAGE_CURSOR_KEYS = (
+    "codex_prev_usage",
+    "opencode_prev_usage",
+    "kimi_last_usage_ts",
+)
+
+# rawUsage field -> provider cursor field, for the absolute-total cursors.
+# codex reads input/output/reasoning/cached/cache-write/total tokens;
+# opencode uses the same shape. Verified in codex/adapter.py and
+# opencode/adapter.py.
+_CURSOR_TOKEN_FIELDS = {
+    "codex_prev_usage": {
+        "input_tokens": "prompt_tokens",
+        "output_tokens": "completion_tokens",
+        "reasoning_output_tokens": "reasoning_tokens",
+        "cached_input_tokens": "cache_read_tokens",
+        "cache_write_input_tokens": "cache_write_tokens",
+        "total_tokens": "total_tokens",
+    },
+    "opencode_prev_usage": {
+        "input_tokens": "prompt_tokens",
+        "output_tokens": "completion_tokens",
+        "reasoning_output_tokens": "reasoning_tokens",
+        "cached_input_tokens": "cache_read_tokens",
+        "cache_write_input_tokens": "cache_write_tokens",
+        "total_tokens": "total_tokens",
+    },
+}
+
+
+def _reseed_provider_usage_cursors(s, raw_usage: dict | None) -> None:
+    """Align the providers' absolute cursors with a freshly recomputed total.
+
+    The recomputed ``raw_usage`` *is* the provider's own accounting as of now, so
+    the cursor must be set to exactly that; anything else makes the next lookup
+    either re-report an already-counted delta (stale cursor) or report the whole
+    session as new (missing cursor).
+    """
+    config = getattr(s, "adapter_config", None)
+    if not isinstance(config, dict):
+        return
+    for cursor_key, token_fields in _CURSOR_TOKEN_FIELDS.items():
+        if cursor_key not in config:
+            continue  # this adapter was never used; nothing to re-seed
+        seeded = {}
+        for provider_field, usage_field in token_fields.items():
+            total = 0
+            for entry in (raw_usage or {}).values():
+                ru = (entry or {}).get("rawUsage") or {}
+                try:
+                    total += int(ru.get(usage_field, 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+            seeded[provider_field] = total
+        s.set_adapter_field(cursor_key, seeded)
+    # kimi's cursor is a timestamp, not a token total: it cannot be derived from
+    # the recomputed usage, so it is dropped and the next lookup re-reads the
+    # provider's records. A dropped ts cursor yields "everything after 0", which
+    # for a *newly seen* record is correct and, for already-counted records, is
+    # filtered by the timestamp comparison in kimi's own lookup.
+    config.pop("kimi_last_usage_ts", None)
+
+
+def usage_revision(s) -> int:
+    """Monotonic counter of whole-Session usage rewrites (see replace_usage_totals)."""
+    return int(getattr(s, "_usage_revision", 0) or 0)
+
+
+def usage_commit_lock(s):
+    """The Session-wide lock serializing usage rewrites against enrichment."""
+    lock = getattr(s, "_usage_commit_lock", None)
+    if lock is None:
+        # Sessions rebuilt by older loaders may predate the field; give them a
+        # per-Session lock so the writers still coordinate.
+        lock = threading.RLock()
+        s._usage_commit_lock = lock
+    return lock
 
 
 def compute_total_usage(raw_usage: dict | None) -> dict | None:

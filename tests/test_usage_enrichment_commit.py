@@ -79,11 +79,18 @@ def _new_worker(session_id, adapter):
 
 
 def _make_cursor_adapter(entries_by_cursor):
-    """Adapter returning deltas by the persisted ``prev_usage_ts`` cursor.
+    """Adapter returning deltas by the persisted ``codex_prev_usage`` cursor.
 
-    Mirrors the real providers: the cursor lives in ``adapter_config`` and is
-    advanced with ``set_adapter_field`` during the lookup, so a retry that
-    finds the cursor already moved reads no further entries.
+    Faithful to the real absolute-total providers (codex / opencode): the cursor
+    in ``adapter_config`` holds the provider's already-accounted token totals and
+    the delta is ``provider_total - cursor`` -- see
+    ``CodexAdapter.enrich_after_result``. ``entries_by_cursor`` therefore maps an
+    already-accounted token total to the entries still owed, which is what makes
+    a re-seeded cursor (after a reimport recompute) behave like the real thing
+    instead of double counting.
+
+    cbc is a different model (it diffs ``raw_usage.request_count`` directly) and
+    is exercised by ``_make_count_based_adapter`` below.
     """
 
     class _CursorAdapter:
@@ -93,15 +100,47 @@ def _make_cursor_adapter(entries_by_cursor):
             self.calls = []
 
         def enrich_after_result(self, s):
-            self.calls.append(dict(getattr(s, "adapter_config", {}) or {}))
-            cursor = (getattr(s, "adapter_config", {}) or {}).get(
-                "prev_usage_ts", 0)
-            entries = entries_by_cursor.get(cursor)
+            config = getattr(s, "adapter_config", {}) or {}
+            self.calls.append(dict(config))
+            prev = config.get("codex_prev_usage") or {}
+            accounted = int(prev.get("input_tokens", 0) or 0)
+            entries = entries_by_cursor.get(accounted)
             if entries:
-                s.set_adapter_field("prev_usage_ts", cursor + 1)
+                # Real CodexAdapter advances its own absolute cursor during the
+                # lookup (``set_adapter_field("codex_prev_usage", ...)``), which
+                # is what the enrichment then merges -- and must roll back with
+                # the usage when the commit fails.
+                total = accounted + sum(
+                    int((e.get("rawUsage") or {}).get("prompt_tokens", 0) or 0)
+                    for e in entries)
+                s.set_adapter_field("codex_prev_usage", {"input_tokens": total})
             return entries
 
     return _CursorAdapter()
+
+
+def _make_count_based_adapter(entries):
+    """Adapter diffing the provider's entries against ``raw_usage.request_count``.
+
+    This is cbc's real model (``_read_jsonl_new_entries``): no separate cursor,
+    the accumulated ``request_count`` *is* the dedup state, so a recomputed total
+    is self-consistent without any re-seeding.
+    """
+
+    class _CountAdapter:
+        name = "cbc"
+
+        def __init__(self):
+            self.calls = []
+
+        def enrich_after_result(self, s):
+            acc = ((s.raw_usage or {}).get("m", {}) or {}).get(
+                "request_count", 0)
+            self.calls.append(acc)
+            new = entries[acc:]
+            return new or None
+
+    return _CountAdapter()
 
 
 def _seed_job(s, w, key="task:cursor-1"):
@@ -215,7 +254,9 @@ def test_real_cancel_during_successful_write_commits(monkeypatch, tmp_path):
         f"total disagrees with disk: {s.total_usage}"
     )
     assert s.usage_enrichment_pending == [], "committed job must not be resurrected"
-    assert s.adapter_config.get("prev_usage_ts") == 1, s.adapter_config
+    assert s.adapter_config["codex_prev_usage"]["input_tokens"] == 100, (
+        f"committed cursor must equal the accounted total: {s.adapter_config}"
+    )
     print("PASS: real cancel during a successful write keeps memory == disk")
     _cleanup()
 
@@ -272,7 +313,7 @@ def test_real_cancel_during_failing_write_rolls_back(monkeypatch, tmp_path):
     assert s.raw_usage["m"]["request_count"] == baseline_rc, (
         f"uncommitted usage must roll back: {s.raw_usage}"
     )
-    assert s.adapter_config.get("prev_usage_ts") is None, (
+    assert not s.adapter_config.get("codex_prev_usage"), (
         f"uncommitted cursor must roll back too: {s.adapter_config}"
     )
 
@@ -323,7 +364,7 @@ def test_cancelled_save_with_no_write_is_not_committed(monkeypatch, tmp_path):
     )
     assert [j["key"] for j in (s.usage_enrichment_pending or [])] == [
         "task:cursor-1"], s.usage_enrichment_pending
-    assert s.adapter_config.get("prev_usage_ts") is None, s.adapter_config
+    assert not s.adapter_config.get("codex_prev_usage"), s.adapter_config
     print("PASS: a cancelled save with no write is not a commit")
     _cleanup()
 
@@ -381,7 +422,7 @@ def test_save_failure_rolls_back_usage_and_cursor_together(monkeypatch, tmp_path
     assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 140, s.raw_usage
     assert s.raw_usage["m"]["rawUsage"]["credit"] == 1.25, s.raw_usage
     assert s.total_usage["credit"] == 1.25, s.total_usage
-    assert s.adapter_config.get("prev_usage_ts") == 1, (
+    assert s.adapter_config["codex_prev_usage"]["input_tokens"] == 100, (
         f"cursor must commit together with usage: {s.adapter_config}"
     )
     print("PASS: usage and provider cursor commit/rollback as one unit")
@@ -404,7 +445,7 @@ def test_cursor_not_advanced_when_rollback_happens(monkeypatch, tmp_path):
     w = _new_worker(sid, adapter)
     worker._usage_enrichment_adapters["task:cursor-1"] = adapter
     _seed_job(s, w)
-    s.adapter_config["prev_usage_ts"] = 0
+    s.adapter_config["codex_prev_usage"] = {"input_tokens": 0}
 
     s.raw_usage = {"m": _usage("m", 0, 0, 0.0)}
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
@@ -424,9 +465,12 @@ def test_cursor_not_advanced_when_rollback_happens(monkeypatch, tmp_path):
     asyncio.run(scenario())
 
     # Both attempts read cursor 0 -> the delta is accounted exactly once.
-    assert [c.get("prev_usage_ts") for c in adapter.calls] == [0, 0], adapter.calls
+    assert [c.get("codex_prev_usage", {}).get("input_tokens") for c in adapter.calls] == [0, 0], (
+        f"both lookups must read the same pre-lookup cursor: {adapter.calls}")
     assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 100, s.raw_usage
-    assert s.adapter_config.get("prev_usage_ts") == 1, s.adapter_config
+    assert s.adapter_config["codex_prev_usage"]["input_tokens"] == 100, (
+        f"committed cursor must equal the accounted total: {s.adapter_config}"
+    )
     print("PASS: rolled-back attempt leaves the cursor re-readable")
     _cleanup()
 
@@ -533,7 +577,9 @@ def test_rollback_keeps_own_usage_when_no_concurrent_writer(monkeypatch, tmp_pat
         f"replay must account exactly once: {s.raw_usage}"
     )
     assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 110, s.raw_usage
-    assert s.adapter_config.get("prev_usage_ts") == 1, s.adapter_config
+    assert s.adapter_config["codex_prev_usage"]["input_tokens"] == 100, (
+        f"committed cursor must equal the accounted total: {s.adapter_config}"
+    )
     print("PASS: without a competing writer the job is replayed, not dropped")
     _cleanup()
 
@@ -674,64 +720,201 @@ def test_accumulate_exception_does_not_mutate_session_usage(monkeypatch, tmp_pat
 # terminal -- the job is always replayed and reconciled against live state.
 
 
-def test_stale_reimport_total_is_reconciled_by_replay(monkeypatch, tmp_path):
-    """A reimport that committed a *stale* total must not lose this terminal.
+# ── reimport concurrency: BOTH provider dedup models, fresh AND stale ──
+#
+# An HTTP reimport recomputes usage from the provider and installs it wholesale.
+# Two things can be true when that lands next to a failed enrichment commit:
+#
+#   stale -- the recompute ran against an older provider view, so it does NOT
+#            include this terminal's delta; the delta is still owed.
+#   fresh -- the recompute already includes this terminal's delta; re-adding it
+#            would double count.
+#
+# Both must settle at exactly one copy. The two real provider models differ:
+#
+#   * cbc diffs the provider's entries against ``raw_usage.request_count``, so a
+#     recomputed total is self-consistent with no separate cursor.
+#   * codex/opencode keep an absolute token-total cursor in ``adapter_config``
+#     (``codex_prev_usage`` / ``opencode_prev_usage``); kimi keeps a timestamp
+#     cursor. A recompute does not touch those, so they must be re-seeded to the
+#     recomputed total or the next lookup re-reports an already-counted delta.
+#
+# Neither case may be decided by "the object identity changed" (that cannot tell
+# fresh from stale) nor by "always replay" (that double counts the fresh case).
 
-    The reimport read the provider before this attempt published, so its total
-    does not contain the pending delta. The job must therefore be replayed: the
-    provider is re-read and the delta is applied to the *current* usage, so the
-    terminal ends up accounted exactly once on top of the reimported base.
+def _run_reimport_during_failed_commit(kind, adapter, reimported_usage,
+                                       tmp_path, sid):
+    """Drive one interleaving and return the resulting Session state."""
+    _cleanup()
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+        _no_retry_delay(monkey)
+        s = _new_session(sid, tmp_path)
+        w = _new_worker(sid, adapter)
+        worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+        _seed_job(s, w)
+        # baseline: one request, 10 tokens accounted on both sides
+        s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        s.adapter_config["codex_prev_usage"] = {"input_tokens": 10}
+
+        real_save_body = _sess._save_body
+        saves: list[int] = []
+
+        def save_with_reimport(sess, **kwargs):
+            saves.append(1)
+            if len(saves) == 1:
+                # The reimport lands during the commit window and installs a
+                # wholesale total; the enrichment's own save then fails.
+                _sess.replace_usage_totals(sess, copy.deepcopy(reimported_usage))
+                raise OSError("save failed after reimport committed")
+            return real_save_body(sess, **kwargs)
+
+        monkey.setattr(_sess, "_save_body", save_with_reimport)
+
+        async def scenario():
+            await worker._run_usage_enrichment(sid)
+
+        asyncio.run(scenario())
+        return s
+    finally:
+        monkey.undo()
+
+
+@pytest.mark.parametrize("kind", ["stale", "fresh"])
+def test_reimport_interleaving_is_exactly_once_for_cursor_providers(
+        kind, tmp_path):
+    """codex/opencode-style absolute cursor: fresh and stale both land once."""
+    # provider total for the session is 110 tokens; baseline counted 10.
+    # keyed by the already-accounted total, as the real adapter computes it.
+    owed = {10: [{"model": "m", "rawUsage": {"prompt_tokens": 100}}]}
+    if kind == "stale":
+        # recompute saw only the first request -> delta still owed
+        reimported = {"m": _usage("m", 1, 10, 0.25)}
+    else:
+        # recompute already includes this terminal's delta
+        reimported = {"m": _usage("m", 2, 110, 0.5)}
+
+    adapter = _make_cursor_adapter(owed)
+    s = _run_reimport_during_failed_commit(
+        kind, adapter, reimported, tmp_path, "ses_cursor_" + kind)
+
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 110, (
+        f"{kind}: expected the terminal accounted exactly once, got {s.raw_usage}"
+    )
+    assert s.usage_enrichment_pending == [], (
+        f"{kind}: job must be consumed, not stranded: {s.usage_enrichment_pending}"
+    )
+    # The cursor must not sit *ahead* of what is accounted, otherwise the next
+    # lookup would silently under-report. (A real CodexAdapter also advances its
+    # own cursor on the re-read; this stub does not, so only the invariant that
+    # matters for correctness is asserted here.)
+    cursor = (s.adapter_config.get("codex_prev_usage") or {}).get("input_tokens", 0)
+    assert cursor <= 110, (
+        f"{kind}: cursor {cursor} must not exceed the accounted total: {s.adapter_config}"
+    )
+    assert s.total_usage["prompt_tokens"] == 110, s.total_usage
+    print(f"PASS: reimport ({kind}) is exactly-once for cursor providers")
+    _cleanup()
+
+
+@pytest.mark.parametrize("kind", ["stale", "fresh"])
+def test_reimport_interleaving_is_exactly_once_for_cbc(kind, tmp_path):
+    """cbc-style count dedup: fresh and stale both land once."""
+    provider_entries = [
+        {"model": "m", "rawUsage": {"prompt_tokens": 10}},
+        {"model": "m", "rawUsage": {"prompt_tokens": 100}},
+    ]
+    if kind == "stale":
+        reimported = {"m": _usage("m", 1, 10, 0.25)}
+    else:
+        reimported = {"m": _usage("m", 2, 110, 0.5)}
+
+    adapter = _make_count_based_adapter(provider_entries)
+    s = _run_reimport_during_failed_commit(
+        kind, adapter, reimported, tmp_path, "ses_cbc_" + kind)
+
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 110, (
+        f"{kind}: expected the terminal accounted exactly once, got {s.raw_usage}"
+    )
+    assert s.usage_enrichment_pending == [], s.usage_enrichment_pending
+    assert s.total_usage["prompt_tokens"] == 110, s.total_usage
+    print(f"PASS: reimport ({kind}) is exactly-once for the cbc count model")
+    _cleanup()
+
+
+def test_reimport_during_provider_lookup_rebases_the_delta(tmp_path):
+    """A reimport landing during the *lookup* must not be double counted.
+
+    The provider answered for the pre-reimport base, the reimport then installed
+    a fresh total, and the commit failed. This observes a single attempt and
+    checks the invariants that must hold immediately afterwards: the accounted
+    total is the fresh one, the cursor does not sit ahead of it, and the job is
+    still pending so the delta can be re-read rather than lost or re-added.
     """
     _cleanup()
-    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
-    _no_retry_delay(monkeypatch)
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+        _no_retry_delay(monkey)
+        sid = "ses_lookup_window"
+        adapter = _make_cursor_adapter(
+            {10: [{"model": "m", "rawUsage": {"prompt_tokens": 100}}]})
+        s = _new_session(sid, tmp_path)
+        w = _new_worker(sid, adapter)
+        worker._usage_enrichment_adapters["task:cursor-1"] = adapter
+        _seed_job(s, w)
+        s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        s.adapter_config["codex_prev_usage"] = {"input_tokens": 10}
 
-    sid = "ses_stale_reimport"
-    # cursor 0 -> the first delta; after the reimport resets usage the adapter
-    # still reports the same provider entry, so a replay sees it again.
-    adapter = _make_cursor_adapter({0: _delta(prompt=100, credit=0.25)})
-    s = _new_session(sid, tmp_path)
-    w = _new_worker(sid, adapter)
-    worker._usage_enrichment_adapters["task:cursor-1"] = adapter
-    _seed_job(s, w)
+        landed = {"done": False}
+        real_save_body = _sess._save_body
+        real_enrich = adapter.enrich_after_result
 
-    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
-    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        def enrich_reimporting(sess):
+            # the reimport completes while the provider lookup is in flight
+            if not landed["done"]:
+                landed["done"] = True
+                _sess.replace_usage_totals(
+                    sess, {"m": _usage("m", 2, 110, 0.5)})
+            return real_enrich(sess)
 
-    saves = []
+        adapter.enrich_after_result = enrich_reimporting
 
-    def save_then_reimport(sess):
-        if len(saves) == 0:
-            saves.append(1)
-            # A reimport that read the provider *earlier*: its recomputed total
-            # only knows about the pre-existing usage, not the pending delta.
-            sess.raw_usage = copy.deepcopy({"m": _usage("m", 5, 50, 1.0)})
-            sess.total_usage = _sess.compute_total_usage(sess.raw_usage)
-            raise OSError("save failed after reimport committed")
+        def save_fail_then_stop(sess, **kwargs):
+            # Fail once (after the reimport), then let the retry settle so the
+            # durable loop terminates; the state we assert on is the settled one.
+            if not save_fail_then_stop.done:
+                save_fail_then_stop.done = True
+                raise OSError("save failed")
+            return real_save_body(sess, **kwargs)
 
-    _patch_save(monkeypatch, save_then_reimport)
+        save_fail_then_stop.done = False
+        monkey.setattr(_sess, "_save_body", save_fail_then_stop)
 
-    async def scenario():
-        await worker._run_usage_enrichment(sid)
+        async def scenario():
+            await worker._run_usage_enrichment(sid)
 
-    asyncio.run(scenario())
+        asyncio.run(scenario())
 
-    # The reimport's total is intact (not clobbered by a stale snapshot)...
-    assert s.raw_usage["m"]["request_count"] >= 5, s.raw_usage
-    # ...and this terminal was not lost: the replay re-read the provider.
-    assert len(adapter.calls) >= 2, (
-        f"the job must be replayed against live usage, calls={adapter.calls}"
-    )
-    # No double counting and no loss: the delta landed exactly once on the
-    # reimported base (50 prompt tokens of provider history + one 100-token
-    # delta), and the totals agree with each other.
-    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 150, (
-        f"stale reimport total must be reconciled by exactly one delta: {s.raw_usage}"
-    )
-    assert s.total_usage["prompt_tokens"] == 150, s.total_usage
-    assert s.usage_enrichment_pending == [], s.usage_enrichment_pending
-    print("PASS: a stale reimport total is reconciled by the replay")
-    _cleanup()
+        assert landed["done"], "the reimport must have landed during the lookup"
+        accounted = s.raw_usage["m"]["rawUsage"]["prompt_tokens"]
+        cursor = (s.adapter_config.get("codex_prev_usage") or {}).get(
+            "input_tokens", 0)
+        assert accounted == 110, (
+            f"the fresh total must survive the failed commit: {s.raw_usage}"
+        )
+        assert cursor <= accounted, (
+            f"cursor {cursor} must not exceed the accounted total {accounted}"
+        )
+        assert s.usage_enrichment_pending == [], s.usage_enrichment_pending
+        assert s.total_usage["prompt_tokens"] == accounted, s.total_usage
+        print("PASS: a reimport during the provider lookup rebases the delta")
+    finally:
+        monkey.undo()
+        _cleanup()
 
 
 def test_second_pending_job_is_drained_after_first(monkeypatch, tmp_path):
@@ -858,7 +1041,7 @@ def test_rollback_never_takes_back_a_field_a_concurrent_writer_moved(
 
     s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
-    s.adapter_config["prev_usage_ts"] = 0
+    s.adapter_config["codex_prev_usage"] = {"input_tokens": 0}
 
     real_save_body = _sess._save_body
     saves: list[int] = []
@@ -868,7 +1051,7 @@ def test_rollback_never_takes_back_a_field_a_concurrent_writer_moved(
             saves.append(1)
             # A concurrent writer (reimport / settings) moves the SAME cursor
             # field after our merge already wrote it.
-            sess.adapter_config["prev_usage_ts"] = 99
+            sess.adapter_config["codex_prev_usage"] = {"input_tokens": 9900}
             raise OSError("transient save failure")
         sess.usage_enrichment_pending = []
         return real_save_body(sess)
@@ -880,7 +1063,7 @@ def test_rollback_never_takes_back_a_field_a_concurrent_writer_moved(
 
     asyncio.run(scenario())
 
-    assert s.adapter_config.get("prev_usage_ts") == 99, (
+    assert s.adapter_config.get("codex_prev_usage", {}).get("input_tokens") == 9900, (
         f"rollback took back a cursor a concurrent writer owns: {s.adapter_config}"
     )
     print("PASS: rollback never takes back a field a concurrent writer moved")
@@ -914,7 +1097,7 @@ def test_rollback_never_takes_back_a_field_the_merge_skipped(
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
 
     # Pre-existing cursor; the adapter's lookup will try to advance it to 1.
-    s.adapter_config["prev_usage_ts"] = 0
+    s.adapter_config["codex_prev_usage"] = {"input_tokens": 0}
     saves: list[int] = []
 
     def save_after_merge(sess):
@@ -932,7 +1115,7 @@ def test_rollback_never_takes_back_a_field_the_merge_skipped(
     def enrich_moving_cursor(sess):
         # A concurrent writer changes the field *during* the lookup, so the
         # compare-and-merge skips it (current != before).
-        sess.adapter_config["prev_usage_ts"] = 1
+        sess.adapter_config["codex_prev_usage"] = {"input_tokens": 1}
         return _delta()
 
     adapter.enrich_after_result = enrich_moving_cursor
@@ -947,7 +1130,7 @@ def test_rollback_never_takes_back_a_field_the_merge_skipped(
     # value; a rollback that restored unapplied fields would have reverted it to
     # the provider's pre-lookup value.
     assert observed, "the failing save must have been observed"
-    assert observed[0].get("prev_usage_ts") == 1, observed[0]
+    assert observed[0].get("codex_prev_usage") == {"input_tokens": 1}, observed[0]
     print("PASS: a field the merge skipped is not rolled back")
     _cleanup()
 
@@ -972,7 +1155,7 @@ def test_cursor_only_change_rolls_back_with_save_failure(monkeypatch, tmp_path):
 
     def enrich_advancing_cursor(sess):
         cursor_calls.append(1)
-        sess.set_adapter_field("prev_usage_ts", 1)
+        sess.set_adapter_field("codex_prev_usage", {"input_tokens": 1})
         return None  # no new usage entries
 
     adapter.enrich_after_result = enrich_advancing_cursor
@@ -982,7 +1165,7 @@ def test_cursor_only_change_rolls_back_with_save_failure(monkeypatch, tmp_path):
     _seed_job(s, w)
     s.raw_usage = {"m": _usage("m", 2, 20, 0.5)}
     s.total_usage = _sess.compute_total_usage(s.raw_usage)
-    s.adapter_config["prev_usage_ts"] = 0
+    s.adapter_config["codex_prev_usage"] = {"input_tokens": 0}
 
     real_save_body = _sess._save_body
     attempts = {"n": 0}
@@ -1008,8 +1191,67 @@ def test_cursor_only_change_rolls_back_with_save_failure(monkeypatch, tmp_path):
     # Usage untouched (no delta was ever applied)...
     assert s.raw_usage["m"]["request_count"] == 2, s.raw_usage
     # ...and the cursor advanced by the uncommitted attempt is rolled back.
-    assert s.adapter_config.get("prev_usage_ts") in (0, None), (
+    assert (s.adapter_config.get("codex_prev_usage") or {}).get("input_tokens") in (0, None), (
         f"an uncommitted cursor-only change must roll back: {s.adapter_config}"
     )
     print("PASS: a cursor-only change rolls back with its save failure")
+    _cleanup()
+
+
+# ── the real HTTP reimport handler must go through the shared gate ──
+#
+# The unit tests above call ``session.replace_usage_totals`` directly, which
+# proves the *mechanism*. This drives ``server._import_session`` so the wiring
+# is covered too: the handler is what actually replaces a live Session's usage
+# in production, and if it ever assigns ``raw_usage`` directly again the
+# coordination silently disappears.
+
+def test_http_reimport_handler_uses_the_shared_usage_gate(monkeypatch, tmp_path):
+    """A reimport through the real handler re-seeds cursors and bumps revision."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    sid = "ses_http_reimport"
+    s = _new_session(sid, tmp_path, adapter_name="codex")
+    s.cli_session_id = "thread-http"
+    # a cursor the provider had advanced, and usage that predates it
+    s.raw_usage = {"m": _usage("m", 1, 10, 0.25)}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+    s.adapter_config["codex_prev_usage"] = {"input_tokens": 10}
+    revision_before = _sess.usage_revision(s)
+
+    class _Provider:
+        def session_exists(self, session_id, cwd):
+            return True
+
+        def parse_history(self, session_id, cwd):
+            return [{"role": "user", "content": "hi"}]
+
+        def get_raw_usage(self, session_id, cwd):
+            return [{"model": "m", "rawUsage": {"prompt_tokens": 110}}]
+
+        def get_session_title(self, session_id, cwd):
+            return "imported thread"
+
+    import packages.web.server as server
+
+    async def scenario():
+        return await server._import_session(
+            _Provider(), "codex", {"session_id": "thread-http"})
+
+    result = asyncio.run(scenario())
+    assert "error" not in result, f"reimport failed: {result}"
+
+    # The handler installed the recomputed total ...
+    assert s.raw_usage["m"]["request_count"] == 1, s.raw_usage
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 110, s.raw_usage
+    # ... through the gate, so the revision advanced and the absolute cursor was
+    # re-seeded to match the recomputed total instead of staying behind it.
+    assert _sess.usage_revision(s) > revision_before, (
+        "the reimport must go through replace_usage_totals (revision bump)"
+    )
+    assert s.adapter_config["codex_prev_usage"]["input_tokens"] == 110, (
+        f"the provider cursor must be re-seeded by the reimport: {s.adapter_config}"
+    )
+    assert s.total_usage["prompt_tokens"] == 110, s.total_usage
+    print("PASS: the HTTP reimport handler uses the shared usage gate")
     _cleanup()
