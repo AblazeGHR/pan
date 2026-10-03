@@ -1,0 +1,7 @@
+# uv 临时环境（--no-project，不改锁）·新 WS 套件全量（含真实链）
+uv 0.9.14 (05814f9cd 2025-12-01)
+
+# cmd: uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout -- python -m pytest tests/test_terminal_ws.py
+
+..............................                                           [100%]
+30 passed in 9.02s

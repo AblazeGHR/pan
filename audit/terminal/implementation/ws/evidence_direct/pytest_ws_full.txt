@@ -1,0 +1,5 @@
+# 直接解释器（E:/software/miniforge/python.exe）·新 WS 套件全量（含真实链）
+Python 3.12.12
+
+..............................                                           [100%]
+30 passed in 8.42s

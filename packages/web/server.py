@@ -246,8 +246,11 @@ async def lifespan(app: FastAPI):
     # ``terminal_lifespan`` 内部对 yield 与 stop_runtime 用 **try/finally**：lifespan
     # 体异常/取消也一定会请求收尾（先关 REST 准入，再按总预算收敛同一 service）。
     # 其它插件的起停顺序与语义保持不变。
+    # WS 桥是**内层**：退出时先停 WS 准入并关闭全部连接（共享 2s 预算），
+    # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
     async with terminal_api.terminal_lifespan(app):
-        yield
+        async with terminal_ws.websocket_lifespan(app):
+            yield
 
     await asyncio.to_thread(gateway_plugins.stop_all)
     # Request cancellation at a Session boundary.  The bounded wait protects
@@ -8371,8 +8374,10 @@ app.include_router(jobs_api.router)
 
 # ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
 from packages.web import terminal_api  # noqa: E402  延迟导入避免启动期循环
+from packages.web import terminal_ws  # noqa: E402  终端 WS 桥（P2 WS 第一批）
 
 app.include_router(terminal_api.router)
+app.include_router(terminal_ws.router)
 
 
 @app.get("/api/adapter/config")

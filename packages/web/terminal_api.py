@@ -84,6 +84,9 @@ TIMEOUT_MIN = 1
 TIMEOUT_MAX = 5000
 TIMEOUT_DEFAULT = 5000
 SNAPSHOT_SCREEN_MAX = 128 * 1024
+#: 快照 ``note`` 的有界上限：只截到 64 会丢掉完整降级原因（客户端据此判断
+#: 能否继续信任流）；有界截断时由 ``note_truncated`` 显式标注，不冒充完整。
+NOTE_MAX = 4096
 UINT64_MAX = (1 << 64) - 1
 MAX_JSON_BODY = 64 * 1024
 
@@ -499,6 +502,13 @@ class TerminalRuntime:
             raise GateRejected(403, "forbidden-content-type")
         self._check_ready()
 
+    def check_ready(self) -> None:
+        """就绪门（**公开**，供 WS 桥在 accept 前复用同一判定）。
+
+        WS 与 REST 共用这一个实现，避免复制一份不一致的 ready 门。
+        """
+        self._check_ready()
+
     def _check_ready(self) -> None:
         if self.state == STATE_DISABLED:
             raise GateRejected(503, "terminal-disabled")
@@ -901,7 +911,14 @@ def project_diagnostics(value: Any) -> dict[str, Any] | None:
 
 
 def project_snapshot(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """snapshot 出口：serialized_screen → 原字节 data_b64；不因 reasons 空升级。"""
+    """snapshot 出口：serialized_screen → 原字节 data_b64；不因 reasons 空升级。
+
+    ``note`` 上限 :data:`NOTE_MAX`（4096）：只截到 64 会**丢掉完整降级原因**，
+    而降级说明正是客户端判断"能否继续信任流"的依据。有界截断时置
+    ``note_truncated=True`` —— **不**让"长 note"被误读成"完整说明"。
+    """
+    note = raw.get("note")
+    note_out = note[:NOTE_MAX] if isinstance(note, str) else None
     return {
         "terminal_id": raw.get("terminal_id"),
         "status": _str_or_none(raw.get("status")),
@@ -912,7 +929,10 @@ def project_snapshot(raw: Mapping[str, Any]) -> dict[str, Any]:
         "fidelity": _str_or_none(raw.get("fidelity")),
         "recovery": _str_or_none(raw.get("recovery")),
         "feed_lag": _bool_or_none(raw.get("feed_lag")),
-        "note": _str_or_none(raw.get("note")),
+        "note": note_out,
+        "note_truncated": bool(
+            isinstance(note, str) and len(note) > NOTE_MAX
+        ),
         "engine": project_engine(raw.get("engine")),
         "cursors_valid": _bool_or_none(raw.get("cursors_valid")),
         "reset_unconfirmed": _bool_or_none(raw.get("reset_unconfirmed")),

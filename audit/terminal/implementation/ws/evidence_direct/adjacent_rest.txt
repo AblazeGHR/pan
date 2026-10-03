@@ -1,0 +1,12 @@
+# 相邻定向（共享 gate/note/生命周期接线受影响面）
+
+## 1) REST 全套（tests/test_terminal_api.py）—— 已接受基线须保持绿
+# cmd: pytest tests/test_terminal_api.py -o addopts= -q --timeout=300
+......................................                                   [100%]
+38 passed in 8.04s
+
+## 2) 真实 Pan app 导入 + 路由注册（tests/test_addressing_compat.py）
+# cmd: pytest tests/test_addressing_compat.py -o addopts= -q --timeout=300
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+24 passed, 1 warning in 0.84s
