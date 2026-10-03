@@ -1,0 +1,26 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+______________ test_f5_r2_confirmation_sources_strict_bool_types ______________
+tests\test_terminal_runner.py:2401: in test_f5_r2_confirmation_sources_strict_bool_types
+    assert detail["reset_unconfirmed"] is None, f"非 bool 的 reset({truthy!r}) 必须 unknown"
+E   AssertionError: 非 bool 的 reset('true') 必须 unknown
+E   assert True is None
+__________ test_f5_r2_baseline_cursor_stale_snapshot_and_no_coercion __________
+tests\test_terminal_runner.py:2418: in test_f5_r2_baseline_cursor_stale_snapshot_and_no_coercion
+    assert detail["cursors_valid"] is None, "快照早于最近 reset 基线必须 unknown"
+E   AssertionError: 快照早于最近 reset 基线必须 unknown
+E   assert True is None
+________________ test_f5_r2_baseline_cursor_legal_big_integer _________________
+tests\test_terminal_runner.py:2458: in test_f5_r2_baseline_cursor_legal_big_integer
+    assert detail["cursors_valid"] is None, "大整数基线必须精确参与比较（不得浮点/截断）"
+E   AssertionError: 大整数基线必须精确参与比较（不得浮点/截断）
+E   assert True is None
+___________ test_f5_r2_reset_completion_gate_snapshot_before_after ____________
+tests\test_terminal_runner.py:2482: in test_f5_r2_reset_completion_gate_snapshot_before_after
+    assert before["cursors_valid"] is None
+E   assert True is None
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_runner.py::test_f5_r2_confirmation_sources_strict_bool_types
+FAILED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_stale_snapshot_and_no_coercion
+FAILED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_legal_big_integer
+FAILED tests/test_terminal_runner.py::test_f5_r2_reset_completion_gate_snapshot_before_after

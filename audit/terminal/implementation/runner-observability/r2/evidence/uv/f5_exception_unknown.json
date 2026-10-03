@@ -1,0 +1,6 @@
+{
+  "probe_exception_unknown": true,
+  "diagnostics_exception_unknown": true,
+  "barrier_failure_conservative": true,
+  "no_exception_text": true
+}

@@ -1,0 +1,5 @@
+{
+  "illegal_zero_write": true,
+  "status_path_raises": true,
+  "legal_written_in_root": true
+}

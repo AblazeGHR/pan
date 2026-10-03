@@ -2219,12 +2219,14 @@ class _TrustedEmulator(_ProtoEmulatorBase):
     """真实确认面形态：cursors_valid 属性 + diagnostics()（可注入异常/缺失）。"""
 
     def __init__(self, *, cursors_valid: Any = True, reset_unconfirmed: Any = False,
-                 raise_valid: bool = False, raise_diagnostics: bool = False, **kwargs: Any) -> None:
+                 raise_valid: bool = False, raise_diagnostics: bool = False,
+                 baseline_cursor: Any = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._cursors_valid = cursors_valid
         self._reset_unconfirmed = reset_unconfirmed
         self._raise_valid = raise_valid
         self._raise_diagnostics = raise_diagnostics
+        self._baseline = baseline_cursor
 
     @property
     def cursors_valid(self) -> Any:
@@ -2235,7 +2237,7 @@ class _TrustedEmulator(_ProtoEmulatorBase):
     def diagnostics(self) -> dict[str, Any]:
         if self._raise_diagnostics:
             raise RuntimeError("injected-diagnostics-failure")
-        return {"reset_unconfirmed": self._reset_unconfirmed}
+        return {"reset_unconfirmed": self._reset_unconfirmed, "baseline_cursor": self._baseline}
 
 
 def _wire_snapshot_runner(tmp_path, tid: str, emulator: Any) -> Any:
@@ -2380,4 +2382,111 @@ def test_f5_snapshot_detail_survives_oversize_and_long_note_reduction(tmp_path):
             "long_note_detail_len": len(payload["detail"]),
             "machine_fields_preserved": True,
         },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# F5 r2 收尾门控（诚实性窄化）：严格 bool 来源 / baseline 交叉 / 大整数
+# 依据：F5 audit cc3011af + MA 收尾口径（保守近似，无历史世代原子绑定）。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_f5_r2_confirmation_sources_strict_bool_types(tmp_path):
+    """两个确认来源**只接受真正 bool**；真值型非 bool（str/int/list）→ null，不做强转。"""
+    for truthy in ("true", "1", 1, 0.0, [], {}, "yes"):
+        emulator = _TrustedEmulator(cursors_valid=truthy, reset_unconfirmed=truthy)
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5s_{type(truthy).__name__}_{len(str(truthy))}", emulator)
+        detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+        assert detail["cursors_valid"] is None, f"非 bool 的 cursors_valid({truthy!r}) 必须 unknown"
+        assert detail["reset_unconfirmed"] is None, f"非 bool 的 reset({truthy!r}) 必须 unknown"
+    # 真 bool 仍正常透出
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5s_bool", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is True and detail["reset_unconfirmed"] is False
+
+
+def test_f5_r2_baseline_cursor_stale_snapshot_and_no_coercion(tmp_path):
+    """同一次 diagnostics 的 baseline_cursor 交叉：baseline > snap.cursor → unknown；
+    仅合法 int（非 bool）或十进制字符串参与比较；非法/未知不造值（不加约束）。"""
+    # ① baseline 为 int 且 > cursor → stale → unknown
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    emulator.cursor = 50
+    emulator._baseline = 100
+    runner = _wire_snapshot_runner(tmp_path, "term_f5b_stale_int", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is None, "快照早于最近 reset 基线必须 unknown"
+
+    # ② baseline 为十进制字符串且 > cursor → 同上（字符串合法解析）
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    emulator.cursor = 50
+    emulator._baseline = "100"
+    runner = _wire_snapshot_runner(tmp_path, "term_f5b_stale_str", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is None
+
+    # ③ baseline=True（bool 是 int 子类）**不得**被当作 1 参与比较 → 无约束 → True
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    emulator.cursor = 0
+    emulator._baseline = True
+    runner = _wire_snapshot_runner(tmp_path, "term_f5b_bool", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is True, "bool 基线不得强转为 1 造出 stale"
+
+    # ④ 非法字符串 / None → 不造值（不加约束）→ True
+    for bad in ("abc", "", "1.5", None):
+        emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+        emulator.cursor = 0
+        emulator._baseline = bad
+        runner = _wire_snapshot_runner(tmp_path, f"term_f5b_bad_{str(bad)!r}", emulator)
+        detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+        assert detail["cursors_valid"] is True, f"非法基线({bad!r}) 不得造值/加约束"
+    record_evidence(
+        "f5_r2_baseline_stale",
+        {"int_stale_unknown": True, "str_stale_unknown": True, "bool_no_coercion": True, "invalid_no_value": True},
+    )
+
+
+def test_f5_r2_baseline_cursor_legal_big_integer(tmp_path):
+    """合法基线**大整数**（2^53 量级，十进制字符串）精确比较：> cursor → unknown，<= → True。"""
+    big = 2**53 + 987654
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    emulator.cursor = big - 1
+    emulator._baseline = str(big)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5big_stale", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is None, "大整数基线必须精确参与比较（不得浮点/截断）"
+
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    emulator.cursor = big
+    emulator._baseline = str(big)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5big_ok", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is True
+    record_evidence(
+        "f5_r2_bigint_baseline",
+        {"baseline": str(big), "stale_none": True, "caught_up_true": True},
+    )
+
+
+def test_f5_r2_reset_completion_gate_snapshot_before_after(tmp_path):
+    """确定性 reset 完成门控：reset **前**取到的快照（cursor < 新基线）→ unknown；
+    reset **后**（cursor >= 基线）→ True（同一诊断面，比较只发生在一次读取内）。"""
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5gate", emulator)
+
+    # reset 前：旧快照（cursor=7） vs 已确认的新基线 40 → unknown
+    emulator.cursor = 7
+    emulator._baseline = 40
+    before = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert before["cursors_valid"] is None
+
+    # reset 完成（模拟迟到 ack 回填基线）：新快照 cursor=40 == 基线 → True
+    emulator.cursor = 40
+    after = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert after["cursors_valid"] is True
+    record_evidence(
+        "f5_r2_reset_completion_gate",
+        {"before_reset_cursor": 7, "baseline": 40, "after_reset_cursor": 40,
+         "before_unknown": True, "after_true": True},
     )

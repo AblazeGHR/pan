@@ -1,0 +1,10 @@
+{
+  "injection": "FakeRuntime(close_delay=1.0) + close_wait=0.3 + lease 过期",
+  "first_close_status": "closing",
+  "close_calls": [
+    "explicit-close"
+  ],
+  "max_concurrent_close": 1,
+  "exit_code": 0,
+  "input_still_rejected": true
+}

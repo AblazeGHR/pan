@@ -1,0 +1,5 @@
+{
+  "alive_after_3x_grace": true,
+  "seconds_until_self_stop": 5.91,
+  "exit_code": 0
+}

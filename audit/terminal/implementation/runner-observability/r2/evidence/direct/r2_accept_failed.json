@@ -1,0 +1,6 @@
+{
+  "exit_code": 7,
+  "cleanup_converged": true,
+  "stderr_reason": "accept-failed",
+  "spawned_pid_dead": true
+}

@@ -288,16 +288,29 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 {"cursors_valid": true, "reset_unconfirmed": false}
 ```
 
-- 来源：emulator 已知轻量确认面（`cursors_valid` 属性 + `diagnostics()`）；**不阻塞**
-  watchdog/心跳，探测异常只记类型名、异常文本不进入响应（防泄漏）。
-- 语义：来源**已核验**才 bool；缺失/异常 → `null`（**unknown，不默认有效**）。
-- **一致性规则**：`cursors_valid=true` 仅在能与**本次响应载荷**一致可证明时透出
-  （快照存在、`recovery ∈ {full, partial}`、无 `feed_lag`、`reset_unconfirmed` 非 true）；
-  否则 `null`——**不机械读"当前 True"覆盖过时/降级/超界降级快照**。
+- 来源：emulator 已知轻量确认面（`cursors_valid` 属性 + 同一次 `diagnostics()` 读取）；
+  **来源契约**：必须**无 IO、有界短临界区**（真实引擎成立）；runner **不隔离慢源**，
+  客户端 `timeout_ms` **不包含**确认面额外延迟（调用方按契约使用）。探测异常只记类型名、
+  异常文本不进入响应（防泄漏）；**不阻塞** watchdog/心跳。
+- **严格类型（不做 bool 强转）**：两个来源只接受**真正 bool**；真值型非 bool
+  （字符串/整数/列表…）→ `null`（unknown，不默认有效）。`cursors_valid=true` 的来源须
+  **自含 reset 未确认判定**（真实引擎在 reset 未确认时属性为 False），这是来源契约而非
+  runner 的核验。
+- **保守近似（不是"一致可证明"）**：`cursors_valid=true` 只是"轻量来源当前值 + 本次载荷
+  属性"的保守近似——runner **没有与快照历史世代的原子绑定**（来源值在快照之后读取）。
+  透出 `true` 需同时满足：快照存在、`recovery ∈ {full, partial}`、无 `feed_lag`、
+  `reset_unconfirmed` 非 true，且**基线交叉**成立。
+- **基线交叉（同一次 `diagnostics()` 读取内的 `baseline_cursor`）**：仅**合法 int（非 bool）
+  或 ASCII 十进制字符串**参与比较（未知/非法/空白**不造值**，不加约束）；
+  若 `baseline_cursor > snap.cursor` → 快照早于最近一次已确认 reset → `null`。
+  大整数按 Python int 精确比较（禁浮点/截断）。
 - `null` / `false` / `reset_unconfirmed=true` 一律**不得**作为完整续流依据（`recovery != full`
   或本字段非 true 均应 fresh-view）。
-- 两类字段在**任何** detail 缩减级别保留（`_PRESERVE_DETAIL_KEYS`），极简骨架与最终
-  回退都携带；node 未验证序列原因仍只在 `note`（原因分层，见 §3.2 I-3）。
+- **上下文/截断**：`cursors_valid` **不得单独**解释为"完整恢复"——`detail` 处于缩减态
+  （含 `truncated_fields`）或上下文键（`fidelity/recovery/note`）缺失时，消费者必须结合
+  `recovery` 与 note 判定；极简/最终回退路径不是"完整恢复"承诺。
+- 两类字段在**任何** detail 缩减级别保留（`_PRESERVE_DETAIL_KEYS`）；node 未验证序列
+  原因仍只在 `note`（原因分层，见 §3.2 I-3）；**不解析 note/reasons 伪造结构化原因**。
 
 ### 4.5 快照协议 A（冻结）
 
@@ -601,6 +614,14 @@ class RunnerClient:
   - **O7**：`LOST` 不再映射为 exit 0（未证明 → 退出码 6）。
   - 测试 19 → **31 项**（新增 12 项门控/真机；直连 + uv 各一次，core129+broadcast8
     隔离 pyte 另列）。
+- `2026-10-03` **F5 收尾（窄化诚实性；先失败后通过）**：来源**严格 bool**（真值型非 bool
+  → null，不 bool 强转）；`cursors_valid=true` 的来源契约=自含 reset 未确认判定；
+  **baseline 交叉**（同一次 diagnostics 读取的 `baseline_cursor`，仅合法 int 非 bool 或
+  ASCII 十进制字符串参与；未知不造值；`baseline > snap.cursor` → null；大整数精确比较）；
+  文档口径改为**保守近似**（明确没有历史世代原子绑定，不能称"一致可证明"）；来源契约
+  （无 IO/有界短临界区、runner 不隔离慢源、`timeout_ms` 不含确认面延迟）与
+  "缩减/上下文缺失时字段不得单独解释完整恢复"写入 §4.4；测试 43 → **47**（新增 4 项：
+  严格类型 / stale+无强转 / 合法大整数 / reset 完成门控）。
 - `2026-10-03` **F5 机器确认字段透出（组合审查 `cabacc7f` B5 / 冻结文档 I3；先失败后通过）**：
   `snapshot` detail 新增 `cursors_valid` / `reset_unconfirmed`（可信来源 bool；缺失/异常 = null
   unknown；一致性规则保守——`True` 仅在可证明与本次载荷一致时透出，不机械读当前值覆盖

@@ -177,6 +177,25 @@ _OPTIONAL_DETAIL_KEYS: tuple[str, ...] = (
 _PRESERVE_DETAIL_KEYS: tuple[str, ...] = ("cursors_valid", "reset_unconfirmed")
 
 
+def _ledger_int_or_none(value: Any) -> int | None:
+    """F5：账本类整数（如 ``baseline_cursor``）的保守解析。
+
+    只接受**合法 int（非 bool）**或**ASCII 十进制字符串**（可带 ``+``/``-`` 符号）；
+    其余（bool、浮点、空白、含其它字符、超长非数字）一律 ``None``——**未知不造值**。
+    Python int 无界：2^53 以上大整数精确比较（禁浮点/截断）。
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        digits = text[1:] if text[:1] in ("+", "-") else text
+        if digits and digits.isascii() and digits.isdigit():
+            return int(text)
+    return None
+
+
 def _shrink_strings(value: Any, limit: int) -> Any:
     """递归缩短字符串（detail 字段级缩减用；绝不产生非法 JSON）。"""
     if isinstance(value, str):
@@ -1954,14 +1973,21 @@ class TerminalRunner:
     def _emulator_snapshot_fields(self, snap: AppliedSnapshot | None) -> dict[str, Any]:
         """F5 机器确认字段（detail 内）：``cursors_valid`` / ``reset_unconfirmed``。
 
-        - 来源：emulator 已知轻量确认面（``cursors_valid`` 属性 + ``diagnostics()``）；
-          读取失败/缺失 → ``None``（unknown，**不默认有效**）；任何异常只记类型名，
-          异常文本不进入响应（防泄漏），探测不阻塞（无 sidecar 往返）。
-        - **一致性规则**：``cursors_valid=True`` 仅在能与**本次**快照一致可证明时透出
-          （快照存在、recovery ∈ {full, partial}、无 feed_lag、reset 未处于未确认）；
-          否则 ``None``——不机械读"当前 True"覆盖过时/降级快照。
-        - ``reset_unconfirmed`` 是与快照独立的可信事实：可读即透出 bool，缺失/异常为
-          ``None``；为 True 时``cursors_valid`` 一律保守（unknown/false）。
+        **保守近似（非"一致可证明"）**：本函数以"轻量来源当前值 + 本次载荷属性"做
+        保守近似；runner 没有与快照历史世代的原子绑定（来源值在快照之后读取），
+        因此任何不能支持的 True 一律回落 ``None``（unknown）。
+
+        - **严格类型**：两个来源只接受**真正 bool**（``isinstance(v, bool)``）；真值型
+          非 bool（str/int/...）→ ``None``（unknown），**不做 bool 强转**。
+        - 来源契约：``cursors_valid=True`` 的来源须**自含 reset 未确认判定**（真实引擎
+          的 ``cursors_valid`` 属性在 reset 未确认时为 False）；文档 §4.4 写明。
+        - **baseline 交叉（同一次 diagnostics 读取）**：取 ``baseline_cursor``（仅合法
+          int 非 bool 或**十进制字符串**参与比较，未知/非法**不造值**）；若
+          ``baseline > snap.cursor`` 说明快照早于最近一次已确认 reset → ``None``。
+        - **来源需无 IO、有界短临界区**；runner **不隔离慢源**，且客户端 ``timeout_ms``
+          **不包含**确认面额外延迟（doc §4.4 写明属调用方契约）。
+        - 读取失败/异常 → ``None``（不默认有效）；任何异常只记类型名，异常文本不进入
+          响应（防泄漏）。
         """
         fields: dict[str, Any] = {"cursors_valid": None, "reset_unconfirmed": None}
         emulator = self._emulator
@@ -1974,19 +2000,25 @@ class TerminalRunner:
             raw_valid = None
             self._note("cursors-valid-probe-failed", type(exc).__name__)
         raw_reset: Any = None
+        raw_baseline: Any = None
         try:
             diagnostics_fn = getattr(emulator, "diagnostics", None)
             diagnostics = diagnostics_fn() if callable(diagnostics_fn) else None
             if isinstance(diagnostics, Mapping):
                 raw_reset = diagnostics.get("reset_unconfirmed")
+                raw_baseline = diagnostics.get("baseline_cursor")
         except Exception as exc:  # noqa: BLE001 - 探测失败 = unknown
             raw_reset = None
+            raw_baseline = None
             self._note("reset-probe-failed", type(exc).__name__)
-        reset_unconfirmed = None if raw_reset is None else bool(raw_reset)
+
+        valid_flag = raw_valid if isinstance(raw_valid, bool) else None
+        reset_unconfirmed = raw_reset if isinstance(raw_reset, bool) else None
+        baseline_cursor = _ledger_int_or_none(raw_baseline)
         fields["reset_unconfirmed"] = reset_unconfirmed
-        if raw_valid is None:
+        if valid_flag is None:
             return fields
-        if not bool(raw_valid):
+        if valid_flag is False:
             fields["cursors_valid"] = False
             return fields
         consistent = bool(
@@ -1995,6 +2027,10 @@ class TerminalRunner:
             and not bool(snap.feed_lag)
             and reset_unconfirmed is not True
         )
+        if consistent and baseline_cursor is not None and snap is not None:
+            if baseline_cursor > int(snap.cursor):
+                # 快照早于最近一次已确认 reset 基线（stale）→ 保守 unknown。
+                consistent = False
         fields["cursors_valid"] = True if consistent else None
         return fields
 
