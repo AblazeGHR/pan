@@ -73,9 +73,16 @@ python -m packages.core.terminal.launcher \
 - **单飞 worker**：同一时刻至多一个 `close()` 调用在途。若上一次调用超预算未返回：
   不另起第二个调用（不叠加）、不裸关资源（不 TerminateProcess / 不强杀 sidecar）、
   继续等待**同一** worker（直到总预算耗尽），如实记录 `in_flight`。
-- 结束判定：`closed=True` 才叫收敛。`closed=false` / 抛异常 → 记录 `error_type`
-  后按剩余预算重试；预算耗尽 → **非零退出（6）** + 状态文件（保留资源、原因类型、
-  尝试次数、是否 in-flight）。
+- 结束判定：**只认真 bool `True`**（`closed is True`）。字符串/数值等真值
+  （`"true"` / `1`）**不算收敛**——防止被注入或损坏组件伪造收敛（对齐 runner F5
+  严格 bool 口径）；真实 `EmulatorCloseReport.closed` 是真 bool，不受影响。
+  `closed=false` / 抛异常 → 记录 `error_type`（**仅类型名**）后按剩余预算重试；
+  预算耗尽 → **非零退出（6）** + 状态文件（保留资源、原因类型、尝试次数、
+  是否 in-flight）。
+- **幂等重发的已知口径（F8，保留现状）**：worker 用 `done` 事件判完成、`is_alive()`
+  判在途；若 `close()` 在两次 `invoke()` 之间完成，下一轮按"未在途"重发一次
+  （close **幂等**，同一时刻仍只有一个调用在途，`max_concurrent=1`）。这是有意
+  保留的语义：不为此引入结果缓存机制。
 - 口径声明：本预算为**调用方侧有界等待**，不是 OS 原语硬 SLA；进程退出关闭 Job
   guard 句柄导致的内核清树**不算清理已证明**（只按已测布局陈述，不泛化）。
 - 失败 owner 的对象引用**仅本进程内有效**；状态文件是事实记录，**不是跨进程重试入口**。
@@ -83,25 +90,51 @@ python -m packages.core.terminal.launcher \
 ## 5. 启动失败清理（owner 实际消费）
 
 `EmulatorStartupError`：
-- `owner=None` → 记 `no-owner` + 引擎残留事实（`residual`），退出码 8（无清理缺口）。
+- `owner=None` → 记 `no-owner` + 引擎残留事实（`residual` 白名单投影，见下），退出码 8。
 - `owner!=None` → `owner.retry_cleanup(timeout=剩余预算切片)` 循环：
-  - `closed=True` → 收敛：退出码 **8** + 状态文件（attempts / residual）。
-  - 未收敛（`retryable`/超时）且总预算未耗尽 → 有限间隔后重试（同 owner；owner 内部
-    已串行化，不并发重叠）。
-  - 总预算耗尽 → 退出码 **6** + 状态文件（`retained`、`last_error_type`、attempts、
-    `deadline_exceeded` 事实）。
-- `residual` 记录（emulator 契约字段）：`pid` / `identity_filetime`（raw FILETIME
-  字符串）/ `process_exited` / `job_verified` / `cleanup_errors`（类型名列表）等；
-  原样透传到状态文件（不追加解码、不猜结构）。
+  - `closed is True` → 收敛：退出码 **8** + 状态文件（attempts / residual 投影）。
+  - 未收敛且总预算未耗尽 → 有限间隔后重试（同 owner；owner 内部已串行化，不并发重叠）。
+  - 总预算耗尽 → 退出码 **6** + 状态文件（`retained`、`last_error_type`、attempts）。
+- **`last_error_type` 只取安全值**：owner 调用抛异常 → 异常**类型名**；owner 报告未收敛
+  → 静态 `owner-not-converged`；报告形状非法 → 静态 `invalid-owner-report`。
+  **不采用** owner 报告里的 `reason` / `detail` 文本（可能含任意内容）。
+- **F1 边界（依赖上游原语自身有界）**：launcher **同步直调** `owner.retry_cleanup`
+  （不新增线程封装）。其有界性是**上游原语契约**（`lock.acquire(timeout=…)` +
+  内部 deadline）；launcher **不提供独立于上游原语的兜底上界**——若上游原语违反
+  其 timeout 契约而阻塞，本层总预算会被突破（仅在受信注入/违约 owner 下可达）。
+  本层预算是**调用方侧有界等待**，**非 OS 硬 SLA**。
+- **`residual` 白名单投影（F3：输出面脱敏责任在 launcher，不转嫁上游）**：上游
+  `reason` 是自由文本（可内嵌异常消息 / stderr 摘要），因此只保留结构化事实：
+  - `reason` → `reason_class`（契约内四个纯静态值 `unsupported-platform` /
+    `node-missing` / `sidecar-script-missing` / `guard-create-failed` 原样；字符串
+    → `engine-startup-failed`；非字符串 → `unclassified`；缺失 → `absent`）+
+    `reason_text_present`（布尔，只表示"上游是否携带文本"）。
+  - `pid`（真 int）/ `identity_filetime`（ASCII 十进制字符串）/ `process_exited` /
+    `job_verified` / `guard_closed` / `cleanup_closed`（**真 bool**）/ `cleanup_seconds`
+    （数值）—— 坏类型一律 `null`/缺省，**不造值**。
+  - `cleanup_errors` → **只留计数** `cleanup_error_count`；`cleanup_detail` /
+    `stderr_digest` → **只留存在性** `*_present`（`"ok"` 记为无细节）。
+  - 未知键 → **只记数量** `keys_dropped`（不记键名）。
+  - 任何自由文本原文既不落 status，也不入 events / stderr。
 
 ## 6. 状态文件（两结局显式、脱敏、原子）
 
 - 路径：`<terminals_root>/launcher-status/<terminal_id>.json`
   （与 runner 的 `runner-status/` 平行；`<terminals_root>` = secret 文件的祖父目录）。
-- 写前 `validate_terminal_id`；非法 id **零派生文件**（只记 `status-path-rejected`，不回显 id）。
-- 唯一自有 tmp（`<name>.<hex>.tmp`）+ 原子 `os.replace`；写串行（进程内锁）；
-  失败只记类型名、**不抛出、不假成功**（退出码不因写失败改变；stderr 记 `status-write-failed`）。
-- 字段（schema_version=1）：
+- 写前 `validate_terminal_id`；非法 id **零派生文件**，`status-path-rejected` 的
+  detail **只记异常类型名**（`ValueError`）——上游异常消息含 id 原文，**不回显**到
+  events / stderr（F6）。
+- **唯一独占创建的自有 tmp（F4/F7）**：`<name>.<pid>.<8位hex>.tmp`，以
+  `O_CREAT|O_EXCL|O_WRONLY` **独占创建**（同进程串行 + 跨进程 pid/hex 不撞名）；
+  写完 `os.replace` 原子替换（`replace` 成功即 tmp 不复存在）。
+  - 失败路径**只清理本进程成功创建的那一个 tmp**（`finally` + 创建标志）；
+    **绝不触碰旧 target、也绝不删除他人 tmp**（独占冲突时直接失败，不清理）。
+  - tmp 清理失败 → 记 `status-tmp-cleanup-failed`（类型名），**不掩盖主失败**
+    （`status-write-failed` 同时在案），不抛、不改退出码。
+- 写失败（F5）→ 记 `status-write-failed`（类型名）**并输出单行静态脱敏 stderr 公告**：
+  `pan-terminal-launcher: status write failed (<TypeName>)`（无路径、无文本）；写串行
+  （进程内锁）；**不抛出、不假成功**（退出码不因写失败改变）。
+- 字段（schema_version=1；`engine.startup` 为 §5 白名单投影）：
 
 ```json
 {
@@ -116,16 +149,32 @@ python -m packages.core.terminal.launcher \
     "cleanup": {"converged": true, "attempts": 1, "last_error_type": null,
                  "retained": [], "in_flight": false, "seconds": 0.3,
                  "outcome": "closed"},
-    "startup": {"reason": "ready-eof", "owner": "consumed", "converged": true,
-                 "attempts": 2, "residual": {"pid": 4321, "identity_filetime": "..."}}
+    "startup": {
+      "reason_class": "engine-startup-failed", "reason_text_present": true,
+      "owner": "consumed", "attempts": 2, "converged": true, "seconds": 0.11,
+      "last_error_type": "owner-not-converged",
+      "residual": {
+        "present": true, "reason_class": "engine-startup-failed",
+        "reason_text_present": true, "pid": 4321,
+        "identity_filetime": "133400000000000000",
+        "process_exited": true, "job_verified": false,
+        "guard_closed": true, "cleanup_closed": false,
+        "cleanup_seconds": 1.5, "cleanup_error_count": 2,
+        "cleanup_detail_present": true, "stderr_digest_present": true,
+        "keys_dropped": 0
+      }
+    }
   },
   "authority": "launcher-status 是事实记录；对象引用不可跨进程重试；Job 内核退出不代表清理已证明",
   "updated_at": 0.0
 }
 ```
 
-- 脱敏：只允许类型名 / 静态串 / 结构化字段；**异常消息文本不落盘**；
-  token / secret 不出现（另有 token 哨兵门控）。
+- 脱敏：**launcher 负责自己输出面**（status / events / stderr）的白名单，不把责任
+  转嫁上游：只允许类型名 / 安全静态分类 / 结构化字段；**异常消息文本、非法 id、
+  上游 residual 自由文本一律不落盘**（§5 投影）；token / secret 不出现（另有跨来源
+  哨兵门控）。可达性：上游 residual 属**受信同进程来源**，本层按"即使上游被注入或
+  损坏也不外泄文本"收紧，**不夸大为远程漏洞**。
 - `launcher_identity` 来自 `current_process_identity()` 的**真实** pid + raw FILETIME
   十进制字符串；未能核验时明确 `null`（unknown，不造身份；N3 口径）。
 
@@ -172,6 +221,20 @@ def main(argv: Sequence[str] | None = None) -> int
 
 ## 9. 变更记录
 
+- `2026-10-03` **r2 窄修（独立审查 `5681ef8e` 的 F2–F7；先失败后通过）**：
+  - **F2** 收敛只认**真 bool `True`**（正常 close 与 startup owner 两个入口）；
+    字符串/数值真值不再伪造收敛（反向断言：真 bool 仍正常收敛/透传）。
+  - **F3** residual 改**白名单投影**（结构化事实 + 安全静态分类；自由文本、未知键、
+    owner 报告的 reason/detail 一律不落盘），脱敏责任明确在 launcher；startup
+    `reason` → `reason_class`；`last_error_type` 只取类型名/静态分类；跨来源哨兵门控。
+  - **F4/F7** status tmp 改 `<name>.<pid>.<hex>.tmp` 且 **O_EXCL 独占创建**；
+    `finally` 只清自己成功创建的 tmp；replace/写失败不留 tmp、不破坏旧 target 与
+    他人 tmp；清理失败记 `status-tmp-cleanup-failed` 且不掩盖主失败。
+  - **F5** 写失败输出单行静态脱敏 stderr 公告（只类型名），不改变生命周期。
+  - **F6** 非法 id 只记 `ValueError` 类型名，零派生文件且 events/stderr 不回显。
+  - **F1** 仅补边界：startup `retry_cleanup` 同步依赖上游原语自身有界，launcher 不
+    提供独立兜底上界、非 OS 硬 SLA，不新增线程封装。**F8** 保留现状（幂等重发，
+    `max_concurrent=1`）并在 §4 写明口径。测试 17 → **46**（新增 12 函数 / 29 用例）。
 - `2026-10-03` 首稿（先于代码）：接口/退出码/预算策略成稿。
 - `2026-10-03` 实现与实测回填：`launcher.py` + 17 项测试（12 注入门控 + 5 真机）；
   **launcher 直连 17/17、uv 17/17；13 组合相邻回归双环境各 13/13（均 rc 0）**；

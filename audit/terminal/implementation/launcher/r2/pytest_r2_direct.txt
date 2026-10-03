@@ -1,0 +1,143 @@
+..............................................                           [100%]
+=================================== PASSES ====================================
+___________ test_pre_spawn_failure_owner_none_records_without_claim ___________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+_______ test_ready_eof_failure_owner_actually_consumed_until_converged ________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+___________ test_fatal_frame_failure_owner_unproven_bounded_nonzero ___________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+_________________ test_startup_timeout_failure_owner_consumed _________________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+_____________ test_runner_construct_error_still_finalizes_engine ______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=5 reason=internal engine-cleanup=converged
+_____ test_engine_close_false_then_success_retries_same_owner_not_stacked _____
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+______________ test_engine_close_exception_then_success_retried _______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+________ test_engine_close_permanent_block_bounded_nonzero_not_stacked ________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+_____ test_finalize_budget_includes_wait_then_same_owner_retry_converges ______
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+______ test_illegal_terminal_id_zero_derived_files_even_on_failure_path _______
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+_____________ test_r2_close_convergence_requires_real_bool[true] ______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+_______________ test_r2_close_convergence_requires_real_bool[1] _______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+_____________ test_r2_close_convergence_requires_real_bool[false] _____________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+_______________ test_r2_close_convergence_requires_real_bool[0] _______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+____________ test_r2_close_convergence_requires_real_bool[value4] _____________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+____________ test_r2_close_convergence_requires_real_bool[value5] _____________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+_____________ test_r2_close_convergence_requires_real_bool[None] ______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+______________ test_r2_close_convergence_requires_real_bool[0.0] ______________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-cleanup-unproven engine-cleanup=unproven
+________________ test_r2_close_real_bool_true_still_converges _________________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+_________ test_r2_startup_owner_convergence_requires_real_bool[true] __________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+___________ test_r2_startup_owner_convergence_requires_real_bool[1] ___________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+_________ test_r2_startup_owner_convergence_requires_real_bool[false] _________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+___________ test_r2_startup_owner_convergence_requires_real_bool[0] ___________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+________ test_r2_startup_owner_convergence_requires_real_bool[value4] _________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+_______________ test_r2_startup_owner_real_bool_true_converges ________________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+___________ test_r2_residual_is_whitelisted_projection_not_verbatim ___________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+_________ test_r2_residual_non_mapping_and_bad_types_are_conservative _________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+____________ test_r2_startup_reason_and_owner_error_are_classified ____________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+________________ test_r2_status_tmp_never_touches_foreign_tmp _________________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: status write failed (FileExistsError)
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+_________ test_r2_status_tmp_cleanup_failure_is_reported_not_masking __________
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: status write failed (OSError)
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+=========================== short test summary info ===========================
+PASSED tests/test_terminal_launcher.py::test_pre_spawn_failure_owner_none_records_without_claim
+PASSED tests/test_terminal_launcher.py::test_ready_eof_failure_owner_actually_consumed_until_converged
+PASSED tests/test_terminal_launcher.py::test_fatal_frame_failure_owner_unproven_bounded_nonzero
+PASSED tests/test_terminal_launcher.py::test_startup_timeout_failure_owner_consumed
+PASSED tests/test_terminal_launcher.py::test_runner_construct_error_still_finalizes_engine
+PASSED tests/test_terminal_launcher.py::test_runner_run_error_token_sentinel_redacted_and_engine_finalized
+PASSED tests/test_terminal_launcher.py::test_engine_close_false_then_success_retries_same_owner_not_stacked
+PASSED tests/test_terminal_launcher.py::test_engine_close_exception_then_success_retried
+PASSED tests/test_terminal_launcher.py::test_engine_close_permanent_block_bounded_nonzero_not_stacked
+PASSED tests/test_terminal_launcher.py::test_finalize_budget_includes_wait_then_same_owner_retry_converges
+PASSED tests/test_terminal_launcher.py::test_status_write_failure_never_fakes_success
+PASSED tests/test_terminal_launcher.py::test_illegal_terminal_id_zero_derived_files_even_on_failure_path
+PASSED tests/test_terminal_launcher.py::test_real_launcher_bootstrap_snapshot_protocol_a_and_stop
+PASSED tests/test_terminal_launcher.py::test_real_launcher_lease_loss_self_stop
+PASSED tests/test_terminal_launcher.py::test_real_launcher_bootstrap_refused_still_finalizes_engine
+PASSED tests/test_terminal_launcher.py::test_real_launcher_hard_kill_tree_cleanup
+PASSED tests/test_terminal_launcher.py::test_real_launcher_detach_refused_zero_state
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[true]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[1]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[false]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[0]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[value4]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[value5]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[None]
+PASSED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[0.0]
+PASSED tests/test_terminal_launcher.py::test_r2_close_real_bool_true_still_converges
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[true]
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[1]
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[false]
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[0]
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[value4]
+PASSED tests/test_terminal_launcher.py::test_r2_startup_owner_real_bool_true_converges
+PASSED tests/test_terminal_launcher.py::test_r2_residual_is_whitelisted_projection_not_verbatim
+PASSED tests/test_terminal_launcher.py::test_r2_residual_non_mapping_and_bad_types_are_conservative
+PASSED tests/test_terminal_launcher.py::test_r2_startup_reason_and_owner_error_are_classified
+PASSED tests/test_terminal_launcher.py::test_r2_sentinel_absent_from_status_events_and_stderr
+PASSED tests/test_terminal_launcher.py::test_r2_status_tmp_is_exclusive_and_removed_on_replace_failure
+PASSED tests/test_terminal_launcher.py::test_r2_status_tmp_never_touches_foreign_tmp
+PASSED tests/test_terminal_launcher.py::test_r2_status_tmp_cleanup_failure_is_reported_not_masking
+PASSED tests/test_terminal_launcher.py::test_r2_status_tmp_name_is_unique_per_write
+PASSED tests/test_terminal_launcher.py::test_r2_status_write_failure_announces_static_stderr
+PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad/../escape]
+PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad\\..\\escape]
+PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad!x]
+PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_x:C]
+PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[PAN-R2-SENTINEL-7c1e9b]
+46 passed in 44.72s

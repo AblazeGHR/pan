@@ -119,4 +119,3 @@ E:/software/miniforge/python.exe audit/terminal/implementation/launcher/collect_
 - 先失败/期望修正记录：launcher 为新增模块，无“修复前运行”；前置缺口以组合 R2
   “三层收尾事实”与 `326a646e` 静态注意 1/2 为锚（§0）。uv shim 与扫描时序两处为
   测试自身修正（非产品缺陷），修正前后差异见 git 历史与本文记录。
-

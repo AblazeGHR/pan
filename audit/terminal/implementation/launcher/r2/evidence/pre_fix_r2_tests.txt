@@ -1,0 +1,123 @@
+FFF......FFF...FFFFFFFFFFFFFF                                            [100%]
+================================== FAILURES ===================================
+E   assert 0 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1137: assert 0 == 6
+E   assert 0 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1137: assert 0 == 6
+E   assert 0 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1137: assert 0 == 6
+E   assert 8 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1172: assert 8 == 6
+E   assert 8 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1172: assert 8 == 6
+E   assert 8 == 6
+     +  where 6 = launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1172: assert 8 == 6
+E   AssertionError: residual 自由文本/未知键不得进入 status
+    assert 'PAN-R2-SENTINEL-7c1e9b' not in '{"schema_ve...0999827.575}'
+      
+      'PAN-R2-SENTINEL-7c1e9b' is contained here:
+        手前中止（leak PAN-R2-SENTINEL-7c1e9b）；stderr=leak","owner":"consumed","attempts":1,"converged":true,"residual":{"reason":"sidecar 握手前中止（leak PAN-R2-SENTINEL-7c1e9b）；stderr=leak","pid":4242,"identity_filetime":"133400000000000000","process_exited":true,"job_verified":false,"guard_closed":true,"cleanup_closed":false,"cleanup_seconds":1.5,"cleanup_detail":"kill failed PAN-R2-SENTINEL-7c1e9b","cleanup_errors":["boom PAN-R2-SENTINEL-7c1e9b","bang PAN-R2-SENTINEL-7c1e9b"],"stderr_digest":"node said PAN-R2-SENTINEL-7c1e9b","unknown_upstream...
+      
+      ...Full output truncated (2 lines hidden), use '-vv' to show
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1227: AssertionError: residual 自由文本/未知键不得进入 status
+E   KeyError: 'reason_class'
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1262: KeyError: 'reason_class'
+E   assert 'PAN-R2-SENTINEL-7c1e9b' not in '{"schema_ve...0999828.105}'
+      
+      'PAN-R2-SENTINEL-7c1e9b' is contained here:
+        on":"leak PAN-R2-SENTINEL-7c1e9b","owner":"unproven","attempts":25,"converged":false,"residual":{"reason":"leak PAN-R2-SENTINEL-7c1e9b","pid":9},"last_error_type":"leak PAN-R2-SENTINEL-7c1e9b","seconds":0.5}},"authority":"launcher-status 是事实记录，不是存活权威；对象引用不可跨进程重试；Job 内核退出（进程终止关闭 guard）不代表清理已证明","updated_at":1790999828.105}
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=6 reason=engine-startup-cleanup-unproven engine-cleanup=unproven
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1287: assert 'PAN-R2-SENTINEL-7c1e9b' not in '{"schema_ve...0999828.105}'
+E   assert ('PAN-R2-SENTINEL-7c1e9b' not in '{"schema_ve...0999828.622}'
+      
+      'PAN-R2-SENTINEL-7c1e9b' is contained here:
+        eason":"a PAN-R2-SENTINEL-7c1e9b","owner":"unproven","attempts":25,"converged":false,"residual":{"reason":"a PAN-R2-SENTINEL-7c1e9b","pid":11,"cleanup_detail":"b PAN-R2-SENTINEL-7c1e9b","stderr_digest":"c PAN-R2-SENTINEL-7c1e9b","cleanup_errors":["d PAN-R2-SENTINEL-7c1e9b"],"weird":"e PAN-R2-SENTINEL-7c1e9b"},"last_error_type":"g PAN-R2-SENTINEL-7c1e9b","seconds":0.5}},"authority":"launcher-status 是事实记录，不是存活权威；对象引用不可跨进程重试；Job 内核退出（进程终止关闭 guard）不代表清理已证明","updated_at":1790999828.622}
+      ?           ++++++++++++++++++++++)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1331: assert ('PAN-R2-SENTINEL-7c1e9b' not in '{"schema_ve...0999828.622}'
+E   AssertionError: replace 失败不得留自有 tmp：['term_r2tmp.json.34540.tmp']
+    assert ['term_r2tmp.json.34540.tmp'] == []
+      
+      Left contains one more item: 'term_r2tmp.json.34540.tmp'
+      Use -v to get more diff
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1358: AssertionError: replace 失败不得留自有 tmp：['term_r2tmp.json.34540.tmp']
+E   assert False
+     +  where False = any(<generator object test_r2_status_tmp_never_touches_foreign_tmp.<locals>.<genexpr> at 0x00000297E7A42400>)
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1384: assert False
+E   AssertionError: assert 'status-tmp-cleanup-failed' in ['status-write-failed']
+---------------------------- Captured stderr call -----------------------------
+pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1403: AssertionError: assert 'status-tmp-cleanup-failed' in ['status-write-failed']
+E   AssertionError: tmp 名必须唯一：['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp']
+    assert (2 == 2 and 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp' != 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp')
+     +  where 2 = len(['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term...Data\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp'])
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1424: AssertionError: tmp 名必须唯一：['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1415\\test_r2_status_tmp_name_is_uni0\\status\\term_r2uniq.json.34540.tmp']
+E   AssertionError: assert 'pan-terminal-launcher: status write failed (' in 'pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged\n'
+     +  where 'pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged\n' = CaptureResult(out='', err='pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged\n').err
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1449: AssertionError: assert 'pan-terminal-launcher: status write failed (' in 'pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged\n'
+E   AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad/../escape'"]
+    assert (["invalid terminal id for secret store: 'term_bad/../escape'"] and False)
+     +  where False = all(<generator object test_r2_illegal_terminal_id_never_echoed.<locals>.<genexpr> at 0x00000297E7A40E10>)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1473: AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad/../escape'"]
+E   AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad\\\\..\\\\escape'"]
+    assert (["invalid terminal id for secret store: 'term_bad\\\\..\\\\escape'"] and False)
+     +  where False = all(<generator object test_r2_illegal_terminal_id_never_echoed.<locals>.<genexpr> at 0x00000297E79F1B10>)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1473: AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad\\\\..\\\\escape'"]
+E   AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad!x'"]
+    assert (["invalid terminal id for secret store: 'term_bad!x'"] and False)
+     +  where False = all(<generator object test_r2_illegal_terminal_id_never_echoed.<locals>.<genexpr> at 0x00000297E7A41CB0>)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1473: AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_bad!x'"]
+E   AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_x:C'"]
+    assert (["invalid terminal id for secret store: 'term_x:C'"] and False)
+     +  where False = all(<generator object test_r2_illegal_terminal_id_never_echoed.<locals>.<genexpr> at 0x00000297E7A439F0>)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1473: AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'term_x:C'"]
+E   AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'PAN-R2-SENTINEL-7c1e9b'"]
+    assert (["invalid terminal id for secret store: 'PAN-R2-SENTINEL-7c1e9b'"] and False)
+     +  where False = all(<generator object test_r2_illegal_terminal_id_never_echoed.<locals>.<genexpr> at 0x00000297E7A64790>)
+C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba\tests\test_terminal_launcher.py:1473: AssertionError: 仅类型名，不得回显 id：["invalid terminal id for secret store: 'PAN-R2-SENTINEL-7c1e9b'"]
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[true]
+FAILED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[1]
+FAILED tests/test_terminal_launcher.py::test_r2_close_convergence_requires_real_bool[false]
+FAILED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[true]
+FAILED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[1]
+FAILED tests/test_terminal_launcher.py::test_r2_startup_owner_convergence_requires_real_bool[false]
+FAILED tests/test_terminal_launcher.py::test_r2_residual_is_whitelisted_projection_not_verbatim
+FAILED tests/test_terminal_launcher.py::test_r2_residual_non_mapping_and_bad_types_are_conservative
+FAILED tests/test_terminal_launcher.py::test_r2_startup_reason_and_owner_error_are_classified
+FAILED tests/test_terminal_launcher.py::test_r2_sentinel_absent_from_status_events_and_stderr
+FAILED tests/test_terminal_launcher.py::test_r2_status_tmp_is_exclusive_and_removed_on_replace_failure
+FAILED tests/test_terminal_launcher.py::test_r2_status_tmp_never_touches_foreign_tmp
+FAILED tests/test_terminal_launcher.py::test_r2_status_tmp_cleanup_failure_is_reported_not_masking
+FAILED tests/test_terminal_launcher.py::test_r2_status_tmp_name_is_unique_per_write
+FAILED tests/test_terminal_launcher.py::test_r2_status_write_failure_announces_static_stderr
+FAILED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad/../escape]
+FAILED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad\\..\\escape]
+FAILED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_bad!x]
+FAILED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[term_x:C]
+FAILED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[PAN-R2-SENTINEL-7c1e9b]
+20 failed, 9 passed, 17 deselected in 4.94s

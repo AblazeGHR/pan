@@ -1,0 +1,42 @@
+{
+  "total_bytes": 366,
+  "snapshot_cursor": 366,
+  "fidelity": "partial",
+  "recovery": "partial",
+  "f5_fields": {
+    "cursors_valid": true,
+    "reset_unconfirmed": false
+  },
+  "heartbeat_latencies": [
+    0.0,
+    0.0,
+    0.015,
+    0.0,
+    0.0,
+    0.062,
+    0.016,
+    0.016
+  ],
+  "exit_code": 0,
+  "engine_cleanup": {
+    "converged": true,
+    "attempts": 1,
+    "last_error_type": null,
+    "retained": [],
+    "in_flight": false,
+    "seconds": 0.047,
+    "outcome": "closed",
+    "detail": "closed-after-1-attempt(s)"
+  },
+  "shell_dead": true,
+  "sidecar_dead": true,
+  "launcher_identity": {
+    "pid": 44084,
+    "process_created_at_filetime": "134354735136844190"
+  },
+  "process_pids": {
+    "popen": 44084,
+    "runner_self_reported": 44084,
+    "note": "uv python 启动器可能为 shim；身份权威 = bootstrap 自证且与 status 交叉核验"
+  }
+}

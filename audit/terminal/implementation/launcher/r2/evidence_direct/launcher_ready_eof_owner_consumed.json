@@ -1,0 +1,28 @@
+{
+  "exit_code": 8,
+  "owner_calls": 2,
+  "startup": {
+    "reason_class": "engine-startup-failed",
+    "reason_text_present": true,
+    "owner": "consumed",
+    "attempts": 2,
+    "converged": true,
+    "residual": {
+      "present": true,
+      "reason_class": "engine-startup-failed",
+      "reason_text_present": true,
+      "pid": 4242,
+      "identity_filetime": "133400000",
+      "process_exited": null,
+      "job_verified": null,
+      "guard_closed": null,
+      "cleanup_closed": null,
+      "cleanup_seconds": null,
+      "cleanup_error_count": 0,
+      "cleanup_detail_present": false,
+      "stderr_digest_present": false,
+      "keys_dropped": 0
+    },
+    "seconds": 0.047
+  }
+}

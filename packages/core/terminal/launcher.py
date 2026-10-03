@@ -89,13 +89,107 @@ _AUTHORITY_NOTE = (
 
 
 def _reported_closed(result: Any) -> bool:
-    """收敛判定：``EmulatorCloseReport.closed`` 或 owner 报告的 ``closed``。"""
+    """收敛判定：**只接受真 bool ``True``**（F2；字符串/数值等真值不算收敛）。
+
+    真实 ``EmulatorCloseReport.closed`` 是真 bool（emulator 契约）；此处的严格性
+    防止被注入/损坏组件用 ``"true"``/``1`` 伪造收敛（对齐 runner F5 严格 bool 口径）。
+    """
     if result is None:
         return False
     closed = getattr(result, "closed", None)
     if closed is None and isinstance(result, Mapping):
         closed = result.get("closed")
-    return bool(closed)
+    return closed is True
+
+
+#: emulator ``_fail_startup`` residual 中**纯静态**的 reason 值（可安全落盘）。
+_STATIC_RESIDUAL_REASONS: frozenset[str] = frozenset({
+    "unsupported-platform",
+    "node-missing",
+    "sidecar-script-missing",
+    "guard-create-failed",
+})
+#: residual 中的可信 bool 结构化事实。
+_RESIDUAL_BOOL_FIELDS: tuple[str, ...] = (
+    "process_exited",
+    "job_verified",
+    "guard_closed",
+    "cleanup_closed",
+)
+#: residual 中的自由文本字段 → 只保留"存在"事实，**绝不落原文**（F3）。
+_RESIDUAL_TEXT_PRESENCE: tuple[str, ...] = ("cleanup_detail", "stderr_digest")
+#: owner 报告未收敛的安全静态分类（不采用 owner 侧 reason/detail 文本）。
+_OWNER_NOT_CONVERGED = "owner-not-converged"
+
+
+def _classify_residual_reason(raw: Any) -> tuple[str, bool]:
+    """→ (安全静态分类, 上游是否携带文本)。
+
+    上游 ``reason`` 是**自由文本**（可能内嵌异常消息 / stderr 摘要）：只有契约内
+    四个纯静态值原样保留；其余归类为 ``engine-startup-failed``（字符串）或
+    ``unclassified``（非字符串），原文不落盘、不入 events/stderr。
+    """
+    if raw is None:
+        return ("absent", False)
+    if not isinstance(raw, str):
+        return ("unclassified", True)
+    if raw in _STATIC_RESIDUAL_REASONS:
+        return (raw, True)
+    return ("engine-startup-failed", True)
+
+
+def _safe_residual(raw: Any) -> dict[str, Any]:
+    """emulator residual 的**白名单投影**（输出面脱敏责任在 launcher，F3）。
+
+    保留结构化事实：pid（真 int）、identity_filetime（ASCII 十进制字符串）、可信
+    bool、cleanup_seconds（数值）、cleanup_errors 的**计数**、自由文本字段的
+    **存在性**、reason 的安全静态分类、丢弃键的**数量**。
+    丢弃：任何自由文本原文与未知键（含键名）；坏类型一律 ``None``/``0``（不造值）。
+    """
+    if not isinstance(raw, Mapping):
+        return {
+            "present": raw is not None,
+            "reason_class": "unclassified" if raw is not None else "absent",
+            "reason_text_present": raw is not None,
+            "keys_dropped": 0,
+        }
+    reason_class, reason_present = _classify_residual_reason(raw.get("reason"))
+    out: dict[str, Any] = {
+        "present": True,
+        "reason_class": reason_class,
+        "reason_text_present": reason_present,
+    }
+    pid = raw.get("pid")
+    out["pid"] = int(pid) if isinstance(pid, int) and not isinstance(pid, bool) else None
+    filetime = raw.get("identity_filetime")
+    out["identity_filetime"] = (
+        str(filetime)
+        if isinstance(filetime, str) and filetime.isascii() and filetime.isdigit()
+        else None
+    )
+    for key in _RESIDUAL_BOOL_FIELDS:
+        value = raw.get(key)
+        out[key] = value if isinstance(value, bool) else None
+    seconds = raw.get("cleanup_seconds")
+    out["cleanup_seconds"] = (
+        round(float(seconds), 3)
+        if isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+        else None
+    )
+    errors = raw.get("cleanup_errors")
+    out["cleanup_error_count"] = len(errors) if isinstance(errors, (list, tuple)) else 0
+    for key in _RESIDUAL_TEXT_PRESENCE:
+        value = raw.get(key)
+        out[f"{key}_present"] = bool(value) and str(value) != "ok"
+    allowed = set(_RESIDUAL_BOOL_FIELDS) | set(_RESIDUAL_TEXT_PRESENCE) | {
+        "reason",
+        "pid",
+        "identity_filetime",
+        "cleanup_seconds",
+        "cleanup_errors",
+    }
+    out["keys_dropped"] = sum(1 for key in raw if key not in allowed)
+    return out
 
 
 class _EngineCloseWorker:
@@ -373,17 +467,19 @@ class TerminalLauncher:
 
     # -------------------------------------------------- 启动失败 owner（§5）
     def _engine_startup_failed(self, exc: EmulatorStartupError) -> int:
-        residual = dict(exc.residual) if isinstance(exc.residual, Mapping) else {}
+        # F3：residual 走白名单投影（自由文本/未知键不落盘），reason 只留安全分类。
+        projected = _safe_residual(getattr(exc, "residual", None))
         startup: dict[str, Any] = {
-            "reason": str(residual.get("reason") or "startup-failed")[:64],
+            "reason_class": projected.get("reason_class", "unclassified"),
+            "reason_text_present": bool(projected.get("reason_text_present")),
             "owner": "none",
             "attempts": 0,
             "converged": True,
-            "residual": residual,
+            "residual": projected,
         }
         owner = getattr(exc, "owner", None)
         if owner is None:
-            self._note("engine-startup-no-owner", startup["reason"])
+            self._note("engine-startup-no-owner", startup["reason_class"])
         else:
             outcome = self._consume_startup_owner(owner)
             startup.update(outcome)
@@ -403,7 +499,13 @@ class TerminalLauncher:
         return code
 
     def _consume_startup_owner(self, owner: Any) -> dict[str, Any]:
-        """实际消费可重试 owner：同 owner 循环（有界，含全部等待）。"""
+        """实际消费可重试 owner：同 owner 循环（有界，含全部等待）。
+
+        边界（F1）：本调用**同步直调** ``owner.retry_cleanup``，其有界性是**上游原语
+        的契约**（``lock.acquire(timeout=…)`` + 内部 deadline）；launcher **不提供独立
+        于上游原语的兜底上界**（违约 owner 阻塞会突破本层预算，仅受信注入可达），
+        也不声称 OS 硬 SLA。本层不为此新增线程封装。
+        """
         started = time.monotonic()
         deadline = started + self._engine_total_budget
         attempt_cap = max(0.05, self._engine_attempt_budget)
@@ -415,12 +517,13 @@ class TerminalLauncher:
             if remaining <= 0.0:
                 break
             attempts += 1
+            error_type: str | None = None
             try:
                 outcome = owner.retry_cleanup(timeout=min(attempt_cap, remaining))
-            except Exception as exc:  # noqa: BLE001 - owner 契约不抛；防御兜底只记类型
-                last_error_type = type(exc).__name__
+            except Exception as exc:  # noqa: BLE001 - 只记类型名（文本可能敏感）
                 outcome = None
-            if isinstance(outcome, Mapping) and outcome.get("closed"):
+                error_type = type(exc).__name__
+            if isinstance(outcome, Mapping) and outcome.get("closed") is True:
                 self._note("engine-startup-owner-consumed", f"attempts={attempts}")
                 return {
                     "owner": "consumed",
@@ -428,11 +531,12 @@ class TerminalLauncher:
                     "converged": True,
                     "seconds": round(time.monotonic() - started, 3),
                 }
-            if isinstance(outcome, Mapping):
-                last_error_type = str(
-                    outcome.get("reason") or outcome.get("detail") or last_error_type or ""
-                )[:64] or last_error_type
-            elif last_error_type is None:
+            # 未收敛：**不采用** owner 报告里的 reason/detail 文本（F3）。
+            if error_type is not None:
+                last_error_type = error_type
+            elif isinstance(outcome, Mapping) and outcome.get("closed") is not None:
+                last_error_type = _OWNER_NOT_CONVERGED
+            else:
                 last_error_type = "invalid-owner-report"
             gap = min(retry_interval, max(0.0, deadline - time.monotonic()))
             if gap <= 0.0:
@@ -490,20 +594,46 @@ class TerminalLauncher:
             try:
                 path = self._status_path()
             except ValueError as exc:
-                self._note("status-path-rejected", str(exc))
+                # F6：只记异常**类型名**（上游消息含非法 id 原文，不得回显到任何输出面）。
+                self._note("status-path-rejected", type(exc).__name__)
                 return False
             try:
                 self._status_dir.mkdir(parents=True, exist_ok=True)
-                tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-                tmp.write_text(
-                    json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8",
+                payload_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                # F4/F7：唯一**独占创建**的自有 tmp（O_EXCL + pid + 随机 hex）。
+                # 失败路径只清理本进程**成功创建**的那一个 tmp，绝不触碰旧 target
+                # 或他人 tmp；清理失败如实记录且不掩盖主失败。
+                tmp = path.with_name(
+                    f"{path.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp"
                 )
-                os.replace(tmp, path)
-                return True
+                created = False
+                try:
+                    handle = os.open(str(tmp), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    created = True
+                    with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                        stream.write(payload_text)
+                    os.replace(tmp, path)
+                    created = False  # 已原子替换：tmp 不复存在
+                    return True
+                finally:
+                    if created:
+                        try:
+                            os.unlink(tmp)
+                        except FileNotFoundError:
+                            pass
+                        except OSError as exc:  # noqa: BLE001 - 如实记录，不掩盖主失败
+                            self._note("status-tmp-cleanup-failed", type(exc).__name__)
             except Exception as exc:  # noqa: BLE001 - 可观测性失败不影响生命周期
-                self._note("status-write-failed", type(exc).__name__)
+                self._report_status_write_failure(exc)
                 return False
+
+    def _report_status_write_failure(self, exc: BaseException) -> None:
+        """F5：写失败输出**静态脱敏**公告（只类型名）；不抛、不改退出码。"""
+        self._note("status-write-failed", type(exc).__name__)
+        print(
+            f"pan-terminal-launcher: status write failed ({type(exc).__name__})",
+            file=sys.stderr,
+        )
 
     # ------------------------------------------------------------- 公告
     def _announce(self, code: int) -> None:

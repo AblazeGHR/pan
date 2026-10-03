@@ -229,7 +229,11 @@ def test_pre_spawn_failure_owner_none_records_without_claim(tmp_path):
     report = launcher.startup_report
     assert report is not None
     assert report["owner"] == "none" and report["converged"] is True
-    assert report["attempts"] == 0 and report["residual"]["reason"] == "node-missing"
+    assert report["attempts"] == 0
+    # r2/F3：residual 走白名单投影（reason 只留安全静态分类；"node-missing" 属契约内
+    # 纯静态值 → 原样保留），不再原样落盘上游自由文本。
+    assert report["reason_class"] == "node-missing"
+    assert report["residual"]["reason_class"] == "node-missing"
     status = _read_status(tmp_path, "term_pre")
     assert status["phase"] == "engine-startup-failed"
     assert status["exit_code"] == launcher_module.LAUNCHER_EXIT_ENGINE_STARTUP_FAILED
@@ -296,7 +300,8 @@ def test_fatal_frame_failure_owner_unproven_bounded_nonzero(tmp_path):
     report = launcher.startup_report
     assert report is not None and report["owner"] == "unproven"
     assert report["converged"] is False
-    assert report["last_error_type"] == "injected-not-converged"
+    # r2/F3：owner 报告里的 reason 文本不得成为 last_error_type（只落安全静态分类）。
+    assert report["last_error_type"] == "owner-not-converged"
     status = _read_status(tmp_path, "term_fatal")
     assert status["phase"] == "cleanup-unproven"
     record_evidence(
@@ -1051,3 +1056,429 @@ def test_real_launcher_detach_refused_zero_state(tmp_path):
     finally:
         trace = session.cleanup()
         record_evidence("launcher_real_detach_refused_cleanup", trace)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r2 窄修门控（审查 5681ef8e 的 F2–F7）：真实 bool 收敛、输出白名单脱敏、
+# 独占 tmp 与失败清理、status 写失败静态公告、非法 id 仅类型名
+# 走生产 TerminalLauncher 对象（仅 emulator/runner 工厂替身 + 注入 os 层故障）
+# ══════════════════════════════════════════════════════════════════════════
+
+R2_SENTINEL = "PAN-R2-SENTINEL-7c1e9b"
+
+
+class _R2Engine:
+    """close 返回**任意** closed 值（用于严格 bool 门控）。"""
+
+    def __init__(self, close_value: Any = True, *, raises: bool = False) -> None:
+        self.close_value = close_value
+        self.raises = raises
+        self.close_calls = 0
+        self.concurrent = 0
+        self.max_concurrent = 0
+        self._lock = threading.Lock()
+
+    def close(self, *, timeout: float | None = None) -> Any:
+        with self._lock:
+            self.close_calls += 1
+            self.concurrent += 1
+            self.max_concurrent = max(self.max_concurrent, self.concurrent)
+        try:
+            if self.raises:
+                raise RuntimeError(f"close leaked {R2_SENTINEL}")
+            return {"closed": self.close_value}
+        finally:
+            with self._lock:
+                self.concurrent -= 1
+
+
+class _R2Owner:
+    """owner 报告可返回任意 closed 值 / 任意 reason 文本 / 或抛异常。"""
+
+    def __init__(self, *, closed_value: Any = True, report: Any = None,
+                 error: BaseException | None = None) -> None:
+        self.closed_value = closed_value
+        self.report = report
+        self.error = error
+        self.calls = 0
+
+    def retry_cleanup(self, *, timeout: float = 10.0) -> Any:
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
+        if self.report is not None:
+            return self.report
+        return {"closed": self.closed_value, "reason": f"leaked {R2_SENTINEL}",
+                "detail": f"detail {R2_SENTINEL}"}
+
+
+def _r2_launcher(tmp_path: Path, terminal_id: str = "term_r2", **kwargs: Any) -> TerminalLauncher:
+    kwargs.setdefault("status_dir", tmp_path / "status")
+    kwargs.setdefault("engine_total_budget", 0.5)
+    kwargs.setdefault("engine_close_attempt_budget", 0.1)
+    kwargs.setdefault("engine_cleanup_retry_interval", 0.02)
+    return TerminalLauncher(
+        terminal_id, tmp_path / "secrets" / f"{terminal_id}.secret", **kwargs
+    )
+
+
+def _r2_status(tmp_path: Path, terminal_id: str = "term_r2") -> str:
+    return (tmp_path / "status" / f"{terminal_id}.json").read_text(encoding="utf-8")
+
+
+# ── F2：收敛必须真实 bool True ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("value", ["true", 1, "false", 0, [], {}, None, 0.0])
+def test_r2_close_convergence_requires_real_bool(tmp_path, value):
+    """F2：正常 close 入口——字符串/数值等真值**不得**判收敛（有界非零 + 如实记录）。"""
+    engine = _R2Engine(close_value=value)
+    launcher = _r2_launcher(
+        tmp_path, f"term_r2c{abs(hash(repr(value))) % 10000}",
+        emulator_factory=lambda: engine,
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    code = launcher.run()
+    assert code == launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+    report = launcher.engine_cleanup
+    assert report["converged"] is False
+    assert report["retained"] == ["engine"]
+    assert report["last_error_type"] == "close-not-converged"
+    record_evidence("r2_f2_close_strict_bool", {"value": repr(value), "exit_code": code,
+                                                "cleanup": report})
+
+
+def test_r2_close_real_bool_true_still_converges(tmp_path):
+    """F2 反向：真 bool True 仍正常收敛并透传 runner 码（不误伤有效路径）。"""
+    engine = _R2Engine(close_value=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r2_true", emulator_factory=lambda: engine,
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    assert launcher.run() == 0
+    assert launcher.engine_cleanup["converged"] is True
+    record_evidence("r2_f2_close_bool_true", {"exit_code": 0,
+                                               "cleanup": launcher.engine_cleanup})
+
+
+@pytest.mark.parametrize("value", ["true", 1, "false", 0, []])
+def test_r2_startup_owner_convergence_requires_real_bool(tmp_path, value):
+    """F2：startup owner 入口——非真 bool 不得假收敛（exit 6 + unproven + 有界重试）。"""
+    owner = _R2Owner(closed_value=value)
+    launcher = _r2_launcher(
+        tmp_path, f"term_r2o{abs(hash(repr(value))) % 10000}",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError(f"reason {R2_SENTINEL}", owner=owner,
+                                 residual={"reason": f"reason {R2_SENTINEL}", "pid": 5})
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    code = launcher.run()
+    assert code == launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+    report = launcher.startup_report
+    assert report is not None and report["owner"] == "unproven"
+    assert report["converged"] is False and owner.calls >= 2
+    record_evidence("r2_f2_owner_strict_bool", {"value": repr(value), "owner_calls": owner.calls,
+                                                "startup": report})
+
+
+def test_r2_startup_owner_real_bool_true_converges(tmp_path):
+    """F2 反向：owner 返回真 bool True → 实际消费收敛 → exit 8。"""
+    owner = _R2Owner(closed_value=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r2otrue",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("ready-eof", owner=owner,
+                                 residual={"reason": "sidecar-script-missing"})
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    assert launcher.run() == launcher_module.LAUNCHER_EXIT_ENGINE_STARTUP_FAILED
+    assert launcher.startup_report["owner"] == "consumed"
+    record_evidence("r2_f2_owner_bool_true", {"owner_calls": owner.calls,
+                                              "startup": launcher.startup_report})
+
+
+# ── F3：输出白名单脱敏（launcher 负责，不转嫁上游）──────────────────────────
+
+
+def test_r2_residual_is_whitelisted_projection_not_verbatim(tmp_path):
+    """F3：residual 白名单投影——任意文本键/未知键不落盘；结构化事实保留。"""
+    residual = {
+        "reason": f"sidecar 握手前中止（leak {R2_SENTINEL}）；stderr=leak",
+        "pid": 4242,
+        "identity_filetime": "133400000000000000",
+        "process_exited": True,
+        "job_verified": False,
+        "guard_closed": True,
+        "cleanup_closed": False,
+        "cleanup_seconds": 1.5,
+        "cleanup_detail": f"kill failed {R2_SENTINEL}",
+        "cleanup_errors": [f"boom {R2_SENTINEL}", f"bang {R2_SENTINEL}"],
+        "stderr_digest": f"node said {R2_SENTINEL}",
+        "unknown_upstream_key": f"whatever {R2_SENTINEL}",
+    }
+    owner = _R2Owner(closed_value=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r2res",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("ignored", owner=owner, residual=residual)
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    code = launcher.run()
+    raw = _r2_status(tmp_path, "term_r2res")
+    assert code == launcher_module.LAUNCHER_EXIT_ENGINE_STARTUP_FAILED
+    assert R2_SENTINEL not in raw, "residual 自由文本/未知键不得进入 status"
+    projected = json.loads(raw)["engine"]["startup"]["residual"]
+    assert projected["pid"] == 4242
+    assert projected["identity_filetime"] == "133400000000000000"
+    assert projected["process_exited"] is True
+    assert projected["job_verified"] is False
+    assert projected["cleanup_closed"] is False
+    assert projected["cleanup_seconds"] == 1.5
+    assert projected["cleanup_error_count"] == 2, "错误只留计数"
+    assert projected["cleanup_detail_present"] is True
+    assert projected["stderr_digest_present"] is True
+    assert projected["keys_dropped"] == 1, "未知键只记数量、不记键名"
+    assert projected["reason_class"] == "engine-startup-failed"
+    assert projected["reason_text_present"] is True
+    record_evidence("r2_f3_residual_projection", {"exit_code": code, "projected": projected})
+
+
+def test_r2_residual_non_mapping_and_bad_types_are_conservative(tmp_path):
+    """F3：residual 非 Mapping / 坏类型 → 保守（unknown/None），不造值不泄漏。"""
+    owner = _R2Owner(closed_value=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r2bad",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("x", owner=owner,
+                                 residual={"reason": 12345, "pid": "4242",
+                                           "identity_filetime": "  133 ",
+                                           "process_exited": "yes",
+                                           "cleanup_seconds": "fast",
+                                           "cleanup_errors": "not-a-list"})
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    launcher.run()
+    raw = _r2_status(tmp_path, "term_r2bad")
+    projected = json.loads(raw)["engine"]["startup"]["residual"]
+    assert projected["reason_class"] == "unclassified"
+    assert projected["pid"] is None, "非 int pid 不得保留"
+    assert projected["identity_filetime"] is None, "非十进制字符串 filetime 不得保留"
+    assert projected["process_exited"] is None, "非真 bool 不得保留"
+    assert projected["cleanup_seconds"] is None
+    assert projected["cleanup_error_count"] == 0
+    record_evidence("r2_f3_residual_bad_types", {"projected": projected})
+
+
+def test_r2_startup_reason_and_owner_error_are_classified(tmp_path):
+    """F3：startup reason 与 owner 结果的 last_error_type 同样只落安全分类/类型名。"""
+    owner = _R2Owner(report={"closed": False, "reason": f"leak {R2_SENTINEL}",
+                             "detail": f"leak {R2_SENTINEL}"})
+    launcher = _r2_launcher(
+        tmp_path, "term_r2cls",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError(f"leak {R2_SENTINEL}", owner=owner,
+                                 residual={"reason": f"leak {R2_SENTINEL}", "pid": 9})
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    code = launcher.run()
+    raw = _r2_status(tmp_path, "term_r2cls")
+    startup = json.loads(raw)["engine"]["startup"]
+    assert code == launcher_module.LAUNCHER_EXIT_CLEANUP_UNPROVEN
+    assert R2_SENTINEL not in raw
+    assert startup["reason_class"] == "engine-startup-failed"
+    assert startup["last_error_type"] == "owner-not-converged", (
+        "owner 报告的 reason/detail 文本不得成为 last_error_type"
+    )
+    # owner 抛异常：只落类型名。
+    owner2 = _R2Owner(error=RuntimeError(f"leak {R2_SENTINEL}"))
+    launcher2 = _r2_launcher(
+        tmp_path, "term_r2cls2",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("ready-eof", owner=owner2, residual={"reason": "node-missing"})
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    launcher2.run()
+    startup2 = json.loads(_r2_status(tmp_path, "term_r2cls2"))["engine"]["startup"]
+    assert startup2["last_error_type"] == "RuntimeError"
+    assert R2_SENTINEL not in _r2_status(tmp_path, "term_r2cls2")
+    record_evidence("r2_f3_startup_reason_classified",
+                    {"first": startup, "second_last_error": startup2["last_error_type"]})
+
+
+def test_r2_sentinel_absent_from_status_events_and_stderr(tmp_path, capsys):
+    """F3 综合哨兵：多来源（runner/close/owner/residual/非法 id）零泄漏到 status+events+stderr。"""
+    residual = {
+        "reason": f"a {R2_SENTINEL}", "pid": 11,
+        "cleanup_detail": f"b {R2_SENTINEL}", "stderr_digest": f"c {R2_SENTINEL}",
+        "cleanup_errors": [f"d {R2_SENTINEL}"], "weird": f"e {R2_SENTINEL}",
+    }
+    engine = _R2Engine(raises=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r2all",
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError(f"f {R2_SENTINEL}",
+                                 owner=_R2Owner(report={"closed": False,
+                                                       "reason": f"g {R2_SENTINEL}"}),
+                                 residual=residual)
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    launcher.run()
+    raw = _r2_status(tmp_path, "term_r2all")
+    captured = capsys.readouterr()
+    events = json.dumps(launcher.events, ensure_ascii=False)
+    assert R2_SENTINEL not in raw and R2_SENTINEL not in events
+    assert R2_SENTINEL not in captured.err and R2_SENTINEL not in captured.out
+    assert engine.close_calls == 0
+    record_evidence("r2_f3_multi_source_sentinel",
+                    {"status_clean": True, "events_clean": True, "stderr_clean": True})
+
+
+# ── F4/F7：独占 tmp、失败不留 tmp、不破坏旧 target/他人 tmp ──────────────────
+
+
+def test_r2_status_tmp_is_exclusive_and_removed_on_replace_failure(tmp_path, monkeypatch, capsys):
+    """F4：replace 失败 → 只清**自己成功创建**的 tmp；旧 target 内容不变；静态公告。"""
+    launcher = _r2_launcher(
+        tmp_path, "term_r2tmp",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    target = tmp_path / "status" / "term_r2tmp.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('{"old": true}', encoding="utf-8")
+    monkeypatch.setattr(launcher_module.os, "replace",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("injected-replace")))
+    code = launcher.run()
+    captured = capsys.readouterr().err
+    assert code == 0, "写失败不改变生命周期/退出码"
+    assert target.read_text(encoding="utf-8") == '{"old": true}', "不得破坏旧 target"
+    leftovers = [p.name for p in target.parent.iterdir() if p.name.endswith(".tmp")]
+    assert leftovers == [], f"replace 失败不得留自有 tmp：{leftovers}"
+    assert any(event == "status-write-failed" for event, _ in launcher.events)
+    assert "status write failed (OSError)" in captured
+    record_evidence("r2_f4_replace_failure_cleanup",
+                    {"exit_code": code, "tmp_leftovers": leftovers,
+                     "old_target_intact": True})
+
+
+def test_r2_status_tmp_never_touches_foreign_tmp(tmp_path, monkeypatch):
+    """F4：他人已占用同名 tmp（O_EXCL 冲突）→ 写失败但**不删他人文件**。"""
+    launcher = _r2_launcher(
+        tmp_path, "term_r2occ",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    fixed = "deadbeef"
+    monkeypatch.setattr(launcher_module.os, "urandom", lambda n=4: bytes.fromhex(fixed))
+    status_dir = tmp_path / "status"
+    status_dir.mkdir(parents=True, exist_ok=True)
+    foreign = status_dir / f"term_r2occ.json.{os.getpid()}.{fixed}.tmp"
+    foreign.write_text("foreign", encoding="utf-8")
+    code = launcher.run()
+    assert code == 0
+    assert foreign.is_file() and foreign.read_text(encoding="utf-8") == "foreign", (
+        "不得删除非本进程创建的 tmp"
+    )
+    assert any(event == "status-write-failed" for event, _ in launcher.events)
+    record_evidence("r2_f4_foreign_tmp_kept", {"foreign": foreign.name, "exit_code": code})
+
+
+def test_r2_status_tmp_cleanup_failure_is_reported_not_masking(tmp_path, monkeypatch):
+    """F4：清理也失败 → 如实记录 tmp-cleanup-failed，且不掩盖主失败（写失败）。"""
+    launcher = _r2_launcher(
+        tmp_path, "term_r2cl",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    monkeypatch.setattr(launcher_module.os, "replace",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("injected-replace")))
+    monkeypatch.setattr(launcher_module.os, "unlink",
+                        lambda *a, **k: (_ for _ in ()).throw(PermissionError("injected-unlink")))
+    code = launcher.run()
+    events = [event for event, _ in launcher.events]
+    assert code == 0
+    assert "status-write-failed" in events
+    assert "status-tmp-cleanup-failed" in events
+    record_evidence("r2_f4_tmp_cleanup_failure", {"exit_code": code, "events": events})
+
+
+def test_r2_status_tmp_name_is_unique_per_write(tmp_path, monkeypatch):
+    """F4/F7：每次写使用唯一独占 tmp 名（含 pid + 随机 hex），两次写不撞名。"""
+    seen: list[str] = []
+    launcher = _r2_launcher(
+        tmp_path, "term_r2uniq",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    real_replace = launcher_module.os.replace
+
+    def _spy(src, dst):
+        seen.append(str(src))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(launcher_module.os, "replace", _spy)
+    assert launcher._write_status("finished", exit_code=0, reason="exited") is True
+    assert launcher._write_status("finished", exit_code=0, reason="exited") is True
+    assert len(seen) == 2 and seen[0] != seen[1], f"tmp 名必须唯一：{seen}"
+    for name in seen:
+        assert f".{os.getpid()}." in name and name.endswith(".tmp")
+        assert len(name.rsplit(".", 3)[-2]) == 8, "hex 段为 8 位"
+    assert not [p for p in (tmp_path / "status").iterdir() if p.name.endswith(".tmp")]
+    record_evidence("r2_f4_f7_tmp_unique", {"tmp_names": [p.rsplit("/", 1)[-1] for p in seen]})
+
+
+# ── F5：status 写失败输出静态脱敏公告 ───────────────────────────────────────
+
+
+def test_r2_status_write_failure_announces_static_stderr(tmp_path, capsys):
+    """F5：写失败输出**静态**脱敏 stderr 公告（只类型名，无路径/文本），生命周期不变。"""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("file-not-dir", encoding="utf-8")
+    engine = _R2Engine(close_value=True)
+    launcher = TerminalLauncher(
+        "term_r2ann", tmp_path / "secrets" / "term_r2ann.secret",
+        status_dir=blocked, emulator_factory=lambda: engine,
+        runner_factory=lambda _e: _FakeRunner(code=0),
+        engine_total_budget=0.5, engine_close_attempt_budget=0.1,
+    )
+    code = launcher.run()
+    captured = capsys.readouterr()
+    assert code == 0, "诊断失败不改变生命周期"
+    assert "pan-terminal-launcher: status write failed (" in captured.err
+    assert "str(blocked)" not in captured.err and str(blocked) not in captured.err
+    assert any(event == "status-write-failed" for event, _ in launcher.events)
+    record_evidence("r2_f5_status_write_announcement", {"exit_code": code})
+
+
+# ── F6：非法 id 仅静态类别/类型名 ───────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    ["term_bad/../escape", "term_bad\\..\\escape", "term_bad!x", "term_x:C", f"{R2_SENTINEL}"],
+)
+def test_r2_illegal_terminal_id_never_echoed(tmp_path, bad_id, capsys):
+    """F6：非法 id → events/stderr 只出现类型名，零派生文件，不回显 id 本身。"""
+    launcher = _r2_launcher(
+        tmp_path, bad_id,
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    code = launcher.run()
+    captured = capsys.readouterr()
+    assert code == 0, "非法 id 不影响生命周期退出码（收尾已收敛）"
+    rejected = [detail for event, detail in launcher.events if event == "status-path-rejected"]
+    assert rejected and all(detail == "ValueError" for detail in rejected), (
+        f"仅类型名，不得回显 id：{rejected}"
+    )
+    status_dir = tmp_path / "status"
+    assert not status_dir.exists() or not list(status_dir.iterdir())
+    assert bad_id not in captured.err and bad_id not in captured.out
+    record_evidence("r2_f6_illegal_id_type_only", {"id_kind": bad_id[:12], "detail": rejected[0]})

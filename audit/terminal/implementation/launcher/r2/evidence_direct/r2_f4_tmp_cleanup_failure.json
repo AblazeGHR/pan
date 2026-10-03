@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "events": [
+    "status-tmp-cleanup-failed",
+    "status-write-failed"
+  ]
+}
