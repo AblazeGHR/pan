@@ -13,6 +13,8 @@ export default function TerminalPanel() {
   const [records, setRecords] = useState<TerminalView[]>([]);
   const [selected, setSelected] = useState('');
   const [cwd, setCwd] = useState('');
+  const [workspaceId, setWorkspaceId] = useState('');
+  const [sessionId, setSessionId] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -76,7 +78,8 @@ export default function TerminalPanel() {
   async function create() {
     setBusy(true);
     try {
-      const view = await terminalRequest<TerminalView>('', { rows: 24, cols: 80, ...(cwd ? { cwd } : {}) });
+      const view = await terminalRequest<TerminalView>('', { rows: 24, cols: 80, ...(cwd ? { cwd } : {}),
+        ...(workspaceId ? { workspace_id: workspaceId } : {}), ...(sessionId ? { session_id: sessionId } : {}) });
       await refresh();
       setSelected(view.terminal_id);
     } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); }
@@ -98,6 +101,10 @@ export default function TerminalPanel() {
       <h1 className="font-semibold">全局终端</h1>
       <input aria-label="工作目录" placeholder="工作目录（留空用默认值）" value={cwd} onChange={(event) => setCwd(event.target.value)}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
+      <input aria-label="关联工作区 ID" placeholder="关联工作区 ID（可选）" value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)}
+        className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
+      <input aria-label="关联 Session ID" placeholder="关联 Session ID（可选）" value={sessionId} onChange={(event) => setSessionId(event.target.value)}
+        className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
       <button disabled={busy} onClick={() => void create()} className="px-2 py-1 rounded bg-accent/20">新建终端</button>
       <button onClick={() => void refresh()} className="px-2 py-1">刷新列表</button>
     </header>
@@ -107,6 +114,8 @@ export default function TerminalPanel() {
         <option value="">选择终端</option>
         {records.map((record) => <option key={record.terminal_id} value={record.terminal_id}>
           {record.terminal_id} · {record.status}{record.detached ? ' · detached' : ''}
+          {record.scope?.workspace_id ? ` · 工作区 ${record.scope.workspace_id}` : ''}
+          {record.scope?.session_id ? ` · Session ${record.scope.session_id}` : ''}
         </option>)}
       </select>
       <button disabled={!selected || state.control || !state.connected} onClick={() => stream.current?.claim()}>取得输入控制权</button>
@@ -121,5 +130,6 @@ export default function TerminalPanel() {
     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
     <div ref={element} className="flex-1 min-h-40 min-w-0 overflow-hidden rounded bg-[#15171b] p-2" data-testid="terminal-screen" />
     <p className="text-xs text-text-tertiary">离开本页或断线不会终止进程。屏幕恢复按服务器声明，partial 不等于完整保真；Ctrl-C 的 OS 中断语义仍未验收。</p>
+    <p className="text-xs text-text-tertiary">关联 ID 仅为元数据，不授予权限，也不改变终端寿命。</p>
   </section>;
 }

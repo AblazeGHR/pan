@@ -55,3 +55,11 @@ a resize-result. Reload recovery and explicit close still pass afterwards.
 Harness lifecycle ordering now closes WS before the REST service, matching the
 production nesting. An initial Playwright setup error (implicit single-page context)
 was fixed by using an explicit context; it was not a product defect.
+
+## Optional association metadata
+
+The creation form accepts optional Workspace and Session IDs and lists their
+returned scope metadata. Empty fields are omitted. These values are labels, not
+caller identities, authorization proofs or lifecycle coupling. The real browser
+check submits both labels and reads back the exact persisted scope through the
+product GET API. Build and focused ESLint pass; the complete browser chain passes.
