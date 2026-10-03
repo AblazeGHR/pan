@@ -66,7 +66,7 @@ import os
 import urllib.request
 import urllib.error
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
@@ -74,6 +74,54 @@ from mcp.types import CallToolResult, TextContent
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
 mcp = FastMCP("Pan")
+_terminal_transport = "stdio"
+
+
+def _terminal_api(operation: str, arguments: dict) -> dict:
+    """Local stdio only: never lend this process's caller to remote MCP clients."""
+    def failure(code):
+        return {"ok": False, "error": {"code": code}}
+    try:
+        url = urlsplit(_pan_api_url)
+        if (_terminal_transport != "stdio" or url.scheme != "http" or
+                url.hostname not in {"127.0.0.1", "::1"} or url.username or url.password or
+                url.path not in {"", "/"} or url.query or url.fragment):
+            return failure("local-stdio-required")
+        url.port  # invalid configured ports fail closed
+    except ValueError:
+        return failure("local-stdio-required")
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not sid or len(sid) > 128:
+        return failure("caller-required")
+    caller = _caller_identity()
+    if not isinstance(caller, dict) or caller.get("id") != sid:
+        return failure("caller-unverified")
+    data = {key: value for key, value in arguments.items() if value is not None}
+    if operation == "create" and "session_id" not in data:
+        data["session_id"] = sid
+    req = urllib.request.Request(f"{_pan_api_url.rstrip('/')}/api/terminal-tools/{operation}",
+        data=json.dumps(data).encode("utf-8"), method="POST",
+        headers={"Content-Type": "application/json", "X-Pan-Terminal-Caller": sid})
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    try:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=35.0) as response:
+            raw = response.read(256 * 1024 + 1)
+            if len(raw) > 256 * 1024:
+                return failure("response-too-large")
+            return json.loads(raw)
+    except urllib.error.HTTPError as error:
+        # The dedicated endpoint returns only static categories; never relay
+        # arbitrary HTTP bodies/proxy text from a different local server.
+        return failure({403: "permission-denied", 422: "invalid-request", 429: "busy",
+                        503: "terminal-unavailable"}.get(error.code, "terminal-tool-failed"))
+    except Exception:
+        return failure("terminal-tool-unavailable")
+
+
+from packages.mcp.terminal_tools import register_terminal_tools
+register_terminal_tools(mcp, _terminal_api)
 
 _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
@@ -2694,7 +2742,7 @@ def pan_handbook() -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
-    global _pan_api_url  # module-level override; __main__ attr would be a no-op when imported (#41)
+    global _pan_api_url, _terminal_transport
     parser = argparse.ArgumentParser(description="Pan MCP Server")
     parser.add_argument("--transport", default="stdio",
                         choices=["stdio", "sse", "streamable-http"])
@@ -2708,6 +2756,7 @@ def main():
 
     # Update module-level API URL so tools use the CLI override
     _pan_api_url = args.pan_url.rstrip("/")
+    _terminal_transport = args.transport
 
     mcp.settings.host = args.host
     mcp.settings.port = args.port

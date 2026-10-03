@@ -166,3 +166,18 @@ def test_resume_waits_for_inflight_output_and_resets_ack_frontier():
         conn.outbound.close()
         await sender
     asyncio.run(run())
+
+
+def test_shutdown_before_commit_or_attach_never_issues_lease():
+    async def run():
+        service = FakeService()
+        conn = await connection(service)
+        manager = ws._Manager(conn.runtime)
+        reservation = manager.reserve()
+        await manager.shutdown()
+        assert not manager.commit(reservation, conn)
+        await conn.close()
+        with pytest.raises(asyncio.CancelledError):
+            await conn._await_lease(lambda: service.attach("term_1", conn.connection_id))
+        assert service.lease_calls() == []
+    asyncio.run(run())

@@ -1,4 +1,4 @@
-# Terminal MCP 接线（MA 实施中）
+# Terminal MCP 接线（MA 隔离实现）
 
 ## 当前已实现层
 
@@ -19,12 +19,31 @@ worker 仍负责 finally；释放失败保留真实 token，宿主在停止前�
 retry_releases 并保留未收敛 dispatcher。最多保留 128 token，满时拒绝新接管。
 dispatch 非阻塞串行准入；忙时不建立第二等待队列。预算不是 OS 硬 SLA。
 
-## 验证与待完成
+## 本机传输与生命周期
 
-纯逻辑门控 25 项通过（本机 miniforge，2026-10-04）。这些只证明 dispatcher
-规则，不证明真实 MCP、HTTP、本机进程入口或生产生命周期。
+FastMCP 注册 terminal_create/list/get/read/snapshot/input/close/detach 八个工具。
+仅 stdio 入口启用；SSE/streamable-http 拒绝使用此进程 Session 身份。
+PAN_API_URL 必须是无 userinfo/path/query 的本机 HTTP 字面回环地址；专用代理不跟随重定向。
+caller 来自 PAN_AGENT_SESSION_ID，缺失或 Session 不可解析时拒绝，不沿用通用工具
+的“无身份不受限”兼容行为。默认 create 关联调用方 Session，显式关联受既有 managed 能力约束。
 
-仍需实现：受信本机 MCP 传输与 caller resolver、能力映射、stdio 工具注册、
-同一 app runtime 接线、停止时未释放 token 的真实消费、隔离真实链验证。
-当前不注册路由，不向现有运行服务提供这些工具。WS 在途实现未读取或修改。
-真实浏览器、Ctrl-C、durable detach、跨用户/主机与长稳仍未验收。
+POST /api/terminal-tools/{operation} 是专用本机进程桥：非回环 peer、有 Origin
+或任意 Sec-Fetch 头拒绝。X-Pan-Terminal-Caller 仍是同用户本机进程的身份断言，
+由 Session 存储重新解析，**不是加密身份凭据，也不是远程鉴权**；不信任代理转发头。
+读取请求最多 256KiB，跨调用共用既有 runtime 四槽，取消不提前回收底层在途槽。
+restricted caller 的 list 过滤关联 Session；无 Session 关联的终端不给受限 caller 操作。
+create/get/read/input 等操作通过相同 dispatcher，不接受客户端传入 trusted_local 或 token。
+Session readonly_session 是对外来管理操作的保护，不在这里擅自解释为禁止该 Session 发出工具；
+dispatcher 的 readonly 测试注入能力不是新增 Session schema。
+
+停止顺序：WS 连接 → MCP host → REST service。MCP 先关准入，等待已接纳 dispatch
+worker，再消费实际 token 的 release；共享 2 秒等待预算，未收敛保留 host、worker、token
+引用和报告，不假成功、不取消同步 worker。预算不是 OS 硬 SLA。注册为 server 薄接入，
+未启动或重启用户正在运行的 Pan。
+
+验证：核心 25 门控；传输 10 项（包含真实 stdio ClientSession→隔离 uvicorn HTTP→
+真实 TerminalService/ConPTY/pipe/headless 的 create、显式输入、read、snapshot、close）。
+真实链的 caller 存储由测试隔离注入，不代表完整 Pan 部署或真实用户权限验收。
+真实终端收尾检查 retained identity 死亡与秘密删除；快照保持 partial、不假 full。
+另有取消在途 input 的 owner 保留/迟到 finally 回收、Origin/Fetch/远端拒绝与 scope 门。
+真实浏览器、Ctrl-C、durable detach、跨用户/主机、长稳仍未验收。

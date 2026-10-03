@@ -108,23 +108,28 @@ class TerminalTools:
             raise ToolRejected("unknown-operation")
         if not isinstance(data, Mapping) or set(data) - _FIELDS[operation]:
             raise ToolRejected("unknown-field")
-        self._caller(caller_id, operation, data)
+        caller = self._caller(caller_id, operation, data)
         if operation == "create":
             rows = _integer(data, "rows", 24, 500)
             cols = _integer(data, "cols", 80, 1000)
             strings = {key: _string(data, key) for key in ("cwd", "workspace_id", "session_id")}
+            if caller.get("restrictToManaged") is True and strings["session_id"] is None:
+                raise ToolRejected("session-scope-required")
             return project_view(self.service.create(rows=rows, cols=cols, **strings,
                 context=ServiceContext(created_by="mcp:" + caller_id[:28], trusted_local=True)))
         if operation == "list":
             workspace, session = _string(data, "workspace_id"), _string(data, "session_id")
             items = self.service.list()
             return [project_view(item) for item in items
-                    if (workspace is None or item.get("workspace_id") == workspace)
-                    and (session is None or item.get("session_id") == session)]
+                    if self._view_allowed(caller, item)
+                    and (workspace is None or (item.get("scope") or {}).get("workspace_id") == workspace)
+                    and (session is None or (item.get("scope") or {}).get("session_id") == session)]
         try:
             terminal_id = validate_terminal_id(data.get("terminal_id"))
         except (ValueError, TypeError):
             raise ToolRejected("invalid-terminal-id") from None
+        if caller.get("restrictToManaged") is True and not self._view_allowed(caller, self.service.get(terminal_id)):
+            raise ToolRejected("permission-denied")
         if operation == "get":
             return project_view(self.service.get(terminal_id))
         if operation == "read":
@@ -174,3 +179,10 @@ class TerminalTools:
                 pass  # the actual token remains in the bounded owner registry
             else:
                 self._retained.pop(id(token), None)
+
+    def _view_allowed(self, caller: Mapping, view: Mapping) -> bool:
+        if caller.get("restrictToManaged") is not True:
+            return True
+        scope = view.get("scope")
+        target = scope.get("session_id") if isinstance(scope, Mapping) else None
+        return isinstance(target, str) and self.check_access(caller, target) is True

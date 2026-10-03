@@ -578,6 +578,8 @@ class _Connection:
 
     async def _await_lease(self, coro_factory: Any) -> LeaseToken:
         """执行同步 lease 签发；连接已关闭时**真实回收**迟到 token。"""
+        if self._closing:
+            raise asyncio.CancelledError
         async def issue() -> LeaseToken:
             token = await self.runtime.call(coro_factory)
             self._retain_token(token)  # ownership precedes delivery to the cancellable caller
@@ -636,7 +638,8 @@ class _Manager:
     def commit(self, reservation: str, conn: _Connection) -> bool:
         """把预留额度转交给真实连接。"""
         with self._lock:
-            if reservation not in self._conns:
+            if self._closing or reservation not in self._conns:
+                self._conns.pop(reservation, None)
                 return False
             del self._conns[reservation]
             self._conns[conn.connection_id] = conn
