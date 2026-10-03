@@ -272,3 +272,93 @@ def test_oneshot_claude_bridges_result_usage_cache(monkeypatch, tmp_path):
     assert "clu-bridge-1" not in claude_adapter._PENDING_RESULT_USAGE
     print("PASS: claude oneshot result usage cache bridges into raw_usage")
     _cleanup()
+
+
+def test_usage_enrichment_rollback_does_not_double_count(monkeypatch, tmp_path):
+    """回归：终态用量 job 的save 失败回滚必须同时回滚已累加的用量。
+
+    背景：``_run_usage_enrichment`` 在 ``accumulate_raw_usage`` 之后 save Session。
+    save 失败时会把 durable job 放回 pending 重试，但若只回滚 job 而保留已累加
+    的用量，同一条 provider 用量会被记账两次（request_count 1 -> 2），且
+    total_usage 随之被永久抬高。``accumulate_raw_usage`` 是就地写嵌套 dict 的
+    累加操作，不可"重跑一次合并"来撤销，必须显式恢复快照。
+    """
+    _cleanup()
+    sid = "ses_oneshot_rollback"
+    s = _setup_session(sid=sid)
+    s.workdir = str(tmp_path)
+    adapter = CbcAdapter()
+    w = _setup_worker(s.id, adapter)
+
+    entries = [{
+        "model": "test-model",
+        "rawUsage": {
+            "prompt_tokens": 100,
+            "prompt_cache_hit_tokens": 10,
+            "prompt_cache_miss_tokens": 90,
+            "completion_tokens": 50,
+            "credit": 0.25,
+        },
+    }]
+    monkeypatch.setattr(adapter, "enrich_after_result", lambda s: entries)
+    monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+
+    # 一个已存在的用量基线：回滚必须精确回到它，而不是回到 None/空。
+    s.raw_usage = {"test-model": {
+        "model": "test-model", "request_count": 3,
+        "rawUsage": {"prompt_tokens": 10, "completion_tokens": 1, "credit": 0.5},
+    }}
+    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+    baseline_rc = s.raw_usage["test-model"]["request_count"]
+    baseline_total = dict(s.total_usage)
+
+    job = {
+        "key": "task:rollback-1", "adapter": "cbc", "taskId": "rollback-1",
+        "taskSeq": None, "workerId": w.worker_id, "generation": 0,
+        "state": "pending", "attempts": 0, "nextAttemptAt": 0.0,
+        "createdAt": 0.0,
+    }
+    s.usage_enrichment_pending = [job]
+    worker._usage_enrichment_adapters[job["key"]] = adapter
+
+    # The usage commit persists through ``session._save_body``, which runs in the
+    # save executor thread; that is the seam to make fail. Patching the public
+    # ``save_async`` coroutine is no longer on this path.
+    saves = []
+
+    def flaky_save(sess, **kwargs):
+        saves.append(1)
+        if len(saves) == 1:
+            raise OSError("transient save failure")
+        if len(saves) >= 3:
+            # Let the durable loop settle instead of retrying forever.
+            sess.usage_enrichment_pending = []
+        return None
+
+    monkeypatch.setattr(_sess, "_save_body", flaky_save)
+    monkeypatch.setattr(worker, "_ENRICH_RETRY_BASE_SEC", 0)
+    monkeypatch.setattr(worker, "_ENRICH_RETRY_MAX_SEC", 0)
+
+    async def scenario():
+        await worker._run_usage_enrichment(sid)
+    asyncio.run(scenario())
+
+    # 第一次尝试：累加用量 -> save 失败 -> 回滚用量与 job；
+    # 重试：重新累加一次 -> save 成功 -> 消费 job。
+    # （重试状态本身也会落盘，故save 共 3 次。）
+    assert len(saves) == 3, f"expected failed save + retry-state save + success save, got {len(saves)}"
+    assert s.usage_enrichment_pending == []
+    # 关键断言：两次尝试（一次被回滚）之后，这条 provider 用量只被记一次。
+    assert s.raw_usage["test-model"]["request_count"] == baseline_rc + 1, (
+        f"usage double-counted across rollback: {s.raw_usage}"
+    )
+    ru = s.raw_usage["test-model"]["rawUsage"]
+    assert ru["prompt_tokens"] == 10 + 100, f"prompt_tokens double-counted: {ru}"
+    assert ru["completion_tokens"] == 1 + 50, f"completion_tokens double-counted: {ru}"
+    assert ru["credit"] == 0.5 + 0.25, f"credit double-counted: {ru}"
+    assert s.total_usage["credit"] == baseline_total["credit"] + 0.25, (
+        f"total_usage inflated after retry: {s.total_usage}"
+    )
+    print("PASS: usage enrichment rollback keeps accounting exactly-once")
+    _cleanup()

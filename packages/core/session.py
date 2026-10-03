@@ -1564,6 +1564,14 @@ class Session:
             if isinstance(item, str) and item
         ))[-ACCEPTED_INPUT_ID_MAX:]
         self._summary_lock = threading.RLock()
+        # Async usage writers hold this through their ordered durable ticket.
+        # Provider I/O works on a detached snapshot outside the gate.
+        self._usage_commit_lock = asyncio.Lock()
+        # Bumped whenever a whole-Session usage rewrite lands. The enrichment
+        # records the value it saw before its provider lookup; if it changed,
+        # the lookup ran against a usage base that no longer exists and the
+        # provider must be re-read before anything is accumulated.
+        self._usage_revision = 0
         # worker.py validates/rebuilds the persisted map once, then marks this
         # private flag.  Treat even version-1 data as not yet reconciled with
         # queue_pending/ledger: a crash can commit those fields separately.
@@ -2097,6 +2105,13 @@ def _hydrate_cached_session(session_id: str, cached: Session) -> Session | None:
             return None
         # Retain the synchronization object shared with append and ID repair.
         loaded._summary_lock = cached._summary_lock
+        # Hydration loads history, while cached accounting may have newer
+        # pending jobs or a commit in flight. Keep its usage gate, revision and
+        # provider state together; replacing the gate would admit two writers.
+        for key in ("_usage_commit_lock", "_usage_revision", "raw_usage",
+                    "total_usage", "usage_enrichment_pending", "adapter_config",
+                    "model"):
+            setattr(loaded, key, getattr(cached, key))
         cached.__dict__.update(loaded.__dict__)
         cached._history_loaded = True
     _cache[session_id] = cached
@@ -2394,6 +2409,85 @@ async def await_persistence(future):
         if not future.cancelled():
             future.exception()  # consume a failure before propagating cancellation
         raise
+
+
+class DurableOutcome:
+    """Verifiable result of one durable write attempt.
+
+    ``await_persistence`` deliberately hides the underlying failure: when the
+    caller is cancelled while the writer fails, it consumes the real exception
+    and re-raises ``CancelledError``.  A caller therefore cannot treat
+    ``CancelledError`` as evidence that the bytes landed -- "the writer
+    retired" is not "the write succeeded".
+
+    This result is only ever set from an *observable* outcome:
+
+    * ``succeeded`` -- the writer future completed without raising, i.e. the
+      filesystem operation returned normally.
+    * ``error`` -- the writer future completed with this exception.
+    * ``cancelled`` -- the future itself was cancelled and
+      never ran to a result.
+
+    ``succeeded`` is the only value that may be treated as committed.
+    """
+
+    __slots__ = ("succeeded", "error", "cancelled")
+
+    def __init__(self):
+        self.succeeded = False
+        self.cancelled = False
+        self.error: BaseException | None = None
+
+
+async def _persist_async_outcome(
+    session_id: str, operation: Callable[[], object],
+    outcome: DurableOutcome | None = None,
+) -> DurableOutcome:
+    """Run one ordered durable operation and report its verifiable outcome.
+
+    Mirrors :func:`_persist_async` -- same ticket, same shielded writer, same
+    "cancellation waits for the writer to retire" contract -- but observes the
+    writer future *before* ``await_persistence`` erases its exception, so the
+    caller learns whether the write actually succeeded.
+
+    Pass ``outcome`` to observe a caller-owned object; the same instance is
+    filled in place, which is what lets a caller that was cancelled still read
+    the writer's verdict after the cancellation propagated.
+    """
+    if outcome is None:
+        outcome = DurableOutcome()
+
+    state, ticket, enqueued_at = _reserve_save_ticket(session_id)
+    try:
+        context = contextvars.copy_context()
+        result = state.submit_async(
+            ticket, lambda: context.run(
+                _run_persistence_ticket, state, ticket, enqueued_at, operation,
+            ),
+        )
+    except BaseException:
+        state.cancel_before_begin(ticket)
+        raise
+    inner = asyncio.wrap_future(result)
+
+    cancelled = False
+    while not inner.done():
+        try:
+            await asyncio.shield(inner)
+        except asyncio.CancelledError:
+            cancelled = True
+        except BaseException:
+            break
+    if inner.cancelled():
+        outcome.cancelled = True
+    else:
+        outcome.error = inner.exception()
+        outcome.succeeded = outcome.error is None
+    if cancelled or outcome.cancelled:
+        raise asyncio.CancelledError()
+    if outcome.error is not None:
+        raise outcome.error
+    return outcome
 
 
 async def save_async(s: Session, *, force_full: bool = False):
@@ -3665,6 +3759,113 @@ def accumulate_raw_usage(existing: dict | None, entries: list[dict]) -> dict:
                 "rawUsage": ru,
             }
     return result
+
+
+def normalize_native_usage_entries(adapter: str, entries: list[dict]) -> list[dict]:
+    """Use the same ledger fields as live enrichment, keeping native cursors separate.
+
+    Codex storage returns absolute input/output counters; its adapter emits
+    prompt/completion deltas. Mixing those aliases in one per-model ledger
+    makes totals choose one alias and omit the other. Other providers already
+    return their enrichment field names.
+    """
+    if adapter != "codex":
+        return entries
+    mapping = {
+        "input_tokens": "prompt_tokens", "output_tokens": "completion_tokens",
+        "reasoning_output_tokens": "reasoning_tokens",
+        "cached_input_tokens": "cache_read_tokens",
+        "cache_write_input_tokens": "cache_write_tokens",
+    }
+    normalized = copy.deepcopy(entries)
+    for entry in normalized:
+        raw = entry.get("rawUsage") or {}
+        for native, ledger in mapping.items():
+            if native in raw:
+                raw[ledger] = raw.pop(native)
+    return normalized
+
+
+def replace_usage_totals(
+    s: Session, raw_usage: dict | None, *, native_entries: list[dict],
+) -> None:
+    """Replace usage and dedup position from the SAME native read.
+
+    Async writers hold usage_commit_lock through read, publish and persistence.
+    Native absolute counters and timestamps cannot be reconstructed from the
+    normalized per-model totals (Codex import and enrichment even use different
+    field names). Never infer a timestamp or cache counter from token totals.
+    """
+    s.raw_usage = raw_usage
+    s.total_usage = compute_total_usage(raw_usage)
+    s.adapter_config.update(native_usage_cursor_config(s.adapter, native_entries))
+    s._usage_revision = usage_revision(s) + 1
+
+
+def native_usage_cursor_config(adapter: str, native_entries: list[dict]) -> dict:
+    """Dedup position for precisely this native read, including new imports/forks."""
+    if adapter in {"codex", "opencode"}:
+        fields = (
+            ("input_tokens", "output_tokens", "reasoning_output_tokens",
+             "cached_input_tokens", "cache_write_input_tokens", "total_tokens")
+            if adapter == "codex" else
+            ("prompt_tokens", "completion_tokens", "reasoning_tokens",
+             "cache_read_tokens", "cache_write_tokens", "cost")
+        )
+        native = (native_entries[0].get("rawUsage") or {}) if native_entries else {}
+        return {adapter + "_prev_usage": {
+            key: native.get(key, 0) for key in fields
+        }}
+    elif adapter == "kimi":
+        from .adapters.kimi.adapter import _iso_to_ms
+        timestamps = [_iso_to_ms(entry.get("timestamp", ""))
+                      for entry in native_entries]
+        return {"kimi_last_usage_ts": max(
+            (ts for ts in timestamps if ts is not None), default=0)}
+    return {}
+
+
+async def replace_usage_totals_async(
+    s: Session, raw_usage: dict | None, *, native_entries: list[dict],
+    force_full: bool = False,
+) -> DurableOutcome:
+    """Caller holds usage_commit_lock; retire replacement and rollback together."""
+    def commit() -> None:
+        raw_before, total_before = s.raw_usage, s.total_usage
+        cursor_key = {"codex": "codex_prev_usage", "opencode": "opencode_prev_usage",
+                      "kimi": "kimi_last_usage_ts"}.get(s.adapter)
+        missing = object()
+        cursor_before = copy.deepcopy(s.adapter_config.get(cursor_key, missing)) if (
+            cursor_key in s.adapter_config) else missing
+        try:
+            replace_usage_totals(s, raw_usage, native_entries=native_entries)
+            _save_body(s, force_full=force_full)
+        except BaseException:
+            s.raw_usage, s.total_usage = raw_before, total_before
+            if cursor_key:
+                if cursor_before is missing:
+                    s.adapter_config.pop(cursor_key, None)
+                else:
+                    s.adapter_config[cursor_key] = cursor_before
+            # Invalidate any detached lookup even when the replacement failed.
+            s._usage_revision = usage_revision(s) + 1
+            raise
+    return await _persist_async_outcome(s.id, commit)
+
+
+def usage_revision(s: Session) -> int:
+    """Revision of whole-session usage replacement, checked after provider I/O."""
+    return int(getattr(s, "_usage_revision", 0) or 0)
+
+
+def usage_commit_lock(s: Session) -> asyncio.Lock:
+    """Event-loop gate for reimport and enrichment publish/save/rollback.
+
+    Provider enrichment runs on a detached snapshot outside this gate. No
+    threading lock is held across an await or acquired by executor writers.
+    """
+    return s._usage_commit_lock
+
 
 
 def compute_total_usage(raw_usage: dict | None) -> dict | None:

@@ -127,6 +127,7 @@ describe('useWebSocket worker.result wiring', () => {
       sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      _sessionEventPatches: {},
       _historyRefreshSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},
@@ -427,6 +428,75 @@ describe('useWebSocket worker.result wiring', () => {
       lastMessage: 'updated immediately',
       historyTotal: 5,
     });
+  });
+
+  it('does not starve authoritative status recovery during sustained session traffic', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A', { workerStatus: 'idle' })]);
+    renderHook(() => useWebSocket());
+    await act(async () => { await Promise.resolve(); });
+    apiMock.fetchSessions.mockClear();
+    for (let index = 0; index < 10; index += 1) {
+      await act(async () => {
+        wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'B', session: { name: `B-${index}` } });
+        await vi.advanceTimersByTimeAsync(100);
+      });
+    }
+    expect(apiMock.fetchSessions).toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions.find(s => s.id === 'A')?.workerStatus).toBe('idle');
+  });
+
+  it('refreshes selected history when its summary advances without a result frame', async () => {
+    vi.useFakeTimers();
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValue({ history: [msg('user', 'u0'), msg('assistant', 'persisted answer')], total: 2, start: 0, hasMore: false, historyEpoch: 'A-history', historyRevision: 2 });
+    act(() => wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'A', session: { lastMessage: 'persisted answer', historyTotal: 2, historyEpoch: 'A-history', historyRevision: 2 } }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('A', 0, 50);
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('persisted answer');
+  });
+
+  it('renders authoritative snapshot status and history before slow HTTP fallback completes', () => {
+    apiMock.fetchSessions.mockImplementation(() => new Promise(() => {}));
+    apiMock.fetchSessionHistory.mockImplementation(() => new Promise(() => {}));
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('resync.snapshot', {
+      type: 'resync.snapshot', sessions: [mk('A', 'A', { workerStatus: 'idle', lastLegalWorkerState: 'idle', workerGeneration: 1, workerTaskSeq: 1 })],
+      workers: [{ sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: 1, status: 'idle' }],
+      details: { A: { history: [msg('user', 'u0'), msg('assistant', 'snapshot answer')], historyStart: 0, historyTotal: 2, historyTruncated: false, historyEpoch: 'snapshot', historyRevision: 1 } },
+    }));
+    expect(useSessionStore.getState().sessions.find(s => s.id === 'A')?.workerStatus).toBe('idle');
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('snapshot answer');
+    expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
+  });
+
+  it('keeps one list request in flight and retains one follow-up during bursts', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    renderHook(() => useWebSocket());
+    await act(async () => { await Promise.resolve(); });
+    let resolve!: (sessions: Session[]) => void;
+    apiMock.fetchSessions.mockClear().mockImplementation(() => new Promise<Session[]>(done => { resolve = done; }));
+    for (let index = 0; index < 12; index += 1) {
+      await act(async () => {
+        wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'B', session: { name: `B-${index}` } });
+        await vi.advanceTimersByTimeAsync(100);
+      });
+    }
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+    await act(async () => { resolve([mk('A', 'A', { workerStatus: 'idle' })]); await vi.advanceTimersByTimeAsync(300); });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not refresh the wrong history after selection changes during coalescing', async () => {
+    vi.useFakeTimers();
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'A', session: { historyTotal: 2 } });
+      useSessionStore.setState({ currentSessionId: 'B' });
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
   });
 
   it('applies shared pin snapshots immediately and ignores stale revisions', () => {
@@ -1060,6 +1130,44 @@ describe('useWebSocket worker.result wiring', () => {
     expect(
       useSessionStore.getState().sessions.find((x) => x.id === 'B')?.workerStatus,
     ).toBe('idle');
+  });
+
+  it('settles runtime and legal state atomically from the terminal event summary', () => {
+    useSessionStore.getState().updateSession('B', {
+      workerId: 'w1', workerStatus: 'running', lastLegalWorkerState: 'running',
+    });
+    renderHook(() => useWebSocket());
+    const mismatches: string[] = [];
+    const stop = useSessionStore.subscribe(state => {
+      const session = state.sessions.find(row => row.id === 'B');
+      if (session?.lastLegalWorkerState === 'running' && session.workerStatus === 'idle') {
+        mismatches.push('false mismatch');
+      }
+    });
+    act(() => wsMock.trigger('worker.result', {
+      type: 'worker.result', sessionId: 'B', workerId: 'w1', generation: 1,
+      taskSeq: 1, status: 'done', result: 'reply',
+      session: { lastLegalWorkerState: 'idle' },
+    }));
+    stop();
+    expect(mismatches).toEqual([]);
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B'))
+      .toMatchObject({ workerStatus: 'idle', lastLegalWorkerState: 'idle' });
+  });
+
+  it('accepts a newer-generation result when the replacement spawn was missed', () => {
+    useWorkerStore.getState().updateWorker('B', 'old', 'running', 1);
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('worker.result', {
+      type: 'worker.result', sessionId: 'B', workerId: 'new', generation: 2,
+      taskSeq: 1, status: 'done', result: 'replacement answer',
+      session: { lastLegalWorkerState: 'idle' },
+    }));
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B'))
+      .toMatchObject({ workerId: 'new', workerStatus: 'idle' });
+    expect(useWorkerStore.getState().workers.B).toMatchObject({ id: 'new', status: 'idle' });
+    expect(useSessionStore.getState().sessions.find(row => row.id === 'B')?.history)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ content: 'replacement answer' })]));
   });
 
   it('ignores an out-of-order running status from an older worker generation', () => {

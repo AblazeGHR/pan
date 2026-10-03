@@ -228,10 +228,10 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
   it('center drop where the target already manages A is a silent no-op (no API call)', async () => {
     useSessionStore.setState({
       sessions: [
-        mk('A', 'Alpha', { managedBy: 'B', updatedAt: new Date().toISOString() }),
-        mk('B', 'Bravo', { managed: ['A'], updatedAt: new Date().toISOString() }),
-        mk('C', 'Charlie', { updatedAt: new Date().toISOString() }),
-        mk('D', 'Delta', { updatedAt: new Date().toISOString() }),
+        mk('A', 'Alpha', { managedBy: 'B', updatedAt: '2026-10-03T00:00:00.000Z' }),
+        mk('B', 'Bravo', { managed: ['A'], updatedAt: '2026-10-03T00:00:00.000Z' }),
+        mk('C', 'Charlie', { updatedAt: '2026-10-03T00:00:00.000Z' }),
+        mk('D', 'Delta', { updatedAt: '2026-10-03T00:00:00.000Z' }),
       ],
     });
     const { container } = render(<SessionList />);

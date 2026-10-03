@@ -13,22 +13,6 @@ import {
 import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
 import { inheritMessageIdentity, rememberMessageIdentity } from '@/utils/messageIdentity';
 
-// ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
-// WS events can burst (rapid task completions, session updates); firing a full
-// /api/sessions fetch for every one of them re-renders the whole sidebar list
-// per event and — worse — the snapshot can land in the backend's transient
-// "done"/"error" status window before `w.status` is reset to "idle", which
-// would override the locally-set idle WorkerDot. Coalescing to one fetch 300ms
-// after the last event keeps the UI snappy and lets the backend status settle.
-let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleRefreshSessions(): void {
-  if (refreshTimer) clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => {
-    refreshTimer = null;
-    useSessionStore.getState().loadSessions();
-  }, 300);
-}
-
 function clearInteractiveRequests(sessionId?: string): void {
   if (!sessionId) return;
   const ui = useUIStore.getState();
@@ -129,6 +113,47 @@ export function useWebSocket() {
     // 按 session 做 500ms 节流：窗口内合并到最新文本，到点 flush 一次。result 落地
     // 时取消 pending，保证最终 lastMessage 以 result 为准（节流 timer 不会迟到
     // 覆盖 result）。状态放 effect 闭包里，卸载即清，StrictMode 重挂载不残留。
+    // Bounded coalescing, not trailing debounce: sustained traffic cannot
+    // postpone the first authoritative read forever. At most one read runs;
+    // traffic during it queues one subsequent read.
+    let active = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let refreshPending = false;
+    function scheduleRefreshSessions(): void {
+      refreshPending = true;
+      if (!active || refreshTimer || refreshInFlight) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        refreshPending = false;
+        refreshInFlight = true;
+        void useSessionStore.getState().loadSessions().finally(() => {
+          refreshInFlight = false;
+          if (active && refreshPending) scheduleRefreshSessions();
+        });
+      }, 300);
+    }
+
+    let historyTimer: ReturnType<typeof setTimeout> | null = null;
+    let historyInFlight = false;
+    let historyPending = false;
+    let historyTarget: string | null = null;
+    function scheduleSelectedHistory(): void {
+      historyPending = true;
+      historyTarget = useSessionStore.getState().currentSessionId;
+      if (!active || historyTimer || historyInFlight) return;
+      historyTimer = setTimeout(() => {
+        historyTimer = null;
+        historyPending = false;
+        if (!historyTarget || historyTarget !== useSessionStore.getState().currentSessionId) return;
+        historyInFlight = true;
+        void useSessionStore.getState().refreshCurrentSessionHistory().finally(() => {
+          historyInFlight = false;
+          if (active && historyPending) scheduleSelectedHistory();
+        });
+      }, 100);
+    }
+
     const STREAM_PREVIEW_THROTTLE_MS = 500;
     const streamPreviewPending = new Map<string, string>(); // sessionId → 最新待 flush 文本
     const streamPreviewLastFlush = new Map<string, number>(); // sessionId → 上次 flush 时间戳
@@ -208,7 +233,7 @@ export function useWebSocket() {
       }, recovery ? 'recovery' : 'initial');
     };
 
-    const refreshAuthoritativeState = (): void => {
+    const refreshAuthoritativeState = (historyInSnapshot = false): void => {
       // HTTP convergence is deliberately separate from the native-interaction
       // handshake.  resync_required may need a new snapshot on this socket,
       // but must not turn every refresh/snapshot callback into another replay.
@@ -216,7 +241,7 @@ export function useWebSocket() {
       void useSessionStore.getState().loadSessions();
       void useWorkerStore.getState().refresh();
       if (sessionId) {
-        void useSessionStore.getState().refreshCurrentSessionHistory();
+        if (!historyInSnapshot) void useSessionStore.getState().refreshCurrentSessionHistory();
         void useQueueStore.getState().loadAgentQueue(sessionId);
       }
     };
@@ -322,6 +347,35 @@ export function useWebSocket() {
           appendTerminalResultMarker(sessionId, terminalEvent, true);
         }
       }
+      // A snapshot already carries authoritative status and bounded history.
+      // Consume it now; slow follow-up GETs must not gate recovery of the UI.
+      const snapshotSessions = new Map((e.sessions ?? []).map(session => [session.id, session]));
+      useSessionStore.getState().applySessionSnapshots(e.sessions ?? []);
+      for (const worker of e.workers ?? []) {
+        if (typeof worker.sessionId !== 'string' || typeof worker.status !== 'string') continue;
+        handleWorkerUpdate({ type: 'worker.status', sessionId: worker.sessionId,
+          workerId: typeof worker.workerId === 'string' ? worker.workerId : undefined,
+          generation: typeof worker.generation === 'number' ? worker.generation : undefined,
+          taskSeq: typeof worker.taskSeq === 'number' ? worker.taskSeq : undefined,
+          taskId: typeof worker.taskId === 'string' ? worker.taskId : undefined,
+          serverEpoch: e.serverEpoch || e.eventEpoch,
+          session: snapshotSessions.get(worker.sessionId),
+        }, worker.status);
+      }
+      let selectedHistoryInSnapshot = false;
+      for (const [sessionId, detail] of Object.entries(e.details ?? {})) {
+        if (!Array.isArray(detail.history) || typeof detail.historyStart !== 'number'
+            || typeof detail.historyTotal !== 'number' || typeof detail.historyRevision !== 'number'
+            || typeof detail.historyEpoch !== 'string') continue;
+        const accepted = useSessionStore.getState().applyHistoryPage(sessionId, {
+          history: detail.history as Message[], start: detail.historyStart,
+          total: detail.historyTotal, hasMore: Boolean(detail.historyTruncated),
+          historyEpoch: detail.historyEpoch, historyRevision: detail.historyRevision,
+        });
+        if (accepted && sessionId === useSessionStore.getState().currentSessionId) {
+          selectedHistoryInSnapshot = true;
+        }
+      }
       const knownSessionIds = [
         ...useSessionStore.getState().sessions.map((session) => session.id),
         ...(e.sessions ?? []).map((session) => session.id),
@@ -330,7 +384,7 @@ export function useWebSocket() {
           .filter((id): id is string => Boolean(id)),
       ];
       useSessionStore.getState().beginUnscopedReplay(knownSessionIds);
-      refreshAuthoritativeState();
+      refreshAuthoritativeState(selectedHistoryInSnapshot);
       syncInteractiveRequests();
     }));
 
@@ -750,7 +804,17 @@ export function useWebSocket() {
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.updated', (e: StreamEvent) => {
+      const before = useSessionStore.getState();
+      const window = e.sessionId ? before.sessionTranscripts[e.sessionId]?.window : undefined;
+      const selected = before.sessions.find(session => session.id === e.sessionId);
       applySessionEvent(e);
+      if (e.sessionId === before.currentSessionId && !before.initialLoading && (
+        !e.session ||
+        (typeof e.session.historyRevision === 'number'
+          && e.session.historyRevision > (window?.revision ?? selected?.historyRevision ?? 0)) ||
+        (typeof e.session.historyTotal === 'number'
+          && e.session.historyTotal > (window?.total ?? selected?.historyTotal ?? selected?.history.length ?? 0))
+      )) scheduleSelectedHistory();
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.created', () => {
@@ -823,6 +887,9 @@ export function useWebSocket() {
       // Don't disconnect on unmount — connection is managed by singleton.
       // But DO remove handlers so a remount re-registers cleanly.
       unsubscribers.forEach((unsub) => unsub());
+      active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (historyTimer) clearTimeout(historyTimer);
       // 卸载时清掉流式预览节流 timer，避免迟到 flush 更新卸载后的 store
       for (const timer of streamPreviewTimers.values()) clearTimeout(timer);
       streamPreviewTimers.clear();
@@ -848,7 +915,10 @@ function isCurrentWorkerEvent(e: StreamEvent, terminal = false): boolean {
     e.generation < known.generation
   ) return false;
   // A late terminal event from an older worker must not clear the replacement.
-  if (terminal && known?.id && e.workerId && known.id !== e.workerId) return false;
+  const newerGeneration = e.generation !== undefined && known?.generation !== undefined
+    && e.generation > known.generation;
+  if ((terminal || e.type === 'worker.stream') && known?.id && e.workerId
+      && known.id !== e.workerId && !newerGeneration) return false;
   return true;
 }
 
@@ -865,6 +935,7 @@ function handleWorkerUpdate(
     status,
     {
       serverEpoch: e.serverEpoch || e.eventEpoch,
+      lastLegalWorkerState: e.session?.lastLegalWorkerState,
       workerId: e.workerId,
       generation: e.generation,
       taskSeq: e.taskSeq,

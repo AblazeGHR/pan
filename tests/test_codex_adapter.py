@@ -1357,15 +1357,27 @@ def test_norm_path():
 
 
 def test_cwd_matches_repository_root():
+    """_cwd_matches 的双向包含契约（``5ca5d70a``include directory descendants）。
+
+    Codex 常持久化 git 仓库根，而 Pan 可能从其子目录启动，因此线程记录的根
+    是所选目录的祖先时必须匹配；反过来，所选目录是线程cwd 的子目录（线程实际
+    跑在其内部）也必须匹配——否则按子目录过滤会静默漏掉会话。分隔符边界仍然
+    生效：``repo`` 不得匹配 ``repo-other``。
+    """
     original = codex_sessions._IS_WINDOWS
     try:
         codex_sessions._IS_WINDOWS = True
+        # 线程记录的仓库根是所选目录的祖先 → 匹配。
         assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo\nested") is True
+        # 仅共享前缀但不是祖先 → 不匹配（分隔符边界）。
         assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo-other") is False
-        assert codex_sessions._cwd_matches(r"C:\repo\nested", r"C:\repo") is False
+        # 所选目录是线程 cwd 的子目录（线程实际在其内部）→ 同样匹配。
+        assert codex_sessions._cwd_matches(r"C:\repo\nested", r"C:\repo") is True
+        # 真正的无关目录 → 不匹配。
+        assert codex_sessions._cwd_matches(r"C:\repo", r"C:\elsewhere") is False
     finally:
         codex_sessions._IS_WINDOWS = original
-    print("PASS: _cwd_matches ancestor boundary")
+    print("PASS: _cwd_matches ancestor/descendant boundary")
 
 
 # ── sessions：临时 ~/.codex 端到端（hermetic）──

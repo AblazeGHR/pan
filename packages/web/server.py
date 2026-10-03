@@ -7571,7 +7571,8 @@ async def api_branch_session(session_id: str, data: dict):
     # Pan IDs while leaving provider nativeItemId intact as matching evidence.
     history = sess.assign_pan_message_ids(history)
 
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(s.adapter, raw_usage_entries))
     total_usage = sess.compute_total_usage(raw_usage)
 
     # Preserve MCP binding from parent so branched session inherits
@@ -7586,6 +7587,8 @@ async def api_branch_session(session_id: str, data: dict):
             new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
+
+    new_adapter_config.update(sess.native_usage_cursor_config(s.adapter, raw_usage_entries))
 
     new_s = sess.create(
         name=name,
@@ -10590,6 +10593,18 @@ def _sessions_provider(adapter: str):
 
 
 async def _import_session(provider, adapter: str, data: dict) -> dict:
+    # Take the gate BEFORE reading native usage: a read captured while an
+    # enrichment save is in flight must not later overwrite its newer base.
+    existing = next((s for s in sess.list_all(load_history=False)
+                     if s.cli_session_id == data.get("session_id")
+                     and s.adapter == adapter), None)
+    if existing is None:
+        return await _import_session_locked(provider, adapter, data)
+    async with sess.usage_commit_lock(existing):
+        return await _import_session_locked(provider, adapter, data)
+
+
+async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
     """Import an adapter-native session into Pan（Session only，不 spawn worker）。
 
     三个旧 import 端点（cbc/kimi/opencode）与通用 /api/adapters/{adapter}/sessions/import
@@ -10627,7 +10642,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
     if exists and not exists(session_id, cwd):
         return {"error": f"{adapter} session {session_id} not found on disk; refusing to import"}
 
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(adapter, raw_usage_entries))
     total_usage = sess.compute_total_usage(raw_usage)
 
     # 信用验证：比对 raw_usage_entries 总和与 total_usage（调试用途，不阻断导入）
@@ -10675,11 +10691,10 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
             w._replaying = True
             try:
                 sess.replace_history(existing, history)
-                existing.raw_usage = raw_usage
-                existing.total_usage = total_usage
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
                 # 头部误判为已落盘而跳过）
-                await sess.save_async(existing, force_full=True)
+                await sess.replace_usage_totals_async(
+                    existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -10692,10 +10707,9 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         if w:
             await worker.kill_worker(w.worker_id)
         sess.replace_history(existing, history)
-        existing.raw_usage = raw_usage
-        existing.total_usage = total_usage
         existing.last_result = None
-        await sess.save_async(existing, force_full=True)
+        await sess.replace_usage_totals_async(
+            existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,
@@ -10753,7 +10767,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         original_prompt=params.get("original_prompt"),
         handoff_prompt=params.get("handoff_prompt"),
         pan_access=params.get("pan_access"),
-        adapter_config=params.get("adapter_config"),
+        adapter_config={**(params.get("adapter_config") or {}),
+                        **sess.native_usage_cursor_config(adapter, raw_usage_entries)},
         workspace_ids=params.get("workspace_ids", []),
     )
 

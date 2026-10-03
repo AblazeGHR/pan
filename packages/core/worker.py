@@ -787,16 +787,31 @@ def _make_usage_enrichment_snapshot(s) -> _UsageEnrichmentSnapshot:
     )
 
 
-def _merge_usage_enrichment_snapshot(s, snapshot: _UsageEnrichmentSnapshot) -> None:
-    """Merge provider-side model/cursor changes without clobbering live edits."""
-    if snapshot.model != snapshot.model_before:
-        # A live terminal/config path may have selected a model while the
-        # provider lookup was in flight.  Only fill the value if it still has
-        # the snapshot's original value.
-        if s.model == snapshot.model_before:
-            s.model = snapshot.model
+_USAGE_FIELD_MISSING = object()
 
-    missing = object()
+
+def _merge_usage_enrichment_state(
+    s: _sess.Session, snapshot: _UsageEnrichmentSnapshot,
+) -> tuple[dict, str | None]:
+    """Merge provider-side model/cursor changes, returning what was applied.
+
+    A field is only written when the live Session still holds the value the
+    snapshot was taken from, so a concurrent update always wins.  The returned
+    mapping records *exactly* which fields this call wrote (and the value it
+    wrote), which is what a later rollback must be allowed to undo.  Anything the
+    merge skipped must never be rolled back -- it belongs to whoever changed it.
+    """
+    # ``model`` lives on the Session itself, not in ``adapter_config``, so it is
+    # tracked separately rather than sharing the cursor keyspace (no adapter
+    # writes ``adapter_config["model"]``, but overloading the dict would make that
+    # an invariant the rollback silently depends on).
+    applied: dict = {}
+    applied_model: str | None = None
+    if snapshot.model != snapshot.model_before and s.model == snapshot.model_before:
+        s.model = snapshot.model
+        applied_model = snapshot.model
+
+    missing = _USAGE_FIELD_MISSING
     before_config = snapshot.adapter_config_before
     current_config = s.adapter_config
     for key in set(before_config) | set(snapshot.adapter_config):
@@ -813,6 +828,101 @@ def _merge_usage_enrichment_snapshot(s, snapshot: _UsageEnrichmentSnapshot) -> N
             current_config.pop(key, None)
         else:
             current_config[key] = copy.deepcopy(after)
+        applied[key] = after
+    return applied, applied_model
+
+
+def _restore_usage_enrichment_state(
+    s: _sess.Session, snapshot: _UsageEnrichmentSnapshot, applied: dict,
+    applied_model: str | None = None,
+) -> None:
+    """Undo exactly the fields :func:`_merge_usage_enrichment_state` wrote.
+
+    Usage and the provider cursor are one commit unit: cbc derives "new" entries
+    from ``raw_usage.request_count`` while codex/kimi/opencode persist
+    ``*_prev_usage`` / ``*_last_usage_ts`` cursors. Rolling usage back while
+    leaving a cursor advanced makes the next lookup return nothing, so the job
+    would be consumed with the usage lost.
+
+    Only keys present in ``applied`` are eligible, and each is restored only
+    while it still holds the value this attempt wrote.  A field the merge skipped
+    (because a concurrent writer had already moved it) is never touched here, so
+    a rollback can never take away another writer's value.
+    """
+    missing = _USAGE_FIELD_MISSING
+    if applied_model is not None and s.model == applied_model:
+        s.model = snapshot.model_before
+
+    current_config = s.adapter_config
+    before_config = snapshot.adapter_config_before
+    for key, written in applied.items():
+        # Only undo our own write, and only if nobody changed it since.
+        if current_config.get(key, missing) != written:
+            continue
+        before = before_config.get(key, missing)
+        if before is missing:
+            current_config.pop(key, None)
+        else:
+            current_config[key] = copy.deepcopy(before)
+
+
+def _restore_usage_fields(s, raw_before, total_before, applied_raw) -> bool:
+    """Compare-and-restore ``raw_usage``/``total_usage`` after a failed commit.
+
+    Returns True only when this attempt's own values are still in place and were
+    therefore rolled back; False when a concurrent writer already replaced the
+    usage, in which case that writer keeps ownership of both fields.
+
+    Only our exact candidate object may be restored. Production usage writers
+    are gated; this ownership check also protects independent field updates.
+    """
+    if s.raw_usage is not applied_raw:
+        return False
+    s.raw_usage = raw_before
+    s.total_usage = total_before
+    return True
+
+
+def _commit_usage_enrichment(
+    s: _sess.Session, snapshot: _UsageEnrichmentSnapshot,
+    entries: list[dict] | None, job: dict,
+) -> None:
+    """Publish/save/rollback in ONE persistence ticket, without an await.
+
+    Other Session saves share this ticket queue. A failed writer restores its
+    accounting before the next ticket can serialize it, so terminal/history
+    saves cannot accidentally persist a failed usage candidate.
+    """
+    raw_before = copy.deepcopy(s.raw_usage)
+    total_before = copy.deepcopy(s.total_usage)
+    candidate_raw = s.raw_usage
+    applied: dict = {}
+    applied_model: str | None = None
+    removed = False
+    try:
+        if entries:
+            candidate_raw = _sess.accumulate_raw_usage(
+                copy.deepcopy(s.raw_usage), entries)
+            candidate_total = _sess.compute_total_usage(candidate_raw)
+            s.raw_usage = candidate_raw
+            s.total_usage = candidate_total
+        applied, applied_model = _merge_usage_enrichment_state(s, snapshot)
+        # Preserve the list terminal processing appends to on the event loop.
+        # Replacing it from this writer thread could strand an append holding
+        # the previous list reference. Remove only this job, in place.
+        pending = s.usage_enrichment_pending
+        for candidate in list(pending):
+            if isinstance(candidate, dict) and candidate.get("key") == job.get("key"):
+                pending.remove(candidate)
+        removed = True
+        _sess._save_body(s)
+    except BaseException:
+        if entries:
+            _restore_usage_fields(s, raw_before, total_before, candidate_raw)
+        _restore_usage_enrichment_state(s, snapshot, applied, applied_model)
+        if removed and _enrichment_job(s, job.get("key")) is None:
+            s.usage_enrichment_pending.insert(0, job)
+        raise
 
 
 async def _run_usage_enrichment(session_id: str) -> None:
@@ -885,10 +995,11 @@ async def _run_usage_enrichment(session_id: str) -> None:
                 await asyncio.sleep(min(next_attempt - time.time(), _ENRICH_RETRY_MAX_SEC))
                 continue
 
-            # Run provider I/O against a detached, minimal snapshot.  The
-            # live Session can receive the next terminal result while this
-            # thread is blocked, without copying or exposing large state.
-            enrichment_session = _make_usage_enrichment_snapshot(s)
+            # Snapshot only after any reimport writer has retired. Provider
+            # I/O remains outside the gate, so terminal progress is unblocked.
+            async with _sess.usage_commit_lock(s):
+                lookup_revision = _sess.usage_revision(s)
+                enrichment_session = _make_usage_enrichment_snapshot(s)
             try:
                 adapter = _usage_enrichment_adapters.get(job.get("key"))
                 if adapter is None:
@@ -907,46 +1018,26 @@ async def _run_usage_enrichment(session_id: str) -> None:
                     continue
                 return
 
-            # Provider success: merge only its usage delta and snapshot cursor
-            # changes.  Live usage/config updates win when the same field was
-            # changed after the snapshot was taken.
-            removed = False
-            try:
-                if enrichment:
-                    prev_total = s.total_usage
-                    s.raw_usage = _sess.accumulate_raw_usage(
-                        s.raw_usage, enrichment)
-                    s.total_usage = _sess.compute_total_usage(s.raw_usage)
-                    prev_credit = prev_total.get("credit", 0) if prev_total else 0
-                    new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
-                    _log.info(
-                        "[Session %s] usage enrichment credit: %.2f -> %.2f (+%.2f)",
-                        session_id, prev_credit, new_credit,
-                        new_credit - prev_credit,
+            async with _sess.usage_commit_lock(s):
+                # Reimport completed during lookup. Its native cursor and usage
+                # are authoritative; retain the job and query again on that base.
+                if _sess.usage_revision(s) != lookup_revision:
+                    continue
+                try:
+                    await _sess._persist_async_outcome(
+                        s.id, lambda: _commit_usage_enrichment(
+                            s, enrichment_session, enrichment, job),
                     )
-                _merge_usage_enrichment_snapshot(s, enrichment_session)
-                # Remove by key rather than list position: another terminal
-                # may have appended a later job while this one was in a thread.
-                s.usage_enrichment_pending = [
-                    candidate for candidate in (s.usage_enrichment_pending or [])
-                    if candidate is not job and (
-                        not isinstance(candidate, dict)
-                        or candidate.get("key") != job.get("key")
-                    )
-                ]
-                removed = True
-                await _sess.save_async(s)
-            except asyncio.CancelledError:
-                if removed and _enrichment_job(s, job.get("key")) is None:
-                    s.usage_enrichment_pending.insert(0, job)
-                raise
-            except Exception as exc:
-                # A failed save must not turn a successful provider lookup into
-                # a lost durable job.  Keep merged live usage/config, restore
-                # the job, and retry; compare-and-merge makes the retry safe.
-                if removed and _enrichment_job(s, job.get("key")) is None:
-                    s.usage_enrichment_pending.insert(0, job)
-                if await retry_job(s, job, exc):
+                except asyncio.CancelledError:
+                    # The synchronous commit rolls back on writer failure before
+                    # retiring its ticket. Successful writes remain published.
+                    raise
+                except Exception as exc:
+                    failed = exc
+                else:
+                    failed = None
+            if failed is not None:
+                if await retry_job(s, job, failed):
                     continue
                 return
 
@@ -6296,8 +6387,11 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
             raw_usage_entries = await asyncio.to_thread(
                 provider.get_raw_usage, new_cli_id, s.workdir or None
             )
-            s.raw_usage = _sess.accumulate_raw_usage(None, raw_usage_entries)
-            s.total_usage = _sess.compute_total_usage(s.raw_usage)
+            # New branch Session has no Worker or pending enrichment yet.
+            _sess.replace_usage_totals(
+                s, _sess.accumulate_raw_usage(None, _sess.normalize_native_usage_entries(
+                    s.adapter, raw_usage_entries)),
+                native_entries=raw_usage_entries)
         except Exception as exc:
             return f"Fork failed: {exc}"
 
