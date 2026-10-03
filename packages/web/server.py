@@ -7571,7 +7571,8 @@ async def api_branch_session(session_id: str, data: dict):
     # Pan IDs while leaving provider nativeItemId intact as matching evidence.
     history = sess.assign_pan_message_ids(history)
 
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(s.adapter, raw_usage_entries))
     total_usage = sess.compute_total_usage(raw_usage)
 
     # Preserve MCP binding from parent so branched session inherits
@@ -7586,6 +7587,8 @@ async def api_branch_session(session_id: str, data: dict):
             new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
+
+    new_adapter_config.update(sess.native_usage_cursor_config(s.adapter, raw_usage_entries))
 
     new_s = sess.create(
         name=name,
@@ -10639,7 +10642,8 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
     if exists and not exists(session_id, cwd):
         return {"error": f"{adapter} session {session_id} not found on disk; refusing to import"}
 
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(adapter, raw_usage_entries))
     total_usage = sess.compute_total_usage(raw_usage)
 
     # 信用验证：比对 raw_usage_entries 总和与 total_usage（调试用途，不阻断导入）
@@ -10763,7 +10767,8 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         original_prompt=params.get("original_prompt"),
         handoff_prompt=params.get("handoff_prompt"),
         pan_access=params.get("pan_access"),
-        adapter_config=params.get("adapter_config"),
+        adapter_config={**(params.get("adapter_config") or {}),
+                        **sess.native_usage_cursor_config(adapter, raw_usage_entries)},
         workspace_ids=params.get("workspace_ids", []),
     )
 

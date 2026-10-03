@@ -6387,7 +6387,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
             )
             # New branch Session has no Worker or pending enrichment yet.
             _sess.replace_usage_totals(
-                s, _sess.accumulate_raw_usage(None, raw_usage_entries),
+                s, _sess.accumulate_raw_usage(None, _sess.normalize_native_usage_entries(
+                    s.adapter, raw_usage_entries)),
                 native_entries=raw_usage_entries)
         except Exception as exc:
             return f"Fork failed: {exc}"

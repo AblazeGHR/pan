@@ -75,17 +75,16 @@ def new_session(kind):
     s.history = [{"role": "user", "content": "fixture"}]
     sess._cache[s.id] = s
     old = native_entries(kind, False)
-    sess.replace_usage_totals(s, sess.accumulate_raw_usage(None, old), native_entries=old)
+    sess.replace_usage_totals(s, sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(kind, old)), native_entries=old)
     s.usage_enrichment_pending = [dict(key=key, adapter=kind, state="pending",
         attempts=0, nextAttemptAt=0) for key in ("first", "second")]
     return s
 
 
 def values(s):
-    # Codex import preserves input_tokens while enrich returns prompt_tokens.
     raw = s.raw_usage["m"]["rawUsage"]
-    return (raw.get("input_tokens", 0) + raw.get("prompt_tokens", 0),
-            raw.get("cached_input_tokens", 0) + raw.get("cache_read_tokens", 0))
+    return raw["prompt_tokens"], raw["cache_read_tokens"]
 
 
 @pytest.mark.parametrize("kind", ["codex", "opencode", "kimi", "cbc"])
@@ -176,6 +175,9 @@ def test_native_reimport_interleavings(isolated, monkeypatch, kind, window, fres
 
     asyncio.run(scenario())
     assert values(s) == (110, 55), s.raw_usage
+    assert s.total_usage["prompt_tokens"] == 110
+    assert s.total_usage["cache_hit_tokens"] == 55
+    assert s.total_usage["completion_tokens"] == 11
     assert s.usage_enrichment_pending == []
     if kind == "opencode":
         assert s.raw_usage["m"]["rawUsage"]["cost"] == pytest.approx(1.1)
@@ -229,5 +231,30 @@ def test_queued_metadata_save_cannot_persist_failed_candidate(isolated, monkeypa
     sess._cache.pop(s.id)
     restarted = sess.get(s.id)
     assert restarted.raw_usage == s.raw_usage
+    assert restarted.total_usage == s.total_usage
     assert restarted.adapter_config == s.adapter_config
     assert restarted.usage_enrichment_pending == s.usage_enrichment_pending
+
+
+@pytest.mark.parametrize("kind", ["codex", "opencode", "kimi", "cbc"])
+def test_new_native_import_starts_with_accounted_cursor(isolated, monkeypatch, tmp_path, kind):
+    adapter = setup_native(monkeypatch, kind)
+    class Provider:
+        def parse_history(self, *args):
+            return [{"role": "user", "content": "fixture"}]
+        def get_raw_usage(self, *args):
+            return copy.deepcopy(native_entries(kind, True))
+        def get_session_title(self, *args):
+            return "native-import"
+    monkeypatch.setattr(server, "_build_session_params", lambda *args, **kwargs: {})
+    async def scenario():
+        result = await server._import_session(Provider(), kind,
+            {"session_id": "new-native", "cwd": str(tmp_path)})
+        assert "error" not in result
+    asyncio.run(scenario())
+    s = next(s for s in sess._cache.values() if s.cli_session_id == "new-native")
+    assert s.total_usage["prompt_tokens"] == 110
+    assert s.total_usage["cache_hit_tokens"] == 55
+    assert adapter.enrich_after_result(worker._make_usage_enrichment_snapshot(s)) is None
+    sess._cache.pop(s.id)
+    assert sess.get(s.id).adapter_config == s.adapter_config

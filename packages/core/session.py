@@ -3761,6 +3761,31 @@ def accumulate_raw_usage(existing: dict | None, entries: list[dict]) -> dict:
     return result
 
 
+def normalize_native_usage_entries(adapter: str, entries: list[dict]) -> list[dict]:
+    """Use the same ledger fields as live enrichment, keeping native cursors separate.
+
+    Codex storage returns absolute input/output counters; its adapter emits
+    prompt/completion deltas. Mixing those aliases in one per-model ledger
+    makes totals choose one alias and omit the other. Other providers already
+    return their enrichment field names.
+    """
+    if adapter != "codex":
+        return entries
+    mapping = {
+        "input_tokens": "prompt_tokens", "output_tokens": "completion_tokens",
+        "reasoning_output_tokens": "reasoning_tokens",
+        "cached_input_tokens": "cache_read_tokens",
+        "cache_write_input_tokens": "cache_write_tokens",
+    }
+    normalized = copy.deepcopy(entries)
+    for entry in normalized:
+        raw = entry.get("rawUsage") or {}
+        for native, ledger in mapping.items():
+            if native in raw:
+                raw[ledger] = raw.pop(native)
+    return normalized
+
+
 def replace_usage_totals(
     s: Session, raw_usage: dict | None, *, native_entries: list[dict],
 ) -> None:
@@ -3773,25 +3798,31 @@ def replace_usage_totals(
     """
     s.raw_usage = raw_usage
     s.total_usage = compute_total_usage(raw_usage)
-    if s.adapter in {"codex", "opencode"}:
+    s.adapter_config.update(native_usage_cursor_config(s.adapter, native_entries))
+    s._usage_revision = usage_revision(s) + 1
+
+
+def native_usage_cursor_config(adapter: str, native_entries: list[dict]) -> dict:
+    """Dedup position for precisely this native read, including new imports/forks."""
+    if adapter in {"codex", "opencode"}:
         fields = (
             ("input_tokens", "output_tokens", "reasoning_output_tokens",
              "cached_input_tokens", "cache_write_input_tokens", "total_tokens")
-            if s.adapter == "codex" else
+            if adapter == "codex" else
             ("prompt_tokens", "completion_tokens", "reasoning_tokens",
              "cache_read_tokens", "cache_write_tokens", "cost")
         )
         native = (native_entries[0].get("rawUsage") or {}) if native_entries else {}
-        s.set_adapter_field(s.adapter + "_prev_usage", {
+        return {adapter + "_prev_usage": {
             key: native.get(key, 0) for key in fields
-        })
-    elif s.adapter == "kimi":
+        }}
+    elif adapter == "kimi":
         from .adapters.kimi.adapter import _iso_to_ms
         timestamps = [_iso_to_ms(entry.get("timestamp", ""))
                       for entry in native_entries]
-        s.set_adapter_field("kimi_last_usage_ts", max(
-            (ts for ts in timestamps if ts is not None), default=0))
-    s._usage_revision = usage_revision(s) + 1
+        return {"kimi_last_usage_ts": max(
+            (ts for ts in timestamps if ts is not None), default=0)}
+    return {}
 
 
 async def replace_usage_totals_async(

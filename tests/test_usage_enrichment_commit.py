@@ -948,7 +948,8 @@ def test_http_reimport_handler_uses_the_shared_usage_gate(monkeypatch, tmp_path)
 
     # The handler installed the recomputed total ...
     assert s.raw_usage["m"]["request_count"] == 1, s.raw_usage
-    assert s.raw_usage["m"]["rawUsage"]["input_tokens"] == 110, s.raw_usage
+    assert s.raw_usage["m"]["rawUsage"]["prompt_tokens"] == 110, s.raw_usage
+    assert s.total_usage["prompt_tokens"] == 110
     # ... through the gate, so the revision advanced and the absolute cursor was
     # re-seeded to match the recomputed total instead of staying behind it.
     assert _sess.usage_revision(s) > revision_before, (
