@@ -222,3 +222,19 @@ terminal_api.terminal_lifespan(app)      # 外层：REST 既有 20s 预算
   ② `project_snapshot` 的 `terminal_id` 与包络字段**同名冲突**（`TypeError` → 快照全挂）；
   ③ 帧**白名单校验晚于权限门**（带伪造字段的帧被当作权限问题评估）。
   证据见 `audit/terminal/implementation/ws/README.md`。
+# MA 接手修正（2026-10-04）
+
+连接签发与回收是宿主持有的独立任务，不随接收协程取消而丢弃实际 lease。
+回收失败保留同一 token；在途回收不叠加。关闭报告未证明回收时保留连接所有者、
+继续计入 32 槽，迟到成功可被消费；关闭后停止新连接准入。
+WS shutdown 并发关闭连接，共享一个 2 秒等待预算；超时保留任务与所有者，
+不把异步取消当成底层线程退出证明。
+
+resume 以发送锁和流 epoch 线性化：等待在途旧 output 完成，丢弃旧队列 output
+及旧 epoch 在途 read 结果。新流 ack 上界从请求 cursor 的基线重新开始，只有
+成功发送新 output 才继续推进，不继承旧流的发送上界。条数和字节预算均包含在途帧。
+claim 的幂等返回须与当前 service control holder 一致；被其它连接抢占后可以重新 claim。
+
+MA 验证：新增 8 个确定性回归门；WS、REST、MCP 核心与新回归组合共 101 项通过，
+包括真实 WS 中文输入/抢占/断连链和真实隔离 REST ASGI 链。仅在隔离工作树验收，
+不代表完整 Pan 启动、浏览器渲染、Ctrl-C 或 durable detach 已验收。

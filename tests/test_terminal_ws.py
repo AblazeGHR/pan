@@ -158,6 +158,10 @@ class FakeService:
         if token.generation != self.generation:
             raise StaleLeaseError("generation mismatch")
 
+    def control_holder(self, terminal_id):
+        token = self._control.get(terminal_id)
+        return None if token is None else {"client_id": token.client_id, "generation": token.generation}
+
     def input(self, terminal_id: str, token: LeaseToken, data: bytes, *, seq: int | None = None) -> dict[str, Any]:
         self._record("input", terminal_id, data, seq=seq)
         if self.input_error is not None:
@@ -945,6 +949,14 @@ def test_resume_drops_queued_old_epoch_output_without_mixing():
              "total_bytes": 900, "first_retained_seq": 0, "truncated": False, "gap": None,
              "fresh_view_required": False, "cursor_advanced": True, "status": "running"},
         ]
+        # Model the absolute-cursor read contract: NEW is available only at 500,
+        # not on the next arbitrary call (which may already be in flight at 3).
+        original_read = service.read
+        def cursor_read(terminal_id, cursor=0, *, max_bytes=None):
+            if cursor not in (0, 500):
+                return {"data": b"", "next_cursor": cursor, "status": "running"}
+            return original_read(terminal_id, cursor, max_bytes=max_bytes)
+        service.read = cursor_read
         runtime = make_runtime(service)
         app = await start_app(runtime)
         await wait_ready(runtime)

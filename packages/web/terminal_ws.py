@@ -297,6 +297,7 @@ class _Outbound:
         self._queue: list[_Frame] = []
         self._queued_bytes = 0
         self._inflight_bytes = 0
+        self.send_lock = asyncio.Lock()
         self._wake = asyncio.Event()
         self._closed = False
         #: sender 因 slow-client 自行退出时置位（外层据此 close(1013)）。
@@ -333,7 +334,7 @@ class _Outbound:
         """非阻塞入队；越界即 :class:`SlowClient`（由调用方断开）。"""
         if self._closed:
             raise SlowClient("closed")
-        if len(self._queue) + 1 > self._max_items:
+        if len(self._queue) + bool(self._inflight_bytes) + 1 > self._max_items:
             raise SlowClient("queue-items-exceeded")
         if self.total_bytes + frame.size > self._max_bytes:
             raise SlowClient("queue-bytes-exceeded")
@@ -361,13 +362,18 @@ class _Outbound:
                 continue
             frame = self._queue.pop(0)
             self._queued_bytes -= frame.size
-            if frame.epoch is not None and epoch is not None and frame.epoch != epoch():
-                # resume 之后：旧 stream 的 output 不再发（不混流）。
-                continue
             # 在途记账保留到 send 完成（含在途帧的上界口径）。
             self._inflight_bytes = frame.size
             try:
-                await asyncio.wait_for(self._ws.send_text(frame.text), timeout=self._send_timeout)
+                if frame.epoch is None:
+                    await asyncio.wait_for(self._ws.send_text(frame.text), timeout=self._send_timeout)
+                else:
+                    async with self.send_lock:
+                        if epoch is not None and frame.epoch != epoch():
+                            continue
+                        await asyncio.wait_for(self._ws.send_text(frame.text), timeout=self._send_timeout)
+                        if frame.marker is not None and self._on_sent is not None:
+                            self._on_sent(frame.marker)
             except asyncio.TimeoutError:
                 self._closed = True
                 self.slow = True
@@ -377,8 +383,6 @@ class _Outbound:
                 raise SlowClient("send-failed") from exc
             finally:
                 self._inflight_bytes = 0
-            if frame.marker is not None and self._on_sent is not None:
-                self._on_sent(frame.marker)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -419,6 +423,8 @@ class _Connection:
         #: 在途 lease 操作（迟到 token 必须被真实回收，不能只丢 wrapper）。
         self._lease_ops: set[asyncio.Task] = set()
         self._late_tokens: list[LeaseToken] = []
+        self._release_ops: dict[int, asyncio.Task] = {}
+        self._manager: _Manager | None = None
 
     # -- 观测（只读事实） -----------------------------------------------
     @property
@@ -478,7 +484,7 @@ class _Connection:
 
     async def close(self) -> dict[str, Any]:
         """收尾：**单飞**、有界；未收敛项保留引用（不把 cancel 当清理证明）。"""
-        if self._close_task is not None:
+        if self._close_task is not None and not self._close_task.done():
             return await asyncio.shield(self._close_task)
         self._closing = True
         self._stop.set()
@@ -494,13 +500,12 @@ class _Connection:
         deadline = loop.time() + CONNECTION_CLOSE_BUDGET
         for task in self._tasks:
             task.cancel()
-        converged = True
         for task in self._tasks:
             remaining = max(0.0, deadline - loop.time())
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=remaining)
             except (asyncio.TimeoutError, asyncio.CancelledError):
-                converged = False  # 保留 task 引用（未确认）
+                pass  # cancelled task is settled; pending thread operations are tracked separately
             except Exception:  # noqa: BLE001 - 任务异常在此消费
                 pass
         self.outbound.close()
@@ -511,13 +516,15 @@ class _Connection:
                     asyncio.shield(asyncio.gather(*self._lease_ops, return_exceptions=True)),
                     timeout=max(0.0, deadline - loop.time()),
                 )
+        if self._token is not None:
+            self._retain_token(self._token)
+            self._token = None
         for token in list(self._late_tokens):
-            if await self._release_token(token):
-                self._late_tokens.remove(token)
-        released = await self._release_own_lease()
+            await self._release_token(token, deadline=deadline)
+        released = not self._late_tokens and not self._lease_ops and not self._release_ops
         return {
             "connection_id": self.connection_id,
-            "tasks_converged": converged,
+            "tasks_converged": all(task.done() for task in self._tasks) and not self._lease_ops,
             "lease_released": released,
             "late_tokens_pending": len(self._late_tokens),
         }
@@ -530,34 +537,64 @@ class _Connection:
         token = self._token
         if token is None:
             return True
+        self._retain_token(token)
         self._token = None
         return await self._release_token(token)
 
-    async def _release_token(self, token: LeaseToken) -> bool:
+    def _retain_token(self, token: LeaseToken) -> None:
+        if not any(item is token for item in self._late_tokens):
+            self._late_tokens.append(token)
+
+    def _wake_cleanup(self) -> None:
+        if self._closing and self._manager is not None:
+            self._manager.retry_cleanup(self)
+
+    async def _release_token(self, token: LeaseToken, *, deadline: float | None = None) -> bool:
+        self._retain_token(token)
         service = self.runtime.service
         if service is None:
             return False
+        key = id(token)
+        task = self._release_ops.get(key)
+        if task is None:
+            task = asyncio.create_task(asyncio.to_thread(service.release_attachment, token))
+            self._release_ops[key] = task
+            def settled(done: asyncio.Task) -> None:
+                self._release_ops.pop(key, None)
+                if not done.cancelled() and done.exception() is None:
+                    self._late_tokens[:] = [item for item in self._late_tokens if item is not token]
+                    self._wake_cleanup()
+            task.add_done_callback(settled)
         try:
             await asyncio.wait_for(
-                asyncio.shield(asyncio.to_thread(service.release_attachment, token)),
-                timeout=CONNECTION_CLOSE_BUDGET,
+                asyncio.shield(task),
+                timeout=CONNECTION_CLOSE_BUDGET if deadline is None else max(0.0, deadline - asyncio.get_running_loop().time()),
             )
             return True
-        except (asyncio.TimeoutError, asyncio.CancelledError):
-            raise
+        except asyncio.TimeoutError:
+            return False
         except Exception:  # noqa: BLE001 - 释放失败不外泄文本
             return False
 
     async def _await_lease(self, coro_factory: Any) -> LeaseToken:
         """执行同步 lease 签发；连接已关闭时**真实回收**迟到 token。"""
-        try:
+        async def issue() -> LeaseToken:
             token = await self.runtime.call(coro_factory)
-        except BaseException:
-            raise
+            self._retain_token(token)  # ownership precedes delivery to the cancellable caller
+            return token
+        task = asyncio.create_task(issue())
+        self._lease_ops.add(task)
+        def settled(done: asyncio.Task) -> None:
+            self._lease_ops.discard(done)
+            if not done.cancelled():
+                done.exception()  # consume failure, retain successful token above
+            self._wake_cleanup()
+        task.add_done_callback(settled)
+        token = await asyncio.shield(task)
         if self._closing:
             # claim/attach 线程完成前已断开：迟到发出的 token 必须被回收。
-            self._late_tokens.append(token)
             raise asyncio.CancelledError
+        self._late_tokens[:] = [item for item in self._late_tokens if item is not token]
         self._token = token
         return token
 
@@ -577,6 +614,9 @@ class _Manager:
         self.max_connections = int(max_connections)
         self._conns: dict[str, _Connection] = {}
         self._pending: dict[str, asyncio.Task] = {}
+        self._owners: dict[str, _Connection] = {}
+        self._reapers: dict[str, asyncio.Task] = {}
+        self._closing = False
         self._lock = threading.Lock()
 
     # -- 预算（accept 前预留） -------------------------------------------
@@ -587,7 +627,7 @@ class _Manager:
         由 :meth:`release` 归还，否则该额度一直被占用。
         """
         with self._lock:
-            if len(self._conns) >= self.max_connections:
+            if self._closing or len(set(self._conns) | set(self._pending)) >= self.max_connections:
                 return None
             key = f"pending:{uuid.uuid4().hex}"
             self._conns[key] = None  # type: ignore[assignment]
@@ -600,6 +640,7 @@ class _Manager:
                 return False
             del self._conns[reservation]
             self._conns[conn.connection_id] = conn
+            conn._manager = self
             return True
 
     def release(self, reservation: str) -> None:
@@ -614,10 +655,32 @@ class _Manager:
     def track_pending(self, conn: _Connection, task: asyncio.Task) -> None:
         with self._lock:
             self._pending[conn.connection_id] = task
+            self._owners[conn.connection_id] = conn
 
     def clear_pending(self, conn: _Connection) -> None:
         with self._lock:
             self._pending.pop(conn.connection_id, None)
+            self._owners.pop(conn.connection_id, None)
+
+    async def finish_cleanup(self, conn: _Connection) -> None:
+        report = await conn.close()
+        if report["tasks_converged"] and report["lease_released"] and not report["late_tokens_pending"]:
+            self.clear_pending(conn)
+        else:
+            self.track_pending(conn, conn.close_task())
+        self.remove(conn)
+
+    def retry_cleanup(self, conn: _Connection) -> None:
+        existing = self._reapers.get(conn.connection_id)
+        if existing is not None and not existing.done():
+            return
+        task = asyncio.create_task(self.finish_cleanup(conn))
+        self._reapers[conn.connection_id] = task
+        def settled(done: asyncio.Task) -> None:
+            self._reapers.pop(conn.connection_id, None)
+            if not done.cancelled():
+                done.exception()
+        task.add_done_callback(settled)
 
     @property
     def active(self) -> int:
@@ -627,7 +690,7 @@ class _Manager:
     def snapshot(self) -> dict[str, int]:
         with self._lock:
             return {
-                "reserved": len(self._conns),
+                "reserved": len(set(self._conns) | set(self._pending)),
                 "active": sum(1 for value in self._conns.values() if value is not None),
                 "pending_cleanup": len(self._pending),
             }
@@ -635,16 +698,14 @@ class _Manager:
     async def shutdown(self) -> None:
         """停准入并关闭全部连接（共享短预算）。"""
         with self._lock:
-            conns = [value for value in self._conns.values() if value is not None]
-        for conn in conns:
-            with contextlib.suppress(Exception):
-                await conn.close()
-            self.remove(conn)
-        with self._lock:
-            pending = list(self._pending.values())
+            self._closing = True
+            conns = {value.connection_id: value for value in self._conns.values() if value is not None}
+            conns.update(self._owners)
+        for conn in conns.values():
+            self.retry_cleanup(conn)
+        pending = list(self._reapers.values())
         if pending:
-            with contextlib.suppress(Exception):
-                await asyncio.wait(pending, timeout=CONNECTION_CLOSE_BUDGET)
+            await asyncio.wait(pending, timeout=CONNECTION_CLOSE_BUDGET)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -654,7 +715,7 @@ class _Manager:
 
 def _validate_command(payload: Mapping[str, Any], conn: _Connection) -> tuple[str, dict[str, Any]]:
     """白名单校验：未知 op / 额外字段 / 版本 / terminal_id 覆盖一律静态 error。"""
-    if payload.get("v") != PROTOCOL_VERSION:
+    if type(payload.get("v")) is not int or payload.get("v") != PROTOCOL_VERSION:
         raise ProtocolError("unsupported-version")
     if payload.get("type") != "command":
         raise ProtocolError("unknown-type")
@@ -688,11 +749,8 @@ def _require_control(conn: _Connection, fields: Mapping[str, Any]) -> LeaseToken
 
 
 async def _detach_token(conn: _Connection, token: LeaseToken) -> None:
-    service = conn.runtime.service
-    if service is None:
-        return
-    with contextlib.suppress(Exception):
-        await conn.runtime.call(lambda: service.release_attachment(token))
+    if not await conn._release_token(token):
+        raise ProtocolError("release-unconfirmed")
 
 
 async def _cmd_claim(conn: _Connection) -> None:
@@ -701,10 +759,12 @@ async def _cmd_claim(conn: _Connection) -> None:
     assert service is not None
     current = conn._token
     if current is not None and current.role == LEASE_ROLE_CONTROL:
-        conn.send_event(
-            "claim-result", role=LEASE_ROLE_CONTROL, generation=_dec(current.generation), idempotent=True
-        )
-        return
+        holder = await conn.runtime.call(lambda: service.control_holder(conn.terminal_id))
+        if isinstance(holder, Mapping) and holder.get("client_id") == conn.connection_id and holder.get("generation") == current.generation:
+            conn.send_event(
+                "claim-result", role=LEASE_ROLE_CONTROL, generation=_dec(current.generation), idempotent=True
+            )
+            return
     if current is not None:
         # 撤销并释放该连接之前的 observer token（不反复颁发）。
         await _detach_token(conn, current)
@@ -766,7 +826,7 @@ async def _cmd_input(conn: _Connection, fields: Mapping[str, Any]) -> None:
     # 只回白名单字段（**不**复制 service.channel 任意 Mapping）。
     conn.send_event(
         "input-result",
-        accepted=bool(result.get("accepted")),
+        accepted=result.get("accepted") is True,
         size=int(result.get("size") or 0),
         status=result.get("status"),
         seq=None if seq_value is None else _dec(seq_value),
@@ -795,7 +855,7 @@ async def _cmd_resize(conn: _Connection, fields: Mapping[str, Any]) -> None:
     engine_confirmed = engine.get("confirmed") if isinstance(engine.get("confirmed"), bool) else None
     conn.send_event(
         "resize-result",
-        accepted=bool(result.get("accepted")),
+        accepted=result.get("accepted") is True,
         status=result.get("status"),
         rows=int(rows),
         cols=int(cols),
@@ -829,13 +889,14 @@ async def _cmd_resume(conn: _Connection, fields: Mapping[str, Any]) -> None:
     value = _parse_uint64(raw)
     if value is None:
         raise ProtocolError("invalid-field")
-    conn._stream_epoch += 1
-    conn.cursor = int(value)
-    conn._paused = False
-    conn.sent_end = max(conn.sent_end, conn.cursor)
-    conn._ack_watermark = conn.cursor
-    conn.ack_watermark = conn.cursor
-    conn.send_event("resume-result", cursor=_dec(conn.cursor))
+    async with conn.outbound.send_lock:
+        conn._stream_epoch += 1
+        conn.cursor = int(value)
+        conn._paused = False
+        conn.sent_end = conn.cursor  # new stream baseline, not an old stream's sent frontier
+        conn._ack_watermark = conn.cursor
+        conn.ack_watermark = conn.cursor
+        conn.send_event("resume-result", cursor=_dec(conn.cursor))
 
 
 async def _cmd_snapshot(conn: _Connection, fields: Mapping[str, Any]) -> None:
@@ -896,9 +957,10 @@ async def _reader_loop(conn: _Connection) -> None:
             continue
         if service is None:
             return
+        epoch, cursor = conn.stream_epoch, conn.cursor
         try:
             raw = await runtime.call(
-                lambda: service.read(conn.terminal_id, conn.cursor, max_bytes=READ_CHUNK_BYTES)
+                lambda: service.read(conn.terminal_id, cursor, max_bytes=READ_CHUNK_BYTES)
             )
         except Busy:
             # read 忙 → 暂缓重试，**不当 EOF**。
@@ -913,6 +975,8 @@ async def _reader_loop(conn: _Connection) -> None:
             conn.send_event("terminal-state", status="terminal-unavailable")
             conn._terminal_sent = True
             return
+        if epoch != conn.stream_epoch:
+            continue  # resume invalidates both queued frames and in-flight reads
         gap = raw.get("gap")
         if gap:
             # 原样报告缺口并**暂停**本连接 raw 读取（不补零/不自动 reset/不杀 PTY）。
@@ -957,7 +1021,7 @@ async def _receiver_loop(conn: _Connection) -> None:
             continue
         try:
             payload = json.loads(text)
-        except ValueError:
+        except (ValueError, RecursionError):
             conn.send_error("invalid-json")
             continue
         if not isinstance(payload, dict):
@@ -991,39 +1055,28 @@ async def _serve(websocket: WebSocket, conn: _Connection, manager: _Manager) -> 
     """accept 后的连接主流程：observer hello → 三任务 → 收尾。"""
     runtime = conn.runtime
     service = runtime.service
-    if service is None:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=1013)
-        return
     try:
-        conn._token = await runtime.call(
+        if service is None:
+            await websocket.close(code=1013)
+            return
+        await conn._await_lease(
             lambda: service.attach(conn.terminal_id, conn.connection_id, role=LEASE_ROLE_OBSERVER)
         )
-    except Exception:  # noqa: BLE001 - attach 失败即静态关闭，不泄露文本
-        with contextlib.suppress(Exception):
-            await websocket.close(code=1013)
-        return
-    if conn._closing:
-        # accept 后、attach 完成前已断开：迟到 token 仍需真实回收。
-        with contextlib.suppress(Exception):
-            await conn._release_own_lease()
-        return
-    conn.send_event(
-        "hello",
-        connection_id=conn.connection_id,
-        role=LEASE_ROLE_OBSERVER,
-        control_generation=None,
-        protocol={
-            "version": PROTOCOL_VERSION,
-            "encoding": "json-text",
-            "cursor": "ascii-decimal-string",
-            "max_inbound_frame_bytes": MAX_INBOUND_FRAME_BYTES,
-            "max_input_bytes": MAX_INPUT_BYTES,
-            "read_chunk_bytes": READ_CHUNK_BYTES,
-        },
-    )
-    conn.start()
-    try:
+        conn.send_event(
+            "hello",
+            connection_id=conn.connection_id,
+            role=LEASE_ROLE_OBSERVER,
+            control_generation=None,
+            protocol={
+                "version": PROTOCOL_VERSION,
+                "encoding": "json-text",
+                "cursor": "ascii-decimal-string",
+                "max_inbound_frame_bytes": MAX_INBOUND_FRAME_BYTES,
+                "max_input_bytes": MAX_INPUT_BYTES,
+                "read_chunk_bytes": READ_CHUNK_BYTES,
+            },
+        )
+        conn.start()
         # 任一任务结束（慢客户端/终态/断开）即进入收尾。
         done, pending = await asyncio.wait(conn._tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
@@ -1037,14 +1090,13 @@ async def _serve(websocket: WebSocket, conn: _Connection, manager: _Manager) -> 
                 await websocket.close(code=1000)
     except WebSocketDisconnect:
         pass
+    except Exception:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1013)
     finally:
-        report = await conn.close()
-        if not report.get("tasks_converged", True) or report.get("late_tokens_pending"):
-            # 未收敛：保留引用供管理器观测（不谎称已清理，仍占连接预算）。
-            manager.track_pending(conn, conn.close_task())
-        else:
-            manager.clear_pending(conn)
-        manager.remove(conn)
+        # The owner task survives route cancellation and consumes late issuance results.
+        manager.retry_cleanup(conn)
+        await asyncio.shield(manager._reapers[conn.connection_id])
 
 
 @router.websocket("/ws/terminal/{terminal_id}")
@@ -1129,8 +1181,8 @@ async def stop_ws(app: Any, *, manager: Any = None) -> dict[str, Any]:
     await active.shutdown()
     snapshot = active.snapshot()
     return {
-        "status": "stopped",
-        "closed": int(snapshot["active"]) + int(snapshot["pending_cleanup"]),
+        "status": "unconfirmed" if snapshot["reserved"] else "stopped",
+        "retained_connections": int(snapshot["reserved"]),
         "pending_cleanup": int(snapshot["pending_cleanup"]),
         "budget_seconds": CONNECTION_CLOSE_BUDGET,
     }
