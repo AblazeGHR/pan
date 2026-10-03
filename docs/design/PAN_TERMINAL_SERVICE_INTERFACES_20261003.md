@@ -1,4 +1,12 @@
-# Pan TerminalService 接口与预算纪律（P2 第一批，2026-10-03）
+# Pan TerminalService 接口与预算纪律（P2 第一批，2026-10-03；r2 返工后修订）
+
+> **r2 修订（独立审查 `d7905408` 判返工后）**：F1–F10 已闭环。本节标 **r2** 的条目
+> 覆盖首版语义；未标者沿用首版。首版口径**不再适用于**被 r2 修订的条目。
+>
+> - 变更记录见 §13；逐项映射与实测见
+>   `audit/terminal/implementation/service/r2/README.md`。
+> - r2 只改 `packages/core/terminal/service.py` 与本文；launcher 与所有共享模块
+>   **只读**，旧证据与原测试**未改**。
 
 - 任务：T-TERMINAL-PTY-20261003 的 **P2 第一批：服务控制层**（`TerminalService` +
   registry 生命周期闭环）。**不含** HTTP/WS/MCP 入口、前端与 lifespan 接线。
@@ -155,6 +163,10 @@ TerminalService(
   `AttachmentRegistry.send/resize`，**校验与调用在同一（每终端）临界区** → 撤销后
   **零新写**（实测断言：`client.calls["input"]` 不再增长）。
 - observer token → 稳定 `NotControlLeaseError`（不因世代/撤销而误伤）。
+- **r2 / F8：关闭准入门早于 RPC**。lease 目标解析（`_lease_lookup`）读**磁盘
+  registry**（权威）而非内存副本；close / 未证明路径在写盘后**同步**内存态
+  （`_sync_state_record`）。首版内存态仍 `running` 时会让 `input` 在 close 之后仍
+  触达 client（纵深防御缺口：runner 侧 `_closing` 会拒，但服务层门失效）。
 - `resize` **分列**返回：`pty.accepted`（runner 接受）与
   `engine.confirmed`（仿真器确认），并显式给出 `three_way_agreement = None`
   ——**不宣称三方一致**。
@@ -163,29 +175,51 @@ TerminalService(
 
 `close(terminal_id, reason=...)`：
 
-1. **先记 CLOSING**（`registry.update` → `EXITING`）；
-2. 停心跳；向 runner 发 **一次** stop（阻塞部分被 `_BoundedCall` 追踪：重试**复用**
-   同一在途/已完成调用，**不叠加**、不发第二个 stop，迟到成功被缓存消费）；
-3. 每轮**重新评估**外部证据（早期实现把整个判定缓存进 worker，导致后补齐的证明
-   永远读不到 —— 已修为"worker 只覆盖阻塞 stop，证据每轮重评"）。
+1. **先记 CLOSING**（`registry.update` → `EXITING`）并**同步内存态**（r2：见 F8）；
+2. 停心跳；向 runner 发 stop —— **r2（F2）**：在途**单飞复用**；已完成但**未确认**
+   （`closing` / 报错）且证据未齐备时，下一轮**有界幂等重发**（`MAX_STOP_RESENDS = 2`，
+   仅在 worker **确已结束**时才重发，绝不与在途调用叠加）；**已确认成功不机械重复**。
+   runner 侧对重复 stop幂等（已 `exited` 返回 `exited`），故重发安全；
+3. 每轮**重新评估**外部证据。
 
 **三项证明齐备**才记 `exited` 并删秘密：
 
 | 证据 | 来源 |
 | --- | --- |
 | ① runner 收尾确认 | stop 响应 `status == "exited"` |
-| ② launcher 引擎收尾 | `launcher-status/<tid>.json` 的 `engine.cleanup.converged is True` **且** `launcher_identity` 与 hello 自证身份精确一致 |
-| ③ 经身份核验的进程退出 | **我们派生**的 `Popen` 句柄 `poll()` 返回非 `None`（该句柄即 `CreateProcess` 返回值，绑定证据、无 PID 复用窗口） |
+| ② launcher 引擎收尾 | `launcher-status/<tid>.json` 的 `engine.cleanup.converged is True` **且** `launcher_identity` 与 hello 自证身份精确一致。**launcher 以 `exit 6`（`LAUNCHER_EXIT_CLEANUP_UNPROVEN`）退出时 `converged` 为 false → 不算成功**（r2 / F1） |
+| ③ 经身份核验的进程退出 | 优先用**我们派生**的 `Popen` 句柄（`CreateProcess` 返回的那一个，绑定证据、无 PID 复用窗口）；**本实例不拥有该句柄时**（跨进程遗留）退回到**身份三态**——只有 `dead-confirmed` 才算，并标注 `source="identity-retained-handle"`；**拿不到就不造证明**（r2 / F3） |
 
-任一缺失 → 记录停在 `EXITING` / `CLEANUP_FAILED` + **静态 reason**，**保留**
+任一缺失 → 记录停在 `EXITING` / `CLEANUP_FAILED` + **静态分类** reason，**保留**
 owner/record/secret 可重试；**不标 exited/lost**；**绝不使用 `caller_responsible`
 绕过**（删除秘密只走 `verified_exit=True`，且只在已证明终止之后）。
 
-`shutdown(budget=...)`：按**总预算**（含锁等待）尽力收敛 `service` 所有终端；
-`detached` 的按 detach 语义**不停止**（`kept_detached`，保 PTY/PID/秘密/记录）；
-预算耗尽 → `budget_exhausted=True` + `unconfirmed` 列表 + `secrets_retained=True`，
-未收敛部分**保留**可重试。本实例无句柄的跨进程遗留记录 → `shutdown-unattached`
-（**不冒充**已收敛）。
+**r2：close 的 reason 为内部静态分类**（F10），**不再回显调用方传入的 reason**：
+
+| reason | 含义 |
+| --- | --- |
+| `runner-stop-unconfirmed` | 缺证据①：stop 未确认（`closing` / 报错 / 重试用尽） |
+| `engine-cleanup-unproven` | 缺证据②：引擎收尾未确证（`exit 6` / status 缺失或损坏） |
+| `process-still-running` | 缺证据③：进程仍在（无句柄且身份未判死） |
+| `cleanup-unconfirmed` | 兜底（组合缺失） |
+| `close-in-flight` | stop 仍在途，预算耗尽 |
+| `close-lock-wait-timeout` | 取 `state` 锁超出预算（r2 / F6） |
+
+`shutdown(budget=...)`（r2 语义）：
+
+- **先关 create 准入**（F9）：在 `_admission_lock` 内置 `_closing_down`，与并发
+  `create` **线性化** —— 要么 create 先落盘并被本次 shutdown 收敛，要么被拒
+  （`ServiceClosingDown`），**不产生无人收敛的新终端**。重试既有 cleanup 仍允许；
+- 按**总预算**收敛 `service` 所有终端；`detached` 按 detach 语义**不停止**
+  （`kept_detached`）；
+- **F5**：**只**释放**已收敛 / kept-detached / 已终态**的连接；未收敛项**保留**
+  `client` 与 `close_call` 引用（`retained_for_retry`），使其后续仍可重试收敛；
+- **F6**：总预算**含**取锁等待、worker 等待、停心跳与释放等待；`budget=0`
+  **不被抬高**（按 ~0 处理），报告新增 `elapsed_seconds`，`elapsed_within_budget`
+  **如实**反映超时；
+- **F7**：预算耗尽后**未处理**的记录**全部**列入 `unconfirmed`（另单列 `skipped`），
+  `secrets_retained = bool(unconfirmed ∪ skipped)`，**不得假报 False**。
+
 
 ## 9. detach：真实环境显式拒绝，零状态变化
 
@@ -205,19 +239,41 @@ owner/record/secret 可重试；**不标 exited/lost**；**绝不使用 `caller_
 `cleanup-unconfirmed` / `alive` / `already-terminal`，并显式声明
 `fresh_pid_absence_is_dead_evidence: False`。
 
-- **本实例仍持有派生句柄**：以该句柄（绑定证据）判我们派生的进程是否退出；退出且
-  已证明 → `dead-confirmed`（补记 `exited` + 删秘密）；仍存活 → 按记录状态分列
-  （`CLEANUP_FAILED`/`EXITING` → `cleanup-unconfirmed`；`detached` → 核对后重连）。
-- **只有持久记录（跨进程/重启）**：先查秘密是否存在（缺失 → `unattributable`），
-  再按 pid + raw FILETIME **精确匹配**的三态探针判定：
-  - `alive`（身份精确匹配且存活）；
-  - `dead-confirmed`（身份精确匹配且同句柄已退出）→ 补记 `exited` + 删秘密；
-  - `unattributable`（探针缺失 / `UNKNOWN` / FILETIME 不符）→ **零终止**、保诊断、
-    **保留记录与秘密**。
+**r2 / F1（核心纪律）**：**我们派生的进程句柄退出 ≠ 整树终止证明**。launcher 可能
+以 `exit 6`（引擎收尾未确证）退出；shim 场景下句柄 pid 还可能**不是** runner pid。
+因此写 `exited` / 删秘密**必须**以 **runner 身份三态 = `dead-confirmed`** 为门：
+
+- 身份 `dead-confirmed`（**pid 与 raw FILETIME 都精确匹配**且同 handle `Wait` 已
+  退出）→ 才补记 `exited` 并删秘密；
+- 身份 `alive` → `cleanup-unconfirmed`，**保秘密 + 保记录**（launcher 走了但
+  runner 仍活着；删秘密不可逆）；
+- 身份 `unattributable`（`UNKNOWN` / **PID 不符** / FILETIME 不符）→ **零终止**、
+  保秘密 + 保记录。
+
+**r2：身份比对必须同时核对 PID 与 FILETIME**（首版只比 FILETIME）。"错 PID +
+同 FILETIME" 在 PID 复用下**不**是同一进程 → `pid-mismatch` → 不可归因。
+
+**r2 / F3：跨进程遗留 managed / cleanup-failed 记录的重发 stop 入口**（首版完全没有
+该入口，导致重启后永远无法收敛）：
+
+- 前置门：秘密在位 **且** 身份三态为 `alive`（pid+FILETIME 精确匹配）；
+- 死期等待**有界**（`lease_grace + 0.2`，单次调用内完成）；
+- 经**端点核验**（秘密 + HMAC + `describe`）重连后发 stop；**不建心跳** ——
+  **不**通过续约复活旧 managed；
+- 成功仍需三项真实证明；**不拥有** self-spawn 句柄时不造证明（见 §8 证据③）；
+- 失败保 owner/record/secret 可重试；同一记录本实例**只尝试一次**
+  （`_persisted_stop_attempts`），避免反复打扰 runner；
+- 端点不可核验（attach 失败 / 状态不符）→ `unattributable`、零终止。
+
+**r2 / F4：重连必须先回收旧资源**——已有可用连接则**复用**，否则**先停旧心跳、
+再释放旧连接**然后才建新连接。否则重复 `reconcile` 会让心跳线程与连接**无界增长**
+（首版实测 1→2→3→4 个同名心跳线程、release 恒为 0）。
+
 - **PID 查不到不是 retained DEAD 证据**（`UNKNOWN` ≠ 已死）：不据此改终态、不删凭据。
 - **不创建同 id 替代 runner**、**不复活旧 lease**（旧 token 仍 `StaleLeaseError`）、
   **不因客户端断连删秘密**。
 - 身份不可核验与清理未确认**分列**：前者是"无法归因"，后者是"未收敛"，都不是恢复。
+
 
 ## 11. 公共输出面与错误纪律
 
@@ -251,3 +307,29 @@ owner/record/secret 可重试；**不标 exited/lost**；**绝不使用 `caller_
   的通用保证。
 - 容量准入是**单服务实例内**的硬约束（`_admission_lock`）；跨进程并发创建同一数据根
   不在本批保证范围（`registry` 无跨进程容量原语，未擅自扩展共享协议）。
+
+## 13. 变更记录
+
+- `2026-10-03` **首版**：`service.py` 交付，41 项测试。
+- `2026-10-03` **r2（独立审查 `d7905408` 判返工后）**：**仅改 `service.py` 与本文**；
+  launcher 与所有共享模块只读，旧证据与原 `tests/test_terminal_service.py` 未改。
+
+  | # | 修订 |
+  | --- | --- |
+  | F1 | `reconcile` 活状态路径**以 runner 身份三态为门**（句柄退出 ≠ 终止证明）；ALIVE/UNKNOWN/身份不符 → 保秘密+保记录；`exit 6` 引擎未确证不算成功；身份比对**同时核对 PID 与 FILETIME**（新增 `pid-mismatch`） |
+  | F2 | stop **有界幂等重发**（`MAX_STOP_RESENDS=2`）：在途单飞复用；已完成未确认才重发；已确认不重复；`_BoundedCall.reset()` 仅在 worker 结束后可用 |
+  | F3 | 跨进程遗留 managed/cleanup-failed 的**重发 stop 入口**：秘密+身份核验 → 有界死期等待 → 端点重连（不建心跳、不复活）→ 三项证明；无 self-spawn 句柄时用身份三态且不造证明；每记录只试一次 |
+  | F4 | `_reconnect` 先**复用或真实回收**旧连接/心跳，消除线程与连接无界增长 |
+  | F5 | `shutdown` **只**释放已收敛/kept-detached/已终态的连接；未收敛项保留 `client`/`close_call` 供重试 |
+  | F6 | 总预算**含**取锁（`lock.acquire(timeout=…)`）、worker、停心跳、释放等待；`budget=0` 不抬高；新增 `elapsed_seconds`，`elapsed_within_budget` 如实 |
+  | F7 | 预算耗尽后 skipped 记录**全部**列入 `unconfirmed`（另单列 `skipped`），`secrets_retained` 不假报 |
+  | F8 | 关闭准入门**早于** RPC：`_lease_lookup` 读磁盘 registry；close/未证明后**同步**内存态 |
+  | F9 | `shutdown` **先关 create 准入**（`_closing_down`，与并发 create 线性化）；新增 `ServiceClosingDown` |
+  | F10 | close 的 reason 改为**内部静态分类**（`runner-stop-unconfirmed` / `engine-cleanup-unproven` / `process-still-running` / `close-in-flight` / `close-lock-wait-timeout` / `cleanup-unconfirmed`），不再回显调用方 reason；无自由文本 |
+  | F12 | 测试侧：心跳断言改**有界等待**（产品实现无需改动） |
+
+  **锁序（F6 统筹，刻意避免死锁）**：`_admission_lock` → `_global_lock` →
+  `state.lock`；`state.lock` **只**在 `_close_state` 内以**有界** `acquire(timeout)` 取得，
+  其余路径（`_mark_unproven` / `_stop_heartbeat` / `_require_client` /
+  `_release_client`）**不取**该锁——属性赋值在CPython 下是原子的，避免"等锁超时后
+  再取同一把锁"造成二次挂死。

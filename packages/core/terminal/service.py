@@ -94,6 +94,8 @@ __all__ = [
     "DetachRefused",
     "TerminalNotAttached",
     "ShutdownBudgetExhausted",
+    "ServiceClosingDown",
+    "MAX_STOP_RESENDS",
     "TerminalService",
 ]
 
@@ -129,6 +131,9 @@ _OWNER_ROLE = LEASE_ROLE_CONTROL
 
 #: 记录里视为"不再占容量"的终态。
 _TERMINAL_STATUSES = frozenset({RuntimeState.EXITED, RuntimeState.LOST})
+
+#: 单次close 序列内允许的 **stop 重发**上限（F2：允许幂等重发，但有界防风暴）。
+MAX_STOP_RESENDS = 2
 
 #: launcher 状态文件目录名（与 launcher/runner 平行）。
 _LAUNCHER_STATUS_DIRNAME = "launcher-status"
@@ -186,6 +191,12 @@ class TerminalNotAttached(TerminalServiceError):
     """本服务实例未持有该终端的连接（可 reconcile 后重连）。"""
 
     reason = "not-attached"
+
+
+class ServiceClosingDown(TerminalServiceError):
+    """``shutdown`` 已开始：拒绝新 ``create``（F9，避免产生无人收敛的新终端）。"""
+
+    reason = "service-closing-down"
 
 
 class ShutdownBudgetExhausted(TerminalServiceError):
@@ -286,6 +297,22 @@ class _BoundedCall:
         if self._done.wait(timeout=max(0.0, float(budget))):
             return True, self._result, self._error_type
         return False, None, None
+
+    def reset(self) -> bool:
+        """丢弃已缓存的结果，为下一轮**有界重发**做准备（F2）。
+
+        **仅在 worker 已结束**时允许——在途调用绝不复用/重置（那会造成叠加）。
+        返回是否成功重置。
+        """
+        with self._lock:
+            if self.in_flight:
+                return False
+            self._worker = None
+            self._done = threading.Event()
+            self._result = None
+            self._error_type = None
+            self._started = False
+            return True
 
     def _execute(self) -> None:
         try:
@@ -522,6 +549,8 @@ class _TerminalState:
     channel: _ChannelProxy | None = None
     close_call: _BoundedCall | None = None
     close_reason: str | None = None
+    #: 本终端已重发 stop 的次数（F2 有界防风暴）。
+    stop_resends: int = 0
     lock: threading.RLock = field(default_factory=threading.RLock)
     attached: bool = False
 
@@ -587,6 +616,10 @@ class TerminalService:
         self._global_lock = threading.RLock()
         self._admission_lock = threading.Lock()
         self._shutdown_done = False
+        #: F9：shutdown 一开始即置位，与并发 ``create`` 在 ``_admission_lock`` 内线性化。
+        self._closing_down = False
+        #: F3：本实例已尝试过"遗留记录重发 stop"的终端（避免反复打扰 runner）。
+        self._persisted_stop_attempts: set[str] = set()
         self._events: list[tuple[str, str]] = []
 
     # ------------------------------------------------------------ 基础设施
@@ -769,13 +802,19 @@ class TerminalService:
         created_by: str,
         terminal_id: str | None = None,
     ) -> TerminalRecord:
-        """容量准入 + 记录持久化（**同一临界区**，并发不得超限）。
+        """        容量准入 + 记录持久化（**同一临界区**，并发不得超限）。
 
         计数与写入必须原子：若只在计数后释放锁，并发 create 会各自看到"未超限"
         而同时落盘（实测 6/3）。这里在 ``_admission_lock`` 内完成"计数 → 分配
         id → 写记录"，因此**超限时零记录、零进程**。
+
+        F9：``shutdown`` 在**同一把锁**内置位 ``_closing_down``，因此"关准入"与
+        并发 ``create`` **线性化**——不会产生既没被 shutdown 收敛、又被放过的新终端。
         """
         with self._admission_lock:
+            if self._closing_down:
+                # 已进入/完成 shutdown：拒绝新终端（不产生无人收敛的记录）。
+                raise ServiceClosingDown("service-closing-down")
             live = sum(
                 1 for record in self._safe_records() if record.status not in _TERMINAL_STATUSES
             )
@@ -911,18 +950,22 @@ class TerminalService:
         return record
 
     def _mark_unproven(self, state: _TerminalState, reason: str, error_type: str | None) -> None:
-        """启动/关闭未获证明：**保留**记录与 owner，可重试；不删秘密。"""
+        """启动/关闭未获证明：**保留**记录与 owner，可重试；不删秘密。
+
+        F6：**不**无界取 ``state.lock``（预算耗尽/等锁时也不许再挂死）——
+        这里只做"记录写 + 内存态同步"，不需要临界区。
+        """
         terminal_id = state.terminal_id
         self._note("unproven-retained", f"{terminal_id}:{reason}")
-        with state.lock:
-            state.attached = state.attached and state.client is not None
-            try:
-                self._registry.update(
-                    terminal_id,
-                    lambda record: self._apply_unproven(record, reason),
-                )
-            except Exception as exc:  # noqa: BLE001 - 记录写失败也不丢 owner 引用
-                self._note_error("unproven-record-write-failed", exc)
+        try:
+            self._registry.update(
+                terminal_id,
+                lambda record: self._apply_unproven(record, reason),
+            )
+        except Exception as exc:  # noqa: BLE001 - 记录写失败也不丢 owner 引用
+            self._note_error("unproven-record-write-failed", exc)
+        # F8：内存态与磁盘同步（否则 lease 门读陈旧的 running）。
+        self._sync_state_record(state)
 
     @staticmethod
     def _apply_unproven(record: TerminalRecord, reason: str) -> TerminalRecord:
@@ -1089,14 +1132,28 @@ class TerminalService:
         return registry
 
     def _lease_lookup(self, terminal_id: str) -> _ChannelProxy | None:
-        """lease 目标：只有本实例已连上且四门确认过的终端才可写。"""
+        """lease 目标：只有本实例已连上、且**当前记录**可写的终端才可写。
+
+        F8：状态取**磁盘registry**（权威）而不是内存副本——否则 close 之后内存仍
+        是陈旧的 ``running``，准入会**晚于** RPC 判据。内存副本被判定为陈旧时
+        直接 fail-closed（不查盘也不放行）。
+        """
         with self._global_lock:
             state = self._states.get(terminal_id)
         if state is None or state.channel is None or not state.attached:
             return None
-        if state.record.status not in (RuntimeState.RUNNING,):
+        status = self._current_status(terminal_id, state)
+        if status != RuntimeState.RUNNING.value:
             return None
         return state.channel
+
+    def _current_status(self, terminal_id: str, state: _TerminalState) -> str:
+        """当前权威状态：优先读磁盘；读失败时用内存副本（并保持 fail-closed）。"""
+        try:
+            return self._registry.get(terminal_id).status.value
+        except Exception as exc:  # noqa: BLE001
+            self._note_error("status-read-failed", exc)
+            return state.record.status.value
 
     # ------------------------------------------------------------ 读/快照
     def read(
@@ -1298,27 +1355,51 @@ class TerminalService:
 
         三项证明齐备才记 ``exited`` 并删除秘密：
         ① runner 侧收尾确认（stop 响应 ``exited``）；② launcher 引擎收尾
-        （launcher-status ``engine.cleanup.converged``）；③ **经身份核验的进程退出**
-        （我们**自己派生**的 launcher 句柄上 raw FILETIME + Wait）。
+        （launcher-status ``engine.cleanup.converged`` 为真 bool）；③ **经身份核验的
+        进程退出**（我们**自己派生**的 launcher 句柄）。
 
-        任一项缺失 → ``CLEANUP_FAILED``/``CLOSING`` + 静态 reason，**保留**
-        owner/record/secret 可重试；**不**用 ``caller_responsible`` 绕过。
+        任一项缺失 → 停在 ``EXITING``/``CLEANUP_FAILED`` + **静态分类** reason
+        （``F10``：区分缺哪一项证明），**保留** owner/record/secret 可重试；
+        **不**用 ``caller_responsible`` 绕过。``budget`` 覆盖取锁与全部等待。
         """
         state = self._require_state(terminal_id)
         report = self._close_state(state, reason=reason, budget=self.stop_confirm)
         if report["status"] == "exited":
             return self._view(self._registry.get(terminal_id))
-        raise CleanupUnconfirmed(report.get("reason") or "cleanup-unconfirmed")
+        # F10：reason 用 close-outcome 的**内部静态分类**，而非调用方传入值，
+        # 让调用方能据reason 判断"该重试"还是"该升级处置"。
+        raise CleanupUnconfirmed(
+            str(report.get("missing") or report.get("reason") or "cleanup-unconfirmed"),
+            error_type=report.get("error_type"),
+        )
 
     def _close_state(self, state: _TerminalState, *, reason: str, budget: float) -> dict[str, Any]:
         """关闭序列（可重入）。
 
-        **可追踪 worker 只覆盖阻塞的 stop 调用**（跨重试复用同一在途调用、不叠加、
-        迟到成功被消费）；每轮**重新评估**外部证据（launcher 引擎收尾、经身份核验的
-        进程退出）——否则先到的"未证明"结论会被永久缓存，后续补齐的证明永远读不到。
+        **可追踪 worker 只覆盖阻塞的 stop 调用**：
+
+        - 在途 → 复用同一 worker（单飞，不叠加）；
+        - 已完成但**未确认**（``closing`` / 异常）且证据仍未齐备 → 下一轮**有界幂等**
+          重发（runner 侧对重复 stop 幂等：已 ``exited`` 返回 ``exited``）；
+        - **已确认成功** → 不机械重复发 stop。
+
+        每轮**重新评估**外部证据（launcher 引擎收尾、经身份核验的进程退出）。
+        ``budget`` 是**总预算**（含取锁等待），用单调 deadline 贯穿。
         """
         terminal_id = state.terminal_id
-        with state.lock:
+        deadline = time.monotonic() + max(0.0, float(budget))
+
+        # ---- 取 state 锁也纳入预算（F6：无界等锁 = 预算形同虚设）----
+        if not state.lock.acquire(timeout=max(0.0, deadline - time.monotonic())):
+            self._mark_unproven(state, "close-lock-wait-timeout", None)
+            return {
+                "terminal_id": terminal_id,
+                "status": "cleanup-failed",
+                "reason": reason,
+                "missing": "close-lock-wait-timeout",
+                "proven": False,
+            }
+        try:
             if state.record.status is RuntimeState.EXITED:
                 return {"terminal_id": terminal_id, "status": "exited", "reason": "already-exited"}
             # ① 先记录 CLOSING（映射既有合法枚举 EXITING；不引入新枚举值）。
@@ -1328,6 +1409,8 @@ class TerminalService:
                 )
             except Exception as exc:  # noqa: BLE001 - 记录写失败仍继续尝试收尾
                 self._note_error("closing-record-write-failed", exc)
+            # F8：内存态与磁盘**同步**（否则 lease 门读陈旧的 running）。
+            self._sync_state_record(state)
             state.close_reason = str(reason)
             if state.close_call is None:
                 state.close_call = _BoundedCall(
@@ -1335,32 +1418,64 @@ class TerminalService:
                     name=f"close-{terminal_id[-8:]}",
                 )
             call = state.close_call
+        finally:
+            state.lock.release()
 
-        self._stop_heartbeat(state)
-        finished, result, error_type = call.run(budget)
+        # 停心跳也占用剩余预算（F6）。
+        self._stop_heartbeat(state, deadline=deadline)
+
+        finished, result, error_type = call.run(max(0.0, deadline - time.monotonic()))
         if not finished:
             self._mark_unproven(state, "close-in-flight", None)
             return {
                 "terminal_id": terminal_id,
                 "status": "closing",
-                "reason": "close-in-flight",
+                "reason": reason,
+                "missing": "close-in-flight",
                 "proven": False,
             }
-        if error_type is not None:
+        evidence = dict(result or {})
+        stop_confirmed = bool(evidence.get("runner_confirmed"))
+
+        # ---- F2：已完成但未确认 → 允许下一轮有界幂等重发 ----
+        # 只有**worker 确实已收敛**（此刻 finished 为真）才可能走到这里；在途
+        # 情况已在上面返回，因此重发不会与在途调用叠加。
+        if not stop_confirmed and self._should_resend_stop(state, call, evidence):
+            self._note("close-stop-resend", terminal_id)
+            if call.reset():
+                state.stop_resends += 1
+                finished2, result2, error_type2 = call.run(
+                    max(0.0, deadline - time.monotonic())
+                )
+            if not finished2:
+                self._mark_unproven(state, "close-in-flight", None)
+                return {
+                    "terminal_id": terminal_id,
+                    "status": "closing",
+                    "reason": reason,
+                    "missing": "close-in-flight",
+                    "proven": False,
+                }
+            evidence = dict(result2 or {})
+            error_type = error_type2
+            stop_confirmed = bool(evidence.get("runner_confirmed"))
+
+        if error_type is not None and not stop_confirmed:
             self._mark_unproven(state, "close-worker-error", error_type)
             return {
                 "terminal_id": terminal_id,
                 "status": "cleanup-failed",
-                "reason": "close-worker-error",
+                "reason": reason,
+                "missing": "close-worker-error",
                 "error_type": error_type,
                 "proven": False,
             }
-        evidence = dict(result or {})
-        # 每轮重新评估外部证据（stop 已发出且不重复）。
+
+        # 每轮重新评估外部证据（stop 已确认则不重复发）。
         evidence.update(self._launcher_status_evidence(state))
         evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
         proven = bool(
-            evidence.get("runner_confirmed")
+            stop_confirmed
             and evidence.get("engine_converged")
             and (evidence.get("process_exit") or {}).get("exited")
         )
@@ -1374,8 +1489,55 @@ class TerminalService:
         if proven:
             self._finalize_exited(state, reason=reason, evidence=evidence)
         else:
-            self._mark_unproven(state, "cleanup-unconfirmed", None)
+            # F10：静态分类"缺哪一项证明"（不泄漏自由文本）。
+            outcome["missing"] = self._missing_proof(evidence, stop_confirmed)
+            self._mark_unproven(state, outcome["missing"], None)
         return outcome
+
+    @staticmethod
+    def _should_resend_stop(
+        state: _TerminalState, call: "_BoundedCall", evidence: Mapping[str, Any]
+    ) -> bool:
+        """是否允许本轮**重发** stop（F2）。
+
+        条件（全部满足才重发，次数有界）：
+
+        - 上一轮 stop **已结束**（不在途）——在途由单飞复用，不重发；
+        - 上一轮**未确认**（``runner_confirmed`` 为假：``closing`` / 异常 / 非 exited）；
+        - 未超过``MAX_STOP_RESENDS`` 上限（避免风暴）。
+        """
+        if call.in_flight:
+            return False
+        if evidence.get("runner_confirmed"):
+            return False  # 已确认成功，不机械重复
+        return state.stop_resends < MAX_STOP_RESENDS
+
+    @staticmethod
+    def _missing_proof(evidence: Mapping[str, Any], stop_confirmed: bool) -> str:
+        """未收敛的**静态**分类（F10）：区分缺哪一项证明。
+
+        纯枚举值，无自由文本、不含路径/异常消息；调用方据此判断重试或升级。
+        """
+        if not stop_confirmed:
+            return "runner-stop-unconfirmed"
+        if not evidence.get("engine_converged"):
+            # launcher 引擎收尾未确证（含exit 6 / status 缺失或损坏）
+            return "engine-cleanup-unproven"
+        process_exit = evidence.get("process_exit")
+        if not isinstance(process_exit, Mapping) or not process_exit.get("exited"):
+            return "process-still-running"
+        return "cleanup-unconfirmed"
+
+    def _sync_state_record(self, state: _TerminalState) -> None:
+        """把内存 ``state.record`` 与磁盘registry 同步（F8）。
+
+        close/未证明路径只写磁盘会让内存副本**陈旧**（仍 ``running``），
+        从而让 ``_lease_lookup`` 继续放行输入——准入门必须早于 RPC。
+        """
+        try:
+            state.record = self._registry.get(state.terminal_id)
+        except Exception as exc:  # noqa: BLE001 - 读失败保留原记录（不造值）
+            self._note_error("state-record-sync-failed", exc)
 
     @staticmethod
     def _apply_closing(record: TerminalRecord, reason: str) -> TerminalRecord:
@@ -1450,29 +1612,51 @@ class TerminalService:
         return status_pid == int(pid) and status_ft == int(filetime)
 
     def _spawn_handle_exit_evidence(self, state: _TerminalState) -> dict[str, Any]:
-        """我们**自己派生**的 launcher 进程是否已退出（同句柄 FILETIME + Wait）。
+        """经身份核验的进程退出证据（close 的第三项证明）。
 
-        ``Popen`` 句柄就是派生时 ``CreateProcess`` 返回的那一个 —— 对**它**判活是
-        绑定证据（不是"再查一次 PID"，无 PID 复用窗口）。这与 runner 身份核验是
-        两件事：shim 场景下两者可能不同进程，因此分别记录、分别判定。
+        优先用**我们派生**的 ``Popen`` 句柄：它就是 ``CreateProcess`` 返回的那一个，
+        对它判活是绑定证据（不是"再查一次 PID"，无PID 复用窗口）。
+
+        **本实例不拥有该句柄时**（跨进程重启后的遗留记录）**不造证明**：退回到
+        身份三态——只有 ``dead-confirmed``（pid+FILETIME 精确匹配且同 handle
+        ``Wait`` 已退出）才算退出证据，并显式标注来源。其余一律"未证明"。
         """
         process = state.process
         if process is None:
-            return {"exited": False, "detail": "no-self-spawned-handle"}
+            identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
+            if identity.get("status") == "dead-confirmed":
+                return {
+                    "exited": True,
+                    "detail": "identity-retained-handle-dead",
+                    "source": "identity-retained-handle",
+                    "pid": identity.get("pid"),
+                }
+            return {
+                "exited": False,
+                "detail": "no-self-spawned-handle",
+                "source": "none",
+                "identity_status": str(identity.get("status") or "unattributable"),
+            }
         poll = getattr(process, "poll", None)
         if not callable(poll):
-            return {"exited": False, "detail": "handle-not-pollable"}
+            return {"exited": False, "detail": "handle-not-pollable", "source": "self-spawn-handle"}
         try:
             returncode = poll()
         except Exception as exc:  # noqa: BLE001
             self._note_error("spawn-handle-poll-failed", exc)
-            return {"exited": False, "detail": "poll-failed"}
+            return {"exited": False, "detail": "poll-failed", "source": "self-spawn-handle"}
         if returncode is None:
-            return {"exited": False, "detail": "still-running", "returncode": None}
+            return {
+                "exited": False,
+                "detail": "still-running",
+                "returncode": None,
+                "source": "self-spawn-handle",
+            }
         return {
             "exited": True,
             "returncode": int(returncode),
             "spawn_pid": state.spawn_pid,
+            "source": "self-spawn-handle",
         }
 
     def _finalize_exited(self, state: _TerminalState, *, reason: str, evidence: Mapping[str, Any]) -> None:
@@ -1539,11 +1723,10 @@ class TerminalService:
                 "durability": durability,
                 "state_changed": False,
             }
-        with state.lock:
-            self._registry.update(
-                terminal_id, lambda record: self._apply_detached(record)
-            )
-            state.record = self._registry.get(terminal_id)
+        self._registry.update(
+            terminal_id, lambda record: self._apply_detached(record)
+        )
+        self._sync_state_record(state)
         # detach 后 runtime 不再随服务停止：停心跳、保留秘密（重连闭环靠它）。
         self._stop_heartbeat(state)
         self._release_client(state)
@@ -1618,15 +1801,24 @@ class TerminalService:
     def _reconcile_live(self, state: _TerminalState, record: TerminalRecord) -> str:
         """本实例仍持有**自己派生**的句柄时的核对。
 
-        我们派生的那个进程由我们的 ``Popen`` 句柄判定（绑定证据，不是"再查一次
-        PID"）；runner 身份另按 hello 自证核对。两者分别记录、分别判定
-        （shim 场景下可能不是同一进程）。
+        **F1（核心纪律）**：我们派生的进程句柄退出**不是**整树终止证明。launcher
+        可能以 ``exit 6``（引擎收尾未确证）退出，shim 场景下句柄 pid 还可能
+        **不是** runner pid。因此写 ``exited`` / 删秘密**必须**以 **runner 身份
+        三态 = dead-confirmed** 为门：
+
+        - 身份 ``dead-confirmed``（pid + FILETIME 均精确匹配且已退出）→ 才补记
+          ``exited`` 并删秘密；
+        - 身份 ``alive`` → 记``cleanup-unconfirmed``，**保秘密 + 保记录**
+          （launcher 走了但 runner 仍活着；删秘密不可逆）；
+        - 身份 ``unattributable``（UNKNOWN / PID 或 FILETIME 不符）→ 同样
+          **零终止**、保秘密 + 保记录。
         """
         terminal_id = state.terminal_id
         handle_exit = self._spawn_handle_exit_evidence(state)
-        if handle_exit.get("exited"):
-            identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
-            # 我们派生的进程确实退出了；runner 身份若已不可核验，如实分列而不冒充。
+        identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
+        identity_status = str(identity.get("status") or "")
+
+        if handle_exit.get("exited") and identity_status == "dead-confirmed":
             self._mark_persisted(
                 terminal_id,
                 lambda item: self._apply_exited(
@@ -1636,13 +1828,24 @@ class TerminalService:
             self._release_client(state)
             self._stop_heartbeat(state)
             self._delete_secret(terminal_id, "reconcile-observed-exit")
-            if identity["status"] == "unattributable":
-                self._note("reconcile-launcher-exited-runner-unknown", terminal_id)
             return "dead-confirmed"
 
-        # 仍存活（我们的句柄说没退出）：按记录状态分列，不终止、不冒充。
+        if handle_exit.get("exited"):
+            # 句柄退出但身份未确认终止 → 不写 exited、不删秘密（F1）。
+            self._note(
+                "reconcile-handle-exited-identity-not-dead",
+                f"{terminal_id}:{identity.get('reason') or identity_status}",
+            )
+            if identity_status == "unattributable":
+                return "unattributable"
+            return "cleanup-unconfirmed"
+
+        # 句柄说没退出：按记录状态分列，不终止、不冒充。
         if record.status is RuntimeState.CLEANUP_FAILED or record.status is RuntimeState.EXITING:
             return "cleanup-unconfirmed"
+        if identity_status == "unattributable":
+            self._note("reconcile-unattributable", f"{terminal_id}:{identity.get('reason')}")
+            return "unattributable"
         if record.detached or record.owner == "detached":
             return self._reconnect(state, record)
         return "alive"
@@ -1667,18 +1870,83 @@ class TerminalService:
             return "unattributable"
         # 身份可核验且存活。
         if record.status is RuntimeState.CLEANUP_FAILED or record.status is RuntimeState.EXITING:
-            return "cleanup-unconfirmed"
+            # F3：旧managed / cleanup-failed 记录此前**没有任何**重发 stop 的入口，
+            # 导致重启后永远无法收敛。这里给出受身份核验的**有界**重连+stop 入口。
+            return self._retry_persisted_stop(record)
         if record.detached:
             return self._reconnect_persisted(record)
         return "alive"
 
-    def _identity_evidence(self, pid: int | None, filetime: int | None) -> dict[str, Any]:
-        """身份三态核对：**只有** pid+raw FILETIME 精确匹配才承认存活/已死。
+    def _retry_persisted_stop(self, record: TerminalRecord) -> str:
+        """F3：跨进程遗留 managed/cleanup-failed 的**有界**重连 + stop 重发。
 
-        - ``dead-confirmed``：同句柄 ``Wait`` 观察到 **我们记录的身份**（pid+FILETIME
-          先精确匹配）已退出 —— ``Popen`` 自派生句柄与 runner 自证身份都走这条；
-        - ``alive``：身份精确匹配且仍存活；
-        - ``unattributable``：探针缺失/UNKNOWN/FILETIME 不符 → **不动手**。
+        边界（刻意保守，fail-closed）：
+
+        - **必须**秘密在位 + 身份三态为 ``alive``（pid+FILETIME 精确匹配）才动手；
+        - 死期等待**有界**（``lease_grace`` + 缓冲，单次调用内完成，不无限等）；
+        - **不**通过续约"复活"旧 managed：这里只发一次 stop，不建心跳；
+        - 成功仍需三项真实证明（stop 确认 + 引擎收尾 + **经身份核验的**进程退出）；
+          本实例**不拥有** self-spawn 句柄时，进程退出证明**取自身份三态**
+          （retained 同 handle 口径），拿不到就归入未确认——**不造证明**；
+        - 失败保留 owner/record/secret 可重试。
+        """
+        terminal_id = record.terminal_id
+        if terminal_id in self._persisted_stop_attempts:
+            # 本实例已对该记录尝试过：保持"未确认"，不反复打扰 runner。
+            self._note("reconcile-persisted-stop-already-attempted", terminal_id)
+            return "cleanup-unconfirmed"
+        self._persisted_stop_attempts.add(terminal_id)
+        state = _TerminalState(terminal_id=terminal_id, record=record)
+        state.runner_pid = record.pid
+        state.runner_filetime = record.process_created_at_filetime
+        with self._global_lock:
+            self._states[terminal_id] = state
+
+        # 死期等待有界：让 runner 的 lease 宽限先过一点，再决定是否发 stop。
+        time.sleep(min(self.lease_grace + 0.2, 2.0))
+        # 必须**先经端点核验重连**（秘密 + HMAC + 身份），否则没有可发 stop 的通道；
+        # 这里刻意**不建心跳**（不通过续约复活旧 managed）。
+        if state.client is None:
+            client = self._client_factory()(
+                terminal_id,
+                data_root=self.root,
+                connect_timeout=self.lease_grace,
+                request_timeout_ms=max(2000, int(self.stop_confirm * 1000)),
+                close_timeout_ms=int(self.stop_confirm * 1000) + 10_000,
+                client_id=self._owner_client_id(terminal_id),
+            )
+            try:
+                client.attach()
+                described = client.describe()
+            except Exception as exc:  # noqa: BLE001 - 端点不可核验 → 不动手
+                self._note_error("persisted-stop-endpoint-refused", exc)
+                return "unattributable"
+            if str(described.get("runner_state") or "") not in ("running", "closing", "exited"):
+                self._note("persisted-stop-state-mismatch", terminal_id)
+                return "unattributable"
+            state.client = client
+            state.attached = True
+        outcome = self._close_state(state, reason=EXIT_REASON_SERVICE_SHUTDOWN,
+                                    budget=self.stop_confirm)
+        if outcome.get("status") == "exited":
+            with self._global_lock:
+                self._states.pop(terminal_id, None)
+            return "dead-confirmed"
+        # 未收敛：保 state（含连接）供后续重试，秘密保留。
+        self._note("reconcile-persisted-stop-unconfirmed", terminal_id)
+        return "cleanup-unconfirmed"
+
+    def _identity_evidence(self, pid: int | None, filetime: int | None) -> dict[str, Any]:
+        """身份三态核对：**同时**精确匹配 pid **与** raw FILETIME 才承认存活/已死。
+
+        - ``dead-confirmed``：观测身份与我们**记录的身份**（pid + FILETIME 都精确
+          相同）一致，且同句柄 ``Wait`` 显示已退出；
+        - ``alive``：pid + FILETIME 均精确匹配且仍存活；
+        - ``unattributable``：探针缺失 / ``UNKNOWN`` / **PID 不符** / FILETIME 不符
+          → **零终止**（不动手）。
+
+        F1：先前只比 FILETIME，"错PID + 同 FILETIME" 会被误认成同一进程
+        （PID 复用下不成立）。现在两者都必须对得上。
         """
         if pid is None or filetime is None:
             return {"status": "unattributable", "reason": "no-recorded-identity"}
@@ -1693,10 +1961,14 @@ class TerminalService:
         status_text = str(status_name or "").lower()
         identity = getattr(probe, "identity", None)
         observed_ft = getattr(identity, "created_at_filetime", None)
+        observed_pid = getattr(identity, "pid", None)
         if status_text in ("", "none"):
             return {"status": "unattributable", "reason": "probe-status-unknown"}
         if observed_ft is None or int(observed_ft) != int(filetime):
             return {"status": "unattributable", "reason": "identity-mismatch"}
+        # F1：FILETIME 相同**不足以**认定同一进程——PID 也必须与记录一致。
+        if observed_pid is not None and int(observed_pid) != int(pid):
+            return {"status": "unattributable", "reason": "pid-mismatch"}
         if status_text == "alive":
             return {"status": "alive", "pid": int(pid), "filetime": int(observed_ft)}
         if status_text == "dead":
@@ -1726,14 +1998,35 @@ class TerminalService:
 
     # -- 重连（不创建替代 runner、不复活旧 lease） ----------------------
     def _reconnect(self, state: _TerminalState, record: TerminalRecord) -> str:
+        """接回**既有** runner（绝不派生同id 替代进程）。
+
+        F4：进入前**先真正回收旧资源**——若已有可用连接则**复用**，否则停掉旧心跳
+        并释放旧连接。否则重复 reconcile 会让心跳线程与连接**无界增长**
+        （审查实测 1→2→3→4 个同名心跳线程、release 恒为 0）。
+        """
+        terminal_id = state.terminal_id
+        # F4：已有可用连接 → 复用（不新建、不叠加）。
+        reusable = state.client is not None and state.attached
+        if reusable:
+            state.record = record
+            if state.heartbeat is None:
+                heartbeat = self._new_heartbeat(terminal_id)
+                state.heartbeat = heartbeat
+                heartbeat.start()
+            self._note("reconnect-reused", terminal_id)
+            return "alive"
+
+        # 不可复用 → 先回收旧资源再建新连接（顺序：停心跳 → 释放连接）。
+        self._stop_heartbeat(state)
+        self._release_client(state)
         try:
             client = self._client_factory()(
-                state.terminal_id,
+                terminal_id,
                 data_root=self.root,
                 connect_timeout=self.lease_grace,
                 request_timeout_ms=max(2000, int(self.stop_confirm * 1000)),
                 close_timeout_ms=int(self.stop_confirm * 1000) + 10_000,
-                client_id=self._owner_client_id(state.terminal_id),
+                client_id=self._owner_client_id(terminal_id),
             )
             client.attach()
             described = client.describe()
@@ -1741,29 +2034,33 @@ class TerminalService:
             self._note_error("reconnect-failed", exc)
             return "unattributable"
         if str(described.get("runner_state") or "") not in ("running", "detached"):
-            self._note("reconnect-state-mismatch", state.terminal_id)
+            self._note("reconnect-state-mismatch", terminal_id)
             self._release_client(state)
             return "unattributable"
         state.client = client
         state.attached = True
         state.record = record
-        heartbeat = _Heartbeat(
+        state.heartbeat = self._new_heartbeat(terminal_id)
+        state.heartbeat.start()
+        self._note("reconnected", terminal_id)
+        return "alive"
+
+    def _new_heartbeat(self, terminal_id: str) -> _Heartbeat:
+        return _Heartbeat(
             client_factory=self._client_factory(),
-            terminal_id=state.terminal_id,
+            terminal_id=terminal_id,
             data_root=self.root,
-            client_id=self._owner_client_id(state.terminal_id),
+            client_id=self._owner_client_id(terminal_id),
             interval=self.heartbeat_interval,
             grace=self.lease_grace,
         )
-        state.heartbeat = heartbeat
-        heartbeat.start()
-        self._note("reconnected", state.terminal_id)
-        return "alive"
 
     def _reconnect_persisted(self, record: TerminalRecord) -> str:
-        """跨进程重连：只**核对后接回既有 runner**，绝不派生同 id 替代进程。"""
+        """跨进程重连：只**核对后接回既有 runner**，绝不派生同id 替代进程。"""
         terminal_id = record.terminal_id
         state = _TerminalState(terminal_id=terminal_id, record=record)
+        state.runner_pid = record.pid
+        state.runner_filetime = record.process_created_at_filetime
         with self._global_lock:
             self._states[terminal_id] = state
         outcome = self._reconnect(state, record)
@@ -1779,33 +2076,49 @@ class TerminalService:
         budget: float | None = None,
         reason: str = EXIT_REASON_SERVICE_SHUTDOWN,
     ) -> dict[str, Any]:
-        """服务停止：按**总预算**（含锁等待）尽力收敛全部 managed 终端。
+        """服务停止：按**总预算**（含取锁与全部等待）尽力收敛 managed 终端。
 
-        - ``service`` 所有：显式关闭并等真实收尾确认；
-        - ``detached``：按 detach 语义**不停止**（保 PTY/PID/秘密/记录）；
-        - 预算耗尽 → 如实报告 ``budget_exhausted``，未收敛部分**保留**可重试，
-          **不**标 exited/lost、**不**删秘密。
+        - **先关 create 准入**（F9）：``_admit_create`` 在同一 ``_admission_lock``
+          内检查 ``_closing_down``，因此与并发 ``create`` **线性化**——要么 create
+          先落盘并被本次 shutdown 收敛，要么被拒（不产生无人收敛的新终端）；
+        - ``service`` 所有：显式关闭并等真实收尾确认；**detached** 不停止；
+        - **F5**：只释放**已收敛 / kept-detached / 已终态**的连接；未收敛项**保留**
+          连接与心跳引用（此处停止心跳线程但**不丢弃** worker 状态），使其后续
+          仍可重试收敛；
+        - **F7**：预算耗尽后**未处理**的记录全部列入未确认（``skipped``），
+          ``secrets_retained`` 恒等于"确已保留"；
+        - **F6**：``budget=0`` 不被抬高；``elapsed_within_budget`` 如实反映超时。
         """
-        total = self.shutdown_budget if budget is None else max(0.1, float(budget))
-        deadline = time.monotonic() + total
+        # F9：先关准入 + 线性化（与并发 create 互斥）。
+        with self._admission_lock:
+            already_closing = self._closing_down
+            self._closing_down = True
+
+        total = self.shutdown_budget if budget is None else max(0.0, float(budget))
+        started = time.monotonic()
+        deadline = started + total
         outcomes: dict[str, str] = {}
         unconfirmed: list[str] = []
+        skipped: list[str] = []
         exhausted = False
 
-        for record in self._safe_records():
+        records = self._safe_records()
+        for index, record in enumerate(records):
             if time.monotonic() >= deadline:
                 exhausted = True
+                # F7：剩余记录**全部**显式列入未确认（不得静默丢失）。
+                skipped = [item.terminal_id for item in records[index:]]
                 break
             terminal_id = record.terminal_id
             if record.detached or record.owner == "detached":
                 # detach 的 runtime 不随服务消亡：只停心跳、保留其余。
-                self._stop_heartbeat_for(terminal_id)
+                self._stop_heartbeat_for(terminal_id, deadline=deadline)
                 outcomes[terminal_id] = "kept-detached"
                 continue
             if record.status in _TERMINAL_STATUSES:
                 outcomes[terminal_id] = "already-terminal"
                 continue
-            remaining = max(0.1, deadline - time.monotonic())
+            remaining = max(0.0, deadline - time.monotonic())
             try:
                 outcome = self._close_for_shutdown(
                     terminal_id, reason=reason, budget=min(self.stop_confirm, remaining)
@@ -1817,20 +2130,37 @@ class TerminalService:
             if outcome.get("status") != "exited":
                 unconfirmed.append(terminal_id)
 
-        for terminal_id in list(self._known_states()):
-            self._stop_heartbeat_for(terminal_id)
-            self._release_for(terminal_id)
+        # F5：**只**回收已收敛 / kept-detached / 已终态的连接；未收敛项保留。
+        released: list[str] = []
+        for terminal_id, status in outcomes.items():
+            if status in ("exited", "kept-detached", "already-terminal"):
+                self._stop_heartbeat_for(terminal_id, deadline=deadline)
+                self._release_for(terminal_id)
+                released.append(terminal_id)
+        # 未收敛项：停心跳线程，但**保留** client 与 close worker 引用（可重试）。
+        for terminal_id in unconfirmed:
+            self._stop_heartbeat_for(terminal_id, deadline=deadline)
+
+        # F7：skipped 计入未确认，且明确"未处理"。
+        unconfirmed_all = sorted(set(unconfirmed) | set(skipped))
         with self._global_lock:
             self._shutdown_done = True
+        elapsed = time.monotonic() - started
         return {
             "budget_seconds": total,
-            "elapsed_within_budget": not exhausted,
+            "elapsed_seconds": round(elapsed, 3),
+            # F6：如实反映是否在预算内完成。
+            "elapsed_within_budget": (not exhausted) and elapsed <= total + 0.05,
             "budget_exhausted": exhausted,
             "outcomes": outcomes,
             "exited": sorted(tid for tid, st in outcomes.items() if st == "exited"),
             "kept_detached": sorted(tid for tid, st in outcomes.items() if st == "kept-detached"),
-            "unconfirmed": sorted(unconfirmed),
-            "secrets_retained": bool(unconfirmed),
+            "released": sorted(released),
+            "retained_for_retry": sorted(unconfirmed),
+            "skipped": sorted(skipped),
+            "unconfirmed": unconfirmed_all,
+            # 恒等于"确有未收敛项 → 秘密确已保留"，不得假报 False。
+            "secrets_retained": bool(unconfirmed_all),
         }
 
     def _close_for_shutdown(self, terminal_id: str, *, reason: str, budget: float) -> dict[str, Any]:
@@ -1856,8 +2186,7 @@ class TerminalService:
         return state
 
     def _require_client(self, state: _TerminalState) -> Any:
-        with state.lock:
-            client = state.client
+        client = state.client
         if client is None or not state.attached:
             raise TerminalNotAttached("not-attached")
         return client
@@ -1866,23 +2195,30 @@ class TerminalService:
         with self._global_lock:
             return list(self._states)
 
-    def _stop_heartbeat(self, state: _TerminalState) -> None:
-        with state.lock:
-            heartbeat, state.heartbeat = state.heartbeat, None
-        if heartbeat is not None:
-            heartbeat.stop(timeout=2.0)
+    def _stop_heartbeat(self, state: _TerminalState, *, deadline: float | None = None) -> None:
+        """停心跳；``deadline`` 给定时**不超预算**地等线程收敛（F6）。
 
-    def _stop_heartbeat_for(self, terminal_id: str) -> None:
+        F6：不无界取 ``state.lock``（等锁超时路径上再取锁会重新挂死）；
+        属性读取在 CPython 下是原子的，足够安全。
+        """
+        heartbeat, state.heartbeat = state.heartbeat, None
+        if heartbeat is None:
+            return
+        timeout = 2.0
+        if deadline is not None:
+            timeout = max(0.0, min(timeout, deadline - time.monotonic()))
+        heartbeat.stop(timeout=timeout)
+
+    def _stop_heartbeat_for(self, terminal_id: str, *, deadline: float | None = None) -> None:
         with self._global_lock:
             state = self._states.get(terminal_id)
         if state is not None:
-            self._stop_heartbeat(state)
+            self._stop_heartbeat(state, deadline=deadline)
 
     def _release_client(self, state: _TerminalState) -> None:
         """只释放连接（**不**触碰 runtime、**不**删秘密）。"""
-        with state.lock:
-            client, state.client = state.client, None
-            state.attached = False
+        client, state.client = state.client, None
+        state.attached = False
         if client is None:
             return
         try:

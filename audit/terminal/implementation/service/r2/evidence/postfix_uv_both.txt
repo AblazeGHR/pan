@@ -1,0 +1,31 @@
+# r2 uv-isolated run (both service suites)
+# cmd: uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout --with pyte==0.8.2 -- python -m pytest tests/test_terminal_service_rework.py tests/test_terminal_service.py -o addopts= -q -p no:cacheprovider --timeout=200
+
+.........................................................F.............. [100%]
+================================== FAILURES ===================================
+____________ test_reconcile_dead_confirmed_with_matching_identity _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1664/test_reconcile_dead_confirmed_0')
+
+    def test_reconcile_dead_confirmed_with_matching_identity(tmp_path):
+        """我们派生的进程已退出（句柄证据）且 runner 身份精确匹配：承认 dead-confirmed。"""
+        process = _FakeProcess()
+        process.exit(0)
+        probes: dict[int, Any] = {}
+    
+        def probe(pid: int):
+            return probes.get(pid, _FakeProbe(ProcessStatus.ALIVE, 40001))
+    
+        service = _make_service(tmp_path, process=process, heartbeat_interval=5.0, probe=probe)
+        terminal_id = service.create()["terminal_id"]
+        record = service.get(terminal_id)
+        probes[int(record["pid"])] = _FakeProbe(ProcessStatus.DEAD, int(record["process_created_at_filetime"]))
+        result = service.reconcile()
+>       assert result["counts"]["dead-confirmed"] == 1
+E       assert 0 == 1
+
+tests\test_terminal_service.py:968: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_service.py::test_reconcile_dead_confirmed_with_matching_identity
+1 failed, 71 passed in 92.85s (0:01:32)
+uv rc=1
