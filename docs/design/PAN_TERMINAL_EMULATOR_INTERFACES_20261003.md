@@ -468,6 +468,24 @@ owner 并发串行化（终止峰值 == 1、都 closed=true、timeout=0 保引�
 
 ## 12. 变更记录
 
+### MA r4 验收口径校准
+
+独立 ROUND4 审查终态 `417137fb` 接受 F1/F2；源修复 `63e5f90d` 已隔离导入。
+下列限定优先于本文早期 r4 性能摘要，不修改历史证据：
+
+- 原 `probe_feed_throughput.py` 的 submit+第二 drain 遗漏中间 snapshot 等待；
+  0.015s/152,000 ops/s/20,039 KB/s 不得当作端到端吞吐。单一单调计时区间
+  （首次提交前→applied==total）的独立结果为旧 35.125s、新 0.062–0.078s，
+  同机同输入 135B×2280，实际帧 2280→5；约 450–570 倍，非跨机硬 SLA。
+- `feed_batch_limit` 约束多块合并批；单原始 feed 超上限仍可单独发送。
+  `max_feed_batch_bytes` 只统计多块批，不能据此声明全部传输帧均不超过该值。
+- 4MiB/8192 为逻辑供料预算；join 副本与原块引用可暂占约两份批次 payload，
+  另有对象开销，不声明严格 RSS≤4MiB。
+- 真实会话保守 partial 不自动要求 reset；applied 被驱逐时按已冻结组合边界
+  重取有效快照或显式显示层 fresh-view，不自动重置引擎或结束 PTY。
+
+### 历史修订
+
 - `2026-10-03` 首版：`emulator.py` + **仓库根** `emulator_sidecar/`（exact pin；历史事实：
   当时 sidecar 尚未位于专属路径，r2 才迁移）+ 28 项测试 + 证据；五项 MA 缺口先失败后通过
   （§10）；接口冻结面见 §3/§4（runner 桥接契约）。**本行按历史事实记录，不倒写为专属路径。**
