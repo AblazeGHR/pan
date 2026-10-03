@@ -113,6 +113,7 @@ export function useWebSocket() {
     // 按 session 做 500ms 节流：窗口内合并到最新文本，到点 flush 一次。result 落地
     // 时取消 pending，保证最终 lastMessage 以 result 为准（节流 timer 不会迟到
     // 覆盖 result）。状态放 effect 闭包里，卸载即清，StrictMode 重挂载不残留。
+    // Lead on the next event-loop turn, then bound follow-up request starts.
     // Bounded coalescing, not trailing debounce: sustained traffic cannot
     // postpone the first authoritative read forever. At most one read runs;
     // traffic during it queues one subsequent read.
@@ -120,6 +121,7 @@ export function useWebSocket() {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshInFlight = false;
     let refreshPending = false;
+    let nextRefreshAt = 0;
     function scheduleRefreshSessions(): void {
       refreshPending = true;
       if (!active || refreshTimer || refreshInFlight) return;
@@ -127,17 +129,19 @@ export function useWebSocket() {
         refreshTimer = null;
         refreshPending = false;
         refreshInFlight = true;
+        nextRefreshAt = Date.now() + 300;
         void useSessionStore.getState().loadSessions().finally(() => {
           refreshInFlight = false;
           if (active && refreshPending) scheduleRefreshSessions();
         });
-      }, 300);
+      }, Math.max(0, nextRefreshAt - Date.now()));
     }
 
     let historyTimer: ReturnType<typeof setTimeout> | null = null;
     let historyInFlight = false;
     let historyPending = false;
     let historyTarget: string | null = null;
+    let nextHistoryAt = 0;
     function scheduleSelectedHistory(): void {
       historyPending = true;
       historyTarget = useSessionStore.getState().currentSessionId;
@@ -147,11 +151,12 @@ export function useWebSocket() {
         historyPending = false;
         if (!historyTarget || historyTarget !== useSessionStore.getState().currentSessionId) return;
         historyInFlight = true;
+        nextHistoryAt = Date.now() + 100;
         void useSessionStore.getState().refreshCurrentSessionHistory().finally(() => {
           historyInFlight = false;
           if (active && historyPending) scheduleSelectedHistory();
         });
-      }, 100);
+      }, Math.max(0, nextHistoryAt - Date.now()));
     }
 
     const STREAM_PREVIEW_THROTTLE_MS = 500;

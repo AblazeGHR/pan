@@ -499,6 +499,37 @@ describe('useWebSocket worker.result wiring', () => {
     expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
   });
 
+  it('starts the first summary and history reads without spending their cooldown budgets', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    apiMock.fetchSessionHistory.mockResolvedValue({ history: [msg('user', 'u0'), msg('assistant', 'fresh')], start: 0, total: 2, hasMore: false, historyEpoch: 'leading', historyRevision: 2 });
+    renderHook(() => useWebSocket());
+    await act(async () => { await Promise.resolve(); });
+    apiMock.fetchSessions.mockClear();
+    act(() => wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'A', session: { historyTotal: 2 } }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('fresh');
+  });
+
+  it('keeps summary request starts at least 300ms apart under continuous traffic', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    renderHook(() => useWebSocket());
+    await act(async () => { await Promise.resolve(); });
+    const starts: number[] = [];
+    apiMock.fetchSessions.mockImplementation(async () => { starts.push(Date.now()); return [mk('A', 'A')]; });
+    for (let index = 0; index < 40; index += 1) {
+      await act(async () => {
+        wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'B', session: { name: 'traffic' } });
+        await vi.advanceTimersByTimeAsync(25);
+      });
+    }
+    expect(starts.length).toBe(4);
+    expect(starts.slice(1).every((time, index) => time - starts[index]! >= 300)).toBe(true);
+  });
+
   it('applies shared pin snapshots immediately and ignores stale revisions', () => {
     renderHook(() => useWebSocket());
 

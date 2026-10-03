@@ -1,4 +1,4 @@
-/* global window, document, MutationObserver, process, setTimeout, setInterval, clearInterval, URL, Event, console */
+/* global window, document, MutationObserver, process, setTimeout, setInterval, clearInterval, URL, Event, console, fetch */
 // Isolated Chromium regression for T-030 (done indicator latency).
 //
 // Serves the production build from `dist/` on a loopback-only, isolated port and
@@ -81,6 +81,7 @@ const server = http.createServer((req, res) => {
     return json(res, 200, { history: historyState, total: historyState.length, hasMore: false, start: 0, historyEpoch: 'indicator-history', historyRevision });
   }
   if (p === '/api/main/startup-recovery') return json(res, 200, { generation: 'fixture', state: 'no_candidates', candidateSnapshot: [], decision: null, attempts: 0, results: [] });
+  if (p === '/api/fixture/resync') return json(res, 200, { type: 'resync.snapshot', sessions: sessionsState, workers: sessionsState.map(row => ({ sessionId: row.id, workerId: row.workerId, generation: row.workerGeneration, taskSeq: row.workerTaskSeq, status: row.workerStatus })), details: {} });
   if (p === '/api/list') return json(res, 200, { workers: [] });
   // Everything else is a benign 404; the stores already handle fetch failures.
   if (p.startsWith('/api/')) return json(res, 404, { error: 'not found' });
@@ -122,7 +123,12 @@ try {
           if (this.onopen) this.onopen({});
         }, 0);
       }
-      send() {}
+      send(raw) {
+        if (JSON.parse(raw).type !== 'resync') return;
+        void fetch('/api/fixture/resync').then(response => response.json()).then(payload => {
+          if (this.readyState === 1 && this.onmessage) this.onmessage({ data: JSON.stringify(payload) });
+        });
+      }
       close() {
         this.readyState = 3;
       }
@@ -256,6 +262,19 @@ try {
     }
   });
 
+  await runCase('first quiet-period fallback does not wait for the summary cooldown', async () => {
+    currentTaskSeq += 1;
+    sessionsState = [session('running')];
+    await page.evaluate(payload => window.__emitWs({ type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: payload.workerTaskSeq, status: 'running', session: payload }), session('running'));
+    await waitForDot('bg-accent', 2000);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    sessionsState = [session('idle')];
+    const started = Date.now();
+    await page.evaluate(() => window.__emitWs({ type: 'session.updated', sessionId: 'B', session: { name: 'first quiet update' } }));
+    await waitForDot('bg-success', 2000);
+    return `idle visible ${Date.now() - started}ms after the first recovery trigger`;
+  });
+
   await runCase('summary advancement brings the selected history without a result event', async () => {
     await card.click({ timeout: 2000 });
     await page.locator('main').getByText('seed', { exact: true }).waitFor();
@@ -270,15 +289,15 @@ try {
   });
 
   await runCase('snapshot status and history render without another history round trip', async () => {
-    currentTaskSeq = 4;
-    await page.evaluate(() => window.__emitWs({ type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: 4, status: 'running', session: { lastLegalWorkerState: 'running' } }));
+    currentTaskSeq = 5;
+    await page.evaluate(() => window.__emitWs({ type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: 5, status: 'running', session: { lastLegalWorkerState: 'running' } }));
     await waitForDot('bg-accent', 2000);
     historyState = [...historyState, { role: 'assistant', content: 'snapshot-only-answer', nativeItemId: 'snapshot-only-answer' }];
     historyRevision = 3;
     sessionsState = [session('idle')];
     const beforeRequests = historyRequests;
     const started = Date.now();
-    await page.evaluate(payload => window.__emitWs(payload), { type: 'resync.snapshot', sessions: sessionsState, workers: [{ sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: 4, status: 'idle' }], details: { A: { history: historyState, historyStart: 0, historyTotal: 3, historyTruncated: false, historyEpoch: 'indicator-history', historyRevision: 3 } } });
+    await page.evaluate(payload => window.__emitWs(payload), { type: 'resync.snapshot', sessions: sessionsState, workers: [{ sessionId: 'A', workerId: 'w1', generation: 1, taskSeq: 5, status: 'idle' }], details: { A: { history: historyState, historyStart: 0, historyTotal: 3, historyTruncated: false, historyEpoch: 'indicator-history', historyRevision: 3 } } });
     await waitForDot('bg-success', 2000);
     await page.locator('main').getByText('snapshot-only-answer', { exact: true }).waitFor({ timeout: 2000 });
     assert.equal(historyRequests, beforeRequests, 'snapshot reused its existing history payload');
