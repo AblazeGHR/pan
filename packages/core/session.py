@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import contextvars
 import json
 import os
 import re
@@ -2310,9 +2311,15 @@ async def save_async(s: Session):
     """
     state, ticket, enqueued_at = _reserve_save_ticket(s.id)
     try:
-        save_task = asyncio.create_task(asyncio.to_thread(
+        # Submit before yielding: a sync save on this event loop may reserve
+        # the next ticket and block waiting for us.  Scheduling to_thread as
+        # another Task would leave our ticket waiting on that blocked loop.
+        # Preserve to_thread's propagation of the caller's context variables.
+        context = contextvars.copy_context()
+        save_task = asyncio.get_running_loop().run_in_executor(
+            None, context.run,
             _save_sync_reserved, s, False, state, ticket, enqueued_at,
-        ))
+        )
     except BaseException:
         state.cancel_before_begin(ticket)
         raise

@@ -101,6 +101,63 @@ def test_same_session_flushes_are_fifo_and_do_not_duplicate_history(monkeypatch)
     assert _jsonl(session.id) == [first, second]
 
 
+def test_sync_save_after_async_reservation_does_not_deadlock(monkeypatch):
+    """A sync API save can arrive before a scheduled async writer Task runs."""
+    session = _sess.create(name="sync-after-async")
+    session.history.append({"role": "user", "content": "persist-once"})
+    state = _sess._SAVE_STATES[session.id]
+    original_wait = state.condition.wait
+
+    def bounded_wait(timeout=None):
+        # Bound the old implementation's deadlock without relying on an
+        # asyncio timeout (the event loop itself is the blocked thread).
+        if not original_wait(timeout=2):
+            raise TimeoutError("save ticket depended on the blocked event loop")
+        return True
+
+    monkeypatch.setattr(state.condition, "wait", bounded_wait)
+
+    async def scenario():
+        async_save = asyncio.create_task(_sess.save_async(session))
+        await asyncio.sleep(0)
+        # The async save has reserved its ticket.  Do not yield again before
+        # the synchronous API save; deferred to_thread submission deadlocks.
+        try:
+            _sess.save(session)
+        finally:
+            await async_save
+
+    asyncio.run(scenario())
+    assert _jsonl(session.id) == [{"role": "user", "content": "persist-once"}]
+    assert state.pending == 0
+    assert not state.active
+    assert state.serving_ticket == state.next_ticket
+
+
+def test_executor_submission_failure_retires_ticket(monkeypatch):
+    """An executor rejection must not strand all later saves of the Session."""
+    session = _sess.create(name="submit-failure")
+    session.history.append({"role": "user", "content": "retry-after-rejection"})
+
+    async def scenario():
+        loop = asyncio.get_running_loop()
+        with monkeypatch.context() as patch:
+            def reject_submission(*args, **kwargs):
+                raise RuntimeError("executor rejected submission")
+
+            patch.setattr(loop, "run_in_executor", reject_submission)
+            with pytest.raises(RuntimeError, match="executor rejected"):
+                await _sess.save_async(session)
+        await _sess.save_async(session)
+
+    asyncio.run(scenario())
+    assert _jsonl(session.id) == [
+        {"role": "user", "content": "retry-after-rejection"}]
+    state = _sess._SAVE_STATES[session.id]
+    assert state.pending == 0
+    assert state.serving_ticket == state.next_ticket
+
+
 def test_history_replace_keeps_append_after_blocked_full_flush(monkeypatch):
     """A full history replacement and a racing append retain both batches."""
     session = _sess.create(name="replace")
