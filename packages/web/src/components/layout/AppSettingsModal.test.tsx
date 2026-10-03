@@ -289,7 +289,7 @@ describe('AppSettingsModal', () => {
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     expect(card.textContent).toContain('Default group by');
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(9);
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(8);
     expect(card.textContent).toContain('Notification');
     expect(card.textContent).toContain('Enable Session and global history search');
   });
@@ -1072,7 +1072,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(9);
+    expect(switches).toHaveLength(8);
     // meta-agent is on by default; toggle it off.
     const metaSwitch = switches.find((element) => element.textContent?.includes('Show meta-agent info'))!;
     expect(metaSwitch.getAttribute('aria-checked')).toBe('true');

@@ -350,6 +350,7 @@ describe('InputRow send queue wiring', () => {
         '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
@@ -393,6 +394,7 @@ describe('InputRow send queue wiring', () => {
         '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
   });
@@ -549,6 +551,7 @@ describe('InputRow send queue wiring', () => {
         ),
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
     expect(uploadSessionAttachment).not.toHaveBeenCalled();
@@ -734,6 +737,7 @@ describe('InputRow send queue wiring', () => {
         '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
     expect(fetchDirectories).toHaveBeenCalledWith('D:\\project\\src', true);
@@ -871,6 +875,7 @@ describe('InputRow send queue wiring', () => {
         '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
   });
@@ -1084,6 +1089,7 @@ describe('InputRow send queue wiring', () => {
       'live path msg',
       expect.any(String),
       expect.any(Array),
+      false,
     );
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
@@ -1202,6 +1208,7 @@ describe('InputRow send queue wiring', () => {
         'survive reconnect',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
     expect(useSessionStore.getState().currentMessages).toEqual([{
@@ -1370,6 +1377,7 @@ describe('InputRow send queue wiring', () => {
         'belongs to s1',
         expect.any(String),
         expect.any(Array),
+        false,
       ),
     );
     expect(textarea.value).toBe('belongs to s2');

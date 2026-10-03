@@ -342,7 +342,7 @@ describe('reaudit · ordered event pipeline', () => {
       useSessionStore.getState().applyHistoryPage('A', { history: [{ role: 'assistant', content: 'complete answer' }],
         start: 0, total: 1, hasMore: false, historyEpoch: 'h', historyRevision: 1 });
     });
-    expect(shape()).toEqual(['assistant:complete answer']);
+    expect(shape()).toEqual(['assistant:complete answer', 'system:[DONE] Task completed']);
     expect(useSessionStore.getState().liveStreamBuffers.A).toBeUndefined();
   });
 
@@ -561,7 +561,7 @@ describe('reaudit · ordered event pipeline', () => {
     const stateAfterBackground = useSessionStore.getState();
     expect(stateAfterBackground.currentMessages.map((row) => row.content)).toEqual(['A stays selected']);
     expect(stateAfterBackground.sessions.find((session) => session.id === 'B')?.lastMessage).toBe('B follow-up');
-    expect(stateAfterBackground.sessionTranscripts.B?.runtime.map((row) => row.content)).toEqual(['B report', 'B follow-up']);
+    expect(stateAfterBackground.sessionTranscripts.B?.runtime.map((row) => row.content)).toEqual(['B report', '[DONE] Task completed', 'B follow-up']);
     expect(stateAfterBackground.sessionTranscripts.B?.window.rows.size).toBe(2);
 
     apiMock.fetchSessionHistory.mockImplementation(async (sessionId: string) => sessionId === 'B' ? ({
@@ -577,12 +577,12 @@ describe('reaudit · ordered event pipeline', () => {
     }));
     await act(async () => { await useSessionStore.getState().selectSession('B'); });
     expect(useSessionStore.getState().currentMessages.map((row) => row.content))
-      .toEqual(['B initial', 'Injected report request', 'B report', 'B follow-up']);
+      .toEqual(['B initial', 'Injected report request', 'B report', '[DONE] Task completed', 'B follow-up']);
     await act(async () => { await useSessionStore.getState().selectSession('A'); });
     expect(useSessionStore.getState().currentMessages.map((row) => row.content)).toEqual(['A stays selected']);
     await act(async () => { await useSessionStore.getState().selectSession('B'); });
     expect(useSessionStore.getState().currentMessages.map((row) => row.content))
-      .toEqual(['B initial', 'Injected report request', 'B report', 'B follow-up']);
+      .toEqual(['B initial', 'Injected report request', 'B report', '[DONE] Task completed', 'B follow-up']);
   });
 
   it('late history page cannot replace selected result summary with the local DONE marker', () => {

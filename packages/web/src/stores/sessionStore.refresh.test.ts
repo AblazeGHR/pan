@@ -668,3 +668,24 @@ describe('sessionStore refresh staleness guards', () => {
     }
   });
 });
+
+
+describe('background history metadata during a summary refresh', () => {
+  it('keeps the loaded window metadata together with the preserved background history', async () => {
+    pendingFetches = [];
+    const history = [msg('user', 'older'), msg('assistant', 'answer')];
+    useSessionStore.setState({ sessions: [mk('A', 'A'), mk('B', 'B', {
+      history, historyStart: 70, historyTotal: 72, historyTruncated: true,
+      historyEpoch: 'b-history', historyRevision: 8,
+    })], currentSessionId: 'A', currentMessages: [], sessionTranscripts: {},
+      _sessionWsTouchedSeq: {}, _sessionEventPatches: {} });
+    const promise = useSessionStore.getState().loadSessions();
+    resolveNextFetch([mk('A', 'A'), mk('B', 'B', {
+      history: [], historyTotal: 73, historyEpoch: 'b-history', historyRevision: 9,
+    })]);
+    await promise;
+    expect(useSessionStore.getState().sessions.find(session => session.id === 'B'))
+      .toMatchObject({ history, historyStart: 70, historyTruncated: true,
+        historyEpoch: 'b-history', historyRevision: 8, historyTotal: 73 });
+  });
+});

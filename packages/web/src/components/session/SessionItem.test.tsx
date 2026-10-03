@@ -57,7 +57,7 @@ describe('SessionItem streaming preview', () => {
     expect(screen.getByText('Answer body')).toBeTruthy();
   });
 
-  it('hides adapter and Workspace badges at mobile widths to leave room for session titles', () => {
+  it('places the adapter in the quick action rail and hides the Workspace badge at mobile widths', () => {
     useWorkspaceStore.setState({
       workspaces: [{ id: 'ws-mobile', name: 'Mobile Space', order: null }],
     });
@@ -69,7 +69,8 @@ describe('SessionItem streaming preview', () => {
       />,
     );
 
-    expect(container.querySelector('[data-testid="session-adapter-badge"]')?.className).toContain('max-md:hidden');
+    expect(container.querySelector('[data-testid="session-adapter-badge"]')?.className).toContain('session-quick-action-adapter');
+    expect(container.querySelector('[data-testid="session-adapter-badge"]')?.closest('[data-testid="session-quick-action-rail"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="session-workspace-badge"]')?.className).toContain('max-md:hidden');
   });
 

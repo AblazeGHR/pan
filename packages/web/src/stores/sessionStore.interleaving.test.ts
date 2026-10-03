@@ -333,3 +333,24 @@ it('unchanged live blocks keep their rendered object references', () => {
   store().applyLiveStream('A', [first, row('second item grows')], meta);
   expect(store().currentMessages[0]).toBe(rendered);
 });
+
+
+it('keeps versioned canonical offsets when a delayed summary reports fewer rows', () => {
+  const history = Array.from({ length: 54 }, (_, index): Message => ({
+    role: index % 2 ? 'assistant' : 'user',
+    content: `history-${70 + index}`,
+    messageId: `legacy:A:h:${70 + index}`,
+  }));
+  store().applyHistoryPage('A', { history, start: 70, total: 124,
+    hasMore: true, historyEpoch: 'h', historyRevision: 124 });
+  // Summary freshness has a separate cursor and can lag a just-read tail.
+  // Older summary reconciliation also omitted the mirrored window start.
+  useSessionStore.setState((s) => ({ sessions: s.sessions.map(session =>
+    session.id === 'A' ? { ...session, historyTotal: 121, historyStart: undefined } : session) }));
+  store().applyHistoryPage('A', { history: history.slice(4), start: 74, total: 124,
+    hasMore: true, historyEpoch: 'h', historyRevision: 124 });
+  expect(store().sessionTranscripts.A!.window.rows.get(70)?.messageId).toBe('legacy:A:h:70');
+  expect(store().sessionTranscripts.A!.window.total).toBe(124);
+  expect(texts()).toEqual(history.map(message => message.content));
+  expect(store().historyLoadEnd).toBe(70);
+});

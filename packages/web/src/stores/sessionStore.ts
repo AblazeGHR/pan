@@ -731,14 +731,19 @@ function ensureTranscript(
 /**
  * A transcript is stale when the Session's canonical projection cannot be a
  * continuation of the window it was built from: the epoch changed, or the row
- * count shrank (history replaced rather than appended). Real flows only grow,
- * so this never fires in production; it is what keeps a transcript from
- * outliving the Session snapshot it was derived from.
+ * count shrank in an unversioned snapshot (legacy fixtures and compatibility).
+ * Versioned windows retain their offsets within an epoch; a delayed summary
+ * count is not a history replacement boundary.
  */
 function transcriptIsStale(transcript: SessionTranscript, session: Session): boolean {
   if (session.historyEpoch && transcript.window.epoch
       && session.historyEpoch !== transcript.window.epoch) return true;
-  if (typeof session.historyTotal === 'number'
+  // A summary can lag a history response while a background Worker finishes.
+  // Within a known epoch, a smaller summary count cannot invalidate durable
+  // offsets or promote the mirrored runtime rows into canonical history.
+  const sameKnownEpoch = Boolean(session.historyEpoch && transcript.window.epoch
+    && session.historyEpoch === transcript.window.epoch);
+  if (!sameKnownEpoch && typeof session.historyTotal === 'number'
       && session.historyTotal < transcript.window.total) return true;
   return false;
 }
@@ -1682,6 +1687,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               ...next,
               history: cur.history,
               historyTruncated: cur.historyTruncated,
+              historyStart: cur.historyStart,
+              historyEpoch: cur.historyEpoch,
+              historyRevision: cur.historyRevision,
               historyTotal: Math.max(
                 sess.historyTotal ?? 0,
                 cur.historyTotal ?? 0,

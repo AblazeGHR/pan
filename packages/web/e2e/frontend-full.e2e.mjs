@@ -97,17 +97,29 @@ async function canonical(id) {
 async function equalCanonical(label) {
   const current = await state();
   const expected = projection(await canonical(current.id));
-  const result = await poll(state, s => JSON.stringify(projection(s.rows)) === JSON.stringify(expected.slice(s.start)), label);
+  await poll(state, s => JSON.stringify(projection(s.rows)) === JSON.stringify(expected.slice(s.start)), label);
   const violations = await page.evaluate(() => window.__transientViolations || []);
   assert.deepEqual(violations, [], 'no transient duplicate reply before convergence');
   // Compare virtual DOM rows by their actual display index, including the
   // collapsed thinking/tool-group summaries. Also check visual geometry:
   // correct store order is insufficient if measured rows overlap on screen.
   await page.waitForTimeout(80);
-  const dom = await page.locator('main [data-index]').evaluateAll(rows => rows.map(el => ({
-    index: Number(el.dataset.index), text: el.textContent,
-    top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom,
-  })));
+  // Pagination can advance during the render wait. Capture the store and DOM
+  // in one browser task so indexes refer to the same history window.
+  const { result, dom } = await page.evaluate(() => {
+    const s = window.__panSessionStore.getState();
+    return {
+      result: { id: s.currentSessionId, rows: s.currentMessages,
+        total: s.sessions.find(x => x.id === s.currentSessionId)?.historyTotal,
+        start: s.historyLoadEnd, more: s.hasMoreMessages },
+      dom: [...document.querySelectorAll('main [data-index]')].map(el => ({
+        index: Number(el.dataset.index), text: el.textContent,
+        top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom,
+      })),
+    };
+  });
+  assert.equal(result.id, current.id, 'canonical check stays on the selected Session');
+  assert.deepEqual(projection(result.rows), expected.slice(result.start), 'sampled window matches canonical history');
   assert.ok(dom.length > 0, 'rendered rows');
   const grouped = [];
   for (const row of result.rows) {
