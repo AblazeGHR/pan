@@ -124,6 +124,8 @@ export interface Session {
   /** Names of MCP servers currently enabled for this session. */
   mcpServers?: string[];
   history: Message[];
+  /** Frontend demo sidecar; the real backend stores this outside Session JSON. */
+  hiddenMessageIds?: string[];
   /** Latest formal assign task context used by subsequent agent_send messages. */
   activeTaskId?: string | null;
   historyTruncated?: boolean;

@@ -71,7 +71,6 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     && sessionBusy
     && currentMessages[currentMessages.length - 1] === message;
   const canDelete = (role === 'user' || role === 'assistant')
-    && !sessionBusy
     && !message.streaming
     && !latestIsStreaming;
   const onDelete = async () => {

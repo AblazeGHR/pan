@@ -127,6 +127,9 @@ def get_data_catalog() -> dict:
     managed = "data_retention_policy"
     protected = "not_auto_cleanable"
     categories = [
+        _category("hidden-messages", "Hidden history message records", "Session-scoped UI visibility markers kept outside Session/history.", "session_lifecycle_cleanup",
+                  [_path("Hidden message records", DATA_ROOT / "hidden-messages")],
+                  note="Sidecar JSON only; hiding never rewrites Session JSON or history JSONL."),
         _category("sessions-history", "Sessions 元数据与 history", "Session JSON、history JSONL、queue_pending 与投递状态。", managed,
                   [_path("Sessions 与 history 目录", DATA_ROOT / "sessions")],
                   note="独立保留策略；活跃 Worker、队列、关系和任务引用会阻止到期删除。"),

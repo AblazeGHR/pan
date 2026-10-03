@@ -1973,42 +1973,18 @@ def save_full(s: Session):
 
 
 def ensure_history_message_ids(s: Session) -> bool:
-    """Assign durable identities to user/assistant entries for precise UI actions."""
-    changed = False
-    seen: set[str] = set()
-    for message in s.history:
-        if not isinstance(message, dict) or message.get("role") not in {"user", "assistant"}:
-            continue
-        message_id = message.get("_pan_message_id")
-        if not isinstance(message_id, str) or not message_id.startswith("msg_") or message_id in seen:
-            message_id = "msg_" + uuid.uuid4().hex
-            message["_pan_message_id"] = message_id
-            changed = True
-        seen.add(message_id)
-    if changed:
-        _save_sync(s, force_full=True)
-    return changed
+    """Compatibility no-op; history identities are now read-only projections."""
+    return False
 
 
 def delete_history_item(s: Session, message_id: str) -> str | None:
-    """Remove one deletable history entry by its ``msg_*`` identity."""
-    index = next((i for i, message in enumerate(s.history)
-                  if isinstance(message, dict)
-                  and message.get("_pan_message_id") == message_id), None)
-    if index is None:
-        return "message_not_found"
-    return delete_history_item_at(s, index)
+    """Deprecated compatibility shim; transcript deletion is disabled."""
+    return "message_not_found"
 
 
 def delete_history_item_at(s: Session, index: int) -> str | None:
-    """Remove the history entry at ``index`` and rewrite durable history."""
-    if not isinstance(index, int) or not (0 <= index < len(s.history)):
-        return "message_not_found"
-    if not isinstance(s.history[index], dict) or s.history[index].get("role") not in {"user", "assistant"}:
-        return "message_not_deletable"
-    del s.history[index]
-    _save_sync(s, force_full=True)
-    return None
+    """Deprecated compatibility shim; transcript deletion is disabled."""
+    return "message_not_found"
 
 
 async def save_async(s: Session):

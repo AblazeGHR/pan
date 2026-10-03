@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
@@ -78,6 +79,7 @@ from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
 from packages.core.data_catalog import get_data_catalog
+from packages.core.hidden_messages import HiddenMessageStore
 from packages.core.codex_quota import (
     format_codex_quota_record,
     validate_quota_window,
@@ -1721,9 +1723,10 @@ def _resync_snapshot(
         current = _summary_session_get(sid)
         if not isinstance(current, sess.Session):
             continue
-        page = sess.history_page(sid, limit=_RESYNC_HISTORY_LIMIT) or {
-            "history": [], "total": 0, "hasMore": False, "start": 0,
-        }
+        page = _visible_history_page_lookup(sid, 0, _RESYNC_HISTORY_LIMIT)
+        if page is _NOT_FOUND or page is None:
+            page = {"history": [], "rawIndices": [], "total": 0,
+                    "hasMore": False, "start": 0}
         detail = _session_to_api(
             current,
             include_history=False,
@@ -1735,6 +1738,7 @@ def _resync_snapshot(
             start=page.get("start", 0),
             history_epoch=page.get("historyEpoch"),
             include_identity=include_identity,
+            raw_indices=page.get("rawIndices"),
         )
         detail["historyTotal"] = page.get("total", len(detail["history"]))
         detail["historyTruncated"] = bool(page.get("hasMore"))
@@ -1911,13 +1915,22 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+_HIDDEN_HISTORY_CACHE: contextvars.ContextVar[dict[str, set[str]] | None] = contextvars.ContextVar(
+    "pan_hidden_history_cache", default=None,
+)
+
+
 @app.middleware("http")
 async def no_cache_api(request: Request, call_next):
     """Prevent browser/CDN from caching API responses."""
-    response = await call_next(request)
-    if request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+    token = _HIDDEN_HISTORY_CACHE.set({})
+    try:
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    finally:
+        _HIDDEN_HISTORY_CACHE.reset(token)
 
 
 # ── helpers ──
@@ -1952,6 +1965,17 @@ def _session_to_api(
         )
         if include_history else None
     )
+    hidden_ids = _hidden_history_ids(s.id)
+    if include_history or getattr(s, "_history_loaded", True):
+        visible_history_total = sum(
+            1 for index, row in enumerate(s.history)
+            if _history_wire_identity(s.id, row, index, getattr(s, "history_epoch", None))
+            not in hidden_ids
+        )
+    else:
+        visible_history_total = max(
+            0, int(projection["history_total"] or 0) - len(hidden_ids)
+        )
     if history_payload is not None and w and w.status in {"running", "queued"}:
         # Mark the newest assistant entry as streaming so the frontend can
         # distinguish an in-flight reply from a settled one (delete guard).
@@ -2029,7 +2053,7 @@ def _session_to_api(
         "lastUserPreview": projection["last_user_preview"],
         "lastAssistantPreview": projection["last_assistant_preview"],
         "lastDisplayPreview": projection["last_display_preview"],
-        "historyTotal": projection["history_total"],
+        "historyTotal": visible_history_total,
         "historyEpoch": getattr(s, "history_epoch", None),
         "historyRevision": getattr(s, "history_revision", 0),
     }
@@ -2076,28 +2100,161 @@ _STORE_READ_EXECUTOR = ThreadPoolExecutor(
 
 
 async def _store_read(func, /, *args, **kwargs):
-    """Run one blocking Session-store read on the dedicated store-read thread."""
+    """Run one blocking Session-store read on the dedicated store-read thread.
+
+    Propagate the request context so request-scoped sidecar caches remain shared
+    between the event-loop serializer and the offloaded store read.
+    """
     loop = asyncio.get_running_loop()
+    context = contextvars.copy_context()
+    operation = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(
-        _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
+        _STORE_READ_EXECUTOR, context.run, operation)
+
+
+def _hidden_message_store() -> HiddenMessageStore:
+    # Keep test/session-store overrides aligned: production uses
+    # data/hidden-messages beside data/sessions.  Some lifecycle tests replace
+    # ``sess`` with a small fake that has no SESSION_DIR attribute.
+    session_dir = Path(getattr(sess, "SESSION_DIR", DATA_DIR / "sessions"))
+    return HiddenMessageStore(session_dir.parent / "hidden-messages")
+
+
+def _history_wire_identity(session_id: str, message: object, absolute_index: int,
+                           history_epoch: str | None = None) -> str | None:
+    if isinstance(message, dict):
+        identity = message.get("_pan_message_id")
+        if not isinstance(identity, str) or not identity:
+            identity = message.get("messageId")
+        if isinstance(identity, str) and identity:
+            return identity
+    epoch = history_epoch or "legacy"
+    return f"legacy:{session_id}:{epoch}:{absolute_index}"
+
+
+def _hidden_history_ids(session_id: str) -> set[str]:
+    cache = _HIDDEN_HISTORY_CACHE.get()
+    if cache is not None and session_id in cache:
+        return cache[session_id]
+    try:
+        hidden = _hidden_message_store().hidden_ids(session_id)
+    except (OSError, ValueError):
+        hidden = set()
+    if cache is not None:
+        cache[session_id] = hidden
+    return hidden
+
+
+def _read_history_without_hydrating(
+    session_id: str, current: sess.Session,
+) -> tuple[list[dict], str | None, int]:
+    """Read history rows without turning a shallow Session into a full one.
+
+    A loaded in-memory Session is safe to copy directly (it may include recent
+    unsaved worker output).  Otherwise read the companion JSONL, falling back
+    to the history embedded in the session JSON for legacy sessions.
+    """
+    cached = getattr(sess, "_cache", {}).get(session_id)
+    if cached is not None and getattr(cached, "_history_loaded", True):
+        return (
+            [dict(row) for row in cached.history if isinstance(row, dict)],
+            getattr(cached, "history_epoch", None),
+            getattr(cached, "history_revision", 0),
+        )
+
+    history_path = sess._history_path(session_id)
+    if history_path.exists():
+        rows: list[dict] = []
+        try:
+            with history_path.open("rb") as handle:
+                for raw_line in handle:
+                    try:
+                        row = json.loads(raw_line.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        continue
+                    if isinstance(row, dict):
+                        rows.append(row)
+        except OSError:
+            rows = []
+        return (
+            rows,
+            getattr(current, "history_epoch", None),
+            getattr(current, "history_revision", 0),
+        )
+
+    try:
+        data = json.loads(sess._path(session_id).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    embedded = data.get("history") if isinstance(data, dict) else None
+    rows = [row for row in embedded if isinstance(row, dict)] if isinstance(embedded, list) else []
+    epoch = data.get("history_epoch") or data.get("historyEpoch") or getattr(current, "history_epoch", None)
+    revision = data.get("history_revision", data.get("historyRevision", getattr(current, "history_revision", 0)))
+    return rows, epoch, revision
+
+
+def _visible_history_total(s: sess.Session) -> int:
+    """Count visible rows while preserving the Session/history contents."""
+    hidden = _hidden_history_ids(s.id)
+    epoch = getattr(s, "history_epoch", None)
+    return sum(
+        1 for index, row in enumerate(s.history)
+        if _history_wire_identity(s.id, row, index, epoch) not in hidden
+    )
+
+
+def _visible_history_page_lookup(session_id: str, before: int, limit: int):
+    """Return a page after hiding rows, with raw indexes for legacy IDs."""
+    if not _summary_session_get(session_id):
+        return _NOT_FOUND
+    hidden = _hidden_history_ids(session_id)
+    if not hidden:
+        page = sess.history_page(session_id, before=before, limit=limit)
+        if page is not None:
+            page["rawIndices"] = list(range(
+                page.get("start", 0), page.get("start", 0) + len(page.get("history") or [])
+            ))
+        return _NOT_FOUND if page is None else page
+
+    current = _summary_session_get(session_id)
+    if current is None:
+        return _NOT_FOUND
+    raw_history, epoch, history_revision = _read_history_without_hydrating(session_id, current)
+    visible = [
+        (index, row) for index, row in enumerate(raw_history)
+        if _history_wire_identity(session_id, row, index, epoch) not in hidden
+    ]
+    try:
+        bounded_limit = max(1, min(int(limit), sess.HISTORY_PAGE_MAX))
+    except (TypeError, ValueError):
+        bounded_limit = 50
+    try:
+        requested_before = max(0, int(before or 0))
+    except (TypeError, ValueError):
+        requested_before = 0
+    total = len(visible)
+    effective_before = total if requested_before <= 0 else min(requested_before, total)
+    start = max(0, effective_before - bounded_limit)
+    selected = visible[start:effective_before]
+    return {
+        "history": [row for _, row in selected],
+        "rawIndices": [index for index, _ in selected],
+        "total": total,
+        "hasMore": start > 0,
+        "start": start,
+        "historyEpoch": epoch,
+        "historyRevision": history_revision,
+    }
 
 
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:
-    """Read one bounded history page per Session in a single blocking call."""
-    return {sid: sess.history_page(sid, limit=limit) for sid in session_ids}
+    """Read one bounded visible history page per Session in one blocking call."""
+    return {sid: _visible_history_page_lookup(sid, 0, limit) for sid in session_ids}
 
 
 def _history_page_lookup(session_id: str, before: int, limit: int):
-    """Shallow membership check plus one bounded page, in one blocking call.
-
-    ``_NOT_FOUND`` covers both "no such Session" and "unreadable main file",
-    which the HTTP layer reports as the historical
-    ``{"error": "Session not found"}`` payload.
-    """
-    if not _summary_session_get(session_id):
-        return _NOT_FOUND
-    page = sess.history_page(session_id, before=before, limit=limit)
-    return _NOT_FOUND if page is None else page
+    """Read one bounded visible page in a blocking store-read call."""
+    return _visible_history_page_lookup(session_id, before, limit)
 
 
 def _session_list_api(
@@ -2120,7 +2277,9 @@ def _session_list_api(
         pin_projection=pin_projection,
     )
     if page is _PAGE_UNSET:
-        page = sess.history_page(s.id, limit=history_limit)
+        page = _visible_history_page_lookup(s.id, 0, history_limit)
+        if page is _NOT_FOUND:
+            page = None
     if page is None:
         history = []
         total = 0
@@ -2134,6 +2293,7 @@ def _session_list_api(
         history,
         start=page.get("start", 0) if page else 0,
         history_epoch=page.get("historyEpoch") if page else getattr(s, "history_epoch", None),
+        raw_indices=page.get("rawIndices") if page else None,
     )
     api["historyTruncated"] = has_more
     api["historyTotal"] = total
@@ -4201,11 +4361,19 @@ def _api_history(
     start: int = 0,
     history_epoch: str | None = None,
     include_identity: bool = True,
+    raw_indices: list[int] | None = None,
+    hidden_ids: set[str] | None = None,
 ) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
     normalized: list[dict] = []
+    hidden = _hidden_history_ids(session_id) if hidden_ids is None else hidden_ids
     for offset, message in enumerate(history):
-        absolute_index = max(0, int(start or 0)) + offset
+        absolute_index = (
+            raw_indices[offset] if raw_indices is not None and offset < len(raw_indices)
+            else max(0, int(start or 0)) + offset
+        )
+        if _history_wire_identity(session_id, message, absolute_index, history_epoch) in hidden:
+            continue
         delivery_keys = (
             message.get("delivered_keys")
             if isinstance(message, dict) and isinstance(message.get("delivered_keys"), list)
@@ -5800,13 +5968,16 @@ async def api_get_session(session_id: str, view: str = "full",
     if bounded_history:
         result = _session_to_api(s, include_history=False)
         page = await _store_read(
-            sess.history_page, session_id, limit=historyLimit)
-        page = page or {"history": [], "total": 0, "hasMore": False, "start": 0}
+            _visible_history_page_lookup, session_id, 0, historyLimit)
+        page = page if page is not _NOT_FOUND else None
+        page = page or {"history": [], "rawIndices": [], "total": 0,
+                        "hasMore": False, "start": 0}
         result["history"] = _api_history(
             session_id,
             page["history"],
             start=page.get("start", 0),
             history_epoch=page.get("historyEpoch"),
+            raw_indices=page.get("rawIndices"),
         )
         result["historyTruncated"] = bool(page["hasMore"])
         result["historyTotal"] = page["total"]
@@ -5921,6 +6092,7 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
         page["history"],
         start=page.get("start", 0),
         history_epoch=page.get("historyEpoch"),
+        raw_indices=page.get("rawIndices"),
     )
     active_worker = worker.find_alive_worker_by_session(session_id)
     if active_worker and active_worker.status in {"running", "queued"}:
@@ -5938,18 +6110,24 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     }
 
 
-def _delete_history_message(session_id: str, message_id: str):
+def _resolve_history_message(session_id: str, message_id: str):
     """Resolve one entry by ``msg_*`` or ``legacy:{sid}:{epoch}:{index}`` id.
 
-    Runs on the store thread: hydration and the delete rewrite are blocking
-    disk I/O. The legacy identity is resolved against the *current* history
-    epoch so a stale page cannot delete the wrong row.
+    Runs on the store thread: hydration is blocking disk I/O. The legacy
+    identity is resolved against the *current* history epoch so a stale page
+    cannot resolve the wrong row.
     """
     s = sess.get(session_id)
     if s is None:
         return None
     if message_id.startswith("msg_"):
-        return s, sess.delete_history_item(s, message_id)
+        index = next((i for i, message in enumerate(s.history)
+                      if isinstance(message, dict)
+                      and (message.get("_pan_message_id") == message_id
+                           or message.get("messageId") == message_id)), None)
+        if index is None:
+            return s, None, "message_not_found"
+        return s, index, None
     parts = message_id.split(":")
     if len(parts) != 4 or parts[0] != "legacy" or parts[1] != session_id:
         return s, "message_not_found"
@@ -5960,19 +6138,33 @@ def _delete_history_message(session_id: str, message_id: str):
     try:
         index = int(parts[3])
     except ValueError:
-        return s, "message_not_found"
-    return s, sess.delete_history_item_at(s, index)
+        return s, None, "message_not_found"
+    if not 0 <= index < len(s.history):
+        return s, None, "message_not_found"
+    return s, index, None
+
+
+def _delete_history_message(session_id: str, message_id: str):
+    """Hide one entry after the shared identity and epoch checks."""
+    resolved = _resolve_history_message(session_id, message_id)
+    if resolved is None:
+        return None
+    s, index, error_code = resolved
+    if error_code:
+        return s, error_code
+    message = s.history[index]
+    if not isinstance(message, dict) or message.get("role") not in {"user", "assistant"}:
+        return s, "message_not_deletable"
+    identity = _history_wire_identity(
+        session_id, message, index, getattr(s, "history_epoch", None),
+    )
+    _hidden_message_store().hide(session_id, identity)
+    return s, None
 
 
 @app.delete("/api/sessions/{session_id}/history/{message_id}")
 async def api_delete_session_history(session_id: str, message_id: str):
-    """Delete one user/assistant history entry after idempotent identity checks."""
-    active_worker = worker.find_alive_worker_by_session(session_id)
-    if active_worker and active_worker.status in {"running", "queued"}:
-        return {"ok": False, "error": {
-            "code": "session_busy",
-            "message": "任务运行中，无法删除消息",
-        }}
+    """Hide one user/assistant history entry without changing the transcript."""
     if (not isinstance(message_id, str)
             or not (message_id.startswith("msg_") or message_id.startswith("legacy:"))):
         return {"ok": False, "error": {"code": "invalid_message_id", "message": "Invalid message id"}}
@@ -5983,7 +6175,11 @@ async def api_delete_session_history(session_id: str, message_id: str):
     if error_code:
         error_message = "This message cannot be deleted" if error_code == "message_not_deletable" else "Message not found"
         return {"ok": False, "error": {"code": error_code, "message": error_message}}
-    return {"ok": True, "messageId": message_id, "historyTotal": len(s.history)}
+    return {
+        "ok": True,
+        "messageId": message_id,
+        "historyTotal": _visible_history_total(s),
+    }
 
 
 # ── Agent queue (session.queue_pending, normalized view) ──
@@ -6845,6 +7041,14 @@ def _cleanup_kimi_home(session_id: str) -> None:
         _log(f"[kimi-home] 清理失败 {p}: {e}")
 
 
+def _cleanup_hidden_messages(session_id: str) -> None:
+    """Remove this Session's hidden-message sidecar, if present."""
+    try:
+        _hidden_message_store().delete_session(session_id)
+    except (OSError, ValueError) as exc:
+        _log(f"[hidden-messages] cleanup failed for {session_id}: {exc}")
+
+
 def _session_targets_from_item(value: object) -> set[str]:
     if not isinstance(value, dict):
         return set()
@@ -7234,6 +7438,10 @@ def _retention_cleanup_auxiliary(session_id: str) -> list[str]:
             skipped.append("kimi_session_home_unsafe")
     elif (kimi_root.exists() or kimi_root.is_symlink()) and safe_kimi_root is None:
         skipped.append("kimi_home_root_unsafe")
+    try:
+        _hidden_message_store().delete_session(session_id)
+    except (OSError, ValueError):
+        skipped.append("hidden_messages_cleanup_failed")
     return skipped
 
 
@@ -7247,6 +7455,7 @@ def _delete_session_storage(session_id: str, *, cleanup_auxiliary: bool,
         else:
             _cleanup_mcp_config(session_id)
             _cleanup_kimi_home(session_id)
+            _cleanup_hidden_messages(session_id)
     return []
 
 
@@ -7386,6 +7595,7 @@ async def api_batch_delete_sessions(data: dict):
         sess.delete(sid)
         _cleanup_mcp_config(sid)
         _cleanup_kimi_home(sid)
+        _cleanup_hidden_messages(sid)
         deleted += 1
 
     await broadcast({

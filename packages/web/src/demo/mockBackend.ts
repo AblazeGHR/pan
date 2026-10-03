@@ -7,7 +7,7 @@
  * normal store actions; nothing here talks to 8768/8767.
  */
 
-import type { AgentQueueItem, Session } from '@/types';
+import type { AgentQueueItem, Message, Session } from '@/types';
 import type { ServerFileAttachmentResponse, SessionAttachmentUploadResponse } from '@/services/api';
 
 export function isMockMode(): boolean {
@@ -173,6 +173,22 @@ function persistSessions(): void {
 
 const findSession = (id: string) => mockSessions.find((s) => s.id === id);
 
+function mockMessageId(session: Session, index: number): string {
+  return session.history[index]?.messageId ?? `mock-${session.id}-${index}`;
+}
+
+function visibleMockHistory(session: Session): Message[] {
+  const hidden = new Set(session.hiddenMessageIds ?? []);
+  return session.history
+    .map((message, index) => ({ ...message, messageId: mockMessageId(session, index) }))
+    .filter((message) => !hidden.has(message.messageId!));
+}
+
+function mockSessionView(session: Session): Session {
+  const history = visibleMockHistory(session);
+  return { ...session, history, historyTotal: history.length };
+}
+
 /** Keep the mock DB in sync with local drag/management mutations so a reload
  *  (which re-fetches /api/sessions) reflects what the user just did. */
 export function applyMockSessionUpdate(id: string, patch: Partial<Session>): void {
@@ -298,7 +314,7 @@ const cliAdapters = ['cbc', 'kimi', 'opencode', 'codex'].map((name) => ({
 function handleMockRequest(method: string, path: string, body: unknown): unknown {
   // ── Sessions ──
   if (method === 'GET' && path === '/api/sessions') {
-    return { sessions: mockSessions };
+    return { sessions: mockSessions.map(mockSessionView) };
   }
   if (method === 'POST' && path === '/api/sessions/pins/order') {
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
@@ -344,7 +360,8 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   }
   const sessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
   if (sessionMatch && method === 'GET') {
-    return findSession(sessionMatch[1]!) ?? { error: 'not found' };
+    const session = findSession(sessionMatch[1]!);
+    return session ? mockSessionView(session) : { error: 'not found' };
   }
   if (sessionMatch && method === 'PATCH') {
     const session = findSession(sessionMatch[1]!);
@@ -356,12 +373,7 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   const historyMatch = path.match(/^\/api\/sessions\/([^/]+)\/history$/);
   if (historyMatch && method === 'GET') {
     const session = findSession(historyMatch[1]!);
-    const history = session?.history ?? [];
-    history.forEach((message, index) => {
-      if ((message.role === 'user' || message.role === 'assistant') && !message.messageId) {
-        message.messageId = `mock-${session?.id}-${index}`;
-      }
-    });
+    const history = session ? visibleMockHistory(session) : [];
     return { history, hasMore: false, start: 0, total: history.length };
   }
   const historyMessageMatch = path.match(/^\/api\/sessions\/([^/]+)\/history\/([^/]+)$/);
@@ -369,14 +381,18 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     const session = findSession(decodePathPart(historyMessageMatch[1]!));
     if (!session) return { ok: false, error: { code: 'session_not_found', message: 'Session not found' } };
     const messageId = decodePathPart(historyMessageMatch[2]!);
-    const index = session.history.findIndex((message) => message.messageId === messageId);
+    const index = session.history.findIndex((message, candidateIndex) => (
+      message.messageId === messageId || mockMessageId(session, candidateIndex) === messageId
+    ));
     if (index < 0) return { ok: false, error: { code: 'message_not_found', message: 'Message not found' } };
     if (session.history[index]?.role !== 'user' && session.history[index]?.role !== 'assistant') {
       return { ok: false, error: { code: 'message_not_deletable', message: 'This message cannot be deleted' } };
     }
-    session.history.splice(index, 1);
-    session.historyTotal = session.history.length;
-    return { ok: true, historyTotal: session.history.length };
+    const hidden = new Set(session.hiddenMessageIds ?? []);
+    hidden.add(mockMessageId(session, index));
+    session.hiddenMessageIds = [...hidden];
+    persistSessions();
+    return { ok: true, historyTotal: visibleMockHistory(session).length };
   }
 
   // ── Agent queue (frontend-only response-compatible mock) ──
