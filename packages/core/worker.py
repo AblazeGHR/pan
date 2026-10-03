@@ -787,6 +787,147 @@ def _make_usage_enrichment_snapshot(s) -> _UsageEnrichmentSnapshot:
     )
 
 
+def _restore_usage_enrichment_state(s, snapshot: _UsageEnrichmentSnapshot) -> None:
+    """Roll one failed enrichment attempt back, keeping concurrent writers.
+
+    ``save_async`` is *not* atomic with this in-memory block: it persists the
+    whole Session through a shielded writer, and a live reimport
+    (``packages/web/server.py``) rewrites ``raw_usage``/``total_usage`` without
+    holding the Session-scoped enrichment lock.  A blind "restore the snapshot"
+    would therefore discard whatever another writer committed while this
+    attempt awaited the disk.
+
+    So each field is restored only while it still holds the value this attempt
+    wrote (compare-and-restore).  A field another writer changed in the
+    meantime is left alone: that writer owns the newer value, and the durable
+    job is replayed through the same Session so the next attempt reconciles
+    against the real state instead of a stale copy.
+
+    The provider cursor (``adapter_config``) is part of the same unit as the
+    usage: cbc derives "new" entries from ``raw_usage.request_count`` while
+    codex/kimi/opencode persist ``*_prev_usage`` / ``*_last_usage_ts`` cursors.
+    Advancing a cursor while rolling usage back makes the next lookup return
+    nothing, so the job would be consumed with the usage lost.  Both are
+    restored together, again only if unchanged.
+    """
+    missing = object()
+    current = s.adapter_config
+    before_config = snapshot.adapter_config_before
+    for key in set(before_config) | set(snapshot.adapter_config):
+        before = before_config.get(key, missing)
+        after = snapshot.adapter_config.get(key, missing)
+        if before == after:
+            continue  # this attempt did not move the field
+        # Compare-and-restore: only take the field back while it still holds the
+        # value this attempt merged. A concurrent writer (HTTP reimport) that
+        # moved it owns the newer value and must win.
+        if current.get(key, missing) != after:
+            continue
+        if before is missing:
+            current.pop(key, None)
+        else:
+            current[key] = copy.deepcopy(before)
+    if snapshot.model != snapshot.model_before and s.model == snapshot.model:
+        s.model = snapshot.model_before
+
+
+class _UsageCommitOutcome:
+    """Durable outcome of one usage commit attempt.
+
+    ``session.save_async`` funnels into :func:`session.await_persistence`,
+    which shields the writer: the real filesystem write runs to completion and
+    only then is ``CancelledError`` re-raised to the caller.  A cancelled save
+    is therefore **not** evidence that nothing reached disk.
+
+    ``committed`` is set the moment the durable write returns, so after a
+    cancellation the caller can still tell the two cases apart:
+
+    * ``committed`` True -- the numbers are on disk; keep memory as-is and
+      let the durable job be consumed.
+    * ``committed`` False -- the write never landed; roll usage, provider
+      cursor and job back together so a later attempt replays them.
+
+    It is also set when the save *itself* raises ``CancelledError`` after
+    returning from the real writer: that still means the bytes reached disk
+    (``await_persistence`` only re-raises once the shielded write retired), so
+    it counts as committed.
+    """
+
+    __slots__ = ("committed", "raised")
+
+    def __init__(self):
+        self.committed = False
+        self.raised: BaseException | None = None
+
+    def note_save_returned(self, committed: bool = True) -> None:
+        self.committed = self.committed or committed
+
+
+async def _await_usage_commit(s, outcome: _UsageCommitOutcome):
+    """Run the Session save, mirroring ``await_persistence``'s cancellation.
+
+    Returns normally when the durable write committed.  Otherwise the original
+    failure (``CancelledError`` or the writer's exception) is re-raised so the
+    caller's existing handling and propagation semantics are unchanged; the
+    caller reads ``outcome.committed`` to know which case happened.
+    """
+
+    async def _save_and_mark():
+        try:
+            result = await _sess.save_async(s)
+        except asyncio.CancelledError:
+            # The shielded writer already retired before re-raising, so the
+            # durable write landed; only the caller's await was cancelled.
+            outcome.note_save_returned(True)
+            raise
+        outcome.note_save_returned(True)
+        return result
+
+    save = asyncio.ensure_future(_save_and_mark())
+    cancelled = False
+    while True:
+        try:
+            await asyncio.shield(save)
+            break
+        except asyncio.CancelledError:
+            # Let the shielded writer retire before propagating, exactly as
+            # await_persistence does, then report whether it committed.
+            cancelled = True
+            if save.done():
+                break
+            continue
+        except Exception as exc:
+            outcome.raised = exc
+            break
+    if cancelled:
+        raise asyncio.CancelledError()
+    if outcome.raised is not None:
+        raise outcome.raised
+    if not outcome.committed:
+        raise RuntimeError("usage commit failed without an error")
+
+
+def _restore_usage_fields(s, raw_before, total_before, applied_raw) -> bool:
+    """Compare-and-restore ``raw_usage``/``total_usage`` after a failed commit.
+
+    Returns True when the restore happened, False when another writer already
+    replaced the usage (then that writer owns the newer value).
+
+    ``raw_usage`` is only taken back while it still holds the value this attempt
+    published.  While we awaited the disk, the HTTP reimport path
+    (``packages/web/server.py``) may have assigned ``existing.raw_usage``
+    directly -- without the Session-scoped enrichment lock.  A blind restore
+    would discard that committed state, so the replayed job would then
+    re-accumulate onto a stale base and the reimported numbers would vanish
+    from the Session.
+    """
+    if s.raw_usage is not applied_raw:
+        return False
+    s.raw_usage = raw_before
+    s.total_usage = total_before
+    return True
+
+
 def _merge_usage_enrichment_snapshot(s, snapshot: _UsageEnrichmentSnapshot) -> None:
     """Merge provider-side model/cursor changes without clobbering live edits."""
     if snapshot.model != snapshot.model_before:
@@ -911,23 +1052,42 @@ async def _run_usage_enrichment(session_id: str) -> None:
             # changes.  Live usage/config updates win when the same field was
             # changed after the snapshot was taken.
             #
-            # ``accumulate_raw_usage`` is additive and mutates the nested
-            # per-model dicts in place, so it cannot simply be "undone" by
-            # re-running the merge: a rollback that restores the durable job
-            # while leaving the accumulated usage in place double-counts every
-            # retried terminal (request_count 1 -> 2).  Snapshot the pre-apply
-            # usage so the job and its accounting are rolled back together.
+            # Commit protocol.  ``save_async`` persists the whole Session via a
+            # shielded writer, so it is not atomic with these in-memory writes,
+            # and ``await_persistence`` finishes the real disk write *before*
+            # re-raising ``CancelledError``.  A cancelled save is therefore
+            # NOT proof that nothing was persisted.  So:
+            #
+            # 1. Build the post-apply usage as a candidate first.
+            #    ``accumulate_raw_usage`` mutates the nested per-model dicts in
+            #    place, so a raise mid-apply would otherwise leave the Session
+            #    half-accounted with no job left to replay it.
+            # 2. Publish usage + provider cursor + job removal together.
+            # 3. Roll all three back together, and only while the field still
+            #    holds our value (see _restore_usage_enrichment_state).
+            #
+            # Rolling back usage while leaving the cursor advanced is what
+            # loses data: the next lookup sees "already counted", returns
+            # nothing, and the job is consumed with the usage missing.
             removed = False
             applied_usage = False
+            committed = False
+            superseded = False
+            outcome = _UsageCommitOutcome()
             raw_usage_before = total_usage_before = None
+            candidate_raw = candidate_total = None
             try:
                 if enrichment:
                     raw_usage_before = copy.deepcopy(s.raw_usage)
                     total_usage_before = copy.deepcopy(s.total_usage)
                     prev_total = s.total_usage
-                    s.raw_usage = _sess.accumulate_raw_usage(
-                        s.raw_usage, enrichment)
-                    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+                    # Deep-copy the base so the candidate is built off to the
+                    # side: an exception here must not mutate ``s``.
+                    candidate_raw = _sess.accumulate_raw_usage(
+                        copy.deepcopy(s.raw_usage), enrichment)
+                    candidate_total = _sess.compute_total_usage(candidate_raw)
+                    s.raw_usage = candidate_raw
+                    s.total_usage = candidate_total
                     applied_usage = True
                     prev_credit = prev_total.get("credit", 0) if prev_total else 0
                     new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
@@ -947,26 +1107,55 @@ async def _run_usage_enrichment(session_id: str) -> None:
                     )
                 ]
                 removed = True
-                await _sess.save_async(s)
+                await _await_usage_commit(s, outcome)
+                committed = outcome.committed
             except asyncio.CancelledError:
-                if removed and _enrichment_job(s, job.get("key")) is None:
-                    s.usage_enrichment_pending.insert(0, job)
-                if applied_usage:
-                    # The retried job would otherwise account the same
-                    # provider usage twice.
-                    s.raw_usage = raw_usage_before
-                    s.total_usage = total_usage_before
+                # Cancellation is not proof of "not persisted": the shielded
+                # writer may already have committed these numbers. Only an
+                # uncommitted attempt may be rolled back, otherwise memory
+                # forks from disk and the next save writes the stale numbers
+                # back over a correct file.
+                committed = outcome.committed
+                if not committed:
+                    if applied_usage and _restore_usage_fields(
+                            s, raw_usage_before, total_usage_before,
+                            candidate_raw):
+                        _restore_usage_enrichment_state(s, enrichment_session)
+                    if removed and _enrichment_job(s, job.get("key")) is None:
+                        s.usage_enrichment_pending.insert(0, job)
                 raise
             except Exception as exc:
                 # A failed save must not turn a successful provider lookup into
-                # a lost durable job.  Restore the job *and* the usage this job
-                # applied, so the retry accounts it exactly once; the snapshot
-                # merge above is compare-and-merge and stays safe to repeat.
-                if removed and _enrichment_job(s, job.get("key")) is None:
-                    s.usage_enrichment_pending.insert(0, job)
-                if applied_usage:
-                    s.raw_usage = raw_usage_before
-                    s.total_usage = total_usage_before
+                # a lost durable job.  Restore job + usage + provider cursor as
+                # one unit so the retry accounts it exactly once; the snapshot
+                # merge is compare-and-restore, so concurrent writers survive.
+                if not committed:
+                    # Restore usage + provider cursor only as one unit, and only
+                    # while the usage still holds what this attempt published.
+                    # If a concurrent writer (HTTP reimport) already replaced the
+                    # usage, it owns the newer numbers: the cursor must stay
+                    # advanced so the replay does not re-read the same delta,
+                    # and the job is dropped rather than double-counted.
+                    if applied_usage:
+                        if _restore_usage_fields(
+                                s, raw_usage_before, total_usage_before,
+                                candidate_raw):
+                            _restore_usage_enrichment_state(
+                                s, enrichment_session)
+                        else:
+                            superseded = True
+                    if removed and _enrichment_job(s, job.get("key")) is None:
+                        s.usage_enrichment_pending.insert(0, job)
+                if superseded:
+                    # The concurrent writer's usage already accounts this
+                    # terminal (it reimported the provider total), so consume the
+                    # job instead of replaying it against a newer base.
+                    s.usage_enrichment_pending = [
+                        c for c in (s.usage_enrichment_pending or [])
+                        if not isinstance(c, dict) or c.get("key") != job.get("key")
+                    ]
+                    _usage_enrichment_adapters.pop(job.get("key"), None)
+                    return
                 if await retry_job(s, job, exc):
                     continue
                 return
