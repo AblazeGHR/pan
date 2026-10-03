@@ -13,7 +13,7 @@ import { SessionMenu } from '@/components/session/SessionMenu';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
-import { SPECIAL_FILTERS, getSessionListCandidates } from '@/utils/sessionFilters';
+import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
 import { EditorDirectoryRoots } from '@/components/editor/EditorDirectoryRoots';
 import { SidebarResizer } from './SidebarResizer';
 import { Button } from '@/components/ui/Button';
@@ -267,6 +267,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const activeScopeName = activeWorkspaceId === 'all'
     ? '全部'
+    : activeWorkspaceId === UNGROUPED_WORKSPACES
+    ? '无工作区'
     : workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部';
 
   // The rail loads workspaces on desktop; the batch menu is reachable on
