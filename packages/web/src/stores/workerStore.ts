@@ -30,6 +30,12 @@ function findWorker(
   return null;
 }
 
+function sameRuntimeWorker(previous: WorkerInfo | undefined, workerId: string | null,
+  generation?: number): boolean {
+  return previous?.id === workerId && (generation === undefined
+    || previous?.generation === undefined || previous.generation === generation);
+}
+
 interface WorkerStore {
   workers: Record<string, WorkerInfo>;
   currentWorkerId: string | null;
@@ -157,23 +163,25 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
       previous.generation !== undefined &&
       generation < previous.generation
     ) return;
-    if (terminal && previous?.id && workerId && previous.id !== workerId) return;
+    const newerGeneration = generation !== undefined && previous?.generation !== undefined
+      && generation > previous.generation;
+    if (terminal && previous?.id && workerId && previous.id !== workerId && !newerGeneration) return;
     const now: WorkerInfo = {
       id: workerId || '',
       sessionId,
       status: (status as WorkerInfo['status']) || 'offline',
-      ...(generation !== undefined ? { generation } : previous?.generation !== undefined ? { generation: previous.generation } : {}),
+      ...(generation !== undefined ? { generation } : previous?.id === workerId && previous?.generation !== undefined ? { generation: previous.generation } : {}),
       ...(status === 'idle' || status === null || status === undefined
         ? {}
-        : previous?.nativeStatus
+        : sameRuntimeWorker(previous, workerId, generation) && previous?.nativeStatus
           ? { nativeStatus: previous.nativeStatus }
           : {}),
       ...(status === 'idle' || status === null || status === undefined
         ? {}
-        : previous?.nativeUsage
+        : sameRuntimeWorker(previous, workerId, generation) && previous?.nativeUsage
           ? { nativeUsage: previous.nativeUsage }
           : {}),
-      ...(status !== null && status !== undefined && previous?.id === workerId && previous?.nativeRateLimits
+      ...(status !== null && status !== undefined && sameRuntimeWorker(previous, workerId, generation) && previous?.nativeRateLimits
         ? { nativeRateLimits: previous.nativeRateLimits }
         : {}),
     };
@@ -203,6 +211,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
     set((s) => {
       const previous = s.workers[sessionId];
       if (!previous && !workerId) return s;
+      if (previous && workerId && previous.id !== workerId) return s;
       const worker: WorkerInfo = previous
         ? { ...previous, nativeStatus }
         : {
@@ -229,6 +238,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
     set((s) => {
       const previous = s.workers[sessionId];
       if (!previous && !workerId) return s;
+      if (previous && workerId && previous.id !== workerId) return s;
       const worker: WorkerInfo = previous
         ? { ...previous, nativeUsage }
         : {
@@ -255,6 +265,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
     set((s) => {
       const previous = s.workers[sessionId];
       if (!previous && !workerId) return s;
+      if (previous && workerId && previous.id !== workerId) return s;
       const worker: WorkerInfo = previous
         ? { ...previous, nativeRateLimits }
         : {
@@ -309,13 +320,13 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
           sessionId: w.sessionId,
           status,
           ...(w.generation !== undefined ? { generation: w.generation } : {}),
-          ...(status !== 'idle' && previous?.nativeStatus
+          ...(status !== 'idle' && sameRuntimeWorker(previous, w.workerId, w.generation) && previous?.nativeStatus
             ? { nativeStatus: previous.nativeStatus }
             : {}),
-          ...(status !== 'idle' && previous?.nativeUsage
+          ...(status !== 'idle' && sameRuntimeWorker(previous, w.workerId, w.generation) && previous?.nativeUsage
             ? { nativeUsage: previous.nativeUsage }
             : {}),
-          ...(previous?.id === w.workerId && previous?.nativeRateLimits
+          ...(sameRuntimeWorker(previous, w.workerId, w.generation) && previous?.nativeRateLimits
             ? { nativeRateLimits: previous.nativeRateLimits }
             : {}),
         };

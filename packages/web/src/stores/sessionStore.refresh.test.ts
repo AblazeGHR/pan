@@ -573,8 +573,10 @@ describe('sessionStore refresh staleness guards', () => {
       promise = useSessionStore.getState().loadSessions();
     });
     await act(async () => {
-      // Snapshot mirrors summary=1: workerStatus present, workerId absent.
-      resolveNextFetch([mk('A', 'A', { workerStatus: 'idle', history: [] })]);
+      // Legacy summary: workerStatus present, workerId genuinely omitted.
+      const summary = mk('A', 'A', { workerStatus: 'idle', history: [] });
+      delete summary.workerId;
+      resolveNextFetch([summary]);
       await promise!;
     });
 
