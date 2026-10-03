@@ -1,0 +1,32 @@
+{
+  "uv_version": "uv 0.9.14 (05814f9cd 2025-12-01)",
+  "pytest_direct_argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_terminal_runner.py",
+    "-q",
+    "-rA"
+  ],
+  "pytest_uv_argv": [
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "E:\\software\\miniforge\\python.exe",
+    "--with-requirements",
+    "minimal-requirements.txt",
+    "--with",
+    "pytest",
+    "--with",
+    "pytest-timeout",
+    "--",
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_terminal_runner.py",
+    "-q",
+    "-rA"
+  ],
+  "note": "43 项 = 38 原 + 5 F5；不跑 11 组合/42/core/全库"
+}

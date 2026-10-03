@@ -35,10 +35,13 @@ import pytest
 from packages.core.terminal import ipc, runner_client, secret_store, win_pipe
 from packages.core.terminal import runner as runner_module
 from packages.core.terminal.contracts import (
+    AppliedSnapshot,
     CleanupReport,
     DetachReport,
     ExitInfo,
+    Fidelity,
     ProcessStatus,
+    Recovery,
     RuntimeState,
     TerminateOutcome,
 )
@@ -2165,5 +2168,216 @@ def test_n4_finalize_zero_budget_no_silent_extension(tmp_path, monkeypatch):
             "close_calls": runtime.close_calls,
             "outcome": (runner._finalize_report or {}).get("outcome"),
             "no_silent_extension": True,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# F5 机器确认字段（snapshot detail：cursors_valid / reset_unconfirmed）
+# 依据：MA 冻结 PAN_TERMINAL_COMPOSITION_BOUNDARIES §I3 与组合审查 cabacc7f B5。
+# 三层兼容（无引擎 / 只旧协议 fake / 真实确认面）+ 超界/dead/timeout/异常/长 note 缩减分列。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class _ProtoEmulatorBase:
+    """AuthoritativeEmulator 协议面最小替身（旧协议形态：无确认字段）。"""
+
+    feed_lag = False
+
+    def __init__(self, *, serialized: str = "SCREEN", cursor: int = 7,
+                 fidelity: Fidelity = Fidelity.FULL, recovery: Recovery = Recovery.FULL) -> None:
+        self.serialized = serialized
+        self.cursor = int(cursor)
+        self.fidelity = fidelity
+        self.recovery = recovery
+        self.feed_calls = 0
+
+    def feed(self, data: bytes) -> None:
+        self.feed_calls += 1
+
+    def resize(self, rows: int, cols: int) -> None:
+        pass
+
+    def snapshot(self, *, timeout: float = 2.0) -> AppliedSnapshot:
+        return AppliedSnapshot(
+            serialized_screen=self.serialized,
+            cursor=self.cursor,
+            rows=24,
+            cols=80,
+            fidelity=self.fidelity,
+            recovery=self.recovery,
+            feed_lag=bool(self.feed_lag),
+            engine="fake-proto",
+            note="protocol=A(fake)",
+        )
+
+    def reset_baseline(self) -> AppliedSnapshot:
+        return self.snapshot()
+
+
+class _TrustedEmulator(_ProtoEmulatorBase):
+    """真实确认面形态：cursors_valid 属性 + diagnostics()（可注入异常/缺失）。"""
+
+    def __init__(self, *, cursors_valid: Any = True, reset_unconfirmed: Any = False,
+                 raise_valid: bool = False, raise_diagnostics: bool = False, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._cursors_valid = cursors_valid
+        self._reset_unconfirmed = reset_unconfirmed
+        self._raise_valid = raise_valid
+        self._raise_diagnostics = raise_diagnostics
+
+    @property
+    def cursors_valid(self) -> Any:
+        if self._raise_valid:
+            raise RuntimeError("injected-valid-probe-failure")
+        return self._cursors_valid
+
+    def diagnostics(self) -> dict[str, Any]:
+        if self._raise_diagnostics:
+            raise RuntimeError("injected-diagnostics-failure")
+        return {"reset_unconfirmed": self._reset_unconfirmed}
+
+
+def _wire_snapshot_runner(tmp_path, tid: str, emulator: Any) -> Any:
+    runner = _make_runner(tmp_path, tid)
+    runner._runtime = _GatedRuntime()
+    runner._runner_state = "running"
+    runner._emulator = emulator
+    runner._bridge = None
+    return runner
+
+
+def _snapshot_detail(payload: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(payload["detail"])
+
+
+def test_f5_snapshot_detail_machine_fields_absent_engine(tmp_path):
+    """无引擎：两个机器字段存在但为 null（unknown），不得假 True/False；不加顶层白名单字段。"""
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_none", None)
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert detail.get("cursors_valid", "missing") is None, detail
+    assert detail.get("reset_unconfirmed", "missing") is None, detail
+    assert detail["fidelity"] == "unavailable" and detail["recovery"] == "none"
+    allowed_top = {
+        "data_b64", "seq", "size", "cursor", "next_cursor", "gap", "truncated", "rows",
+        "cols", "status", "detail", "snapshot", "reason", "total_bytes",
+        "first_retained_seq", "ok",
+    }
+    assert set(payload) <= allowed_top, f"顶层白名单外字段：{set(payload) - allowed_top}"
+
+
+def test_f5_snapshot_detail_old_protocol_fake_unknown(tmp_path):
+    """只旧协议 fake（无 cursors_valid/diagnostics）：字段 null（unknown）、快照仍可用。"""
+    emulator = _ProtoEmulatorBase(recovery=Recovery.FULL)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_old", emulator)
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert detail["cursors_valid"] is None and detail["reset_unconfirmed"] is None
+    assert detail["fidelity"] == "full" and detail["recovery"] == "full"
+    assert payload["size"] == len("SCREEN") and payload["cursor"] == 7
+
+
+def test_f5_snapshot_detail_trusted_source_and_consistency_rule(tmp_path):
+    """真实确认面：可信来源 bool 透出；但**当前 True 不得覆盖过时/降级快照**（保守 unknown）。"""
+    # ① 源 True + 快照 partial（真实会话常见）→ True（cursor 有效性独立于 fidelity）
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False,
+                                recovery=Recovery.PARTIAL, fidelity=Fidelity.PARTIAL)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_trusted", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is True and detail["reset_unconfirmed"] is False, detail
+
+    # ② 源 True 但快照 degraded（超时/积压）→ unknown（不机械读当前 True）
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False,
+                                recovery=Recovery.DEGRADED, fidelity=Fidelity.PARTIAL)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_stale", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is None, f"degraded 快照不得透出当前 True：{detail}"
+
+    # ③ reset 未确认 + 源 True → unknown（不得作为完整续流依据）
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=True,
+                                recovery=Recovery.DEGRADED, fidelity=Fidelity.PARTIAL)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_reset", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["reset_unconfirmed"] is True
+    assert detail["cursors_valid"] is None, detail
+
+    # ④ 源 False（gap/duplicate）→ False（明确禁止续流）
+    emulator = _TrustedEmulator(cursors_valid=False, reset_unconfirmed=False)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_false", emulator)
+    detail = _snapshot_detail(runner.snapshot(timeout_ms=500))
+    assert detail["cursors_valid"] is False and detail["reset_unconfirmed"] is False
+    record_evidence(
+        "f5_trusted_consistency",
+        {"partial_true": True, "degraded_unknown": True, "reset_unknown": True, "false_false": True},
+    )
+
+
+def test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless(tmp_path):
+    """确认面探测异常/dead：字段 null、快照不抛、响应不含任何异常文本或 token。"""
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=True,
+                                raise_valid=True, raise_diagnostics=True)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_raise", emulator)
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert detail["cursors_valid"] is None and detail["reset_unconfirmed"] is None
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert "injected-valid-probe-failure" not in serialized
+    assert "injected-diagnostics-failure" not in serialized
+
+    # barrier 抛异常路径：字段仍存在且保守（快照失败 → cursors_valid unknown）
+    class _BarrierFailure(_TrustedEmulator):
+        def snapshot(self, *, timeout: float = 2.0):
+            raise RuntimeError("injected-barrier-failure")
+
+    emulator = _BarrierFailure(cursors_valid=True, reset_unconfirmed=False)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_barrier", emulator)
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert detail["cursors_valid"] is None and detail["reset_unconfirmed"] is False
+    assert "injected-barrier-failure" not in json.dumps(payload, ensure_ascii=False)
+    record_evidence(
+        "f5_exception_unknown",
+        {
+            "probe_exception_unknown": True,
+            "diagnostics_exception_unknown": True,
+            "barrier_failure_conservative": True,
+            "no_exception_text": True,
+        },
+    )
+
+
+def test_f5_snapshot_detail_survives_oversize_and_long_note_reduction(tmp_path):
+    """超界（serialized > 128 KiB）与长 note 缩减：机器字段在缩减后仍保留且 detail 合法。"""
+    big = "X" * (ipc.DEFAULT_MAX_PAYLOAD_BYTES + 64)
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False,
+                                serialized=big, recovery=Recovery.FULL)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_oversize", emulator)
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert payload["status"] == "degraded"
+    assert detail["cursors_valid"] is None, "超界降级快照不得透出 True"
+    assert detail["reset_unconfirmed"] is False
+    assert "exceeds wire payload budget" in detail["note"]
+
+    # 长 note + 巨大 describe 基线：字段级缩减后机器字段仍在、JSON 合法 ≤3800
+    emulator = _TrustedEmulator(cursors_valid=True, reset_unconfirmed=False)
+    runner = _wire_snapshot_runner(tmp_path, "term_f5_long", emulator)
+    original_describe = runner.describe()
+    big_describe = dict(original_describe)
+    big_describe["note"] = "N" * 20000
+    big_describe["durability"] = {"capable": False, "ambient_job": True, "detail": "D" * 30000}
+    runner.describe = lambda: big_describe  # type: ignore[method-assign]
+    payload = runner.snapshot(timeout_ms=500)
+    detail = _snapshot_detail(payload)
+    assert len(payload["detail"]) <= runner_module._DETAIL_BUDGET
+    assert detail["cursors_valid"] is True and detail["reset_unconfirmed"] is False, detail
+    runner.describe = original_describe  # type: ignore[method-assign]
+    record_evidence(
+        "f5_reduction_preservation",
+        {
+            "oversize_degraded_fields": True,
+            "long_note_detail_len": len(payload["detail"]),
+            "machine_fields_preserved": True,
         },
     )

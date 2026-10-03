@@ -1,0 +1,7 @@
+{
+  "detach_status": "detach-refused",
+  "detach_reason": "lease-close-in-progress",
+  "runtime_detach_calls": 0,
+  "expiry_outcome": "exhausted",
+  "explicit_close_after": "exited"
+}

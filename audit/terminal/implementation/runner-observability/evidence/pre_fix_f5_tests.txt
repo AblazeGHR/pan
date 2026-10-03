@@ -1,0 +1,35 @@
+FFFFF                                                                    [100%]
+================================== FAILURES ===================================
+____________ test_f5_snapshot_detail_machine_fields_absent_engine _____________
+tests\test_terminal_runner.py:2259: in test_f5_snapshot_detail_machine_fields_absent_engine
+    assert detail.get("cursors_valid", "missing") is None, detail
+E   AssertionError: {'schema_version': 1, 'terminal_id': 'term_f5_none', 'runner_state': 'running', 'runtime_state': 'running', ...}
+E   assert 'missing' is None
+E    +  where 'missing' = <built-in method get of dict object at 0x0000022A1D07CEC0>('cursors_valid', 'missing')
+E    +    where <built-in method get of dict object at 0x0000022A1D07CEC0> = {'schema_version': 1, 'terminal_id': 'term_f5_none', 'runner_state': 'running', 'runtime_state': 'running', ...}.get
+______________ test_f5_snapshot_detail_old_protocol_fake_unknown ______________
+tests\test_terminal_runner.py:2276: in test_f5_snapshot_detail_old_protocol_fake_unknown
+    assert detail["cursors_valid"] is None and detail["reset_unconfirmed"] is None
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'cursors_valid'
+_________ test_f5_snapshot_detail_trusted_source_and_consistency_rule _________
+tests\test_terminal_runner.py:2288: in test_f5_snapshot_detail_trusted_source_and_consistency_rule
+    assert detail["cursors_valid"] is True and detail["reset_unconfirmed"] is False, detail
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'cursors_valid'
+_____ test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless ______
+tests\test_terminal_runner.py:2323: in test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless
+    assert detail["cursors_valid"] is None and detail["reset_unconfirmed"] is None
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'cursors_valid'
+______ test_f5_snapshot_detail_survives_oversize_and_long_note_reduction ______
+tests\test_terminal_runner.py:2359: in test_f5_snapshot_detail_survives_oversize_and_long_note_reduction
+    assert detail["cursors_valid"] is None, "超界降级快照不得透出 True"
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'cursors_valid'
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_runner.py::test_f5_snapshot_detail_machine_fields_absent_engine
+FAILED tests/test_terminal_runner.py::test_f5_snapshot_detail_old_protocol_fake_unknown
+FAILED tests/test_terminal_runner.py::test_f5_snapshot_detail_trusted_source_and_consistency_rule
+FAILED tests/test_terminal_runner.py::test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless
+FAILED tests/test_terminal_runner.py::test_f5_snapshot_detail_survives_oversize_and_long_note_reduction

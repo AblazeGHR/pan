@@ -131,17 +131,21 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 
 ### 3.2 矛盾报告（如实记录，不偷改共享文件）
 
-> 状态：I-1..I-4 是**本层内部提案/工作处置**，**未经 MA 接口冻结批准**；
-> P2 暂不按其接线。`ipc.py` 白名单与协议版本未改；独立 op 扩展应由 ipc 所有者决定。
+> 状态（2026-10-03 更新）：I-1..I-4 已由 MA **冻结为内部接线约束**
+> （`PAN_TERMINAL_COMPOSITION_BOUNDARIES_20261003.md`），依据组合验证 `7e6b30cb` 与独立审查
+> `cabacc7f`；**仍非 P2 批准/发布许可**，不升级 IPC 帧版本；`ipc.py` 白名单与共享契约未改，
+> 独立 op 扩展仍属 ipc 所有者。
 
 | # | 矛盾 | 事实 | 本层处置 |
 | --- | --- | --- | --- |
-| I-1 | 任务要求端点实现 `describe/close/detach/owner-heartbeat` 独立命令，但冻结 op 白名单只有 6 个 op，**无法为一个新命令新增 op**（`validate_message` 在传输边界拒绝未知 op，`win_pipe.recv_frame` 也走该校验） | `ipc.py` 属 P1 IPC TA 的冻结写范围；本 TA 只读 | 用**已冻结 op 的组合**承载：`owner-heartbeat → lease`；`close → stop`；`detach → stop(reason="detach")`（reason 是 ≤64 字符自由串，作为**生命周期命令词表**）；`describe → read` 探测（见 I-3）。P2 若需独立 op，应由 ipc.py 所有者扩展协议版本后再放开 |
-| I-2 | 快照协议 A 需要携带 serialized 屏幕，但响应字段 `snapshot` 上限 4096 字符（24×80 屏幕 + SGR 可能超界） | 白名单只约束单字段 | 用 `data_b64`（≤128 KiB 原始字节，base64 后 ≤ 白名单上界）+ `cursor` + `rows/cols` + `detail`（元数据 JSON）承载协议 A；`snapshot` 字符串字段不使用 |
-| I-3 | `describe` 无独立 op；响应白名单没有 pid/filetime/detached/durability 等字段 | 同上 | **所有响应**统一携带 `status` + `detail`（有界 JSON 摘要，含 pid/FILETIME/rows/cols/detached/durability/lease/lifecycle/exit/worker 状态）；`describe` 命令 = 一次 `read(cursor=0, max_bytes=1)` 探测（非 mutating、无 barrier、快速），从 `detail` 解析 |
-| I-4 | 任务要求"只有可信 Pan 所有者心跳续 lease"，而 `lease` op 的 payload（client_id/role/generation）本意是 attachment lease | 白名单固定 | runner 把 `lease` 解释为 **IPC 所有者租约**（与 `attachments.py` 的浏览器控制权 lease 是两套凭据，见 P1 IPC 文档 §1）：`role=control` 续/接管租约；`role=observer` 只登记连接，**不改变 runtime、不续约** |
+| I-1 | 任务要求端点实现 `describe/close/detach/owner-heartbeat` 独立命令，但冻结 op 白名单只有 6 个 op，**无法为一个新命令新增 op**（`validate_message` 在传输边界拒绝未知 op，`win_pipe.recv_frame` 也走该校验） | `ipc.py` 属 P1 IPC TA 的冻结写范围；本 TA 只读 | 用**已冻结 op 的组合**承载：`owner-heartbeat → lease`；`close → stop`；`detach → stop(reason="detach")`（reason 是 ≤64 字符自由串，作为**生命周期命令词表**）；`describe → read` 探测（见 I-3）。词表冻结为 `close / explicit-close / service-shutdown / lease-expired / detach`（≤64 自由串，仅 `detach` 有语义特判；**不是**协议枚举校验），新增词需记录用途。**注入引擎生命周期归属**：由创建它的 runtime 宿主承担（生产应为独立 Runner 进程内的 launcher/bootstrap）；`TerminalRunner` **不隐式关闭借入对象**；宿主在 `runner.run()` 返回后以有界预算关闭引擎、保留失败 owner 并记录重试；Pan 服务只是 IPC 控制者，不得把常驻引擎放在依赖 Pan 服务生存的进程里（违背 detach 语义）。硬死 Job 清理只引用已测布局与所有权前提，不当作通用保证。**不新增独立 `shutdown` op** |
+| I-2 | 快照协议 A 需要携带 serialized 屏幕，但响应字段 `snapshot` 上限 4096 字符（24×80 屏幕 + SGR 可能超界） | 白名单只约束单字段 | 用 `data_b64`（**128 KiB 是 serialized 原始字节上限**，非 base64 长度；base64 + 元数据合计仍须满足 **256 KiB 帧上限**）+ `cursor` + `rows/cols` + `detail`（元数据 JSON）承载协议 A；`snapshot` 字符串字段不使用。**边界条款（实测）**：OutputLog 驱逐后若 applied cursor 已被驱逐（`applied < first_retained`），`read(cursor)` 返回 gap → 协议 A 续流**仅在 cursor 未被驱逐时成立**；此时客户端走 fresh-view（显示层显式恢复策略，**不是**自动 `reset_baseline`，也不结束 PTY）或在引擎追平后取新快照重试 |
+| I-3 | `describe` 无独立 op；响应白名单没有 pid/filetime/detached/durability 等字段 | 同上 | **所有响应**统一携带 `status` + `detail`（有界 JSON 摘要，含 pid/FILETIME/rows/cols/detached/durability/lease/lifecycle/exit/worker 状态）；`describe` 命令 = 一次 `read(cursor=0, max_bytes=1)` 探测（非 mutating、无 barrier、快速），从 `detail` 解析。**F5 已实施**：`snapshot` detail 增补 `cursors_valid` / `reset_unconfirmed`（来源已核验才 bool，缺失/异常 = null unknown；unknown/false/reset 未确认不得作为完整续流依据；缩减 detail 时仍保留）；**原因来源分层**：node 未验证序列原因只在 `snapshot.note`，`diagnostics().reasons` 是 Python 层集合、为空**不代表**无降级；不解析 note 伪造结构化 reasons API，不新增顶层白名单字段，不改共享 `AppliedSnapshot` |
+| I-4 | 任务要求"只有可信 Pan 所有者心跳续 lease"，而 `lease` op 的 payload（client_id/role/generation）本意是 attachment lease | 白名单固定 | runner 把 `lease` 解释为 **IPC 所有者租约**（与 `attachments.py` 的浏览器控制权 lease 是两套凭据，见 P1 IPC 文档 §1）：`role=control` 续/接管租约；`role=observer` 只登记连接，**不改变 runtime、不续约**。冻结补充：浏览器永不直连 runner、不持 token；浏览器 attachment 与 owner heartbeat 是不同层；`lease(control)` 只由 Pan 服务使用；重连维持**稳定 client_id**（同 id 续约不增 generation，新 id 接管保持既有语义），稳定 id 不是权限证明；心跳使用独立连接，不受慢 snapshot/input/close 阻塞 |
 
-以上四条仅为内部处置口径；授权、身份与 Web/MCP 入口校验由 P2 与 ipc 所有者决定。
+以上四条为**冻结的内部接线约束**（对齐冻结文档各节）：I-1 词表/宿主归属、I-2 载荷与
+缺口边界、I-3 确认字段来源分层、I-4 lease 与 attachment 分层；授权、身份与 Web/MCP 入口校验
+仍由 P2 与 ipc 所有者决定。新增词/字段/结构需报备并在本表记录。
 
 ### 3.3 命令语义（端点层）
 
@@ -277,6 +281,23 @@ snapshot, reason, total_bytes, first_retained_seq, ok}`；`status/detail/snapsho
 
 `detail` 的生成（O4 修正）：**字段级缩减**（嵌套长字符串逐级缩短 → 按可选块丢弃 →
 极简骨架），保证输出始终是**合法** JSON 且 ≤ 4096；**禁止**字符串截断。
+
+**F5 机器确认字段（仅 `snapshot` 响应 detail，已冻结实施）**：
+
+```json
+{"cursors_valid": true, "reset_unconfirmed": false}
+```
+
+- 来源：emulator 已知轻量确认面（`cursors_valid` 属性 + `diagnostics()`）；**不阻塞**
+  watchdog/心跳，探测异常只记类型名、异常文本不进入响应（防泄漏）。
+- 语义：来源**已核验**才 bool；缺失/异常 → `null`（**unknown，不默认有效**）。
+- **一致性规则**：`cursors_valid=true` 仅在能与**本次响应载荷**一致可证明时透出
+  （快照存在、`recovery ∈ {full, partial}`、无 `feed_lag`、`reset_unconfirmed` 非 true）；
+  否则 `null`——**不机械读"当前 True"覆盖过时/降级/超界降级快照**。
+- `null` / `false` / `reset_unconfirmed=true` 一律**不得**作为完整续流依据（`recovery != full`
+  或本字段非 true 均应 fresh-view）。
+- 两类字段在**任何** detail 缩减级别保留（`_PRESERVE_DETAIL_KEYS`），极简骨架与最终
+  回退都携带；node 未验证序列原因仍只在 `note`（原因分层，见 §3.2 I-3）。
 
 ### 4.5 快照协议 A（冻结）
 
@@ -580,6 +601,12 @@ class RunnerClient:
   - **O7**：`LOST` 不再映射为 exit 0（未证明 → 退出码 6）。
   - 测试 19 → **31 项**（新增 12 项门控/真机；直连 + uv 各一次，core129+broadcast8
     隔离 pyte 另列）。
+- `2026-10-03` **F5 机器确认字段透出（组合审查 `cabacc7f` B5 / 冻结文档 I3；先失败后通过）**：
+  `snapshot` detail 新增 `cursors_valid` / `reset_unconfirmed`（可信来源 bool；缺失/异常 = null
+  unknown；一致性规则保守——`True` 仅在可证明与本次载荷一致时透出，不机械读当前值覆盖
+  过时/降级/超界快照；缩减 detail 全级别保留）；`reset_unconfirmed=true` 时 `cursors_valid`
+  保守为 unknown；原因分层与 I1–I4 冻结约束写入 §3.2；测试 38 → **43**（新增 5 项 F5 门控：
+  无引擎 / 旧协议 fake / 信任源与一致性 / 异常不泄漏 / 超界+长 note 缩减保留）。
 - `2026-10-03` **r3 窄修（独立窄验 ROUND2 `f0bcd6fd` 后闭环；先失败后通过）**：
   - **N1**（中）：`_acquire_lease_close_right` 在 **lease 锁内原子**完成 expiry 复核 +
     取得不可撤销关闭权，与 `owner_heartbeat` 线性化——hb 先 → 旧 expiry `renewed` 作废；

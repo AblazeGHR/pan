@@ -173,6 +173,8 @@ _OPTIONAL_DETAIL_KEYS: tuple[str, ...] = (
     "events",
     "detail",
 )
+#: 机器判定字段（F5）：**任何缩减级别都必须保留**（缺失=unknown，不得因缩减丢失）。
+_PRESERVE_DETAIL_KEYS: tuple[str, ...] = ("cursors_valid", "reset_unconfirmed")
 
 
 def _shrink_strings(value: Any, limit: int) -> Any:
@@ -190,7 +192,8 @@ def _bounded_json(payload: Mapping[str, Any], budget: int = _DETAIL_BUDGET) -> s
     """把字典渲染为**合法且有界**的 JSON（字段级缩减，禁止字符串截断）。
 
     缩减顺序：嵌套长字符串逐级缩短 → 按 ``_OPTIONAL_DETAIL_KEYS`` 丢弃可选项 →
-    极简骨架。任何一步的输出都可被 ``json.loads`` 解析。
+    极简骨架。``_PRESERVE_DETAIL_KEYS``（机器判定字段）在**所有**缩减级别保留。
+    任何一步的输出都可被 ``json.loads`` 解析。
     """
     def render(obj: Mapping[str, Any]) -> str:
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
@@ -209,15 +212,21 @@ def _bounded_json(payload: Mapping[str, Any], budget: int = _DETAIL_BUDGET) -> s
         text = render(candidate)
         if len(text) <= budget:
             return text
+    preserved = {
+        key: candidate[key] for key in _PRESERVE_DETAIL_KEYS if key in candidate
+    }
     minimal = {
         key: candidate.get(key)
         for key in ("schema_version", "terminal_id", "runner_state", "runtime_state", "detached")
         if key in candidate
     }
+    minimal.update(preserved)
     minimal["truncated_fields"] = True
     text = render(_shrink_strings(minimal, 64))
     if len(text) <= budget:
         return text
+    if preserved:
+        return render(preserved)
     return render({"schema_version": 1, "truncated_fields": True})
 
 
@@ -1884,6 +1893,7 @@ class TerminalRunner:
                                 "authoritative emulator not injected: no snapshot; "
                                 "fresh view required (cursor is not an applied position)"
                             ),
+                            **self._emulator_snapshot_fields(None),
                         }
                     )
                 },
@@ -1902,6 +1912,7 @@ class TerminalRunner:
                             "recovery": Recovery.DEGRADED.value,
                             "engine": "injected",
                             "note": f"snapshot barrier failed: {type(exc).__name__}",
+                            **self._emulator_snapshot_fields(None),
                         }
                     )
                 },
@@ -1914,6 +1925,8 @@ class TerminalRunner:
                 "recovery": Recovery.DEGRADED.value,
                 "engine": snap.engine,
                 "note": "serialized screen exceeds wire payload budget",
+                # 本响应未交付可续流载荷：一致性不可证明 → 保守 unknown。
+                **self._emulator_snapshot_fields(None),
             })})
         return self._payload(
             self._runner_state,
@@ -1932,10 +1945,58 @@ class TerminalRunner:
                         "engine": snap.engine,
                         "note": snap.note,
                         "protocol": "A",
+                        **self._emulator_snapshot_fields(snap),
                     }
                 ),
             },
         )
+
+    def _emulator_snapshot_fields(self, snap: AppliedSnapshot | None) -> dict[str, Any]:
+        """F5 机器确认字段（detail 内）：``cursors_valid`` / ``reset_unconfirmed``。
+
+        - 来源：emulator 已知轻量确认面（``cursors_valid`` 属性 + ``diagnostics()``）；
+          读取失败/缺失 → ``None``（unknown，**不默认有效**）；任何异常只记类型名，
+          异常文本不进入响应（防泄漏），探测不阻塞（无 sidecar 往返）。
+        - **一致性规则**：``cursors_valid=True`` 仅在能与**本次**快照一致可证明时透出
+          （快照存在、recovery ∈ {full, partial}、无 feed_lag、reset 未处于未确认）；
+          否则 ``None``——不机械读"当前 True"覆盖过时/降级快照。
+        - ``reset_unconfirmed`` 是与快照独立的可信事实：可读即透出 bool，缺失/异常为
+          ``None``；为 True 时``cursors_valid`` 一律保守（unknown/false）。
+        """
+        fields: dict[str, Any] = {"cursors_valid": None, "reset_unconfirmed": None}
+        emulator = self._emulator
+        if emulator is None:
+            return fields
+        raw_valid: Any = None
+        try:
+            raw_valid = getattr(emulator, "cursors_valid", None)
+        except Exception as exc:  # noqa: BLE001 - 探测失败 = unknown
+            raw_valid = None
+            self._note("cursors-valid-probe-failed", type(exc).__name__)
+        raw_reset: Any = None
+        try:
+            diagnostics_fn = getattr(emulator, "diagnostics", None)
+            diagnostics = diagnostics_fn() if callable(diagnostics_fn) else None
+            if isinstance(diagnostics, Mapping):
+                raw_reset = diagnostics.get("reset_unconfirmed")
+        except Exception as exc:  # noqa: BLE001 - 探测失败 = unknown
+            raw_reset = None
+            self._note("reset-probe-failed", type(exc).__name__)
+        reset_unconfirmed = None if raw_reset is None else bool(raw_reset)
+        fields["reset_unconfirmed"] = reset_unconfirmed
+        if raw_valid is None:
+            return fields
+        if not bool(raw_valid):
+            fields["cursors_valid"] = False
+            return fields
+        consistent = bool(
+            snap is not None
+            and snap.recovery in (Recovery.FULL, Recovery.PARTIAL)
+            and not bool(snap.feed_lag)
+            and reset_unconfirmed is not True
+        )
+        fields["cursors_valid"] = True if consistent else None
+        return fields
 
     def _downgrade_snapshot(self, snap: AppliedSnapshot) -> AppliedSnapshot:
         """粘滞降级：缺口/feed_lag/消费者失败 → 禁止 full（诚实性约束）。"""

@@ -1,0 +1,25 @@
+{
+  "exit_code": 6,
+  "cleanup_converged": false,
+  "retained": [
+    "backend"
+  ],
+  "startup_report": {
+    "attempted": true,
+    "terminate": "error:RuntimeError",
+    "close": "error:RuntimeError",
+    "close_attempts": 2,
+    "converged": false,
+    "retained": [
+      "backend"
+    ],
+    "errors": [
+      "terminate:RuntimeError",
+      "close:RuntimeError",
+      "close:RuntimeError"
+    ]
+  },
+  "tree_dead_after_exit": true,
+  "seconds_to_dead_after_exit": 0.0,
+  "note": "内核守卫随进程退出的清除为本场景实测；未泛化为通用保证"
+}
