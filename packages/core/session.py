@@ -32,10 +32,12 @@ import threading
 import time
 import uuid
 from collections import Counter, defaultdict, deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
+from typing import Callable
 
 from packages.core.notifications import normalize_notification_settings
 
@@ -75,6 +77,9 @@ _PIN_LOCK = threading.RLock()
 _PIN_STATE_CACHE: tuple[Path, int, tuple[str, ...]] | None = None
 _PIN_STATE_CACHE_STAMP: tuple[int, int, int] | None = None
 _SAVE_STATES: dict[str, "_SessionSaveState"] = {}
+# Only runnable writes enter this pool.  Pending writes for a busy Session
+# stay in its ticket gate instead of occupying executor threads with wait().
+_SAVE_EXECUTOR = ThreadPoolExecutor(thread_name_prefix="pan-session-save")
 _MAX_SAVE_DIAGNOSTIC_SESSIONS = 128
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
 
@@ -84,14 +89,15 @@ class _SessionSaveState:
     """Ordered, per-Session persistence gate and bounded counters.
 
     ``save_async`` requests receive a ticket before entering the executor.
-    This gives one Session FIFO ordering even when the default executor starts
-    later requests first, while allowing different Session IDs to use separate
-    executor threads.  The ticket is always retired in a ``finally`` block;
+    Only the serving async ticket is submitted to the write executor.  Its
+    completion submits the next runnable ticket directly from the writer
+    thread, without needing the event loop or a waiting executor thread.
+    Synchronous callers use the same gate.  A ticket is retired in ``finally``;
     cancellation of the awaiting coroutine is shielded until the underlying
     filesystem operation releases this state.
 
-    Only counters/timestamps are retained here.  No history, queue text, or
-    exception message is kept in diagnostics.
+    Pending operations are released when submitted; diagnostics expose only
+    counters/timestamps, never history, queue text or exception messages.
     """
 
     condition: threading.Condition = field(default_factory=threading.Condition)
@@ -100,6 +106,7 @@ class _SessionSaveState:
     pending: int = 0
     active: bool = False
     cancelled: set[int] = field(default_factory=set)
+    async_jobs: dict[int, tuple[Callable, Future]] = field(default_factory=dict, repr=False)
     last_wait_ms: float = 0.0
     last_flush_ms: float = 0.0
     last_pending_age_ms: float = 0.0
@@ -123,6 +130,42 @@ class _SessionSaveState:
             self.cancelled.remove(self.serving_ticket)
             self.serving_ticket += 1
 
+    def submit_async(self, ticket: int, operation) -> Future:
+        """Queue an operation without blocking an executor thread on its turn."""
+        result = Future()
+
+        def run():
+            try:
+                value = operation()
+            except BaseException as exc:
+                result.set_exception(exc)
+            else:
+                result.set_result(value)
+
+        with self.condition:
+            self.async_jobs[ticket] = (run, result)
+            self._submit_ready_locked()
+        return result
+
+    def _submit_ready_locked(self) -> None:
+        # Called both by the event loop and by synchronous/asynchronous writer
+        # threads.  Never defer this submission to an event-loop callback:
+        # a legacy sync API save may be blocking that loop on a later ticket.
+        while self.serving_ticket in self.async_jobs:
+            ticket = self.serving_ticket
+            run, result = self.async_jobs.pop(ticket)
+            try:
+                _SAVE_EXECUTOR.submit(run)
+            except BaseException as exc:
+                self.pending = max(0, self.pending - 1)
+                self.cancelled.add(ticket)
+                self._skip_cancelled_locked()
+                self.last_activity = time.monotonic()
+                self.condition.notify_all()
+                result.set_exception(exc)
+            else:
+                break
+
     def begin(self, ticket: int, enqueued_at: float) -> float:
         with self.condition:
             while ticket != self.serving_ticket:
@@ -144,6 +187,7 @@ class _SessionSaveState:
             self._skip_cancelled_locked()
             self.last_activity = time.monotonic()
             self.condition.notify_all()
+            self._submit_ready_locked()
 
     def finish(self, *, flush_ms: float, error_type: str | None) -> None:
         with self.condition:
@@ -160,6 +204,7 @@ class _SessionSaveState:
             self.last_completed_at = datetime.now().isoformat()
             self.last_activity = time.monotonic()
             self.condition.notify_all()
+            self._submit_ready_locked()
 
     def snapshot(self) -> dict:
         with self.condition:
@@ -2205,7 +2250,8 @@ def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
             state.cancel_before_begin(ticket)
 
 
-def _save_body(s: Session, force_full: bool = False):
+def _save_body(s: Session, force_full: bool = False, *,
+               unread_done_read_generation: int | None = None):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2225,7 +2271,21 @@ def _save_body(s: Session, force_full: bool = False):
     # before the write, then never advance past that end.
     _ensure_summary_metadata(s)
     s.updated_at = datetime.now().isoformat()  # API reads the live object
-    meta_sig = _meta_signature(s)
+    metadata = s
+    if unread_done_read_generation is not None:
+        # Stage the read cursor in the metadata projection, not the shared
+        # Session.  Readers and unrelated writes cannot observe or persist an
+        # acknowledgement that has not committed successfully.
+        metadata = copy.copy(s)
+        generation = max(0, int(s.unread_done_generation or 0))
+        metadata.unread_done_read_generation = max(
+            int(s.unread_done_read_generation or 0),
+            min(unread_done_read_generation, generation),
+        )
+        metadata.unread_done_count = generation - metadata.unread_done_read_generation
+        metadata.summary_projection = dict(s.summary_projection)
+        _ensure_summary_metadata(metadata)
+    meta_sig = _meta_signature(metadata)
     start = getattr(s, "_hist_persisted", 0)
     if not isinstance(start, int) or start < 0:
         start = 0
@@ -2248,7 +2308,7 @@ def _save_body(s: Session, force_full: bool = False):
     # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
     # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
     if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
-        d = s.to_dict()
+        d = metadata.to_dict()
         d.pop("system_prompt")  # derived API/export alias is not durable state
         d["history"] = (
             getattr(s, "_history_tail", [])
@@ -2261,6 +2321,14 @@ def _save_body(s: Session, force_full: bool = False):
             encoding="utf-8")
         os.replace(tmp_path, main_path)
         s._last_meta_sig = meta_sig
+    if metadata is not s:
+        # Publish before retiring the ticket so a subsequent writer cannot
+        # overwrite the just-committed cursor with its previous value.
+        s.unread_done_read_generation = metadata.unread_done_read_generation
+        s.unread_done_count = metadata.unread_done_count
+        # Reconcile with the live projection instead of replacing it: history
+        # may have advanced while the metadata filesystem write was in flight.
+        _ensure_summary_metadata(s)
     _cache[s.id] = s
 
 
@@ -2301,7 +2369,24 @@ def save_full(s: Session):
     _save_sync(s, force_full=True)
 
 
-async def save_async(s: Session):
+async def await_persistence(future):
+    """Finish a durable operation before propagating even repeated cancellation."""
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        while not future.done():
+            try:
+                await asyncio.shield(future)
+            except asyncio.CancelledError:
+                continue
+            except Exception:
+                break
+        if not future.cancelled():
+            future.exception()  # consume a failure before propagating cancellation
+        raise
+
+
+async def save_async(s: Session, *, force_full: bool = False):
     """Async save for high-frequency worker calls, ordered per Session.
 
     The executor task is shielded so cancelling the caller cannot abandon a
@@ -2309,30 +2394,34 @@ async def save_async(s: Session):
     state.  The caller still receives ``CancelledError`` after that durable
     operation has retired.
     """
-    state, ticket, enqueued_at = _reserve_save_ticket(s.id)
+    return await _persist_async(s.id, lambda: _save_body(s, force_full=force_full))
+
+
+async def ack_unread_done_async(s: Session, read_generation: int):
+    """Commit a read cursor before exposing it; caller holds unread_done_lock."""
+    def commit():
+        # The offloaded lookup may finish just before a concurrent delete.
+        # Recheck inside the ordered write gate to avoid resurrecting its files.
+        if not _path(s.id).is_file():
+            raise FileNotFoundError(f"Session {s.id} no longer exists")
+        return _save_body(s, unread_done_read_generation=read_generation)
+
+    return await _persist_async(s.id, commit)
+
+
+async def _persist_async(session_id: str, operation):
+    state, ticket, enqueued_at = _reserve_save_ticket(session_id)
     try:
-        # Submit before yielding: a sync save on this event loop may reserve
-        # the next ticket and block waiting for us.  Scheduling to_thread as
-        # another Task would leave our ticket waiting on that blocked loop.
-        # Preserve to_thread's propagation of the caller's context variables.
         context = contextvars.copy_context()
-        save_task = asyncio.get_running_loop().run_in_executor(
-            None, context.run,
-            _save_sync_reserved, s, False, state, ticket, enqueued_at,
+        result = state.submit_async(
+            ticket, lambda: context.run(
+                _run_persistence_ticket, state, ticket, enqueued_at, operation,
+            ),
         )
     except BaseException:
         state.cancel_before_begin(ticket)
         raise
-    try:
-        return await asyncio.shield(save_task)
-    except asyncio.CancelledError:
-        try:
-            await asyncio.shield(save_task)
-        except BaseException:
-            # Preserve the caller's cancellation while the worker thread has
-            # nevertheless completed its release path and recorded failure.
-            pass
-        raise
+    return await await_persistence(asyncio.wrap_future(result))
 
 
 # ── cold-start summary repair ──

@@ -11,6 +11,7 @@
 与 /api/wechat/* 路由同一实现体，响应字段一字不改地复用。
 """
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -71,9 +72,9 @@ def test_wechat_subscribe_unsubscribe_keys_and_format():
     """/api/wechat/subscribe|unsubscribe 的键格式与返回值。"""
     _cleanup()
     _make("ses_sub", "sub")
-    resp = _srv._channel_subscribe("wechat", {
+    resp = asyncio.run(_srv._channel_subscribe("wechat", {
         "sessionId": "ses_sub", "target_type": "user", "target_id": "wxid_abc",
-    })
+    }))
     assert resp["subscribed"] is True
     # 微信端点用 wechatTarget / wechatSubscriptions（与 QQ 平行命名）
     assert resp["wechatTarget"] == "user:wxid_abc"
@@ -82,9 +83,9 @@ def test_wechat_subscribe_unsubscribe_keys_and_format():
     assert "qqTarget" not in resp
     assert "qqSubscriptions" not in resp
 
-    resp2 = _srv._channel_unsubscribe("wechat", {
+    resp2 = asyncio.run(_srv._channel_unsubscribe("wechat", {
         "sessionId": "ses_sub", "target_type": "user", "target_id": "wxid_abc",
-    })
+    }))
     assert resp2["subscribed"] is False
     assert resp2["wechatTarget"] == "user:wxid_abc"
     assert resp2["wechatSubscriptions"] == []
