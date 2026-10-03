@@ -32,10 +32,11 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   browser = await chromium.launch({ headless: true });
-  page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+  page = await context.newPage();
   page.on('pageerror', error => report.errors.push(error.message));
   // Only unrelated Dashboard endpoints are mocked; product traffic is untouched.
-  await page.route(url => url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/terminals'), route => {
+  await context.route(url => url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/terminals'), route => {
     const url = new URL(route.request().url());
     return route.fulfill({ json: url.pathname === '/api/sessions' ? { sessions: [] } :
       url.pathname === '/api/workspaces' ? { workspaces: [] } :
@@ -62,6 +63,31 @@ try {
   }
   assert(report.events.some(event => event.type === 'input-result' && event.accepted === true));
   assert(report.events.some(event => event.type === 'output' && Buffer.from(event.data_b64, 'base64').includes('PAN_BROWSER_REAL')));
+  await page.setViewportSize({ width: 1100, height: 760 });
+  await page.waitForTimeout(300);
+  assert(report.events.some(event => event.type === 'resize-result'));
+  // A second real browser connection can take control. The old connection
+  // must lose its local control state when attempting a stale write.
+  const second = await page.context().newPage();
+  await second.goto(`http://127.0.0.1:${port}/react/terminals`);
+  await second.getByLabel('选择终端').selectOption(id);
+  await second.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'));
+  await second.getByRole('button', { name: '取得输入控制权', exact: true }).click();
+  await second.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('控制模式'));
+  await page.locator('.xterm-helper-textarea').focus();
+  await page.keyboard.insertText('OLD_OWNER_MUST_NOT_WRITE');
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('只观察'));
+  assert(report.events.some(event => event.type === 'error' && event.code === 'stale-generation'));
+  await second.close(); // disconnect releases the connection, not the PTY
+  const view = await page.evaluate(async terminalId => {
+    const response = await fetch(`/api/terminals/${terminalId}`);
+    return response.json();
+  }, id);
+  assert.equal(view.ok, true);
+  assert.equal(view.result.status, 'running');
+  report.twoConnectionTakeover = true;
+  report.disconnectPreservedRuntime = true;
+  report.resizeConfirmed = true;
   await page.screenshot({ path: path.join(directory, 'screen.png') });
   await page.reload();
   await page.getByLabel('选择终端').selectOption(id);

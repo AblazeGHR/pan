@@ -43,3 +43,15 @@ Pan services and ports are untouched. No main/practical advance or deployment.
 
 Reproduce: build `packages/web`, install sidecar exact-pinned dependencies, then
 run `node audit/terminal/implementation/browser/check.mjs <python-executable>`.
+
+## Additional browser ownership stage
+
+The real Chromium check now also opens a second connection to the same terminal,
+claims control there, and verifies the first connection's stale input is rejected
+with stale-generation and its UI returns to observer mode. Closing the second tab
+leaves the terminal running (real GET positive control). A viewport change produces
+a resize-result. Reload recovery and explicit close still pass afterwards.
+`result.json` records all three additional assertions and harnessExit=0.
+Harness lifecycle ordering now closes WS before the REST service, matching the
+production nesting. An initial Playwright setup error (implicit single-page context)
+was fixed by using an explicit context; it was not a product defect.

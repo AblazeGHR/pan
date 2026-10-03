@@ -27,11 +27,11 @@ async def lifespan(app):
     runtime = terminal_api.build_runtime(env={}, platform=sys.platform, host="127.0.0.1", port=args.port,
                                          service_factory=lambda: service, shutdown_budget=20)
     await terminal_api.start_runtime(app, runtime=runtime)
-    async with terminal_ws.websocket_lifespan(app, runtime=runtime):
-        try:
+    try:
+        async with terminal_ws.websocket_lifespan(app, runtime=runtime):
             yield
-        finally:
-            await terminal_api.stop_runtime(app, runtime=runtime)
+    finally:
+        await terminal_api.stop_runtime(app, runtime=runtime)
 
 
 app = FastAPI(lifespan=lifespan)
