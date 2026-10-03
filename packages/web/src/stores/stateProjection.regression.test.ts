@@ -125,3 +125,34 @@ it('clears native turn metadata when the same Worker id restarts in a new genera
   expect(useWorkerStore.getState().workers.A).toEqual({ id: 'w', sessionId: 'A',
     status: 'running', generation: 2 });
 });
+
+
+it('does not replay a pre-fetch running event patch over the completed HTTP truth', async () => {
+  store().updateSession('A', { workerStatus: 'running', workerId: 'w', workerGeneration: 1, workerTaskSeq: 1 }, true);
+  api.fetchSessions.mockResolvedValue([session({ workerStatus: 'idle', workerId: 'w', workerGeneration: 1, workerTaskSeq: 1 })]);
+  await store().loadSessions();
+  expect(store().sessions[0]?.workerStatus).toBe('idle');
+});
+
+it('does not let stream preview writes shield stale running from a completed snapshot', async () => {
+  useSessionStore.setState({ sessions: [session({ workerStatus: 'running', workerId: 'w' })] });
+  let resolve!: (sessions: Session[]) => void;
+  api.fetchSessions.mockImplementation(() => new Promise<Session[]>(done => { resolve = done; }));
+  const pending = store().loadSessions();
+  store().updateSession('A', { lastMessage: 'delayed preview' });
+  resolve([session({ workerStatus: 'idle', workerId: 'w' })]);
+  await pending;
+  expect(store().sessions[0]?.workerStatus).toBe('idle');
+});
+
+
+it('applies a summary snapshot batch in one notification without replacing loaded history', () => {
+  const history = [{ role: 'user', content: 'loaded' }];
+  useSessionStore.setState({ sessions: Array.from({ length: 1000 }, (_, index) => session({ id: `batch-${index}`, history, historyEpoch: 'loaded', historyRevision: 2, historyStart: 10, workerStatus: 'running' })) });
+  const listener = vi.fn();
+  const unsubscribe = useSessionStore.subscribe(listener);
+  store().applySessionSnapshots(store().sessions.map(row => ({ ...row, workerStatus: 'idle', history: [], historyEpoch: 'summary', historyRevision: 3, historyStart: 0 })));
+  unsubscribe();
+  expect(listener).toHaveBeenCalledTimes(1);
+  expect(store().sessions.every(row => row.workerStatus === 'idle' && row.history === history && row.historyEpoch === 'loaded' && row.historyStart === 10)).toBe(true);
+});

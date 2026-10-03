@@ -189,6 +189,7 @@ interface SessionStore {
     patch: SessionSettingPatch,
     persist: (id: string, settings: SettingsBody) => Promise<Session | ApiGenericResponse>,
   ) => Promise<SessionSettingsMutationResult>;
+  applySessionSnapshots: (sessions: Session[]) => void;
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot?: boolean) => void;
   setSessionPinned: (id: string, pinned: boolean) => Promise<void>;
   reorderPinned: (ids: string[]) => Promise<void>;
@@ -701,6 +702,9 @@ const SUMMARY_PROJECTION_FIELDS = [
   'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
 ] as const;
+
+const WORKER_SNAPSHOT_FIELDS = ['workerId', 'workerStatus', 'workerGeneration',
+  'workerTaskId', 'workerTaskSeq', 'lastLegalWorkerState'] as const;
 
 /** Worker generation/task cursors are independent of history summaryRevision. */
 function preserveNewerWorker(current: Session, incoming: Session, terminal?: TerminalWatermark): Session {
@@ -1643,6 +1647,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // request was in flight.
     const loadSeq = get()._loadSeq + 1;
     const touchedAtStart = get()._sessionWsTouchedSeq;
+    const workersAtStart = new Map(get().sessions.map(session => [session.id, session]));
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
     const pinTouchedAtStart = get()._pinStateTouchedSeq ?? 0;
@@ -1696,6 +1701,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           );
           const touchedDuringFetch =
             (s._sessionWsTouchedSeq[sid] ?? 0) > (touchedAtStart[sid] ?? 0);
+          const workerChangedDuringFetch = touchedDuringFetch && WORKER_SNAPSHOT_FIELDS.some(field =>
+            cur[field] !== workersAtStart.get(sid)?.[field]);
           const locallyTouchedDuringFetch =
             (s._sessionLocalTouchedSeq?.[sid] ?? 0) > (localTouchedAtStart[sid] ?? 0);
           const settingsTouchedDuringFetch =
@@ -1707,7 +1714,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             && typeof cur.workerGeneration === 'number'
             && sess.workerGeneration > cur.workerGeneration;
           const preserveLocalWorker = !newerGeneration && (
-            touchedDuringFetch ||
+            workerChangedDuringFetch ||
             (touchedBefore && (cur.workerStatus === null || snapshotIsTransientDone))
           );
           let next = sess;
@@ -1843,7 +1850,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // that this response cannot visibly roll back the newer payload.
           const eventPatch = s._sessionEventPatches?.[sid] ?? eventPatchesAtStart[sid];
           if (eventPatch && Object.keys(eventPatch).length > 0) {
-            next = { ...next, ...eventPatch };
+            // Pre-request worker patches have already reached local state.
+            // They must not overrule the later HTTP runtime truth. Other
+            // fields retain the existing one-shot event protection.
+            const applicablePatch = { ...eventPatch };
+            if (!workerChangedDuringFetch) {
+              for (const field of WORKER_SNAPSHOT_FIELDS) delete applicablePatch[field];
+            }
+            next = { ...next, ...applicablePatch };
           }
           if (pinStateTouchedDuringFetch) {
             next = {
@@ -3011,6 +3025,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // durable history now covers this task, so converge the runtime rows
         // onto the canonical rows instead of trusting the stream's shape.
         queueMicrotask(() => {
+          // A resync snapshot can supply this durable tail in the same turn.
+          // Avoid another HTTP read once the versioned final row is present.
+          const window = get().sessionTranscripts[sessionId]?.window;
+          if (window && coverage.historyEpoch === window.epoch
+              && typeof coverage.historyRevision === 'number'
+              && window.revision >= coverage.historyRevision
+              && (window.total === 0 || window.rows.has(window.total - 1))) return;
           void get().recoverSessionHistory(sessionId);
         });
       }
@@ -3607,6 +3628,35 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }));
       throw error;
     }
+  },
+
+  applySessionSnapshots: (snapshots) => {
+    const incomingById = new Map(snapshots.map(session => [session.id, session]));
+    set((s) => {
+      const touches = { ...s._sessionWsTouchedSeq };
+      let changed = false;
+      const sessions = s.sessions.map(current => {
+        const incoming = incomingById.get(current.id);
+        if (!incoming) return current;
+        const patch: Partial<Session> = { ...incoming };
+        // Summary snapshots never own the loaded history window.
+        delete patch.history;
+        delete patch.historyStart;
+        delete patch.historyTruncated;
+        delete patch.historyEpoch;
+        delete patch.historyRevision;
+        const next = preserveNewerSummary(current, mergeSessionSettingPatch(
+          { ...current, ...patch },
+          s.sessionSettingMutations[current.id]?.pending
+            ? s.sessionSettingMutations[current.id]?.patch : undefined,
+        ), s.terminalWatermarks[current.id]);
+        if (sameSessionSnapshot(current, next, patch as Session)) return current;
+        changed = true;
+        touches[current.id] = (wsTouchSeq += 1);
+        return next;
+      });
+      return changed ? { sessions, _sessionWsTouchedSeq: touches } : s;
+    });
   },
 
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot = false) => {
