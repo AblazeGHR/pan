@@ -486,7 +486,18 @@ class TerminalRuntime:
             raise GateRejected(403, "forbidden-origin")
         origin_raw = request.headers.get("origin")
         if origin_raw is None:
-            raise GateRejected(403, "forbidden-origin")
+            # Browsers omit Origin on same-origin GET. Do not invent one in JS:
+            # accept only safe reads with the browser's protected Fetch Metadata
+            # plus an allowed scheme/Host. Missing metadata still fails closed.
+            browser_read = (
+                request.method == "GET"
+                and request.headers.get("sec-fetch-site") == "same-origin"
+                and request.headers.get("sec-fetch-mode") in {"cors", "same-origin"}
+                and request.headers.get("sec-fetch-dest") == "empty"
+            )
+            if not browser_read:
+                raise GateRejected(403, "forbidden-origin")
+            origin_raw = f"{request.url.scheme}://{request.headers.get('host', '')}"
         normalized = normalize_origin(origin_raw)
         if normalized is None or normalized not in self.allowlist.origins:
             raise GateRejected(403, "forbidden-origin")

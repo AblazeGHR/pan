@@ -181,3 +181,23 @@ def test_shutdown_before_commit_or_attach_never_issues_lease():
             await conn._await_lease(lambda: service.attach("term_1", conn.connection_id))
         assert service.lease_calls() == []
     asyncio.run(run())
+
+
+def test_browser_get_without_origin_requires_protected_same_origin_metadata():
+    async def run():
+        import httpx
+        from test_terminal_ws import start_app
+        service = FakeService()
+        service.list = lambda: []
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        headers = {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8768") as client:
+            assert (await client.get("/api/terminals", headers=headers)).status_code == 200
+            assert (await client.get("/api/terminals")).status_code == 403
+            assert (await client.get("/api/terminals", headers={**headers, "Sec-Fetch-Site": "cross-site"})).status_code == 403
+            assert (await client.get("/api/terminals", headers={**headers, "Host": "evil.invalid"})).status_code == 403
+            assert (await client.post("/api/terminals", json={}, headers=headers)).status_code == 403
+        await runtime.shutdown()
+    asyncio.run(run())

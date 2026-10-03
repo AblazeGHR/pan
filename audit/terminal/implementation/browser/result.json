@@ -1,0 +1,227 @@
+{
+  "browser": "chromium",
+  "realConPTY": true,
+  "events": [
+    {
+      "v": 1,
+      "type": "hello",
+      "terminal_id": "term_c60f232ea3b74044",
+      "connection_id": "conn_e289b6e11984482f8d20e945e56224ea",
+      "role": "observer",
+      "control_generation": null,
+      "protocol": {
+        "version": 1,
+        "encoding": "json-text",
+        "cursor": "ascii-decimal-string",
+        "max_inbound_frame_bytes": 262144,
+        "max_input_bytes": 131072,
+        "read_chunk_bytes": 32768
+      }
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "0",
+      "next_seq": "112",
+      "data_b64": "G1s/OTAwMWgbWz8xMDA0aBtbPzI1bBtbMkobW20bW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bXTA7QzpcV2luZG93c1xTWVNURU0zMlxjbWQuZXhlBxtbPzI1aA==",
+      "size": 112
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "112",
+      "next_seq": "231",
+      "data_b64": "G1s/MjVsDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1s0OzFIRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bWz8yNWg=",
+      "size": 119
+    },
+    {
+      "v": 1,
+      "type": "snapshot",
+      "terminal_id": "term_c60f232ea3b74044",
+      "status": "running",
+      "data_b64": "TWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddG1s/MTAwNGg=",
+      "cursor": "112",
+      "rows": 24,
+      "cols": 80,
+      "fidelity": "partial",
+      "recovery": "partial",
+      "feed_lag": false,
+      "note": "protocol=A(cursor=112, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=PRIVATE_MODE_9001_UNVERIFIED,CURSOR_VISIBILITY_DECTCEM_UNVERIFIED,WINDOW_TITLE_OSC_UNVERIFIED",
+      "note_truncated": false,
+      "engine": "xterm-headless/6.0.0+serialize/0.14.0",
+      "cursors_valid": true,
+      "reset_unconfirmed": false,
+      "applied_evicted": false,
+      "continuation_hint": "partial-view",
+      "auto_reset_applied": false,
+      "diagnostics": null
+    },
+    {
+      "v": 1,
+      "type": "resume-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "cursor": "112"
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "112",
+      "next_seq": "231",
+      "data_b64": "G1s/MjVsDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1s0OzFIRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bWz8yNWg=",
+      "size": 119
+    },
+    {
+      "v": 1,
+      "type": "claim-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "role": "control",
+      "generation": "1"
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "next_seq": "231"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "accepted": true,
+      "status": "ok",
+      "rows": 48,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "231",
+      "next_seq": "643",
+      "data_b64": "G1s/MjVsG1s4OzQ4OzEzN3QbW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bW0sNCihjKSBNaWNyb3NvZnQgQ29ycG9yYXRpb27jgILkv53nlZnmiYDmnInmnYPliKnjgIIbW0sNChtbSw0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLG1s0OzUxSBtbPzI1aA==",
+      "size": 412
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "accepted": true,
+      "size": 3,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "accepted": true,
+      "size": 28,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "next_seq": "643"
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "accepted": true,
+      "size": 1,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "643",
+      "next_seq": "764",
+      "data_b64": "G1s/MjVsZWNobyDkuK3mlodfUEFOX0JST1dTRVJfUkVBTA0K5Lit5paHX1BBTl9CUk9XU0VSX1JFQUwbWzc7MUhEOlxwcm9qZWN0XHBhbi13b3JrdHJlZXNcdGVybWluYWwtbWNwLW1hLTIwMjYxMDA0PhtbPzI1aA==",
+      "size": 121
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "next_seq": "764"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "accepted": true,
+      "status": "ok",
+      "rows": 49,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "hello",
+      "terminal_id": "term_c60f232ea3b74044",
+      "connection_id": "conn_759115484ff64c778e4cc3656b753c23",
+      "role": "observer",
+      "control_generation": null,
+      "protocol": {
+        "version": 1,
+        "encoding": "json-text",
+        "cursor": "ascii-decimal-string",
+        "max_inbound_frame_bytes": 262144,
+        "max_input_bytes": 131072,
+        "read_chunk_bytes": 32768
+      }
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_c60f232ea3b74044",
+      "seq": "0",
+      "next_seq": "1271",
+      "data_b64": "G1s/OTAwMWgbWz8xMDA0aBtbPzI1bBtbMkobW20bW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bXTA7QzpcV2luZG93c1xTWVNURU0zMlxjbWQuZXhlBxtbPzI1aBtbPzI1bA0KKGMpIE1pY3Jvc29mdCBDb3Jwb3JhdGlvbuOAguS/neeVmeaJgOacieadg+WIqeOAghtbNDsxSEQ6XHByb2plY3RccGFuLXdvcmt0cmVlc1x0ZXJtaW5hbC1tY3AtbWEtMjAyNjEwMDQ+G1s/MjVoG1s/MjVsG1s4OzQ4OzEzN3QbW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bW0sNCihjKSBNaWNyb3NvZnQgQ29ycG9yYXRpb27jgILkv53nlZnmiYDmnInmnYPliKnjgIIbW0sNChtbSw0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLG1s0OzUxSBtbPzI1aBtbPzI1bGVjaG8g5Lit5paHX1BBTl9CUk9XU0VSX1JFQUwNCuS4reaWh19QQU5fQlJPV1NFUl9SRUFMG1s3OzFIRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bWz8yNWgbWz8yNWwbW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bW0sNCihjKSBNaWNyb3NvZnQgQ29ycG9yYXRpb27jgILkv53nlZnmiYDmnInmnYPliKnjgIIbW0sNChtbSw0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND5lY2hvIOS4reaWh19QQU5fQlJPV1NFUl9SRUFMG1tLDQrkuK3mlodfUEFOX0JST1dTRVJfUkVBTBtbSw0KG1tLDQpEOlxwcm9qZWN0XHBhbi13b3JrdHJlZXNcdGVybWluYWwtbWNwLW1hLTIwMjYxMDA0PhtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSxtbNzs1MUgbWz8yNWg=",
+      "size": 1271
+    },
+    {
+      "v": 1,
+      "type": "snapshot",
+      "terminal_id": "term_c60f232ea3b74044",
+      "status": "running",
+      "data_b64": "TWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCDQoNCkQ6XHByb2plY3RccGFuLXdvcmt0cmVlc1x0ZXJtaW5hbC1tY3AtbWEtMjAyNjEwMDQ+ZWNobyDkuK3mlodfUEFOX0JST1dTRVJfUkVBTA0K5Lit5paHX1BBTl9CUk9XU0VSX1JFQUwNCg0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bWz8xMDA0aA==",
+      "cursor": "1271",
+      "rows": 49,
+      "cols": 137,
+      "fidelity": "partial",
+      "recovery": "partial",
+      "feed_lag": false,
+      "note": "protocol=A(cursor=1271, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=PRIVATE_MODE_9001_UNVERIFIED,CURSOR_VISIBILITY_DECTCEM_UNVERIFIED,WINDOW_TITLE_OSC_UNVERIFIED",
+      "note_truncated": false,
+      "engine": "xterm-headless/6.0.0+serialize/0.14.0",
+      "cursors_valid": true,
+      "reset_unconfirmed": false,
+      "applied_evicted": false,
+      "continuation_hint": "partial-view",
+      "auto_reset_applied": false,
+      "diagnostics": null
+    },
+    {
+      "v": 1,
+      "type": "resume-result",
+      "terminal_id": "term_c60f232ea3b74044",
+      "cursor": "1271"
+    }
+  ],
+  "errors": [],
+  "terminalId": "term_c60f232ea3b74044",
+  "passed": true,
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:60772', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:60772', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:60772', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\npan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged\r\n{'origin': None, 'host': '127.0.0.1:60772', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

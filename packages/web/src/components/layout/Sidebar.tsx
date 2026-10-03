@@ -29,6 +29,7 @@ const SessionDetailsModal = lazy(() => import('@/components/session/SessionDetai
 import {
   MessageSquare,
   Code,
+  TerminalSquare,
   PanelLeftClose,
   PanelLeft,
   Plus,
@@ -404,6 +405,11 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           }
         >
           <Code size={18} />
+        </NavLink>
+
+        <NavLink to="/terminals" title="全局终端" className={({ isActive }) =>
+          `p-1.5 rounded transition-colors ${isActive ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'}`}>
+          <TerminalSquare size={18} />
         </NavLink>
 
         <NavLink
