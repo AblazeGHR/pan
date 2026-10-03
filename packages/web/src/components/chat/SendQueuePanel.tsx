@@ -3,9 +3,11 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { AgentQueueItem } from '@/types';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
-import { Pencil, ArrowUp, ArrowDown, Trash2, Check, X, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus } from 'lucide-react';
+import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
 const BUTTON = 'rounded p-1 text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
@@ -66,6 +68,7 @@ function QueueMessagePreview({ item, onClose }: { item: AgentQueueItem; onClose:
 
 export function SendQueuePanel() {
   const sessionId = useSessionStore((state) => state.currentSessionId);
+  const readonlySession = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.readonlySession === true);
   const open = useQueueStore((state) => state.panelOpen);
   const reportsPaused = useQueueStore((state) => sessionId ? state.agentReportsPaused[sessionId] ?? false : false);
   const reportPauseLoaded = useQueueStore((state) => sessionId ? state.agentReportsPauseLoaded[sessionId] ?? false : false);
@@ -81,15 +84,22 @@ export function SendQueuePanel() {
   const setItemsLocked = useQueueStore((state) => state.setQueueItemsLocked);
   const setLockedComposerMode = useQueueStore((state) => state.setLockedComposerMode);
   const startEdit = useQueueStore((state) => state.startEdit);
-  const updateDraft = useQueueStore((state) => state.updateEditDraft);
-  const saveEdit = useQueueStore((state) => state.saveEdit);
-  const cancelEdit = useQueueStore((state) => state.cancelEdit);
   const remove = useQueueStore((state) => state.removeAgentItem);
   const move = useQueueStore((state) => state.moveQueueItem);
   const clear = useQueueStore((state) => state.clear);
   const [preview, setPreview] = useState<AgentQueueItem | null>(null);
 
-  useEffect(() => { load(sessionId); }, [load, sessionId]);
+  const [confirmation, setConfirmation] = useState<{ sessionId: string; itemId: string } | null>(null);
+  const requestEdit = async (item: AgentQueueItem) => {
+    if (!sessionId || useQueueStore.getState().edits[sessionId]) return;
+    const requestedSession = sessionId;
+    await useAppSettingsStore.getState().ensureSettingsLoaded();
+    if (useSessionStore.getState().currentSessionId !== requestedSession) return;
+    if (!(item.kind === 'task' && item.source === 'user') && useAppSettingsStore.getState().notifications.confirmAgentSystemQueueEdit) {
+      setConfirmation({ sessionId: requestedSession, itemId: item.id });
+    } else startEdit(item.id);
+  };
+  useEffect(() => { load(sessionId); setConfirmation(null); }, [load, sessionId]);
 
   const displayItems = useMemo(() => {
     if (!edit) return items;
@@ -158,19 +168,11 @@ export function SendQueuePanel() {
             ) : (
               <div className="p-1">
                 {displayItems.map((item, index) => {
-                  const editing = edit?.id === item.id;
-                  const editable = item.kind === 'task' && item.source === 'user';
+                  const editable = item.meta?.dispatchState === 'queued';
                   const locked = item.meta?.locked === true;
                   return (
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
-                      {editing ? (
-                        <>
-                        <textarea autoFocus rows={2} value={edit.text} disabled={edit.acquiring || edit.saving || edit.releasing} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveEdit(); } else if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); } }} className="flex-1 resize-none rounded border border-accent/50 bg-bg-tertiary px-2 py-1 text-sm text-text-primary focus:outline-none disabled:opacity-60" />
-                          <button className={BUTTON} disabled={edit.acquiring || edit.saving || edit.releasing} onClick={saveEdit} title="保存"><Check size={14} /></button>
-                          <button className={BUTTON} disabled={edit.acquiring || edit.saving || edit.releasing} onClick={cancelEdit} title="取消"><X size={14} /></button>
-                        </>
-                      ) : (
-                        <>
+                      <>
                           <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary">{label(item)} {item.kind}</span>
                           <button
                             type="button"
@@ -182,13 +184,12 @@ export function SendQueuePanel() {
                             {item.text}
                           </button>
                           <span className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
-                            {editable && <button className={BUTTON} onClick={() => startEdit(item.id)} title="编辑"><Pencil size={12} /></button>}
+                            {editable && <button className={BUTTON} disabled={!!edit || readonlySession} onClick={() => void requestEdit(item)} title="编辑"><Pencil size={12} /></button>}
                             <button className={BUTTON} disabled={index === 0} onClick={() => move(item.id, -1)} title="上移"><ArrowUp size={12} /></button>
                             <button className={BUTTON} disabled={index === displayItems.length - 1} onClick={() => move(item.id, 1)} title="下移"><ArrowDown size={12} /></button>
                             <button className={BUTTON + ' text-danger hover:bg-danger/10'} onClick={() => void remove(item.id)} title="删除"><Trash2 size={12} /></button>
                           </span>
-                        </>
-                      )}
+                      </>
                       <button type="button"
                         className={`${BUTTON} shrink-0 ${locked ? 'border border-danger text-danger hover:bg-danger/10' : 'border border-border-default'}`}
                         disabled={!sessionId || lockUpdating || reportPauseUpdating}
@@ -206,6 +207,16 @@ export function SendQueuePanel() {
           </div>
         </div>
       </div>
+      <Modal open={!!confirmation && confirmation.sessionId === sessionId} onClose={() => setConfirmation(null)} title="确认修改" size="sm">
+        <p className="text-sm text-text-primary">是否确认修改agent/系统消息？</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmation(null)}>取消</Button>
+          <Button onClick={() => {
+            if (confirmation && useSessionStore.getState().currentSessionId === confirmation.sessionId) startEdit(confirmation.itemId);
+            setConfirmation(null);
+          }}>确认</Button>
+        </div>
+      </Modal>
       {preview && <QueueMessagePreview item={preview} onClose={() => setPreview(null)} />}
     </div>
   );

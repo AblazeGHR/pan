@@ -300,7 +300,7 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
 
   it('reparents across workspaces without a prompt when confirmation is disabled', async () => {
     useAppSettingsStore.setState({
-      notifications: { codexWarningToast: true, confirmCrossWorkspaceManagement: false },
+      notifications: { codexWarningToast: true, confirmCrossWorkspaceManagement: false, confirmAgentSystemQueueEdit: true },
     });
     useSessionStore.setState({ sessions: [
       mk('A', 'Alpha', { workspaceIds: ['workspace-a'], updatedAt: new Date().toISOString() }),

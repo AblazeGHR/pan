@@ -420,7 +420,7 @@ describe('server-backed queue store', () => {
     expect(useQueueStore.getState().queues.s2?.map((entry) => entry.id)).toEqual([sentInB.id]);
   });
 
-  it('clears a same-Session edit when the queue item is removed elsewhere', async () => {
+  it('retains an invalid edit draft when the queue item is removed elsewhere', async () => {
     const first = item('q-removed-while-editing', 'original');
     useQueueStore.setState({ queues: { s1: snapshot([first], 1) }, queueRevisions: { s1: 1 } });
     useQueueStore.getState().startEdit(first.id);
@@ -433,7 +433,9 @@ describe('server-backed queue store', () => {
       queueRevision: 2,
     });
 
-    expect(useQueueStore.getState().edits.s1).toBeNull();
+    expect(useQueueStore.getState().edits.s1).toEqual(expect.objectContaining({
+      id: first.id, text: 'original', error: expect.any(String),
+    }));
     expect(useQueueStore.getState().queues.s1).toEqual([]);
     expect(useQueueStore.getState().queueTombstones.s1?.has(first.id)).toBe(true);
   });

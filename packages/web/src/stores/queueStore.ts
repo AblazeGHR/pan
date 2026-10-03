@@ -117,7 +117,7 @@ function scheduleEditLeaseRenewal(
   stopEditLeaseRenewal(sessionId);
   const timer = setInterval(() => {
     const edit = readEdit();
-    if (!edit || edit.editToken !== editToken || !edit.serverToken) {
+    if (!edit || edit.editToken !== editToken || !edit.serverToken || edit.error) {
       stopEditLeaseRenewal(sessionId, editToken);
       return;
     }
@@ -176,7 +176,7 @@ function setSnapshot(
       ...(revision === undefined
         ? {}
         : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
-      ...(editMissing ? { edits: { ...state.edits, [sessionId]: null } } : {}),
+      ...(editMissing ? { edits: { ...state.edits, [sessionId]: { ...edit, error: '条目已出队或删除，无法保存；请复制正文或取消编辑。' } } } : {}),
       ...(reportsPaused === undefined ? {} : {
         agentReportsPaused: { ...state.agentReportsPaused, [sessionId]: reportsPaused },
         agentReportsPauseLoaded: { ...state.agentReportsPauseLoaded, [sessionId]: true },
@@ -292,7 +292,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         const active = get().edits[sessionId];
         if (!active || active.editToken !== editToken) return;
         stopEditLeaseRenewal(sessionId, editToken);
-        set((state) => ({ edits: { ...state.edits, [sessionId]: null } }));
+        set((state) => ({ edits: { ...state.edits, [sessionId]: { ...active, error: '编辑锁已失效，请复制正文后取消并重新编辑。' } } }));
         useUIStore.getState().showToast(
           `编辑锁已失效：${error instanceof Error ? error.message : String(error)}`,
           'error',
@@ -503,7 +503,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         nextTombstones.add(canonical);
         const activeEdit = state.edits[sid];
         const edits = activeEdit && queueIdMatches(activeEdit.id, id)
-          ? { ...state.edits, [sid]: null }
+          ? { ...state.edits, [sid]: { ...activeEdit, error: '条目已删除，无法保存。' } }
           : state.edits;
         return {
           queueTombstones: { ...state.queueTombstones, [sid]: nextTombstones },
@@ -528,7 +528,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           edits: state.edits[sid] && [...delivered].some((id) =>
             queueIdMatches(state.edits[sid]!.id, id),
           )
-            ? { ...state.edits, [sid]: null }
+            ? { ...state.edits, [sid]: { ...state.edits[sid]!, error: '条目已出队，无法保存。' } }
             : state.edits,
         }));
         next = current.filter((candidate) => ![...delivered].some((id) => queueIdMatches(candidate.id, id)));
@@ -627,7 +627,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
 
   startEdit: (id) => {
     const sid = useSessionStore.getState().currentSessionId;
-    if (!sid) return;
+    if (!sid || useSessionStore.getState().sessions.find((session) => session.id === sid)?.readonlySession) return;
     // Preserve the first edit transaction, including an in-flight PATCH.
     // Repeated clicks must not replace its draft or token.
     if (get().edits[sid]) return;
@@ -635,8 +635,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     const item = items.find((candidate) => queueIdMatches(candidate.id, id));
     if (
       !item ||
-      item.kind !== 'task' ||
-      item.source !== 'user' ||
       item.meta?.dispatchState !== 'queued'
     )
       return;
@@ -732,7 +730,13 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       ? (get().queues[sid] ?? []).find((candidate) => edit && queueIdMatches(candidate.id, edit.id))
       : null;
     if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing || !item
-        || !edit.serverToken) return;
+        || !edit.serverToken || edit.error || item.meta?.dispatchState !== 'queued'
+        || useSessionStore.getState().sessions.find((session) => session.id === sid)?.readonlySession) return;
+    if (edit.leaseExpiresAt !== undefined && edit.leaseExpiresAt * 1000 <= Date.now()) {
+      stopEditLeaseRenewal(sid, edit.editToken);
+      set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, error: '编辑锁已过期，请复制正文后取消并重新编辑。' } } }));
+      return;
+    }
     const editToken = edit.editToken ?? ++editTokenSeq;
     const text = edit.text.trim() ? edit.text : edit.originalText;
     stopEditLeaseRenewal(sid, editToken);

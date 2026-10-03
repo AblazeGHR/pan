@@ -451,6 +451,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setChatViewStyle,
     setCodexWarningToast,
     setConfirmCrossWorkspaceManagement,
+    setConfirmAgentSystemQueueEdit,
     resetSettings,
   } = useAppSettingsStore();
 
@@ -1419,6 +1420,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   onChange={setCodexWarningToast}
                 />
                 <SwitchRow
+                  label="修改 agent/系统队列消息前确认"
+                  hint="关闭仅跳过提醒，仍遵循队列编辑校验。"
+                  checked={notifications.confirmAgentSystemQueueEdit}
+                  onChange={setConfirmAgentSystemQueueEdit}
+                />
+                <SwitchRow
                   label="Confirm management changes across workspaces"
                   hint="Moving a managed Session subtree to another workspace detaches it from its current manager."
                   checked={notifications.confirmCrossWorkspaceManagement}
@@ -1435,8 +1442,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </div>
               </div>
               <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                These settings only control warning Toasts. Other adapter status, chat output, and
-                interactive prompts are unchanged.
+                These settings control warning Toasts and confirmation reminders.
               </p>
             </section>
           ) : activeTab === 'appearance' ? (

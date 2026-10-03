@@ -1154,7 +1154,7 @@ export interface QueuedMessage {
 /** Edit overlay for one queued item; the server lease keeps Worker hand-off paused. */
 export interface QueuedEdit {
   id: string;
-  /** Draft shown over the same pending queue row while its server lease is held. */
+  /** Draft shown in the main composer while its server lease is held. */
   text: string;
   /** 编辑前的原文（Esc 取消 / 保存为空时恢复）。 */
   originalText: string;
@@ -1171,6 +1171,8 @@ export interface QueuedEdit {
   releasing?: boolean;
   cancelRequested?: boolean;
   leaseExpiresAt?: number;
+  /** Keep the draft available for copying when the lease or item is invalid. */
+  error?: string;
 }
 
 // ── Agent queue (backend session.queue_pending, normalized) ──

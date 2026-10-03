@@ -45,6 +45,7 @@ export interface AppSettings {
     /** Show structured Codex warning events through a Toast. */
     codexWarningToast: boolean;
     confirmCrossWorkspaceManagement: boolean;
+    confirmAgentSystemQueueEdit: boolean;
   };
 }
 
@@ -64,6 +65,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifications: {
     codexWarningToast: true,
     confirmCrossWorkspaceManagement: true,
+    confirmAgentSystemQueueEdit: true,
   },
 };
 
@@ -133,6 +135,7 @@ export function sanitizeSettings(
         ? parsed.showHistorySearch
         : DEFAULT_SETTINGS.showHistorySearch,
     notifications: {
+      confirmAgentSystemQueueEdit: typeof notifications.confirmAgentSystemQueueEdit === 'boolean' ? notifications.confirmAgentSystemQueueEdit : true,
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
           ? notifications.codexWarningToast
@@ -162,6 +165,7 @@ interface AppSettingsStore extends AppSettings {
   setShowHistorySearch: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
+  setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
   /** Fetch the persisted ui object from config.json into the store. */
@@ -183,7 +187,12 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
 
   const persist = (patch: AppSettingsPatch) => {
     dirty = true;
-    void updateUiSettings(patch).catch(() => {
+    // The settings API merges top-level keys, replacing the notifications object.
+    // Send all current notification preferences so changing one preserves the rest.
+    const payload = patch.notifications
+      ? { ...patch, notifications: { ...get().notifications, ...patch.notifications } }
+      : patch;
+    void updateUiSettings(payload).catch(() => {
       // Best-effort writeback: a backend failure is non-fatal, the in-memory
       // value stays for the current session and is retried next change.
     });
@@ -289,6 +298,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setConfirmCrossWorkspaceManagement: (v) => {
       set((s) => ({ notifications: { ...s.notifications, confirmCrossWorkspaceManagement: v } }));
       persist({ notifications: { confirmCrossWorkspaceManagement: v } });
+    },
+
+    setConfirmAgentSystemQueueEdit: (v) => {
+      set((s) => ({ notifications: { ...s.notifications, confirmAgentSystemQueueEdit: v } }));
+      persist({ notifications: { confirmAgentSystemQueueEdit: v } });
     },
 
     resetSettings: () => {

@@ -151,7 +151,7 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(3, { showTaskAgent: false });
     expect(mockedUpdate).toHaveBeenNthCalledWith(4, { showQQ: false });
     expect(mockedUpdate).toHaveBeenNthCalledWith(5, {
-      notifications: { codexWarningToast: false },
+      notifications: { ...DEFAULT_SETTINGS.notifications, codexWarningToast: false },
     });
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
@@ -183,10 +183,10 @@ describe('appSettingsStore', () => {
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
     expect(sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications)
-      .toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });
+      .toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true });
     useAppSettingsStore.getState().setConfirmCrossWorkspaceManagement(false);
     expect(useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement).toBe(false);
-    expect(mockedUpdate).toHaveBeenCalledWith({ notifications: { confirmCrossWorkspaceManagement: false } });
+    expect(mockedUpdate).toHaveBeenCalledWith({ notifications: { ...DEFAULT_SETTINGS.notifications, confirmCrossWorkspaceManagement: false } });
   });
 
   it('resets all settings to defaults and writes them back', () => {
@@ -250,7 +250,7 @@ describe('appSettingsStore', () => {
       .defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(
       sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
-    ).toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });
+    ).toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true });
     expect(sanitizeSettings(null)).toEqual({ ...DEFAULT_SETTINGS });
     expect(sanitizeSettings({ showCodexTerminalInput: 'yes' }).showCodexTerminalInput)
       .toBe(false);

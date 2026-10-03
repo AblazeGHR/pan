@@ -417,9 +417,17 @@ export function InputRow() {
     const q = s.queues[currentSessionId];
     return q?.filter((item) => item.meta?.dispatchState === 'queued').length ?? 0;
   });
-  const queueEditActive = useQueueStore((s) =>
-    currentSessionId ? Boolean(s.edits[currentSessionId]) : false,
-  );
+  const queueEdit = useQueueStore((s) => currentSessionId ? s.edits[currentSessionId] : null);
+  const queueEditActive = !!queueEdit;
+  const saveQueueEdit = useQueueStore((s) => s.saveEdit);
+  const cancelQueueEdit = useQueueStore((s) => s.cancelEdit);
+  const updateQueueEdit = useQueueStore((s) => s.updateEditDraft);
+  useEffect(() => {
+    if (!queueEditActive) return;
+    setAttachmentMenuOpen(false);
+    setAttachmentBrowserOpen(false);
+    setSettingsOpen(false);
+  }, [queueEditActive]);
   const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
@@ -1298,6 +1306,29 @@ export function InputRow() {
         <SendQueuePanel />
       </div>
 
+      {queueEdit && (
+        <div data-testid="queue-composer-edit" className="flex shrink-0 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
+          <p className="text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
+          {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
+          <div className="flex gap-2">
+            <textarea key={`${currentSessionId}:${queueEdit.editToken}`} autoFocus aria-label="队列消息正文"
+              value={queueEdit.text} rows={5} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing}
+              onChange={(event) => updateQueueEdit(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
+                if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveQueueEdit(); }
+                else if (event.key === 'Escape') { event.preventDefault(); cancelQueueEdit(); }
+              }} className="min-w-0 flex-1 resize-y rounded border border-accent bg-bg-secondary p-2 text-sm text-text-primary" />
+            <div className="flex items-end gap-1">
+              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
+                onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+              <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
+                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className={queueEditActive ? "hidden" : "contents"}>
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
       <div className="flex min-h-0 flex-1 gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
@@ -1786,6 +1817,7 @@ export function InputRow() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
