@@ -17,6 +17,7 @@ vi.mock('@/services/api', () => api);
 import { SendQueuePanel } from './SendQueuePanel';
 import { useQueueStore } from '@/stores/queueStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 
 function item(
   id: string,
@@ -42,6 +43,7 @@ function snapshot(items: ReturnType<typeof item>[]) {
 }
 
 beforeEach(() => {
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
   useSessionStore.setState({ currentSessionId: 's1', sessions: [], currentMessages: [] });
   useQueueStore.setState({
     queues: {
@@ -56,7 +58,11 @@ beforeEach(() => {
     panelOpen: true, agentQueueLoadSeq: {}, queueRevisions: {},
   });
   api.fetchSessionQueue.mockResolvedValue(snapshot([item('q-pending', '仍待发送', 'queued')]));
-  api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  api.acquireSessionQueueItemEdit.mockImplementation(async (sessionId: string, id: string) => {
+    const row = (useQueueStore.getState().queues[sessionId] ?? useQueueStore.getState().agentQueues[sessionId] ?? []).find(item => item.id === id);
+    if (!row) throw new Error(`Missing queue lease fixture: ${sessionId}/${id}`);
+    return { expiresAt: Math.floor(Date.now() / 1000) + 300, text: row.text, revision: row.meta?.revision ?? 1, bodyFormat: 'text' };
+  });
   api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
   vi.clearAllMocks();
 });
@@ -114,12 +120,13 @@ describe('SendQueuePanel pending-only view', () => {
     const row = screen.getByText('原始用户任务').closest('div');
     expect(row).toBeTruthy();
     fireEvent.click(within(row!).getByTitle('编辑'));
-    const editBox = screen.getByDisplayValue('原始用户任务') as HTMLTextAreaElement;
-    await waitFor(() => expect(editBox.disabled).toBe(false));
-    fireEvent.change(editBox, {
-      target: { value: '修改后的用户任务' },
-    });
-    fireEvent.click(screen.getByTitle('保存'));
+    // Editing now lives in InputRow; the panel hands the full body and native
+    // identity to the shared composer state (covered by InputRow.test.tsx).
+    await waitFor(() => expect(useQueueStore.getState().edits.s1).toMatchObject({
+      id: original.id, text: original.text, acquiring: false,
+    }));
+    useQueueStore.getState().updateEditDraft('修改后的用户任务');
+    await useQueueStore.getState().saveEdit();
 
     await waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalledWith(
       's1', 'q-user-edit', '修改后的用户任务', 1, expect.any(String),

@@ -29,8 +29,9 @@ _reserve_queue_unit = worker_module._reserve_queue_unit
 _CRASH_RECOVERY_LABEL = 'crash-recovery-history-idempotency'
 
 
-async def _reserve_with_crash_gate(worker, session, items, text):
-    history_added = await _reserve_queue_unit(worker, session, items, text)
+async def _reserve_with_crash_gate(worker, session, items, text, expected_revisions=None):
+    history_added = await _reserve_queue_unit(
+        worker, session, items, text, expected_revisions=expected_revisions)
     is_target = any(
         _CRASH_RECOVERY_LABEL in str(item.get('text') or '')
         for item in items

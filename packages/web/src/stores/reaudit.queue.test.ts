@@ -58,7 +58,11 @@ describe('reaudit · queue ACK / tombstone / edit / recovery', () => {
     useUIStore.setState({ toastQueue: [] });
     useWorkerStore.setState({ workers: {} });
     api.fetchSessionQueue.mockResolvedValue([]);
-    api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+    api.acquireSessionQueueItemEdit.mockImplementation(async (sessionId: string, id: string) => {
+    const row = (useQueueStore.getState().queues[sessionId] ?? useQueueStore.getState().agentQueues[sessionId] ?? []).find(item => item.id === id);
+    if (!row) throw new Error(`Missing queue lease fixture: ${sessionId}/${id}`);
+    return { expiresAt: Math.floor(Date.now() / 1000) + 300, text: row.text, revision: row.meta?.revision ?? 1, bodyFormat: 'text' };
+  });
     api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
   });
 

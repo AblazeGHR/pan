@@ -160,7 +160,11 @@ beforeEach(() => {
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
   vi.mocked(enqueueSessionMessage).mockClear();
-  queueApi.acquireSessionQueueItemEdit.mockReset().mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  queueApi.acquireSessionQueueItemEdit.mockReset().mockImplementation(async (sessionId: string, id: string) => {
+    const row = (useQueueStore.getState().queues[sessionId] ?? useQueueStore.getState().agentQueues[sessionId] ?? []).find(item => item.id === id);
+    if (!row) throw new Error(`Missing queue lease fixture: ${sessionId}/${id}`);
+    return { expiresAt: Math.floor(Date.now() / 1000) + 300, text: row.text, revision: row.meta?.revision ?? 1, bodyFormat: 'text' };
+  });
   queueApi.fetchSessionQueue.mockReset().mockRejectedValue(new Error('offline'));
   queueApi.releaseSessionQueueItemEdit.mockReset().mockResolvedValue(undefined);
   queueApi.updateSessionQueueItem.mockReset().mockResolvedValue({

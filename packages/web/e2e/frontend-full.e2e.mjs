@@ -727,9 +727,9 @@ try {
   let editRow = page.locator('.queue-row-in').filter({ hasText: 'edit-me' });
   await editRow.hover();
   await editRow.getByTitle('编辑', { exact: true }).click();
-  await page.locator('.queue-row-in textarea').fill('edited-message');
-  await page.getByTitle('保存', { exact: true }).click();
-  await page.locator('.queue-row-in textarea').waitFor({ state: 'detached' });
+  await page.getByRole('textbox', { name: '队列消息正文' }).fill('edited-message');
+  await page.getByRole('button', { name: '保存队列编辑', exact: true }).click();
+  await page.getByRole('textbox', { name: '队列消息正文' }).waitFor({ state: 'detached' });
   await page.locator('.queue-row-in').filter({ hasText: 'edited-message' }).waitFor();
   const deleteRow = page.locator('.queue-row-in').filter({ hasText: 'delete-me' });
   await deleteRow.hover();

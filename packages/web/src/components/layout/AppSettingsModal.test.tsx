@@ -977,7 +977,8 @@ describe('AppSettingsModal', () => {
     fireEvent.click(notificationTab);
     expect(cardEl().textContent).toContain('Codex warnings via Toast');
     expect(cardEl().textContent).toContain('CBC warnings via Toast');
-    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(2);
+    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(3);
+    expect(cardEl().textContent).toContain('修改 agent/系统队列消息前确认');
     const codexWarningSwitch = Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
       .find((element) => element.textContent?.includes('Codex warnings via Toast'))!;
     fireEvent.click(codexWarningSwitch);

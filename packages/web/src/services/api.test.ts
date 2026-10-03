@@ -192,7 +192,7 @@ describe('worker control business errors', () => {
     expect(lease.expiresAt).toBe(4_000_000_000);
     expect(requests.map((request) => request.method)).toEqual(['POST', 'PATCH', 'POST']);
     expect(JSON.parse(requests[0]?.body as string)).toEqual({
-      editToken: 'edit-token', expectedRevision: 2,
+      editToken: 'edit-token', expectedRevision: 2, includeBody: false,
     });
     expect(JSON.parse(requests[1]?.body as string)).toEqual({
       text: 'edited', expectedRevision: 2, editToken: 'edit-token',
