@@ -1,0 +1,13 @@
+{
+  "exit_code": 8,
+  "startup": {
+    "reason": "node-missing",
+    "owner": "none",
+    "attempts": 0,
+    "converged": true,
+    "residual": {
+      "reason": "node-missing"
+    }
+  },
+  "phase": "engine-startup-failed"
+}

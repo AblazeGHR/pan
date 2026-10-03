@@ -1,0 +1,17 @@
+{
+  "exit_code": 6,
+  "owner_calls": 13,
+  "elapsed": 0.609,
+  "startup": {
+    "reason": "fatal-frame",
+    "owner": "unproven",
+    "attempts": 13,
+    "converged": false,
+    "residual": {
+      "reason": "fatal-frame",
+      "pid": 7
+    },
+    "last_error_type": "injected-not-converged",
+    "seconds": 0.609
+  }
+}

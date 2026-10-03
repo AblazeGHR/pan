@@ -1,0 +1,17 @@
+{
+  "exit_code": 6,
+  "elapsed": 0.828,
+  "max_concurrent": 1,
+  "cleanup": {
+    "converged": false,
+    "attempts": 1,
+    "last_error_type": null,
+    "retained": [
+      "engine"
+    ],
+    "in_flight": true,
+    "seconds": 0.812,
+    "outcome": "unproven",
+    "detail": "close-in-flight; close-in-flight; close-in-flight; close-in-flight; worker-retained-in-flight"
+  }
+}

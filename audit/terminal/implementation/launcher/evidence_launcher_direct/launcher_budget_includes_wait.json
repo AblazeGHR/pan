@@ -1,0 +1,12 @@
+{
+  "first": {
+    "exit_code": 6,
+    "elapsed": 0.406,
+    "in_flight": true
+  },
+  "retry": {
+    "converged": true,
+    "attempts": 1
+  },
+  "max_concurrent": 1
+}

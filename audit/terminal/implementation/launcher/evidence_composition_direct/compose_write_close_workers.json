@@ -1,0 +1,29 @@
+{
+  "input_statuses": [
+    "done",
+    "done",
+    "done"
+  ],
+  "heartbeat_latencies": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "close_status": "exited",
+  "emulator_close": {
+    "closed": true,
+    "graceful": true,
+    "forced": true,
+    "process_exited": true,
+    "guard_closed": true,
+    "reader_joined": true,
+    "stderr_joined": true,
+    "applier_joined": true,
+    "streams_closed": true,
+    "job_verified": true,
+    "detail": "ok",
+    "seconds": 0.015999999988707714
+  }
+}

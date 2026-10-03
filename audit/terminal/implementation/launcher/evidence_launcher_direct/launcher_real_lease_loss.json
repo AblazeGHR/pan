@@ -1,0 +1,15 @@
+{
+  "exit_code": 0,
+  "engine_cleanup": {
+    "converged": true,
+    "attempts": 1,
+    "last_error_type": null,
+    "retained": [],
+    "in_flight": false,
+    "seconds": 0.016,
+    "outcome": "closed",
+    "detail": "closed-after-1-attempt(s)"
+  },
+  "shell_dead": true,
+  "sidecar_dead": true
+}

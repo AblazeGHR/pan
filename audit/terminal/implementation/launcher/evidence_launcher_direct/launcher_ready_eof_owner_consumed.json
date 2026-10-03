@@ -1,0 +1,16 @@
+{
+  "exit_code": 8,
+  "owner_calls": 2,
+  "startup": {
+    "reason": "ready-eof",
+    "owner": "consumed",
+    "attempts": 2,
+    "converged": true,
+    "residual": {
+      "reason": "ready-eof",
+      "pid": 4242,
+      "identity_filetime": "133400000"
+    },
+    "seconds": 0.046
+  }
+}
