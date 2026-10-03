@@ -104,3 +104,54 @@
 - 容量准入是**单服务实例内**硬约束；跨进程并发创建同一数据根不在本批保证范围
   （`registry` 无跨进程容量原语，**未擅自扩展共享协议**）。
 - 吞吐/时延数字仅本机探针，不可外推。
+
+---
+
+## 7. 附：哈希口径更正（F11，2026-10-03 窄修 TA 追加）
+
+> **本节为追加**：不改上文 §1 旧表、不倒写历史。§1 的原始记录原样保留；本节以
+> **提交 blob** 为锚定权威，仅**更正口径**并**补全一处 63 位截断串**，不补造历史证据。
+
+### 7.1 算法与口径
+
+- **算法**：`sha256`，对文件**原始字节**计算（不含路径、不加 BOM）。
+- **口径 A（推荐锚定）**：`git cat-file blob cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9:<path>`
+  的 **LF blob 字节**（Git 提交字节，与换行配置无关）。
+- **口径 B**：**CRLF 工作树字节** = 口径 A 的字节把每个 `\n` 重写为 `\r\n`
+  （本树 `core.autocrlf=true` 的检出形态；已实测与 `cde2dbd8` 检出工作树逐字节一致）。
+- **源提交**：`cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9`（源 cde，与本批被审提交同一）。
+
+### 7.2 5 件源完整可复算哈希（cde2dbd8）
+
+| 文件 | 口径A LF blob sha256 | A bytes | 换行数 | 口径B CRLF sha256 | B bytes |
+| --- | --- | --- | --- | --- | --- |
+| `packages/core/terminal/service.py` | `71e295c0283e0a41e03502c8498e662b334cc9f42c872ad9415742f59833fbf3` | 86846 | 1897 | `fb0421edd3311be1023b052e25358a7634fc453ba581163a366e394b27b9a3c3` | 88743 |
+| `packages/core/terminal/launcher.py` | `4ab84a80af8886fd0a6555c14a042aabb0ccf099b236ba6dc82b299812b54647` | 32330 | 757 | `0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc` | 33087 |
+| `tests/test_terminal_service.py` | `aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f` | 60706 | 1358 | `f52f6a954756e31d8406f5a7010414d9661c3b213981935afe421bd8a65b83f8` | 62064 |
+| `tests/test_terminal_launcher.py` | `ce8b9fab61dd45c3a5ea88a41c142b8a26f6526b48bf8b8a74eec6091016d4cb` | 83273 | 1860 | `c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8` | 85133 |
+| `docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md` | `a3a0a3469d6485198229e9cfcc4fc6e47c6c232c6541282ca19596c2d8a28c70` | 15852 | 253 | `2aff9bfcc902823c59c59a9605bb9a412f6b89bf0d6b6273840b7fbe5e7aea45` | 16105 |
+
+### 7.3 旧 §1 声称口径核对（仅定性；不改旧表）
+
+| 文件 | §1 旧哈希对应口径 | 更正 |
+| --- | --- | --- |
+| `service.py` | 口径 A（LF blob）✓ | 无需更正 |
+| `launcher.py` | **口径 B（CRLF 工作树）** | 换行口径差异，非源码不一致；同一内容 A≠B |
+| `test_terminal_service.py` | 口径 A（LF blob）✓ | 无需更正 |
+| `test_terminal_launcher.py` | **口径 B 的 63 位截断串**（缺末位 1 个 hex） | 补全为 64 位：`c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8` |
+| 接口文档 | 口径 A（LF blob）✓ | 无需更正 |
+
+- 5 份文件内容与提交 blob **逐字节一致**（LF 归一化比对）；**无源码被改**。
+- §1 旧表的 **bytes/lines 列同属 A/B 混用**：`launcher.py` 的 33087、`test_terminal_launcher.py`
+  的 85133 为 CRLF 字节；其余为 LF blob 字节。lines 列为 `content.split("\n")` 口径
+  （=本节换行数 + 1），与本节定义的换行数**定义不同**、非不一致。
+- `emulator_sidecar/node_modules/` 被 `.gitignore` 忽略，**不计入** `git status` dirty。
+
+### 7.4 复算
+
+`audit/terminal/implementation/service-hygiene/verify_source_anchoring.py` 只读重算本节
+A/B 两列并对旧 §1 声称逐项定性；机器可读结果见
+`audit/terminal/implementation/service-hygiene/evidence/source_anchoring.json`。
+
+> 注：本节各哈希锚定 **cde2dbd8 提交 blob**；其后本次卫生对
+> `tests/test_terminal_service.py` 的修改改变的是**工作树**内容，**不影响**本表 blob 锚定。

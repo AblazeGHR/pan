@@ -1283,6 +1283,50 @@ def _try_close(service: TerminalService, terminal_id: str) -> str | None:
         return None
 
 
+# 真实心跳用例的有界等待预算（避免对固定负载/固定输入次数的时序假设）。
+HEARTBEAT_ADVANCE_BUDGET_SECONDS = 15.0
+HEARTBEAT_ADVANCE_POLL_SECONDS = 0.1
+
+
+def _await_heartbeat_advance(
+    service: TerminalService,
+    terminal_id: str,
+    before: int,
+    *,
+    budget: float = HEARTBEAT_ADVANCE_BUDGET_SECONDS,
+    interval: float = HEARTBEAT_ADVANCE_POLL_SECONDS,
+    on_tick: Callable[[int], None] | None = None,
+) -> tuple[int, int]:
+    """有界等待终端所有者心跳 ``beats`` 越过 ``before``（消除对固定负载的时序假设）。
+
+    返回 ``(beats_now, ticks)``。``on_tick(tick)`` 在每轮观测前调用，可在等待窗口内
+    **持续下发真实业务**，从而形成"业务进行期间心跳推进"的**窗口见证**。
+
+    语义边界（**不过度声明**）：正常返回只证明心跳**最终**推进；仅当 ``on_tick``
+    在本窗口内确有业务下发时，才可作为"业务进行期间推进"的窗口见证——仍**弱于**
+    注入门控 ``test_heartbeat_uses_its_own_connection_and_survives_slow_business``
+    （那条直接钉死"慢业务不阻塞独立心跳线程"），本用例不据此声称更强结论。
+    首次心跳需先完成 attach + HMAC 握手，可能慢于若干次快速 input，故**不设固定
+    等待**；超时抛 ``AssertionError`` 并附 before/观测值/预算/轮数，**不靠大 sleep**、
+    **不静默放行**（不放宽成无条件 True）。
+    """
+    deadline = time.monotonic() + float(budget)
+    ticks = 0
+    while True:
+        if on_tick is not None:
+            on_tick(ticks)
+        beats_now = int(service.describe()["heartbeats"][terminal_id]["beats"])
+        if beats_now > before:
+            return beats_now, ticks
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                "独立心跳在有界等待内未推进（首拍需先完成 attach + HMAC 握手）："
+                f"before={before} observed={beats_now} budget={budget}s ticks={ticks}"
+            )
+        ticks += 1
+        time.sleep(interval)
+
+
 @requires_sidecar
 def test_real_service_independent_heartbeat_and_same_pid_after_disconnect(tmp_path):
     """真实：独立心跳在慢业务期间存活；断连后 runner 同 PID 继续运行。"""
@@ -1292,11 +1336,20 @@ def test_real_service_independent_heartbeat_and_same_pid_after_disconnect(tmp_pa
         terminal_id = service.create()["terminal_id"]
         token = service.attach(terminal_id, "browser-1", role="control")
         before = service.describe()["heartbeats"][terminal_id]["beats"]
-        # 慢业务（大量输入）不应拖住心跳
-        for index in range(6):
-            service.input(terminal_id, token, f"echo line-{index}\r".encode("utf-8"))
-        after = service.describe()["heartbeats"][terminal_id]["beats"]
-        assert after > before, "独立心跳必须继续推进"
+        # 慢业务（大量输入）不应拖住心跳。首次 attach/HMAC 握手可能尚未完成，
+        # 6 次快速 input 未必够一拍，故改为**有界等待** beats 递增：等待窗口内持续
+        # 下发业务（形成业务窗口见证），超时给出可诊断失败；不假设固定负载、不靠大 sleep。
+        business = {"sent": 0}
+
+        def _pump_business(_tick: int) -> None:
+            service.input(terminal_id, token, f"echo line-{business['sent']}\r".encode("utf-8"))
+            business["sent"] += 1
+
+        beats_after, _ticks = _await_heartbeat_advance(
+            service, terminal_id, before, on_tick=_pump_business
+        )
+        assert beats_after > before, "独立心跳必须继续推进"
+        assert business["sent"] >= 1, "等待窗口内应有真实业务下发（业务窗口见证）"
 
         pid_before = service.get(terminal_id)["pid"]
         # 断开业务连接（模拟浏览器断连）：只释放连接，不停 runtime

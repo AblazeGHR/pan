@@ -1,0 +1,21 @@
+source commit: cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9
+algorithm: sha256 over raw file bytes
+
+file                                                           LF_blob_sha256(A)                                                   A_bytes CRLF_sha256(B)                                                      B_bytes    nl
+packages/core/terminal/service.py                              71e295c0283e0a41e03502c8498e662b334cc9f42c872ad9415742f59833fbf3      86846 fb0421edd3311be1023b052e25358a7634fc453ba581163a366e394b27b9a3c3      88743  1897
+packages/core/terminal/launcher.py                             4ab84a80af8886fd0a6555c14a042aabb0ccf099b236ba6dc82b299812b54647      32330 0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc      33087   757
+tests/test_terminal_service.py                                 aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f      60706 f52f6a954756e31d8406f5a7010414d9661c3b213981935afe421bd8a65b83f8      62064  1358
+tests/test_terminal_launcher.py                                ce8b9fab61dd45c3a5ea88a41c142b8a26f6526b48bf8b8a74eec6091016d4cb      83273 c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8      85133  1860
+docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md        a3a0a3469d6485198229e9cfcc4fc6e47c6c232c6541282ca19596c2d8a28c70      15852 2aff9bfcc902823c59c59a9605bb9a412f6b89bf0d6b6273840b7fbe5e7aea45      16105   253
+
+旧 README §1 声称定性（不改旧表，仅核对口径）:
+  packages/core/terminal/service.py                              == 口径 A（LF blob）
+  packages/core/terminal/launcher.py                             == 口径 B（CRLF 工作树）
+  tests/test_terminal_service.py                                 == 口径 A（LF blob）
+                                                                 （当前工作树≠cde 检出：本次卫生已改本文件，属预期）
+  tests/test_terminal_launcher.py                                == 口径 B 截断串（63位，缺末位）
+  docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md        == 口径 A（LF blob）
+
+old_readme_unclassifiable=0
+anchoring rc=0
+anchoring_direct_rc=0

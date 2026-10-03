@@ -1,0 +1,14 @@
+﻿## cleanup / residue (read-only scan; NO broad kills, NO PID-single, NO by-name)
+
+cleanup discipline: real-test teardown uses shutdown() + same-handle raw FILETIME + Wait inside the test finally (see heartbeat_test_*.txt).
+this TA started no listener / no account / did not use 8768 / did not start existing Pan or full Web service.
+
+=== processes whose CommandLine references this worktree (expect none, read-only) ===
+(none)
+
+=== node_modules (gitignored, retained, NOT committed) ===
+exists=True
+=> node_modules is ignored by .gitignore:11 and therefore NOT counted as git status dirty.
+
+=== own temp data roots (pytest tmp_path, pytest-managed; left to pytest) ===
+pytest-of-ablaze pytest-* dir count = 27 (managed by pytest, not manually created by this task)

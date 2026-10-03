@@ -1,0 +1,75 @@
+{
+  "commit": "cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9",
+  "algorithm": "sha256",
+  "caliber_A": "LF git blob bytes (git cat-file blob cde2dbd8:<path>)",
+  "caliber_B": "CRLF worktree bytes at cde2dbd8 checkout (core.autocrlf=true)",
+  "crlf_derivation": "B = A with each \\n rewritten to \\r\\n (verified byte-identical to cde2dbd8 worktree)",
+  "files": [
+    {
+      "path": "packages/core/terminal/service.py",
+      "lf_blob_sha256": "71e295c0283e0a41e03502c8498e662b334cc9f42c872ad9415742f59833fbf3",
+      "lf_blob_bytes": 86846,
+      "newline_count": 1897,
+      "crlf_worktree_sha256": "fb0421edd3311be1023b052e25358a7634fc453ba581163a366e394b27b9a3c3",
+      "crlf_worktree_bytes": 88743,
+      "current_worktree_sha256": "fb0421edd3311be1023b052e25358a7634fc453ba581163a366e394b27b9a3c3",
+      "current_worktree_matches_crlf_checkout": true,
+      "old_readme_claim": "71e295c0283e0a41e03502c8498e662b334cc9f42c872ad9415742f59833fbf3",
+      "old_readme_claim_len": 64,
+      "old_readme_claim_verdict": "LF_blob"
+    },
+    {
+      "path": "packages/core/terminal/launcher.py",
+      "lf_blob_sha256": "4ab84a80af8886fd0a6555c14a042aabb0ccf099b236ba6dc82b299812b54647",
+      "lf_blob_bytes": 32330,
+      "newline_count": 757,
+      "crlf_worktree_sha256": "0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc",
+      "crlf_worktree_bytes": 33087,
+      "current_worktree_sha256": "0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc",
+      "current_worktree_matches_crlf_checkout": true,
+      "old_readme_claim": "0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc",
+      "old_readme_claim_len": 64,
+      "old_readme_claim_verdict": "CRLF_worktree"
+    },
+    {
+      "path": "tests/test_terminal_service.py",
+      "lf_blob_sha256": "aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f",
+      "lf_blob_bytes": 60706,
+      "newline_count": 1358,
+      "crlf_worktree_sha256": "f52f6a954756e31d8406f5a7010414d9661c3b213981935afe421bd8a65b83f8",
+      "crlf_worktree_bytes": 62064,
+      "current_worktree_sha256": "82ce8c5716e65a1aaf202d502df6ee1c8707d4a10d0be1f72483dd17762d409c",
+      "current_worktree_matches_crlf_checkout": false,
+      "old_readme_claim": "aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f",
+      "old_readme_claim_len": 64,
+      "old_readme_claim_verdict": "LF_blob"
+    },
+    {
+      "path": "tests/test_terminal_launcher.py",
+      "lf_blob_sha256": "ce8b9fab61dd45c3a5ea88a41c142b8a26f6526b48bf8b8a74eec6091016d4cb",
+      "lf_blob_bytes": 83273,
+      "newline_count": 1860,
+      "crlf_worktree_sha256": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8",
+      "crlf_worktree_bytes": 85133,
+      "current_worktree_sha256": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8",
+      "current_worktree_matches_crlf_checkout": true,
+      "old_readme_claim": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f",
+      "old_readme_claim_len": 63,
+      "old_readme_claim_verdict": "CRLF_worktree_truncated"
+    },
+    {
+      "path": "docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md",
+      "lf_blob_sha256": "a3a0a3469d6485198229e9cfcc4fc6e47c6c232c6541282ca19596c2d8a28c70",
+      "lf_blob_bytes": 15852,
+      "newline_count": 253,
+      "crlf_worktree_sha256": "2aff9bfcc902823c59c59a9605bb9a412f6b89bf0d6b6273840b7fbe5e7aea45",
+      "crlf_worktree_bytes": 16105,
+      "current_worktree_sha256": "2aff9bfcc902823c59c59a9605bb9a412f6b89bf0d6b6273840b7fbe5e7aea45",
+      "current_worktree_matches_crlf_checkout": true,
+      "old_readme_claim": "a3a0a3469d6485198229e9cfcc4fc6e47c6c232c6541282ca19596c2d8a28c70",
+      "old_readme_claim_len": 64,
+      "old_readme_claim_verdict": "LF_blob"
+    }
+  ],
+  "old_readme_unclassifiable": 0
+}
