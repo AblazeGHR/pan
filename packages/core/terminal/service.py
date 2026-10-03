@@ -1445,12 +1445,25 @@ class TerminalService:
         # ---- r3：同终端的重发决定必须**串行** ----
         # 两个 caller 各自 close 时，若都判定"该重发"就会各自 ``reset()`` 相互覆盖，
         # 造成结果错配/叠加。用一把**独立的 close-operation 锁**只串行化"判定+重发"，
-        # 锁等待计入本次 deadline；它**不**包裹 ``call.run``（真正等 stop 的阻塞调用
-        # 仍走 ``_BoundedCall`` 的有界等待），因此不会让其它预算路径被无界阻塞。
+        # 锁等待及锁内 call.run 的有界等待共用本次 deadline。
+        # 真正的 stop 始终由 _BoundedCall 的 worker 执行，不在调用者线程同步调用。
         if not stop_confirmed and self._close_op_lock(state).acquire(
             timeout=max(0.0, deadline - time.monotonic())
         ):
             try:
+                # The first result predates acquiring this lock. Another caller may
+                # have completed a retry meanwhile; consume its current result before
+                # deciding to reset. Never overwrite a success using stale evidence.
+                current_finished, current_result, current_error = call.run(0.0)
+                if not current_finished:
+                    self._mark_unproven(state, "close-in-flight", None)
+                    return {
+                        "terminal_id": terminal_id, "status": "closing",
+                        "reason": reason, "missing": "close-in-flight", "proven": False,
+                    }
+                evidence = dict(current_result or {})
+                error_type = current_error
+                stop_confirmed = bool(evidence.get("runner_confirmed"))
                 if not stop_confirmed and self._should_resend_stop(state, call, evidence):
                     self._note("close-stop-resend", terminal_id)
                     # r3：``reset()`` 拒绝时**保留/重读原调用**，不读未定义变量、
@@ -1997,14 +2010,6 @@ class TerminalService:
         # 刻意**不建心跳**：不通过续约复活旧 managed。
         return True
 
-        if outcome.get("status") == "exited":
-            with self._global_lock:
-                self._states.pop(terminal_id, None)
-            return "dead-confirmed"
-        # 未收敛：保 state（含连接）供后续重试，秘密保留。
-        self._note("reconcile-persisted-stop-unconfirmed", terminal_id)
-        return "cleanup-unconfirmed"
-
     def _identity_evidence(self, pid: int | None, filetime: int | None) -> dict[str, Any]:
         """身份三态核对：**同时**精确匹配 pid **与** raw FILETIME 才承认存活/已死。
 
@@ -2046,6 +2051,14 @@ class TerminalService:
             return {"status": "unattributable", "reason": "pid-missing"}
         if observed_ft is None:
             return {"status": "unattributable", "reason": "filetime-missing"}
+        # Exact identity fields: int() must not truncate floats or treat bool as PID.
+        # Decimal strings are permitted for the raw64 cross-process representation.
+        for value, reason in ((observed_pid, "pid-invalid"), (observed_ft, "filetime-invalid")):
+            if isinstance(value, bool) or not (
+                isinstance(value, int)
+                or (isinstance(value, str) and value.isascii() and value.isdecimal())
+            ):
+                return {"status": "unattributable", "reason": reason}
         try:
             observed_pid_int = int(observed_pid)
         except (TypeError, ValueError, OverflowError):

@@ -558,7 +558,10 @@ def test_f4_reconnect_releases_old_client_and_stops_old_heartbeat(tmp_path):
     for _ in range(4):
         service.reconcile()
         time.sleep(0.05)
-    live_hb = [t for t in threading.enumerate() if t.name.startswith("pan-terminal-hb-")]
+    # Count this terminal, not heartbeat threads belonging to preceding tests.
+    # Reconnecting the same terminal still uses the same name, so duplicates remain visible.
+    live_hb = [t for t in threading.enumerate()
+               if t.name == f"pan-terminal-hb-{terminal_id[-8:]}"]
     # 每个终端最多一个存活心跳线程
     assert len(live_hb) <= 1, f"心跳线程泄漏：{len(live_hb)}"
     # 反复reconcile 必须**复用**同一连接，而不是每次新建
