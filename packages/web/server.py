@@ -10590,6 +10590,18 @@ def _sessions_provider(adapter: str):
 
 
 async def _import_session(provider, adapter: str, data: dict) -> dict:
+    # Take the gate BEFORE reading native usage: a read captured while an
+    # enrichment save is in flight must not later overwrite its newer base.
+    existing = next((s for s in sess.list_all(load_history=False)
+                     if s.cli_session_id == data.get("session_id")
+                     and s.adapter == adapter), None)
+    if existing is None:
+        return await _import_session_locked(provider, adapter, data)
+    async with sess.usage_commit_lock(existing):
+        return await _import_session_locked(provider, adapter, data)
+
+
+async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
     """Import an adapter-native session into Pan（Session only，不 spawn worker）。
 
     三个旧 import 端点（cbc/kimi/opencode）与通用 /api/adapters/{adapter}/sessions/import
@@ -10675,16 +10687,10 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
             w._replaying = True
             try:
                 sess.replace_history(existing, history)
-                # Shared usage-commit gate: serializes against a durable usage
-                # enrichment that is between its provider lookup and its commit,
-                # re-seeds the providers' dedup cursors to the recomputed total,
-                # and bumps the revision so an enrichment that looked up against
-                # the previous base re-reads the provider instead of re-adding a
-                # delta this fresh total may already contain.
-                sess.replace_usage_totals(existing, raw_usage)
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
                 # 头部误判为已落盘而跳过）
-                await sess.save_async(existing, force_full=True)
+                await sess.replace_usage_totals_async(
+                    existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -10697,10 +10703,9 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         if w:
             await worker.kill_worker(w.worker_id)
         sess.replace_history(existing, history)
-        # See the live-worker branch above: same shared usage-commit gate.
-        sess.replace_usage_totals(existing, raw_usage)
         existing.last_result = None
-        await sess.save_async(existing, force_full=True)
+        await sess.replace_usage_totals_async(
+            existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,

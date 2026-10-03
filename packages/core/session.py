@@ -1564,22 +1564,9 @@ class Session:
             if isinstance(item, str) and item
         ))[-ACCEPTED_INPUT_ID_MAX:]
         self._summary_lock = threading.RLock()
-        # Serializes every *whole-Session* usage rewrite: the durable usage
-        # enrichment commit (worker._run_usage_enrichment) and the HTTP
-        # reimport path in packages/web/server.py.
-        #
-        # Both replace ``raw_usage``/``total_usage`` as a unit, and providers
-        # dedup differently: cbc diffs the provider's entries against
-        # ``raw_usage.request_count``, while codex/kimi/opencode keep an
-        # explicit ``*_prev_usage`` / ``*_last_usage_ts`` cursor in
-        # ``adapter_config`` that a reimport does not touch. So a reimport that
-        # lands between an enrichment lookup and its commit can leave the two
-        # halves disagreeing: the cursor still points at the pre-reimport
-        # position, and a blind replay re-adds a delta the fresh total already
-        # contains. Taking this lock on both sides makes the rewrite atomic
-        # with respect to the lookup+commit, instead of relying on comparing
-        # object identities to guess what a concurrent writer meant.
-        self._usage_commit_lock = threading.RLock()
+        # Async usage writers hold this through their ordered durable ticket.
+        # Provider I/O works on a detached snapshot outside the gate.
+        self._usage_commit_lock = asyncio.Lock()
         # Bumped whenever a whole-Session usage rewrite lands. The enrichment
         # records the value it saw before its provider lookup; if it changed,
         # the lookup ran against a usage base that no longer exists and the
@@ -2118,6 +2105,13 @@ def _hydrate_cached_session(session_id: str, cached: Session) -> Session | None:
             return None
         # Retain the synchronization object shared with append and ID repair.
         loaded._summary_lock = cached._summary_lock
+        # Hydration loads history, while cached accounting may have newer
+        # pending jobs or a commit in flight. Keep its usage gate, revision and
+        # provider state together; replacing the gate would admit two writers.
+        for key in ("_usage_commit_lock", "_usage_revision", "raw_usage",
+                    "total_usage", "usage_enrichment_pending", "adapter_config",
+                    "model"):
+            setattr(loaded, key, getattr(cached, key))
         cached.__dict__.update(loaded.__dict__)
         cached._history_loaded = True
     _cache[session_id] = cached
@@ -2430,8 +2424,8 @@ class DurableOutcome:
 
     * ``succeeded`` -- the writer future completed without raising, i.e. the
       filesystem operation returned normally.
-    * ``failed`` -- the writer future completed with an exception.
-    * ``cancelled_before_completion`` -- the future itself was cancelled and
+    * ``error`` -- the writer future completed with this exception.
+    * ``cancelled`` -- the future itself was cancelled and
       never ran to a result.
 
     ``succeeded`` is the only value that may be treated as committed.
@@ -2446,7 +2440,8 @@ class DurableOutcome:
 
 
 async def _persist_async_outcome(
-    session_id: str, operation, outcome: DurableOutcome | None = None,
+    session_id: str, operation: Callable[[], object],
+    outcome: DurableOutcome | None = None,
 ) -> DurableOutcome:
     """Run one ordered durable operation and report its verifiable outcome.
 
@@ -2475,107 +2470,24 @@ async def _persist_async_outcome(
         raise
     inner = asyncio.wrap_future(result)
 
-    async def _await_writer_settled() -> None:
-        """Wait for the writer future to settle, ignoring our own cancellation.
-
-        Returns the writer's verdict through ``outcome`` rather than raising, so
-        repeated cancellations of the caller cannot cut the observation short.
-        The writer future is a ``wrap_future`` over a thread future, so its
-        completion is delivered on a later loop turn; keep waiting until it is
-        genuinely done instead of assuming an already-checked state.
-        """
-        while True:
-            try:
-                await asyncio.shield(inner)
-            except asyncio.CancelledError:
-                # Absorb: the writer must be allowed to finish. Inspecting it
-                # here (rather than assuming) is what makes the verdict real.
-                if inner.done():
-                    break
-                continue
-            except BaseException as exc:
-                outcome.error = exc
-                return
-            else:
-                break
-        if inner.cancelled():
-            outcome.cancelled = True
-            return
-        error = inner.exception()
-        if error is None:
-            outcome.succeeded = True
-        else:
-            outcome.error = error
-
-    task = asyncio.ensure_future(_await_writer_settled())
     cancelled = False
-    while True:
+    while not inner.done():
         try:
-            await asyncio.shield(task)
-            break
+            await asyncio.shield(inner)
         except asyncio.CancelledError:
-            # The caller was cancelled. Keep waiting for the writer to settle so
-            # the outcome is the writer's *verifiable* result, then let the
-            # cancellation propagate (unchanged contract).
             cancelled = True
-            if task.done():
-                break
-            continue
-        except BaseException as exc:
-            if outcome.error is None:
-                outcome.error = exc
+        except BaseException:
             break
-    if cancelled:
+    if inner.cancelled():
+        outcome.cancelled = True
+    else:
+        outcome.error = inner.exception()
+        outcome.succeeded = outcome.error is None
+    if cancelled or outcome.cancelled:
         raise asyncio.CancelledError()
     if outcome.error is not None:
         raise outcome.error
     return outcome
-
-
-def save_async_outcome(s: Session, outcome: DurableOutcome | None = None,
-                       *, force_full: bool = False) -> DurableOutcome:
-    """Start a Session save whose durable result the caller can inspect.
-
-    Awaiting the returned :class:`DurableOutcome` behaves like
-    :func:`save_async` -- a cancellation is propagated only after the writer
-    retires, and a writer failure is raised -- but ``outcome`` is filled in place
-    either way, so a caller that was cancelled can still tell whether the bytes
-    reached the filesystem. Only ``outcome.succeeded`` may be treated as
-    committed; see :class:`DurableOutcome`.
-    """
-    return _SaveOutcomeAwaitable(s, outcome, force_full=force_full)
-
-
-class _SaveOutcomeAwaitable:
-    """Awaitable wrapper that records the writer's result on a caller-owned object.
-
-    Kept deliberately thin: it exists only so the outcome object is filled in
-    place even when the caller's await is cancelled before this coroutine can
-    return it.
-    """
-
-    __slots__ = ("_session", "_outcome", "_force_full")
-
-    def __init__(self, session: Session, outcome: DurableOutcome | None,
-                 force_full: bool):
-        self._session = session
-        self._outcome = outcome if outcome is not None else DurableOutcome()
-        self._force_full = force_full
-
-    @property
-    def outcome(self) -> DurableOutcome:
-        """The writer's verifiable result (valid once the await finishes)."""
-        return self._outcome
-
-    def __await__(self):
-        return self._run().__await__()
-
-    async def _run(self) -> DurableOutcome:
-        return await _persist_async_outcome(
-            self._session.id,
-            lambda: _save_body(self._session, force_full=self._force_full),
-            outcome=self._outcome,
-        )
 
 
 async def save_async(s: Session, *, force_full: bool = False):
@@ -3849,128 +3761,80 @@ def accumulate_raw_usage(existing: dict | None, entries: list[dict]) -> dict:
     return result
 
 
-def replace_usage_totals(s, raw_usage: dict | None) -> None:
-    """Install a whole-Session usage total under the shared usage commit lock.
+def replace_usage_totals(
+    s: Session, raw_usage: dict | None, *, native_entries: list[dict],
+) -> None:
+    """Replace usage and dedup position from the SAME native read.
 
-    Every writer that *replaces* ``raw_usage``/``total_usage`` -- the HTTP
-    reimport in ``packages/web/server.py`` and the branch fork in
-    ``worker.branch_worker`` -- must go through here, so it cannot interleave
-    with a durable usage enrichment that is between its provider lookup and its
-    own commit.
-
-    The lock alone is not enough, because the enrichment holds it only around
-    its own write while the *provider lookup* is an await: a reimport that
-    completes during that await still invalidates the base the lookup ran
-    against. Bumping ``_usage_revision`` lets the enrichment detect that
-    precisely, instead of guessing from object identity whether a concurrent
-    writer's total already contains its delta.
-
-    The installed total also re-seeds the providers' dedup cursors, because they
-    are absolute positions that must agree with what ``raw_usage`` now reflects.
-    They live in ``adapter_config`` and a recompute does not touch them:
-
-    * ``codex_prev_usage`` / ``opencode_prev_usage`` -- the provider's absolute
-      token totals that the next delta is subtracted from;
-    * ``kimi_last_usage_ts`` -- the newest usage-record timestamp.
-
-    Leaving them stale is what makes a replay double-count: the provider still
-    reports its absolute position, so a delta that the fresh total already
-    includes looks new again. Dropping them is equally wrong -- it erases the
-    baseline and makes the next lookup report the *whole* session as new. They
-    are re-seeded to the recomputed total instead, so the next lookup's delta is
-    measured from what is already accounted.
-
-    cbc needs none of this: it dedups against ``raw_usage.request_count``, which
-    the recompute just replaced, so it is self-consistent by construction.
+    Async writers hold usage_commit_lock through read, publish and persistence.
+    Native absolute counters and timestamps cannot be reconstructed from the
+    normalized per-model totals (Codex import and enrichment even use different
+    field names). Never infer a timestamp or cache counter from token totals.
     """
-    with s._usage_commit_lock:
-        s.raw_usage = raw_usage
-        s.total_usage = compute_total_usage(raw_usage)
-        _reseed_provider_usage_cursors(s, raw_usage)
-        s._usage_revision = int(getattr(s, "_usage_revision", 0) or 0) + 1
+    s.raw_usage = raw_usage
+    s.total_usage = compute_total_usage(raw_usage)
+    if s.adapter in {"codex", "opencode"}:
+        fields = (
+            ("input_tokens", "output_tokens", "reasoning_output_tokens",
+             "cached_input_tokens", "cache_write_input_tokens", "total_tokens")
+            if s.adapter == "codex" else
+            ("prompt_tokens", "completion_tokens", "reasoning_tokens",
+             "cache_read_tokens", "cache_write_tokens", "cost")
+        )
+        native = (native_entries[0].get("rawUsage") or {}) if native_entries else {}
+        s.set_adapter_field(s.adapter + "_prev_usage", {
+            key: native.get(key, 0) for key in fields
+        })
+    elif s.adapter == "kimi":
+        from .adapters.kimi.adapter import _iso_to_ms
+        timestamps = [_iso_to_ms(entry.get("timestamp", ""))
+                      for entry in native_entries]
+        s.set_adapter_field("kimi_last_usage_ts", max(
+            (ts for ts in timestamps if ts is not None), default=0))
+    s._usage_revision = usage_revision(s) + 1
 
 
-# Provider dedup cursors that a whole-Session usage recompute must re-seed.
-# Verified against the adapters that write them via ``set_adapter_field``:
-# codex/adapter.py, opencode/adapter.py and kimi/adapter.py. claude keeps no
-# persistent usage cursor and cbc dedups on ``raw_usage.request_count``.
-_PROVIDER_USAGE_CURSOR_KEYS = (
-    "codex_prev_usage",
-    "opencode_prev_usage",
-    "kimi_last_usage_ts",
-)
-
-# rawUsage field -> provider cursor field, for the absolute-total cursors.
-# codex reads input/output/reasoning/cached/cache-write/total tokens;
-# opencode uses the same shape. Verified in codex/adapter.py and
-# opencode/adapter.py.
-_CURSOR_TOKEN_FIELDS = {
-    "codex_prev_usage": {
-        "input_tokens": "prompt_tokens",
-        "output_tokens": "completion_tokens",
-        "reasoning_output_tokens": "reasoning_tokens",
-        "cached_input_tokens": "cache_read_tokens",
-        "cache_write_input_tokens": "cache_write_tokens",
-        "total_tokens": "total_tokens",
-    },
-    "opencode_prev_usage": {
-        "input_tokens": "prompt_tokens",
-        "output_tokens": "completion_tokens",
-        "reasoning_output_tokens": "reasoning_tokens",
-        "cached_input_tokens": "cache_read_tokens",
-        "cache_write_input_tokens": "cache_write_tokens",
-        "total_tokens": "total_tokens",
-    },
-}
+async def replace_usage_totals_async(
+    s: Session, raw_usage: dict | None, *, native_entries: list[dict],
+    force_full: bool = False,
+) -> DurableOutcome:
+    """Caller holds usage_commit_lock; retire replacement and rollback together."""
+    def commit() -> None:
+        raw_before, total_before = s.raw_usage, s.total_usage
+        cursor_key = {"codex": "codex_prev_usage", "opencode": "opencode_prev_usage",
+                      "kimi": "kimi_last_usage_ts"}.get(s.adapter)
+        missing = object()
+        cursor_before = copy.deepcopy(s.adapter_config.get(cursor_key, missing)) if (
+            cursor_key in s.adapter_config) else missing
+        try:
+            replace_usage_totals(s, raw_usage, native_entries=native_entries)
+            _save_body(s, force_full=force_full)
+        except BaseException:
+            s.raw_usage, s.total_usage = raw_before, total_before
+            if cursor_key:
+                if cursor_before is missing:
+                    s.adapter_config.pop(cursor_key, None)
+                else:
+                    s.adapter_config[cursor_key] = cursor_before
+            # Invalidate any detached lookup even when the replacement failed.
+            s._usage_revision = usage_revision(s) + 1
+            raise
+    return await _persist_async_outcome(s.id, commit)
 
 
-def _reseed_provider_usage_cursors(s, raw_usage: dict | None) -> None:
-    """Align the providers' absolute cursors with a freshly recomputed total.
-
-    The recomputed ``raw_usage`` *is* the provider's own accounting as of now, so
-    the cursor must be set to exactly that; anything else makes the next lookup
-    either re-report an already-counted delta (stale cursor) or report the whole
-    session as new (missing cursor).
-    """
-    config = getattr(s, "adapter_config", None)
-    if not isinstance(config, dict):
-        return
-    for cursor_key, token_fields in _CURSOR_TOKEN_FIELDS.items():
-        if cursor_key not in config:
-            continue  # this adapter was never used; nothing to re-seed
-        seeded = {}
-        for provider_field, usage_field in token_fields.items():
-            total = 0
-            for entry in (raw_usage or {}).values():
-                ru = (entry or {}).get("rawUsage") or {}
-                try:
-                    total += int(ru.get(usage_field, 0) or 0)
-                except (TypeError, ValueError):
-                    continue
-            seeded[provider_field] = total
-        s.set_adapter_field(cursor_key, seeded)
-    # kimi's cursor is a timestamp, not a token total: it cannot be derived from
-    # the recomputed usage, so it is dropped and the next lookup re-reads the
-    # provider's records. A dropped ts cursor yields "everything after 0", which
-    # for a *newly seen* record is correct and, for already-counted records, is
-    # filtered by the timestamp comparison in kimi's own lookup.
-    config.pop("kimi_last_usage_ts", None)
-
-
-def usage_revision(s) -> int:
-    """Monotonic counter of whole-Session usage rewrites (see replace_usage_totals)."""
+def usage_revision(s: Session) -> int:
+    """Revision of whole-session usage replacement, checked after provider I/O."""
     return int(getattr(s, "_usage_revision", 0) or 0)
 
 
-def usage_commit_lock(s):
-    """The Session-wide lock serializing usage rewrites against enrichment."""
-    lock = getattr(s, "_usage_commit_lock", None)
-    if lock is None:
-        # Sessions rebuilt by older loaders may predate the field; give them a
-        # per-Session lock so the writers still coordinate.
-        lock = threading.RLock()
-        s._usage_commit_lock = lock
-    return lock
+def usage_commit_lock(s: Session) -> asyncio.Lock:
+    """Event-loop gate for reimport and enrichment publish/save/rollback.
+
+    Provider enrichment runs on a detached snapshot outside this gate. No
+    threading lock is held across an await or acquired by executor writers.
+    """
+    return s._usage_commit_lock
+
 
 
 def compute_total_usage(raw_usage: dict | None) -> dict | None:
