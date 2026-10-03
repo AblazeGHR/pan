@@ -5882,7 +5882,13 @@ async def api_ack_session_unread_done(session_id: str, data: dict | None = None)
 
 async def _ack_session_unread_done(session_id: str, observed_raw: int):
     async with worker.unread_done_lock(session_id):
-        s = await _store_read(sess.get, session_id, load_history=False)
+        # Selected/active Sessions normally already have a canonical cache
+        # object. Avoid queueing that memory lookup behind unrelated cold
+        # reads. Cache misses still use the dedicated read thread, and the
+        # commit rechecks file existence inside the Session write gate.
+        s = sess.get_cached(session_id)
+        if s is None:
+            s = await _store_read(sess.get, session_id, load_history=False)
         if not s:
             return {"ok": False, "error": {
                 "code": "session_not_found",

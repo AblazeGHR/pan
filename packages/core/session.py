@@ -2103,6 +2103,16 @@ def _hydrate_cached_session(session_id: str, cached: Session) -> Session | None:
     return cached
 
 
+def get_cached(session_id: str) -> Session | None:
+    """Return the current in-memory object without disk I/O or hydration.
+
+    A miss is not proof of absence. Like any lookup, the returned object can
+    race with deletion; durable callers must check existence in their write
+    gate. This lookup does not wait behind unrelated offloaded store reads.
+    """
+    return _cache.get(session_id)
+
+
 def get(session_id: str, *, load_history: bool = True) -> Session | None:
     if session_id in _cache:
         cached = _cache[session_id]

@@ -197,6 +197,8 @@ def test_duplicate_and_stale_acks_never_clear_new_generations(target):
 
 
 def test_ack_cannot_resurrect_a_session_deleted_after_lookup(target, monkeypatch):
+    sess._cache.clear()  # Exercise the offloaded cold lookup.
+
     async def delete_after_read(func, *args, **kwargs):
         result = func(*args, **kwargs)
         sess.delete(target.id)
@@ -207,6 +209,53 @@ def test_ack_cannot_resurrect_a_session_deleted_after_lookup(target, monkeypatch
     assert result["error"]["code"] == "session_not_found"
     assert not sess._path(target.id).exists()
     assert target.id not in sess._cache
+
+
+def test_warm_ack_cannot_resurrect_a_session_deleted_after_lookup(target, monkeypatch):
+    cached_get = sess.get_cached
+
+    def delete_after_cached_lookup(session_id):
+        result = cached_get(session_id)
+        sess.delete(session_id)
+        return result
+
+    monkeypatch.setattr(sess, "get_cached", delete_after_cached_lookup)
+    result = asyncio.run(server.api_ack_session_unread_done(target.id, {"observed": 2}))
+    assert result["error"]["code"] == "session_not_found"
+    assert not sess._path(target.id).exists()
+    assert target.id not in sess._cache
+
+
+def test_warm_ack_finishes_while_unrelated_store_read_is_blocked(target, monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+
+    def blocked_read():
+        entered.set()
+        assert release.wait(3), "unrelated read was not released"
+
+    async def reject_read(*args, **kwargs):
+        raise AssertionError("warm ack must not enter the store-read queue")
+
+    monkeypatch.setattr(server, "_store_read", reject_read)
+
+    async def scenario():
+        slow = asyncio.get_running_loop().run_in_executor(
+            server._STORE_READ_EXECUTOR, blocked_read)
+        assert await asyncio.to_thread(entered.wait, 2)
+        try:
+            transport = httpx.ASGITransport(app=server.app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://diagnostic") as client:
+                response = await asyncio.wait_for(client.post(
+                    f"/api/sessions/{target.id}/unread-done/ack", json={"observed": 2}), 1)
+                assert response.json()["unreadDoneCount"] == 0
+                assert not slow.done()
+                assert not release.is_set()
+        finally:
+            release.set()
+            await slow
+
+    asyncio.run(scenario())
+    assert _disk(target)["unread_done_read_generation"] == 2
 
 
 def test_cold_ack_preserves_history_and_session_identity(target):
