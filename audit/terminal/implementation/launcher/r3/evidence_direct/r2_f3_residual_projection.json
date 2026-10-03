@@ -1,0 +1,19 @@
+{
+  "exit_code": 8,
+  "projected": {
+    "present": true,
+    "reason_class": "engine-startup-failed",
+    "reason_text_present": true,
+    "pid": 4242,
+    "identity_filetime": "133400000000000000",
+    "process_exited": true,
+    "job_verified": false,
+    "guard_closed": true,
+    "cleanup_closed": false,
+    "cleanup_seconds": 1.5,
+    "cleanup_error_count": 2,
+    "cleanup_detail_present": true,
+    "stderr_digest_present": true,
+    "keys_dropped": 1
+  }
+}

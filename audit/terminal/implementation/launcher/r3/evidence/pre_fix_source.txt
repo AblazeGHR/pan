@@ -1,0 +1,9 @@
+launcher r3 先失败源证明（固定只读副本 == 7552319b）
+generated_at: 2026-10-03 12:24:36
+method: git archive 7552319b -> 临时只读副本；r3 新测试仅追加到副本 tests 文件（生产副本零改）
+copy_dir: C:\Users\14709\AppData\Local\Temp\lr3b-755-ecEj
+copy_launcher_blob: 3f358bbdfdfa72103a4a2d63eac10f32c88de4f4
+copy_launcher_sha256: 1223e04907a22cc5053d873899fb0a4ed264591858de1f5827ac620b8760d417
+commit_755_launcher_blob: 3f358bbdfdfa72103a4a2d63eac10f32c88de4f4
+equality: TRUE
+pre_fix_result: 9 failed / 12 passed / 46 deselected（N1 四项 + N2 五项在修复前不通过）

@@ -1,0 +1,27 @@
+{
+  "parent_head": "7552319b0d206b7b976f6b4325e9a2a4dde45dc6",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/launcher/r3/README.md": {
+      "blob": "67150626b6507a0f1d6116d1d63c5442d55124ad",
+      "mode": "100644"
+    },
+    "audit/terminal/implementation/launcher/r3/collect_r3_evidence.py": {
+      "blob": "8bdefbccdda391b8436a73980cdce3206ed8f155",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_LAUNCHER_INTERFACES_20261003.md": {
+      "blob": "cfe0c0ff4483806865604070078b8bbd8c984c67",
+      "mode": "100644"
+    },
+    "packages/core/terminal/launcher.py": {
+      "blob": "839e1a3c80dd0f5423505c84649289ebbefe0e62",
+      "mode": "100644"
+    },
+    "tests/test_terminal_launcher.py": {
+      "blob": "973c82d2eef0873abb46cab996a57b305b0555b8",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 r3 窄修（N1 stderr 兜底/N2 有限秒数）的实现/测试/接口文档/r3 证据；定向集复跑（直连/uv 各 57 passed）与暂存字节同源；先失败证据为 7552319b 只读副本（副本 launcher.py blob == 755 提交 blob 3f358bbd…，见 r3/evidence/pre_fix_source.txt）。"
+}

@@ -1,0 +1,12 @@
+FFF.....F.FFFF......F                                                    [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_launcher.py::test_r3_announce_stderr_failure_does_not_escape
+FAILED tests/test_terminal_launcher.py::test_r3_status_and_stderr_both_fail_without_escape
+FAILED tests/test_terminal_launcher.py::test_r3_broken_stderr_does_not_recurse_or_leak
+FAILED tests/test_terminal_launcher.py::test_r3_main_internal_error_with_broken_stderr
+FAILED tests/test_terminal_launcher.py::test_r3_cleanup_seconds_accepts_finite_numbers_only[nan-True]
+FAILED tests/test_terminal_launcher.py::test_r3_cleanup_seconds_accepts_finite_numbers_only[inf-True]
+FAILED tests/test_terminal_launcher.py::test_r3_cleanup_seconds_accepts_finite_numbers_only[-inf-True]
+FAILED tests/test_terminal_launcher.py::test_r3_cleanup_seconds_accepts_finite_numbers_only[10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000-True]
+FAILED tests/test_terminal_launcher.py::test_r3_status_remains_standard_json
+9 failed, 12 passed, 46 deselected in 0.42s

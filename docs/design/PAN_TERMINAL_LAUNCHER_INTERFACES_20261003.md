@@ -134,6 +134,18 @@ python -m packages.core.terminal.launcher \
 - 写失败（F5）→ 记 `status-write-failed`（类型名）**并输出单行静态脱敏 stderr 公告**：
   `pan-terminal-launcher: status write failed (<TypeName>)`（无路径、无文本）；写串行
   （进程内锁）；**不抛出、不假成功**（退出码不因写失败改变）。
+- **N1：stderr 故障不得逃逸或改生命周期**——公告（`_announce`）与写失败公告
+  （`_report_status_write_failure`）以及 `main()` 顶层兜底公告统一走 `_emit_stderr`：
+  stderr 不可写（fd 关闭 / 管道消费端退出 / 重定向到失效句柄）时**只记内存事件**
+  `stderr-write-failed`（类型名），**不向已坏的 stderr 递归报告**、不重试、不新增线程；
+  `run()` / `main()` 的退出码与引擎收尾完全不受影响（`main()` 仍返回原定的
+  0/3/4/6/7/8 或兜底 5，不退化为 traceback 退出）。触发条件为**同用户本地**
+  （stderr 与状态目录同时异常），无远程输入、无 token/secret 涉入。
+- **N2：`cleanup_seconds` 只接受有限合法数值**——`int`/`float`（`bool` 不算）且
+  `math.isfinite()` 为真才保留；`nan` / `±inf` / 转换异常（如超大 int 的
+  `OverflowError`）/ 非数值 → `None`（不造值）。保证状态文件是**标准 JSON**：绝不写出
+  `NaN` / `Infinity` 这类非标准扩展（严格消费方 `parse_constant` 可解析）。其余投影
+  语义不变。生产路径的 `seconds` 来自单调时钟差（无 nan/inf），该检查是注入面加固。
 - 字段（schema_version=1；`engine.startup` 为 §5 白名单投影）：
 
 ```json
@@ -221,6 +233,17 @@ def main(argv: Sequence[str] | None = None) -> int
 
 ## 9. 变更记录
 
+- `2026-10-03` **r3 窄修（ROUND2 审查 `549f00bc` 的 N1/N2；先失败后通过）**：
+  - **N1** 两处 stderr 公告（`_report_status_write_failure` / `_announce`）的 `print`
+    各包一层统一 `_emit_stderr`：stderr 故障**不逃逸、不改生命周期退出码**、只记内存
+    静态类型诊断（`stderr-write-failed`），**不向已坏 stderr 递归报告**、不重试、
+    不引入线程；`main()` 顶层兜底公告同加固（避免坏 stderr 时 traceback 外泄）。
+  - **N2** `cleanup_seconds` 仅接受**有限**合法数值（`math.isfinite`；nan/±inf/
+    转换异常/非数值 → `None`），状态文件保持**标准 JSON**（不写 `NaN`/`Infinity`）；
+    其余投影语义不变。
+  - 测试 46 → **67**（新增 11 函数 / 21 用例：N1×9、N2×12 含参数化）；只跑
+    **新增 + 紧邻 status/投影/公告定向集**（直连/uv 各一次），未重跑 46 全量 /
+    13 组合 / core / 旧模块 / 全库 / 浏览器 / provider / 长稳。
 - `2026-10-03` **r2 窄修（独立审查 `5681ef8e` 的 F2–F7；先失败后通过）**：
   - **F2** 收敛只认**真 bool `True`**（正常 close 与 startup owner 两个入口）；
     字符串/数值真值不再伪造收敛（反向断言：真 bool 仍正常收敛/透传）。

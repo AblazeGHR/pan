@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import threading
@@ -122,6 +123,24 @@ _RESIDUAL_TEXT_PRESENCE: tuple[str, ...] = ("cleanup_detail", "stderr_digest")
 _OWNER_NOT_CONVERGED = "owner-not-converged"
 
 
+def _finite_seconds(value: Any) -> float | None:
+    """有限合法数值秒数；nan/±inf/转换异常/非数值 → ``None``（N2，不造值）。
+
+    只接受真正的 ``int``/``float``（``bool`` 不算）且必须**有限**；转换异常（如超大
+    int 的 ``OverflowError``）保守回落未知。保证 status 是**标准 JSON**：绝不写出
+    ``NaN`` / ``Infinity`` 这类非标准扩展。
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return round(number, 3)
+
+
 def _classify_residual_reason(raw: Any) -> tuple[str, bool]:
     """→ (安全静态分类, 上游是否携带文本)。
 
@@ -170,12 +189,8 @@ def _safe_residual(raw: Any) -> dict[str, Any]:
     for key in _RESIDUAL_BOOL_FIELDS:
         value = raw.get(key)
         out[key] = value if isinstance(value, bool) else None
-    seconds = raw.get("cleanup_seconds")
-    out["cleanup_seconds"] = (
-        round(float(seconds), 3)
-        if isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
-        else None
-    )
+    seconds = _finite_seconds(raw.get("cleanup_seconds"))
+    out["cleanup_seconds"] = seconds
     errors = raw.get("cleanup_errors")
     out["cleanup_error_count"] = len(errors) if isinstance(errors, (list, tuple)) else 0
     for key in _RESIDUAL_TEXT_PRESENCE:
@@ -630,10 +645,20 @@ class TerminalLauncher:
     def _report_status_write_failure(self, exc: BaseException) -> None:
         """F5：写失败输出**静态脱敏**公告（只类型名）；不抛、不改退出码。"""
         self._note("status-write-failed", type(exc).__name__)
-        print(
-            f"pan-terminal-launcher: status write failed ({type(exc).__name__})",
-            file=sys.stderr,
+        self._emit_stderr(
+            f"pan-terminal-launcher: status write failed ({type(exc).__name__})"
         )
+
+    def _emit_stderr(self, message: str) -> None:
+        """把一行静态诊断写入 stderr；**stderr 故障不得逃逸或改生命周期**（N1）。
+
+        失败只在内存记静态类型诊断（``stderr-write-failed``）：**不向已坏的 stderr
+        递归报告**、不重试、不引入线程；调用方的退出码与资源收尾不受影响。
+        """
+        try:
+            print(message, file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 - 可观测性失败不影响生命周期
+            self._note("stderr-write-failed", type(exc).__name__)
 
     # ------------------------------------------------------------- 公告
     def _announce(self, code: int) -> None:
@@ -643,10 +668,10 @@ class TerminalLauncher:
         else:
             converged = bool(self._engine_cleanup.get("converged"))
         cleanup = "converged" if converged else "unproven"
-        print(
+        # N1：公告写失败同样不得逃逸或改退出码（统一走 _emit_stderr）。
+        self._emit_stderr(
             f"pan-terminal-launcher: exit code={int(code)} reason={reason} "
-            f"engine-cleanup={cleanup}",
-            file=sys.stderr,
+            f"engine-cleanup={cleanup}"
         )
 
 
@@ -677,10 +702,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return int(launcher.run())
     except Exception as exc:  # noqa: BLE001 - 顶层兜底：只输出类型名
-        print(
-            f"pan-terminal-launcher: internal error ({type(exc).__name__})",
-            file=sys.stderr,
-        )
+        try:
+            print(
+                f"pan-terminal-launcher: internal error ({type(exc).__name__})",
+                file=sys.stderr,
+            )
+        except Exception:  # noqa: BLE001 - stderr 已坏：静默（不递归、不抛、不改码）
+            pass
         return LAUNCHER_EXIT_INTERNAL
 
 

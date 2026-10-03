@@ -1482,3 +1482,252 @@ def test_r2_illegal_terminal_id_never_echoed(tmp_path, bad_id, capsys):
     assert not status_dir.exists() or not list(status_dir.iterdir())
     assert bad_id not in captured.err and bad_id not in captured.out
     record_evidence("r2_f6_illegal_id_type_only", {"id_kind": bad_id[:12], "detail": rejected[0]})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# r3 窄修门控（审查 549f00bc 的 N1/N2）
+# N1：stderr 已坏时静态诊断不得逃逸、不得改生命周期退出码、不递归报告
+# N2：cleanup_seconds 只接受有限合法数值（nan/±inf/转换异常 → unknown），
+#     status 保持**标准 JSON**（不写 NaN/Infinity 扩展）
+# ══════════════════════════════════════════════════════════════════════════
+
+R3_SENTINEL = "PAN-R3-STDERR-9d2a"
+
+
+class _R3BrokenStream:
+    """write/flush 抛错的 stderr 替身（确定性注入已坏 stderr；非 OS 破坏冒充）。"""
+
+    def __init__(self, error: BaseException | None = None) -> None:
+        self.error = error or OSError(f"broken-stderr {R3_SENTINEL}")
+        self.writes = 0
+
+    def write(self, data: str) -> int:
+        self.writes += 1
+        raise self.error
+
+    def flush(self) -> None:
+        raise self.error
+
+    def isatty(self) -> bool:
+        return False
+
+
+# ── N1：公告/写失败的 stderr 故障不得逃逸 ────────────────────────────────────
+
+
+def test_r3_announce_stderr_failure_does_not_escape(tmp_path, monkeypatch):
+    """N1-a（单一条件：仅 stderr 坏）：run() 不抛、退出码维持、事件记类型名。"""
+    engine = _R2Engine(close_value=True)
+    launcher = _r2_launcher(
+        tmp_path, "term_r3ann",
+        emulator_factory=lambda: engine, runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    monkeypatch.setattr("sys.stderr", _R3BrokenStream())
+    code = launcher.run()
+    assert code == 0, "可观测性失败不得改生命周期退出码"
+    events = dict(launcher.events)
+    assert events.get("stderr-write-failed") == "OSError", events
+    assert R3_SENTINEL not in json.dumps(launcher.events, ensure_ascii=False)
+    record_evidence("r3_n1_announce_stderr_broken",
+                    {"exit_code": code, "events": [list(e) for e in launcher.events]})
+
+
+def test_r3_status_and_stderr_both_fail_without_escape(tmp_path, monkeypatch):
+    """N1-b（status 写也失败）：双故障仍不抛、退出码维持、两类事件都在案。"""
+    blocked = tmp_path / "blocked"
+    blocked.write_text("not-a-dir", encoding="utf-8")
+    launcher = TerminalLauncher(
+        "term_r3both", tmp_path / "secrets" / "term_r3both.secret",
+        status_dir=blocked, emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+        engine_total_budget=0.5, engine_close_attempt_budget=0.1,
+    )
+    monkeypatch.setattr("sys.stderr", _R3BrokenStream())
+    code = launcher.run()
+    events = [event for event, _ in launcher.events]
+    assert code == 0
+    assert "status-write-failed" in events, events
+    assert "stderr-write-failed" in events, events
+    record_evidence("r3_n1_status_and_stderr_broken",
+                    {"exit_code": code, "events": events})
+
+
+def test_r3_broken_stderr_does_not_recurse_or_leak(tmp_path, monkeypatch):
+    """N1-c：不向已坏 stderr 递归报告（写入尝试次数有界）、哨兵零泄漏。"""
+    broken = _R3BrokenStream()
+    launcher = _r2_launcher(
+        tmp_path, "term_r3rec",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    monkeypatch.setattr("sys.stderr", broken)
+    assert launcher.run() == 0
+    # 每个诊断行只尝试一次（无递归/无重试 storms）。
+    assert broken.writes <= 2, f"stderr 写入尝试次数应受限：{broken.writes}"
+    assert R3_SENTINEL not in json.dumps(launcher.events, ensure_ascii=False)
+    status = _r2_status(tmp_path, "term_r3rec")
+    assert R3_SENTINEL not in status
+    record_evidence("r3_n1_no_recursion", {"stderr_write_attempts": broken.writes})
+
+
+def test_r3_normal_stderr_still_announces(tmp_path, capsys):
+    """N1-d：正常 stderr 仍输出公告（未被兜底路径吞掉）。"""
+    launcher = _r2_launcher(
+        tmp_path, "term_r3ok",
+        emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    assert launcher.run() == 0
+    err = capsys.readouterr().err
+    assert "pan-terminal-launcher: exit code=0 reason=exited engine-cleanup=converged" in err
+    assert not any(event == "stderr-write-failed" for event, _ in launcher.events)
+    record_evidence("r3_n1_normal_announce", {"exit_code": 0})
+
+
+def test_r3_normal_stderr_still_announces_write_failure(tmp_path, capsys):
+    """N1-e：status 写失败时，正常 stderr 仍输出单行静态公告（无路径/哨兵）。"""
+    blocked = tmp_path / "blocked2"
+    blocked.write_text("not-a-dir", encoding="utf-8")
+    launcher = TerminalLauncher(
+        "term_r3wf", tmp_path / "secrets" / "term_r3wf.secret",
+        status_dir=blocked, emulator_factory=lambda: _R2Engine(close_value=True),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+        engine_total_budget=0.5, engine_close_attempt_budget=0.1,
+    )
+    assert launcher.run() == 0
+    err = capsys.readouterr().err
+    assert "pan-terminal-launcher: status write failed (" in err
+    assert str(blocked) not in err and R3_SENTINEL not in err
+    record_evidence("r3_n1_write_failure_announce", {"exit_code": 0})
+
+
+@pytest.mark.parametrize("expected", [0, 6])
+def test_r3_main_preserves_normal_and_nonzero_codes(tmp_path, monkeypatch, expected):
+    """N1-f：main() 对正常码与非零码原样维持（不被兜底改写）。"""
+    seen: dict[str, Any] = {}
+
+    class _StubLauncher:
+        def __init__(self, terminal_id, secret_file, **kwargs):
+            seen["terminal_id"] = terminal_id
+
+        def run(self) -> int:
+            return expected
+
+    monkeypatch.setattr(launcher_module, "TerminalLauncher", _StubLauncher)
+    code = launcher_module.main([
+        "--terminal-id", "term_r3main", "--secret-file", str(tmp_path / "s.secret"),
+    ])
+    assert code == expected
+    assert seen["terminal_id"] == "term_r3main"
+    record_evidence("r3_n1_main_code", {"expected": expected, "actual": code})
+
+
+def test_r3_main_internal_error_is_static_type_only(tmp_path, monkeypatch, capsys):
+    """N1-g：main() 顶层兜底仍只输出类型名（非零 5），哨兵不泄漏。"""
+
+    class _BoomLauncher:
+        def __init__(self, terminal_id, secret_file, **kwargs):
+            pass
+
+        def run(self) -> int:
+            raise RuntimeError(f"leak {R3_SENTINEL}")
+
+    monkeypatch.setattr(launcher_module, "TerminalLauncher", _BoomLauncher)
+    code = launcher_module.main([
+        "--terminal-id", "term_r3boom", "--secret-file", str(tmp_path / "s.secret"),
+    ])
+    err = capsys.readouterr().err
+    assert code == launcher_module.LAUNCHER_EXIT_INTERNAL
+    assert "internal error (RuntimeError)" in err
+    assert R3_SENTINEL not in err
+    record_evidence("r3_n1_main_internal_error", {"exit_code": code})
+
+
+def test_r3_main_internal_error_with_broken_stderr(tmp_path, monkeypatch):
+    """N1-i：run() 抛错且 stderr 已坏 → main 仍返回 5（不抛 traceback、不泄漏）。"""
+
+    class _BoomLauncher:
+        def __init__(self, terminal_id, secret_file, **kwargs):
+            pass
+
+        def run(self) -> int:
+            raise RuntimeError(f"leak {R3_SENTINEL}")
+
+    monkeypatch.setattr(launcher_module, "TerminalLauncher", _BoomLauncher)
+    monkeypatch.setattr("sys.stderr", _R3BrokenStream())
+    code = launcher_module.main([
+        "--terminal-id", "term_r3boom2", "--secret-file", str(tmp_path / "s.secret"),
+    ])
+    assert code == launcher_module.LAUNCHER_EXIT_INTERNAL
+    record_evidence("r3_n1_main_broken_stderr", {"exit_code": code})
+
+
+def test_r3_main_usage_error_path_unchanged(monkeypatch, capsys):
+    """N1-h：用法错误仍走 argparse（exit 2），不因兜底逻辑改变。"""
+    code = launcher_module.main(["--terminal-id", "only-id"])
+    assert code == 2, f"用法错误应为 argparse 退出码 2（实测 {code}）"
+    record_evidence("r3_n1_main_usage", {"exit_code": code})
+
+
+# ── N2：cleanup_seconds 有限数值 + 标准 JSON ───────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "value,expect_none",
+    [
+        (float("nan"), True),
+        (float("inf"), True),
+        (float("-inf"), True),
+        (10 ** 400, True),      # float() 抛 OverflowError → 保守 unknown
+        ("fast", True),
+        (True, True),
+        (None, True),
+        (1.5, False),
+        (0, False),
+        (1e308, False),         # 有限大值保留（仍是标准 JSON）
+    ],
+)
+def test_r3_cleanup_seconds_accepts_finite_numbers_only(tmp_path, value, expect_none):
+    """N2：nan/±inf/转换异常/非数值 → None（不造值）；合法有限值原样保留。"""
+    residual = {"reason": "node-missing", "pid": 5, "cleanup_seconds": value}
+    owner = _R2Owner(closed_value=True)
+    tid = "term_r3sec"
+    launcher = _r2_launcher(
+        tmp_path, tid,
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("x", owner=owner, residual=residual)
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    assert launcher.run() == launcher_module.LAUNCHER_EXIT_ENGINE_STARTUP_FAILED
+    projected = json.loads(_r2_status(tmp_path, tid))["engine"]["startup"]["residual"]
+    assert (projected["cleanup_seconds"] is None) is expect_none, projected
+    record_evidence("r3_n2_finite_seconds", {"value": repr(value)[:40],
+                                             "projected": projected["cleanup_seconds"]})
+
+
+def test_r3_status_remains_standard_json(tmp_path):
+    """N2：非有限值不得写成非标准 JSON（NaN/Infinity），严格消费方可解析。"""
+    residual = {
+        "reason": "node-missing", "pid": 5,
+        "cleanup_seconds": float("nan"), "extra_inf": float("inf"),
+    }
+    owner = _R2Owner(closed_value=True)
+    tid = "term_r3json"
+    launcher = _r2_launcher(
+        tmp_path, tid,
+        emulator_factory=lambda: (_ for _ in ()).throw(
+            EmulatorStartupError("x", owner=owner, residual=residual)
+        ),
+        runner_factory=lambda _e: _FakeRunner(code=0),
+    )
+    launcher.run()
+    raw = _r2_status(tmp_path, tid)
+    assert "NaN" not in raw and "Infinity" not in raw
+
+    def _reject(constant: str):
+        raise AssertionError(f"non-standard JSON constant: {constant}")
+
+    parsed = json.loads(raw, parse_constant=_reject)
+    assert parsed["engine"]["startup"]["residual"]["cleanup_seconds"] is None
+    record_evidence("r3_n2_standard_json", {"standard_json": True})
