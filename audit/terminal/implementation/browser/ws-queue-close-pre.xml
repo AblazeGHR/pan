@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.715" timestamp="2026-10-04T18:53:26.330814+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_ws" name="test_reader_failure_closes_protocol_instead_of_silently_returning[queue-items]" time="0.022"><failure message="AssertionError: producer failure returned without a close frame&#10;assert None is not None&#10; +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D73359B20&gt;.closed">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021D7335B4D0&gt;
+failure = 'queue-items'
+
+    @pytest.mark.parametrize("failure", ["queue-items", "queue-bytes", "reader-error"])
+    def test_reader_failure_closes_protocol_instead_of_silently_returning(monkeypatch, failure):
+        """A completed producer exception must be consumed and become a close frame."""
+        async def scenario():
+            trigger = asyncio.Event()
+    
+            async def reader(conn):
+                await trigger.wait()
+                if failure == "reader-error":
+                    raise RuntimeError("must-not-appear-in-close-reason")
+                if failure == "queue-items":
+                    conn.outbound._max_items = 0
+                else:
+                    conn.outbound._max_bytes = 1
+                conn.send_error("busy")
+    
+            monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+            service = FakeService()
+            runtime = make_runtime(service)
+            app = await start_app(runtime)
+            await wait_ready(runtime)
+            ws = make_ws(app)
+            task, _ = await accepted_connection(app, ws)
+            await wait_for_event(ws, "hello")
+            trigger.set()
+            await asyncio.wait_for(task, 8)
+            assert ws.closed is not None, "producer failure returned without a close frame"
+            assert ws.closed[0] == 1013, ws.closed
+            assert "must-not-appear" not in str(ws.closed)
+            assert app.state.terminal_ws_manager.snapshot()["active"] == 0
+    
+&gt;       asyncio.run(scenario())
+
+tests\test_terminal_ws.py:1185: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+        trigger = asyncio.Event()
+    
+        async def reader(conn):
+            await trigger.wait()
+            if failure == "reader-error":
+                raise RuntimeError("must-not-appear-in-close-reason")
+            if failure == "queue-items":
+                conn.outbound._max_items = 0
+            else:
+                conn.outbound._max_bytes = 1
+            conn.send_error("busy")
+    
+        monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        task, _ = await accepted_connection(app, ws)
+        await wait_for_event(ws, "hello")
+        trigger.set()
+        await asyncio.wait_for(task, 8)
+&gt;       assert ws.closed is not None, "producer failure returned without a close frame"
+E       AssertionError: producer failure returned without a close frame
+E       assert None is not None
+E        +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D73359B20&gt;.closed
+
+tests\test_terminal_ws.py:1180: AssertionError</failure></testcase><testcase classname="tests.test_terminal_ws" name="test_reader_failure_closes_protocol_instead_of_silently_returning[queue-bytes]" time="0.005"><failure message="AssertionError: producer failure returned without a close frame&#10;assert None is not None&#10; +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D733021B0&gt;.closed">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021D73301670&gt;
+failure = 'queue-bytes'
+
+    @pytest.mark.parametrize("failure", ["queue-items", "queue-bytes", "reader-error"])
+    def test_reader_failure_closes_protocol_instead_of_silently_returning(monkeypatch, failure):
+        """A completed producer exception must be consumed and become a close frame."""
+        async def scenario():
+            trigger = asyncio.Event()
+    
+            async def reader(conn):
+                await trigger.wait()
+                if failure == "reader-error":
+                    raise RuntimeError("must-not-appear-in-close-reason")
+                if failure == "queue-items":
+                    conn.outbound._max_items = 0
+                else:
+                    conn.outbound._max_bytes = 1
+                conn.send_error("busy")
+    
+            monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+            service = FakeService()
+            runtime = make_runtime(service)
+            app = await start_app(runtime)
+            await wait_ready(runtime)
+            ws = make_ws(app)
+            task, _ = await accepted_connection(app, ws)
+            await wait_for_event(ws, "hello")
+            trigger.set()
+            await asyncio.wait_for(task, 8)
+            assert ws.closed is not None, "producer failure returned without a close frame"
+            assert ws.closed[0] == 1013, ws.closed
+            assert "must-not-appear" not in str(ws.closed)
+            assert app.state.terminal_ws_manager.snapshot()["active"] == 0
+    
+&gt;       asyncio.run(scenario())
+
+tests\test_terminal_ws.py:1185: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+        trigger = asyncio.Event()
+    
+        async def reader(conn):
+            await trigger.wait()
+            if failure == "reader-error":
+                raise RuntimeError("must-not-appear-in-close-reason")
+            if failure == "queue-items":
+                conn.outbound._max_items = 0
+            else:
+                conn.outbound._max_bytes = 1
+            conn.send_error("busy")
+    
+        monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        task, _ = await accepted_connection(app, ws)
+        await wait_for_event(ws, "hello")
+        trigger.set()
+        await asyncio.wait_for(task, 8)
+&gt;       assert ws.closed is not None, "producer failure returned without a close frame"
+E       AssertionError: producer failure returned without a close frame
+E       assert None is not None
+E        +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D733021B0&gt;.closed
+
+tests\test_terminal_ws.py:1180: AssertionError</failure></testcase><testcase classname="tests.test_terminal_ws" name="test_reader_failure_closes_protocol_instead_of_silently_returning[reader-error]" time="0.005"><failure message="AssertionError: producer failure returned without a close frame&#10;assert None is not None&#10; +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D73303E00&gt;.closed">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021D73302F60&gt;
+failure = 'reader-error'
+
+    @pytest.mark.parametrize("failure", ["queue-items", "queue-bytes", "reader-error"])
+    def test_reader_failure_closes_protocol_instead_of_silently_returning(monkeypatch, failure):
+        """A completed producer exception must be consumed and become a close frame."""
+        async def scenario():
+            trigger = asyncio.Event()
+    
+            async def reader(conn):
+                await trigger.wait()
+                if failure == "reader-error":
+                    raise RuntimeError("must-not-appear-in-close-reason")
+                if failure == "queue-items":
+                    conn.outbound._max_items = 0
+                else:
+                    conn.outbound._max_bytes = 1
+                conn.send_error("busy")
+    
+            monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+            service = FakeService()
+            runtime = make_runtime(service)
+            app = await start_app(runtime)
+            await wait_ready(runtime)
+            ws = make_ws(app)
+            task, _ = await accepted_connection(app, ws)
+            await wait_for_event(ws, "hello")
+            trigger.set()
+            await asyncio.wait_for(task, 8)
+            assert ws.closed is not None, "producer failure returned without a close frame"
+            assert ws.closed[0] == 1013, ws.closed
+            assert "must-not-appear" not in str(ws.closed)
+            assert app.state.terminal_ws_manager.snapshot()["active"] == 0
+    
+&gt;       asyncio.run(scenario())
+
+tests\test_terminal_ws.py:1185: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+        trigger = asyncio.Event()
+    
+        async def reader(conn):
+            await trigger.wait()
+            if failure == "reader-error":
+                raise RuntimeError("must-not-appear-in-close-reason")
+            if failure == "queue-items":
+                conn.outbound._max_items = 0
+            else:
+                conn.outbound._max_bytes = 1
+            conn.send_error("busy")
+    
+        monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        task, _ = await accepted_connection(app, ws)
+        await wait_for_event(ws, "hello")
+        trigger.set()
+        await asyncio.wait_for(task, 8)
+&gt;       assert ws.closed is not None, "producer failure returned without a close frame"
+E       AssertionError: producer failure returned without a close frame
+E       assert None is not None
+E        +  where None = &lt;test_terminal_ws.FakeWebSocket object at 0x0000021D73303E00&gt;.closed
+
+tests\test_terminal_ws.py:1180: AssertionError</failure></testcase></testsuite></testsuites>

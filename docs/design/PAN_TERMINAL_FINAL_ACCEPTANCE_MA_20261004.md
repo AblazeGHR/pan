@@ -145,3 +145,15 @@ engines or remote/cross-account authentication.
 The complete post-clipboard frontend run passes **1242 tests / zero failures /
 zero pending**, `frontend-after-clipboard.json`. It is separate from the earlier
 1229-test frozen result and from any Python regression result.
+
+## Sustained pressure confirmation
+
+The three-minute natural producer/slow-observer fixture passes in uv: 111.5 MB
+producer payload, 120.5 MB observed PTY bytes, zero fast gaps, original identity,
+180 queue/RSS/heartbeat samples, slow peer close frame 1013, and confirmed
+explicit close. Application queue peaks at 1.78 MB and remains below its 4 MiB
+limit; TCP/library buffers are separate. A completed-task exception handling
+repair is supported by three pre-fail/post-pass WS gates. See
+`PAN_TERMINAL_STEADY_PRESSURE_MA_20261004.md` for exact metrics, fixture failures,
+transport ping isolation, and the finite-duration limitations. This is stronger
+than the earlier 5.34 MB check, but still not hours-long certification.

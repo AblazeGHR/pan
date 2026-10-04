@@ -1084,7 +1084,16 @@ async def _serve(websocket: WebSocket, conn: _Connection, manager: _Manager) -> 
         done, pending = await asyncio.wait(conn._tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
-        if conn.outbound.slow:
+        # Queue admission can fail in the reader/receiver, not just in sender.
+        # asyncio.wait does not propagate those exceptions. Consume them before
+        # cleanup so an exhausted queue cannot silently drop the close frame.
+        failed = any(
+            not task.cancelled()
+            and (error := task.exception()) is not None
+            and not isinstance(error, WebSocketDisconnect)
+            for task in done
+        )
+        if conn.outbound.slow or failed:
             with contextlib.suppress(Exception):
                 await websocket.close(code=1013)
         elif conn._terminal_sent:

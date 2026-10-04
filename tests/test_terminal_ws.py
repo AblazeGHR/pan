@@ -1151,6 +1151,40 @@ def test_slow_client_gets_1013_on_send_timeout():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("failure", ["queue-items", "queue-bytes", "reader-error"])
+def test_reader_failure_closes_protocol_instead_of_silently_returning(monkeypatch, failure):
+    """A completed producer exception must be consumed and become a close frame."""
+    async def scenario():
+        trigger = asyncio.Event()
+
+        async def reader(conn):
+            await trigger.wait()
+            if failure == "reader-error":
+                raise RuntimeError("must-not-appear-in-close-reason")
+            if failure == "queue-items":
+                conn.outbound._max_items = 0
+            else:
+                conn.outbound._max_bytes = 1
+            conn.send_error("busy")
+
+        monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+        service = FakeService()
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        task, _ = await accepted_connection(app, ws)
+        await wait_for_event(ws, "hello")
+        trigger.set()
+        await asyncio.wait_for(task, 8)
+        assert ws.closed is not None, "producer failure returned without a close frame"
+        assert ws.closed[0] == 1013, ws.closed
+        assert "must-not-appear" not in str(ws.closed)
+        assert app.state.terminal_ws_manager.snapshot()["active"] == 0
+
+    asyncio.run(scenario())
+
+
 def test_runtime_four_slots_busy_is_static_and_not_queued():
     """4 槽满 → busy 静态 error（不排队）；释放后可继续。"""
 
