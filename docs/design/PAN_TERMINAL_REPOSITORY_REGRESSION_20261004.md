@@ -55,3 +55,39 @@ modified in this repair. TypeScript and production build subsequently passed;
 the asset verifier reported **36 compressed production assets**. This fixture
 run is distinct from the real Chromium browser acceptance and real Pan lifecycle
 tests, and does not grant provider/account or deployment acceptance.
+
+## Final fixed-source Python run and targeted follow-up
+
+At `db294fd5`, the final whole-repository uv run completed **2569 passed,
+2 failed, 10 skipped**, 915.64s (`full-repository-final-uv.xml`). The newly added
+natural slow-client test was not in that run's collected set. No performance
+threshold failed this time. The two failures have concrete causes:
+
+1. The composition test-only launcher replaced its JSON report while the parent
+   held a Windows read handle: WinError 5, followed by a missing final report.
+   Report/control-result replace now retries PermissionError within two seconds,
+   and exhaustion still raises; assertions and production launcher are unchanged.
+2. Shutdown evidence polling exhausted the service state's lifetime stop-resend
+   cap. An explicit later close now gets a fresh bounded resend allowance under
+   the existing single-flight arbitration lock; internal shutdown polling does
+   not reset the cap. A real pressure test additionally showed that a lost final
+   IPC reply could leave a successfully exited runner unconfirmed. The runner's
+   final identity-bound cleanup record can now deliver that same cleanup fact,
+   but engine convergence and independently proven process exit remain mandatory.
+   Wrong identity, non-boolean confirmations, retained owner/tree, exit 6, and
+   unfinished pipe all reject this alternate report channel.
+
+The affected service/composition/shutdown/pressure selection recorded **98 passed /
+1 failed** (`final-cleanup-pressure-uv.xml`): both original full-run failures pass;
+the new pressure fixture's eight immediate retries ended before async cleanup
+finished. A 20-second total retry deadline retains exact close=exited assertions.
+Its final uv rerun passes (`slow-observer-final-uv.xml`): **5340953 total bytes,
+5340841 observed by fast connection, zero fast gaps, same PID, explicit close
+success**, 22.80s. An observer intentionally did not consume its bounded receive
+queue. This is a finite natural-pressure check, not long-steady-state certification.
+Initial proxy-environment and premature-close fixture failures are retained.
+The nine strict final-record gates plus two shutdown gates pass direct and uv:
+**11/11 each** (`final-record-gates-{direct,uv}.xml`).
+
+The whole repository was **not rerun after these last changes**. Its latest whole
+run remains 2569/2/10; the repaired subset and pressure result are separate facts.

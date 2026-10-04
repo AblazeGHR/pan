@@ -1,7 +1,37 @@
 from types import SimpleNamespace
+import json
+import pytest
 
 from packages.core.terminal.contracts import RuntimeState
 from packages.core.terminal.service import TerminalService
+
+
+@pytest.mark.parametrize("change", [{}, {"pid": 8}, {"filetime": "99"},
+                                     {"close_ok": "true"}, {"converged": False},
+                                     {"owner_retained": True}, {"tree_remaining": 1},
+                                     {"exit_code": 6}, {"pipe": False}])
+def test_runner_final_record_requires_exact_identity_and_cleanup_facts(tmp_path, change):
+    service = TerminalService(tmp_path)
+    state = SimpleNamespace(terminal_id="term_record_ma", runner_pid=7, runner_filetime=9)
+    cleanup = {"converged": True, "close_ok": True, "owner_retained": False,
+               "tree_remaining": 0, "retained": [], "pipe": {"converged": True}}
+    payload = {"terminal_id": state.terminal_id, "phase": "exited", "exit_code": 0,
+               "runner_identity": {"pid": 7, "process_created_at_filetime": "9"}, "cleanup": cleanup}
+    for key, value in change.items():
+        if key == "pid":
+            payload["runner_identity"]["pid"] = value
+        elif key == "filetime":
+            payload["runner_identity"]["process_created_at_filetime"] = value
+        elif key == "exit_code":
+            payload[key] = value
+        elif key == "pipe":
+            cleanup["pipe"]["converged"] = value
+        else:
+            cleanup[key] = value
+    path = tmp_path / "runner-status" / f"{state.terminal_id}.json"
+    path.parent.mkdir()
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert service._runner_cleanup_record_confirmed(state) is (not change)
 
 
 def test_shutdown_consumes_late_owned_cleanup_within_same_total_budget(tmp_path, monkeypatch):

@@ -1397,7 +1397,7 @@ class TerminalService:
         **不**用 ``caller_responsible`` 绕过。``budget`` 覆盖取锁与全部等待。
         """
         state = self._require_state(terminal_id)
-        report = self._close_state(state, reason=reason, budget=self.stop_confirm)
+        report = self._close_state(state, reason=reason, budget=self.stop_confirm, fresh_retry=True)
         if report["status"] == "exited":
             return self._view(self._registry.get(terminal_id))
         # F10：reason 用 close-outcome 的**内部静态分类**，而非调用方传入值，
@@ -1407,7 +1407,8 @@ class TerminalService:
             error_type=report.get("error_type"),
         )
 
-    def _close_state(self, state: _TerminalState, *, reason: str, budget: float) -> dict[str, Any]:
+    def _close_state(self, state: _TerminalState, *, reason: str, budget: float,
+                     fresh_retry: bool = False) -> dict[str, Any]:
         """关闭序列（可重入）。
 
         **可追踪 worker 只覆盖阻塞的 stop 调用**：
@@ -1480,6 +1481,11 @@ class TerminalService:
             timeout=max(0.0, deadline - time.monotonic())
         ):
             try:
+                # An explicit new retry gets a fresh bounded resend allowance;
+                # shutdown's internal evidence polling must not reset this cap.
+                # Single-flight/reset arbitration stays under this same lock.
+                if fresh_retry:
+                    state.stop_resends = 0
                 # The first result predates acquiring this lock. Another caller may
                 # have completed a retry meanwhile; consume its current result before
                 # deciding to reset. Never overwrite a success using stale evidence.
@@ -1524,6 +1530,14 @@ class TerminalService:
             # 锁等待超预算：如实按"未收敛"处理（不挂死、不假收敛）。
             self._note("close-op-lock-timeout", terminal_id)
 
+        if not stop_confirmed and self._runner_cleanup_record_confirmed(state):
+            # A response may be lost when the runner exits. Its identity-bound
+            # final cleanup report is a second delivery channel for the same
+            # fact, NOT a liveness/death proof. Engine + retained process exit
+            # are still independently required below.
+            stop_confirmed = True
+            evidence["runner_confirmed"] = True
+            evidence["runner_confirmation_source"] = "identity-bound-final-record"
         if error_type is not None and not stop_confirmed:
             self._mark_unproven(state, "close-worker-error", error_type)
             return {
@@ -1642,6 +1656,26 @@ class TerminalService:
         if status == "exited":
             evidence["runner_exit"] = (response.get("describe") or {}).get("exit")
         return evidence
+
+    def _runner_cleanup_record_confirmed(self, state: _TerminalState) -> bool:
+        try:
+            payload = json.loads((self.root / "runner-status" / f"{state.terminal_id}.json").read_text(encoding="utf-8"))
+            cleanup = payload.get("cleanup") if isinstance(payload, Mapping) else None
+            pipe = cleanup.get("pipe") if isinstance(cleanup, Mapping) else None
+            return bool(
+                isinstance(payload, Mapping) and payload.get("terminal_id") == state.terminal_id
+                and payload.get("phase") == "exited" and type(payload.get("exit_code")) is int
+                and payload.get("exit_code") == 0
+                and self._identity_matches(payload.get("runner_identity"), state.runner_pid, state.runner_filetime)
+                and isinstance(cleanup, Mapping) and cleanup.get("converged") is True
+                and cleanup.get("close_ok") is True and cleanup.get("owner_retained") is False
+                and type(cleanup.get("tree_remaining")) is int and cleanup.get("tree_remaining") == 0
+                and cleanup.get("retained") == []
+                and isinstance(pipe, Mapping) and pipe.get("converged") is True)
+        except Exception as exc:
+            if not isinstance(exc, FileNotFoundError):
+                self._note_error("runner-status-unreadable", exc)
+            return False
 
     def _launcher_status_evidence(self, state: _TerminalState) -> dict[str, Any]:
         """读 launcher-status（引擎收尾事实 + 身份交叉核验）。"""

@@ -256,7 +256,14 @@ def dump(payload):
     tmp = report_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, default=str)
-    os.replace(tmp, report_path)
+    for attempt in range(40):
+        try:
+            os.replace(tmp, report_path)
+            break
+        except PermissionError:
+            if attempt == 39:
+                raise
+            time.sleep(0.05)
 
 own = win_pipe.current_process_identity()
 report = {
@@ -285,7 +292,14 @@ def write_result(payload):
     tmp = control_result + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, default=str)
-    os.replace(tmp, control_result)
+    for attempt in range(40):
+        try:
+            os.replace(tmp, control_result)
+            break
+        except PermissionError:
+            if attempt == 39:
+                raise
+            time.sleep(0.05)
 
 def execute(cmd, args):
     if cmd == "describe":
