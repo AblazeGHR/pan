@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
+const label = process.argv[3];
+if (label && !/^[a-z0-9-]{1,60}$/.test(label)) throw new Error('invalid evidence label');
+const output = label ? path.join(directory, label) : directory;
+await mkdir(output, { recursive: true });
 const repo = path.resolve(directory, '../../../..');
 const require = createRequire(path.join(repo, 'packages/web/package.json'));
 const { chromium } = require('@playwright/test');
@@ -93,7 +97,7 @@ try {
   report.twoConnectionTakeover = true;
   report.disconnectPreservedRuntime = true;
   report.resizeConfirmed = true;
-  await page.screenshot({ path: path.join(directory, 'screen.png') });
+  await page.screenshot({ path: path.join(output, 'screen.png') });
   await page.reload();
   await page.getByLabel('选择终端').selectOption(id);
   await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 30000 });
@@ -115,14 +119,14 @@ try {
 } finally {
   if (!report.passed && page) {
     report.pageText = await page.locator('body').innerText();
-    await page.screenshot({ path: path.join(directory, 'failure.png') });
+    await page.screenshot({ path: path.join(output, 'failure.png') });
   }
   await browser?.close();
   child.stdin.write('stop\n');
   const code = await Promise.race([exit, new Promise(resolve => setTimeout(() => resolve('timeout'), 30000))]);
   report.harnessExit = code;
   report.logs = logs;
-  await writeFile(path.join(directory, 'result.json'), JSON.stringify(report, null, 2));
+  await writeFile(path.join(output, 'result.json'), JSON.stringify(report, null, 2));
   if (code !== 'timeout') await rm(root, { recursive: true, force: true });
   else throw new Error(`harness retained for diagnosis: ${root}`);
 }

@@ -1,0 +1,111 @@
+{
+  "hypothesis": "inherited-ctrl-c-ignore",
+  "results": [
+    {
+      "case": "baseline",
+      "identity": {
+        "pid": 37128,
+        "created_at_filetime": 134355601072982802,
+        "created_at": null,
+        "image": null
+      },
+      "ready": {
+        "reset_ok": null,
+        "registered": true,
+        "mode": 503
+      },
+      "after_raw": "",
+      "helper_0": {
+        "ok": true,
+        "event": 0,
+        "target_in_console": true
+      },
+      "after_helper_0": "",
+      "helper_1": {
+        "ok": true,
+        "event": 1,
+        "target_in_console": true
+      },
+      "after_helper_1": "1\n",
+      "root_alive": true,
+      "cleanup": {
+        "terminal_id": "interrupt_baseline",
+        "requested_reason": "probe-complete",
+        "interrupt_sent": false,
+        "interrupt_error": null,
+        "terminate_result": "returned",
+        "terminate_error": null,
+        "tree_owned_pids": [
+          37128
+        ],
+        "tree_remaining_pids": [],
+        "backend_closed": true,
+        "reader_joined": true,
+        "reader_converged": true,
+        "reader_cancelled": true,
+        "cancel_kind": "backend-close",
+        "drain_stop_reason": "cancelled",
+        "identity_check": "verified",
+        "state_after": "exited",
+        "owner_retained": false,
+        "error": null,
+        "seconds": 2.031,
+        "ok": true
+      }
+    },
+    {
+      "case": "reset",
+      "identity": {
+        "pid": 41216,
+        "created_at_filetime": 134355601111288576,
+        "created_at": null,
+        "image": null
+      },
+      "ready": {
+        "reset_ok": true,
+        "registered": true,
+        "mode": 503
+      },
+      "after_raw": "0\n",
+      "helper_0": {
+        "ok": true,
+        "event": 0,
+        "target_in_console": true
+      },
+      "after_helper_0": "0\n0\n",
+      "helper_1": {
+        "ok": true,
+        "event": 1,
+        "target_in_console": true
+      },
+      "after_helper_1": "0\n0\n1\n",
+      "root_alive": true,
+      "cleanup": {
+        "terminal_id": "interrupt_reset",
+        "requested_reason": "probe-complete",
+        "interrupt_sent": false,
+        "interrupt_error": null,
+        "terminate_result": "returned",
+        "terminate_error": null,
+        "tree_owned_pids": [
+          41216
+        ],
+        "tree_remaining_pids": [],
+        "backend_closed": true,
+        "reader_joined": true,
+        "reader_converged": true,
+        "reader_cancelled": true,
+        "cancel_kind": "backend-close",
+        "drain_stop_reason": "cancelled",
+        "identity_check": "verified",
+        "state_after": "exited",
+        "owner_retained": false,
+        "error": null,
+        "seconds": 2.047,
+        "ok": true
+      }
+    }
+  ],
+  "ctrl_c_delivered": true,
+  "cleanup_confirmed": true
+}

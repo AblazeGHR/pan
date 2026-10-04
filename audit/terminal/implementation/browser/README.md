@@ -81,3 +81,16 @@ membership/cleanup assertions remain intact; no assertion was weakened.
 Affected backend+guard suites: 35 passed direct and 35 passed uv (new
 `regression-repair-direct.xml` / `regression-repair-uv.xml`). This is not a claim
 that the 703-test combined run was rerun after the repair.
+
+## Integrated PR6 and terminal regression (2026-10-04)
+
+At production commit `8314421d`, uv with declared minimal requirements and
+pytest/pytest-timeout executed `tests/ -k 'terminal or rewind'`: **791 passed,
+1774 deselected, 0 failed, 0 skipped**, 470.04 seconds. Evidence is
+`terminal-rewind-combined.xml`. This supersedes the two historical 703-run
+failures for this integrated selection, not for the entire repository.
+
+After the PR6 import/build, real Chromium `check.mjs` again passed (28 observed
+terminal events; harness exit 0), with output in `pr6-integration/`. The optional
+label argument preserves earlier browser results/screenshots instead of
+overwriting them. No full Pan service/provider or 8768 listener was used.
