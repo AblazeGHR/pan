@@ -1,0 +1,75 @@
+{
+  "id": "C5-async-feed-immediate-snapshot",
+  "title": "异步 feed 后立即 snapshot（游标一致性）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "producer-side probe shows enqueue != applied",
+      "ok": true,
+      "detail": {
+        "enqueued_seq": 17,
+        "applied_seq": 0,
+        "applied_bytes": 0,
+        "enqueued_bytes": 248000
+      }
+    },
+    {
+      "name": "immediate snapshot did not claim unapplied bytes",
+      "ok": true,
+      "detail": {
+        "applied_seq": 17,
+        "applied_bytes": 248000,
+        "enqueued_bytes": 248000,
+        "pending_tail_bytes": 0
+      }
+    },
+    {
+      "name": "snapshot was consistent enough to restore and continue",
+      "ok": true
+    },
+    {
+      "name": "barrier drains to the enqueue frontier",
+      "ok": true
+    },
+    {
+      "name": "final snapshot after drain is full",
+      "ok": true
+    },
+    {
+      "name": "snapshot wait did not block the producer (enqueue stayed synchronous)",
+      "ok": true
+    }
+  ],
+  "details": {
+    "probeAtRequest": {
+      "enqueued_seq": 17,
+      "applied_seq": 0,
+      "applied_bytes": 0,
+      "enqueued_bytes": 248000
+    },
+    "stateAtSnapshot": {
+      "applied_seq": 17,
+      "applied_bytes": 248000,
+      "enqueued_bytes": 248000,
+      "pending_tail_bytes": 0
+    },
+    "barrier": {
+      "ok": true,
+      "processed_seq": 18,
+      "applied_bytes": 248000,
+      "enqueued_bytes": 248000,
+      "pending_tail_bytes": 0,
+      "boundary_clean": true,
+      "queue_blocks": 0,
+      "feed_lag": false,
+      "recovery": "full"
+    },
+    "diff": [],
+    "snap2": {
+      "applied_bytes": 248000,
+      "fidelity": "full"
+    }
+  },
+  "ms": 328,
+  "failed_expectations": []
+}

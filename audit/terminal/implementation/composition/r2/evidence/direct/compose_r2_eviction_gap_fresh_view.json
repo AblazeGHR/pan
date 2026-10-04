@@ -1,0 +1,13 @@
+{
+  "window": {
+    "total": 359359,
+    "applied": 239,
+    "first_retained": 97264
+  },
+  "gap_returned": true,
+  "gap_start_equals_applied": true,
+  "no_auto_reset": true,
+  "pty_alive_during_downgrade": true,
+  "catch_up_refetch_no_gap": true,
+  "note": "fresh-view 是显示层策略；不自动 reset_baseline、不结束 PTY"
+}

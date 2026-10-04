@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "spawn_argv": true,
+    "os_command_line": true,
+    "stdout_stderr": true,
+    "files_without_token": true,
+    "secret_ciphertext_is_not_plaintext": true,
+    "parent_env": true
+  },
+  "scanned_files": 3,
+  "command_line_available": true
+}

@@ -1,0 +1,65 @@
+{
+  "pre_spawn_error": "EmulatorStartupError",
+  "pre_spawn_owner_none": true,
+  "post_spawn_eof": {
+    "error": "EmulatorStartupError",
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "no_residue": true,
+    "fix": "emulator r4 F1：ready 前 EOF 与 fatal/timeout 同路径 fail-closed"
+  },
+  "post_spawn_fatal": {
+    "error": "EmulatorStartupError",
+    "seconds": 0.078,
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "residual": {
+      "reason": "sidecar 不可用：injected-dependency-broken:test",
+      "pid": 37512,
+      "identity_filetime": "134354643508318299",
+      "process_exited": true,
+      "job_verified": true,
+      "guard_closed": true,
+      "cleanup_closed": true,
+      "cleanup_seconds": 0.015,
+      "cleanup_detail": "ok",
+      "cleanup_errors": [],
+      "stderr_digest": ""
+    },
+    "no_residue": true
+  }
+}

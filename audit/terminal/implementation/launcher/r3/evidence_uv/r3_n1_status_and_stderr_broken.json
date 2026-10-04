@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "events": [
+    "status-write-failed",
+    "stderr-write-failed",
+    "stderr-write-failed"
+  ]
+}

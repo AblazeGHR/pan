@@ -1,0 +1,37 @@
+{
+  "total_bytes": 335064,
+  "eviction_triggered": true,
+  "cursor_at_snapshot": 335064,
+  "tail_single_consumption": true,
+  "checker_serialized_equal": true,
+  "fidelity": "partial",
+  "recovery": "partial",
+  "capacity_observation": {
+    "measure": "单一 monotonic：首次提交 → applied==total（不扣除任何 probe 窗口）",
+    "catch_up_seconds": 0.282,
+    "producer_feed_ops": 2363,
+    "engine_feed_batches": 14,
+    "engine_feed_batched_ops": 2361,
+    "max_feed_batch_bytes": 35815,
+    "pre_catch_up": {
+      "applied_cursor": "335064",
+      "queue_ops": 0,
+      "queue_bytes": 0
+    },
+    "note": "同机探针（本机 80×24+scrollback=1000）合并批上限 64KiB（emulator r4 F2）；producer feed op 数与实际引擎帧数分列，不外推跨机硬 SLA"
+  },
+  "emulator_close": {
+    "closed": true,
+    "graceful": true,
+    "forced": true,
+    "process_exited": true,
+    "guard_closed": true,
+    "reader_joined": true,
+    "stderr_joined": true,
+    "applier_joined": true,
+    "streams_closed": true,
+    "job_verified": true,
+    "detail": "ok",
+    "seconds": 0.014999999999417923
+  }
+}

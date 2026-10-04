@@ -1,0 +1,163 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- E:\software\miniforge\python.exe
+rootdir: D:\project\pan-worktrees\terminal-ipc-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 114 items / 80 deselected / 34 selected
+
+tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler FAILED [  2%]
+tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too FAILED [  5%]
+tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session FAILED [  8%]
+tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable FAILED [ 11%]
+tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types FAILED [ 14%]
+tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept FAILED [ 17%]
+tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver FAILED [ 20%]
+tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses FAILED [ 23%]
+tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch FAILED [ 26%]
+tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged FAILED [ 29%]
+tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable FAILED [ 32%]
+tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable FAILED [ 35%]
+tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry FAILED [ 38%]
+tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live FAILED [ 41%]
+tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance FAILED [ 44%]
+tests/test_terminal_runner_ipc.py::test_f4_rearm_after_last_instance_prevents_squatting_window PASSED [ 47%]
+tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending FAILED [ 50%]
+tests/test_terminal_runner_ipc.py::test_f5_close_after_accept_timeout_cancels_the_landed_instance PASSED [ 52%]
+tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry FAILED [ 55%]
+tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel FAILED [ 58%]
+tests/test_terminal_runner_ipc.py::test_f11_child_self_attested_identity_is_kernel_verified PASSED [ 61%]
+tests/test_terminal_runner_ipc.py::test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line PASSED [ 64%]
+tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed FAILED [ 67%]
+tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected FAILED [ 70%]
+tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected FAILED [ 73%]
+tests/test_terminal_secret_store.py::test_f7_unknown_ace_type_and_unparsable_allow_are_rejected FAILED [ 76%]
+tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted FAILED [ 79%]
+tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected FAILED [ 82%]
+tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively FAILED [ 85%]
+tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it FAILED [ 88%]
+tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields FAILED [ 91%]
+tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity FAILED [ 94%]
+tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_verifies_real_identity PASSED [ 97%]
+tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed FAILED [100%]
+
+================================== FAILURES ===================================
+E   NameError: name '_valid_request' is not defined
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1770: NameError: name '_valid_request' is not defined
+E   NameError: name '_handshake' is not defined
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1787: NameError: name '_handshake' is not defined
+E   TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1798: TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+E   TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1819: TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+E   TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1843: TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+E   NameError: name '_handshake' is not defined
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1868: NameError: name '_handshake' is not defined
+E   NameError: name '_handshake' is not defined
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1908: NameError: name '_handshake' is not defined
+E   NameError: name '_handshake' is not defined
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1948: NameError: name '_handshake' is not defined
+E   TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1992: TypeError: _session_pair() got an unexpected keyword argument 'terminal_id'
+E   AssertionError: claim 必须返回携带固化期限的请求对象
+    assert None is not None
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2023: AssertionError: claim 必须返回携带固化期限的请求对象
+E   AssertionError: assert (True is False)
+     +  where True = CloseReport(converged=True, closed=True, in_flight=0, detail='closed').converged
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2060: AssertionError: assert (True is False)
+E   AssertionError: assert (True is False)
+     +  where True = CloseReport(converged=True, closed=True, in_flight=0, detail='closed').converged
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2091: AssertionError: assert (True is False)
+E   assert 0 >= 1
+     +  where 0 = <packages.core.terminal.win_pipe.PipeServer object at 0x0000024A444747D0>.own_instances
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2114: assert 0 >= 1
+E   AssertionError: 连接持有的实例必须计入名称所有权
+    assert False is True
+     +  where False = <packages.core.terminal.win_pipe.PipeServer object at 0x0000024A44462750>.name_owned
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2146: AssertionError: 连接持有的实例必须计入名称所有权
+E   packages.core.terminal.win_pipe.PipeTimeout: pipe \\.\pipe\pan-terminal-term_f4_flag not available within 5.0s (last error 121)
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\packages\core\terminal\win_pipe.py:1788: packages.core.terminal.win_pipe.PipeTimeout: pipe \\.\pipe\pan-terminal-term_f4_flag not available within 5.0s (last error 121)
+E   AssertionError: 未 issued 的 pending 必须直接释放
+    assert (False is True)
+     +  where False = CloseReport(converged=False, closed=False, in_flight=0, detail='connect-cancel-not-converged').converged
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2236: AssertionError: 未 issued 的 pending 必须直接释放
+E   AssertionError: 重试必须补发取消并收敛
+    assert (False is True)
+     +  where False = CloseReport(converged=False, closed=False, in_flight=1, detail='in-flight I/O did not converge after cancel; resources retained for retry').converged
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2307: AssertionError: 重试必须补发取消并收敛
+E   assert 0 >= 1
+     +  where 0 = <built-in method count of list object at 0x0000024A46078880>(0)
+     +    where <built-in method count of list object at 0x0000024A46078880> = [1480].count
+     +    and   0 = int(0)
+     +      where 0 = <packages.core.terminal.win_pipe.PipeConnection object at 0x0000024A44476870>.handle
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:2342: assert 0 >= 1
+E   AssertionError: object ACE 的 SID 必须可归属（证据不失明）
+    assert None == 'S-1-1-0'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:746: AssertionError: object ACE 的 SID 必须可归属（证据不失明）
+E   AssertionError: assert ([{'ace_type': 5, 'ace_flags': 0, 'ace_size': 56, 'sid': None, ...}] and None == 'S-1-1-0')
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:778: AssertionError: assert ([{'ace_type': 5, 'ace_flags': 0, 'ace_size': 56, 'sid': None, ...}] and None == 'S-1-1-0')
+E   AssertionError: assert 1336 == 0
+     +  where 1336 = _set_dacl(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-992/test_f7_callback_ace_for_forei0/data/secrets/term_f7_callback.secret'), b'\x04\x00B\x00\x02\x00\x00\x00\x00\x00$\x00\xff\x01\x1f\x00\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x00\xf1\xf8\x01\xe1\x00r\xf6\x92\xa4\x03\xe4\xcd\xe9\x03\x00\x00\t\x00\x16\x00\x89\x00\x12\x00\x01\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\xab\xcd')
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:794: AssertionError: assert 1336 == 0
+E   Failed: DID NOT RAISE SecretSecurityError
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:821: Failed: DID NOT RAISE SecretSecurityError
+E   AssertionError: assert 1336 == 0
+     +  where 1336 = _set_dacl(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-992/test_f7_owner_grant_of_same_us0/data/secrets/term_f7_allow.secret'), b'\x04\x00\x8e\x00\x04\x00\x00\x00\x00\x00$\x00\xff\x01\x1f\x00\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x00\xf1\xf8\x01\xe1\x00r\xf6\x92\xa4\x03\xe4\xcd\xe9\x03\x00\x00\x05\x00(\x00\x89\x00\x12\x00\x00\x00\x00\x00\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x00\xf1\xf8\x01\xe1\x00r\xf6\x92\xa4\x03\xe4\xcd\xe9\x03\x00\x00\t\x00&\x00\x89\x00\x12\x00\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x00\xf1\xf8\x01\xe1\x00r\xf6\x92\xa4\x03\xe4\xcd\xe9\x03\x00\x00\xab\xcd\x01\x00\x14\x00\x89\x00\x12\x00\x01\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00')
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:838: AssertionError: assert 1336 == 0
+E   Failed: DID NOT RAISE SecretSecurityError
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:852: Failed: DID NOT RAISE SecretSecurityError
+E   AttributeError: module 'packages.core.terminal.win_pipe' has no attribute 'create_file_exclusive_owner_only'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:879: AttributeError: module 'packages.core.terminal.win_pipe' has no attribute 'create_file_exclusive_owner_only'
+E   AttributeError: module 'packages.core.terminal.win_pipe' has no attribute 'create_file_exclusive_owner_only'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:915: AttributeError: module 'packages.core.terminal.win_pipe' has no attribute 'create_file_exclusive_owner_only'
+E   AssertionError: 并发写/读不得失败或丢字段: [PipeSecurityError('CreateFileW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 另一个程序正在使用此文件，进程无法访问。'), PipeSecurityError('GetNamedSecurityInfoW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 系统找不到指定的文件。')]
+    assert [PipeSecurity...系统找不到指定的文件。')] == []
+      
+      Left contains 2 more items, first extra item: PipeSecurityError('CreateFileW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 另一个程序正在使用此文件，进程无法访问。')
+      
+      Full diff:
+      - []
+      + [
+      +     PipeSecurityError('CreateFileW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 另一个程序正在使用此文件，进程无法访问。'),
+      +     PipeSecurityError('GetNamedSecurityInfoW failed for C:\\Users\\14709\\AppData\\L...
+      
+      ...Full output truncated (2 lines hidden), use '-vv' to show
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:1014: AssertionError: 并发写/读不得失败或丢字段: [PipeSecurityError('CreateFileW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 另一个程序正在使用此文件，进程无法访问。'), PipeSecurityError('GetNamedSecurityInfoW failed for C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-992\\test_f9_concurrent_writes_and_0\\data\\secrets\\term_f9_concurrent.secret.2264.84152.tmp: 系统找不到指定的文件。')]
+E   Failed: DID NOT RAISE SecretStoreError
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:1032: Failed: DID NOT RAISE SecretStoreError
+E   TypeError: SecretStore.wait_for_bootstrap_identity() got an unexpected keyword argument 'probe'
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_secret_store.py:1065: TypeError: SecretStore.wait_for_bootstrap_identity() got an unexpected keyword argument 'probe'
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler
+FAILED tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too
+FAILED tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session
+FAILED tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable
+FAILED tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types
+FAILED tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept
+FAILED tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver
+FAILED tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses
+FAILED tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch
+FAILED tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged
+FAILED tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable
+FAILED tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable
+FAILED tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry
+FAILED tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live
+FAILED tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance
+FAILED tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending
+FAILED tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry
+FAILED tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel
+FAILED tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed
+FAILED tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected
+FAILED tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected
+FAILED tests/test_terminal_secret_store.py::test_f7_unknown_ace_type_and_unparsable_allow_are_rejected
+FAILED tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted
+FAILED tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected
+FAILED tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively
+FAILED tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it
+FAILED tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields
+FAILED tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity
+FAILED tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed
+================ 29 failed, 5 passed, 80 deselected in 25.10s =================

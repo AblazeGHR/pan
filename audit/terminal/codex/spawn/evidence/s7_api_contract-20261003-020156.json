@@ -1,0 +1,61 @@
+{
+  "scenario": "s7_api_contract",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s7_api_contract-vder1wx1",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "getprocesstimes_with_null_outparams": "OSError('exception: access violation writing 0x0000000000000000')",
+  "getprocesstimes_all_pointers": 134354377159955166,
+  "struct_sizes": {
+    "STARTUPINFOW": 104,
+    "STARTUPINFOEXW": 112,
+    "PROCESS_INFORMATION": 24,
+    "JOBOBJECT_EXTENDED_LIMIT_INFORMATION": 144,
+    "offset_lpAttributeList": 104
+  },
+  "wait_state_live_child": "alive",
+  "wait_state_after_terminate": "dead",
+  "checks": [
+    {
+      "check": "probe_child_created",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "null_outparam_is_rejected_by_the_api",
+      "ok": true,
+      "detail": "OSError('exception: access violation writing 0x0000000000000000')"
+    },
+    {
+      "check": "contract_conformant_call_succeeds",
+      "ok": true,
+      "detail": 134354377159955166
+    },
+    {
+      "check": "startupinfoex_layout_matches_win32",
+      "ok": true,
+      "detail": {
+        "STARTUPINFOW": 104,
+        "STARTUPINFOEXW": 112,
+        "PROCESS_INFORMATION": 24,
+        "JOBOBJECT_EXTENDED_LIMIT_INFORMATION": 144,
+        "offset_lpAttributeList": 104
+      }
+    },
+    {
+      "check": "wait_state_alive_for_running_child",
+      "ok": true,
+      "detail": "alive"
+    },
+    {
+      "check": "wait_state_dead_after_terminate",
+      "ok": true,
+      "detail": "dead"
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 0.01,
+  "log": [],
+  "temp_removed": true
+}

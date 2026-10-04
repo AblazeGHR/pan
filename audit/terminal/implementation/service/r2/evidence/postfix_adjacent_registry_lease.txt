@@ -1,0 +1,6 @@
+# r2 adjacent registry+lease (once)
+# cmd: python -m pytest tests/test_terminal_registry.py tests/test_terminal_lease.py -o addopts= -q -p no:cacheprovider
+
+........................................                                 [100%]
+40 passed in 0.85s
+rc=0

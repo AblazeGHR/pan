@@ -1,0 +1,152 @@
+{
+  "scenario": "s11_std_handle_matrix",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s11_std_handle_matrix-rigwz4uq",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "matrix": [
+    {
+      "startf_use_std_handles_null": true,
+      "b_inherit_handles": false,
+      "conout_in_pty": true,
+      "stdout_in_pty": true,
+      "pty_bytes": 99
+    },
+    {
+      "startf_use_std_handles_null": true,
+      "b_inherit_handles": true,
+      "conout_in_pty": true,
+      "stdout_in_pty": true,
+      "pty_bytes": 99
+    },
+    {
+      "startf_use_std_handles_null": false,
+      "b_inherit_handles": false,
+      "conout_in_pty": true,
+      "stdout_in_pty": false,
+      "pty_bytes": 87
+    },
+    {
+      "startf_use_std_handles_null": false,
+      "b_inherit_handles": true,
+      "conout_in_pty": true,
+      "stdout_in_pty": false,
+      "pty_bytes": 87
+    }
+  ],
+  "scope": "measured on Windows 11 build 26200 / CPython 3.12.12 on this machine; not a claim about every build or parent topology",
+  "checks": [
+    {
+      "check": "conout_reaches_pty_in_all_rows",
+      "ok": true,
+      "detail": [
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        }
+      ]
+    },
+    {
+      "check": "stdout_reaches_pty_only_with_the_flag",
+      "ok": true,
+      "detail": [
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        }
+      ]
+    },
+    {
+      "check": "flag_alone_decided_outcome_on_this_machine",
+      "ok": true,
+      "detail": [
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": true,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": true,
+          "pty_bytes": 99
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": false,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        },
+        {
+          "startf_use_std_handles_null": false,
+          "b_inherit_handles": true,
+          "conout_in_pty": true,
+          "stdout_in_pty": false,
+          "pty_bytes": 87
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 4.88,
+  "log": [
+    "[sweep] {'pid': 39568, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 17044, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 42740, 'state': 'dead', 'expected_filetime': 134354377307023714, 'observed_filetime': 134354377307023714, 'killed': False, 'reason': 'not_running', 'exit_code_informational': 0, 'sweep': True}",
+    "[sweep] {'pid': 36072, 'state': 'dead', 'expected_filetime': 134354377319151292, 'observed_filetime': 134354377319151292, 'killed': False, 'reason': 'not_running', 'exit_code_informational': 0, 'sweep': True}"
+  ],
+  "temp_removed": true
+}

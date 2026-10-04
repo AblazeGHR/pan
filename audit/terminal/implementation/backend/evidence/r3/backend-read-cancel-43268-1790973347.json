@@ -1,0 +1,18 @@
+{
+  "test": "read_cancel_join_on_close",
+  "reader": {
+    "cancel_attempts": 1,
+    "cancel_last": {
+      "ok": true,
+      "err": 0
+    },
+    "thread_exited": true,
+    "stop_requested": true,
+    "pump_exit": "cancelled",
+    "pump_fatal": null,
+    "drain_done": true,
+    "drain_eof": false,
+    "drain_cancelled": true,
+    "drain_error_type": null
+  }
+}

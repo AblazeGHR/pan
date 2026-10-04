@@ -1,0 +1,29 @@
+{
+  "id": "C6-resize-interleave",
+  "title": "feed/resize 交错（含两次 resize）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "snapshot dims == final resize (32x8)",
+      "ok": true
+    },
+    {
+      "name": "restored state matches reference",
+      "ok": true
+    },
+    {
+      "name": "fidelity full",
+      "ok": true
+    }
+  ],
+  "details": {
+    "diff": [],
+    "snapshot": {
+      "cols": 32,
+      "rows": 8,
+      "applied_bytes": 600
+    }
+  },
+  "ms": 110,
+  "failed_expectations": []
+}

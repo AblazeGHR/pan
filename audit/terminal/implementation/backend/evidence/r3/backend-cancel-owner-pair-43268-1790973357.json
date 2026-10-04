@@ -1,0 +1,22 @@
+{
+  "test": "close_refuses_while_cancel_worker_in_flight",
+  "refusal": {
+    "retryable": true,
+    "retained": [
+      "input_write",
+      "output_read",
+      "hpc",
+      "h_process",
+      "h_thread",
+      "attr_list",
+      "cancel_worker:none:1",
+      "job_handle"
+    ],
+    "thread_exited": false
+  },
+  "handle_not_closed_while_in_flight": true,
+  "cancel_err_after_release": 1168,
+  "retry_close": {
+    "closed": true
+  }
+}

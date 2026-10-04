@@ -1,0 +1,27 @@
+{
+  "parent_head": "5c44b36cda144520f8119c72e374d46623dde04f",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/launcher/r2/README.md": {
+      "blob": "bea9142b8fcb3f0c9392288d6ba08a171c54f16c",
+      "mode": "100644"
+    },
+    "audit/terminal/implementation/launcher/r2/collect_r2_evidence.py": {
+      "blob": "9bbf255b7fe3130e2a7e50ac723cff906662a5dc",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_LAUNCHER_INTERFACES_20261003.md": {
+      "blob": "19b2f829348cfec186c11e7166fb7a35d3a6dafd",
+      "mode": "100644"
+    },
+    "packages/core/terminal/launcher.py": {
+      "blob": "3f358bbdfdfa72103a4a2d63eac10f32c88de4f4",
+      "mode": "100644"
+    },
+    "tests/test_terminal_launcher.py": {
+      "blob": "dfebaf70481550bb8d8d5f44dada0978abef4638",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 r2 窄修（F2–F7 + F1 文档边界，F8 保留）的实现/测试/接口文档/r2 证据；复跑（46 直连 + 46 uv）与暂存字节同源；先失败证据为 5c44b36c 只读副本（副本 launcher.py blob == 5c 提交 blob 0cbcaa08…，见 r2/evidence/pre_fix_source.txt）。"
+}

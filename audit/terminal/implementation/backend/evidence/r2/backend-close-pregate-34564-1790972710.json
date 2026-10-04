@@ -1,0 +1,12 @@
+{
+  "test": "close_refused_on_live_backend_io_survives",
+  "refusal": {
+    "io_untouched": true,
+    "process_state": "alive"
+  },
+  "io_after_refusal": {
+    "write": true,
+    "read": true,
+    "resize": true
+  }
+}

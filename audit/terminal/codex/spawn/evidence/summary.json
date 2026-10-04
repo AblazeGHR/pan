@@ -1,0 +1,14 @@
+{
+  "scenarios": {
+    "s9_failclosed_gates": {
+      "passed": true,
+      "checks": 35,
+      "failed": [],
+      "seconds": 0.55,
+      "evidence": "s9_failclosed_gates-20261003-020910.json",
+      "temp_removed": true
+    }
+  },
+  "started_at": "2026-10-03 02:09:10",
+  "finished_at": "2026-10-03 02:09:10"
+}

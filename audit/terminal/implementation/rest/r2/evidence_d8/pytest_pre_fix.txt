@@ -1,0 +1,52 @@
+F......................FF..sFFFFFFFFFF                                   [100%]
+================================== FAILURES ===================================
+E   AssertionError: ('http://127.0.0.1:8768/', 200)
+    assert 200 == 403
+     +  where 200 = <Response [200 OK]>.status_code
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:315: AssertionError: ('http://127.0.0.1:8768/', 200)
+E   KeyError: 'confirmed'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1011: KeyError: 'confirmed'
+E   AssertionError: assert 'failed' == 'unconfirmed'
+      
+      - unconfirmed
+      + failed
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1041: AssertionError: assert 'failed' == 'unconfirmed'
+E   KeyError: 'confirmed'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1288: KeyError: 'confirmed'
+E   KeyError: 'confirmed'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1314: KeyError: 'confirmed'
+E   AttributeError: module 'packages.web.terminal_api' has no attribute '_SlotLedger'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1327: AttributeError: module 'packages.web.terminal_api' has no attribute '_SlotLedger'
+E   Failed: DID NOT RAISE GateRejected
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1374: Failed: DID NOT RAISE GateRejected
+E   assert 200 == 503
+     +  where 200 = <Response [200 OK]>.status_code
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1417: assert 200 == 503
+E   ValueError: Invalid IPv6 URL
+E:\software\miniforge\Lib\urllib\parse.py:514: ValueError: Invalid IPv6 URL
+E   assert 200 == 422
+     +  where 200 = <Response [200 OK]>.status_code
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1473: assert 200 == 422
+E   AttributeError: '_StreamRequest' object has no attribute 'body'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\packages\web\terminal_api.py:797: AttributeError: '_StreamRequest' object has no attribute 'body'
+E   AssertionError: 并发 shutdown 必须复用同一 task，不叠加
+    assert 2 == 1
+     +  where 2 = len([('shutdown', (), {'budget': 0.2}), ('shutdown', (), {'budget': 0.2})])
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1550: AssertionError: 并发 shutdown 必须复用同一 task，不叠加
+E   AttributeError: module 'packages.web.terminal_api' has no attribute 'terminal_lifespan'
+C:\Users\14709\AppData\Local\Temp\pan-terminal-r2-d8\tests\test_terminal_api.py:1589: AttributeError: module 'packages.web.terminal_api' has no attribute 'terminal_lifespan'
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_api.py::test_gate_origin_boundaries_reject_with_zero_service_calls
+FAILED tests/test_terminal_api.py::test_shutdown_timeout_keeps_references_and_consumes_late_result
+FAILED tests/test_terminal_api.py::test_shutdown_error_reported_not_faked_success
+FAILED tests/test_terminal_api.py::test_shutdown_consumes_real_service_report_and_never_fakes_confirmed
+FAILED tests/test_terminal_api.py::test_shutdown_clean_report_with_inflight_request_is_not_confirmed
+FAILED tests/test_terminal_api.py::test_shutdown_does_not_steal_request_slots_and_retire_is_idempotent
+FAILED tests/test_terminal_api.py::test_call_after_closing_is_rejected_with_503_not_500
+FAILED tests/test_terminal_api.py::test_gate_passed_then_body_paused_then_shutdown_blocks_business
+FAILED tests/test_terminal_api.py::test_normalize_origin_malformed_and_trailing_path_are_static
+FAILED tests/test_terminal_api.py::test_create_rows_and_cols_match_service_bounds
+FAILED tests/test_terminal_api.py::test_request_body_cap_and_bad_json_are_static_422
+FAILED tests/test_terminal_api.py::test_single_flight_shutdown_reuses_inflight_task_and_consumes_late_result
+FAILED tests/test_terminal_api.py::test_terminal_lifespan_runs_stop_on_exception
+13 failed, 24 passed, 1 skipped in 43.25s

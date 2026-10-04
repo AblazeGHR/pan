@@ -1,0 +1,25 @@
+{
+  "probe": "r8_r9_r10_test_level_replay",
+  "baseline": "git archive 430ba7f5 (replay shim: BackendPumpError 类名 only)",
+  "method": "同一测试文件在 430 归档副本重放；当前树同用例通过",
+  "pre_failures": [
+    {
+      "test": "test_write_cancel_worker_joined_before_handle_close",
+      "r8": "err=6 ERROR_INVALID_HANDLE：回调在 thread_handle 关闭后才发起 CancelSynchronousIo",
+      "review_cross_ref": "probe7-D（同现象）"
+    },
+    {
+      "test": "test_write_budget_includes_lock_wait",
+      "r9": "lock 1.4s + 全额 timer -> 2.923s（≈2x budget，> input_drain_timeout 2.0s）",
+      "review_cross_ref": "probe7-B 实测 2.867s"
+    },
+    {
+      "test": "test_interrupt_write_bounded_when_input_busy",
+      "r10": "runtime 路径 write(b'\u0003') 未在 1.0s 内返回（默认 1.5s 预算）",
+      "review_cross_ref": "probe7-E BusyError @1.501s vs terminate(False) @0.511s"
+    }
+  ],
+  "post_status": "当前树（3b83f939+r2 返工）三个用例全部通过（见 backend-cancel-join / backend-write-budget-lockwait / backend-interrupt-bounded 证据）",
+  "replay_log": "pytest 3 failed in 33.78s（430 归档）",
+  "captured_at": 1790972452.6195693
+}

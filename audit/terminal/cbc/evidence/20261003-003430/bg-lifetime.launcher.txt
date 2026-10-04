@@ -1,0 +1,7 @@
+backgrounded · fbc99502 · panlife20261003003430 (shell job)
+  codebuddy agents             list sessions
+  codebuddy logs fbc99502      show recent output
+  codebuddy stop fbc99502      stop this job
+
+  PID:  46920
+  Log:  C:\Users\14709\AppData\Local\Temp\pan-cbc-probe-bglife-lqeix76j\cfg\logs\exec-fbc99502.log

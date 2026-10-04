@@ -1,0 +1,75 @@
+{
+  "id": "C4-client-cursor-evicted-twice",
+  "title": "客户端游标再次被驱逐：gap 判定与快照重基线",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "first eviction detected as gap",
+      "ok": true
+    },
+    {
+      "name": "snapshot cursor is usable (no gap)",
+      "ok": true
+    },
+    {
+      "name": "second eviction detected as gap",
+      "ok": true
+    },
+    {
+      "name": "second snapshot cursor is usable",
+      "ok": true
+    },
+    {
+      "name": "cursor advanced (never jumped back to window start)",
+      "ok": true
+    },
+    {
+      "name": "authority cursor == applied bytes",
+      "ok": true
+    },
+    {
+      "name": "recovery stays full (no feed lag)",
+      "ok": true
+    }
+  ],
+  "details": {
+    "events": [
+      {
+        "step": "read1",
+        "gap": false,
+        "bytes": 204812
+      },
+      {
+        "step": "read2-after-eviction",
+        "gap": true,
+        "firstRetained": 270358
+      },
+      {
+        "step": "read3-from-snapshot-cursor",
+        "gap": false,
+        "bytes": 0
+      },
+      {
+        "step": "read4-second-eviction",
+        "gap": true,
+        "firstRetained": 577560
+      },
+      {
+        "step": "read5-second-snapshot-cursor",
+        "gap": false,
+        "bytes": 0
+      }
+    ],
+    "windowBytes": 262144,
+    "snapshot1": {
+      "applied_bytes": 532502,
+      "fidelity": "full"
+    },
+    "snapshot2": {
+      "applied_bytes": 839704,
+      "fidelity": "full"
+    }
+  },
+  "ms": 423,
+  "failed_expectations": []
+}

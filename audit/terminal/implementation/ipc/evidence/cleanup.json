@@ -1,0 +1,14 @@
+{
+  "self_built_processes": "全部由测试/脚本 spawn，结束前用 win_pipe.terminate_verified_process（同 handle PID+raw FILETIME 核验）终止",
+  "leftover_scan": {
+    "available": true,
+    "markers": [
+      "ipc_child_host.py",
+      "bootstrap.py",
+      "reader.py"
+    ],
+    "leftovers": []
+  },
+  "temp_dirs": "全部在 pytest tmp_path / %TEMP% 下，由 pytest 清理；本 TA 未写项目内 data/ 目录",
+  "network_listeners": "无（未调用任何 listen/bind）"
+}

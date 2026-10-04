@@ -1,0 +1,65 @@
+{
+  "id": "C12-real-less-replay",
+  "title": "真实 less.exe TUI 字节流回放（跨快照边界）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "capture is a real ConPTY recording",
+      "ok": true,
+      "detail": {
+        "bytes": 3083,
+        "alt": true,
+        "pid": 46564,
+        "filetime_str": "134354375799964470",
+        "filetime_hex": "01dd5297cb938336"
+      }
+    },
+    {
+      "name": "mid-stream snapshot restored + continued == reference",
+      "ok": true
+    },
+    {
+      "name": "snapshot boundary was parser-clean",
+      "ok": true
+    },
+    {
+      "name": "fidelity full for the declared feature set",
+      "ok": true,
+      "detail": {
+        "reasons": [],
+        "features": [
+          "ALT_SCREEN"
+        ]
+      }
+    }
+  ],
+  "details": {
+    "capture": {
+      "bytes": 3083,
+      "chunks": 32,
+      "contains_alt_screen": true,
+      "contains_final_leave_alt": false,
+      "pid": 46564,
+      "filetime_str": "134354375799964470",
+      "filetime_hex": "01dd5297cb938336",
+      "exited_naturally_after_q": true
+    },
+    "snapshot": {
+      "applied_bytes": 1552,
+      "pending_tail_bytes": 0,
+      "boundary_clean": true,
+      "fidelity": "full",
+      "recovery": "full"
+    },
+    "finalSnapshot": {
+      "applied_bytes": 3083,
+      "fidelity": "full"
+    },
+    "resumeAt": 1552,
+    "diff": [],
+    "referenceScreenHead": "line 001  word1 \nline 002  word2 word2 \nline 003  word3 word3 word3 \nline 004  word4 word4 word4 word4 \nline 005  word5 word5 word5 word5 word5 \nline 006  word6 word6 word6 word6 word6 word6 \nline 007",
+    "restoredScreenHead": "line 001  word1 \nline 002  word2 word2 \nline 003  word3 word3 word3 \nline 004  word4 word4 word4 word4 \nline 005  word5 word5 word5 word5 word5 \nline 006  word6 word6 word6 word6 word6 word6 \nline 007"
+  },
+  "ms": 783,
+  "failed_expectations": []
+}

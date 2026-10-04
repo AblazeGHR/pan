@@ -1,0 +1,23 @@
+{
+  "parent_head": "3f8ef0451e3405de2c29909db440f9f89b3890ca",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/launcher/README.md": {
+      "blob": "cd8ab6ef6f576b3937d62b977f4ec7730f1c4d4d",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_LAUNCHER_INTERFACES_20261003.md": {
+      "blob": "ad74712e2fe1acae2b7302afefd40cf36ca9dde9",
+      "mode": "100644"
+    },
+    "packages/core/terminal/launcher.py": {
+      "blob": "0cbcaa08194eb6426e61502a1cc195634790e318",
+      "mode": "100644"
+    },
+    "tests/test_terminal_launcher.py": {
+      "blob": "4052f4b9593b1181d2f1825a16798132ebacaf6f",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 launcher 实现/测试/接口文档/审计 README；证据复跑（launcher 直连/uv 17×2、13 组合相邻回归双环境 13×2）与暂存字节同源；生产 runner/emulator/contracts 等零改动。"
+}

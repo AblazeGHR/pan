@@ -1,0 +1,136 @@
+{
+  "scenario": "s4_holder_hardkill",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-a4ifb2ww",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "holder_report": {
+    "holder_pid": 39584,
+    "holder_creation_filetime": 134354376995658809,
+    "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-a4ifb2ww",
+    "marker": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-a4ifb2ww\\child_marker.txt",
+    "grandchild_marker": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-a4ifb2ww\\grandchild_marker.txt",
+    "started_at": 1790964099.6201816,
+    "child_pid": 26592,
+    "child_creation_filetime": 134354376996270012,
+    "child_in_guard_job": true,
+    "guard_active_after_assign": 1,
+    "ready": true,
+    "child_alive": true,
+    "guard_active_at_ready": 2,
+    "pty_output_head": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HCHILD_STARTED pid=26592\r\n\u001b]0;E:\\software\\miniforge\\python.exe\u0007\u001b[?25hGRANDCHILD pid=15008\r\nUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\r\nCONSOLE_SIZE 100x30\r\n"
+  },
+  "grandchild_pid": 15008,
+  "grandchild_identity_before": {
+    "pid": 15008,
+    "open_ok": true,
+    "state": "alive",
+    "still_active": true,
+    "creation_filetime": 134354376996802069,
+    "exit_code_informational": 259
+  },
+  "holder_kill": {
+    "pid": 39584,
+    "state": "alive",
+    "expected_filetime": 134354376995658809,
+    "observed_filetime": 134354376995658809,
+    "killed": true,
+    "reason": "terminated",
+    "last_error": 0
+  },
+  "survivors_after_holder_kill": [],
+  "holder_identity_after_kill": {
+    "pid": 39584,
+    "open_ok": true,
+    "state": "dead",
+    "still_active": false,
+    "creation_filetime": 134354376995658809,
+    "exit_code_informational": 57005
+  },
+  "sweep": [
+    {
+      "pid": 26592,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "state": "unknown",
+      "sweep": true
+    },
+    {
+      "pid": 15008,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "state": "unknown",
+      "sweep": true
+    }
+  ],
+  "checks": [
+    {
+      "check": "holder_ready",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "grandchild_running_before_kill",
+      "ok": true,
+      "detail": {
+        "pid": 15008,
+        "open_ok": true,
+        "state": "alive",
+        "still_active": true,
+        "creation_filetime": 134354376996802069,
+        "exit_code_informational": 259
+      }
+    },
+    {
+      "check": "holder_holds_guard_member",
+      "ok": true,
+      "detail": 2
+    },
+    {
+      "check": "holder_hard_killed",
+      "ok": true,
+      "detail": {
+        "pid": 39584,
+        "state": "alive",
+        "expected_filetime": 134354376995658809,
+        "observed_filetime": 134354376995658809,
+        "killed": true,
+        "reason": "terminated",
+        "last_error": 0
+      }
+    },
+    {
+      "check": "child_gone_after_holder_kill",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "grandchild_gone_after_holder_kill",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "holder_gone",
+      "ok": true,
+      "detail": {
+        "pid": 39584,
+        "open_ok": true,
+        "state": "dead",
+        "still_active": false,
+        "creation_filetime": 134354376995658809,
+        "exit_code_informational": 57005
+      }
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 3.81,
+  "log": [
+    "[holder] launched pid=39584",
+    "[sweep] {'pid': 26592, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 15008, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

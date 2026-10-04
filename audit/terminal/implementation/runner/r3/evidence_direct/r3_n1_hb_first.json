@@ -1,0 +1,6 @@
+{
+  "stale_expiry_outcome": "skipped",
+  "reacquire": "already",
+  "hb_after_grant_status": "closing",
+  "close_calls": []
+}

@@ -1,0 +1,12 @@
+[gate] evidence -> D:\project\pan-worktrees\terminal-composition-r2-review-20261003\audit\terminal\implementation\composition-review\round2\gates\v3_live_session.json
+{
+  "eviction_window_captured": true,
+  "gap_explicit": true,
+  "fresh_view_no_auto_reset_pty_alive": true,
+  "catch_up_refetch_no_gap": true,
+  "resize_split_engine_only": true,
+  "independent_heartbeat_ok": true,
+  "normal_stop_clean": true,
+  "hard_kill_layout": true,
+  "zero_residue": true
+}

@@ -1,0 +1,10 @@
+[PASS] G1_delayed_advance: 延迟推进在有界预算内返回；耗时≈延迟，非固定 sleep
+       {"beats": 1, "ticks": 6, "elapsed_seconds": 0.313, "business_inputs": 7}
+[PASS] G2_never_advances_timeout: 持续不推进必须以显式超时失败收场（不放宽成无条件 True）
+       {"raised": "AssertionError", "elapsed_seconds": 0.406, "diagnostic_has_before_field": true, "diagnostic_sample": "独立心跳在有界等待内未推进（首拍需先完成 attach + HMAC 握手）：before=0 observed=0 budget=0.4s ticks=8"}
+[PASS] G3_business_window_witness: 窗口内业务确被下发 ⇒ 可作'业务进行期间推进'的窗口见证
+       {"on_tick_calls": 5, "business_inputs": 5}
+
+{"passed": 3, "failed": 0}
+gate rc=0
+gate_uv_rc=0

@@ -1,0 +1,67 @@
+{
+  "mode": "bg-lifetime",
+  "run_id": "20261003-003430",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bglife-lqeix76j",
+  "job_name": "panlife20261003003430",
+  "launcher_pid": 32000,
+  "launcher_create_time": 1790958870.0998304,
+  "parsed": {
+    "short_id": "fbc99502",
+    "display_name": "panlife20261003003430",
+    "pid": 46920,
+    "log_path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bglife-lqeix76j\\cfg\\logs\\exec-fbc99502.log"
+  },
+  "launcher_exit_rc": 0,
+  "launcher_exit_t": 2.0,
+  "timeline": [
+    {
+      "t": 0.0,
+      "launcher_alive": true,
+      "job_alive": false
+    },
+    {
+      "t": 0.5,
+      "launcher_alive": true,
+      "job_alive": false
+    },
+    {
+      "t": 1.0,
+      "launcher_alive": true,
+      "job_alive": false
+    },
+    {
+      "t": 1.5,
+      "launcher_alive": true,
+      "job_alive": false
+    },
+    {
+      "t": 2.0,
+      "launcher_alive": false,
+      "job_alive": false
+    }
+  ],
+  "job_pid": 46920,
+  "job_identity_at_end": null,
+  "launcher_identity_at_end": null,
+  "job_state": {
+    "state": "working",
+    "detail": "running",
+    "tempo": "active",
+    "output": null,
+    "children": null,
+    "intent": "ping -n 90 127.0.0.1",
+    "name": "ping -n 90 127.0.0.1",
+    "nameSource": "auto",
+    "sessionId": "fbc99502-8b17-4b97-bcc2-a63a0396597b",
+    "shortId": "fbc99502",
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bglife-lqeix76j\\ws",
+    "createdAt": "2026-10-02T16:34:31.011Z",
+    "updatedAt": "2026-10-02T16:34:31.880Z",
+    "firstTerminalAt": null,
+    "exec": "ping -n 90 127.0.0.1",
+    "pid": 46920,
+    "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bglife-lqeix76j\\cfg\\logs\\exec-fbc99502.log",
+    "procStart": "2026-10-02T16:34:31.0816530Z",
+    "procStartFt": "134354324710816530"
+  }
+}

@@ -1,0 +1,288 @@
+{
+  "scenario": "s5_detach_crash_tree",
+  "startedAt": 1790959882.9636366,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-20261003-005122\\s5_detach_crash_tree",
+  "checks": [
+    {
+      "name": "s5 setup+detach controller ok",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s5 tick program started in PTY",
+      "ok": true,
+      "detail": 49056
+    },
+    {
+      "name": "s5 supervisor crashed hard (rc=17)",
+      "ok": true,
+      "detail": 17
+    },
+    {
+      "name": "s5 detached runtime survives host crash",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s5 runner hard-killed with verified identity",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s5 PTY root dies with the runner (runner-owned job)",
+      "ok": true,
+      "detail": "0.05s"
+    },
+    {
+      "name": "s5 grandchild tick program dies with the runner",
+      "ok": true,
+      "detail": "0.00s"
+    },
+    {
+      "name": "s5 control port closed when runner died",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s5 cleanup left no owned process alive",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "runtimeEndpoint": {
+    "kind": "terminal-runtime",
+    "status": "running",
+    "runtimeId": "rt_s5_24064",
+    "pid": 24064,
+    "processCreatedAt": 1790959883.0440102,
+    "processCreatedAtFiletime": 134354334830440097,
+    "port": 64023,
+    "detached": false,
+    "detachedAt": null,
+    "leaseGraceSeconds": 2.0,
+    "pty": {
+      "rootPid": 33048,
+      "rootCreatedAt": 1790959883.2760658,
+      "rootCreatedAtFiletime": 134354334832760651,
+      "shell": "cmd.exe"
+    },
+    "job": {
+      "killOnClose": true,
+      "initialMembers": [
+        {
+          "pid": 41480,
+          "exe": "conhost.exe",
+          "createTime": 1790959883.1378422,
+          "createTimeFiletime": 134354334831378422,
+          "assigned": true,
+          "assignError": 0,
+          "note": null
+        },
+        {
+          "pid": 6300,
+          "exe": "OpenConsole.exe",
+          "createTime": 1790959883.2682648,
+          "createTimeFiletime": 134354334832682653,
+          "assigned": true,
+          "assignError": 0,
+          "note": null
+        },
+        {
+          "pid": 33048,
+          "exe": "cmd.exe",
+          "createTime": 1790959883.2760658,
+          "createTimeFiletime": 134354334832760651,
+          "assigned": true,
+          "assignError": 0,
+          "note": null
+        }
+      ]
+    },
+    "startedAt": 1790959883.1374578,
+    "updatedAt": 1790959883.303039,
+    "scope": {
+      "workspaceId": null,
+      "sessionId": null
+    }
+  },
+  "treeAtDetach": {
+    "24064": {
+      "pid": 24064,
+      "createTimeFiletime": 134354334830440097,
+      "createTime": 1790959883.0440102,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "41480": {
+      "pid": 41480,
+      "createTimeFiletime": 134354334831378422,
+      "createTime": 1790959883.1378422,
+      "image": "C:\\Windows\\System32\\conhost.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "6300": {
+      "pid": 6300,
+      "createTimeFiletime": 134354334832682653,
+      "createTime": 1790959883.2682648,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Lib\\site-packages\\winpty\\OpenConsole.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "33048": {
+      "pid": 33048,
+      "createTimeFiletime": 134354334832760651,
+      "createTime": 1790959883.2760658,
+      "image": "C:\\Windows\\System32\\cmd.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "49056": {
+      "pid": 49056,
+      "createTimeFiletime": 134354334863196471,
+      "createTime": 1790959886.3196468,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    }
+  },
+  "runnerHardKillReason": "kernel closes the runner-held KILL_ON_JOB_CLOSE job handle",
+  "cleanup": {
+    "killed": [],
+    "survivors": []
+  },
+  "endedAt": 1790959892.7432606,
+  "passed": true,
+  "knownProcesses": {
+    "supervisor": {
+      "pid": 47420,
+      "createTimeFiletime": 134354334829647115,
+      "createTime": 1790959882.9647121,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "runner": {
+      "pid": 24064,
+      "createTimeFiletime": 134354334830440097,
+      "createTime": 1790959883.0440102,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "pty_root": {
+      "pid": 33048,
+      "createTimeFiletime": 134354334832760651,
+      "createTime": 1790959883.2760658,
+      "image": null
+    },
+    "tick": {
+      "pid": 49056,
+      "createTimeFiletime": 134354334863196471,
+      "createTime": 1790959886.3196468,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    }
+  },
+  "trees": {
+    "running": {
+      "24064": {
+        "pid": 24064,
+        "createTimeFiletime": 134354334830440097,
+        "createTime": 1790959883.0440102,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "41480": {
+        "pid": 41480,
+        "createTimeFiletime": 134354334831378422,
+        "createTime": 1790959883.1378422,
+        "image": "C:\\Windows\\System32\\conhost.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "6300": {
+        "pid": 6300,
+        "createTimeFiletime": 134354334832682653,
+        "createTime": 1790959883.2682648,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Lib\\site-packages\\winpty\\OpenConsole.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "33048": {
+        "pid": 33048,
+        "createTimeFiletime": 134354334832760651,
+        "createTime": 1790959883.2760658,
+        "image": "C:\\Windows\\System32\\cmd.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "49056": {
+        "pid": 49056,
+        "createTimeFiletime": 134354334863196471,
+        "createTime": 1790959886.3196468,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      }
+    },
+    "detached": {
+      "24064": {
+        "pid": 24064,
+        "createTimeFiletime": 134354334830440097,
+        "createTime": 1790959883.0440102,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "41480": {
+        "pid": 41480,
+        "createTimeFiletime": 134354334831378422,
+        "createTime": 1790959883.1378422,
+        "image": "C:\\Windows\\System32\\conhost.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "6300": {
+        "pid": 6300,
+        "createTimeFiletime": 134354334832682653,
+        "createTime": 1790959883.2682648,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Lib\\site-packages\\winpty\\OpenConsole.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "33048": {
+        "pid": 33048,
+        "createTimeFiletime": 134354334832760651,
+        "createTime": 1790959883.2760658,
+        "image": "C:\\Windows\\System32\\cmd.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "49056": {
+        "pid": 49056,
+        "createTimeFiletime": 134354334863196471,
+        "createTime": 1790959886.3196468,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      }
+    }
+  },
+  "notes": {
+    "supervisorReadyAfterSeconds": 0.404,
+    "controllers": {
+      "setup": {
+        "ok": true,
+        "pid": 38668,
+        "error": null,
+        "returncode": 0
+      }
+    },
+    "runnerHardKillToTreeDeadSeconds": 0.556
+  },
+  "failedChecks": []
+}

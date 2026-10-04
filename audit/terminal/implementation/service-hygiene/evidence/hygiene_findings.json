@@ -1,0 +1,162 @@
+{
+  "task": "P2 TerminalService 窄修 TA：F11 哈希口径标注 / F12 真实心跳用例时序卫生",
+  "task_type": "narrow hygiene TA (no production code, no subagents, no global memory)",
+  "identity": {
+    "root": "D:/project/pan-worktrees/terminal-service-hygiene-ds-20261003",
+    "branch": "implement/terminal-service-hygiene-ds-20261003",
+    "head": "cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9",
+    "status_at_start": "clean (empty)",
+    "reviewed_commit": "cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9",
+    "parent_commit": "6b6118efdd341eaf8189151055b75bc35591d3b6"
+  },
+  "write_scope": [
+    "tests/test_terminal_service.py (only test_real_service_independent_heartbeat_and_same_pid_after_disconnect + private helper _await_heartbeat_advance + 2 constants)",
+    "audit/terminal/implementation/service/README.md (append-only §7 哈希口径更正; old table untouched)",
+    "audit/terminal/implementation/service-hygiene/** (new)"
+  ],
+  "production_changes": {
+    "packages_diff_name_only": [],
+    "packages_changed_count": 0,
+    "main_docs_scripts_tools_workflow_changed": [],
+    "status_porcelain": [
+      " M audit/terminal/implementation/service/README.md",
+      " M tests/test_terminal_service.py",
+      "?? audit/terminal/implementation/service-hygiene/"
+    ]
+  },
+  "f11_hash_caliber_correction": {
+    "source_commit": "cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9",
+    "algorithm": "sha256",
+    "caliber_A": "LF git blob bytes (git cat-file blob cde2dbd8:<path>)",
+    "caliber_B": "CRLF worktree bytes (core.autocrlf=true checkout) = A with each \\n rewritten to \\r\\n; verified byte-identical to cde2dbd8 worktree",
+    "files": [
+      {
+        "path": "packages/core/terminal/service.py",
+        "lf_blob_sha256": "71e295c0283e0a41e03502c8498e662b334cc9f42c872ad9415742f59833fbf3",
+        "lf_blob_bytes": 86846,
+        "newline_count": 1897,
+        "crlf_worktree_sha256": "fb0421edd3311be1023b052e25358a7634fc453ba581163a366e394b27b9a3c3",
+        "crlf_worktree_bytes": 88743,
+        "old_readme_claim_verdict": "LF_blob"
+      },
+      {
+        "path": "packages/core/terminal/launcher.py",
+        "lf_blob_sha256": "4ab84a80af8886fd0a6555c14a042aabb0ccf099b236ba6dc82b299812b54647",
+        "lf_blob_bytes": 32330,
+        "newline_count": 757,
+        "crlf_worktree_sha256": "0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc",
+        "crlf_worktree_bytes": 33087,
+        "old_readme_claim_verdict": "CRLF_worktree"
+      },
+      {
+        "path": "tests/test_terminal_service.py",
+        "lf_blob_sha256": "aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f",
+        "lf_blob_bytes": 60706,
+        "newline_count": 1358,
+        "crlf_worktree_sha256": "f52f6a954756e31d8406f5a7010414d9661c3b213981935afe421bd8a65b83f8",
+        "crlf_worktree_bytes": 62064,
+        "old_readme_claim_verdict": "LF_blob"
+      },
+      {
+        "path": "tests/test_terminal_launcher.py",
+        "lf_blob_sha256": "ce8b9fab61dd45c3a5ea88a41c142b8a26f6526b48bf8b8a74eec6091016d4cb",
+        "lf_blob_bytes": 83273,
+        "newline_count": 1860,
+        "crlf_worktree_sha256": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8",
+        "crlf_worktree_bytes": 85133,
+        "old_readme_claim": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f",
+        "old_readme_claim_len": 63,
+        "completion_full_64": "c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8",
+        "old_readme_claim_verdict": "CRLF_worktree_truncated"
+      },
+      {
+        "path": "docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md",
+        "lf_blob_sha256": "a3a0a3469d6485198229e9cfcc4fc6e47c6c232c6541282ca19596c2d8a28c70",
+        "lf_blob_bytes": 15852,
+        "newline_count": 253,
+        "crlf_worktree_sha256": "2aff9bfcc902823c59c59a9605bb9a412f6b89bf0d6b6273840b7fbe5e7aea45",
+        "crlf_worktree_bytes": 16105,
+        "old_readme_claim_verdict": "LF_blob"
+      }
+    ],
+    "truncated_completed": "tests/test_terminal_launcher.py: 63-char CRLF-worktree string completed to 64 chars in appended §7",
+    "history_rewritten": false,
+    "old_table_modified": false,
+    "recompute_script": "audit/terminal/implementation/service-hygiene/verify_source_anchoring.py",
+    "node_modules_ignored_not_status_dirty": true
+  },
+  "f12_heartbeat_timing_hygiene": {
+    "review_finding": "F12 low: real-heartbeat test time-order flake; review log evidence/review_uv_service_full_run2_FAILED_flake.txt (assert 0 > 0)",
+    "root_cause": "first heartbeat requires attach + HMAC handshake; fixed 6-input window may be shorter than one beat",
+    "actual_failure_reference": "review tree (terminal-service-review-20261003) log; not re-gambled for natural reproduction",
+    "fix": "bounded wait (budget 15.0s / poll 0.1s) polling until beats advances or explicit timeout",
+    "assertions_kept": [
+      "beats advance (beats_after > before) - not weakened to unconditional True",
+      "same PID alive after disconnect",
+      "secret retained after disconnect"
+    ],
+    "assertions_removed": [],
+    "failure_diagnostic": "AssertionError with before/observed/budget/ticks on timeout; no big sleep; no silent pass",
+    "business_window_witness": "on_tick pumps real input during the wait window; asserts business['sent'] >= 1",
+    "claim_boundary": "bounded wait proves eventual advance only; business-window witness is weaker than the injected gate test_heartbeat_uses_its_own_connection_and_survives_slow_business",
+    "deterministic_regression_gate": {
+      "script": "audit/terminal/implementation/service-hygiene/gate_heartbeat_wait.py",
+      "loads_helper_by_path": "tests/test_terminal_service.py::_await_heartbeat_advance",
+      "cases": [
+        {"gate": "G1_delayed_advance", "expect": "returns within bounded budget, elapsed~delay", "result": "PASS"},
+        {"gate": "G2_never_advances_timeout", "expect": "explicit AssertionError on timeout with before= diagnostic", "result": "PASS"},
+        {"gate": "G3_business_window_witness", "expect": "on_tick called during window (business > 0)", "result": "PASS"}
+      ]
+    }
+  },
+  "tests_executed": {
+    "environment": "E:/software/miniforge/python.exe; Windows",
+    "uv_command": "uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout --",
+    "addopts": "-o addopts= -q",
+    "runs": [
+      {"id": 1, "item": "private gate (direct)", "command": "python audit/.../gate_heartbeat_wait.py", "passed": 3, "failed": 0, "rc": 0, "log": "evidence/gate_direct.txt"},
+      {"id": 2, "item": "private gate (uv isolated)", "passed": 3, "failed": 0, "rc": 0, "log": "evidence/gate_uv.txt"},
+      {"id": 3, "item": "real heartbeat test (direct)", "passed": 1, "deselected": 40, "failed": 0, "rc": 0, "log": "evidence/heartbeat_test_direct.txt"},
+      {"id": 4, "item": "real heartbeat test (uv isolated)", "passed": 1, "deselected": 40, "failed": 0, "rc": 0, "log": "evidence/heartbeat_test_uv.txt"},
+      {"id": 5, "item": "source anchoring recompute (read-only)", "rc": 0, "log": "evidence/source_anchoring.txt"}
+    ],
+    "sidecar": "npm ci exact pin in packages/core/terminal/emulator_sidecar (lock unchanged, node_modules gitignored not committed)",
+    "not_run": ["41 full suite", "other launcher/core/composition suites", "whole-repo", "provider/browser/long-run"]
+  },
+  "evidence_files": [
+    "README.md",
+    "gate_heartbeat_wait.py",
+    "verify_source_anchoring.py",
+    "evidence/gate_direct.txt",
+    "evidence/gate_uv.txt",
+    "evidence/heartbeat_test_direct.txt",
+    "evidence/heartbeat_test_uv.txt",
+    "evidence/source_anchoring.txt",
+    "evidence/source_anchoring.json",
+    "evidence/gate_heartbeat_wait.json",
+    "evidence/range_diff.txt",
+    "evidence/cleanup.txt",
+    "evidence/hygiene_findings.json"
+  ],
+  "post_edit_worktree_anchors": {
+    "tests/test_terminal_service.py": "82ce8c5716e65a1aaf202d502df6ee1c8707d4a10d0be1f72483dd17762d409c",
+    "audit/terminal/implementation/service/README.md": "0d01aecd88c2fcacc481dc330f610c3ce846c35c494fe6f50b8b6ef880edb6ca",
+    "audit/terminal/implementation/service-hygiene/gate_heartbeat_wait.py": "5cf1433faa63ce177d2587848801e019c7e1820ddd308d483ed56d945468f4d4",
+    "audit/terminal/implementation/service-hygiene/verify_source_anchoring.py": "1a9f74378187a4bd469246fd8165363b94cfdff04548fbfb5d9adc16e65c4edd"
+  },
+  "cleanup": {
+    "policy": "own resources only, same-handle raw FILETIME + Wait; no PID-single / by-name / command-line broad kill",
+    "own_processes_referencing_worktree": "none",
+    "listener": "none started; 8768 not used; existing Pan/full Web service not started",
+    "node_modules_repo_untracked_ignored_retained": true,
+    "status_note": "not claimed fully clean due to gitignored node_modules"
+  },
+  "unverified": [
+    "other review findings F1-F10 and the rework body (service-layer functional gaps) not touched/re-checked",
+    "full suite not run",
+    "natural flake reproduction not attempted (cited review log instead)",
+    "bounded wait proves eventual advance only",
+    "Ctrl-C, real durable detach, browser/fit, Web auth, provider/accounts/network, cross-user/host, POSIX, long-run"
+  ],
+  "verdict": "frozen after single delivery commit; no re-run, no push/merge"
+}

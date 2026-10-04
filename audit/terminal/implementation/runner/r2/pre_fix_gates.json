@@ -1,0 +1,91 @@
+{
+  "baseline": "d48f967e",
+  "baseline_tree": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-r2-baseline-w66eceio",
+  "runner_module_file": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-r2-baseline-w66eceio\\packages\\core\\terminal\\runner.py",
+  "injection_only": true,
+  "note": "d48 固定副本（git archive，只读）上的机制等价复现；非 OS 实测",
+  "scenarios": {
+    "r1a_close_inflight_then_lease_loss": {
+      "first_close_status": "closing",
+      "watchdog_kept_looping_without_action": true,
+      "late_success_worker_finished": true,
+      "late_success_consumed": false,
+      "exit_code": null,
+      "runner_state": "closing",
+      "expected_r2": "watchdog 消费迟到成功 → shutdown=True, exit=0",
+      "defect_present": true
+    },
+    "r1b_close_failed_then_lease_loss": {
+      "first_close_status": "cleanup-failed",
+      "watchdog_kept_looping_without_action": true,
+      "close_calls": [
+        "explicit-close"
+      ],
+      "exit_code": null,
+      "expected_r2": "有界重试（不叠加）→ 耗尽 exit=3",
+      "defect_present": true
+    },
+    "r2a_expiry_first_detach": {
+      "detach_status": "rejected",
+      "detach_ok": false,
+      "expected_r2": "detach-refused（lease-close-in-progress）",
+      "defect_present": true
+    },
+    "r2b_detach_first_late_expiry": {
+      "detach_status": "detached",
+      "detached_flag": true,
+      "close_calls_despite_detached": [
+        "lease-expired"
+      ],
+      "expected_r2": "跳过（close_calls=[]，不杀 detached）",
+      "defect_present": true
+    },
+    "r2c_late_heartbeat": {
+      "close_calls_after_renewal": [
+        "lease-expired"
+      ],
+      "expected_r2": "跳过（旧 expiry 作废，close_calls=[]）",
+      "defect_present": true
+    },
+    "r3_startup_cleanup_owner": {
+      "abort_returns_report": false,
+      "retained_backend_attr": false,
+      "expected_r2": "返回报告 + retained=['backend'] + 可重试；退出码区分 4/6",
+      "defect_present": true
+    },
+    "o1_pipe_close_report_discarded": {
+      "close_return": null,
+      "retained_pipe_attr": false,
+      "attempts": 1,
+      "expected_r2": "保存报告 + 保引用 + attempts=2 + 可重试",
+      "defect_present": true
+    },
+    "o3_join_serial_deadline": {
+      "join_seconds_for_3_blocked": 6.02,
+      "expected_r2": "共享总 deadline（3s 内返回）+ 未收敛计数 + 线程回收方法",
+      "defect_present": true
+    },
+    "o4_detail_truncation": {
+      "detail_len": 3800,
+      "detail_parseable": false,
+      "detail_with_len": 20047,
+      "detail_with_within_budget": false,
+      "expected_r2": "字段级缩减：两处均 ≤3800 且可解析",
+      "defect_present": true
+    }
+  },
+  "verdict": {
+    "defects_present": {
+      "r1a_close_inflight_then_lease_loss": true,
+      "r1b_close_failed_then_lease_loss": true,
+      "r2a_expiry_first_detach": true,
+      "r2b_detach_first_late_expiry": true,
+      "r2c_late_heartbeat": true,
+      "r3_startup_cleanup_owner": true,
+      "o1_pipe_close_report_discarded": true,
+      "o3_join_serial_deadline": true,
+      "o4_detail_truncation": true
+    },
+    "all_defects_reproduced": true
+  }
+}

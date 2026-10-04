@@ -1,0 +1,35 @@
+## range diff / scope proof (HEAD=cde2dbd867eb7f59eb551df70c4aa9d5baeecfa9)
+
+=== git status --porcelain=v1 ===
+ M audit/terminal/implementation/service/README.md
+ M tests/test_terminal_service.py
+?? audit/terminal/implementation/service-hygiene/
+
+=== git diff --name-only HEAD ===
+audit/terminal/implementation/service/README.md
+tests/test_terminal_service.py
+
+=== git diff --stat HEAD ===
+ audit/terminal/implementation/service/README.md | 51 ++++++++++++++++++++
+ tests/test_terminal_service.py                  | 63 +++++++++++++++++++++++--
+ 2 files changed, 109 insertions(+), 5 deletions(-)
+
+=== untracked (porcelain) ===
+audit/terminal/implementation/service-hygiene/evidence/gate_direct.txt
+audit/terminal/implementation/service-hygiene/evidence/gate_heartbeat_wait.json
+audit/terminal/implementation/service-hygiene/evidence/gate_uv.txt
+audit/terminal/implementation/service-hygiene/evidence/heartbeat_test_direct.txt
+audit/terminal/implementation/service-hygiene/evidence/heartbeat_test_uv.txt
+audit/terminal/implementation/service-hygiene/evidence/range_diff.txt
+audit/terminal/implementation/service-hygiene/evidence/source_anchoring.json
+audit/terminal/implementation/service-hygiene/evidence/source_anchoring.txt
+audit/terminal/implementation/service-hygiene/gate_heartbeat_wait.py
+audit/terminal/implementation/service-hygiene/verify_source_anchoring.py
+
+=== PRODUCTION scope check: git diff --name-only HEAD -- packages/ (expect empty) ===
+packages_changed_count=0
+
+=== static/other scope check: main.py/docs/scripts/tools/.workflow (expect empty) ===
+
+=== node_modules ignored check ===
+.gitignore:11:node_modules/	packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless/package.json

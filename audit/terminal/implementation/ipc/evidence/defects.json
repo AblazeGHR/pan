@@ -1,0 +1,53 @@
+{
+  "note": "先复现后修复；每条都给出复现用例与回归用例",
+  "defects": [
+    {
+      "id": "D1",
+      "title": "CreateNamedPipeW/CreateFileW 失败伪句柄是无符号 2**64-1，旧判定与 -1 比较永不成立",
+      "impact": "创建失败被当成成功：占名检测失效、客户端可能把打开失败当成已连接",
+      "reproduced_by": "tests/test_terminal_runner_ipc.py::test_pipe_name_squatting_detected_and_retryable（先 DID NOT RAISE PipeBusyError）",
+      "fix": "win_pipe.is_invalid_handle() 识别 0/-1/INVALID_HANDLE_VALUE/2**64-1，替换三处判定",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_invalid_handle_values_are_detected"
+    },
+    {
+      "id": "D2",
+      "title": "cancel_accept 关闭仍有在飞 I/O 的实例句柄，且取消后不重建实例",
+      "impact": "取消方与等待方句柄竞态；取消后管道名短暂无人持有，客户端连不上",
+      "reproduced_by": "tests/test_terminal_runner_ipc.py::test_accept_timeout_cancel_and_capacity_are_bounded（connect 超时失败）",
+      "fix": "取消后等事件落地再关句柄（_drop_pending_locked 返回是否收敛）+ 立即重建实例重新做占名检测",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_accept_timeout_cancel_and_capacity_are_bounded"
+    },
+    {
+      "id": "D3",
+      "title": "RequestScheduler 的本地期限在 claim 时重算，排队越久预算越宽",
+      "impact": "可能推迟执行已过期请求（违背“不迟到执行”）",
+      "reproduced_by": "tests/test_terminal_runner_ipc.py::test_scheduler_caps_remote_deadline_by_local_timeout（claim 返回了应丢弃的请求）",
+      "fix": "入队时固化 min(sender_deadline, 入队时刻 + timeout_ms)，claim 只与固化值比较",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_scheduler_caps_remote_deadline_by_local_timeout"
+    },
+    {
+      "id": "D4",
+      "title": "build_error/build_response 无脱敏词表",
+      "impact": "调用方把含 token 的异常文本直接传入时 token 会原样上线",
+      "reproduced_by": "tests/test_terminal_runner_ipc.py::test_describe_and_redact_never_expose_secrets_or_payload",
+      "fix": "两个构造函数新增 secrets_ 参数；IpcSession.run_handler 统一传 _secrets（含 token）",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_serve_never_dispatches_expired_request_and_survives_handler_errors"
+    },
+    {
+      "id": "D5",
+      "title": "取消后提前释放 OVERLAPPED/事件导致内核写已释放内存（access violation）",
+      "impact": "压力下 Python 进程崩溃（exit 139）；保留的读操作/取消未落地的写操作都会命中",
+      "reproduced_by": "同一命令连跑多次出现 'Windows fatal exception: access violation'（崩溃线程停在 Condition wait）",
+      "fix": "_OverlappedOp.wait_complete()+ 未落地则保留引用（_orphan_ops / 保留 pending 实例）并 CloseReport(converged=False) 重试",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_blocking_read_is_cancelled_converged_and_joined + test_slow_reader_cancel_close_converges_and_is_retryable（连跑 5 次无崩溃）"
+    },
+    {
+      "id": "D6",
+      "title": "ConnectNamedPipe 的 ERROR_NO_DATA（客户端连上又立刻断开）被当作致命错误",
+      "impact": "accept 循环被打死，服务端此后不再接受任何连接",
+      "reproduced_by": "tests/test_terminal_runner_ipc.py::test_impostor_pipe_server_identity_is_rejected_before_credentials（循环线程异常退出）",
+      "fix": "accept 把 ERROR_NO_DATA 当瞬时状态：丢实例 + 重建 + 同一预算内重试",
+      "regression_test": "tests/test_terminal_runner_ipc.py::test_client_that_leaves_before_connect_call_does_not_break_accept"
+    }
+  ]
+}

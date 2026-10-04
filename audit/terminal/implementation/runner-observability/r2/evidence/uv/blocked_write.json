@@ -1,0 +1,17 @@
+{
+  "gate_injected": true,
+  "first_input_status": "accepted-in-flight",
+  "in_flight_observed": true,
+  "second_input_status": "busy",
+  "alive_during_block": true,
+  "heartbeat_latencies": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "converged_after_release": true,
+  "follow_up_status": "done"
+}

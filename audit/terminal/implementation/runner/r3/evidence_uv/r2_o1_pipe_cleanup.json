@@ -1,0 +1,11 @@
+{
+  "first": {
+    "attempted": true,
+    "converged": false,
+    "attempts": 2,
+    "detail": "injected-not-converged",
+    "errors": []
+  },
+  "retried_converged": true,
+  "total_close_calls": 3
+}

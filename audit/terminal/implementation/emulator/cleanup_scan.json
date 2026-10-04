@@ -1,0 +1,169 @@
+{
+  "generated_at": "2026-10-03T05:36:32+0800",
+  "node_processes": [
+    {
+      "ProcessId": 36076,
+      "ParentProcessId": 35944,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\src\\supervisor.mjs"
+    },
+    {
+      "ProcessId": 36124,
+      "ParentProcessId": 36076,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\src\\gateway.mjs"
+    },
+    {
+      "ProcessId": 36340,
+      "ParentProcessId": 36124,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\node_modules\\@modelcontextprotocol\\server-filesystem\\dist\\index.js C:\\ D:\\ E:\\"
+    },
+    {
+      "ProcessId": 48284,
+      "ParentProcessId": 37080,
+      "CommandLine": "D:/project/SnowLuma/node.exe D:/project/SnowLuma/index.mjs"
+    },
+    {
+      "ProcessId": 33036,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --resume 01a0fdda-81d3-7a11-9376-e882ee18228b --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_2b47fd27c8f6df5d.mcp.json"
+    },
+    {
+      "ProcessId": 49912,
+      "ParentProcessId": 39460,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 48632,
+      "ParentProcessId": 33092,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 1516,
+      "ParentProcessId": 10848,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 45840,
+      "ParentProcessId": 22368,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 25348,
+      "ParentProcessId": 1516,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=1516 --app-version=1.10.1 --os-type=1"
+    },
+    {
+      "ProcessId": 33500,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_210fd8764835880c.mcp.json --system-prompt \"你是 Pan Terminal 实现 TA。仅在指定独立工作树和任务允许文件实现、测试、提交。开始先核对 root/branch/HEAD/status 并读取本树 CODEBUDDY.md 与任务指定权威文件全文。不派子 agent，不碰 main/practical/.workflow/其它树/既有服务及进程/用户认证，不 push/merge/restart。apply_patch 编辑，禁止 git stash/reset/checkout 覆盖。只清理自建资源，终止须同一 handle raw FILETIME+Wait 身份核验，不按名字或命令行批量杀进程。保留旧证据，新目录留证。\""
+    },
+    {
+      "ProcessId": 39280,
+      "ParentProcessId": 47208,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 45424,
+      "ParentProcessId": 49128,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 6168,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_686e7b0cfaa3b86f.mcp.json --system-prompt \"你是 Pan Terminal 实现 TA。仅在指定独立工作树和任务允许文件实现、测试、提交。开始先核对 root/branch/HEAD/status 并读取本树 CODEBUDDY.md 与任务指定权威文件全文。不派子 agent，不碰 main/practical/.workflow/其它树/既有服务及进程/用户认证，不 push/merge/restart。apply_patch 编辑，禁止 git stash/reset/checkout 覆盖。只清理自建资源，终止须同一 handle raw FILETIME+Wait 身份核验，不按名字或命令行批量杀进程。保留旧证据，新目录留证。\""
+    },
+    {
+      "ProcessId": 47520,
+      "ParentProcessId": 19052,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 41860,
+      "ParentProcessId": 33080,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 26916,
+      "ParentProcessId": 47520,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=47520 --app-version=1.10.1 --os-type=1"
+    },
+    {
+      "ProcessId": 5424,
+      "ParentProcessId": 35664,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 11384,
+      "ParentProcessId": 34660,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 49936,
+      "ParentProcessId": 2284,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 23512,
+      "ParentProcessId": 39504,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 47296,
+      "ParentProcessId": 49936,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=49936 --app-version=1.10.1 --os-type=1"
+    },
+    {
+      "ProcessId": 49524,
+      "ParentProcessId": 35700,
+      "CommandLine": "D:\\software\\nodeJs\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js -c model=\\\"gpt-6.1-sol\\\" -c model_reasoning_effort=\\\"medium\\\" -c mcp_servers.pan.command=\\\"D:\\\\project\\\\Pan\\\\.venv\\\\Scripts\\\\python.exe\\\" -c \"mcp_servers.pan.args=[\\\"-m\\\", \\\"packages.mcp.server\\\"]\" -c mcp_servers.pan.cwd=\\\"D:\\\\project\\\\Pan\\\" -c mcp_servers.pan.env.PYTHONPATH=\\\"D:\\\\project\\\\Pan\\\" -c mcp_servers.pan.env.PAN_API_URL=\\\"http://127.0.0.1:8768\\\" -c mcp_servers.pan.env.PAN_PYTHON=\\\"D:\\\\project\\\\Pan\\\\.venv\\\\Scripts\\\\python.exe\\\" -c mcp_servers.pan.env.PAN_AGENT_SESSION_ID=\\\"ses_be105a81379e8cb1\\\" -c mcp_servers.pan.env.PAN_AGENT_SESSION_TITLE=\\\"关于终端的设计。\\\" app-server --stdio"
+    },
+    {
+      "ProcessId": 48736,
+      "ParentProcessId": 8504,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" -y chrome-devtools-mcp@1.10.1 --browser-url=http://127.0.0.1:9222 --no-usage-statistics --no-performance-crux"
+    },
+    {
+      "ProcessId": 12100,
+      "ParentProcessId": 11864,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\ba38acecdf97096f\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --browser-url=http://127.0.0.1:9222 --no-usage-statistics --no-performance-crux"
+    },
+    {
+      "ProcessId": 45344,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --resume 01a0fe15-98bc-7329-b288-c82f78e05369 --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_cd5d14db240c5504.mcp.json"
+    },
+    {
+      "ProcessId": 27752,
+      "ParentProcessId": 37824,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 22356,
+      "ParentProcessId": 15720,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 27020,
+      "ParentProcessId": 43804,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 11992,
+      "ParentProcessId": 24732,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 33884,
+      "ParentProcessId": 27020,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=27020 --app-version=1.10.1 --os-type=1"
+    }
+  ],
+  "sidecar_like_processes": [],
+  "python_emulator_processes": [],
+  "temp_leftovers": [],
+  "emulator_sidecar_dir_entries": [
+    "emulator_sidecar\\package-lock.json",
+    "emulator_sidecar\\package.json",
+    "emulator_sidecar\\sidecar.mjs"
+  ],
+  "clean": true
+}

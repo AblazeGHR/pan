@@ -1,0 +1,49 @@
+{
+  "scenario": "s7_ctypes_traps",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s7_ctypes_traps-ll892r5v",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "getprocesstimes_with_none": "OSError('exception: access violation writing 0x0000000000000000')",
+  "getprocesstimes_all_pointers": 134354370454552282,
+  "struct_sizes": {
+    "STARTUPINFOW": 104,
+    "STARTUPINFOEXW": 112,
+    "PROCESS_INFORMATION": 24,
+    "JOBOBJECT_EXTENDED_LIMIT_INFORMATION": 144,
+    "offset_lpAttributeList": 104
+  },
+  "checks": [
+    {
+      "check": "probe_child_created",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "null_outparam_raises_access_violation",
+      "ok": true,
+      "detail": "OSError('exception: access violation writing 0x0000000000000000')"
+    },
+    {
+      "check": "all_pointers_succeeds",
+      "ok": true,
+      "detail": 134354370454552282
+    },
+    {
+      "check": "startupinfoex_layout_matches_win32",
+      "ok": true,
+      "detail": {
+        "STARTUPINFOW": 104,
+        "STARTUPINFOEXW": 112,
+        "PROCESS_INFORMATION": 24,
+        "JOBOBJECT_EXTENDED_LIMIT_INFORMATION": 144,
+        "offset_lpAttributeList": 104
+      }
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 0.01,
+  "log": [],
+  "temp_removed": true
+}

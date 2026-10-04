@@ -1,0 +1,91 @@
+{
+  "pre_spawn_missing": {
+    "raised": true,
+    "owner_is_none": true
+  },
+  "post_spawn_eof": {
+    "raised": true,
+    "error": "EmulatorStartupError",
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "no_residue": true,
+    "seconds": 0.078
+  },
+  "post_spawn_fatal": {
+    "raised": true,
+    "error": "EmulatorStartupError",
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "no_residue": true,
+    "seconds": 0.078
+  },
+  "post_spawn_timeout": {
+    "raised": true,
+    "error": "EmulatorStartupError",
+    "has_owner": true,
+    "retry_cleanup": {
+      "root_dead": true,
+      "root_killed": false,
+      "job_terminate_called": false,
+      "job_verified": true,
+      "remaining": null,
+      "reader_joined": true,
+      "stderr_joined": true,
+      "applier_joined": true,
+      "streams_closed": true,
+      "guard_closed": true,
+      "errors": [],
+      "seconds": 0.0,
+      "closed": true,
+      "job_owned": null,
+      "detail": "ok",
+      "retryable": false
+    },
+    "no_residue": true,
+    "seconds": 2.047
+  },
+  "verdict": {
+    "pre_spawn_owner_none": true,
+    "eof_raises_owner_retry_clean": true,
+    "fatal_raises_owner_retry_clean": true,
+    "timeout_raises_owner_retry_clean": true,
+    "interpretation": "四态（spawn 前缺失 / ready 前 EOF / fatal / ready 前 timeout）在 r4 后统一 fail-closed：除 spawn 前外均携带可重试 owner 且 retry_cleanup 收敛无残留——与 3a F1 硬断言口径一致（timeout 态为本审查补测）。"
+  },
+  "generated_at": "2026-10-03 09:26:35",
+  "injection_only": true,
+  "note": "组合 r2 审查独立门控（round2；对照 docs/design/PAN_TERMINAL_COMPOSITION_SECURITY_REVIEW_20261003_ROUND2.md）"
+}

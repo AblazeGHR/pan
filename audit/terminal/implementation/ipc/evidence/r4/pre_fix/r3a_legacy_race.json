@@ -1,0 +1,12 @@
+{
+  "tool": "r4_repro_r3a_race",
+  "platform": "win32",
+  "legacy_with_reader": {
+    "failed": true,
+    "error": "PermissionError",
+    "winerror": 5
+  },
+  "legacy_after_release": {
+    "ok": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "terminal_id": "term_r3a_transient",
+  "client_rejection": {
+    "rejected": true,
+    "is_identity_mismatch": true,
+    "error": "AuthenticationError"
+  },
+  "accept_returned_none": true,
+  "legacy_logic": {
+    "received": [],
+    "old_assertion": "FAILED",
+    "old_assertion_message": "前两个用例必须零字节: []",
+    "vacuous_zero_byte_claim": true
+  },
+  "new_logic": {
+    "witness": {
+      "accept_calls": 1,
+      "accepted": 0,
+      "transient": 1,
+      "accept_errors": 0,
+      "reads": []
+    },
+    "witnessed_rejection": true,
+    "zero_credential_bytes": true,
+    "client_send_frames": 0,
+    "client_sent_nothing": true,
+    "transient_recorded_separately": true,
+    "assertion": "PASSED"
+  },
+  "server_close": true
+}

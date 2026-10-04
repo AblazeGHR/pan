@@ -1,0 +1,160 @@
+{
+  "mode": "headless",
+  "run_id": "20261003-012039",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an",
+  "argv_note": "cbc -p --output-format stream-json --input-format stream-json -y --model <model>",
+  "spawn": {
+    "stdout_path": "D:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-012039\\headless.stdout.txt",
+    "stderr_path": "D:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-012039\\headless.stderr.txt",
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--input-format",
+      "stream-json",
+      "-y",
+      "--model",
+      "deepseek-v4.1-flash"
+    ],
+    "pid": 49120,
+    "create_time": 1790961639.883701,
+    "filetime": 134354352398837013
+  },
+  "alive_after_6s": true,
+  "identity_after_6s": {
+    "pid": 49120,
+    "create_time": 1790961639.883701,
+    "filetime": 134354352398837013,
+    "name": "node.exe",
+    "cmdline": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--input-format",
+      "stream-json",
+      "-y",
+      "--model",
+      "deepseek-v4.1-flash"
+    ],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an\\ws",
+    "alive": true
+  },
+  "registry_during": [
+    {
+      "file": "49120.json",
+      "data": {
+        "pid": 49120,
+        "lastHeartbeat": 1790961640696,
+        "sessionId": "interactive-49120",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an\\ws",
+        "startedAt": 1790961640684,
+        "kind": "interactive"
+      }
+    }
+  ],
+  "sessions_dir_exists": true,
+  "ps_json_during": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "[\n  {\n    \"pid\": 49120,\n    \"lastHeartbeat\": 1790961640696,\n    \"sessionId\": \"interactive-49120\",\n    \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pan-cbc-probe-headless-iygtg1an\\\\ws\",\n    \"startedAt\": 1790961640684,\n    \"kind\": \"interactive\"\n  }\n]\n",
+    "stderr": "",
+    "seconds": 1.226
+  },
+  "attach_headless_pid": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "attach",
+      "49120"
+    ],
+    "pty_pid": 45004,
+    "pty_identity_before": {
+      "pid": 45004,
+      "create_time": 1790961647.1593893,
+      "filetime": 134354352471593893,
+      "name": "node.exe",
+      "cmdline": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "attach",
+        "49120"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an\\ws",
+      "alive": true
+    },
+    "pty_alive_at_end": false,
+    "pty_exitstatus": 0,
+    "pty_identity_after": null,
+    "screen_text": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Cannot attach: session has no endpoint or log path\r\n",
+    "screen_len": 82,
+    "seconds": 6.022
+  },
+  "registry_after_attach": [
+    {
+      "file": "49120.json",
+      "data": {
+        "pid": 49120,
+        "lastHeartbeat": 1790961640696,
+        "sessionId": "interactive-49120",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an\\ws",
+        "startedAt": 1790961640684,
+        "kind": "interactive"
+      }
+    }
+  ],
+  "cleanup": {
+    "label": "headless",
+    "root_pid": 49120,
+    "scan": {
+      "owned": [],
+      "skipped": []
+    },
+    "stopped": [
+      {
+        "label": "headless",
+        "pid": 49120,
+        "basis": "own root, raw FILETIME recorded at spawn",
+        "expected_filetime": 134354352398837013,
+        "terminate_attempted": true,
+        "actual_filetime": 134354352398837013,
+        "handle_pid": 49120,
+        "identity_verified": true,
+        "terminated": true,
+        "exit_code": 1,
+        "handle_signaled": true,
+        "gone": true
+      }
+    ],
+    "outcomes": {
+      "49120": "gone"
+    },
+    "residual_pids": [],
+    "refused_or_unverified": [],
+    "root_gone": true,
+    "all_gone": true
+  },
+  "stderr_after": "",
+  "stdout_after": "",
+  "registry_after_exit": [
+    {
+      "file": "49120.json",
+      "data": {
+        "pid": 49120,
+        "lastHeartbeat": 1790961640696,
+        "sessionId": "interactive-49120",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-headless-iygtg1an\\ws",
+        "startedAt": 1790961640684,
+        "kind": "interactive"
+      }
+    }
+  ]
+}

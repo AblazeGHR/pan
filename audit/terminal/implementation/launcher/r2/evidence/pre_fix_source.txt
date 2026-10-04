@@ -1,0 +1,9 @@
+launcher r2 先失败源证明（固定只读副本 == 5c44b36c）
+generated_at: 2026-10-03 11:57:23
+method: git archive 5c44b36c -> 临时只读副本；r2 新测试仅追加到副本 tests 文件（生产副本零改）
+copy_dir: C:\Users\14709\AppData\Local\Temp\lr2-5c-pnba
+copy_launcher_blob: 0cbcaa08194eb6426e61502a1cc195634790e318
+copy_launcher_sha256: 1131afad97716163a8dc3c562dd04f7db8bc89cf05d9d2b1ebb098857332182c
+commit_5c_launcher_blob: 0cbcaa08194eb6426e61502a1cc195634790e318
+equality: TRUE
+pre_fix_result: 20 failed / 9 passed / 17 deselected（F2/F3/F4/F5/F6/F7 门控在修复前不通过）

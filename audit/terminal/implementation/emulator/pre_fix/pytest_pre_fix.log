@@ -1,0 +1,253 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collected 28 items
+
+tests\test_terminal_emulator.py .....FF.FF...F..F.FFFF......             [100%]
+
+================================== FAILURES ===================================
+____________________ test_main_screen_matrix_and_recovery _____________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00E05760>
+
+    def test_main_screen_matrix_and_recovery(emu_factory):
+        stream = (
+            b"$ echo hello\r\n"
+            b"hello\r\n"
+            b"\x1b[31mRED\x1b[0m \x1b[1;32mGREEN\x1b[0m\r\n"
+            + b"".join(b"line-%03d\r\n" % i for i in range(60))
+            + b"\x1b[2;1Hmiddle\x1b[K"
+            + b"\x1b[10;5H\x1b[4mbold-under\x1b[0m"
+        )
+        ref_snap, got = _compare_after_protocol_a(emu_factory, stream)
+        assert ref_snap.fidelity is Fidelity.FULL
+        assert ref_snap.recovery is Recovery.FULL
+        assert got.fidelity is Fidelity.FULL
+>       assert got.serialized_screen == ref_snap.serialized_screen
+E       AssertionError: assert '' == '$ echo hello...b[14A\x1b[14C'
+E         
+E         - $ echo hello
+E         - hello
+E         - [31mRED[0m [32;1mGREEN
+E         - [0mline-000
+E         - line-001
+E         - line-002...
+E         
+E         ...Full output truncated (58 lines hidden), use '-vv' to show
+
+tests\test_terminal_emulator.py:192: AssertionError
+__________________ test_alternate_screen_matrix_and_recovery __________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00E072E0>
+
+    def test_alternate_screen_matrix_and_recovery(emu_factory):
+        stream = (
+            b"normal-before\r\n"
+            b"\x1b[?1049h"
+            b"\x1b[2J\x1b[H"
+            b"ALT-SCREEN-CONTENT\r\n"
+            b"second-line\x1b[?1049l"
+            b"after-leave\r\n"
+        )
+        ref_snap, got = _compare_after_protocol_a(emu_factory, stream, chunk=7)
+        assert ref_snap.fidelity is Fidelity.FULL
+>       assert got.serialized_screen == ref_snap.serialized_screen
+E       AssertionError: assert '' == 'normal-befor...1b[1B\x1b[11D'
+E         
+E         - normal-before
+E         - after-leave[1B[11D
+
+tests\test_terminal_emulator.py:206: AssertionError
+_______________ test_holdback_split_csi_and_protocol_a_recovery _______________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00E06FC0>
+
+    def test_holdback_split_csi_and_protocol_a_recovery(emu_factory):
+        p1 = b"AB\x1b[3"
+        p2 = b"1mRED\x1b[0m"
+        ref = emu_factory()
+        _feed(ref, p1, size=len(p1))
+        snap = ref.snapshot(timeout=15)
+        # 未完成的 CSI 被 hold back：cursor 停在 clean 边界，不冒充 producer frontier
+        assert snap.cursor == 2
+        assert ref.producer_frontier == len(p1)
+        restored = emu_factory(start_cursor=snap.cursor)
+        _feed(restored, (p1 + p2)[snap.cursor :], start=snap.cursor, size=3)
+        _feed(ref, p2, size=3)
+        a = ref.snapshot(timeout=30)
+        b = restored.snapshot(timeout=30)
+>       assert a.serialized_screen == b.serialized_screen
+E       AssertionError: assert 'AB\x1b[31mRED\x1b[0m' == '\x1b[31mRED\x1b[0m'
+E         
+E         - [31mRED[0m
+E         + AB[31mRED[0m
+E         ? ++
+
+tests\test_terminal_emulator.py:236: AssertionError
+____________ test_holdback_split_osc_degrades_partial_and_recovers ____________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00E07B00>
+
+    def test_holdback_split_osc_degrades_partial_and_recovers(emu_factory):
+        p1 = b"X\x1b]0;title"
+        p2 = b"-done\x07Y"
+        ref = emu_factory()
+        _feed(ref, p1, size=len(p1))
+        snap = ref.snapshot(timeout=15)
+        assert snap.cursor == 1
+        restored = emu_factory(start_cursor=snap.cursor)
+        _feed(restored, (p1 + p2)[snap.cursor :], start=snap.cursor, size=2)
+        _feed(ref, p2, size=2)
+        a = ref.snapshot(timeout=30)
+        b = restored.snapshot(timeout=30)
+>       assert a.serialized_screen == b.serialized_screen
+E       AssertionError: assert 'XY' == 'Y'
+E         
+E         - Y
+E         + XY
+
+tests\test_terminal_emulator.py:252: AssertionError
+____________ test_snapshot_cursor_is_applied_not_producer_frontier ____________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B10180>
+
+    def test_snapshot_cursor_is_applied_not_producer_frontier(emu_factory):
+        emu = emu_factory()
+        assert emu._test_stall(600)
+        big = b"x" * 50000
+        emu.feed_at(0, big)
+        t0 = time.monotonic()
+        snap = emu.snapshot(timeout=0.2)
+        elapsed = time.monotonic() - t0
+        assert elapsed < 1.5
+        assert emu.producer_frontier == 50000
+        assert snap.cursor < 50000  # 未应用的数据不得冒充 cursor
+>       assert snap.fidelity is Fidelity.UNAVAILABLE
+E       AssertionError: assert <Fidelity.PARTIAL: 'partial'> is <Fidelity.UNAVAILABLE: 'unavailable'>
+E        +  where <Fidelity.PARTIAL: 'partial'> = AppliedSnapshot(serialized_screen='', cursor=0, rows=24, cols=80, fidelity=<Fidelity.PARTIAL: 'partial'>, recovery=<Re....2s (request skipped if still queued; not executed late); cursor=0 (applied, != producer frontier 50000); queue_ops=3').fidelity
+E        +  and   <Fidelity.UNAVAILABLE: 'unavailable'> = Fidelity.UNAVAILABLE
+
+tests\test_terminal_emulator.py:327: AssertionError
+______________ test_feed_overflow_is_sticky_degraded_and_bounded ______________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B10C20>
+
+    def test_feed_overflow_is_sticky_degraded_and_bounded(emu_factory):
+        emu = emu_factory(max_queue_bytes=32 * 1024, max_queue_ops=64)
+        assert emu._test_stall(800)
+        block = b"z" * 4096
+        for i in range(200):  # 800 KiB 远超 32 KiB 上限
+            emu.feed_at(i * 4096, block)
+        assert emu.feed_lag is True
+        time.sleep(1.2)
+        snap = emu.snapshot(timeout=20)
+        assert snap.fidelity is Fidelity.PARTIAL
+        assert snap.recovery is Recovery.DEGRADED
+        assert snap.feed_lag is True
+        # sticky：即使后续正常供料也不自动恢复 full
+        _feed(emu, b"more\r\n", start=200 * 4096)
+        snap2 = emu.snapshot(timeout=20)
+        assert snap2.feed_lag is True
+        assert snap2.recovery is Recovery.DEGRADED
+        diag = emu.diagnostics()
+        # 严格有界：拒绝区间/诊断不得随拒绝次数无界增长
+        assert len(diag["rejected_ranges"]) <= 64
+        assert diag["counters"]["rejected_feed_blocks"] > 64
+>       assert diag["overflow"].get("rejected_range", 0) > 0
+E       AssertionError: assert 0 > 0
+E        +  where 0 = <built-in method get of dict object at 0x000001AA00D8E200>('rejected_range', 0)
+E        +    where <built-in method get of dict object at 0x000001AA00D8E200> = {}.get
+
+tests\test_terminal_emulator.py:382: AssertionError
+__________ test_unknown_sequence_after_event_saturation_is_detected ___________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B11F80>
+
+    def test_unknown_sequence_after_event_saturation_is_detected(emu_factory):
+        """4096 事件上限不得掩盖后来的未知序列（初版漏检 -> full，修复后 partial）。"""
+        emu = emu_factory()
+        stream = b"\x1b[31m" * 5000 + b"\x1b[?7777h" + b"END"
+        _feed(emu, stream, size=len(stream))
+        snap = emu.snapshot(timeout=30)
+>       assert snap.fidelity is Fidelity.PARTIAL
+E       AssertionError: assert <Fidelity.FULL: 'full'> is <Fidelity.PARTIAL: 'partial'>
+E        +  where <Fidelity.FULL: 'full'> = AppliedSnapshot(serialized_screen='\x1b[31mEND', cursor=25011, rows=24, cols=80, fidelity=<Fidelity.FULL: 'full'>, rec...r=25011, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0').fidelity
+E        +  and   <Fidelity.PARTIAL: 'partial'> = Fidelity.PARTIAL
+
+tests\test_terminal_emulator.py:405: AssertionError
+___________________ test_engine_op_error_is_sticky_degraded ___________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B128E0>
+
+    def test_engine_op_error_is_sticky_degraded(emu_factory):
+        """feed 执行异常必须 sticky 降级且解析循环继续（初版仅记录 -> full）。"""
+        emu = emu_factory()
+        assert emu._test_inject_feed_error("next-feed")
+        emu.feed_at(0, b"AAAA")
+        emu.feed_at(4, b"BBBB")
+        snap = emu.snapshot(timeout=20)
+        assert snap.fidelity is Fidelity.PARTIAL
+        assert emu.engine_alive  # 错误被隔离，引擎仍可服务
+>       assert "BBBB" in snap.serialized_screen
+E       assert 'BBBB' in ''
+E        +  where '' = AppliedSnapshot(serialized_screen='', cursor=8, rows=24, cols=80, fidelity=<Fidelity.PARTIAL: 'partial'>, recovery=<Re...: engine-unavailable:op-error:Cannot read properties of null (reading 'toString'); cursor=8 is last confirmed applied").serialized_screen
+
+tests\test_terminal_emulator.py:418: AssertionError
+_______ test_reset_baseline_uses_execution_position_not_future_frontier _______
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B11D00>
+
+    def test_reset_baseline_uses_execution_position_not_future_frontier(emu_factory):
+        """reset 新基线 = 命令实际执行位置，不得误取含 future queued feed 的全局 frontier。"""
+        emu = emu_factory(control_timeout=15.0)
+        assert emu._test_stall(500)
+        emu.feed_at(0, b"A" * 1000)
+        emu.feed_at(1000, b"B" * 1000)
+        results: list = []
+        thread = threading.Thread(target=lambda: results.append(emu.reset_baseline()))
+        thread.start()
+        time.sleep(0.15)
+        emu.feed_at(2000, b"C" * 1000)  # 已入队、排在 reset 之后
+        thread.join(timeout=20)
+        assert results and not thread.is_alive()
+        snap = results[0]
+        diag = emu.diagnostics()
+        assert emu.producer_frontier == 3000
+        # 修复后：2000（reset 执行时 A+B 已处理，C 尚未）；初版取 3000 -> 失败
+>       assert int(diag["baseline_cursor"]) == 2000
+E       AssertionError: assert 3000 == 2000
+E        +  where 3000 = int('3000')
+
+tests\test_terminal_emulator.py:441: AssertionError
+_______________ test_reset_clears_old_gap_and_never_fakes_full ________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x000001AA00B136A0>
+
+    def test_reset_clears_old_gap_and_never_fakes_full(emu_factory):
+        """reset 后旧 gap 不得永久污染 cursor；但 reset 也不假恢复 full。"""
+        emu = emu_factory(control_timeout=15.0)
+        emu.feed_at(0, b"A" * 10)
+        emu.feed_at(50, b"B" * 10)  # [10, 50) 缺口
+        snap = emu.snapshot(timeout=15)
+>       assert "SOURCE_GAP_STICKY" in snap.note
+E       assert 'SOURCE_GAP_STICKY' in "snapshot unavailable: engine-unavailable:op-error:Cannot read properties of null (reading 'toString'); cursor=60 is last confirmed applied"
+E        +  where "snapshot unavailable: engine-unavailable:op-error:Cannot read properties of null (reading 'toString'); cursor=60 is last confirmed applied" = AppliedSnapshot(serialized_screen='', cursor=60, rows=24, cols=80, fidelity=<Fidelity.PARTIAL: 'partial'>, recovery=<R... engine-unavailable:op-error:Cannot read properties of null (reading 'toString'); cursor=60 is last confirmed applied").note
+
+tests\test_terminal_emulator.py:455: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_emulator.py::test_main_screen_matrix_and_recovery
+FAILED tests/test_terminal_emulator.py::test_alternate_screen_matrix_and_recovery
+FAILED tests/test_terminal_emulator.py::test_holdback_split_csi_and_protocol_a_recovery
+FAILED tests/test_terminal_emulator.py::test_holdback_split_osc_degrades_partial_and_recovers
+FAILED tests/test_terminal_emulator.py::test_snapshot_cursor_is_applied_not_producer_frontier
+FAILED tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded
+FAILED tests/test_terminal_emulator.py::test_unknown_sequence_after_event_saturation_is_detected
+FAILED tests/test_terminal_emulator.py::test_engine_op_error_is_sticky_degraded
+FAILED tests/test_terminal_emulator.py::test_reset_baseline_uses_execution_position_not_future_frontier
+FAILED tests/test_terminal_emulator.py::test_reset_clears_old_gap_and_never_fakes_full
+======================= 10 failed, 18 passed in 35.71s ========================

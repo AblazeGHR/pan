@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "D:\\project\\pan-worktrees\\terminal-runner-implement-20261003\\audit\\terminal\\implementation\\runner\\probes\\probe_response_whitelist.py"
+  ],
+  "returncode": 0,
+  "seconds": 0.08,
+  "stdout": "{\n  \"top_level_unknown_field_rejected\": {\n    \"accepted\": false,\n    \"error_type\": \"MalformedFrameError\",\n    \"error\": \"unknown response fields: ['durability']\"\n  },\n  \"unknown_numeric_field_rejected\": {\n    \"accepted\": false,\n    \"error_type\": \"MalformedFrameError\",\n    \"error\": \"unknown response fields: ['duration']\"\n  },\n  \"valid_fields_accepted\": {\n    \"accepted\": true,\n    \"payload\": {\n      \"data_b64\": \"\",\n      \"cursor\": \"0\",\n      \"rows\": 24,\n      \"cols\": 80,\n      \"status\": \"ok\",\n      \"detail\": \"{\\\"durability\\\":{\\\"capable\\\":false}}\"\n    }\n  }\n}\n",
+  "stderr": ""
+}

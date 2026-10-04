@@ -1,5 +1,7 @@
 import type { Message } from '@/types';
 import { memo, useMemo } from 'react';
+import { Undo2 } from 'lucide-react';
+import { useSessionStore } from '@/stores/sessionStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
@@ -93,6 +95,21 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       {SOURCE_TAG_LABELS[sourceTag]}
     </span>
   ) : null;
+  const openRewind = useSessionStore((s) => s.openRewind);
+  const currentSession = useSessionStore((s) => s.sessions.find((session) => session.id === s.currentSessionId));
+  const sessionBusy = ['running', 'queued'].includes(currentSession?.workerStatus ?? '');
+  // Rewind anchors are user-role only (worker report messages included, they
+  // land in history as role=user). Busy sessions grey the button out.
+  const showRewind = role === 'user' && !message.streaming;
+  const actions = showRewind ? (
+    <div className="mt-1 flex items-center gap-2">
+      <button type="button" onClick={() => openRewind(message)} disabled={sessionBusy}
+        className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary disabled:opacity-50"
+        title={sessionBusy ? '任务运行中，无法撤回' : '从此消息撤回并分叉'}>
+        <Undo2 size={13} /> 撤回
+      </button>
+    </div>
+  ) : null;
 
   // Thinking blocks get their own component
   if (role === 'thinking') {
@@ -137,6 +154,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           )}
         </div>
         <MessageTimestamp ts={message.ts} className="mt-0.5" />
+        {actions}
       </div>
     );
   }

@@ -1,0 +1,20 @@
+{
+  "repro": "converge_writers_failopen",
+  "phase": "pre",
+  "checks": {
+    "lock_held": true,
+    "fail_open_demonstrated": true
+  },
+  "lock_demonstrably_held": true,
+  "converged": true,
+  "detail": {
+    "cancel_attempts": 0,
+    "input_lock_acquired": false,
+    "registered_writers": 0
+  },
+  "fail_open_demonstrated": true,
+  "cleanup": {
+    "close": true
+  },
+  "all_checks_pass": true
+}

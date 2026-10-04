@@ -1,0 +1,12 @@
+{
+  "mode": "cleanup-leftovers",
+  "run_id": "20261003-012025",
+  "marker": "pan-selfscenario-20261003-012008",
+  "scan": [],
+  "stop": {
+    "candidates": [],
+    "results": [],
+    "leftovers": [],
+    "all_gone": true
+  }
+}

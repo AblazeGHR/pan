@@ -1,0 +1,9 @@
+{
+  "sidecar_dir": "packages\\core\\terminal\\emulator_sidecar",
+  "node_modules_present": true,
+  "package_json_sha256": "f811b022352ce380b11e99414b808df91a40477e9e0a850075a072eddaef08d6",
+  "package_lock_sha256": "9c88ee512f45573b8139bda9169b3964b1c733e730dd8595c8308ec7d8ac86c3",
+  "installed_@xterm/headless": "6.0.0",
+  "installed_@xterm/addon-serialize": "0.14.0",
+  "node_version": "v24.15.0"
+}

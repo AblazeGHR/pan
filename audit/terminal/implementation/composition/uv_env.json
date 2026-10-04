@@ -1,0 +1,32 @@
+{
+  "uv_version": "uv 0.9.14 (05814f9cd 2025-12-01)",
+  "pytest_direct_argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_terminal_composition.py",
+    "-q",
+    "-rA"
+  ],
+  "pytest_uv_argv": [
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "E:\\software\\miniforge\\python.exe",
+    "--with-requirements",
+    "minimal-requirements.txt",
+    "--with",
+    "pytest",
+    "--with",
+    "pytest-timeout",
+    "--",
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_terminal_composition.py",
+    "-q",
+    "-rA"
+  ],
+  "note": "按 MA 口径：仅本组合套件（11 项）；不跑旧 38/42/129/8/全库/provider/浏览器"
+}

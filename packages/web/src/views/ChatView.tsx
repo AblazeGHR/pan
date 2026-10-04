@@ -5,6 +5,7 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { InputRow } from '@/components/chat/InputRow';
+import { RewindStatusBar } from '@/components/chat/RewindStatusBar';
 import { ApprovalBanner } from '@/components/chat/ApprovalBanner';
 import { UserInputBanner } from '@/components/chat/UserInputBanner';
 import { ElicitationBanner } from '@/components/chat/ElicitationBanner';
@@ -166,6 +167,7 @@ export default function ChatView() {
             </aside>
           )}
         </div>
+        <RewindStatusBar />
         <InputRow />
       </div>
     </ChatLayout>

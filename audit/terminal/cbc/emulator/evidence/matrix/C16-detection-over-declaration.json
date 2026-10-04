@@ -1,0 +1,92 @@
+{
+  "id": "C16-detection-over-declaration",
+  "title": "D2：检测优先（未声明缺口/未知特性/未知 FEATURE_SUPPORT 键都降级）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "no failed classification cases",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "plain text can still be full without any declaration",
+      "ok": true
+    }
+  ],
+  "details": {
+    "results": [
+      {
+        "name": "plain text (no declaration)",
+        "fidelity": "full",
+        "reasons": [],
+        "pass": true,
+        "expected": "full"
+      },
+      {
+        "name": "DECSTBM without declaration",
+        "fidelity": "partial",
+        "reasons": [
+          "DECSTBM_NOT_SERIALIZED"
+        ],
+        "pass": true,
+        "expected": "DECSTBM_NOT_SERIALIZED"
+      },
+      {
+        "name": "synchronized output 2026",
+        "fidelity": "partial",
+        "reasons": [
+          "SYNCHRONIZED_OUTPUT_NOT_SERIALIZED"
+        ],
+        "pass": true,
+        "expected": "SYNCHRONIZED_OUTPUT_NOT_SERIALIZED"
+      },
+      {
+        "name": "DECTCEM cursor visibility",
+        "fidelity": "partial",
+        "reasons": [
+          "CURSOR_VISIBILITY_DECTCEM_UNVERIFIED"
+        ],
+        "pass": true,
+        "expected": "CURSOR_VISIBILITY_DECTCEM_UNVERIFIED"
+      },
+      {
+        "name": "unknown CSI final",
+        "fidelity": "partial",
+        "reasons": [
+          "UNKNOWN_CSI_FINAL_z_UNVERIFIED"
+        ],
+        "pass": true,
+        "expected": "UNKNOWN_CSI_FINAL_z_UNVERIFIED"
+      },
+      {
+        "name": "unknown private mode",
+        "fidelity": "partial",
+        "reasons": [
+          "PRIVATE_MODE_9999_UNVERIFIED"
+        ],
+        "pass": true,
+        "expected": "PRIVATE_MODE_9999_UNVERIFIED"
+      },
+      {
+        "name": "DCS payload",
+        "fidelity": "partial",
+        "reasons": [
+          "DCS_PAYLOAD_UNVERIFIED"
+        ],
+        "pass": true,
+        "expected": "DCS_PAYLOAD_UNVERIFIED"
+      },
+      {
+        "name": "declared unknown feature key",
+        "fidelity": "partial",
+        "reasons": [
+          "UNKNOWN_FEATURE_WEIRD_FEATURE"
+        ],
+        "pass": true,
+        "expected": "UNKNOWN_FEATURE_WEIRD_FEATURE"
+      }
+    ]
+  },
+  "ms": 112,
+  "failed_expectations": []
+}

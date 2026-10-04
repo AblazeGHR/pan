@@ -1,0 +1,216 @@
+{
+  "passed": true,
+  "browser": "chromium",
+  "realConPTY": true,
+  "frames": [
+    {
+      "v": 1,
+      "type": "hello",
+      "terminal_id": "term_0c05d97dff964c58",
+      "connection_id": "conn_da5a4a090cad4ee5a47570759b691bef",
+      "role": "observer",
+      "control_generation": null,
+      "protocol": {
+        "version": 1,
+        "encoding": "json-text",
+        "cursor": "ascii-decimal-string",
+        "max_inbound_frame_bytes": 262144,
+        "max_input_bytes": 131072,
+        "read_chunk_bytes": 32768
+      }
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_0c05d97dff964c58",
+      "seq": "0",
+      "next_seq": "112",
+      "data_b64": "G1s/OTAwMWgbWz8xMDA0aBtbPzI1bBtbMkobW20bW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bXTA7QzpcV2luZG93c1xTWVNURU0zMlxjbWQuZXhlBxtbPzI1aA==",
+      "size": 112
+    },
+    {
+      "v": 1,
+      "type": "snapshot",
+      "terminal_id": "term_0c05d97dff964c58",
+      "status": "running",
+      "data_b64": "TWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddG1s/MTAwNGg=",
+      "cursor": "112",
+      "rows": 24,
+      "cols": 80,
+      "fidelity": "partial",
+      "recovery": "partial",
+      "feed_lag": false,
+      "note": "protocol=A(cursor=112, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=PRIVATE_MODE_9001_UNVERIFIED,CURSOR_VISIBILITY_DECTCEM_UNVERIFIED,WINDOW_TITLE_OSC_UNVERIFIED",
+      "note_truncated": false,
+      "engine": "xterm-headless/6.0.0+serialize/0.14.0",
+      "cursors_valid": true,
+      "reset_unconfirmed": false,
+      "applied_evicted": false,
+      "continuation_hint": "partial-view",
+      "auto_reset_applied": false,
+      "diagnostics": null
+    },
+    {
+      "v": 1,
+      "type": "resume-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "cursor": "112"
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_0c05d97dff964c58",
+      "seq": "112",
+      "next_seq": "231",
+      "data_b64": "G1s/MjVsDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1s0OzFIRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bWz8yNWg=",
+      "size": 119
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "next_seq": "231"
+    },
+    {
+      "v": 1,
+      "type": "claim-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "role": "control",
+      "generation": "1"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "accepted": true,
+      "status": "ok",
+      "rows": 38,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "accepted": true,
+      "size": 3,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_0c05d97dff964c58",
+      "seq": "231",
+      "next_seq": "593",
+      "data_b64": "G1s/MjVsG1s4OzM4OzEzN3QbW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bW0sNCihjKSBNaWNyb3NvZnQgQ29ycG9yYXRpb27jgILkv53nlZnmiYDmnInmnYPliKnjgIIbW0sNChtbSw0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLW1jcC1tYS0yMDI2MTAwND4bW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSxtbNDs1MUgbWz8yNWg=",
+      "size": 362
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "accepted": true,
+      "size": 31,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "next_seq": "593"
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "accepted": true,
+      "size": 1,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_0c05d97dff964c58",
+      "seq": "593",
+      "next_seq": "647",
+      "data_b64": "ZWNobyBOQVRJVkVfRklOQUxf5Lit5paHJmV4aXQgNw0KTkFUSVZFX0ZJTkFMX+S4reaWhw0K",
+      "size": 54
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "next_seq": "647"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "accepted": true,
+      "status": "ok",
+      "rows": 40,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_0c05d97dff964c58",
+      "seq": "647",
+      "next_seq": "1057",
+      "data_b64": "G1s/MjVsG1tITWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddG1tLDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1tLDQobW0sNCkQ6XHByb2plY3RccGFuLXdvcmt0cmVlc1x0ZXJtaW5hbC1tY3AtbWEtMjAyNjEwMDQ+ZWNobyBOQVRJVkVfRklOQUxf5Lit5paHJmV4aXQgNxtbSw0KTkFUSVZFX0ZJTkFMX+S4reaWhxtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sbWzY7MUgbWz8yNWg=",
+      "size": 410
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_0c05d97dff964c58",
+      "next_seq": "1057"
+    },
+    {
+      "v": 1,
+      "type": "terminal-state",
+      "terminal_id": "term_0c05d97dff964c58",
+      "status": "exited",
+      "exit_code": 7,
+      "output_complete": false,
+      "process_exit_seen": true,
+      "reader_done": true
+    }
+  ],
+  "statusText": "只观察 · 终端状态：exited（退出码 7）；输出完整性未确认",
+  "screenText": "Microsoft Windows [版本 10.0.26200.9457]\n(c) Microsoft Corporation。保留所有权利。\nD:\\project\\pan-worktrees\\terminal-mcp-ma-20261004>echo NATIVE_FINAL_中文&exit 7\nNATIVE_FINAL_中文\n ",
+  "record": {
+    "terminal_id": "term_0c05d97dff964c58",
+    "status": "exited",
+    "owner": "service",
+    "rows": 24,
+    "cols": 80,
+    "pid": 38100,
+    "process_created_at_filetime": "134355879616479898",
+    "detached": false,
+    "detached_at": null,
+    "lease_grace_seconds": 2,
+    "created_by": "web-local",
+    "created_at": 1791114361.6326842,
+    "updated_at": 1791114372.0840478,
+    "attached": false,
+    "authorization": "scope-is-metadata-not-permission",
+    "scope": {
+      "workspace_id": null,
+      "session_id": null
+    },
+    "exit": {
+      "code": 7,
+      "reason": "natural-exit"
+    }
+  },
+  "selectedLabel": "term_0c05d97dff964c58 · exited",
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:59602', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:59602', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:59602', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

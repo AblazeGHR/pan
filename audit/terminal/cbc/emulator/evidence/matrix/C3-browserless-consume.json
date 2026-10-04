@@ -1,0 +1,56 @@
+{
+  "id": "C3-browserless-consume",
+  "title": "全程无浏览器仍持续消费（>256 KiB）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "fed more than 256 KiB",
+      "ok": true,
+      "detail": {
+        "totalBytes": 324000
+      }
+    },
+    {
+      "name": "all enqueued bytes applied",
+      "ok": true
+    },
+    {
+      "name": "zero snapshots before the end",
+      "ok": true
+    },
+    {
+      "name": "state matches reference",
+      "ok": true
+    },
+    {
+      "name": "fidelity full",
+      "ok": true
+    }
+  ],
+  "details": {
+    "totalBytes": 324000,
+    "snapshot": {
+      "applied_seq": 5,
+      "applied_bytes": 324000,
+      "pending_tail_bytes": 0,
+      "fidelity": "full",
+      "recovery": "full"
+    },
+    "counters": {
+      "feed": 5,
+      "resize": 0,
+      "snapshot": 1,
+      "barrier": 0,
+      "reset": 0,
+      "stall": 0,
+      "throw": 0,
+      "rejected_feed": 0,
+      "rejected_control": 0,
+      "expired_skipped": 0
+    },
+    "bufferLengthLines": 1012,
+    "scrollbackOption": 1000
+  },
+  "ms": 82,
+  "failed_expectations": []
+}

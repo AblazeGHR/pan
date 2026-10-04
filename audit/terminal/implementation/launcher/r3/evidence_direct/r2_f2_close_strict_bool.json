@@ -1,0 +1,16 @@
+{
+  "value": "0.0",
+  "exit_code": 6,
+  "cleanup": {
+    "converged": false,
+    "attempts": 24,
+    "last_error_type": "close-not-converged",
+    "retained": [
+      "engine"
+    ],
+    "in_flight": false,
+    "seconds": 0.515,
+    "outcome": "unproven",
+    "detail": "attempt1:close-not-converged; attempt2:close-not-converged; attempt3:close-not-converged; attempt4:close-not-converged; attempt5:close-not-converged; attempt6:close-not-converged; attempt7:close-not-converged; attempt8:close-not-converged; attempt9:close-not-converged; attempt10:close-not-converged; attempt11:close-not-converged; attempt12:close-not-converged; attempt13:close-not-converged; attempt14:close-not-converged; attempt15:close-not-converged; attempt16:close-not-converged; attempt17:close-not-converged; attempt18:close-not-converged; attempt19:close-not-converged; attempt20:close-not-converged; attempt21:close-not-converged; attempt22:close-not-converged; attempt23:close-not-converged; attempt24:close-not-converged; budget-exhausted"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "collected_at": "2026-10-03 08:39:11",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "e822e0b795f405fef2244fe31c242ba9a0d0a3d5",
+  "pre_fix_evidence": true,
+  "steps": {
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 84.2,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_legal_big_integer\nPASSED tests/test_terminal_runner.py::test_f5_r2_reset_completion_gate_snapshot_before_after"
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 86.53,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_legal_big_integer\nPASSED tests/test_terminal_runner.py::test_f5_r2_reset_completion_gate_snapshot_before_after"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  }
+}

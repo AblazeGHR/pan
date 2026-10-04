@@ -1,0 +1,104 @@
+{
+  "probe": "ctrl_c_candidates",
+  "results": [
+    {
+      "case": "A_raw_0x03",
+      "ready": "found",
+      "child_pid": 6980,
+      "bytes_written": 1,
+      "marker_events": 0,
+      "child_alive": true,
+      "delivered": false,
+      "cleanup": {
+        "close": true
+      }
+    },
+    {
+      "case": "B_attach_generate",
+      "ready": "found",
+      "child_pid": 41840,
+      "console_mode": "0x1F7",
+      "mode_has_processed_input": true,
+      "action": {
+        "helper_rc": 0,
+        "freeconsole": true,
+        "attach": true,
+        "attach_err": 6,
+        "console_pids": [
+          37308,
+          41840
+        ],
+        "target_in_console": true,
+        "generate_ok": true,
+        "generate_err": 6,
+        "helper_stderr_tail": ""
+      },
+      "marker_events": 0,
+      "child_alive": true,
+      "heartbeats_continue": true,
+      "delivered": false,
+      "cleanup": {
+        "close": true
+      }
+    },
+    {
+      "case": "C_attach_writeinput",
+      "ready": "found",
+      "child_pid": 22788,
+      "console_mode": "0x1F7",
+      "mode_has_processed_input": true,
+      "action": {
+        "helper_rc": 0,
+        "freeconsole": true,
+        "attach": true,
+        "attach_err": 6,
+        "console_pids": [
+          7672,
+          22788
+        ],
+        "target_in_console": true,
+        "conin_handle": 360,
+        "conin_err": 0,
+        "writeinput_ok": true,
+        "writeinput_written": 2,
+        "writeinput_err": 0,
+        "helper_stderr_tail": ""
+      },
+      "marker_events": 0,
+      "child_alive": true,
+      "heartbeats_continue": true,
+      "delivered": false,
+      "cleanup": {
+        "close": true
+      }
+    },
+    {
+      "case": "C3_attach_writeinput_reading_child",
+      "ready": "found",
+      "child_pid": 28304,
+      "helper_rc": 0,
+      "helper": {
+        "freeconsole": true,
+        "attach": true,
+        "attach_err": 6,
+        "console_pids": [
+          49640,
+          28304
+        ],
+        "target_in_console": true,
+        "conin_handle": 508,
+        "conin_err": 0,
+        "writeinput_ok": true,
+        "writeinput_written": 2,
+        "writeinput_err": 0
+      },
+      "read_released": false,
+      "marker_events": 0,
+      "delivered": false,
+      "child_alive": true,
+      "cleanup": {
+        "close": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "exit_code": 0,
+  "close_calls": 2,
+  "cleanup": {
+    "converged": true,
+    "attempts": 2,
+    "last_error_type": "RuntimeError",
+    "retained": [],
+    "in_flight": false,
+    "seconds": 0.047,
+    "outcome": "closed",
+    "detail": "attempt1:RuntimeError; closed-after-2-attempt(s)"
+  }
+}

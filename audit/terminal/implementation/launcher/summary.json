@@ -1,0 +1,79 @@
+{
+  "git_head": "3f8ef0451e3405de2c29909db440f9f89b3890ca",
+  "steps": {
+    "launcher_direct": {
+      "returncode": 0,
+      "seconds": 39.266,
+      "tail": "PASSED tests/test_terminal_launcher.py::test_real_launcher_hard_kill_tree_cleanup\nPASSED tests/test_terminal_launcher.py::test_real_launcher_detach_refused_zero_state",
+      "cleanup": {
+        "sessions": 5,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [
+          {
+            "file": "launcher_real_bootstrap_refused_cleanup.json",
+            "exit_code": 4
+          },
+          {
+            "file": "launcher_real_hard_kill_cleanup.json",
+            "exit_code": 1
+          }
+        ],
+        "resource_leftovers": []
+      }
+    },
+    "launcher_uv": {
+      "returncode": 0,
+      "seconds": 39.25,
+      "tail": "PASSED tests/test_terminal_launcher.py::test_real_launcher_hard_kill_tree_cleanup\nPASSED tests/test_terminal_launcher.py::test_real_launcher_detach_refused_zero_state",
+      "cleanup": {
+        "sessions": 5,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [
+          {
+            "file": "launcher_real_bootstrap_refused_cleanup.json",
+            "exit_code": 4
+          },
+          {
+            "file": "launcher_real_hard_kill_cleanup.json",
+            "exit_code": 1
+          }
+        ],
+        "resource_leftovers": []
+      }
+    },
+    "composition_direct": {
+      "returncode": 0,
+      "seconds": 59.641,
+      "tail": ".............                                                            [100%]",
+      "cleanup": {
+        "sessions": 0,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [],
+        "resource_leftovers": []
+      }
+    },
+    "composition_uv": {
+      "returncode": 0,
+      "seconds": 59.984,
+      "tail": ".............                                                            [100%]",
+      "cleanup": {
+        "sessions": 0,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [],
+        "resource_leftovers": []
+      }
+    }
+  },
+  "pins": {
+    "node": "v24.15.0",
+    "xterm_headless": "6.0.0",
+    "xterm_addon_serialize": "0.14.0",
+    "package_lock_sha256": "9c88ee512f45573b8139bda9169b3964b1c733e730dd8595c8308ec7d8ac86c3",
+    "note": "sidecar 依赖仅在专属目录 npm ci（exact pin）；总依赖/锁未改"
+  },
+  "leftover_processes": {
+    "available": true,
+    "python_runner_leftovers": [],
+    "node_sidecar_leftovers": []
+  }
+}

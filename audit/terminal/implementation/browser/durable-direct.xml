@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="35.178" timestamp="2026-10-04T12:23:14.772763+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_durable_ma" name="test_detached_shell_survives_real_service_host_exit_and_reconnect" time="35.017"><failure message="subprocess.TimeoutExpired: Command '['E:\\software\\miniforge\\python.exe', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1776\\test_detached_shell_survives_r0\\host.py', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1776\\test_detached_shell_survives_r0']' timed out after 35 seconds">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1776/test_detached_shell_survives_r0')
+
+    def test_detached_shell_survives_real_service_host_exit_and_reconnect(tmp_path):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        script = tmp_path / 'host.py'
+        script.write_text(CHILD, encoding='utf-8')
+        env = dict(os.environ, PYTHONPATH=str(REPO), PYTHONIOENCODING='utf-8')
+        host = subprocess.Popen([getattr(sys, '_base_executable', sys.executable), str(script), str(tmp_path)],
+                                cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        service = TerminalService(tmp_path / 'terminals', log_stderr=False)
+        tid = None
+        retained = None
+        try:
+&gt;           stdout, stderr = host.communicate(timeout=35)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_durable_ma.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\subprocess.py:1209: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Popen: returncode: None args: ['E:\\software\\miniforge\\python.exe', 'C:\\...&gt;
+input = None, endtime = 66119.39, orig_timeout = 35
+
+    def _communicate(self, input, endtime, orig_timeout):
+        # Start reader threads feeding into a list hanging off of this
+        # object, unless they've already been started.
+        if self.stdout and not hasattr(self, "_stdout_buff"):
+            self._stdout_buff = []
+            self.stdout_thread = \
+                    threading.Thread(target=self._readerthread,
+                                     args=(self.stdout, self._stdout_buff))
+            self.stdout_thread.daemon = True
+            self.stdout_thread.start()
+        if self.stderr and not hasattr(self, "_stderr_buff"):
+            self._stderr_buff = []
+            self.stderr_thread = \
+                    threading.Thread(target=self._readerthread,
+                                     args=(self.stderr, self._stderr_buff))
+            self.stderr_thread.daemon = True
+            self.stderr_thread.start()
+    
+        if self.stdin:
+            self._stdin_write(input)
+    
+        # Wait for the reader threads, or time out.  If we time out, the
+        # threads remain reading and the fds left open in case the user
+        # calls communicate again.
+        if self.stdout is not None:
+            self.stdout_thread.join(self._remaining_time(endtime))
+            if self.stdout_thread.is_alive():
+                raise TimeoutExpired(self.args, orig_timeout)
+        if self.stderr is not None:
+            self.stderr_thread.join(self._remaining_time(endtime))
+            if self.stderr_thread.is_alive():
+&gt;               raise TimeoutExpired(self.args, orig_timeout)
+E               subprocess.TimeoutExpired: Command '['E:\\software\\miniforge\\python.exe', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1776\\test_detached_shell_survives_r0\\host.py', 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1776\\test_detached_shell_survives_r0']' timed out after 35 seconds
+
+E:\software\miniforge\Lib\subprocess.py:1634: TimeoutExpired</failure></testcase></testsuite></testsuites>

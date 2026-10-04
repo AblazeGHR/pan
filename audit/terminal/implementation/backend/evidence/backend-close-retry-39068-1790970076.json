@@ -1,0 +1,17 @@
+{
+  "test": "close_failure_retry_deadline",
+  "first_retained": [
+    "input_write",
+    "output_read",
+    "hpc",
+    "h_process",
+    "h_thread",
+    "attr_list",
+    "pump_thread",
+    "job_handle"
+  ],
+  "retry": {
+    "closed": true,
+    "already_closed": false
+  }
+}

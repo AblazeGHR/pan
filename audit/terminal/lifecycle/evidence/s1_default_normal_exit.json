@@ -1,0 +1,359 @@
+{
+  "scenario": "s1_default_normal_exit",
+  "startedAt": 1790959288.7619996,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-20261003-004128\\s1_default_normal_exit",
+  "checks": [
+    {
+      "name": "s1 setup controller ok",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s1 tick program started in PTY",
+      "ok": true,
+      "detail": 11796
+    },
+    {
+      "name": "s1 runtime keeps running while no controller is connected",
+      "ok": true,
+      "detail": {
+        "first": {
+          "pid": 11796,
+          "n": 6,
+          "t": 1790959292.941
+        },
+        "second": {
+          "pid": 11796,
+          "n": 14,
+          "t": 1790959294.143
+        }
+      }
+    },
+    {
+      "name": "s1 reconnect sees same shell variable",
+      "ok": true,
+      "detail": "marker CHURN:MX-504d9a"
+    },
+    {
+      "name": "s1 identities unchanged across controller gap",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s1 supervisor graceful exit rc=0",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "s1 runner stopped by host shutdown",
+      "ok": true,
+      "detail": "0.00s"
+    },
+    {
+      "name": "s1 PTY root and tick program are gone",
+      "ok": true,
+      "detail": "0.00s"
+    },
+    {
+      "name": "s1 control port closed",
+      "ok": true,
+      "detail": "0.51s"
+    },
+    {
+      "name": "s1 runner reported explicit stop",
+      "ok": true,
+      "detail": "explicit_stop"
+    },
+    {
+      "name": "s1 cleanup left no owned process alive",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "runtimeEndpoint": {
+    "kind": "terminal-runtime",
+    "runtimeId": "rt_s1_2808",
+    "pid": 2808,
+    "processCreatedAt": 1790959288.848896,
+    "processCreatedAtFiletime": 134354328888488958,
+    "port": 54583,
+    "detached": false,
+    "detachedAt": null,
+    "leaseGraceSeconds": 2.0,
+    "pty": {
+      "rootPid": 35460,
+      "rootCreatedAt": 1790959289.0792313,
+      "rootCreatedAtFiletime": 134354328890792320,
+      "shell": "cmd.exe"
+    },
+    "job": {
+      "killOnClose": true,
+      "initialMembers": [
+        {
+          "pid": 46084,
+          "exe": "conhost.exe",
+          "createTime": 1790959288.9453335,
+          "assigned": true,
+          "assignError": 0
+        },
+        {
+          "pid": 4396,
+          "exe": "OpenConsole.exe",
+          "createTime": 1790959289.0626163,
+          "assigned": true,
+          "assignError": 0
+        },
+        {
+          "pid": 35460,
+          "exe": "cmd.exe",
+          "createTime": 1790959289.0792313,
+          "assigned": true,
+          "assignError": 0
+        }
+      ]
+    },
+    "startedAt": 1790959288.9449852,
+    "updatedAt": 1790959289.1004152,
+    "scope": {
+      "workspaceId": null,
+      "sessionId": null
+    },
+    "status": "running"
+  },
+  "supervisorExit": {
+    "mode": "normal_stop",
+    "exitCode": 0,
+    "stopAck": {
+      "ok": true,
+      "stopping": true,
+      "reason": "explicit_stop"
+    },
+    "runnerPid": 2808,
+    "runnerDied": true,
+    "runnerDeadAfterSeconds": 0.05,
+    "runnerTreeAtExit": [
+      {
+        "pid": 2808,
+        "createTimeFiletime": 134354328888488958,
+        "createTime": 1790959288.848896,
+        "image": null,
+        "exitCode": 0,
+        "running": false
+      }
+    ]
+  },
+  "runnerFinal": {
+    "runtimeId": "rt_s1_2808",
+    "pid": 2808,
+    "stopReason": "explicit_stop",
+    "stoppedAt": 1790959294.3746178,
+    "detachedAtStop": false,
+    "jobActiveBeforeTerminate": 4,
+    "jobActiveAfterTerminate": 0,
+    "leftoverSweep": [],
+    "controllerConnects": 2,
+    "connections": [
+      {
+        "role": "lease",
+        "clientId": "supervisor-13892",
+        "peer": "127.0.0.1:54584",
+        "connectedAt": 1790959289.1078472,
+        "disconnectedAt": 1790959294.3474126,
+        "commands": 1
+      },
+      {
+        "role": "controller",
+        "clientId": "ctl-setup",
+        "peer": "127.0.0.1:54587",
+        "connectedAt": 1790959289.1952932,
+        "disconnectedAt": 1790959292.967118,
+        "commands": 5
+      },
+      {
+        "role": "controller",
+        "clientId": "ctl-reconnect",
+        "peer": "127.0.0.1:54606",
+        "connectedAt": 1790959294.2851758,
+        "disconnectedAt": 1790959294.3387501,
+        "commands": 3
+      }
+    ],
+    "outputTail": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001h\u001b[?7l\u001b[?7hMicrosoft Windows [版本 10.0.26200.9457]\r\n(c) Microsoft Corporation。保留所有权利。\r\n\r\nD:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle>\u001b[4;87Hset PXS=MX-504d9a\u001b[4;104H\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe - set  PXS=MX-504d9a\u001b\\\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe\u001b\\\r\nD:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle>\u001b[6;87Hecho SET-DONE:%PXS%\u001b[6;106H\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe - echo  SET-DONE:MX-504d9a\u001b\\SET-DONE:MX-504d9a\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe\u001b\\\r\nD:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle>\u001b[9;87Hstart \"\" /b \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe\" \"D:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle\\tick.py\" \"C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-20261003-004128\\s1_default_normal_exit\\tick.txt\"\u001b[12;5H\u001b[12;5H\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe - start  \"\" /b \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe\" \"D:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle\\tick.py\" \"C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-20261003-004128\\s1_default_normal_exit\\tick.txt\"\u001b\\\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe\u001b\\\r\nD:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle>\u001b[14;87Hecho CHURN:%PXS%\u001b[14;103H\u001b[14;103H\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe - echo  CHURN:MX-504d9a\u001b\\CHURN:MX-504d9a\r\n\u001b]0;C:\\Windows\\SYSTEM32\\cmd.exe\u001b\\\r\nD:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle>",
+    "stateBeforeStop": {
+      "runtimeId": "rt_s1_2808",
+      "status": "stopping",
+      "pid": 2808,
+      "startedAt": 1790959288.9449852,
+      "port": 54583,
+      "detached": false,
+      "detachedAt": null,
+      "lease": {
+        "attached": false,
+        "clientId": null,
+        "attachedAt": 1790959289.107911,
+        "lostAt": 1790959294.3474147,
+        "graceSeconds": 2.0
+      },
+      "pty": {
+        "rootPid": 35460,
+        "backend": "conpty",
+        "isAlive": true
+      },
+      "job": {
+        "killOnClose": true,
+        "initialMembers": [
+          {
+            "pid": 46084,
+            "exe": "conhost.exe",
+            "createTime": 1790959288.9453335,
+            "assigned": true,
+            "assignError": 0
+          },
+          {
+            "pid": 4396,
+            "exe": "OpenConsole.exe",
+            "createTime": 1790959289.0626163,
+            "assigned": true,
+            "assignError": 0
+          },
+          {
+            "pid": 35460,
+            "exe": "cmd.exe",
+            "createTime": 1790959289.0792313,
+            "assigned": true,
+            "assignError": 0
+          }
+        ],
+        "activeProcesses": 4
+      },
+      "outputChars": 1618,
+      "controllerConnects": 2,
+      "connections": [
+        {
+          "role": "lease",
+          "clientId": "supervisor-13892",
+          "peer": "127.0.0.1:54584",
+          "connectedAt": 1790959289.1078472,
+          "disconnectedAt": 1790959294.3474126,
+          "commands": 1
+        },
+        {
+          "role": "controller",
+          "clientId": "ctl-setup",
+          "peer": "127.0.0.1:54587",
+          "connectedAt": 1790959289.1952932,
+          "disconnectedAt": 1790959292.967118,
+          "commands": 5
+        },
+        {
+          "role": "controller",
+          "clientId": "ctl-reconnect",
+          "peer": "127.0.0.1:54606",
+          "connectedAt": 1790959294.2851758,
+          "disconnectedAt": 1790959294.3387501,
+          "commands": 3
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "killed": [],
+    "survivors": []
+  },
+  "endedAt": 1790959295.4344692,
+  "passed": true,
+  "knownProcesses": {
+    "supervisor": {
+      "pid": 13892,
+      "createTimeFiletime": 134354328887634802,
+      "createTime": 1790959288.7634792,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "runner": {
+      "pid": 2808,
+      "createTimeFiletime": 134354328888488958,
+      "createTime": 1790959288.848896,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "pty_root": {
+      "pid": 35460,
+      "createTimeFiletime": 134354328890792320,
+      "createTime": 1790959289.0792313,
+      "image": null
+    },
+    "tick": {
+      "pid": 11796,
+      "createTimeFiletime": 134354328921653419,
+      "createTime": 1790959292.1653423,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    }
+  },
+  "trees": {
+    "running": {
+      "2808": {
+        "pid": 2808,
+        "createTimeFiletime": 134354328888488958,
+        "createTime": 1790959288.848896,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "46084": {
+        "pid": 46084,
+        "createTimeFiletime": 134354328889453349,
+        "createTime": 1790959288.9453335,
+        "image": "C:\\Windows\\System32\\conhost.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "4396": {
+        "pid": 4396,
+        "createTimeFiletime": 134354328890626154,
+        "createTime": 1790959289.0626163,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Lib\\site-packages\\winpty\\OpenConsole.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "35460": {
+        "pid": 35460,
+        "createTimeFiletime": 134354328890792320,
+        "createTime": 1790959289.0792313,
+        "image": "C:\\Windows\\System32\\cmd.exe",
+        "exitCode": 259,
+        "running": true
+      },
+      "11796": {
+        "pid": 11796,
+        "createTimeFiletime": 134354328921653419,
+        "createTime": 1790959292.1653423,
+        "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "exitCode": 259,
+        "running": true
+      }
+    }
+  },
+  "notes": {
+    "supervisorReadyAfterSeconds": 0.352,
+    "controllers": {
+      "setup": {
+        "ok": true,
+        "pid": 13536,
+        "error": null,
+        "returncode": 0
+      },
+      "reconnect": {
+        "ok": true,
+        "pid": 45700,
+        "error": null,
+        "returncode": 0
+      }
+    }
+  },
+  "failedChecks": []
+}

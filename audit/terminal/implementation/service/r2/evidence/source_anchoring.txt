@@ -1,0 +1,19 @@
+# r2 source anchoring -- LF-normalized blob sha256 (F11: 64-hex, git blob口径)
+packages/core/terminal/service.py
+  worktree_crlf_sha256=8fb65a86f0d13d95cd52912c75bb69a55f69df9899ade3aadb273d94760e3467 len=104125
+  lf_normalized_sha256 =8fb65a86f0d13d95cd52912c75bb69a55f69df9899ade3aadb273d94760e3467 len=104125 hexlen=64
+tests/test_terminal_service_rework.py
+  worktree_crlf_sha256=bdd099f19fd4afee0208678f3bd8f404c8d7c8a204fdf7d216d93894d009ea3e len=49968
+  lf_normalized_sha256 =bdd099f19fd4afee0208678f3bd8f404c8d7c8a204fdf7d216d93894d009ea3e len=49968 hexlen=64
+docs/design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md
+  worktree_crlf_sha256=8d3cb4fbf6bb8829cae9a617d2e66595eb7a2d6d5ac47ac799afba60832715c1 len=22287
+  lf_normalized_sha256 =8d3cb4fbf6bb8829cae9a617d2e66595eb7a2d6d5ac47ac799afba60832715c1 len=22287 hexlen=64
+packages/core/terminal/launcher.py
+  worktree_crlf_sha256=0223bb7bc0d6a884a304b97291c8e5140fb276a4b8f3fb51aca35293af30ebfc len=33087
+  lf_normalized_sha256 =4ab84a80af8886fd0a6555c14a042aabb0ccf099b236ba6dc82b299812b54647 len=32330 hexlen=64
+tests/test_terminal_service.py
+  worktree_crlf_sha256=aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f len=60706
+  lf_normalized_sha256 =aea9065c388b5f26d344763078a679f0dca92fec4c6e319218b8df9c605c960f len=60706 hexlen=64
+tests/test_terminal_launcher.py
+  worktree_crlf_sha256=c8f0b43930d9d199388a2bb67b0e1565e3107f4f609217f7a09278e92472e0f8 len=85133
+  lf_normalized_sha256 =ce8b9fab61dd45c3a5ea88a41c142b8a26f6526b48bf8b8a74eec6091016d4cb len=83273 hexlen=64

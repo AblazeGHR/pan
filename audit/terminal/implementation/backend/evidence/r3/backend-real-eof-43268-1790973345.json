@@ -1,0 +1,4 @@
+{
+  "test": "real_eof_only_after_peer_close",
+  "eof_error": true
+}

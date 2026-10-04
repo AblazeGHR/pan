@@ -1,0 +1,41 @@
+{
+  "stream_bytes": 307800,
+  "feed_ops": 2280,
+  "chunk_bytes": 135,
+  "submit_seconds": 0.0,
+  "backlog_at_submit": {
+    "applied_cursor": 0,
+    "backlog_bytes": 307800,
+    "backlog_ops_est": 2280,
+    "queue_ops": 2280,
+    "queue_bytes": 307800
+  },
+  "backlog_barrier": {
+    "timeout_sec": 0.5,
+    "elapsed_sec": 0.078,
+    "fidelity": "full",
+    "recovery": "full"
+  },
+  "drain_seconds": 0.015,
+  "total_feed_and_drain_seconds": 0.015,
+  "ops_per_second": 152000.0,
+  "kb_per_second": 20039.06,
+  "applied_final": 307800,
+  "applied_equals_total": true,
+  "fidelity_final": "full",
+  "recovery_final": "full",
+  "counters": {
+    "feed_ops": 2280,
+    "feed_batches": 5,
+    "feed_batched_ops": 2280,
+    "max_feed_batch_bytes": 65475
+  },
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel(R) Core(TM) i9-14900HX",
+    "python": "3.12.12",
+    "python_binary": "E:\\software\\miniforge\\python.exe",
+    "node": "D:\\software\\nodeJs\\node.EXE"
+  }
+}
+{"close": {"closed": true, "graceful": true, "forced": true, "process_exited": true, "guard_closed": true, "reader_joined": true, "stderr_joined": true, "applier_joined": true, "streams_closed": true, "job_verified": true, "detail": "ok", "seconds": 0.0}}

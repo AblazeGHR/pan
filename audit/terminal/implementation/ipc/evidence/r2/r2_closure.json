@@ -1,0 +1,168 @@
+{
+  "note": "独立复核 7 Blocking + 5 Findings/报告项（F1–F12）逐项闭环；每项给修复点与回归用例。原 21 负例（断言缺陷存在）已转换为安全正向期望的正式回归（tests/test_terminal_*.py 的 test_f*）。",
+  "reachability_layering": "本层是库：F1 的直调缺口属本进程公开接口契约问题（非远程可达）、serve() 认证前外部不可达；认证后 terminal_id 绑定缺失的跨终端影响取决于尚未实现的 P2 handler。其余 F2–F12 均为本层公开接口/生命周期缺陷，同样不声称远程可利用性。复核树校准提交 3d046cfa03f3a509ddd14b93cf630505785303f7（仅 docs）。",
+  "items": [
+    {
+      "id": "F1",
+      "severity": "Blocking",
+      "fix": "run_handler 首行 _require_authenticated + validate_message + 类型必须 request + terminal_id 必须等于会话绑定（不匹配 → error: terminal-mismatch），全部路径零 handler 调用",
+      "code": "packages/core/terminal/ipc.py: IpcSession.run_handler / serve / TerminalMismatchError / IpcDiagnostics.rejected_terminal_mismatch",
+      "reachability": "直调 run_handler = **本进程公开接口契约缺口**（调用者已在本进程内执行代码），不是远程/认证绕过；serve() 是唯一外部（管道）路径且先 handshake，认证前不可达。认证后业务帧 terminal_id 未与会话绑定才是**真实缺口**（持 token 对端可携带任意 id），其跨终端影响取决于尚未实现的 P2 handler 是否信任该字段（P1 无 handler 实现）——本层按统一 fail-closed 门 + 严格绑定修复，不夸大当前可利用性。",
+      "calibration": "复核树 r1 校准提交 3d046cfa03f3a509ddd14b93cf630505785303f7（仅 docs）",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f1_run_handler_requires_authentication_and_never_invokes_handler",
+        "tests/test_terminal_runner_ipc.py::test_f1_auth_failure_blocks_run_handler_too",
+        "tests/test_terminal_runner_ipc.py::test_f1_run_handler_binds_request_terminal_id_to_session",
+        "tests/test_terminal_runner_ipc.py::test_f1_serve_rejects_foreign_terminal_id_and_connection_stays_usable",
+        "tests/test_terminal_runner_ipc.py::test_f1_run_handler_rejects_invalid_schema_and_non_request_types"
+      ],
+      "pre_fix": "5/5 FAILED（run_handler 未认证即执行、跨 terminal_id 直接分发）"
+    },
+    {
+      "id": "F2",
+      "severity": "Blocking",
+      "fix": "per-request 响应槽（_ResponseSlot）+ request_id 分派 + 读者仲裁（同一时刻仅一个原始读）+ wait_response(request_id)；call 只返回自己的响应，迟到/未知一律丢弃",
+      "code": "packages/core/terminal/ipc.py: IpcSession._deliver/_read_frame/wait_response/call/recv_message",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f2_call_returns_only_its_own_response_and_other_response_is_kept",
+        "tests/test_terminal_runner_ipc.py::test_f2_two_concurrent_calls_do_not_cross_deliver",
+        "tests/test_terminal_runner_ipc.py::test_f2_recv_message_does_not_steal_pending_call_responses"
+      ],
+      "pre_fix": "2/2 FAILED（call 被别的请求的响应满足、并发 cross-delivery）"
+    },
+    {
+      "id": "F3",
+      "severity": "Finding",
+      "fix": "CloseHandle 返回值全程检查：connection/server/event/op 四个阶段失败都 → CloseReport(converged=False, closed=False) 并保留资源可重试；Disconnect/Cancel/Reset 语义区分",
+      "code": "packages/core/terminal/win_pipe.py: _close_handle/_OverlappedOp.release/_release_op/PipeConnection.close/_drop_pending_locked/_finish_accept/_leaked_events/PipeServer.close",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f3_connection_close_reports_closehandle_failure_and_is_retryable",
+        "tests/test_terminal_runner_ipc.py::test_f3_retained_read_op_event_close_failure_is_retryable",
+        "tests/test_terminal_runner_ipc.py::test_f3_server_close_reports_failure_and_converges_after_retry"
+      ],
+      "pre_fix": "3/3 FAILED（CloseHandle 失败仍报 closed=True）"
+    },
+    {
+      "id": "F4",
+      "severity": "Blocking",
+      "fix": "名称所有权 = 本进程持有的**全部实例（含已交给活动连接的）**：_finish_accept 不再递减、连接真正关闭才归还；实例池按 max_active_connections 维持可连接实例（并发连接可达）；全部释放后重新创建仍带 FIRST 占名检测",
+      "code": "packages/core/terminal/win_pipe.py: PipeServer._ensure_capacity_locked/_finish_accept/_forget_connection/accept（WaitForMultipleObjects 多实例等待）",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f4_accept_works_while_an_accepted_connection_is_live",
+        "tests/test_terminal_runner_ipc.py::test_f4_first_instance_flag_only_for_the_first_live_instance",
+        "tests/test_terminal_runner_ipc.py::test_f4_rearm_after_last_instance_prevents_squatting_window"
+      ],
+      "pre_fix": "2/3 FAILED（活动连接存在时 accept 抛 PipeBusyError）"
+    },
+    {
+      "id": "F5",
+      "severity": "Blocking",
+      "fix": "未 issued 的 pending 直接释放（无在飞 I/O，不等待永不置位的事件）；已 issued 先取消再等落地；cancel_accept 重建实例池；close 可幂等重试收敛",
+      "code": "packages/core/terminal/win_pipe.py: PipeServer.close/_drop_pending_locked/cancel_accept",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f5_close_converges_after_cancel_accept_rearms_pending",
+        "tests/test_terminal_runner_ipc.py::test_f5_close_after_accept_timeout_cancels_the_landed_instance"
+      ],
+      "pre_fix": "1/2 FAILED（cancel_accept 后 close 永不收敛）"
+    },
+    {
+      "id": "F6",
+      "severity": "Blocking",
+      "fix": "竞态封闭：准入后再查 closing（不发起）+ 发行后若 closing 立即定向 CancelIoEx；close 每次调用都幂等补发 CancelIoEx；OVERLAPPED/事件保留直到操作真落地",
+      "code": "packages/core/terminal/win_pipe.py: PipeConnection._read_some/close/_release_op/_orphan_ops",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f6_close_race_with_read_issuance_converges_on_retry",
+        "tests/test_terminal_runner_ipc.py::test_f6_every_close_attempt_reissues_cancel"
+      ],
+      "pre_fix": "2/2 FAILED（竞态窗口内发起的读永不可取消、close 只在首次取消）"
+    },
+    {
+      "id": "F7",
+      "severity": "Blocking",
+      "fix": "dacl_entries 解析 object/callback/callback-object 的 SID（含 GUID 偏移，本机实测 SID 基址=12）；verify_owner_only 严格白名单：仅当前用户 allow 与任意 deny 通过，未知类型/无法归属 SID 的 allow/外部主体 allow 一律 fail-closed",
+      "code": "packages/core/terminal/win_pipe.py: dacl_entries/ALLOW_ACE_TYPES/DENY_ACE_TYPES；packages/core/terminal/secret_store.py: verify_owner_only",
+      "tests": [
+        "tests/test_terminal_secret_store.py::test_f7_object_ace_for_foreign_sid_is_rejected_and_attributed",
+        "tests/test_terminal_secret_store.py::test_f7_object_ace_with_guids_is_still_attributed_and_rejected",
+        "tests/test_terminal_secret_store.py::test_f7_callback_ace_for_foreign_sid_is_rejected",
+        "tests/test_terminal_secret_store.py::test_f7_unknown_and_non_allow_ace_types_are_rejected",
+        "tests/test_terminal_secret_store.py::test_f7_owner_grant_of_same_user_and_deny_aces_are_accepted"
+      ],
+      "pre_fix": "4/5 FAILED（object ACE 外部 SID 不被检出、秘密照常读取）",
+      "notes": "callback ACE 无法用本机 SetNamedSecurityInfoW 装入真实 DACL（ERROR_INVALID_ACL）→ 该分支用注入 dacl_entries 的计划结果验证白名单（用例内已标注注入）；object/未知类型/AUDIT 类型使用真实 DACL。"
+    },
+    {
+      "id": "F8",
+      "severity": "Finding",
+      "fix": "owner 查询失败（None）与查询异常一律 SecretSecurityError（fail-closed）；owner 不等于当前用户同样拒绝",
+      "code": "packages/core/terminal/secret_store.py: verify_owner_only",
+      "tests": [
+        "tests/test_terminal_secret_store.py::test_f8_owner_query_failure_or_foreign_owner_is_rejected"
+      ],
+      "pre_fix": "1/1 FAILED（owner None 被当作通过）"
+    },
+    {
+      "id": "F9",
+      "severity": "Blocking",
+      "fix": "tmp 名 = 唯一随机（secrets.token_hex(8)）+ CREATE_NEW 独占创建（已存在 → FileExistsError 换名重试）；只清理自己创建的 tmp（cleanup_failures 如实记录）；write/update/delete/bootstrap 全部在按秘密路径命名的跨进程内核 mutex 内做 read-modify-write（有界等待）",
+      "code": "packages/core/terminal/win_pipe.py: create_file_exclusive_owner_only/named_mutex；packages/core/terminal/secret_store.py: _secret_lock/_new_tmp_path/_write_blob_atomically/_cleanup_own_tmp/_write_secret_locked/update_runner_identity",
+      "tests": [
+        "tests/test_terminal_secret_store.py::test_f9_tmp_names_are_unique_and_created_exclusively",
+        "tests/test_terminal_secret_store.py::test_f9_concurrent_writers_never_delete_foreign_tmp_or_publish_it",
+        "tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields"
+      ],
+      "pre_fix": "3/3 FAILED（同 pid 同毫秒撞名、可跨写并静默发布对方密文）"
+    },
+    {
+      "id": "F10",
+      "severity": "Finding",
+      "fix": "强制核验入口：read_bootstrap_identity 默认 verify=True、wait_for_bootstrap_identity 必须通过同 handle（GetProcessTimes+WaitForSingleObject）ALIVE + pid/raw FILETIME 精确匹配才返回；探针缺失/UNKNOWN/DEAD/不符 → SecretBootstrapUnverifiedError；verify=False 仅诊断用途",
+      "code": "packages/core/terminal/secret_store.py: verify_bootstrap_record/read_bootstrap_identity/wait_for_bootstrap_identity/SecretBootstrapUnverifiedError",
+      "tests": [
+        "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_rejects_fabricated_identity",
+        "tests/test_terminal_secret_store.py::test_f10_wait_for_bootstrap_verifies_real_identity",
+        "tests/test_terminal_secret_store.py::test_f10_unverifiable_probe_fails_closed"
+      ],
+      "pre_fix": "2/3 FAILED（伪造 FILETIME 被原样返回）"
+    },
+    {
+      "id": "F11",
+      "severity": "报告项/测试",
+      "fix": "跨进程测试改为**子进程自证身份**（report/hello 的 os.getpid + raw FILETIME）再由父进程内核核验；清理分别终止真实 runner 与 launcher（各自同 handle 核验），不按命令行广杀；uv isolated 与原 80 项直连/隔离均绿",
+      "code": "tests/test_terminal_runner_ipc.py: ChildHandle/_spawn_sleeper/_cleanup_sleeper；tests/test_terminal_secret_store.py: bootstrap 链用例",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f11_child_self_attested_identity_is_kernel_verified",
+        "tests/test_terminal_runner_ipc.py::test_f11_cleanup_does_not_kill_unrelated_processes_with_similar_command_line"
+      ],
+      "pre_fix": "uv 隔离下 9/80 FAILED（Popen.pid ≠ 真实 runner pid）→ 修复后 uv 114/114、原 80/80 均绿"
+    },
+    {
+      "id": "F12",
+      "severity": "Finding",
+      "fix": "scheduler.claim 返回 ClaimedRequest（携带**入队固化**期限）；run_handler 对 ClaimedRequest 只认固化期限（不重算放宽）；线上帧禁止下划线私有字段（不得被客户端伪造）",
+      "code": "packages/core/terminal/ipc.py: ClaimedRequest/RequestScheduler.claim/IpcSession.run_handler/_reject_reserved_fields",
+      "tests": [
+        "tests/test_terminal_runner_ipc.py::test_f12_frozen_scheduler_deadline_is_not_widened_at_dispatch",
+        "tests/test_terminal_runner_ipc.py::test_f12_claim_carries_frozen_deadline_and_private_fields_cannot_be_forged"
+      ],
+      "pre_fix": "2/2 FAILED（claim→handler 之间期限被放宽、handler 仍执行）"
+    }
+  ],
+  "observations_documented_not_defects": [
+    "业务帧重复 request_id 会被执行两次（无 nonce/去重）：连接完整性由内核管道保证、对端即调用方；已写入接口文档 §4（超时 mutating 禁止静默重试之外，重放会重复执行）。",
+    "serve() 内联 handler 无执行时长上界：期限只在分发前复核；这是“内联=天然背压”的权衡，已在接口文档标注。"
+  ],
+  "capability_changes": {
+    "reduced": [],
+    "added_or_strengthened": [
+      "run_handler 认证/schema/类型/terminal 绑定（原先只有 serve 路径认证）",
+      "per-request 响应分派与并发 call/send/recv 纪律（原为文档禁止并发）",
+      "并发连接有界能力真正可达（实例池；原先活动连接时 accept 抛错）",
+      "close 语义如实反映 CloseHandle 结果并全部可重试收敛",
+      "ACL 复核严格白名单（object/callback/未知类型 fail-closed）",
+      "秘密写：唯一 CREATE_NEW tmp + 跨进程锁 read-modify-write",
+      "bootstrap 身份强制核验入口（默认 verify=True）",
+      "scheduler 固化期限不可被 claim→handler 放宽、私有字段不可被伪造"
+    ]
+  }
+}

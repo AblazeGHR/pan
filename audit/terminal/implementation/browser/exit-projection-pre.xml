@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="6" time="0.376" timestamp="2026-10-04T19:45:32.730767+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown[7-False-True-expected0]" time="0.007"><failure message="KeyError: 'exit_code'">code = 7, complete = False, seen = True
+expected = {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}
+
+    @pytest.mark.parametrize('code,complete,seen,expected', [
+        (7, False, True, {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}),
+        (4294967295, True, True, {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}),
+        (True, 'true', 'true', {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (-1, None, None, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (4294967296, 1, 1, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+    ])
+    def test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown(code, complete, seen, expected):
+        result = project_read({'terminal_id': 'term_exit', 'status': 'exited', 'data': b'',
+                               'exit_code': code, 'output_complete': complete,
+                               'process_exit_seen': seen, 'reader_done': True,
+                               'token': 'MUST_NOT_BE_EXPORTED', 'pipe': 'private'})
+        for key, value in expected.items():
+&gt;           assert result[key] == value and type(result[key]) is type(value)
+                   ^^^^^^^^^^^
+E           KeyError: 'exit_code'
+
+tests\test_terminal_exit_projection_ma.py:20: KeyError</failure></testcase><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown[4294967295-True-True-expected1]" time="0.003"><failure message="KeyError: 'exit_code'">code = 4294967295, complete = True, seen = True
+expected = {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}
+
+    @pytest.mark.parametrize('code,complete,seen,expected', [
+        (7, False, True, {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}),
+        (4294967295, True, True, {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}),
+        (True, 'true', 'true', {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (-1, None, None, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (4294967296, 1, 1, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+    ])
+    def test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown(code, complete, seen, expected):
+        result = project_read({'terminal_id': 'term_exit', 'status': 'exited', 'data': b'',
+                               'exit_code': code, 'output_complete': complete,
+                               'process_exit_seen': seen, 'reader_done': True,
+                               'token': 'MUST_NOT_BE_EXPORTED', 'pipe': 'private'})
+        for key, value in expected.items():
+&gt;           assert result[key] == value and type(result[key]) is type(value)
+                   ^^^^^^^^^^^
+E           KeyError: 'exit_code'
+
+tests\test_terminal_exit_projection_ma.py:20: KeyError</failure></testcase><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown[True-true-true-expected2]" time="0.002"><failure message="KeyError: 'exit_code'">code = True, complete = 'true', seen = 'true'
+expected = {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}
+
+    @pytest.mark.parametrize('code,complete,seen,expected', [
+        (7, False, True, {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}),
+        (4294967295, True, True, {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}),
+        (True, 'true', 'true', {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (-1, None, None, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (4294967296, 1, 1, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+    ])
+    def test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown(code, complete, seen, expected):
+        result = project_read({'terminal_id': 'term_exit', 'status': 'exited', 'data': b'',
+                               'exit_code': code, 'output_complete': complete,
+                               'process_exit_seen': seen, 'reader_done': True,
+                               'token': 'MUST_NOT_BE_EXPORTED', 'pipe': 'private'})
+        for key, value in expected.items():
+&gt;           assert result[key] == value and type(result[key]) is type(value)
+                   ^^^^^^^^^^^
+E           KeyError: 'exit_code'
+
+tests\test_terminal_exit_projection_ma.py:20: KeyError</failure></testcase><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown[-1-None-None-expected3]" time="0.002"><failure message="KeyError: 'exit_code'">code = -1, complete = None, seen = None
+expected = {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}
+
+    @pytest.mark.parametrize('code,complete,seen,expected', [
+        (7, False, True, {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}),
+        (4294967295, True, True, {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}),
+        (True, 'true', 'true', {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (-1, None, None, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (4294967296, 1, 1, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+    ])
+    def test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown(code, complete, seen, expected):
+        result = project_read({'terminal_id': 'term_exit', 'status': 'exited', 'data': b'',
+                               'exit_code': code, 'output_complete': complete,
+                               'process_exit_seen': seen, 'reader_done': True,
+                               'token': 'MUST_NOT_BE_EXPORTED', 'pipe': 'private'})
+        for key, value in expected.items():
+&gt;           assert result[key] == value and type(result[key]) is type(value)
+                   ^^^^^^^^^^^
+E           KeyError: 'exit_code'
+
+tests\test_terminal_exit_projection_ma.py:20: KeyError</failure></testcase><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown[4294967296-1-1-expected4]" time="0.002"><failure message="KeyError: 'exit_code'">code = 4294967296, complete = 1, seen = 1
+expected = {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}
+
+    @pytest.mark.parametrize('code,complete,seen,expected', [
+        (7, False, True, {'exit_code': 7, 'output_complete': False, 'process_exit_seen': True}),
+        (4294967295, True, True, {'exit_code': 4294967295, 'output_complete': True, 'process_exit_seen': True}),
+        (True, 'true', 'true', {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (-1, None, None, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+        (4294967296, 1, 1, {'exit_code': None, 'output_complete': None, 'process_exit_seen': None}),
+    ])
+    def test_read_exit_facts_are_public_typed_and_do_not_upgrade_unknown(code, complete, seen, expected):
+        result = project_read({'terminal_id': 'term_exit', 'status': 'exited', 'data': b'',
+                               'exit_code': code, 'output_complete': complete,
+                               'process_exit_seen': seen, 'reader_done': True,
+                               'token': 'MUST_NOT_BE_EXPORTED', 'pipe': 'private'})
+        for key, value in expected.items():
+&gt;           assert result[key] == value and type(result[key]) is type(value)
+                   ^^^^^^^^^^^
+E           KeyError: 'exit_code'
+
+tests\test_terminal_exit_projection_ma.py:20: KeyError</failure></testcase><testcase classname="tests.test_terminal_exit_projection_ma" name="test_read_without_exit_evidence_does_not_invent_metadata" time="0.002" /></testsuite></testsuites>

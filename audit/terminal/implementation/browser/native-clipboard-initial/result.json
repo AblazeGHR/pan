@@ -1,0 +1,37 @@
+{
+  "realConPTY": true,
+  "browser": "chromium",
+  "passed": false,
+  "errors": [],
+  "native": {
+    "keys": [
+      224,
+      75,
+      9,
+      20013,
+      25991,
+      13
+    ],
+    "initial_size": [
+      137,
+      46
+    ],
+    "final_size": [
+      91,
+      30
+    ]
+  },
+  "nativeConsoleKeyboardVerified": true,
+  "alternateScreenAndReturnVerified": true,
+  "resizeReachedNativeConsole": true,
+  "realLessExitedToSameShell": true,
+  "realLessNavigationVerified": true,
+  "paste": {
+    "received": "\u0016",
+    "completed": false
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '\\x16'\n- '\\x1B[200~PASTE_中文\\x1B[201~'\n      ^\n",
+  "failureStack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '\\x16'\n- '\\x1B[200~PASTE_中文\\x1B[201~'\n      ^\n\n    at file:///D:/project/pan-worktrees/terminal-mcp-ma-20261004/audit/terminal/implementation/browser/native-tui.mjs:119:10",
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:62575', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:62575', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

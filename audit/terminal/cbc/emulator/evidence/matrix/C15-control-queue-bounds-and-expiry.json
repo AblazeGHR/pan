@@ -1,0 +1,90 @@
+{
+  "id": "C15-control-queue-bounds-and-expiry",
+  "title": "D5：控制 op 有界 / 过期 mutation 不执行 / op 异常恢复 / 诊断有界",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "resize ops are rejected explicitly when the op budget is full",
+      "ok": true,
+      "detail": {
+        "rejected": 136
+      }
+    },
+    {
+      "name": "snapshot degrades after control-queue overflow",
+      "ok": true,
+      "detail": [
+        "FEED_LAG_QUEUE_OVERFLOW",
+        "CONTROL_QUEUE_OVERFLOW"
+      ]
+    },
+    {
+      "name": "expired reset reported as timeout",
+      "ok": true
+    },
+    {
+      "name": "expired reset did NOT execute later",
+      "ok": true,
+      "detail": {
+        "resetsAfterExpiry": 0
+      }
+    },
+    {
+      "name": "a fresh explicit reset still works",
+      "ok": true
+    },
+    {
+      "name": "injected op error is recorded and the loop keeps working",
+      "ok": true
+    },
+    {
+      "name": "lag diagnostics are bounded",
+      "ok": true,
+      "detail": {
+        "kept": 4,
+        "dropped": 44
+      }
+    }
+  ],
+  "details": {
+    "controlRejects": 136,
+    "snapshotAfterOverflow": {
+      "fidelity": "partial",
+      "reasons": [
+        "FEED_LAG_QUEUE_OVERFLOW",
+        "CONTROL_QUEUE_OVERFLOW"
+      ]
+    },
+    "expired": {
+      "ok": false,
+      "timeout": true,
+      "request": "reset-baseline"
+    },
+    "resetsAfterExpiry": 0,
+    "opErrors": [
+      {
+        "seq": 1,
+        "type": "throw",
+        "error": "injected op error (test)"
+      }
+    ],
+    "lagEvents": {
+      "kept": 4,
+      "dropped": 44
+    },
+    "counters": {
+      "feed": 0,
+      "resize": 64,
+      "snapshot": 1,
+      "barrier": 0,
+      "reset": 0,
+      "stall": 1,
+      "throw": 0,
+      "rejected_feed": 0,
+      "rejected_control": 136,
+      "expired_skipped": 0
+    }
+  },
+  "ms": 847,
+  "failed_expectations": []
+}

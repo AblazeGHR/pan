@@ -1,0 +1,10 @@
+{
+  "converged_case_exit": 0,
+  "unproven_case_exit": 6,
+  "events": [
+    [
+      "status-write-failed",
+      "FileExistsError"
+    ]
+  ]
+}

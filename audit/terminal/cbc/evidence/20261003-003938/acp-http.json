@@ -1,0 +1,46 @@
+{
+  "mode": "acp-http",
+  "run_id": "20261003-003938",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acphttp-u5u_jdz6",
+  "port": 64604,
+  "pid": 46420,
+  "create_time": 1790959178.3289523,
+  "health": {
+    "status": 200,
+    "body": "{\"data\":{\"status\":\"ok\",\"uptime\":2.0994234,\"platforms\":[\"generic\",\"wecom\",\"wechat-kf\"],\"pid\":46420}}"
+  },
+  "web_ui_served": 200,
+  "acp_connect": {
+    "status": 200,
+    "note": "initial run redacted: sessionToken value removed"
+  },
+  "connection_id_present": false,
+  "alive_at_end": true,
+  "cleanup": {
+    "label": "acp-http",
+    "pid": 46420,
+    "before": {
+      "pid": 46420,
+      "create_time": 1790959178.3289523,
+      "name": "node.exe",
+      "cmdline": [
+        "node",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "--serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "64604",
+        "--auth",
+        "none"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-acphttp-u5u_jdz6\\ws",
+      "alive": true
+    },
+    "taskkill_rc": 0,
+    "taskkill_out": "�ɹ�: ����ֹ PID 46420 (���� PID 42028 �ӽ���)�Ľ��̡�\n",
+    "gone": true
+  },
+  "port_free_after": true,
+  "stderr_tail": ""
+}

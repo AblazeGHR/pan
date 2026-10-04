@@ -1,0 +1,14 @@
+{
+  "finalize_seconds": 0.609,
+  "budget": 0.6,
+  "exit_code": 3,
+  "finalize_report": {
+    "outcome": "lock-busy",
+    "remaining_seconds": -0.009,
+    "close_worker": {
+      "present": false
+    }
+  },
+  "retry_status": "exited",
+  "owner_kept": true
+}

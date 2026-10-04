@@ -1,0 +1,109 @@
+{
+  "generated_at": "2026-10-03T07:00:21+0800",
+  "node_processes": [
+    {
+      "ProcessId": 36076,
+      "ParentProcessId": 35944,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\src\\supervisor.mjs"
+    },
+    {
+      "ProcessId": 36124,
+      "ParentProcessId": 36076,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\src\\gateway.mjs"
+    },
+    {
+      "ProcessId": 36340,
+      "ParentProcessId": 36124,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\project\\GPTbridge\\MakeChatAgentLike\\node_modules\\@modelcontextprotocol\\server-filesystem\\dist\\index.js C:\\ D:\\ E:\\"
+    },
+    {
+      "ProcessId": 48284,
+      "ParentProcessId": 37080,
+      "CommandLine": "D:/project/SnowLuma/node.exe D:/project/SnowLuma/index.mjs"
+    },
+    {
+      "ProcessId": 43364,
+      "ParentProcessId": 25196,
+      "CommandLine": "D:\\software\\nodeJs\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js -c model=\\\"gpt-6.1-sol\\\" -c model_reasoning_effort=\\\"medium\\\" -c mcp_servers.pan.command=\\\"D:\\\\project\\\\Pan\\\\.venv\\\\Scripts\\\\python.exe\\\" -c \"mcp_servers.pan.args=[\\\"-m\\\", \\\"packages.mcp.server\\\"]\" -c mcp_servers.pan.cwd=\\\"D:\\\\project\\\\Pan\\\" -c mcp_servers.pan.env.PYTHONPATH=\\\"D:\\\\project\\\\Pan\\\" -c mcp_servers.pan.env.PAN_API_URL=\\\"http://127.0.0.1:8768\\\" -c mcp_servers.pan.env.PAN_PYTHON=\\\"D:\\\\project\\\\Pan\\\\.venv\\\\Scripts\\\\python.exe\\\" -c mcp_servers.pan.env.PAN_AGENT_SESSION_ID=\\\"ses_be105a81379e8cb1\\\" -c mcp_servers.pan.env.PAN_AGENT_SESSION_TITLE=\\\"关于终端的设计。\\\" app-server --stdio"
+    },
+    {
+      "ProcessId": 42676,
+      "ParentProcessId": 43068,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" -y chrome-devtools-mcp@1.10.1 --browser-url=http://127.0.0.1:9222 --no-usage-statistics --no-performance-crux"
+    },
+    {
+      "ProcessId": 47384,
+      "ParentProcessId": 45684,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\ba38acecdf97096f\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --browser-url=http://127.0.0.1:9222 --no-usage-statistics --no-performance-crux"
+    },
+    {
+      "ProcessId": 14516,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --resume 01a0fea7-3415-71e3-985d-623f6588004e --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_9c2308cbb440377a.mcp.json"
+    },
+    {
+      "ProcessId": 30988,
+      "ParentProcessId": 32328,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 13284,
+      "ParentProcessId": 28352,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 46844,
+      "ParentProcessId": 30980,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 40672,
+      "ParentProcessId": 48468,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 15780,
+      "ParentProcessId": 46844,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=46844 --app-version=1.10.1 --os-type=1"
+    },
+    {
+      "ProcessId": 34416,
+      "ParentProcessId": 37080,
+      "CommandLine": "node D:\\node_npm\\node_global\\node_modules\\@tencent-ai/codebuddy-code\\bin\\codebuddy -p --output-format stream-json --input-format stream-json -y --model deepseek-v4.1-flash --permission-mode bypassPermissions --effort max --resume 01a0fe76-251d-7730-9222-d2a4b01982e9 --mcp-config D:\\project\\Pan\\data\\mcp-configs\\ses_686e7b0cfaa3b86f.mcp.json"
+    },
+    {
+      "ProcessId": 43212,
+      "ParentProcessId": 33704,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"chrome-devtools-mcp@latest\" \"--autoConnect\""
+    },
+    {
+      "ProcessId": 9416,
+      "ParentProcessId": 33540,
+      "CommandLine": "\"D:\\software\\nodeJs\\\\node.exe\"  \"D:\\software\\nodeJs\\\\node_modules\\npm\\bin\\npx-cli.js\" \"-y\" \"@playwright/mcp@latest\""
+    },
+    {
+      "ProcessId": 50136,
+      "ParentProcessId": 43688,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\.bin\\\\..\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js\" --autoConnect"
+    },
+    {
+      "ProcessId": 42596,
+      "ParentProcessId": 38512,
+      "CommandLine": "\"node\"   \"D:\\node_npm\\node_cache\\_npx\\9833c18b2d85bc59\\node_modules\\.bin\\\\..\\@playwright\\mcp\\cli.js\" "
+    },
+    {
+      "ProcessId": 49924,
+      "ParentProcessId": 50136,
+      "CommandLine": "D:\\software\\nodeJs\\node.exe D:\\node_npm\\node_cache\\_npx\\15c61037b1978c83\\node_modules\\chrome-devtools-mcp\\build\\src\\telemetry\\watchdog\\main.js --parent-pid=50136 --app-version=1.10.1 --os-type=1"
+    }
+  ],
+  "sidecar_like_processes": [],
+  "python_emulator_processes": [],
+  "temp_leftovers": [],
+  "emulator_sidecar_dir_entries": [
+    "packages\\core\\terminal\\emulator_sidecar\\package-lock.json",
+    "packages\\core\\terminal\\emulator_sidecar\\package.json",
+    "packages\\core\\terminal\\emulator_sidecar\\sidecar.mjs"
+  ],
+  "clean": true
+}

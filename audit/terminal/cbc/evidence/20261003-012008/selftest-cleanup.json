@@ -1,0 +1,369 @@
+{
+  "mode": "selftest-cleanup",
+  "run_id": "20261003-012008",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-ha6vzaww",
+  "note": "all processes here are created by this probe; no CBC calls",
+  "identity_comparison": "exact raw FILETIME integer, no tolerance",
+  "T1_wrong_identity": {
+    "stop_result": {
+      "label": "decoy-wrong-raw",
+      "pid": 43316,
+      "basis": "fault test: recorded raw FILETIME + 1",
+      "expected_filetime": 134354352087847884,
+      "terminate_attempted": false,
+      "actual_filetime": 134354352087847883,
+      "handle_pid": 43316,
+      "refused": true,
+      "reason": "identity mismatch: raw creation FILETIME differs from the recorded identity (exact integer compare)"
+    },
+    "alive_after_refusal": true
+  },
+  "T2_correct_identity": {
+    "stop_result": {
+      "label": "decoy-correct-raw",
+      "pid": 43316,
+      "basis": "raw FILETIME recorded at spawn",
+      "expected_filetime": 134354352087847883,
+      "terminate_attempted": true,
+      "actual_filetime": 134354352087847883,
+      "handle_pid": 43316,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    },
+    "gone_after": true
+  },
+  "T3_already_gone": {
+    "label": "short-lived",
+    "pid": 13244,
+    "basis": "already exited naturally",
+    "expected_filetime": 134354352089198312,
+    "terminate_attempted": false,
+    "running": false,
+    "gone": true,
+    "reason": "not running at stop time; no TerminateProcess attempted"
+  },
+  "T4_own_subtree": {
+    "scan": {
+      "owned": [
+        {
+          "pid": 12328,
+          "filetime": 134354352090400546,
+          "create_time": 1790961609.0400546,
+          "name": "PING.EXE",
+          "cmdline": "ping -n 60 127.0.0.1"
+        }
+      ],
+      "skipped": []
+    },
+    "stop": {
+      "label": "selftest-root",
+      "root_pid": 34620,
+      "scan": {
+        "owned": [
+          {
+            "pid": 12328,
+            "filetime": 134354352090400546,
+            "create_time": 1790961609.0400546,
+            "name": "PING.EXE",
+            "cmdline": "ping -n 60 127.0.0.1"
+          }
+        ],
+        "skipped": []
+      },
+      "stopped": [
+        {
+          "label": "selftest-root:child",
+          "pid": 12328,
+          "basis": "descendant of own root + scope marker + raw FILETIME at scan",
+          "expected_filetime": 134354352090400546,
+          "terminate_attempted": true,
+          "actual_filetime": 134354352090400546,
+          "handle_pid": 12328,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        },
+        {
+          "label": "selftest-root",
+          "pid": 34620,
+          "basis": "own root, raw FILETIME recorded at spawn",
+          "expected_filetime": 134354352090017736,
+          "terminate_attempted": false,
+          "running": false,
+          "gone": true,
+          "reason": "not running at stop time; no TerminateProcess attempted"
+        }
+      ],
+      "outcomes": {
+        "12328": "gone",
+        "34620": "gone"
+      },
+      "residual_pids": [],
+      "refused_or_unverified": [],
+      "root_gone": true,
+      "all_gone": true
+    },
+    "root_gone": true,
+    "children_gone": [
+      12328
+    ],
+    "all_gone": true,
+    "foreign_still_alive": true
+  },
+  "T5_foreign_not_collected": {
+    "foreign_collected_by_root_scan": false,
+    "stop_result": {
+      "label": "foreign-decoy",
+      "pid": 22672,
+      "basis": "own decoy, separate raw identity",
+      "expected_filetime": 134354352105204253,
+      "terminate_attempted": true,
+      "actual_filetime": 134354352105204253,
+      "handle_pid": 22672,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    },
+    "gone_after": true
+  },
+  "T6_timeout_path": {
+    "timeout_raised": true,
+    "note": "subprocess.run ended its own child through the retained Popen handle",
+    "own_unrelated_decoy_untouched": true,
+    "decoy_cleanup": {
+      "label": "t6-decoy",
+      "pid": 22768,
+      "basis": "own decoy after timeout test",
+      "expected_filetime": 134354352212806343,
+      "terminate_attempted": true,
+      "actual_filetime": 134354352212806343,
+      "handle_pid": 22768,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    }
+  },
+  "T8_self_ancestor_protection": {
+    "self_stop": {
+      "label": "self",
+      "pid": 29764,
+      "basis": "fault test: must refuse self",
+      "expected_filetime": 134354352087069292,
+      "terminate_attempted": false,
+      "refused": true,
+      "reason": "self/ancestor protection: refusing to terminate this probe's own process chain"
+    },
+    "parent_stop": {
+      "label": "parent",
+      "pid": 31252,
+      "basis": "fault test: must refuse ancestor",
+      "expected_filetime": 134354352086928812,
+      "terminate_attempted": false,
+      "refused": true,
+      "reason": "self/ancestor protection: refusing to terminate this probe's own process chain"
+    },
+    "parent_still_alive": true
+  },
+  "T7_leftover_scan_stop": {
+    "scan_found": [
+      {
+        "pid": 44344,
+        "name": "cmd.exe",
+        "create_time": 1790961623.8696446,
+        "filetime": 134354352238696446,
+        "cmdline": "cmd /c echo selftest20261003012008 & ping -n 60 127.0.0.1",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-ha6vzaww\\ws",
+        "created_during_run": true
+      }
+    ],
+    "stop": {
+      "candidates": [
+        {
+          "pid": 44344,
+          "name": "cmd.exe",
+          "create_time": 1790961623.8696446,
+          "filetime": 134354352238696446,
+          "cmdline": "cmd /c echo selftest20261003012008 & ping -n 60 127.0.0.1",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-ha6vzaww\\ws",
+          "created_during_run": true
+        }
+      ],
+      "results": [
+        {
+          "label": "selftest-leftover:44344",
+          "root_pid": 44344,
+          "scan": {
+            "owned": [
+              {
+                "pid": 34592,
+                "filetime": 134354352238871291,
+                "create_time": 1790961623.8871293,
+                "name": "PING.EXE",
+                "cmdline": "ping -n 60 127.0.0.1"
+              }
+            ],
+            "skipped": []
+          },
+          "stopped": [
+            {
+              "label": "selftest-leftover:44344:child",
+              "pid": 34592,
+              "basis": "descendant of own root + scope marker + raw FILETIME at scan",
+              "expected_filetime": 134354352238871291,
+              "terminate_attempted": true,
+              "actual_filetime": 134354352238871291,
+              "handle_pid": 34592,
+              "identity_verified": true,
+              "terminated": true,
+              "exit_code": 1,
+              "handle_signaled": true,
+              "gone": true
+            },
+            {
+              "label": "selftest-leftover:44344",
+              "pid": 44344,
+              "basis": "own root, raw FILETIME recorded at spawn",
+              "expected_filetime": 134354352238696446,
+              "terminate_attempted": false,
+              "running": false,
+              "gone": true,
+              "reason": "not running at stop time; no TerminateProcess attempted"
+            }
+          ],
+          "outcomes": {
+            "34592": "gone",
+            "44344": "gone"
+          },
+          "residual_pids": [],
+          "refused_or_unverified": [],
+          "root_gone": true,
+          "all_gone": true
+        }
+      ],
+      "leftovers": [],
+      "all_gone": true
+    },
+    "alive_after": false
+  },
+  "T9_marker_in_argv": {
+    "child_rc": 0,
+    "child_stdout_tail": "[probe] run_id=20261003-012025 mode=cleanup-leftovers evidence=D:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-012025\n[probe] {\"mode\": \"cleanup-leftovers\"}\nD:\\project\\pan-worktrees\\terminal-cbc-explore-20261003\\audit\\terminal\\cbc\\evidence\\20261003-012025\n",
+    "child_stderr_tail": "",
+    "parent_alive_after": true,
+    "note": "child argv contained the marker; self/ancestor protection must prevent self-kill"
+  },
+  "T10_refused_child_negative": {
+    "injected_overrides": {
+      "33544": 134354352266770499
+    },
+    "stop": {
+      "label": "selftest-refused-child",
+      "root_pid": 12728,
+      "scan": {
+        "owned": [
+          {
+            "pid": 33544,
+            "filetime": 134354352266770498,
+            "create_time": 1790961626.6770499,
+            "name": "PING.EXE",
+            "cmdline": "ping -n 60 127.0.0.1"
+          }
+        ],
+        "skipped": []
+      },
+      "stopped": [
+        {
+          "label": "selftest-refused-child:child",
+          "pid": 33544,
+          "basis": "descendant of own root + scope marker + raw FILETIME at scan",
+          "expected_filetime": 134354352266770499,
+          "terminate_attempted": false,
+          "actual_filetime": 134354352266770498,
+          "handle_pid": 33544,
+          "refused": true,
+          "reason": "identity mismatch: raw creation FILETIME differs from the recorded identity (exact integer compare)"
+        },
+        {
+          "label": "selftest-refused-child",
+          "pid": 12728,
+          "basis": "own root, raw FILETIME recorded at spawn",
+          "expected_filetime": 134354352266604416,
+          "terminate_attempted": true,
+          "actual_filetime": 134354352266604416,
+          "handle_pid": 12728,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        }
+      ],
+      "outcomes": {
+        "33544": "refused",
+        "12728": "gone"
+      },
+      "residual_pids": [
+        33544
+      ],
+      "refused_or_unverified": [
+        {
+          "label": "selftest-refused-child:child",
+          "pid": 33544,
+          "basis": "descendant of own root + scope marker + raw FILETIME at scan",
+          "expected_filetime": 134354352266770499,
+          "terminate_attempted": false,
+          "actual_filetime": 134354352266770498,
+          "handle_pid": 33544,
+          "refused": true,
+          "reason": "identity mismatch: raw creation FILETIME differs from the recorded identity (exact integer compare)"
+        }
+      ],
+      "root_gone": true,
+      "all_gone": false
+    },
+    "all_gone_must_be_false": true,
+    "residual_pids": [
+      33544
+    ],
+    "refused_entries": [
+      33544
+    ],
+    "child_still_alive_after": [
+      33544
+    ],
+    "post_cleanup": [
+      {
+        "label": "t10-cleanup-33544",
+        "pid": 33544,
+        "basis": "true raw identity after negative case",
+        "expected_filetime": 134354352266770498,
+        "terminate_attempted": true,
+        "actual_filetime": 134354352266770498,
+        "handle_pid": 33544,
+        "identity_verified": true,
+        "terminated": true,
+        "exit_code": 1,
+        "handle_signaled": true,
+        "gone": true
+      }
+    ],
+    "residual_gone_after_cleanup": [
+      33544
+    ]
+  },
+  "final_scope_cleanup": {
+    "candidates": [],
+    "results": [],
+    "leftovers": [],
+    "all_gone": true
+  }
+}

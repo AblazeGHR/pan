@@ -1,0 +1,384 @@
+{
+  "scenario": "s9_failclosed_gates",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s9_failclosed_gates-ao3ikb4b",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "injection_note": "wrapper-level simulation via spawn() arguments; not a real OS failure reproduction",
+  "cases": {
+    "membership_query_failure": {
+      "denied": true,
+      "stage": "verify_guard_membership",
+      "detail": {
+        "pid": 1908,
+        "creation_filetime": 134354377202674569,
+        "child_in_guard_job": false,
+        "membership_error": "injected: membership query failure (wrapper-level simulation)",
+        "resumed": false,
+        "injected": true,
+        "note": "membership unproven -> fail-closed, child never resumed",
+        "cleanup": {
+          "pty": {
+            "pty_closed": true
+          },
+          "attr_list": {
+            "attr_list_deleted": true
+          },
+          "pipes_closed": [
+            "_input_write",
+            "_output_read"
+          ],
+          "process_handles_closed": [
+            "_h_process",
+            "_h_thread"
+          ]
+        }
+      },
+      "marker_exists": false,
+      "guard_active_while_owned": 0,
+      "owner_handle_alive": true,
+      "guard_active_after_close": null
+    },
+    "membership_reported_false": {
+      "denied": true,
+      "stage": "verify_guard_membership",
+      "detail": {
+        "pid": 27580,
+        "creation_filetime": 134354377203804114,
+        "child_in_guard_job": false,
+        "membership_error": "injected: membership reported false",
+        "resumed": false,
+        "injected": true,
+        "note": "membership unproven -> fail-closed, child never resumed",
+        "cleanup": {
+          "pty": {
+            "pty_closed": true
+          },
+          "attr_list": {
+            "attr_list_deleted": true
+          },
+          "pipes_closed": [
+            "_input_write",
+            "_output_read"
+          ],
+          "process_handles_closed": [
+            "_h_process",
+            "_h_thread"
+          ]
+        }
+      },
+      "marker_exists": false,
+      "guard_active_while_owned": 0,
+      "owner_handle_alive": true,
+      "guard_active_after_close": null
+    },
+    "resume_previous_count_0": {
+      "denied": true,
+      "stage": "resume_thread",
+      "detail": {
+        "resume_return": 0,
+        "expected_previous_suspend_count": 1,
+        "injected": true,
+        "resumed": false,
+        "note": "unexpected previous suspend count -> fail-closed",
+        "cleanup": {
+          "pty": {
+            "pty_closed": true
+          },
+          "attr_list": {
+            "attr_list_deleted": true
+          },
+          "pipes_closed": [
+            "_input_write",
+            "_output_read"
+          ],
+          "process_handles_closed": [
+            "_h_process",
+            "_h_thread"
+          ]
+        }
+      },
+      "marker_exists": false,
+      "guard_active_while_owned": 0,
+      "owner_handle_alive": true,
+      "guard_active_after_close": null
+    },
+    "resume_previous_count_2": {
+      "denied": true,
+      "stage": "resume_thread",
+      "detail": {
+        "resume_return": 2,
+        "expected_previous_suspend_count": 1,
+        "injected": true,
+        "resumed": false,
+        "note": "unexpected previous suspend count -> fail-closed",
+        "cleanup": {
+          "pty": {
+            "pty_closed": true
+          },
+          "attr_list": {
+            "attr_list_deleted": true
+          },
+          "pipes_closed": [
+            "_input_write",
+            "_output_read"
+          ],
+          "process_handles_closed": [
+            "_h_process",
+            "_h_thread"
+          ]
+        }
+      },
+      "marker_exists": false,
+      "guard_active_while_owned": 0,
+      "owner_handle_alive": true,
+      "guard_active_after_close": null
+    },
+    "resume_returned_wait_failed": {
+      "denied": true,
+      "stage": "resume_thread",
+      "detail": {
+        "last_error": 0,
+        "resume_return": "WAIT_FAILED",
+        "resumed": false,
+        "cleanup": {
+          "pty": {
+            "pty_closed": true
+          },
+          "attr_list": {
+            "attr_list_deleted": true
+          },
+          "pipes_closed": [
+            "_input_write",
+            "_output_read"
+          ],
+          "process_handles_closed": [
+            "_h_process",
+            "_h_thread"
+          ]
+        }
+      },
+      "marker_exists": false,
+      "guard_active_while_owned": 0,
+      "owner_handle_alive": true,
+      "guard_active_after_close": null
+    }
+  },
+  "checks": [
+    {
+      "check": "membership_query_failure_denied_at_expected_stage",
+      "ok": true,
+      "detail": {
+        "got": "verify_guard_membership",
+        "want": "verify_guard_membership"
+      }
+    },
+    {
+      "check": "membership_query_failure_not_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "membership_query_failure_pty_released",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "membership_query_failure_attr_list_released",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "membership_query_failure_child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "membership_query_failure_guard_empty_while_owned",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "membership_query_failure_closed_owner_reports_unknown",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "membership_reported_false_denied_at_expected_stage",
+      "ok": true,
+      "detail": {
+        "got": "verify_guard_membership",
+        "want": "verify_guard_membership"
+      }
+    },
+    {
+      "check": "membership_reported_false_not_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "membership_reported_false_pty_released",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "membership_reported_false_attr_list_released",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "membership_reported_false_child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "membership_reported_false_guard_empty_while_owned",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "membership_reported_false_closed_owner_reports_unknown",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "resume_previous_count_0_denied_at_expected_stage",
+      "ok": true,
+      "detail": {
+        "got": "resume_thread",
+        "want": "resume_thread"
+      }
+    },
+    {
+      "check": "resume_previous_count_0_not_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_previous_count_0_pty_released",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "resume_previous_count_0_attr_list_released",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "resume_previous_count_0_child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_previous_count_0_guard_empty_while_owned",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "resume_previous_count_0_closed_owner_reports_unknown",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "resume_previous_count_2_denied_at_expected_stage",
+      "ok": true,
+      "detail": {
+        "got": "resume_thread",
+        "want": "resume_thread"
+      }
+    },
+    {
+      "check": "resume_previous_count_2_not_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_previous_count_2_pty_released",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "resume_previous_count_2_attr_list_released",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "resume_previous_count_2_child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_previous_count_2_guard_empty_while_owned",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "resume_previous_count_2_closed_owner_reports_unknown",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "resume_returned_wait_failed_denied_at_expected_stage",
+      "ok": true,
+      "detail": {
+        "got": "resume_thread",
+        "want": "resume_thread"
+      }
+    },
+    {
+      "check": "resume_returned_wait_failed_not_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_returned_wait_failed_pty_released",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "resume_returned_wait_failed_attr_list_released",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "resume_returned_wait_failed_child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "resume_returned_wait_failed_guard_empty_while_owned",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "resume_returned_wait_failed_closed_owner_reports_unknown",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 0.56,
+  "log": [],
+  "temp_removed": true
+}

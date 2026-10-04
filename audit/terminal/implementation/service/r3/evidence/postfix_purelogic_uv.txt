@@ -1,0 +1,7 @@
+# r3 POST-FIX: pure-logic targeted, BOTH service suites (uv isolated)
+# cmd: uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout --with pyte==0.8.2 -- python -m pytest tests/test_terminal_service_rework.py tests/test_terminal_service.py -o addopts= -q -p no:cacheprovider --timeout=200 -k 'not real'
+
+........................................................................ [ 93%]
+.....                                                                    [100%]
+77 passed, 6 deselected in 13.26s
+rc=0

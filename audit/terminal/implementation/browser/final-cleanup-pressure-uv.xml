@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="99" time="381.813" timestamp="2026-10-04T13:12:58.989835+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_service" name="test_import_has_no_side_effects_and_construction_creates_nothing" time="0.115" /><testcase classname="tests.test_terminal_service" name="test_capacity_admission_rejects_before_any_state_change" time="0.014" /><testcase classname="tests.test_terminal_service" name="test_concurrent_create_never_exceeds_capacity" time="15.023" /><testcase classname="tests.test_terminal_service" name="test_duplicate_terminal_id_does_not_overwrite_existing" time="5.027" /><testcase classname="tests.test_terminal_service" name="test_create_publishes_running_only_after_gates" time="5.031" /><testcase classname="tests.test_terminal_service" name="test_gates_not_confirmed_keeps_record_and_owner" time="0.023" /><testcase classname="tests.test_terminal_service" name="test_heartbeat_uses_its_own_connection_and_survives_slow_business" time="5.605" /><testcase classname="tests.test_terminal_service" name="test_heartbeat_loss_is_reported_not_hidden" time="5.121" /><testcase classname="tests.test_terminal_service" name="test_revoked_control_lease_writes_nothing" time="5.006" /><testcase classname="tests.test_terminal_service" name="test_observer_lease_cannot_input_or_resize" time="5.023" /><testcase classname="tests.test_terminal_service" name="test_control_holder_changes_and_old_token_stale" time="5.017" /><testcase classname="tests.test_terminal_service" name="test_input_resize_report_pty_and_engine_separately" time="5.003" /><testcase classname="tests.test_terminal_service" name="test_read_gap_is_reported_without_zero_fill_or_cursor_jump" time="5.014" /><testcase classname="tests.test_terminal_service" name="test_snapshot_keeps_f5_bool_or_null_and_never_upgrades" time="5.013" /><testcase classname="tests.test_terminal_service" name="test_snapshot_applied_evicted_gives_hint_without_reset" time="5.013" /><testcase classname="tests.test_terminal_service" name="test_close_requires_all_three_proofs" time="0.026" /><testcase classname="tests.test_terminal_service" name="test_close_uses_exit_mapping_and_records_closing_first" time="0.013" /><testcase classname="tests.test_terminal_service" name="test_close_late_result_is_consumed_without_second_stop" time="0.017" /><testcase classname="tests.test_terminal_service" name="test_secret_deleted_only_after_proof_even_when_record_write_fails" time="0.012" /><testcase classname="tests.test_terminal_service" name="test_secret_delete_failure_is_reported_not_faked" time="0.013" /><testcase classname="tests.test_terminal_service" name="test_detach_refused_has_zero_state_change" time="0.008" /><testcase classname="tests.test_terminal_service" name="test_detach_injected_detached_marks_mechanism" time="0.012" /><testcase classname="tests.test_terminal_service" name="test_reconcile_unknown_identity_zero_termination" time="0.008" /><testcase classname="tests.test_terminal_service" name="test_reconcile_fresh_pid_absence_is_not_dead_evidence" time="0.008" /><testcase classname="tests.test_terminal_service" name="test_reconcile_identity_mismatch_zero_touch" time="0.008" /><testcase classname="tests.test_terminal_service" name="test_reconcile_never_creates_replacement_runner_or_revives_lease" time="5.007" /><testcase classname="tests.test_terminal_service" name="test_reconcile_dead_confirmed_with_matching_identity" time="0.018" /><testcase classname="tests.test_terminal_service" name="test_reconcile_separates_unconfirmed_cleanup" time="0.012" /><testcase classname="tests.test_terminal_service" name="test_shutdown_budget_includes_lock_wait" time="0.625" /><testcase classname="tests.test_terminal_service" name="test_shutdown_keeps_detached_runtime_and_secret" time="0.015" /><testcase classname="tests.test_terminal_service" name="test_shutdown_reports_exited_with_proof" time="0.020" /><testcase classname="tests.test_terminal_service" name="test_public_views_expose_no_pipe_or_secret_material" time="5.011" /><testcase classname="tests.test_terminal_service" name="test_created_by_comes_from_context_not_session_id" time="5.019" /><testcase classname="tests.test_terminal_service" name="test_errors_are_static_reasons_and_type_names_only" time="0.016" /><testcase classname="tests.test_terminal_service" name="test_filetime_exposed_as_decimal_string" time="5.014" /><testcase classname="tests.test_terminal_service" name="test_default_shell_is_cmd_q_d_and_size_defaults" time="5.000" /><testcase classname="tests.test_terminal_service" name="test_launcher_argv_contains_no_token_and_carries_cwd" time="0.007" /><testcase classname="tests.test_terminal_service" name="test_real_service_create_cwd_chinese_input_read_snapshot_and_close" time="64.450" /><testcase classname="tests.test_terminal_service" name="test_real_service_independent_heartbeat_and_same_pid_after_disconnect" time="6.606" /><testcase classname="tests.test_terminal_service" name="test_real_service_detach_refused_zero_state_change" time="4.598" /><testcase classname="tests.test_terminal_service" name="test_real_service_new_instance_reconcile_after_host_crash" time="6.599" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_alive_identity_keeps_secret_and_record" time="5.006" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_unknown_identity_keeps_secret" time="5.017" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_dead_identity_is_the_only_delete_path" time="0.016" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_identity_evidence_requires_pid_and_filetime_match" time="0.003" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_launcher_exit6_engine_unproven_is_not_clean_success" time="0.015" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_never_terminates_unknown_pid" time="5.010" /><testcase classname="tests.test_terminal_service_rework" name="test_f2_stop_returning_closing_can_be_retried_boundedly" time="0.037" /><testcase classname="tests.test_terminal_service_rework" name="test_f2_stop_raising_exception_can_be_retried" time="0.020" /><testcase classname="tests.test_terminal_service_rework" name="test_f2_already_confirmed_success_is_not_resent" time="0.047" /><testcase classname="tests.test_terminal_service_rework" name="test_f2_inflight_stop_is_single_flight" time="0.228" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_persisted_cleanup_failed_gets_bounded_stop_reentry" time="2.059" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_persisted_unattributable_never_touches" time="0.012" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_no_selfspawn_handle_means_no_fabricated_proof" time="0.009" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_does_not_revive_old_managed_by_renewal" time="0.010" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_reconcile_survives_endpoint_refusal_without_termination" time="0.012" /><testcase classname="tests.test_terminal_service_rework" name="test_f4_reconnect_releases_old_client_and_stops_old_heartbeat" time="0.224" /><testcase classname="tests.test_terminal_service_rework" name="test_f5_unconfirmed_terminal_keeps_client_for_retry" time="5.008" /><testcase classname="tests.test_terminal_service_rework" name="test_f5_inflight_close_worker_survives_shutdown_release" time="0.333" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_close_budget_includes_state_lock_wait" time="0.636" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_shutdown_budget_includes_lock_and_reports_honestly" time="0.729" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_zero_budget_is_not_inflated" time="0.015" /><testcase classname="tests.test_terminal_service_rework" name="test_f7_budget_exhausted_records_all_listed_as_unconfirmed" time="0.247" /><testcase classname="tests.test_terminal_service_rework" name="test_f8_close_admission_gate_blocks_input_before_rpc" time="0.016" /><testcase classname="tests.test_terminal_service_rework" name="test_f8_memory_record_synced_after_close" time="0.017" /><testcase classname="tests.test_terminal_service_rework" name="test_f9_create_rejected_after_shutdown" time="20.014" /><testcase classname="tests.test_terminal_service_rework" name="test_f9_create_and_shutdown_linearized" time="35.018" /><testcase classname="tests.test_terminal_service_rework" name="test_f10_close_reason_distinguishes_missing_proof" time="0.031" /><testcase classname="tests.test_terminal_service_rework" name="test_f10_no_free_text_leak_in_close_error" time="0.012" /><testcase classname="tests.test_terminal_service_rework" name="test_f12_heartbeat_progress_uses_bounded_wait" time="5.171" /><testcase classname="tests.test_terminal_service_rework" name="test_real_restart_recovery_converges_via_reconcile" time="6.724" /><testcase classname="tests.test_terminal_service_rework" name="test_real_close_failure_then_retry_converges" time="4.535" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_missing_pid_with_matching_filetime_is_unattributable" time="0.012" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_non_integer_pid_or_filetime_is_static_unknown" time="0.006" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_true_pid_and_filetime_is_positive_control" time="0.008" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_wrong_pid_with_matching_filetime_rejected" time="0.006" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_close_reset_false_keeps_original_stop_result" time="0.027" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_close_two_callers_resend_is_serialized" time="0.217" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_shutdown_admission_lock_wait_is_bounded_and_reported" time="0.117" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_shutdown_budget_zero_is_not_inflated" time="0.010" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_create_after_shutdown_always_rejected_even_racing" time="20.012" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_persisted_stop_endpoint_transient_refusal_recovers" time="2.032" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_persisted_stop_attach_count_and_no_fake_handle" time="2.035" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_shutdown_consumes_late_owned_cleanup_within_same_total_budget" time="0.055" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_shutdown_persistent_unconfirmed_keeps_owner_and_real_budget" time="0.100" /><testcase classname="tests.test_terminal_slow_client_ma" name="test_real_slow_observer_does_not_stall_fast_connection_or_shell" time="22.633"><failure message="AssertionError: {&quot;ok&quot;:false,&quot;error&quot;:{&quot;code&quot;:&quot;cleanup-unconfirmed&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1793/test_real_slow_observer_does_n0')
+
+    def test_real_slow_observer_does_not_stall_fast_connection_or_shell(tmp_path):
+        sidecar = Path(__file__).resolve().parents[1] / "packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless/package.json"
+        if not sidecar.exists():
+            pytest.skip("sidecar dependencies absent")
+    
+        async def scenario():
+            import httpx
+            import uvicorn
+            import websockets
+            from fastapi import FastAPI
+            from packages.core.terminal.service import TerminalService
+            from packages.web import terminal_api, terminal_ws
+    
+            with socket.socket() as reserve:
+                reserve.bind(("127.0.0.1", 0))
+                port = reserve.getsockname()[1]
+            assert port != 8768
+            origin = f"http://127.0.0.1:{port}"
+            service = TerminalService(str(tmp_path / "terminals"), log_stderr=False)
+            runtime = terminal_api.build_runtime(env={}, platform=sys.platform, host="127.0.0.1", port=port,
+                                                 service_factory=lambda: service, shutdown_budget=20)
+    
+            @asynccontextmanager
+            async def lifespan(app):
+                await terminal_api.start_runtime(app, runtime=runtime)
+                try:
+                    async with terminal_ws.websocket_lifespan(app, runtime=runtime):
+                        yield
+                finally:
+                    await terminal_api.stop_runtime(app, runtime=runtime)
+    
+            app = FastAPI(lifespan=lifespan)
+            app.include_router(terminal_api.router)
+            app.include_router(terminal_ws.router)
+            host = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port,
+                                                 log_level="error", timeout_graceful_shutdown=5))
+            task = asyncio.create_task(host.serve())
+            terminal_id = None
+            try:
+                for _ in range(300):
+                    if host.started and runtime.state == "ready":
+                        break
+                    await asyncio.sleep(.1)
+                assert host.started
+                async with httpx.AsyncClient(base_url=origin, headers={"Origin": origin}, timeout=30, trust_env=False) as client:
+                    created = await client.post("/api/terminals", json={"rows": 24, "cols": 120, "cwd": str(tmp_path)})
+                    assert created.status_code == 200, created.text
+                    terminal_id = created.json()["result"]["terminal_id"]
+                    original = service.get(terminal_id)
+                    script, done = tmp_path / "produce.py", tmp_path / "done"
+                    script.write_text("import sys,time\nfrom pathlib import Path\n"
+                                      "for i in range(60000):\n print(f'{i:06d}|'+('x'*80))\n"
+                                      " if i%100==0: sys.stdout.flush(); time.sleep(.01)\n"
+                                      "print('PRESSURE_FINAL_MARKER');sys.stdout.flush()\n"
+                                      "Path(sys.argv[1]).write_text('done')\n", encoding="utf-8")
+                    url = f"ws://127.0.0.1:{port}/ws/terminal/{terminal_id}"
+                    async with websockets.connect(url, origin=origin, max_queue=1) as slow, \
+                               websockets.connect(url, origin=origin) as fast:
+                        assert json.loads(await slow.recv())["type"] == "hello"
+                        assert json.loads(await fast.recv())["type"] == "hello"
+                        # Slow observer deliberately stops consuming here. No fake sender or
+                        # injected transport delay; only its natural receive queue is bounded.
+                        async def command(op, **fields):
+                            await fast.send(json.dumps({"v": 1, "type": "command", "terminal_id": terminal_id,
+                                                        "op": op, **fields}))
+                        await command("claim")
+                        while True:
+                            event = json.loads(await asyncio.wait_for(fast.recv(), 20))
+                            if event["type"] == "claim-result":
+                                generation = event["generation"]
+                                break
+                        invocation = f'"{sys._base_executable}" "{script}" "{done}"\r'
+                        await command("input", generation=generation,
+                                      data_b64=base64.b64encode(invocation.encode()).decode())
+                        deadline = time.monotonic() + 40
+                        bytes_seen, gaps, marker, tail = 0, 0, False, b""
+                        while time.monotonic() &lt; deadline and not marker:
+                            event = json.loads(await asyncio.wait_for(fast.recv(), 10))
+                            if event["type"] == "output":
+                                data = base64.b64decode(event["data_b64"])
+                                bytes_seen += len(data)
+                                tail = (tail + data)[-256:]
+                                marker = b"PRESSURE_FINAL_MARKER" in tail
+                                await command("ack", next_seq=event["next_seq"])
+                            elif event["type"] == "gap":
+                                gaps += 1
+                                await command("snapshot", timeout_ms=2000)
+                            elif event["type"] == "snapshot":
+                                assert event["recovery"] != "full" or event["fidelity"] == "full"
+                                if event.get("cursors_valid") is True and not event.get("applied_evicted"):
+                                    marker = b"PRESSURE_FINAL_MARKER" in base64.b64decode(event["data_b64"])
+                                    await command("resume", cursor=event["cursor"])
+                                else:
+                                    await command("snapshot", timeout_ms=2000)
+                            elif event["type"] == "error":
+                                assert event["code"] == "busy", event
+                        assert marker
+                        for _ in range(100):
+                            if done.exists():
+                                break
+                            await asyncio.sleep(.05)
+                        assert done.read_text() == "done"
+                        assert bytes_seen &gt; 262144, (bytes_seen, gaps)
+                        current = service.get(terminal_id)
+                        assert current["pid"] == original["pid"]
+                        assert current["process_created_at_filetime"] == original["process_created_at_filetime"]
+                        raw = service.read(terminal_id, 0, max_bytes=1)
+                        assert raw["total_bytes"] &gt; 5_000_000 and raw["gap"] is not None
+                        print(json.dumps({"bytes_seen": bytes_seen, "fast_gaps": gaps,
+                                          "total_bytes": raw["total_bytes"], "same_pid": True}))
+                    for _ in range(8):
+                        response = await client.post(f"/api/terminals/{terminal_id}/close", json={})
+                        if response.status_code == 200:
+                            break
+                        await asyncio.sleep(.1)
+                    assert response.status_code == 200, response.text
+                    assert response.json()["result"]["status"] == "exited"
+                    terminal_id = None
+            finally:
+                host.should_exit = True
+                await asyncio.wait_for(task, 30)
+                if terminal_id is not None:
+                    # Service retains the original owner and verifies raw identity;
+                    # never kill a process based on PID/name scanning.
+                    service.shutdown(budget=20)
+    
+&gt;       asyncio.run(scenario())
+
+tests\test_terminal_slow_client_ma.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+        import httpx
+        import uvicorn
+        import websockets
+        from fastapi import FastAPI
+        from packages.core.terminal.service import TerminalService
+        from packages.web import terminal_api, terminal_ws
+    
+        with socket.socket() as reserve:
+            reserve.bind(("127.0.0.1", 0))
+            port = reserve.getsockname()[1]
+        assert port != 8768
+        origin = f"http://127.0.0.1:{port}"
+        service = TerminalService(str(tmp_path / "terminals"), log_stderr=False)
+        runtime = terminal_api.build_runtime(env={}, platform=sys.platform, host="127.0.0.1", port=port,
+                                             service_factory=lambda: service, shutdown_budget=20)
+    
+        @asynccontextmanager
+        async def lifespan(app):
+            await terminal_api.start_runtime(app, runtime=runtime)
+            try:
+                async with terminal_ws.websocket_lifespan(app, runtime=runtime):
+                    yield
+            finally:
+                await terminal_api.stop_runtime(app, runtime=runtime)
+    
+        app = FastAPI(lifespan=lifespan)
+        app.include_router(terminal_api.router)
+        app.include_router(terminal_ws.router)
+        host = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port,
+                                             log_level="error", timeout_graceful_shutdown=5))
+        task = asyncio.create_task(host.serve())
+        terminal_id = None
+        try:
+            for _ in range(300):
+                if host.started and runtime.state == "ready":
+                    break
+                await asyncio.sleep(.1)
+            assert host.started
+            async with httpx.AsyncClient(base_url=origin, headers={"Origin": origin}, timeout=30, trust_env=False) as client:
+                created = await client.post("/api/terminals", json={"rows": 24, "cols": 120, "cwd": str(tmp_path)})
+                assert created.status_code == 200, created.text
+                terminal_id = created.json()["result"]["terminal_id"]
+                original = service.get(terminal_id)
+                script, done = tmp_path / "produce.py", tmp_path / "done"
+                script.write_text("import sys,time\nfrom pathlib import Path\n"
+                                  "for i in range(60000):\n print(f'{i:06d}|'+('x'*80))\n"
+                                  " if i%100==0: sys.stdout.flush(); time.sleep(.01)\n"
+                                  "print('PRESSURE_FINAL_MARKER');sys.stdout.flush()\n"
+                                  "Path(sys.argv[1]).write_text('done')\n", encoding="utf-8")
+                url = f"ws://127.0.0.1:{port}/ws/terminal/{terminal_id}"
+                async with websockets.connect(url, origin=origin, max_queue=1) as slow, \
+                           websockets.connect(url, origin=origin) as fast:
+                    assert json.loads(await slow.recv())["type"] == "hello"
+                    assert json.loads(await fast.recv())["type"] == "hello"
+                    # Slow observer deliberately stops consuming here. No fake sender or
+                    # injected transport delay; only its natural receive queue is bounded.
+                    async def command(op, **fields):
+                        await fast.send(json.dumps({"v": 1, "type": "command", "terminal_id": terminal_id,
+                                                    "op": op, **fields}))
+                    await command("claim")
+                    while True:
+                        event = json.loads(await asyncio.wait_for(fast.recv(), 20))
+                        if event["type"] == "claim-result":
+                            generation = event["generation"]
+                            break
+                    invocation = f'"{sys._base_executable}" "{script}" "{done}"\r'
+                    await command("input", generation=generation,
+                                  data_b64=base64.b64encode(invocation.encode()).decode())
+                    deadline = time.monotonic() + 40
+                    bytes_seen, gaps, marker, tail = 0, 0, False, b""
+                    while time.monotonic() &lt; deadline and not marker:
+                        event = json.loads(await asyncio.wait_for(fast.recv(), 10))
+                        if event["type"] == "output":
+                            data = base64.b64decode(event["data_b64"])
+                            bytes_seen += len(data)
+                            tail = (tail + data)[-256:]
+                            marker = b"PRESSURE_FINAL_MARKER" in tail
+                            await command("ack", next_seq=event["next_seq"])
+                        elif event["type"] == "gap":
+                            gaps += 1
+                            await command("snapshot", timeout_ms=2000)
+                        elif event["type"] == "snapshot":
+                            assert event["recovery"] != "full" or event["fidelity"] == "full"
+                            if event.get("cursors_valid") is True and not event.get("applied_evicted"):
+                                marker = b"PRESSURE_FINAL_MARKER" in base64.b64decode(event["data_b64"])
+                                await command("resume", cursor=event["cursor"])
+                            else:
+                                await command("snapshot", timeout_ms=2000)
+                        elif event["type"] == "error":
+                            assert event["code"] == "busy", event
+                    assert marker
+                    for _ in range(100):
+                        if done.exists():
+                            break
+                        await asyncio.sleep(.05)
+                    assert done.read_text() == "done"
+                    assert bytes_seen &gt; 262144, (bytes_seen, gaps)
+                    current = service.get(terminal_id)
+                    assert current["pid"] == original["pid"]
+                    assert current["process_created_at_filetime"] == original["process_created_at_filetime"]
+                    raw = service.read(terminal_id, 0, max_bytes=1)
+                    assert raw["total_bytes"] &gt; 5_000_000 and raw["gap"] is not None
+                    print(json.dumps({"bytes_seen": bytes_seen, "fast_gaps": gaps,
+                                      "total_bytes": raw["total_bytes"], "same_pid": True}))
+                for _ in range(8):
+                    response = await client.post(f"/api/terminals/{terminal_id}/close", json={})
+                    if response.status_code == 200:
+                        break
+                    await asyncio.sleep(.1)
+&gt;               assert response.status_code == 200, response.text
+E               AssertionError: {"ok":false,"error":{"code":"cleanup-unconfirmed"}}
+E               assert 409 == 200
+E                +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_terminal_slow_client_ma.py:131: AssertionError</failure></testcase><testcase classname="tests.test_terminal_composition" name="test_composition_browserless_feed_eviction_protocol_a_single_consumption" time="5.463" /><testcase classname="tests.test_terminal_composition" name="test_composition_utf8_osc_boundaries_no_fake_full" time="4.423" /><testcase classname="tests.test_terminal_composition" name="test_composition_resize_pty_and_engine_recorded_separately" time="6.484" /><testcase classname="tests.test_terminal_composition" name="test_composition_feed_lag_no_fake_full" time="7.461" /><testcase classname="tests.test_terminal_composition" name="test_composition_reset_unconfirmed_no_fake_full" time="5.426" /><testcase classname="tests.test_terminal_composition" name="test_composition_startup_engine_failure_keeps_owner" time="0.197" /><testcase classname="tests.test_terminal_composition" name="test_composition_pipe_disconnect_and_slow_snapshot_do_not_kill_runtime" time="7.150" /><testcase classname="tests.test_terminal_composition" name="test_composition_write_and_close_workers_do_not_block_loop" time="4.940" /><testcase classname="tests.test_terminal_composition" name="test_composition_clean_stop_leaves_no_sidecar_or_tree_residue" time="4.405" /><testcase classname="tests.test_terminal_composition" name="test_composition_runner_hard_kill_leaves_no_sidecar_or_tree" time="0.404" /><testcase classname="tests.test_terminal_composition" name="test_composition_detach_refused_under_constraint_zero_change" time="4.423" /><testcase classname="tests.test_terminal_composition" name="test_composition_r2_eviction_gap_fresh_view_and_catch_up" time="7.488" /><testcase classname="tests.test_terminal_composition" name="test_composition_r2_engine_close_budget_owner_retryable" time="0.133" /></testsuite></testsuites>

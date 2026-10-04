@@ -1,0 +1,29 @@
+{
+  "value": "[]",
+  "owner_calls": 24,
+  "startup": {
+    "reason_class": "engine-startup-failed",
+    "reason_text_present": true,
+    "owner": "unproven",
+    "attempts": 24,
+    "converged": false,
+    "residual": {
+      "present": true,
+      "reason_class": "engine-startup-failed",
+      "reason_text_present": true,
+      "pid": 5,
+      "identity_filetime": null,
+      "process_exited": null,
+      "job_verified": null,
+      "guard_closed": null,
+      "cleanup_closed": null,
+      "cleanup_seconds": null,
+      "cleanup_error_count": 0,
+      "cleanup_detail_present": false,
+      "stderr_digest_present": false,
+      "keys_dropped": 0
+    },
+    "last_error_type": "owner-not-converged",
+    "seconds": 0.5
+  }
+}

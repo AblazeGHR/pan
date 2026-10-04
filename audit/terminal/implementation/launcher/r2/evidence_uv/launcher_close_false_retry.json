@@ -1,0 +1,15 @@
+{
+  "exit_code": 0,
+  "close_calls": 2,
+  "max_concurrent": 1,
+  "cleanup": {
+    "converged": true,
+    "attempts": 2,
+    "last_error_type": "close-not-converged",
+    "retained": [],
+    "in_flight": false,
+    "seconds": 0.063,
+    "outcome": "closed",
+    "detail": "attempt1:close-not-converged; closed-after-2-attempt(s)"
+  }
+}

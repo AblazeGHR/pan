@@ -1,0 +1,85 @@
+{
+  "task": "T-TERMINAL-PTY-20261003/rest/impl/1",
+  "batch": "P2 REST/lifespan first batch",
+  "worktree": "D:/project/pan-worktrees/terminal-api-implement-20261004",
+  "branch": "implement/terminal-api-20261004",
+  "start_head": "79db1bb99563d78488785d7023be228d20740a22",
+  "production_baseline": "3dafe3f8cbcca9c05979beb831d2c45e6d5c809c",
+  "runs": [
+    {
+      "layer": "direct",
+      "command": "E:/software/miniforge/python.exe -m pytest tests/test_terminal_api.py -o addopts= -q -p no:cacheprovider",
+      "result": "28 passed",
+      "seconds": 7.65,
+      "log": "evidence_direct/pytest.txt"
+    },
+    {
+      "layer": "uv",
+      "command": "uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout -- python -m pytest tests/test_terminal_api.py -o addopts= -q -p no:cacheprovider",
+      "result": "28 passed",
+      "seconds": 9.42,
+      "notes": "uv installed 42 packages into an ephemeral env (no lock changes)",
+      "log": "evidence_uv/pytest.txt"
+    },
+    {
+      "layer": "direct",
+      "suite": "adjacent pure-logic regression (imports packages.web.server)",
+      "command": "E:/software/miniforge/python.exe -m pytest tests/test_addressing_compat.py -o addopts= -q -p no:cacheprovider",
+      "result": "24 passed",
+      "log": "evidence_direct/adjacent-addressing.txt"
+    }
+  ],
+  "blob_anchors": {
+    "packages/web/terminal_api.py": "100d992e7a1e34e697b9223f22763153cbba649e",
+    "packages/web/server.py": "dd2039806482f497ba7719d995ece4809fcb05d8",
+    "tests/test_terminal_api.py": "c121534917b25147aedb5329bcbe8787792b1dae",
+    "docs/design/PAN_TERMINAL_REST_INTERFACES_20261004.md": "66e4b02447572ec020b763f25d9e127bf2fb98b5"
+  },
+  "deterministic_gates": {
+    "rejected_requests_zero_service_calls": "forbidden origin/host/fetch-site/content-type negatives -> service.names() == []",
+    "body_identity_forgery_zero_effect": "extra fields context/created_by/trusted_local/terminal_id/token/shell_argv -> 422 unknown-field; legit create kwargs == {rows,cols,cwd,workspace_id,session_id,context}; context is web-local/trusted_local",
+    "four_slots_bounded": "4 in-flight -> 5th = 429 busy; released after completion",
+    "cancel_keeps_slot_until_thread_completes": "after cancel inflight stays 4; -> 0 only after thread end",
+    "startup_not_fake_ready": "starting -> 503 not-ready; reconcile failure -> 503 terminal-unavailable with service ref kept",
+    "shutdown_unconfirmed_keeps_references": "budget 0.2s vs 1.0s shutdown -> unconfirmed true, retained_service true, late result consumed",
+    "cursor_precision": "float/bool/negative/science/hex/whitespace/fullwidth/overflow uint64 -> 422; '007' -> 7",
+    "snapshot_degrade_no_upgrade": "reasons==[] not upgraded; reset_unconfirmed 'true' -> null; auto_reset_applied false",
+    "snapshot_too_large": "128KiB ok; 128KiB+1 -> 502 snapshot-too-large (no truncation)",
+    "secret_non_leak": "views have no pipe/token/pan-terminal-; exception text not echoed (500 internal-error)",
+    "disabled_no_construction": "non-Windows / non-loopback binding -> 503 terminal-disabled and service == None",
+    "import_no_side_effects": "fresh interpreter: no threads, no PAN_TERMINALS_DIR created"
+  },
+  "real_asgi_chain": {
+    "test": "test_real_isolated_asgi_chain_create_read_snapshot_close",
+    "root": "tmp_path (isolated)",
+    "service": "real TerminalService (ConPTY/Job/DPAPI/named pipe/headless engine)",
+    "transport": "httpx ASGITransport (no listening socket, no 8768, no full Pan lifespan)",
+    "observed": {
+      "create": "200 ok, status=running, pid present, no pipe/secret in body",
+      "read": "200 ok, base64 output non-empty (default shell banner)",
+      "snapshot": "200 ok, 128KiB cap respected, F5 bool-or-null, continuation_hint in allowed set",
+      "close": "200 ok status=exited after proof; secret file deleted",
+      "launcher": "exit code=0 reason=exited engine-cleanup=converged",
+      "residue": "same-handle identity probe: runner not alive; no lingering pan-terminal/sidecar processes"
+    }
+  },
+  "defect_found_and_fixed": {
+    "where": "TerminalRuntime.call",
+    "symptom": "slots leaked on every successful call (try/else + return skips else) -> subsequent requests 429 busy; four-slot test showed inflight==3 after completion",
+    "observed_before_fix": "11 failed, 16 passed (first run of the file)",
+    "fix": "recycle slot explicitly after a successful await; cancel path delegates to task done-callback",
+    "after_fix": "28 passed"
+  },
+  "divergences": [
+    "REST validates rows/cols 1..1000 (per brief) while TerminalService.create guards rows<=500; service 'invalid-size' is mapped to 422 invalid-size (input class), not 502",
+    "snapshot-too-large status code unspecified in brief; chosen 502",
+    "readiness code split into not-ready / terminal-unavailable / terminal-disabled to avoid colliding with create's 502 startup-failed"
+  ],
+  "not_tested": [
+    "WS / MCP / browser input-resize",
+    "full Pan lifespan, provider/account/network services, port 8768",
+    "remote (non-loopback) exposure; PAN_TERMINAL_ALLOW_REMOTE is not authentication",
+    "cross-host/cross-user, POSIX, long-run backpressure, cross-sidecar restart recovery",
+    "cross-process concurrent create on a shared PAN_TERMINALS_DIR"
+  ]
+}

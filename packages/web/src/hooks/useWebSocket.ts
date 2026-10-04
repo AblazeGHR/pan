@@ -825,6 +825,9 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('session.created', () => {
       scheduleRefreshSessions();
     }));
+    unsubscribers.push(wsClient.on('session.rewind.progress', (e: StreamEvent) => {
+      useSessionStore.getState().applyRewindProgress(e);
+    }));
     unsubscribers.push(wsClient.on('session.deleted', () => {
       scheduleRefreshSessions();
     }));

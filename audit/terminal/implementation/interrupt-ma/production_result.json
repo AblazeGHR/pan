@@ -1,0 +1,9 @@
+{
+  "layout": "production-service-launcher-default-shell",
+  "explicit_child_reset": false,
+  "child_pid": 26808,
+  "ctrl_c_delivered": false,
+  "same_runner_identity": true,
+  "cleanup_status": "exited",
+  "secret_removed": true
+}

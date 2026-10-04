@@ -1,0 +1,9 @@
+[gate] evidence -> D:\project\pan-worktrees\terminal-composition-r2-review-20261003\audit\terminal\implementation\composition-review\round2\gates\v2_capacity.json
+{
+  "single_monotonic_reached": true,
+  "faster_than_r3_reference": true,
+  "batching_effective": true,
+  "clean_stream_full": true,
+  "osc_partial_not_upgraded": true,
+  "close_clean": true
+}

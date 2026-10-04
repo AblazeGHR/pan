@@ -1,0 +1,5 @@
+{
+  "terminal_mismatch_rejected": true,
+  "expired_stop_not_executed": true,
+  "runner_state_after": "running"
+}

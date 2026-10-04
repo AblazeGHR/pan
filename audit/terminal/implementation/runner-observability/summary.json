@@ -1,0 +1,52 @@
+{
+  "collected_at": "2026-10-03 08:20:24",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "734ad758262f1133c81d17ba21ae2fe7f0933d81",
+  "pre_fix_evidence": true,
+  "steps": {
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 84.69,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless\nPASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_survives_oversize_and_long_note_reduction"
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 86.19,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless\nPASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_survives_oversize_and_long_note_reduction"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  }
+}

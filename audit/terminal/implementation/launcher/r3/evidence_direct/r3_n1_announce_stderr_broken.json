@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "events": [
+    [
+      "stderr-write-failed",
+      "OSError"
+    ]
+  ]
+}

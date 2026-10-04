@@ -1,0 +1,10 @@
+{
+  "attached": true,
+  "peer_pid": 47368,
+  "heartbeat": "ok",
+  "status": "running",
+  "pid": 46792,
+  "filetime": "134354566285362755",
+  "runner_state": "running",
+  "detached": false
+}

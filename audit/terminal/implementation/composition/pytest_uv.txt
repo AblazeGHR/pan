@@ -1,0 +1,14 @@
+...........                                                              [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/test_terminal_composition.py::test_composition_browserless_feed_eviction_protocol_a_single_consumption
+PASSED tests/test_terminal_composition.py::test_composition_utf8_osc_boundaries_no_fake_full
+PASSED tests/test_terminal_composition.py::test_composition_resize_pty_and_engine_recorded_separately
+PASSED tests/test_terminal_composition.py::test_composition_feed_lag_no_fake_full
+PASSED tests/test_terminal_composition.py::test_composition_reset_unconfirmed_no_fake_full
+PASSED tests/test_terminal_composition.py::test_composition_startup_engine_failure_keeps_owner
+PASSED tests/test_terminal_composition.py::test_composition_pipe_disconnect_and_slow_snapshot_do_not_kill_runtime
+PASSED tests/test_terminal_composition.py::test_composition_write_and_close_workers_do_not_block_loop
+PASSED tests/test_terminal_composition.py::test_composition_clean_stop_leaves_no_sidecar_or_tree_residue
+PASSED tests/test_terminal_composition.py::test_composition_runner_hard_kill_leaves_no_sidecar_or_tree
+PASSED tests/test_terminal_composition.py::test_composition_detach_refused_under_constraint_zero_change

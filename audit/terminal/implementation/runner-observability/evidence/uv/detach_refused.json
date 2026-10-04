@@ -1,0 +1,8 @@
+{
+  "status": "detach-refused",
+  "durability": {
+    "capable": false,
+    "ambient_job": true,
+    "detail": "host ambient Job present: cannot prove runner survives the job's close (KILL_ON_JOB_CLOSE may kill the tree); detach refused (fail-closed)"
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "mode": "selftest-cleanup",
+  "run_id": "20261003-010837",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-dpf4y8tn",
+  "note": "all processes here are created by this probe; no CBC calls",
+  "T1_wrong_identity": {
+    "stop_result": {
+      "label": "decoy-wrong-id",
+      "pid": 30440,
+      "basis": "fault test: deliberately wrong create_time",
+      "expected_create_time": 1790961037.5237832,
+      "actual_create_time": 1790960917.5237827,
+      "handle_pid": 30440,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    },
+    "alive_after_refusal": true
+  },
+  "T2_correct_identity": {
+    "stop_result": {
+      "label": "decoy-correct-id",
+      "pid": 30440,
+      "basis": "identity recorded at spawn",
+      "expected_create_time": 1790960917.5237832,
+      "actual_create_time": 1790960917.5237827,
+      "handle_pid": 30440,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    },
+    "gone_after": true
+  },
+  "T3_already_gone": {
+    "label": "short-lived",
+    "pid": 2384,
+    "basis": "already exited naturally",
+    "expected_create_time": 1790960917.5311527,
+    "gone": true,
+    "terminated": false,
+    "reason": "already gone at stop time"
+  },
+  "T4_own_subtree": {
+    "scan": {
+      "owned": [
+        {
+          "pid": 44444,
+          "create_time": 1790960917.5822933,
+          "name": "PING.EXE",
+          "cmdline": "ping -n 60 127.0.0.1"
+        }
+      ],
+      "skipped": []
+    },
+    "stop": {
+      "label": "selftest-root",
+      "root_pid": 48476,
+      "scan": {
+        "owned": [
+          {
+            "pid": 44444,
+            "create_time": 1790960917.5822933,
+            "name": "PING.EXE",
+            "cmdline": "ping -n 60 127.0.0.1"
+          }
+        ],
+        "skipped": []
+      },
+      "stopped": [
+        {
+          "label": "selftest-root:child",
+          "pid": 44444,
+          "basis": "descendant of own root + scope marker",
+          "expected_create_time": 1790960917.5822933,
+          "actual_create_time": 1790960917.5822926,
+          "handle_pid": 44444,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        },
+        {
+          "label": "selftest-root",
+          "pid": 48476,
+          "basis": "own root, identity recorded at spawn",
+          "expected_create_time": 1790960917.553621,
+          "actual_create_time": 1790960917.5536213,
+          "handle_pid": 48476,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        }
+      ],
+      "all_gone": true
+    },
+    "root_gone": true,
+    "children_gone": [
+      44444
+    ],
+    "foreign_still_alive": true
+  },
+  "T5_foreign_not_collected": {
+    "foreign_collected_by_root_scan": false,
+    "stop_result": {
+      "label": "foreign-decoy",
+      "pid": 48240,
+      "basis": "own decoy, separate identity",
+      "expected_create_time": 1790960919.0666673,
+      "actual_create_time": 1790960919.0666676,
+      "handle_pid": 48240,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    },
+    "gone_after": true
+  },
+  "T6_timeout_path": {
+    "timeout_raised": true,
+    "note": "subprocess.run killed its own child through the retained Popen handle",
+    "own_unrelated_decoy_untouched": true,
+    "decoy_cleanup": {
+      "label": "t6-decoy",
+      "pid": 30332,
+      "basis": "own decoy after timeout test",
+      "expected_create_time": 1790960929.5591464,
+      "actual_create_time": 1790960929.559147,
+      "handle_pid": 30332,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    }
+  },
+  "T7_leftover_scan_stop": {
+    "scan_found": [
+      {
+        "pid": 10840,
+        "name": "cmd.exe",
+        "create_time": 1790960931.5631857,
+        "cmdline": "cmd /c echo selftest20261003010837 & ping -n 60 127.0.0.1",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-dpf4y8tn\\ws",
+        "created_during_run": true
+      }
+    ],
+    "stop": {
+      "candidates": [
+        {
+          "pid": 10840,
+          "name": "cmd.exe",
+          "create_time": 1790960931.5631857,
+          "cmdline": "cmd /c echo selftest20261003010837 & ping -n 60 127.0.0.1",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-dpf4y8tn\\ws",
+          "created_during_run": true
+        }
+      ],
+      "results": [
+        {
+          "label": "selftest-leftover:10840",
+          "root_pid": 10840,
+          "scan": {
+            "owned": [
+              {
+                "pid": 33068,
+                "create_time": 1790960931.5913837,
+                "name": "PING.EXE",
+                "cmdline": "ping -n 60 127.0.0.1"
+              }
+            ],
+            "skipped": []
+          },
+          "stopped": [
+            {
+              "label": "selftest-leftover:10840:child",
+              "pid": 33068,
+              "basis": "descendant of own root + scope marker",
+              "expected_create_time": 1790960931.5913837,
+              "actual_create_time": 1790960931.591383,
+              "handle_pid": 33068,
+              "identity_verified": true,
+              "terminated": true,
+              "exit_code": 1,
+              "handle_signaled": true,
+              "gone": true
+            },
+            {
+              "label": "selftest-leftover:10840",
+              "pid": 10840,
+              "basis": "own root, identity recorded at spawn",
+              "expected_create_time": 1790960931.5631857,
+              "actual_create_time": 1790960931.5631847,
+              "handle_pid": 10840,
+              "identity_verified": true,
+              "terminated": true,
+              "exit_code": 1,
+              "handle_signaled": true,
+              "gone": true
+            }
+          ],
+          "all_gone": true
+        }
+      ],
+      "all_gone": true
+    },
+    "alive_after": false
+  },
+  "final_scope_cleanup": {
+    "candidates": [],
+    "results": [],
+    "all_gone": true
+  }
+}

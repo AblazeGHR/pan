@@ -1,0 +1,79 @@
+{
+  "probe": "kill_identity_probe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "startedAt": 1790960670.1712713,
+  "mechanism": {
+    "openAccess": "PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE (single OpenProcess)",
+    "checks": [
+      "GetProcessTimes FILETIME equality",
+      "GetExitCodeProcess == STILL_ACTIVE"
+    ],
+    "terminate": "TerminateProcess on the same handle",
+    "toctou": "the handle pins one process object, so PID reuse after the open cannot redirect the terminate; a reused PID opened later would present a different FILETIME and be rejected"
+  },
+  "docs": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes"
+  ],
+  "results": [
+    {
+      "name": "K1_wrong_create_time_rejected",
+      "pass": true,
+      "facts": {
+        "pid": 6008,
+        "actualCreateTimeFiletime": 134354342681523932,
+        "requestedCreateTimeFiletime": 134354342681523933,
+        "detail": {
+          "pid": 6008,
+          "requestedCreateTimeFiletime": 134354342681523933,
+          "opened": true,
+          "createTimeFiletime": 134354342681523932,
+          "filetimeMatch": false,
+          "running": false,
+          "terminated": false
+        },
+        "stillRunningAfterRejectedKill": true
+      }
+    },
+    {
+      "name": "K2_exited_handle_held_rejected",
+      "pass": true,
+      "facts": {
+        "pid": 46256,
+        "popenHandleStillOpen": true,
+        "openProcessSucceedsWhileExited": true,
+        "observedExitCode": 0,
+        "processRunning": false,
+        "detail": {
+          "pid": 46256,
+          "requestedCreateTimeFiletime": 134354342684597236,
+          "opened": true,
+          "createTimeFiletime": 134354342684597236,
+          "filetimeMatch": true,
+          "running": false,
+          "terminated": false
+        }
+      }
+    },
+    {
+      "name": "K3_correct_identity_terminated",
+      "pass": true,
+      "facts": {
+        "pid": 46160,
+        "createTimeFiletime": 134354342698644890,
+        "detail": {
+          "pid": 46160,
+          "requestedCreateTimeFiletime": 134354342698644890,
+          "opened": true,
+          "createTimeFiletime": 134354342698644890,
+          "filetimeMatch": true,
+          "running": true,
+          "terminated": true
+        },
+        "deadAfterTerminate": true,
+        "deadAfterSeconds": 0.0
+      }
+    }
+  ],
+  "passed": true
+}

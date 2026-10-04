@@ -1,0 +1,7 @@
+{
+  "stale_expiry_outcome": "skipped",
+  "fresh_expiry_outcome": "exited",
+  "close_calls": [
+    "lease-expired"
+  ]
+}

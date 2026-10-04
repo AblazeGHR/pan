@@ -1,0 +1,15 @@
+{
+  "runner_terminate": {
+    "pid": 46784,
+    "requestedCreateTimeFiletime": 134354637127757965,
+    "opened": true,
+    "createTimeFiletime": 134354637127757965,
+    "filetimeMatch": true,
+    "running": true,
+    "terminated": true,
+    "detail": "terminated"
+  },
+  "shell_dead": true,
+  "sidecar_dead": true,
+  "kernel_guard_note": "本场景实测（emulator 自持 guard 随进程消亡）；不泛化"
+}

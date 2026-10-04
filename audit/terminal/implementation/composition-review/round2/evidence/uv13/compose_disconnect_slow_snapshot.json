@@ -1,0 +1,13 @@
+{
+  "disconnect_kept_pid": true,
+  "snapshot_recovery": "degraded",
+  "snapshot_status": "running",
+  "heartbeat_latencies": [
+    0.016,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "runtime_alive_after": true
+}

@@ -1,0 +1,193 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- E:\software\miniforge\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\terminal-emulator-implement-20261003
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 42 items / 39 deselected / 3 selected
+
+tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait FAILED [ 33%]
+tests/test_terminal_emulator.py::test_owner_retry_serialized_bounded_and_convergent FAILED [ 66%]
+tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget FAILED [100%]
+
+================================== FAILURES ===================================
+__________ test_close_timeout_bounds_total_call_including_lock_wait ___________
+
+emu_factory = <function emu_factory.<locals>.make at 0x0000012C9DF8F560>
+
+    def test_close_timeout_bounds_total_call_including_lock_wait(emu_factory):
+        """F1：close(timeout) 是**本次调用**总预算（从入口计时，含 _close_lock 排队）。
+    
+        - T1 持锁时 T2 短 budget 必须在其预算内有界返回合法 closed=False + 锁忙诊断；
+        - T2 不写另一调用的状态/缓存（保 owner）；
+        - T1 收敛后重试成功且 seconds 为本次调用实际耗时（不用 T1 耗时冒充）；
+        - timeout=0 边界明确不倒退（合法报告，重试收敛）。
+        """
+        emu = emu_factory()
+        assert emu._test_stall(2500)
+        r1: list = []
+    
+        def t1_worker():
+            r1.append(emu.close(timeout=6.0))
+    
+        t1 = threading.Thread(target=t1_worker, daemon=True)
+        t1.start()
+        time.sleep(0.25)  # T1 已持 _close_lock（等待 stall 结束）
+        t0 = time.monotonic()
+        r2 = emu.close(timeout=0.5)
+        t2_elapsed = time.monotonic() - t0
+>       assert t2_elapsed <= 0.5 + 0.5, f"T2 未被本次 timeout 约束：{t2_elapsed:.3f}s"
+E       AssertionError: T2 未被本次 timeout 约束：2.250s
+E       assert 2.25 <= (0.5 + 0.5)
+
+tests\test_terminal_emulator.py:1074: AssertionError
+_____________ test_owner_retry_serialized_bounded_and_convergent ______________
+
+fake_sidecar = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1289/test_owner_retry_serialized_bo0/fake_sidecar.cjs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000012C9DF9EE10>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1289/test_owner_retry_serialized_bo0')
+
+    def test_owner_retry_serialized_bounded_and_convergent(
+        fake_sidecar, monkeypatch, tmp_path
+    ):
+        """F2：StartupCleanupOwner.retry_cleanup 同 owner 内部串行化（总 deadline 含锁等待）。
+    
+        - 并发调用不得重叠终止（peak 并发 == 1）；
+        - 每个调用在有界时间内返回，且都被证明 closed=True（后到者等锁后幂等重放）；
+        - timeout=0 超时保引用可重试；完成后幂等。
+        """
+        pid_file = tmp_path / "holder.pid"
+        monkeypatch.setenv("FAKE_SIDECAR_MODE", "no-ready-child")
+        monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+        real_term = emulator_module._force_terminate_root
+        real_close = guard_module.JobObjectGuard.close
+        term_calls = {"n": 0}
+        close_calls = {"n": 0}
+    
+        def failing_term(*args, **kwargs):
+            term_calls["n"] += 1
+            if term_calls["n"] <= 1:  # 仅构造期间的首次清理失败 -> 保留活资源（retained owner）
+                return {
+                    "root_dead": False,
+                    "root_killed": False,
+                    "job_terminate_called": False,
+                    "job_verified": False,
+                    "remaining": None,
+                    "errors": ["injected-construct"],
+                }
+            return real_term(*args, **kwargs)
+    
+        def failing_close(self):
+            close_calls["n"] += 1
+            if close_calls["n"] <= 1:  # 构造期间 guard 保留（不触发 KILL_ON_JOB_CLOSE 兜底）
+                return False
+            return real_close(self)
+    
+        monkeypatch.setattr(emulator_module, "_force_terminate_root", failing_term)
+        monkeypatch.setattr(guard_module.JobObjectGuard, "close", failing_close)
+        outcome: dict = {}
+        try:
+            HeadlessEmulator(sidecar_path=str(fake_sidecar), startup_timeout=2.0)
+        except Exception as exc:  # noqa: BLE001
+            outcome["exc"] = exc
+        exc = outcome.get("exc")
+        assert exc is not None and getattr(exc, "owner", None) is not None
+        assert exc.residual.get("process_exited") is False  # retained（注入）
+        owner = exc.owner
+    
+        active = {"now": 0, "peak": 0}
+        active_lock = threading.Lock()
+    
+        def spy_term(*args, **kwargs):
+            with active_lock:
+                active["now"] += 1
+                active["peak"] = max(active["peak"], active["now"])
+            try:
+                time.sleep(0.05)  # 放大重叠窗口（修复前两线程会同时进入）
+                return real_term(*args, **kwargs)
+            finally:
+                with active_lock:
+                    active["now"] -= 1
+    
+        monkeypatch.setattr(emulator_module, "_force_terminate_root", spy_term)
+        monkeypatch.setattr(guard_module.JobObjectGuard, "close", real_close)
+        active["peak"] = 0
+        results: list = []
+        errors: list = []
+    
+        def worker():
+            try:
+                results.append(owner.retry_cleanup(timeout=6.0))
+            except Exception as err:  # noqa: BLE001
+                errors.append(err)
+    
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(2)]
+        t0 = time.monotonic()
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+        elapsed = time.monotonic() - t0
+        try:
+            assert not errors, errors
+            assert len(results) == 2
+            assert elapsed <= 6.0 + 2.0, f"并发 owner 重试未被总预算约束：{elapsed:.3f}s"
+>           assert active["peak"] == 1, f"终止原语重叠执行：peak={active['peak']}"
+E           AssertionError: 终止原语重叠执行：peak=2
+E           assert 2 == 1
+
+tests\test_terminal_emulator.py:1182: AssertionError
+_________________ test_kill_timeout_wired_to_remaining_budget _________________
+
+emu_factory = <function emu_factory.<locals>.make at 0x0000012C9DE60AE0>
+fake_sidecar = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1289/test_kill_timeout_wired_to_rem0/fake_sidecar.cjs')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000012C9DF9EC00>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1289/test_kill_timeout_wired_to_rem0')
+
+    def test_kill_timeout_wired_to_remaining_budget(
+        emu_factory, fake_sidecar, monkeypatch, tmp_path
+    ):
+        """F3：kill_timeout 接入每次 kill 等待上限 = min(剩余总预算, kill_timeout)；
+        close / 构造失败清理 / owner 重试三条路径参数一致（不误称硬 OS SLA）。"""
+        captured: list = []
+        real_kv = identity_module.kill_verified
+    
+        def spy_kv(pid, expected, *, exit_code=0xDEAD, wait_timeout=5.0):
+            captured.append(float(wait_timeout))
+            return real_kv(pid, expected, exit_code=exit_code, wait_timeout=wait_timeout)
+    
+        monkeypatch.setattr(identity_module, "kill_verified", spy_kv)
+        kill_timeout = 1.0
+    
+        # (a) close 预算不足：等待上限跟随剩余总预算（< kill_timeout）
+        emu = emu_factory(kill_timeout=kill_timeout)
+        assert emu._test_stall(2500)
+        captured.clear()
+        emu.close(timeout=1.2)
+        assert captured, "预算不足场景未触发身份核验终止"
+        wait_a = captured[-1]
+        assert 0.0 < wait_a < kill_timeout, f"预算不足时等待上限应跟随剩余：{wait_a}"
+    
+        # (b) close 预算充足（ignore-shutdown 迫使强杀）：等待上限 == kill_timeout
+        monkeypatch.setenv("FAKE_SIDECAR_MODE", "ignore-shutdown")
+        emu2 = emu_factory(
+            sidecar_path=str(fake_sidecar), startup_timeout=20.0, kill_timeout=kill_timeout
+        )
+        captured.clear()
+        rep_b = emu2.close(timeout=6.0)
+        monkeypatch.delenv("FAKE_SIDECAR_MODE", raising=False)
+        assert rep_b.closed is True, rep_b.as_dict()
+>       assert captured and abs(captured[-1] - kill_timeout) <= 0.05, captured
+E       AssertionError: [3.0]
+E       assert ([3.0] and 2.0 <= 0.05)
+E        +  where 2.0 = abs((3.0 - 1.0))
+
+tests\test_terminal_emulator.py:1236: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait
+FAILED tests/test_terminal_emulator.py::test_owner_retry_serialized_bounded_and_convergent
+FAILED tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget
+====================== 3 failed, 39 deselected in 12.96s ======================

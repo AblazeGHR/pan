@@ -1,0 +1,62 @@
+{
+  "task": "T-TERMINAL-PTY-20261003/ws/impl/1",
+  "worktree": "D:/project/pan-worktrees/terminal-ws-implement-20261004",
+  "branch": "implement/terminal-ws-20261004",
+  "baseline": "cc9d76f5",
+  "brief_baseline_preserved": "d0e66503",
+  "env": {
+    "python": "3.12.12 (E:/software/miniforge)",
+    "uv": "0.9.14",
+    "uvicorn": "0.52.4",
+    "websockets": "17.0.1",
+    "fastapi": "0.141.1",
+    "starlette": "1.6.0",
+    "platform": "win32"
+  },
+  "counts": {
+    "ws_suite_direct": "30 passed",
+    "ws_suite_uv": "30 passed",
+    "deterministic_gates": "29 passed",
+    "real_chain": "1 passed",
+    "adjacent_rest_suite": "38 passed",
+    "adjacent_real_pan_import": "24 passed"
+  },
+  "baseline_pre_fix": "not-applicable (new feature: baseline has no packages/web/terminal_ws.py)",
+  "rejection_encoding": {
+    "decision": "MA option A: full pre-upgrade rejection with standard HTTP status",
+    "status_map": {
+      "security_gate": 403,
+      "invalid_id_or_cursor": 400,
+      "not_found": 404,
+      "disabled_starting_closing_busy": 503,
+      "connection_capacity": 429
+    },
+    "private_codes_used": [],
+    "accepts_before_rejecting": false,
+    "browser_can_read_denial": false,
+    "fact_summary_only": true
+  },
+  "real_bugs_fixed_by_new_tests": [
+    "capacity reservation key leak exhausted the 32-connection budget",
+    "project_snapshot terminal_id collided with envelope field (TypeError broke every snapshot)",
+    "field whitelist ran after the permission gate (malformed frames reported as permission errors)"
+  ],
+  "dependencies": {
+    "sidecar_npm_ci": "packages/core/terminal/emulator_sidecar (added 2 packages)",
+    "lock_changed": false,
+    "uv_no_project": true
+  },
+  "not_run": [
+    "full repo suite",
+    "shared core/launcher/IPC/emulator suites",
+    "REST real ConPTY chain (only its deterministic 38)",
+    "real browser Origin/CSRF matrix",
+    "Ctrl-C",
+    "durable recovery",
+    "cross sidecar restart",
+    "long-run / backpressure",
+    "POSIX",
+    "full Pan startup"
+  ],
+  "unverified_claims": "none beyond the explicitly listed not_run items"
+}

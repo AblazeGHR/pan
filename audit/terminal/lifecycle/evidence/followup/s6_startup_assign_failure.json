@@ -1,0 +1,189 @@
+{
+  "scenario": "s6_startup_assign_failure",
+  "startedAt": 1790959892.7574792,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-20261003-005132\\s6_startup_assign_failure",
+  "checks": [
+    {
+      "name": "s6 supervisor reports startup failure (rc=4)",
+      "ok": true,
+      "detail": 4
+    },
+    {
+      "name": "s6 supervisor exit mode is startup_failed_assign",
+      "ok": true,
+      "detail": {
+        "mode": "startup_failed_assign",
+        "exitCode": 4,
+        "runnerPid": 35972,
+        "endpointStatus": "startup_failed",
+        "error": "guard_job_assign_failed",
+        "failures": [
+          {
+            "pid": 24156,
+            "exe": "cmd.exe",
+            "createTime": 1790959893.0351639,
+            "createTimeFiletime": 134354334930351647,
+            "assigned": false,
+            "assignError": 0,
+            "note": "injected_assign_failure"
+          }
+        ]
+      }
+    },
+    {
+      "name": "s6 host never reached ready/lease state",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "s6 no running endpoint was published",
+      "ok": true,
+      "detail": {
+        "status": "startup_failed",
+        "port": null
+      }
+    },
+    {
+      "name": "s6 failure record names the injected member",
+      "ok": true,
+      "detail": [
+        {
+          "pid": 24156,
+          "exe": "cmd.exe",
+          "createTime": 1790959893.0351639,
+          "createTimeFiletime": 134354334930351647,
+          "assigned": false,
+          "assignError": 0,
+          "note": "injected_assign_failure"
+        }
+      ]
+    },
+    {
+      "name": "s6 runner exited after failing closed",
+      "ok": true,
+      "detail": "0.00s"
+    },
+    {
+      "name": "s6 PTY root process is gone",
+      "ok": true,
+      "detail": 24156
+    },
+    {
+      "name": "s6 cleanup touched only runner-owned descendants and left none",
+      "ok": true,
+      "detail": {
+        "runtimeId": "rt_s6_35972",
+        "swept": [],
+        "leftoverAfterSweep": [],
+        "jobActiveBeforeClose": 0,
+        "finishedAt": 1790959893.0753534
+      }
+    },
+    {
+      "name": "s6 cleanup left no owned process alive",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "supervisorExit": {
+    "mode": "startup_failed_assign",
+    "exitCode": 4,
+    "runnerPid": 35972,
+    "endpointStatus": "startup_failed",
+    "error": "guard_job_assign_failed",
+    "failures": [
+      {
+        "pid": 24156,
+        "exe": "cmd.exe",
+        "createTime": 1790959893.0351639,
+        "createTimeFiletime": 134354334930351647,
+        "assigned": false,
+        "assignError": 0,
+        "note": "injected_assign_failure"
+      }
+    ]
+  },
+  "runtimeEndpoint": {
+    "kind": "terminal-runtime",
+    "status": "startup_failed",
+    "runtimeId": "rt_s6_35972",
+    "pid": 35972,
+    "processCreatedAtFiletime": 134354334928358398,
+    "port": null,
+    "error": "guard_job_assign_failed",
+    "failures": [
+      {
+        "pid": 24156,
+        "exe": "cmd.exe",
+        "createTime": 1790959893.0351639,
+        "createTimeFiletime": 134354334930351647,
+        "assigned": false,
+        "assignError": 0,
+        "note": "injected_assign_failure"
+      }
+    ],
+    "members": [
+      {
+        "pid": 35960,
+        "exe": "conhost.exe",
+        "createTime": 1790959892.9136734,
+        "createTimeFiletime": 134354334929136731,
+        "assigned": true,
+        "assignError": 0,
+        "note": null
+      },
+      {
+        "pid": 3208,
+        "exe": "OpenConsole.exe",
+        "createTime": 1790959893.0283642,
+        "createTimeFiletime": 134354334930283646,
+        "assigned": true,
+        "assignError": 0,
+        "note": null
+      },
+      {
+        "pid": 24156,
+        "exe": "cmd.exe",
+        "createTime": 1790959893.0351639,
+        "createTimeFiletime": 134354334930351647,
+        "assigned": false,
+        "assignError": 0,
+        "note": "injected_assign_failure"
+      }
+    ],
+    "pty": {
+      "rootPid": 24156
+    },
+    "at": 1790959893.0503492
+  },
+  "runnerStartupFailureFinal": {
+    "runtimeId": "rt_s6_35972",
+    "swept": [],
+    "leftoverAfterSweep": [],
+    "jobActiveBeforeClose": 0,
+    "finishedAt": 1790959893.0753534
+  },
+  "cleanup": {
+    "killed": [],
+    "survivors": []
+  },
+  "endedAt": 1790959893.619879,
+  "passed": true,
+  "knownProcesses": {
+    "supervisor": {
+      "pid": 43116,
+      "createTimeFiletime": 134354334927625339,
+      "createTime": 1790959892.762535,
+      "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "exitCode": 259,
+      "running": true
+    },
+    "runner": {
+      "pid": 35972,
+      "createTimeFiletime": 134354334928358398
+    }
+  },
+  "trees": {},
+  "notes": {},
+  "failedChecks": []
+}

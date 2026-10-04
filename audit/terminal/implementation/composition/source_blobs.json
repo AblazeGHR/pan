@@ -1,0 +1,19 @@
+{
+  "parent_head": "46af86d2fe07055342713fc4b3b5417f1e53a0ab",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/composition/README.md": {
+      "blob": "0bd100e6c6e449d850587eb85c16ed41ab85f983",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_COMPOSITION_REVIEW_20261003.md": {
+      "blob": "a875ed98f82e8ecb9803d1cd1486c0b13e741284",
+      "mode": "100644"
+    },
+    "tests/test_terminal_composition.py": {
+      "blob": "9b2b4ff2091a79eaf37b7aa4290fec3684dd102c",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定组合验证的测试/评审文档/审计 README；生产 runner/emulator/backend/IPC 与共享契约本轮零修改（blob 与 seed 46af86d2 相同）。复跑结果见 pytest_direct.txt / pytest_uv.txt / summary.json。"
+}

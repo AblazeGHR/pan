@@ -1,0 +1,71 @@
+{
+  "scenario": "s3_assign_failure",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s3_assign_failure-epn4d6o3",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "spawn_denied": {
+    "stage": "assign_guard_job",
+    "detail": {
+      "stage": "assign_guard_job",
+      "pid": 45616,
+      "creation_filetime": 134354370265985824,
+      "assign_last_error": 6,
+      "resumed": false,
+      "note": "child was never resumed; terminating only this self-created process"
+    }
+  },
+  "guard_active_after_failure": 0,
+  "marker_exists": false,
+  "denied_child_identity": {
+    "pid": 45616,
+    "open_ok": false,
+    "last_error": 87
+  },
+  "checks": [
+    {
+      "check": "spawn_was_denied",
+      "ok": true,
+      "detail": "assign_guard_job"
+    },
+    {
+      "check": "denied_at_assign_stage",
+      "ok": true,
+      "detail": "assign_guard_job"
+    },
+    {
+      "check": "child_never_resumed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "assign_error_recorded",
+      "ok": true,
+      "detail": 6
+    },
+    {
+      "check": "guard_job_empty_after_failure",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "check": "child_never_executed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "denied_child_terminated_by_spawn_path",
+      "ok": true,
+      "detail": {
+        "pid": 45616,
+        "open_ok": false,
+        "last_error": 87
+      }
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 2.52,
+  "log": [],
+  "temp_removed": true
+}

@@ -1,0 +1,13 @@
+{
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "win32_ver": [
+    "11",
+    "10.0.26200",
+    "SP0",
+    "Multiprocessor Free"
+  ],
+  "pywinpty": "3.0.5",
+  "driverInAnyJob": true
+}

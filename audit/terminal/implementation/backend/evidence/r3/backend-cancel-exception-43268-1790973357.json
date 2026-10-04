@@ -1,0 +1,12 @@
+{
+  "test": "cancel_worker_exception_retries_desensitized",
+  "diag": {
+    "attempts": 2,
+    "last_kind": "cancelled",
+    "last_exception_type": "OSError",
+    "cap_exhausted": false,
+    "last_error": 0
+  },
+  "sentinel_leaked": false,
+  "write_returned": true
+}

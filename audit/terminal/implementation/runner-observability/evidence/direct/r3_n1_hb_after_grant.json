@@ -1,0 +1,9 @@
+{
+  "hb_status": "closing",
+  "hb_ok": false,
+  "lease_not_renewed": true,
+  "close_calls": [
+    "lease-expired"
+  ],
+  "outcome": "exited"
+}

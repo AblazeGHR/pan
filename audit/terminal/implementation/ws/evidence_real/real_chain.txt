@@ -1,0 +1,21 @@
+# 真实隔离链（Windows ConPTY + sidecar；隔离端口 8791，非 8768）
+# cmd: pytest tests/test_terminal_ws.py -o addopts= -v --timeout=600 -k real
+
+## 真实链用例的固定断言（见 tests/test_terminal_ws.py::test_real_ws_chain_...）：
+  1) REST create → 记录带 pid + 同 handle FILETIME 存活
+  2) 握手拒绝负控：坏 Origin(http://evil.local) → 连接失败（不承诺具体码）
+  3) observer 零输入即得 hello；无 revocation_id/pan-terminal-/rv- 泄漏
+  4) ping→pong（ping 不续 runner lease）
+  5) claim → 中文输入 accepted + 真实输出含 echo/中文
+  6) resize：pty_accepted is True，engine_confirmed ∈ (True,False,None)，无 three_way_agreement
+  7) 第二连接 claim → gen_b > gen_a；旧连接旧代写 → error(stale-generation/not-control)
+  8) service.control_holder().client_id 以 conn_ 开头（server 身份）
+  9) 两连接全断后 **同 PID 仍存活**（连接收尾不杀 PTY）
+ 10) REST close → status=exited（真三项证明，未确证时 409 可重试）
+
+tests/test_terminal_ws.py::test_real_ws_chain_observer_claim_cn_input_preempt_disconnect_same_pid PASSED [100%]
+====================== 1 passed, 29 deselected in 6.74s =======================
+
+## 自有进程清理（同 handle PID+raw FILETIME 核验后由用例 finally 收尾）
+## 残留 node.exe（sidecar）计数：0
+0

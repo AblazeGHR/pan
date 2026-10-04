@@ -1,0 +1,25 @@
+FF.                                                                      [100%]
+================================== FAILURES ===================================
+_____________________ test_f5_r3_ledger_int_parser_matrix _____________________
+tests\test_terminal_runner.py:2520: in test_f5_r3_ledger_int_parser_matrix
+    assert parser(-1) is None and parser(-(2**53)) is None
+E   assert (-1 is None)
+E    +  where -1 = <function _ledger_int_or_none at 0x000001F9063F31A0>(-1)
+______________ test_f5_r3_long_digit_baseline_snapshot_no_raise _______________
+tests\test_terminal_runner.py:2553: in test_f5_r3_long_digit_baseline_snapshot_no_raise
+    payload = runner.snapshot(timeout_ms=500)  # 修复前此处抛 ValueError
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\terminal\runner.py:1967: in snapshot
+    **self._emulator_snapshot_fields(snap),
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\terminal\runner.py:2017: in _emulator_snapshot_fields
+    baseline_cursor = _ledger_int_or_none(raw_baseline)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\terminal\runner.py:195: in _ledger_int_or_none
+    return int(text)
+           ^^^^^^^^^
+E   ValueError: Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_runner.py::test_f5_r3_ledger_int_parser_matrix - a...
+FAILED tests/test_terminal_runner.py::test_f5_r3_long_digit_baseline_snapshot_no_raise
+2 failed, 1 passed, 47 deselected in 0.52s

@@ -1,0 +1,82 @@
+{
+  "launcher_tail": {
+    "close_call_count": 1,
+    "has_retry_loop": false,
+    "exception_only_records": true,
+    "single_close_then_exit": true
+  },
+  "close_budget_case": {
+    "constructs_own_emulator": true,
+    "references_runner_or_launcher_code": false,
+    "note": "单独 HeadlessEmulator；非 launcher 故障路径（MA 静态注意确认）"
+  },
+  "report_section3": {
+    "line": "- **宿主生命周期**：宿主在 `runner.run()` 返回后显式 `emulator.close()`（有界；失败保 owner",
+    "states_production_launcher_not_implemented": true,
+    "lists_launcher_closure_unverified": true,
+    "assessment": "『失败保 owner 可重试』指 emulator.close 的对象语义（由单独用例证实）；§3 末句与 §4 已把『生产 launcher 未实现/失败收尾未验证』列为边界。裁定：表述可接受（不返工）；建议后续在一句话内显式区分『引擎对象可重试 ≠ 测试宿主消费失败 owner ≠ 生产 launcher 闭环』。"
+  },
+  "source_blob_check": {
+    "all_match": true,
+    "details": {
+      "audit/terminal/implementation/composition/r2/README.md": {
+        "claimed": "b50a4c40588602202a6eae1182bf2dcc8c93aaca",
+        "submitted": "b50a4c40588602202a6eae1182bf2dcc8c93aaca",
+        "match": true
+      },
+      "docs/design/PAN_TERMINAL_COMPOSITION_REVIEW_20261003_ROUND2.md": {
+        "claimed": "9db86e13ec48ef84de690bc08541fad758156d52",
+        "submitted": "9db86e13ec48ef84de690bc08541fad758156d52",
+        "match": true
+      },
+      "tests/test_terminal_composition.py": {
+        "claimed": "aa7639cd5fa6b7ed00918d09d66cf6d36e07e1ce",
+        "submitted": "aa7639cd5fa6b7ed00918d09d66cf6d36e07e1ce",
+        "match": true
+      }
+    }
+  },
+  "pins_recheck": {
+    "package_json_sha_match": true,
+    "package_lock_sha_match": true,
+    "installed": {
+      "@xterm/headless": "6.0.0",
+      "@xterm/addon-serialize": "0.14.0"
+    }
+  },
+  "coverage": {
+    "old_evidence_touched": [],
+    "old_evidence_untouched": true,
+    "production_touched_this_diff": []
+  },
+  "my_rerun": {
+    "direct13": {
+      "exists": true,
+      "passed": 13,
+      "summary": [
+        "13 passed in 58.84s"
+      ]
+    },
+    "uv13": {
+      "exists": true,
+      "passed": 13,
+      "summary": [
+        "13 passed in 58.63s"
+      ]
+    }
+  },
+  "verdict": {
+    "launcher_single_close_confirmed": true,
+    "close_budget_case_standalone": true,
+    "report_boundary_textualized": true,
+    "source_blobs_verified": true,
+    "pins_verified": true,
+    "r2_logs_13": true,
+    "old_evidence_untouched": true,
+    "no_production_in_diff": true,
+    "my_13x2": true
+  },
+  "generated_at": "2026-10-03 09:28:44",
+  "injection_only": true,
+  "note": "组合 r2 审查独立门控（round2；对照 docs/design/PAN_TERMINAL_COMPOSITION_SECURITY_REVIEW_20261003_ROUND2.md）"
+}

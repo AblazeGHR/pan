@@ -1,0 +1,43 @@
+{
+  "id": "C9-scroll-region-honest-partial",
+  "title": "DECSTBM（滚动区）序列化缺口：诚实 partial + 可复现差异",
+  "status": "pass-partial",
+  "declared_status": "pass-partial",
+  "expectations": [
+    {
+      "name": "snapshot declares partial with DECSTBM reason",
+      "ok": true
+    },
+    {
+      "name": "capability table records DECSTBM as a measured gap",
+      "ok": true
+    },
+    {
+      "name": "the mismatch is real and reproducible (declared, not hidden)",
+      "ok": true
+    }
+  ],
+  "details": {
+    "snapshot": {
+      "fidelity": "partial",
+      "fidelity_reasons": [
+        "DECSTBM_NOT_SERIALIZED"
+      ]
+    },
+    "diff": [
+      {
+        "key": "screenText",
+        "a": "L02\nL03\nL04\nL05\nL06\n\nL08\nL09\nL10\n",
+        "b": "L02\nL03\nL04\nL05\nL06\nL08\nL09\nL10\n\n"
+      },
+      {
+        "key": "serialized",
+        "a": "L01\r\nL02\r\nL03\r\nL04\r\nL05\r\nL06\r\n\r\nL08\r\nL09\r\nL10\r\n\u001b[4A",
+        "b": "L01\r\nL02\r\nL03\r\nL04\r\nL05\r\nL06\r\nL08\r\nL09\r\nL10\r\n\r\n\u001b[4A"
+      }
+    ],
+    "note": "restored DECSTBM state is lost; subsequent in-region edits differ. Pan must surface fidelity=partial and re-baseline (fresh view) for streams that use scroll regions."
+  },
+  "ms": 78,
+  "failed_expectations": []
+}

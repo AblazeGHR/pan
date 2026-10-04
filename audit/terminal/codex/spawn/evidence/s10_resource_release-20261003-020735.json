@@ -1,0 +1,231 @@
+{
+  "scenario": "s10_resource_release",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s10_resource_release-_yxu87y9",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "denied_cleanup": {
+    "order": [
+      "reader_stop",
+      "output_close",
+      "pty",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "reader_stop": {
+      "reader_present": false,
+      "stopped": true,
+      "converge_seconds": 0.0
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "errors": [],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ]
+  },
+  "simulation_note": "reader thread handle and output handle hidden from close(); wrapper-level simulation, not a real hung I/O",
+  "close_while_stuck": {
+    "closed": false,
+    "retryable": true,
+    "errors": [
+      "reader_not_converged"
+    ],
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": false,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": false,
+      "converge_seconds": 2.016,
+      "reader_error": null
+    },
+    "released": [],
+    "retained": [
+      {
+        "resource": "reader_thread",
+        "released": false
+      },
+      {
+        "resource": "input_write",
+        "released": false
+      },
+      {
+        "resource": "pseudo_console",
+        "released": false
+      },
+      {
+        "resource": "attr_list",
+        "released": false
+      },
+      {
+        "resource": "process_handle",
+        "released": false
+      },
+      {
+        "resource": "thread_handle",
+        "released": false
+      }
+    ],
+    "seconds": 2.016,
+    "note": "owner retained (not marked closed); retry re-issues cancellation on the same handles"
+  },
+  "close_after_retry": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": null
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "survivors": [],
+  "checks": [
+    {
+      "check": "denied_spawn_raised",
+      "ok": true,
+      "detail": "assign_guard_job"
+    },
+    {
+      "check": "denied_path_closed_pseudo_console",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "denied_path_deleted_attr_list",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "denied_path_closed_process_handles",
+      "ok": true,
+      "detail": [
+        "_h_process",
+        "_h_thread"
+      ]
+    },
+    {
+      "check": "denied_path_closed_pipes",
+      "ok": true,
+      "detail": [
+        "_input_write"
+      ]
+    },
+    {
+      "check": "stuck_close_reports_not_closed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "stuck_close_is_retryable",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "stuck_close_keeps_owner_open",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "stuck_close_did_not_destroy_pty",
+      "ok": true,
+      "detail": "hpc still owned"
+    },
+    {
+      "check": "stuck_close_reports_reason",
+      "ok": true,
+      "detail": [
+        "reader_not_converged"
+      ]
+    },
+    {
+      "check": "retry_close_succeeds",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "retry_close_destroyed_pty",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "retry_close_deleted_attr_list",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 7.41,
+  "log": [
+    "[sweep] {'pid': 23376, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

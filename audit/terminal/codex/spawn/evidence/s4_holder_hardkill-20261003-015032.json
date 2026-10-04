@@ -1,0 +1,128 @@
+{
+  "scenario": "s4_holder_hardkill",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-84rx0_iq",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "holder_report": {
+    "holder_pid": 34188,
+    "holder_creation_filetime": 134354370291145601,
+    "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-84rx0_iq",
+    "marker": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-84rx0_iq\\child_marker.txt",
+    "grandchild_marker": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s4_holder_hardkill-84rx0_iq\\grandchild_marker.txt",
+    "started_at": 1790963429.1689913,
+    "child_pid": 23100,
+    "child_creation_filetime": 134354370291756177,
+    "child_in_guard_job": true,
+    "guard_active_after_assign": 1,
+    "ready": true,
+    "child_alive": true,
+    "guard_active_at_ready": 2,
+    "pty_output_head": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HCHILD_STARTED pid=23100\r\n\u001b]0;E:\\software\\miniforge\\python.exe\u0007\u001b[?25hGRANDCHILD pid=41268\r\nUNICODE 中文测试 ✓ αβγ — utf8-roundtrip\r\nCONSOLE_SIZE 100x30\r\n"
+  },
+  "grandchild_pid": 41268,
+  "grandchild_identity_before": {
+    "pid": 41268,
+    "open_ok": true,
+    "creation_filetime": 134354370292277376,
+    "exit_code": 259,
+    "still_active": true
+  },
+  "holder_kill": {
+    "pid": 34188,
+    "expected_filetime": 134354370291145601,
+    "observed_filetime": 134354370291145601,
+    "killed": true,
+    "reason": "terminated",
+    "last_error": 0
+  },
+  "survivors_after_holder_kill": [],
+  "holder_identity_after_kill": {
+    "pid": 34188,
+    "open_ok": true,
+    "creation_filetime": 134354370291145601,
+    "exit_code": 57005,
+    "still_active": false
+  },
+  "sweep": [
+    {
+      "pid": 23100,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "sweep": true
+    },
+    {
+      "pid": 41268,
+      "killed": false,
+      "reason": "open_failed",
+      "last_error": 87,
+      "sweep": true
+    }
+  ],
+  "checks": [
+    {
+      "check": "holder_ready",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "grandchild_running_before_kill",
+      "ok": true,
+      "detail": {
+        "pid": 41268,
+        "open_ok": true,
+        "creation_filetime": 134354370292277376,
+        "exit_code": 259,
+        "still_active": true
+      }
+    },
+    {
+      "check": "holder_holds_guard_member",
+      "ok": true,
+      "detail": 2
+    },
+    {
+      "check": "holder_hard_killed",
+      "ok": true,
+      "detail": {
+        "pid": 34188,
+        "expected_filetime": 134354370291145601,
+        "observed_filetime": 134354370291145601,
+        "killed": true,
+        "reason": "terminated",
+        "last_error": 0
+      }
+    },
+    {
+      "check": "child_gone_after_holder_kill",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "grandchild_gone_after_holder_kill",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "holder_gone",
+      "ok": true,
+      "detail": {
+        "pid": 34188,
+        "open_ok": true,
+        "creation_filetime": 134354370291145601,
+        "exit_code": 57005,
+        "still_active": false
+      }
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 3.81,
+  "log": [
+    "[holder] launched pid=34188",
+    "[sweep] {'pid': 23100, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'sweep': True}",
+    "[sweep] {'pid': 41268, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'sweep': True}"
+  ],
+  "temp_removed": true
+}

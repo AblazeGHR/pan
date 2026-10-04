@@ -1,0 +1,338 @@
+{
+  "scenario": "s13_close_failure_retry",
+  "temp_root": "C:\\Users\\14709\\AppData\\Local\\Temp\\conpty-spawn-s13_close_failure_retry-og33088c",
+  "keep": false,
+  "python": "E:\\software\\miniforge\\python.exe",
+  "python_version": "3.12.12",
+  "injection_note": "wrapper-level: session._destroy_pty / _delete_attr_list are replaced with a failing stub; not a real OS failure",
+  "pty_close_first_close": {
+    "closed": false,
+    "retryable": true,
+    "errors": [
+      "pty_close_failed"
+    ],
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 1,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "failed": true,
+      "injected": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "released": [
+      "reader_thread",
+      "output_read",
+      "input_read",
+      "output_write",
+      "attr_list"
+    ],
+    "retained": [
+      {
+        "resource": "reader_thread_handle",
+        "released": false
+      },
+      {
+        "resource": "input_write",
+        "released": false
+      },
+      {
+        "resource": "pseudo_console",
+        "released": false
+      },
+      {
+        "resource": "process_handle",
+        "released": false
+      },
+      {
+        "resource": "thread_handle",
+        "released": false
+      }
+    ],
+    "seconds": 0.0,
+    "note": "release failed for at least one resource; remaining handles kept for retry"
+  },
+  "pty_close_retained_resources": [
+    "input_write",
+    "process_handle",
+    "pseudo_console",
+    "reader_thread_handle",
+    "thread_handle"
+  ],
+  "pty_close_retry_close": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": false,
+      "already_gone": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "attr_list_deleted": false,
+      "already_gone": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "pty_close_survivors": [],
+  "attr_list_delete_first_close": {
+    "closed": false,
+    "retryable": true,
+    "errors": [
+      "attr_list_delete_failed"
+    ],
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 1,
+      "cancel_ok": true,
+      "cancel_last_error": 0,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": true
+    },
+    "pty": {
+      "pty_closed": true
+    },
+    "attr_list": {
+      "failed": true,
+      "injected": true
+    },
+    "released": [
+      "reader_thread",
+      "output_read",
+      "input_read",
+      "output_write",
+      "pseudo_console"
+    ],
+    "retained": [
+      {
+        "resource": "reader_thread_handle",
+        "released": false
+      },
+      {
+        "resource": "input_write",
+        "released": false
+      },
+      {
+        "resource": "attr_list",
+        "released": false
+      },
+      {
+        "resource": "process_handle",
+        "released": false
+      },
+      {
+        "resource": "thread_handle",
+        "released": false
+      }
+    ],
+    "seconds": 0.0,
+    "note": "release failed for at least one resource; remaining handles kept for retry"
+  },
+  "attr_list_delete_retained_resources": [
+    "attr_list",
+    "input_write",
+    "process_handle",
+    "reader_thread_handle",
+    "thread_handle"
+  ],
+  "attr_list_delete_retry_close": {
+    "closed": true,
+    "retryable": false,
+    "reader_stop": {
+      "reader_present": true,
+      "stop_flag_set_first": true,
+      "thread_handle_obtained": true,
+      "cancel_attempts": 0,
+      "cancel_ok": null,
+      "cancel_last_error": null,
+      "stopped": true,
+      "converge_seconds": 0.0,
+      "reader_error": "ReadFile failed: 995 (<code 995>)"
+    },
+    "output_close": {
+      "output_closed": false,
+      "already_gone": true
+    },
+    "pty": {
+      "pty_closed": false,
+      "already_gone": true
+    },
+    "attr_list": {
+      "attr_list_deleted": true
+    },
+    "pipes_closed": [
+      "_input_write"
+    ],
+    "process_handles_closed": [
+      "_h_process",
+      "_h_thread"
+    ],
+    "released": [
+      "reader",
+      "output_read",
+      "pseudo_console",
+      "attr_list",
+      "pipes",
+      "process_handles"
+    ],
+    "retained": [],
+    "seconds": 0.0
+  },
+  "attr_list_delete_survivors": [],
+  "checks": [
+    {
+      "check": "pty_close_close_reports_not_closed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "pty_close_close_is_retryable",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "pty_close_owner_retained",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "pty_close_error_names_the_resource",
+      "ok": true,
+      "detail": [
+        "pty_close_failed"
+      ]
+    },
+    {
+      "check": "pty_close_retained_inventory_mentions_failure",
+      "ok": true,
+      "detail": [
+        "input_write",
+        "process_handle",
+        "pseudo_console",
+        "reader_thread_handle",
+        "thread_handle"
+      ]
+    },
+    {
+      "check": "pty_close_retry_succeeds",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "pty_close_retry_closed_pseudo_console",
+      "ok": true,
+      "detail": {
+        "pty_closed": true
+      }
+    },
+    {
+      "check": "pty_close_no_survivors",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "check": "attr_list_delete_close_reports_not_closed",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "attr_list_delete_close_is_retryable",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "attr_list_delete_owner_retained",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "check": "attr_list_delete_error_names_the_resource",
+      "ok": true,
+      "detail": [
+        "attr_list_delete_failed"
+      ]
+    },
+    {
+      "check": "attr_list_delete_retained_inventory_mentions_failure",
+      "ok": true,
+      "detail": [
+        "attr_list",
+        "input_write",
+        "process_handle",
+        "reader_thread_handle",
+        "thread_handle"
+      ]
+    },
+    {
+      "check": "attr_list_delete_retry_succeeds",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "check": "attr_list_delete_retry_deleted_attr_list",
+      "ok": true,
+      "detail": {
+        "attr_list_deleted": true
+      }
+    },
+    {
+      "check": "attr_list_delete_no_survivors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "failed_checks": [],
+  "seconds": 9.29,
+  "log": [
+    "[sweep] {'pid': 48184, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}",
+    "[sweep] {'pid': 5676, 'killed': False, 'reason': 'open_failed', 'last_error': 87, 'state': 'unknown', 'sweep': True}"
+  ],
+  "temp_removed": true
+}

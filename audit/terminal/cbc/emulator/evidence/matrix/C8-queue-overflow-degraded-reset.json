@@ -1,0 +1,113 @@
+{
+  "id": "C8-queue-overflow-degraded-reset",
+  "title": "队列停滞/溢出 → 明确 degraded + 显式 reset baseline（不得自动 full）",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "overflow rejected explicitly (no silent drop)",
+      "ok": true
+    },
+    {
+      "name": "feed_lag latched",
+      "ok": true
+    },
+    {
+      "name": "snapshot while lagging is degraded/partial, never full",
+      "ok": true
+    },
+    {
+      "name": "resetBaseline is explicit and returns partial (not full)",
+      "ok": true
+    },
+    {
+      "name": "after reset the recovery stays partial (no auto-full)",
+      "ok": true
+    },
+    {
+      "name": "post-baseline content keeps flowing with new baseline recorded",
+      "ok": true
+    },
+    {
+      "name": "default queue budget is 4 MiB in the shipped pipeline",
+      "ok": true
+    }
+  ],
+  "details": {
+    "queueBytesCap": 262144,
+    "enqueueResults": [
+      {
+        "accepted": true,
+        "reason": null
+      },
+      {
+        "accepted": true,
+        "reason": null
+      },
+      {
+        "accepted": true,
+        "reason": null
+      },
+      {
+        "accepted": true,
+        "reason": null
+      },
+      {
+        "accepted": false,
+        "reason": "feed_lag"
+      },
+      {
+        "accepted": false,
+        "reason": "feed_lag"
+      },
+      {
+        "accepted": false,
+        "reason": "feed_lag"
+      },
+      {
+        "accepted": false,
+        "reason": "feed_lag"
+      }
+    ],
+    "rejectedCount": 4,
+    "lagEvents": 4,
+    "snapshotWhileLagging": {
+      "fidelity": "partial",
+      "recovery": "degraded",
+      "fidelity_reasons": [
+        "FEED_LAG_QUEUE_OVERFLOW",
+        "SOURCE_GAP_STICKY"
+      ]
+    },
+    "reset": {
+      "ok": true,
+      "reset": true,
+      "baseline_frontier": 524288,
+      "producer_frontier": 524288,
+      "recovery": "partial",
+      "note": "explicit reset-baseline: screen cleared, a new absolute frontier is defined; history before it (including rejected ranges) is not recoverable"
+    },
+    "snapAfterReset": {
+      "fidelity": "partial",
+      "recovery": "partial"
+    },
+    "snapFinal": {
+      "fidelity": "partial",
+      "recovery": "partial",
+      "applied_seq": 13
+    },
+    "counters": {
+      "feed": 5,
+      "resize": 0,
+      "snapshot": 3,
+      "barrier": 0,
+      "reset": 1,
+      "stall": 1,
+      "throw": 0,
+      "rejected_feed": 4,
+      "rejected_control": 0,
+      "expired_skipped": 0
+    }
+  },
+  "ms": 1299,
+  "failed_expectations": []
+}

@@ -1,0 +1,59 @@
+{
+  "id": "C2-cursor-modes-scroll-resize",
+  "title": "光标 / 模式 / 滚动 / resize",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "snapshot dims == last resize",
+      "ok": true
+    },
+    {
+      "name": "modes survived round trip",
+      "ok": true
+    },
+    {
+      "name": "cursor/scrollback/screen match reference",
+      "ok": true
+    },
+    {
+      "name": "fidelity full",
+      "ok": true
+    },
+    {
+      "name": "resize ops were processed in order",
+      "ok": true
+    }
+  ],
+  "details": {
+    "snapshot": {
+      "cols": 40,
+      "rows": 10,
+      "applied_seq": 57,
+      "fidelity": "full",
+      "recovery": "full"
+    },
+    "diffs": [],
+    "referenceSummary": {
+      "activeType": "normal",
+      "cursorX": 0,
+      "cursorY": 9,
+      "cols": 40,
+      "rows": 10,
+      "screenText": "scroll-34\nscroll-35\nscroll-36\nscroll-37\nscroll-38\nscroll-39\nAFTER-RESIZE-1\nAFTER-RESIZE-2\nBACK-TO-SIZE\n",
+      "modes": {
+        "applicationCursorKeysMode": true,
+        "applicationKeypadMode": false,
+        "bracketedPasteMode": true,
+        "insertMode": true,
+        "originMode": false,
+        "reverseWraparoundMode": false,
+        "sendFocusMode": false,
+        "synchronizedOutputMode": false,
+        "wraparoundMode": false,
+        "mouseTrackingMode": "drag"
+      }
+    }
+  },
+  "ms": 917,
+  "failed_expectations": []
+}

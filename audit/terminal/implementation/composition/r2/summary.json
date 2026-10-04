@@ -1,0 +1,57 @@
+{
+  "collected_at": "2026-10-03 09:14:25",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "7e94f13ac643e8942673fd169929a3789ed7ee20",
+  "steps": {
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 59.47,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_composition.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_composition.py::test_composition_r2_eviction_gap_fresh_view_and_catch_up\nPASSED tests/test_terminal_composition.py::test_composition_r2_engine_close_budget_owner_retryable",
+      "cleanup": {
+        "sessions_with_cleanup": 11,
+        "alive_before_cleanup": 0,
+        "forced_terminations": 0
+      }
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 59.7,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_composition.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_composition.py::test_composition_r2_eviction_gap_fresh_view_and_catch_up\nPASSED tests/test_terminal_composition.py::test_composition_r2_engine_close_budget_owner_retryable"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "python_runners": 0,
+    "node_sidecars": 0,
+    "processes": []
+  }
+}

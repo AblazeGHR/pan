@@ -1,0 +1,12 @@
+[gate] evidence -> D:\project\pan-worktrees\terminal-composition-r2-review-20261003\audit\terminal\implementation\composition-review\round2\gates\v4_scope_evidence.json
+{
+  "launcher_single_close_confirmed": true,
+  "close_budget_case_standalone": true,
+  "report_boundary_textualized": true,
+  "source_blobs_verified": true,
+  "pins_verified": true,
+  "r2_logs_13": true,
+  "old_evidence_untouched": true,
+  "no_production_in_diff": true,
+  "my_13x2": true
+}

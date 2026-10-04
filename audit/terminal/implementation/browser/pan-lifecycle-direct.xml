@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="14.175" timestamp="2026-10-04T12:35:26.438806+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_pan_lifecycle_ma" name="test_real_pan_managed_cleanup_detached_restart_same_shell[False]" time="6.878"><failure message="packages.core.terminal.service.TerminalNotAttached: not-attached">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1785/test_real_pan_managed_cleanup_0')
+crash = False
+
+    @pytest.mark.parametrize('crash', [False, True])
+    def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        (tmp_path / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'qq': {}}))
+        pan = Pan(tmp_path)
+        records, handles = [], []
+        restarted = False
+        try:
+            pan.start()
+            # Negative Origin and real readiness: rejection is not an all-deny fake pass.
+            assert pan.client.get('/api/terminals', headers={'Origin': 'http://wrong.invalid'}).status_code == 403
+            for _ in range(2):
+                response = pan.client.post('/api/terminals', json={'cwd': str(tmp_path)})
+                assert response.status_code == 200, response.text
+                view = response.json()['result']
+                records.append(view)
+                handle = identity.open_process_for_probe(view['pid'])
+                assert handle
+                handles.append(handle)
+                assert identity.read_creation_filetime(handle) == int(view['process_created_at_filetime'])
+            managed, detached = records
+            tid = detached['terminal_id']
+&gt;           pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
+
+tests\test_terminal_pan_lifecycle_ma.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_terminal_pan_lifecycle_ma.py:79: in command
+    frame = json.loads(ws.recv(timeout=5))
+                       ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\connection.py:321: in recv
+    return self.recv_messages.get(timeout, decode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\messages.py:169: in get
+    frame = self.get_next_frame(deadline.timeout(raise_if_elapsed=False))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;websockets.sync.messages.Assembler object at 0x0000025982148A10&gt;
+timeout = 5.0
+
+    def get_next_frame(self, timeout: float | None = None) -&gt; Frame:
+        # Helper to factor out the logic for getting the next frame from the
+        # queue, while handling timeouts and reaching the end of the stream.
+        if self.closed:
+            try:
+                frame = self.frames.get(block=False)
+            except queue.Empty:
+                raise EOFError("stream of frames ended") from None
+        else:
+            try:
+                # Check for a frame that's already received if timeout &lt;= 0.
+                # SimpleQueue.get() doesn't support negative timeout values.
+                if timeout is not None and timeout &lt;= 0:
+                    frame = self.frames.get(block=False)
+                else:
+                    frame = self.frames.get(block=True, timeout=timeout)
+            except queue.Empty:
+&gt;               raise TimeoutError(f"timed out in {timeout:.1f}s") from None
+E               TimeoutError: timed out in 5.0s
+
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\messages.py:89: TimeoutError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1785/test_real_pan_managed_cleanup_0')
+crash = False
+
+    @pytest.mark.parametrize('crash', [False, True])
+    def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        (tmp_path / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'qq': {}}))
+        pan = Pan(tmp_path)
+        records, handles = [], []
+        restarted = False
+        try:
+            pan.start()
+            # Negative Origin and real readiness: rejection is not an all-deny fake pass.
+            assert pan.client.get('/api/terminals', headers={'Origin': 'http://wrong.invalid'}).status_code == 403
+            for _ in range(2):
+                response = pan.client.post('/api/terminals', json={'cwd': str(tmp_path)})
+                assert response.status_code == 200, response.text
+                view = response.json()['result']
+                records.append(view)
+                handle = identity.open_process_for_probe(view['pid'])
+                assert handle
+                handles.append(handle)
+                assert identity.read_creation_filetime(handle) == int(view['process_created_at_filetime'])
+            managed, detached = records
+            tid = detached['terminal_id']
+            pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
+            response = pan.client.post(f'/api/terminals/{tid}/detach', json={})
+            assert response.status_code == 200, response.text
+            pan.stop(crash=crash)
+            until(lambda: identity.wait_state(handles[0]) is ProcessStatus.DEAD, 15)
+            assert identity.wait_state(handles[1]) is ProcessStatus.ALIVE
+            assert not (tmp_path / 'terminals/secrets' / f"{managed['terminal_id']}.secret").exists()
+            pan.start()
+            restarted = True
+            restored = pan.client.get(f'/api/terminals/{tid}').json()['result']
+            assert restored['pid'] == detached['pid']
+            assert restored['process_created_at_filetime'] == detached['process_created_at_filetime']
+            witness = tmp_path / 'restart-witness'
+            pan.command(tid, f'echo %PAN_RESTART_VALUE%&gt;"{witness}"\r')
+            until(witness.exists)
+            assert witness.read_text().strip() == 'UNCHANGED_SHELL'
+            def close():
+                response = pan.client.post(f'/api/terminals/{tid}/close', json={})
+                return response.status_code == 200
+            until(close, 25)
+            until(lambda: identity.wait_state(handles[1]) is ProcessStatus.DEAD)
+            pan.stop()
+        finally:
+            if pan.process is not None and pan.process.poll() is None:
+                pan.stop(crash=True)
+            # On assertion failure, use retained identity observations and the original
+            # persisted terminal credential, never process-name or command-line kills.
+            cleanup = TerminalService(tmp_path / 'terminals', log_stderr=False,
+                identity_probe=lambda pid: identity.probe_handle(handles[[r['pid'] for r in records].index(pid)], pid))
+            cleanup.reconcile()
+            for record in records:
+                if identity.wait_state(handles[records.index(record)]) is ProcessStatus.ALIVE:
+&gt;                   until(lambda: _close_owned(cleanup, record['terminal_id']), 25)
+
+tests\test_terminal_pan_lifecycle_ma.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_terminal_pan_lifecycle_ma.py:27: in until
+    value = fn()
+            ^^^^
+tests\test_terminal_pan_lifecycle_ma.py:149: in &lt;lambda&gt;
+    until(lambda: _close_owned(cleanup, record['terminal_id']), 25)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_terminal_pan_lifecycle_ma.py:158: in _close_owned
+    service.close(tid)
+packages\core\terminal\service.py:1399: in close
+    state = self._require_state(terminal_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x0000025981C70590&gt;
+terminal_id = 'term_dbc8276001414ac9'
+
+    def _require_state(self, terminal_id: str) -&gt; _TerminalState:
+        with self._global_lock:
+            state = self._states.get(terminal_id)
+        if state is None:
+            # 记录存在但本实例未持有（跨进程/重启后）→ 明确"未连接"，不猜。
+            # 记录本身不存在时让registry 的 ``UnknownTerminalError`` 原样冒泡
+            # （调用方需要区分"不存在"与"未连接"），但**不**附带内部细节。
+            self._registry.get(terminal_id)
+&gt;           raise TerminalNotAttached("not-attached")
+E           packages.core.terminal.service.TerminalNotAttached: not-attached
+
+packages\core\terminal\service.py:2335: TerminalNotAttached</failure></testcase><testcase classname="tests.test_terminal_pan_lifecycle_ma" name="test_real_pan_managed_cleanup_detached_restart_same_shell[True]" time="6.704"><failure message="packages.core.terminal.service.TerminalNotAttached: not-attached">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1785/test_real_pan_managed_cleanup_1')
+crash = True
+
+    @pytest.mark.parametrize('crash', [False, True])
+    def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        (tmp_path / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'qq': {}}))
+        pan = Pan(tmp_path)
+        records, handles = [], []
+        restarted = False
+        try:
+            pan.start()
+            # Negative Origin and real readiness: rejection is not an all-deny fake pass.
+            assert pan.client.get('/api/terminals', headers={'Origin': 'http://wrong.invalid'}).status_code == 403
+            for _ in range(2):
+                response = pan.client.post('/api/terminals', json={'cwd': str(tmp_path)})
+                assert response.status_code == 200, response.text
+                view = response.json()['result']
+                records.append(view)
+                handle = identity.open_process_for_probe(view['pid'])
+                assert handle
+                handles.append(handle)
+                assert identity.read_creation_filetime(handle) == int(view['process_created_at_filetime'])
+            managed, detached = records
+            tid = detached['terminal_id']
+&gt;           pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
+
+tests\test_terminal_pan_lifecycle_ma.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_terminal_pan_lifecycle_ma.py:79: in command
+    frame = json.loads(ws.recv(timeout=5))
+                       ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\connection.py:321: in recv
+    return self.recv_messages.get(timeout, decode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\messages.py:169: in get
+    frame = self.get_next_frame(deadline.timeout(raise_if_elapsed=False))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;websockets.sync.messages.Assembler object at 0x0000025982218E60&gt;
+timeout = 5.0
+
+    def get_next_frame(self, timeout: float | None = None) -&gt; Frame:
+        # Helper to factor out the logic for getting the next frame from the
+        # queue, while handling timeouts and reaching the end of the stream.
+        if self.closed:
+            try:
+                frame = self.frames.get(block=False)
+            except queue.Empty:
+                raise EOFError("stream of frames ended") from None
+        else:
+            try:
+                # Check for a frame that's already received if timeout &lt;= 0.
+                # SimpleQueue.get() doesn't support negative timeout values.
+                if timeout is not None and timeout &lt;= 0:
+                    frame = self.frames.get(block=False)
+                else:
+                    frame = self.frames.get(block=True, timeout=timeout)
+            except queue.Empty:
+&gt;               raise TimeoutError(f"timed out in {timeout:.1f}s") from None
+E               TimeoutError: timed out in 5.0s
+
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\websockets\sync\messages.py:89: TimeoutError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1785/test_real_pan_managed_cleanup_1')
+crash = True
+
+    @pytest.mark.parametrize('crash', [False, True])
+    def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        (tmp_path / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'qq': {}}))
+        pan = Pan(tmp_path)
+        records, handles = [], []
+        restarted = False
+        try:
+            pan.start()
+            # Negative Origin and real readiness: rejection is not an all-deny fake pass.
+            assert pan.client.get('/api/terminals', headers={'Origin': 'http://wrong.invalid'}).status_code == 403
+            for _ in range(2):
+                response = pan.client.post('/api/terminals', json={'cwd': str(tmp_path)})
+                assert response.status_code == 200, response.text
+                view = response.json()['result']
+                records.append(view)
+                handle = identity.open_process_for_probe(view['pid'])
+                assert handle
+                handles.append(handle)
+                assert identity.read_creation_filetime(handle) == int(view['process_created_at_filetime'])
+            managed, detached = records
+            tid = detached['terminal_id']
+            pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
+            response = pan.client.post(f'/api/terminals/{tid}/detach', json={})
+            assert response.status_code == 200, response.text
+            pan.stop(crash=crash)
+            until(lambda: identity.wait_state(handles[0]) is ProcessStatus.DEAD, 15)
+            assert identity.wait_state(handles[1]) is ProcessStatus.ALIVE
+            assert not (tmp_path / 'terminals/secrets' / f"{managed['terminal_id']}.secret").exists()
+            pan.start()
+            restarted = True
+            restored = pan.client.get(f'/api/terminals/{tid}').json()['result']
+            assert restored['pid'] == detached['pid']
+            assert restored['process_created_at_filetime'] == detached['process_created_at_filetime']
+            witness = tmp_path / 'restart-witness'
+            pan.command(tid, f'echo %PAN_RESTART_VALUE%&gt;"{witness}"\r')
+            until(witness.exists)
+            assert witness.read_text().strip() == 'UNCHANGED_SHELL'
+            def close():
+                response = pan.client.post(f'/api/terminals/{tid}/close', json={})
+                return response.status_code == 200
+            until(close, 25)
+            until(lambda: identity.wait_state(handles[1]) is ProcessStatus.DEAD)
+            pan.stop()
+        finally:
+            if pan.process is not None and pan.process.poll() is None:
+                pan.stop(crash=True)
+            # On assertion failure, use retained identity observations and the original
+            # persisted terminal credential, never process-name or command-line kills.
+            cleanup = TerminalService(tmp_path / 'terminals', log_stderr=False,
+                identity_probe=lambda pid: identity.probe_handle(handles[[r['pid'] for r in records].index(pid)], pid))
+            cleanup.reconcile()
+            for record in records:
+                if identity.wait_state(handles[records.index(record)]) is ProcessStatus.ALIVE:
+&gt;                   until(lambda: _close_owned(cleanup, record['terminal_id']), 25)
+
+tests\test_terminal_pan_lifecycle_ma.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_terminal_pan_lifecycle_ma.py:27: in until
+    value = fn()
+            ^^^^
+tests\test_terminal_pan_lifecycle_ma.py:149: in &lt;lambda&gt;
+    until(lambda: _close_owned(cleanup, record['terminal_id']), 25)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_terminal_pan_lifecycle_ma.py:158: in _close_owned
+    service.close(tid)
+packages\core\terminal\service.py:1399: in close
+    state = self._require_state(terminal_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000259821C1460&gt;
+terminal_id = 'term_a4ba2e0341864b52'
+
+    def _require_state(self, terminal_id: str) -&gt; _TerminalState:
+        with self._global_lock:
+            state = self._states.get(terminal_id)
+        if state is None:
+            # 记录存在但本实例未持有（跨进程/重启后）→ 明确"未连接"，不猜。
+            # 记录本身不存在时让registry 的 ``UnknownTerminalError`` 原样冒泡
+            # （调用方需要区分"不存在"与"未连接"），但**不**附带内部细节。
+            self._registry.get(terminal_id)
+&gt;           raise TerminalNotAttached("not-attached")
+E           packages.core.terminal.service.TerminalNotAttached: not-attached
+
+packages\core\terminal\service.py:2335: TerminalNotAttached</failure></testcase></testsuite></testsuites>

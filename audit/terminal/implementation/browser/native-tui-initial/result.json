@@ -1,0 +1,30 @@
+{
+  "realConPTY": true,
+  "browser": "chromium",
+  "passed": false,
+  "errors": [],
+  "native": {
+    "keys": [
+      224,
+      75,
+      9,
+      20013,
+      25991,
+      13
+    ],
+    "initial_size": [
+      137,
+      46
+    ],
+    "final_size": [
+      91,
+      30
+    ]
+  },
+  "nativeConsoleKeyboardVerified": true,
+  "alternateScreenAndReturnVerified": true,
+  "resizeReachedNativeConsole": true,
+  "failure": "TimeoutError: page.waitForFunction: Timeout 15000ms exceeded.",
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:52007', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:52007', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

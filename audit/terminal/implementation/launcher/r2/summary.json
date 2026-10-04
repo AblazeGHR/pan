@@ -1,0 +1,54 @@
+{
+  "git_head": "5c44b36cda144520f8119c72e374d46623dde04f",
+  "scope": "launcher 套件 r2（17 原有 + 29 新增用例）；不跑 13 组合/core/全库/长稳",
+  "steps": {
+    "r2_direct": {
+      "returncode": 0,
+      "seconds": 45.188,
+      "tail": "PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[PAN-R2-SENTINEL-7c1e9b]\n46 passed in 44.72s",
+      "cleanup": {
+        "sessions": 5,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [
+          {
+            "file": "launcher_real_bootstrap_refused_cleanup.json",
+            "exit_code": 4
+          },
+          {
+            "file": "launcher_real_hard_kill_cleanup.json",
+            "exit_code": 1
+          }
+        ],
+        "resource_leftovers": []
+      }
+    },
+    "r2_uv": {
+      "returncode": 0,
+      "seconds": 46.453,
+      "tail": "PASSED tests/test_terminal_launcher.py::test_r2_illegal_terminal_id_never_echoed[PAN-R2-SENTINEL-7c1e9b]\n46 passed in 44.96s",
+      "cleanup": {
+        "sessions": 5,
+        "alive_before_cleanup": 0,
+        "nonzero_exit_sessions": [
+          {
+            "file": "launcher_real_bootstrap_refused_cleanup.json",
+            "exit_code": 4
+          },
+          {
+            "file": "launcher_real_hard_kill_cleanup.json",
+            "exit_code": 1
+          }
+        ],
+        "resource_leftovers": []
+      }
+    }
+  },
+  "residual_scan": {
+    "processes": {
+      "available": true,
+      "python_runner_leftovers": [],
+      "node_sidecar_leftovers": []
+    },
+    "evidence_tmp_files": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "git_head": "7552319b0d206b7b976f6b4325e9a2a4dde45dc6",
+  "scope": "launcher 定向集（新增 r3 + 紧邻 status/投影/公告）；不含真机跨进程用例",
+  "targeted_expression": "r3_ or r2_ or status or residual or startup or close or illegal or sentinel or tmp",
+  "steps": {
+    "r3_direct": {
+      "returncode": 0,
+      "seconds": 10.625,
+      "tail": "57 passed, 10 deselected in 10.17s"
+    },
+    "r3_uv": {
+      "returncode": 0,
+      "seconds": 11.062,
+      "tail": "57 passed, 10 deselected in 9.67s"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "python_runner_leftovers": [],
+    "node_sidecar_leftovers": []
+  },
+  "evidence_tmp_files": []
+}

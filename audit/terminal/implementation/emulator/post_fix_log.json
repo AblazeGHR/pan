@@ -1,0 +1,123 @@
+{
+  "source_log": "post_fix_verbose.log",
+  "total": 28,
+  "summary": {
+    "passed": 28,
+    "failed": [],
+    "skipped": 0
+  },
+  "cases": [
+    {
+      "test": "test_construct_ready_identity_and_close",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_start_cursor_beyond_53_bits_travels_as_string",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_missing_node_binary_is_unavailable",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_missing_sidecar_script_is_unavailable",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_frame_helpers_reject_oversize_and_truncation",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_main_screen_matrix_and_recovery",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_alternate_screen_matrix_and_recovery",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_split_utf8_1_4_rest_matches_continuous",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_holdback_split_csi_and_protocol_a_recovery",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_holdback_split_osc_degrades_partial_and_recovers",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_snapshot_cursor_excludes_pending_tail",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_resize_queue_ordering_matches_reference",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_browserless_large_output_and_log_cursor_eviction",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_snapshot_cursor_is_applied_not_producer_frontier",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_expired_control_never_executes_late",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_feed_enqueue_never_waits_for_node",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_feed_overflow_is_sticky_degraded_and_bounded",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_control_queue_overflow_is_visible",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_unknown_sequence_after_event_saturation_is_detected",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_engine_op_error_is_sticky_degraded",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_reset_baseline_uses_execution_position_not_future_frontier",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_reset_clears_old_gap_and_never_fakes_full",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_duplicate_feed_bytes_not_double_consumed",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_sidecar_crash_is_visible_and_close_converges",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_close_failure_retains_resources_then_retry_converges",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_guard_close_failure_is_retryable",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_runner_hard_death_kills_sidecar_via_job",
+      "outcome": "PASSED"
+    },
+    {
+      "test": "test_no_process_leaks_after_close",
+      "outcome": "PASSED"
+    }
+  ]
+}

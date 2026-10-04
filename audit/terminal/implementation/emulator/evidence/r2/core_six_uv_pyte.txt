@@ -1,0 +1,13 @@
+Downloading cryptography (3.7MiB)
+Downloading pydantic-core (1.9MiB)
+Downloading pygments (1.2MiB)
+Downloading pywin32 (6.6MiB)
+ Downloaded pygments
+ Downloaded pydantic-core
+ Downloaded cryptography
+ Downloaded pywin32
+Installed 44 packages in 377ms
+........................................................................ [ 55%]
+.........................................................                [100%]
+129 passed in 8.07s
+CORE_EXIT=0

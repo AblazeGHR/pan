@@ -1,0 +1,334 @@
+{
+  "mode": "daemon",
+  "run_id": "20261003-011225",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp",
+  "port": 50334,
+  "port_free_before": true,
+  "start": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "start",
+      "--port",
+      "50334"
+    ],
+    "returncode": 0,
+    "stdout": "Daemon started (PID: 26888, endpoint: http://127.0.0.1:50334)\n  sleep-inhibit: powercfg | auto-update: on | wake-reconnect: on | channel-autoconnect: on\n",
+    "stderr": "",
+    "seconds": 2.596
+  },
+  "status": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "status"
+    ],
+    "returncode": 0,
+    "stdout": "{\n  \"status\": \"running\",\n  \"pid\": 26888,\n  \"endpoint\": \"http://127.0.0.1:50334\",\n  \"startedAt\": 1790961148375,\n  \"systemService\": {\n    \"installed\": false,\n    \"backend\": \"task-scheduler\"\n  },\n  \"autoUpdate\": {\n    \"enabled\": true\n  }\n}\n",
+    "stderr": "",
+    "seconds": 1.766
+  },
+  "ps_json": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "[\n  {\n    \"pid\": 26888,\n    \"lastHeartbeat\": 1790961148382,\n    \"sessionId\": \"01a0fd9a-6328-7f96-9bd5-10a4cbd3fc0b\",\n    \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pan-cbc-probe-daemon-8p9wr3qp\\\\ws\",\n    \"startedAt\": 1790961148375,\n    \"kind\": \"daemon\",\n    \"configuredPort\": 50334,\n    \"startupArgs\": [\n      \"--permission-mode\",\n      \"default\"\n    ],\n    \"url\": \"http://127.0.0.1:50334\",\n    \"endpoint\": \"http://127.0.0.1:50334\",\n    \"mode\": \"local\",\n    \"version\": \"2.161.1\",\n    \"os\": \"win32\",\n    \"arch\": \"x64\",\n    \"hostname\": \"ablaze\",\n    \"updatedAt\": 1790961153813,\n    \"meta\": {\n      \"cronReady\": \"true\",\n      \"cronReadyAt\": \"1790961153812\",\n      \"cronStorageDir\": \"c:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pan-cbc-probe-daemon-8p9wr3qp\\\\ws\\\\.codebuddy\"\n    }\n  }\n]\n",
+    "stderr": "",
+    "seconds": 1.579
+  },
+  "registry_after_start": [
+    {
+      "file": "26888.json",
+      "data": {
+        "pid": 26888,
+        "lastHeartbeat": 1790961148382,
+        "sessionId": "01a0fd9a-6328-7f96-9bd5-10a4cbd3fc0b",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+        "startedAt": 1790961148375,
+        "kind": "daemon",
+        "configuredPort": 50334,
+        "startupArgs": [
+          "--permission-mode",
+          "default"
+        ],
+        "url": "http://127.0.0.1:50334",
+        "endpoint": "http://127.0.0.1:50334",
+        "mode": "local",
+        "version": "2.161.1",
+        "os": "win32",
+        "arch": "x64",
+        "hostname": "ablaze",
+        "updatedAt": 1790961153813,
+        "meta": {
+          "cronReady": "true",
+          "cronReadyAt": "1790961153812",
+          "cronStorageDir": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws\\.codebuddy"
+        }
+      }
+    }
+  ],
+  "health": {
+    "status": 200,
+    "json": {
+      "data": {
+        "status": "ok",
+        "uptime": 8.1140436,
+        "platforms": [
+          "generic",
+          "wecom",
+          "wechat-kf"
+        ],
+        "pid": 26888
+      }
+    }
+  },
+  "daemon_status_api": {
+    "status": 200,
+    "json": {
+      "data": {
+        "status": "running",
+        "pid": 26888,
+        "endpoint": "http://127.0.0.1:50334",
+        "startedAt": 1790961148375
+      }
+    }
+  },
+  "workers": {
+    "status": 200,
+    "json": {
+      "data": [
+        {
+          "pid": 26888,
+          "lastHeartbeat": 1790961148382,
+          "sessionId": "01a0fd9a-6328-7f96-9bd5-10a4cbd3fc0b",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+          "startedAt": 1790961148375,
+          "kind": "daemon",
+          "configuredPort": 50334,
+          "startupArgs": [
+            "--permission-mode",
+            "default"
+          ],
+          "url": "http://127.0.0.1:50334",
+          "endpoint": "http://127.0.0.1:50334",
+          "mode": "local",
+          "version": "2.161.1",
+          "os": "win32",
+          "arch": "x64",
+          "hostname": "ablaze",
+          "updatedAt": 1790961153813,
+          "meta": {
+            "cronReady": "true",
+            "cronReadyAt": "1790961153812",
+            "cronStorageDir": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws\\.codebuddy"
+          },
+          "isCurrent": true
+        }
+      ]
+    }
+  },
+  "jobs_before": {
+    "status": 200,
+    "json": {
+      "data": {
+        "jobs": []
+      }
+    }
+  },
+  "job_dispatch": {
+    "status": 200,
+    "json": {
+      "data": {
+        "id": "6f853dd2",
+        "shortId": "6f853dd2",
+        "state": "working",
+        "tempo": "active",
+        "startedAt": 1790961155432,
+        "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+        "kind": "background",
+        "intent": "ping -n 600 127.0.0.1",
+        "detail": "running",
+        "webUrl": null,
+        "alive": true,
+        "settled": false,
+        "sessionId": "6f853dd2-055f-4400-bf18-ed5b49ae50f7",
+        "name": "ping -n 600 127.0.0.1",
+        "updatedAt": 1790961156516,
+        "pid": 4084,
+        "exec": "ping -n 600 127.0.0.1"
+      }
+    }
+  },
+  "job_id": "6f853dd2",
+  "jobs_after_dispatch": {
+    "status": 200,
+    "json": {
+      "data": {
+        "jobs": [
+          {
+            "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+            "kind": "background",
+            "startedAt": 1790961155432,
+            "id": "6f853dd2",
+            "state": "working",
+            "sessionId": "6f853dd2-055f-4400-bf18-ed5b49ae50f7",
+            "name": "ping -n 600 127.0.0.1",
+            "pid": 4084,
+            "webUrl": null,
+            "alive": true,
+            "settled": false,
+            "tempo": "active",
+            "detail": "running",
+            "intent": "ping -n 600 127.0.0.1",
+            "updatedAt": 1790961156516
+          }
+        ]
+      }
+    }
+  },
+  "job_detail": {
+    "status": 200,
+    "json": {
+      "data": {
+        "job": {
+          "id": "6f853dd2",
+          "shortId": "6f853dd2",
+          "state": "working",
+          "tempo": "active",
+          "startedAt": 1790961155432,
+          "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+          "kind": "background",
+          "intent": "ping -n 600 127.0.0.1",
+          "detail": "running",
+          "webUrl": null,
+          "alive": true,
+          "settled": false,
+          "sessionId": "6f853dd2-055f-4400-bf18-ed5b49ae50f7",
+          "name": "ping -n 600 127.0.0.1",
+          "updatedAt": 1790961156516,
+          "pid": 4084,
+          "exec": "ping -n 600 127.0.0.1"
+        }
+      }
+    }
+  },
+  "job_pid": null,
+  "job_identity": null,
+  "job_sse_head": "",
+  "job_sse_event_lines": 0,
+  "attach_daemon_job": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "attach",
+      "6f853dd2"
+    ],
+    "pty_pid": 33896,
+    "pty_identity_before": {
+      "pid": 33896,
+      "create_time": 1790961160.5442555,
+      "name": "node.exe",
+      "cmdline": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "attach",
+        "6f853dd2"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+      "alive": true
+    },
+    "pty_alive_at_end": false,
+    "pty_exitstatus": 1,
+    "pty_identity_after": null,
+    "screen_text": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Session not found: 6f853dd2\r\n",
+    "screen_len": 59,
+    "seconds": 8.023
+  },
+  "attach_screen": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Session not found: 6f853dd2\r\n",
+  "job_identity_after_attach": null,
+  "job_stop": {
+    "status": 200,
+    "json": {
+      "data": {
+        "stopped": true
+      }
+    }
+  },
+  "job_identity_after_stop": null,
+  "jobs_after_stop": {
+    "status": 200,
+    "json": {
+      "data": {
+        "jobs": [
+          {
+            "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemon-8p9wr3qp\\ws",
+            "kind": "background",
+            "startedAt": 1790961155432,
+            "id": "6f853dd2",
+            "state": "stopped",
+            "sessionId": "6f853dd2-055f-4400-bf18-ed5b49ae50f7",
+            "name": "ping -n 600 127.0.0.1",
+            "webUrl": null,
+            "alive": false,
+            "settled": true,
+            "tempo": "idle",
+            "detail": "running",
+            "intent": "ping -n 600 127.0.0.1",
+            "updatedAt": 1790961169370,
+            "firstTerminalAt": 1790961169359
+          }
+        ]
+      }
+    }
+  },
+  "stop_cli": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "stop"
+    ],
+    "returncode": 0,
+    "stdout": "Daemon stopped.\n",
+    "stderr": "",
+    "seconds": 1.428
+  },
+  "port_free_after_stop": true,
+  "status_after_stop": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "status"
+    ],
+    "returncode": 0,
+    "stdout": "{\n  \"status\": \"stopped\",\n  \"systemService\": {\n    \"installed\": false,\n    \"backend\": \"task-scheduler\"\n  }\n}\n",
+    "stderr": "",
+    "seconds": 1.082
+  },
+  "ps_json_after_stop": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.135
+  },
+  "registry_after_stop": [],
+  "processes_referencing_isolated_cfg": [],
+  "cleanup": {
+    "candidates": [],
+    "results": [],
+    "all_gone": true
+  }
+}

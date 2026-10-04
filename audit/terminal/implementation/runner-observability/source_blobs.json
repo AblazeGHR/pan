@@ -1,0 +1,23 @@
+{
+  "parent_head": "734ad758262f1133c81d17ba21ae2fe7f0933d81",
+  "anchor_kind": "git staged blob id（与本次提交内容逐字节一致）",
+  "blobs": {
+    "audit/terminal/implementation/runner-observability/README.md": {
+      "blob": "fc9adfff32a67e73f772a65957a61c769bfd62ce",
+      "mode": "100644"
+    },
+    "docs/design/PAN_TERMINAL_RUNNER_INTERFACES_20261003.md": {
+      "blob": "e56b86bffe13d1b7799b1a5251342511a9e995ca",
+      "mode": "100644"
+    },
+    "packages/core/terminal/runner.py": {
+      "blob": "f6414df53eadc074aaf20f619d559548f5e69b36",
+      "mode": "100644"
+    },
+    "tests/test_terminal_runner.py": {
+      "blob": "7b097bca9ea8dc32b77ea2581f3dfad7c3a0601c",
+      "mode": "100644"
+    }
+  },
+  "note": "锚定 F5 实施的 runner.py / 测试 / 接口文档 / 审计 README；本轮未改 client/IPC/contracts/emulator/sidecar/service。复跑结果见 evidence/post_fix_{direct,uv}.txt 与 summary.json。"
+}

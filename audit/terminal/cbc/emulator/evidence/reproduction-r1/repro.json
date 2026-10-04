@@ -1,0 +1,58 @@
+{
+  "D1_sticky_dirty": {
+    "first": {
+      "boundary_clean": false,
+      "fidelity": "partial",
+      "reasons": [
+        "PENDING_PARSER_STATE_UNSERIALIZED"
+      ]
+    },
+    "after_next_chunk": {
+      "boundary_clean": true,
+      "fidelity": "full",
+      "reasons": []
+    },
+    "expected_after_fix": "second snapshot must stay partial until an explicit reset (the emulator is still inside the OSC parser state)"
+  },
+  "D2_undeclared_gaps": {
+    "decstbm": {
+      "fidelity": "full",
+      "reasons": []
+    },
+    "sync2026": {
+      "fidelity": "full",
+      "reasons": []
+    },
+    "expected_after_fix": "both must degrade without any declareFeatures() call"
+  },
+  "D3_cursor_double_feed": {
+    "applied_bytes": 0,
+    "pending_tail_bytes": 5,
+    "reference_line0": "PRE-中文-😀 REDPOST",
+    "double_fed_line0": "PRE-PRE-中文-😀 REDPOST",
+    "double_feed_is_wrong": true,
+    "expected_after_fix": "explicit parsed_cursor / resume_cursor semantics; the two documented protocols must each match the reference, the mixed one must be shown invalid"
+  },
+  "D4_offsets": {
+    "rejected_chunks": 2,
+    "enqueued_bytes_field": 65536,
+    "applied_bytes_field": 65536,
+    "producer_handed_bytes": 131072,
+    "expected_after_fix": "producer frontier must count rejected bytes too; rejected ranges and absolute cursors (parsed/resume) must be reported; reset must define a new absolute frontier"
+  },
+  "D5_queue_and_expiry": {
+    "expired_reset_timeout_result": {
+      "ok": false,
+      "timeout": true
+    },
+    "resets_executed_after_expiry": 1,
+    "processed_seq_at_timeout": 0,
+    "resize_ops_queued_behind_stall": 20000,
+    "resize_ops_rejected": 0,
+    "expected_after_fix": "expired mutating requests must NOT execute later (resets delta 0) and resize/request ops must be bounded with an explicit rejection reason"
+  },
+  "D5b_op_error_recovery": {
+    "inject_api_present": false,
+    "expected_after_fix": "test-only throw op + op_errors counter; loop keeps processing afterwards"
+  }
+}

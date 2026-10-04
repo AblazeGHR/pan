@@ -1,0 +1,104 @@
+{
+  "id": "C1-alt-screen-switch-exit-restore",
+  "title": "主备屏切换 / 退出 / 恢复",
+  "status": "pass",
+  "expectations": [
+    {
+      "name": "snapshot in alt screen marks activeType=alternate",
+      "ok": true
+    },
+    {
+      "name": "restored-from-A continues to final state == reference",
+      "ok": true
+    },
+    {
+      "name": "final pipeline snapshot == reference end state",
+      "ok": true
+    },
+    {
+      "name": "fidelity full",
+      "ok": true
+    }
+  ],
+  "details": {
+    "snapshotA": {
+      "applied_seq": 8,
+      "applied_bytes": 52,
+      "alt": {
+        "applied_seq": 8,
+        "applied_bytes": 52,
+        "cols": 40,
+        "rows": 10
+      },
+      "pending_tail_bytes": 4
+    },
+    "restoredAStateSummary": {
+      "activeType": "normal",
+      "cursorX": 0,
+      "cursorY": 3,
+      "cols": 40,
+      "rows": 10,
+      "screenText": "PRIMARY-1\nPRIMARY-2\nPRIMARY-3\n\n\n\n\n\n\n",
+      "modes": {
+        "applicationCursorKeysMode": false,
+        "applicationKeypadMode": false,
+        "bracketedPasteMode": false,
+        "insertMode": false,
+        "originMode": false,
+        "reverseWraparoundMode": false,
+        "sendFocusMode": false,
+        "synchronizedOutputMode": false,
+        "wraparoundMode": true,
+        "mouseTrackingMode": "none"
+      }
+    },
+    "referenceFinal": {
+      "activeType": "normal",
+      "cursorX": 0,
+      "cursorY": 3,
+      "cols": 40,
+      "rows": 10,
+      "screenText": "PRIMARY-1\nPRIMARY-2\nPRIMARY-3\n\n\n\n\n\n\n",
+      "modes": {
+        "applicationCursorKeysMode": false,
+        "applicationKeypadMode": false,
+        "bracketedPasteMode": false,
+        "insertMode": false,
+        "originMode": false,
+        "reverseWraparoundMode": false,
+        "sendFocusMode": false,
+        "synchronizedOutputMode": false,
+        "wraparoundMode": true,
+        "mouseTrackingMode": "none"
+      }
+    },
+    "snapshotB": {
+      "applied_seq": 12,
+      "applied_bytes": 71,
+      "fidelity": "full",
+      "recovery": "full"
+    },
+    "stateA_after_drain": {
+      "activeType": "normal",
+      "cursorX": 0,
+      "cursorY": 3,
+      "cols": 40,
+      "rows": 10,
+      "screenText": "PRIMARY-1\nPRIMARY-2\nPRIMARY-3\n\n\n\n\n\n\n",
+      "modes": {
+        "applicationCursorKeysMode": false,
+        "applicationKeypadMode": false,
+        "bracketedPasteMode": false,
+        "insertMode": false,
+        "originMode": false,
+        "reverseWraparoundMode": false,
+        "sendFocusMode": false,
+        "synchronizedOutputMode": false,
+        "wraparoundMode": true,
+        "mouseTrackingMode": "none"
+      }
+    }
+  },
+  "ms": 374,
+  "failed_expectations": []
+}

@@ -1,0 +1,116 @@
+{
+  "mode": "bg",
+  "run_id": "20261003-003326",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bg-s45otffy",
+  "job_name": "panprobe20261003003326",
+  "launch": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "--bg",
+      "--name",
+      "panprobe20261003003326",
+      "--exec",
+      "ping -n 120 127.0.0.1"
+    ],
+    "returncode": 0,
+    "stdout": "backgrounded · 3d1cdf84 · panprobe20261003003326 (shell job)\n  codebuddy agents             list sessions\n  codebuddy logs 3d1cdf84      show recent output\n  codebuddy stop 3d1cdf84      stop this job\n\n  PID:  47776\n  Log:  C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bg-s45otffy\\cfg\\logs\\exec-3d1cdf84.log\n",
+    "stderr": "",
+    "seconds": 4.323
+  },
+  "registry_after_launch": [],
+  "ps_json": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.216
+  },
+  "bg_pid": null,
+  "bg_identity_before": null,
+  "logs": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "logs",
+      "panprobe20261003003326"
+    ],
+    "returncode": 1,
+    "stdout": "Error: Session not found: panprobe20261003003326\n",
+    "stderr": "",
+    "seconds": 1.17
+  },
+  "attach_shell_job": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "attach",
+      "panprobe20261003003326"
+    ],
+    "pty_pid": 36928,
+    "pty_identity_before": {
+      "pid": 36928,
+      "create_time": 1790958816.368143,
+      "name": "node.exe",
+      "cmdline": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "attach",
+        "panprobe20261003003326"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-bg-s45otffy\\ws",
+      "alive": true
+    },
+    "pty_alive_at_end": false,
+    "pty_exitstatus": 1,
+    "pty_identity_after": null,
+    "screen_text": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Session not found: panprobe20261003003326\r\n",
+    "screen_len": 73,
+    "seconds": 6.038
+  },
+  "bg_identity_after_attach": null,
+  "registry_after_attach": [],
+  "ps_json_after_attach": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.148
+  },
+  "kill": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "kill",
+      "panprobe20261003003326"
+    ],
+    "returncode": 1,
+    "stdout": "Error: Session not found: panprobe20261003003326\n",
+    "stderr": "",
+    "seconds": 1.15
+  },
+  "ps_json_after_kill": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.406
+  },
+  "registry_after_kill": [],
+  "bg_identity_after_kill": null
+}

@@ -1,0 +1,301 @@
+{
+  "mode": "selftest-cleanup",
+  "run_id": "20261003-010736",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-tp6a3p2x",
+  "note": "all processes here are created by this probe; no CBC calls",
+  "T1_wrong_identity": {
+    "stop_result": {
+      "label": "decoy-wrong-id",
+      "pid": 41900,
+      "basis": "fault test: deliberately wrong create_time",
+      "expected_create_time": 1790960976.372946,
+      "actual_create_time": 1790960856.3729458,
+      "handle_pid": 41900,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    },
+    "alive_after_refusal": true
+  },
+  "T2_correct_identity": {
+    "stop_result": {
+      "label": "decoy-correct-id",
+      "pid": 41900,
+      "basis": "identity recorded at spawn",
+      "expected_create_time": 1790960856.372946,
+      "actual_create_time": 1790960856.3729458,
+      "handle_pid": 41900,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    },
+    "gone_after": false
+  },
+  "T3_already_gone": {
+    "label": "short-lived",
+    "pid": 39776,
+    "basis": "already exited naturally",
+    "expected_create_time": 1790960856.3792694,
+    "gone": true,
+    "terminated": false,
+    "reason": "already gone at stop time"
+  },
+  "T4_own_subtree": {
+    "scan": {
+      "owned": [
+        {
+          "pid": 33420,
+          "create_time": 1790960856.4215376,
+          "name": "PING.EXE",
+          "cmdline": "ping -n 60 127.0.0.1"
+        }
+      ],
+      "skipped": []
+    },
+    "stop": {
+      "label": "selftest-root",
+      "root_pid": 32984,
+      "scan": {
+        "owned": [
+          {
+            "pid": 33420,
+            "create_time": 1790960856.4215376,
+            "name": "PING.EXE",
+            "cmdline": "ping -n 60 127.0.0.1"
+          }
+        ],
+        "skipped": []
+      },
+      "stopped": [
+        {
+          "label": "selftest-root:child",
+          "pid": 33420,
+          "basis": "descendant of own root + scope marker",
+          "expected_create_time": 1790960856.4215376,
+          "actual_create_time": 1790960856.4215374,
+          "handle_pid": 33420,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        },
+        {
+          "label": "selftest-root",
+          "pid": 32984,
+          "basis": "own root, identity recorded at spawn",
+          "expected_create_time": 1790960856.4031951,
+          "actual_create_time": 1790960856.4031944,
+          "handle_pid": 32984,
+          "identity_verified": true,
+          "terminated": true,
+          "exit_code": 1,
+          "handle_signaled": true,
+          "gone": true
+        }
+      ],
+      "all_gone": true
+    },
+    "root_gone": true,
+    "children_gone": [
+      33420
+    ],
+    "foreign_still_alive": true
+  },
+  "T5_foreign_not_collected": {
+    "foreign_collected_by_root_scan": false,
+    "stop_result": {
+      "label": "foreign-decoy",
+      "pid": 29500,
+      "basis": "own decoy, separate identity",
+      "expected_create_time": 1790960857.9100368,
+      "actual_create_time": 1790960857.910036,
+      "handle_pid": 29500,
+      "identity_verified": true,
+      "terminated": true,
+      "exit_code": 1,
+      "handle_signaled": true,
+      "gone": true
+    },
+    "gone_after": true
+  },
+  "T6_timeout_path": {
+    "timeout_raised": true,
+    "note": "subprocess.run killed its own child through the retained Popen handle",
+    "own_unrelated_decoy_untouched": true,
+    "decoy_cleanup": {
+      "label": "t6-decoy",
+      "pid": 44688,
+      "basis": "own decoy after timeout test",
+      "expected_create_time": 1790960868.88846,
+      "actual_create_time": 1790960868.8884602,
+      "handle_pid": 44688,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    }
+  },
+  "T7_leftover_scan_stop": {
+    "scan_found": [
+      {
+        "pid": 8656,
+        "name": "cmd.exe",
+        "create_time": 1790960870.9145365,
+        "cmdline": "cmd /c echo selftest20261003010736 & ping -n 60 127.0.0.1",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-tp6a3p2x\\ws",
+        "created_during_run": true
+      }
+    ],
+    "stop": {
+      "candidates": [
+        {
+          "pid": 8656,
+          "name": "cmd.exe",
+          "create_time": 1790960870.9145365,
+          "cmdline": "cmd /c echo selftest20261003010736 & ping -n 60 127.0.0.1",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-tp6a3p2x\\ws",
+          "created_during_run": true
+        }
+      ],
+      "results": [
+        {
+          "label": "selftest-leftover:8656",
+          "root_pid": 8656,
+          "scan": {
+            "owned": [
+              {
+                "pid": 22752,
+                "create_time": 1790960870.934792,
+                "name": "PING.EXE",
+                "cmdline": "ping -n 60 127.0.0.1"
+              }
+            ],
+            "skipped": []
+          },
+          "stopped": [
+            {
+              "label": "selftest-leftover:8656:child",
+              "pid": 22752,
+              "basis": "descendant of own root + scope marker",
+              "expected_create_time": 1790960870.934792,
+              "actual_create_time": 1790960870.9347916,
+              "handle_pid": 22752,
+              "identity_verified": true,
+              "terminated": true,
+              "exit_code": 1,
+              "handle_signaled": true,
+              "gone": true
+            },
+            {
+              "label": "selftest-leftover:8656",
+              "pid": 8656,
+              "basis": "own root, identity recorded at spawn",
+              "expected_create_time": 1790960870.9145365,
+              "actual_create_time": 1790960870.9145355,
+              "handle_pid": 8656,
+              "refused": true,
+              "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+            }
+          ],
+          "all_gone": false
+        }
+      ],
+      "all_gone": false
+    },
+    "alive_after": true
+  },
+  "final_cleanup": [
+    {
+      "label": "final-41900",
+      "pid": 41900,
+      "basis": "own spawned process",
+      "expected_create_time": 1790960856.372946,
+      "actual_create_time": 1790960856.3729458,
+      "handle_pid": 41900,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    },
+    {
+      "label": "final-44688",
+      "pid": 44688,
+      "basis": "own spawned process",
+      "expected_create_time": 1790960868.88846,
+      "actual_create_time": 1790960868.8884602,
+      "handle_pid": 44688,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    },
+    {
+      "label": "final-8656",
+      "pid": 8656,
+      "basis": "own spawned process",
+      "expected_create_time": 1790960870.9145365,
+      "actual_create_time": 1790960870.9145355,
+      "handle_pid": 8656,
+      "refused": true,
+      "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+    }
+  ],
+  "final_scope_cleanup": {
+    "candidates": [
+      {
+        "pid": 41900,
+        "name": "PING.EXE",
+        "create_time": 1790960856.372946,
+        "cmdline": "ping -n 60 127.0.0.1",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-tp6a3p2x\\ws",
+        "created_during_run": true
+      },
+      {
+        "pid": 44688,
+        "name": "PING.EXE",
+        "create_time": 1790960868.88846,
+        "cmdline": "ping -n 60 127.0.0.1",
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-selftest-tp6a3p2x\\ws",
+        "created_during_run": true
+      }
+    ],
+    "results": [
+      {
+        "label": "selftest-scope:41900",
+        "root_pid": 41900,
+        "scan": {
+          "owned": [],
+          "skipped": []
+        },
+        "stopped": [
+          {
+            "label": "selftest-scope:41900",
+            "pid": 41900,
+            "basis": "own root, identity recorded at spawn",
+            "expected_create_time": 1790960856.372946,
+            "actual_create_time": 1790960856.3729458,
+            "handle_pid": 41900,
+            "refused": true,
+            "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+          }
+        ],
+        "all_gone": false
+      },
+      {
+        "label": "selftest-scope:44688",
+        "root_pid": 44688,
+        "scan": {
+          "owned": [],
+          "skipped": []
+        },
+        "stopped": [
+          {
+            "label": "selftest-scope:44688",
+            "pid": 44688,
+            "basis": "own root, identity recorded at spawn",
+            "expected_create_time": 1790960868.88846,
+            "actual_create_time": 1790960868.8884602,
+            "handle_pid": 44688,
+            "refused": true,
+            "reason": "identity mismatch: creation FILETIME differs from recorded identity"
+          }
+        ],
+        "all_gone": false
+      }
+    ],
+    "all_gone": false
+  }
+}

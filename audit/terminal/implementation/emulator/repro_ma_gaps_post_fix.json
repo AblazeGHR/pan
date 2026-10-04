@@ -1,0 +1,55 @@
+{
+  "all_ok": true,
+  "results": [
+    {
+      "gap": "B1_4096_event_cap_masks_unknown",
+      "ok": true,
+      "detail": {
+        "fidelity": "partial",
+        "note": "protocol=A(cursor=25011, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=PRIVATE_MODE_7777_UNVERIFIED"
+      }
+    },
+    {
+      "gap": "B2_unbounded_rejected_ranges",
+      "ok": true,
+      "detail": {
+        "rejected_range_count": 64,
+        "rejected_feed_blocks": 192,
+        "overflow": {
+          "rejected_range": 128
+        }
+      }
+    },
+    {
+      "gap": "B3_feed_error_not_sticky_degraded",
+      "ok": true,
+      "detail": {
+        "fidelity": "partial",
+        "sticky_fidelity": "partial",
+        "note": "protocol=A(cursor=8, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=ENGINE_OP_ERROR_STICKY; engine_sticky_error=op-error:injected",
+        "engine_alive": true
+      }
+    },
+    {
+      "gap": "B4_reset_takes_future_producer_frontier",
+      "ok": true,
+      "detail": {
+        "baseline_cursor": "2000",
+        "reset_snapshot_cursor": 2000,
+        "producer_frontier": 3000
+      }
+    },
+    {
+      "gap": "B5_reset_does_not_clear_old_gap",
+      "ok": true,
+      "detail": {
+        "cursors_valid_before_reset": false,
+        "cursors_valid_after_reset": true,
+        "fidelity_after_reset": "partial",
+        "recovery_after_reset": "partial",
+        "note_after_reset": "protocol=A(cursor=60, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=BASELINE_RESET_FRESH_VIEW",
+        "note_before_reset": "protocol=A(cursor=60, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serial"
+      }
+    }
+  ]
+}

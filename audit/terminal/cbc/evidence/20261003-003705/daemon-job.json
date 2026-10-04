@@ -1,0 +1,299 @@
+{
+  "mode": "daemon-job",
+  "run_id": "20261003-003705",
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp",
+  "port": 63242,
+  "marker": "PANMARK-20261003-003705",
+  "daemon_start": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "start",
+      "--port",
+      "63242"
+    ],
+    "returncode": 0,
+    "stdout": "Daemon started (PID: 5004, endpoint: http://127.0.0.1:63242)\n  sleep-inhibit: powercfg | auto-update: on | wake-reconnect: on | channel-autoconnect: on\n",
+    "stderr": "",
+    "seconds": 2.711
+  },
+  "daemon_pid": 5004,
+  "daemon_identity": {
+    "pid": 5004,
+    "create_time": 1790959026.7366216,
+    "name": "node.exe",
+    "cmdline": [
+      "D:\\software\\nodeJs\\node.exe",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "--serve",
+      "--permission-mode",
+      "default"
+    ],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+    "alive": true
+  },
+  "health": {
+    "status": 200,
+    "json": {
+      "data": {
+        "status": "ok",
+        "uptime": 1.8657178,
+        "platforms": [
+          "generic",
+          "wecom",
+          "wechat-kf"
+        ],
+        "pid": 5004
+      }
+    }
+  },
+  "dispatch": {
+    "status": 200,
+    "json": {
+      "data": {
+        "id": "54f5305c",
+        "shortId": "54f5305c",
+        "state": "working",
+        "tempo": "active",
+        "startedAt": 1790959028665,
+        "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+        "kind": "background",
+        "intent": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\"",
+        "detail": "running",
+        "webUrl": null,
+        "alive": true,
+        "settled": false,
+        "sessionId": "54f5305c-d20c-499e-887d-bd36f528ce6c",
+        "name": "cmd /c \"echo PANMARK-20261003-003705 > p",
+        "updatedAt": 1790959029333,
+        "pid": 4032,
+        "exec": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\""
+      }
+    }
+  },
+  "job_id": "54f5305c",
+  "job_samples": [
+    {
+      "t": 0.0,
+      "api_alive": true,
+      "api_state": "working",
+      "api_pid": 4032,
+      "pid_exists": true,
+      "marker_file": true,
+      "exec_log_size": null
+    },
+    {
+      "t": 1.01,
+      "api_alive": true,
+      "api_state": "working",
+      "api_pid": 4032,
+      "pid_exists": true,
+      "marker_file": true,
+      "exec_log_size": null
+    },
+    {
+      "t": 2.03,
+      "api_alive": true,
+      "api_state": "working",
+      "api_pid": 4032,
+      "pid_exists": true,
+      "marker_file": true,
+      "exec_log_size": null
+    },
+    {
+      "t": 3.04,
+      "api_alive": true,
+      "api_state": "working",
+      "api_pid": 4032,
+      "pid_exists": true,
+      "marker_file": true,
+      "exec_log_size": null
+    },
+    {
+      "t": 4.07,
+      "api_alive": true,
+      "api_state": "working",
+      "api_pid": 4032,
+      "pid_exists": true,
+      "marker_file": true,
+      "exec_log_size": null
+    }
+  ],
+  "job_pid": 4032,
+  "job_identity": {
+    "pid": 4032,
+    "create_time": 1790959028.6880336,
+    "name": "cmd.exe",
+    "cmdline": [
+      "C:\\Windows\\system32\\cmd.exe",
+      "/d",
+      "/s",
+      "/c",
+      "cmd /c echo",
+      "PANMARK-20261003-003705",
+      ">",
+      "panmark.txt",
+      "&",
+      "ping",
+      "-n",
+      "300",
+      "127.0.0.1"
+    ],
+    "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+    "alive": true
+  },
+  "daemon_identity_after_job": {
+    "pid": 5004,
+    "create_time": 1790959026.7366216,
+    "name": "node.exe",
+    "cmdline": [
+      "D:\\software\\nodeJs\\node.exe",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "--serve",
+      "--permission-mode",
+      "default"
+    ],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+    "alive": true
+  },
+  "marker_file_content": "PANMARK-20261003-003705  \n",
+  "logs_cli": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "logs",
+      "54f5305c"
+    ],
+    "returncode": 1,
+    "stdout": "Error: Session not found: 54f5305c\n",
+    "stderr": "",
+    "seconds": 1.414
+  },
+  "attach_pty": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "attach",
+      "54f5305c"
+    ],
+    "pty_pid": 49564,
+    "pty_identity_before": {
+      "pid": 49564,
+      "create_time": 1790959034.857746,
+      "name": "node.exe",
+      "cmdline": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+        "attach",
+        "54f5305c"
+      ],
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+      "alive": true
+    },
+    "pty_alive_at_end": false,
+    "pty_exitstatus": 1,
+    "pty_identity_after": null,
+    "screen_text": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Session not found: 54f5305c\r\n",
+    "screen_len": 59,
+    "seconds": 8.07
+  },
+  "attach_screen": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hError: Session not found: 54f5305c\r\n",
+  "stream_head": "",
+  "reply": {
+    "status": 200,
+    "json": {
+      "data": {
+        "delivered": false,
+        "saved": false,
+        "notice": "Bash replies only run inside the session — press enter to attach and run it there"
+      }
+    }
+  },
+  "replied_file": false,
+  "job_identity_after_reply": {
+    "pid": 4032,
+    "create_time": 1790959028.6880336,
+    "name": "cmd.exe",
+    "cmdline": [
+      "C:\\Windows\\system32\\cmd.exe",
+      "/d",
+      "/s",
+      "/c",
+      "cmd /c echo",
+      "PANMARK-20261003-003705",
+      ">",
+      "panmark.txt",
+      "&",
+      "ping",
+      "-n",
+      "300",
+      "127.0.0.1"
+    ],
+    "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+    "alive": true
+  },
+  "stop": {
+    "status": 200,
+    "json": {
+      "data": {
+        "stopped": true
+      }
+    }
+  },
+  "job_pid_exists_after_stop": false,
+  "job_detail_after_stop": {
+    "status": 200,
+    "json": {
+      "data": {
+        "job": {
+          "id": "54f5305c",
+          "shortId": "54f5305c",
+          "state": "stopped",
+          "tempo": "idle",
+          "startedAt": 1790959028665,
+          "cwd": "c:\\Users\\14709\\AppData\\Local\\Temp\\pan-cbc-probe-daemonjob-1ql3tlhp\\ws",
+          "kind": "background",
+          "intent": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\"",
+          "detail": "running",
+          "webUrl": null,
+          "alive": false,
+          "settled": true,
+          "sessionId": "54f5305c-d20c-499e-887d-bd36f528ce6c",
+          "name": "cmd /c \"echo PANMARK-20261003-003705 > p",
+          "updatedAt": 1790959047448,
+          "firstTerminalAt": 1790959047439,
+          "exec": "cmd /c \"echo PANMARK-20261003-003705 > panmark.txt & ping -n 300 127.0.0.1\""
+        }
+      }
+    }
+  },
+  "daemon_stop_cli": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "daemon",
+      "stop"
+    ],
+    "returncode": 0,
+    "stdout": "Daemon stopped.\n",
+    "stderr": "",
+    "seconds": 1.258
+  },
+  "port_free_after": true,
+  "daemon_pid_exists_after_stop": false,
+  "leftover_processes": [],
+  "ps_after": {
+    "argv": [
+      "node",
+      "D:\\node_npm\\node_global\\node_modules\\@tencent-ai\\codebuddy-code\\bin\\codebuddy",
+      "ps",
+      "--json"
+    ],
+    "returncode": 0,
+    "stdout": "No active sessions.\n",
+    "stderr": "",
+    "seconds": 1.0
+  },
+  "registry_after": []
+}

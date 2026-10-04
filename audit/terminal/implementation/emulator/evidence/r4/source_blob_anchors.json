@@ -1,0 +1,35 @@
+{
+  "reviewed_baseline_commit": "cd876291",
+  "files": {
+    "packages/core/terminal/emulator.py": {
+      "baseline_blob": "eb84499aeb9de472b6140106c91875b8ee69edc7",
+      "after_blob": "d293dd391eef1046d52afcde5d7eab5a699cf8e7",
+      "unchanged": false
+    },
+    "tests/test_terminal_emulator.py": {
+      "baseline_blob": "e32067c1b190bd5089f997c299d3054cb6eb008c",
+      "after_blob": "9e3892eed2d89dc3f6365db6db338bb336cd6eba",
+      "unchanged": false
+    },
+    "docs/design/PAN_TERMINAL_EMULATOR_INTERFACES_20261003.md": {
+      "baseline_blob": "29d36de8fac5bff3497db738333070b6008953fc",
+      "after_blob": "d52543e8aa29286dd4bdbf9c15587bbe032700b4",
+      "unchanged": false
+    },
+    "packages/core/terminal/emulator_sidecar/sidecar.mjs": {
+      "baseline_blob": "ce22e476895474fdc7a4a949853df002d5f7c9d1",
+      "after_blob": "ce22e476895474fdc7a4a949853df002d5f7c9d1",
+      "unchanged": true
+    },
+    "packages/core/terminal/emulator_sidecar/package.json": {
+      "baseline_blob": "872b1a4061fd949e77c3428c1b7c72b507300eee",
+      "after_blob": "872b1a4061fd949e77c3428c1b7c72b507300eee",
+      "unchanged": true
+    },
+    "packages/core/terminal/emulator_sidecar/package-lock.json": {
+      "baseline_blob": "816d1959147900eb115e62e1f11305aad81f2154",
+      "after_blob": "816d1959147900eb115e62e1f11305aad81f2154",
+      "unchanged": true
+    }
+  }
+}

@@ -5,10 +5,13 @@ import type {
   ApiSessionHistoryResponse,
   ApiGenericResponse,
   SettingsBody,
+  RewindScope,
+  StreamEvent,
 } from '@/types';
 import {
   fetchSessions,
   fetchSessionHistory,
+  rewindSessionHistory,
   createSession,
   deleteSession,
   batchDeleteSessions,
@@ -42,10 +45,55 @@ import {
   type LoadedWindow,
 } from '@/stores/messageOrdering';
 
+export interface ActiveRewind {
+  jobId: string;
+  sessionId: string;
+  anchorText: string;
+  scope: RewindScope;
+  stage: string;
+  status: 'running' | 'completed' | 'failed';
+  error?: string | null;
+  /** Original anchor, retained so a minimized job can be reopened. */
+  anchorMessage?: Message;
+  /** Branch session created when the rewind completed. */
+  newSessionId?: string | null;
+}
+
+/** Map a backend rewind failure to a user-facing message. cbc builds its
+ *  confirmation menu per checkpoint: a checkpoint without code changes only
+ *  offers "Restore conversation", so a code scope is rejected at runtime. */
+export function friendlyRewindError(raw: string | null | undefined, scope: RewindScope): string {
+  const text = raw || '撤回失败';
+  if (text.includes('could not be selected')) {
+    if (scope === 3) return '该检查点没有代码变更，无法仅回滚代码';
+    if (scope === 2) return '该检查点没有对话变更，无法仅回滚对话';
+    return '该检查点不支持所选的回滚范围';
+  }
+  // Strip stacked exception-type prefixes (RuntimeError: AnchorOutOfRangeError: …)
+  // — the Chinese payload behind them is what the user should read.
+  return text.replace(/^([A-Za-z_]*(Error|Exception)\s*:\s*)+/, '');
+}
+
+const COMPLETED_REWIND_VISIBLE_MS = 5000;
+const completedRewindTimers = new Set<string>();
+
+function scheduleCompletedRewindRemoval(jobId: string, remove: () => void): void {
+  if (!jobId || completedRewindTimers.has(jobId)) return;
+  completedRewindTimers.add(jobId);
+  setTimeout(() => {
+    completedRewindTimers.delete(jobId);
+    remove();
+  }, COMPLETED_REWIND_VISIBLE_MS);
+}
+
 interface SessionStore {
   // State
   sessions: Session[];
   sessionsLoading: boolean;
+  /** In-flight rewind jobs started from a message action, keyed by jobId (or a
+   *  per-session pending key before the POST resolves). Multiple sessions can
+   *  rewind concurrently; a session may only have one at a time. */
+  activeRewinds: ActiveRewind[];
   currentSessionId: string | null;
   currentMessages: Message[];
   hasMoreMessages: boolean;
@@ -109,6 +157,23 @@ interface SessionStore {
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
+  rewindCurrentMessage: (message: Message, scope: RewindScope) => Promise<void>;
+  /** Apply a session.rewind.progress WS event to the matching in-flight job. */
+  applyRewindProgress: (event: StreamEvent) => void;
+  /** Close the progress popup but KEEP the job running (not a cancel). */
+  minimizeRewind: (jobId: string) => void;
+  dismissRewind: (jobId?: string, sessionId?: string) => void;
+  /** Reopen a running rewind's progress popup from the status bar. */
+  openRewindProgress: (jobId: string, sessionId?: string) => Promise<void>;
+  /** Apply the deferred branch jump for a completed rewind. */
+  completeRewind: (jobId: string) => Promise<void>;
+  /** Message the rewind confirm modal is open for, if any. Kept in the
+   *  store (not in MessageBubble local state) so a message-list remount —
+   *  e.g. the identity refresh rewindCurrentMessage may trigger — can never
+   *  unmount the modal mid-job and hide the progress (Bug 3). */
+  rewindTarget: Message | null;
+  openRewind: (message: Message) => void;
+  closeRewind: () => void;
   createNewSession: (
     name: string,
     workdir?: string | null,
@@ -1609,6 +1674,8 @@ function appendCanonicalRows(history: Message[], rows: Message[]): Message[] {
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
+  activeRewinds: [],
+  rewindTarget: null,
   sessionsLoading: false,
   currentSessionId: null,
   currentMessages: [],
@@ -2121,6 +2188,182 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ historyLoading: false });
       }
     }
+  },
+
+  rewindCurrentMessage: async (message: Message, scope: RewindScope) => {
+    const sid = get().currentSessionId;
+    if (!sid) throw new Error('未选择 Session');
+    // One rewind per session: a second concurrent job on the same session
+    // would race the PTY checkpoint list, so reject it outright (the rewind
+    // button is disabled on the same condition). Concurrent rewinds on
+    // DIFFERENT sessions are fine and tracked side by side.
+    if (get().activeRewinds.some((item) => item.sessionId === sid)) {
+      throw new Error('该会话已有撤回进行中');
+    }
+    // Register a PENDING rewind (empty jobId) synchronously, BEFORE the POST
+    // resolves: the backend broadcasts session.rewind.progress 'starting'
+    // before responding, and without this the modal's progress view would
+    // see no entry on the first click and close instantly.
+    set((s) => ({
+      activeRewinds: [...s.activeRewinds, {
+        jobId: '',
+        sessionId: sid,
+        anchorText: message.content,
+        scope,
+        stage: 'starting',
+        status: 'running',
+        error: null,
+        anchorMessage: message,
+      }],
+    }));
+    let messageId = message.messageId;
+    if (!messageId) {
+      await get().refreshCurrentSessionHistory();
+      const refreshed = get().currentMessages;
+      const candidate = refreshed.find((item) => item === message)
+        ?? [...refreshed].reverse().find((item) => item.role === message.role && item.content === message.content);
+      messageId = candidate?.messageId;
+    }
+    if (!messageId) {
+      set((s) => ({ activeRewinds: s.activeRewinds.filter((item) => item.sessionId !== sid) }));
+      throw new Error('消息身份不可用，请刷新后重试');
+    }
+    let data;
+    try {
+      data = await rewindSessionHistory(sid, messageId, scope);
+    } catch (error) {
+      // Clear only our own pending entry (never another session's job).
+      set((s) => ({ activeRewinds: s.activeRewinds.filter((item) => item.sessionId !== sid) }));
+      throw error;
+    }
+    // Fill in the server jobId. Early WS events may already have adopted it
+    // and advanced the stage — never regress those fields here.
+    set((s) => ({
+      activeRewinds: s.activeRewinds.map((item) => (
+        item.sessionId === sid && !item.jobId && item.status === 'running'
+          ? { ...item, jobId: data.jobId || '' }
+          : item
+      )),
+    }));
+  },
+
+  applyRewindProgress: (event: StreamEvent) => {
+    if (event.type !== 'session.rewind.progress') return;
+    const rewinds = get().activeRewinds;
+    // Claim by jobId first; a pending entry (POST not yet resolved, empty
+    // jobId) is claimed by sessionId so no early stage is dropped.
+    const active = rewinds.find((item) => item.jobId && item.jobId === event.jobId)
+      ?? rewinds.find((item) => !item.jobId && item.sessionId === event.sessionId);
+    if (!active) return;
+    const claimed = active.jobId ? active : { ...active, jobId: event.jobId || '' };
+    const replace = (patch: Partial<ActiveRewind>) => {
+      set((s) => ({
+        activeRewinds: s.activeRewinds.map((item) => (
+          item === active ? { ...claimed, ...patch } : item
+        )),
+      }));
+    };
+    const stage = event.stage || claimed.stage;
+    if (stage === 'failed') {
+      const friendly = friendlyRewindError(event.error, claimed.scope);
+      replace({ stage, status: 'failed', error: friendly });
+      useUIStore.getState().showToast(friendly, 'error');
+      return;
+    }
+    if (stage === 'completed') {
+      // A persisted poll can repeat the terminal event. Do not navigate or
+      // enqueue duplicate toasts for an entry that is already settled.
+      if (claimed.status === 'completed') return;
+      const completed: ActiveRewind = {
+        ...claimed,
+        stage,
+        status: 'completed',
+        newSessionId: event.newSessionId || claimed.newSessionId || null,
+      };
+      set((s) => ({
+        activeRewinds: s.activeRewinds.map((item) => (
+          item === active ? completed : item
+        )),
+      }));
+
+      // Only the session that started the rewind gets the automatic branch
+      // jump. If the user has moved elsewhere, leave the completed entry in
+      // the status bar so clicking "??" performs the same action later.
+      if (get().currentSessionId === claimed.sessionId && completed.newSessionId) {
+        void get().completeRewind(completed.jobId);
+      } else {
+        useUIStore.getState().showToast('撤回完成，可在撤回状态条中点击“查看”');
+      }
+      scheduleCompletedRewindRemoval(completed.jobId, () => {
+        set((s) => ({
+          activeRewinds: s.activeRewinds.filter((item) => item.jobId !== completed.jobId),
+        }));
+      });
+      return;
+    }
+    replace({ stage });
+  },
+
+  completeRewind: async (jobId: string) => {
+    const active = get().activeRewinds.find((item) => item.jobId === jobId);
+    if (!active || active.status !== 'completed' || !active.newSessionId) return;
+    const newSessionId = active.newSessionId;
+    // ORDER MATTERS ? do not reorder these three calls:
+    // InputRow's draft-restore effect only runs when currentSessionId
+    // changes and reads inputDrafts at that exact moment; it does not
+    // subscribe to draft values. Writing the draft AFTER selectSession
+    // therefore silently drops the prefill (no error is raised).
+    get().setInputDraft(newSessionId, active.anchorText);
+    // selectSession early-returns for ids not yet in the sessions list;
+    // the new branch session only arrives via the debounced refresh, so
+    // load it explicitly first.
+    await get().loadSessions();
+    await get().selectSession(newSessionId);
+    useUIStore.getState().requestComposerFocus();
+    // Keep the completed entry until its short status-bar retention timer
+    // expires. This makes the successful result visible even after the
+    // automatic branch jump; failed entries remain until explicit dismissal.
+  },
+
+  openRewindProgress: async (jobId: string, sessionId?: string) => {
+    const active = get().activeRewinds.find((item) => (
+      item.jobId === jobId && (!sessionId || item.sessionId === sessionId)
+    ));
+    if (!active?.anchorMessage) return;
+    if (get().currentSessionId !== active.sessionId) {
+      await get().selectSession(active.sessionId);
+    }
+    set({ rewindTarget: active.anchorMessage });
+  },
+
+  minimizeRewind: (jobId: string) => {
+    // Close the progress popup but KEEP the job running — closing is not a
+    // cancel. The job entry stays in activeRewinds so WS events and the 2s
+    // polling fallback keep advancing it, and the completed branch still
+    // performs the jump + prefill. We only drop the popup anchor
+    // (rewindTarget) so RewindModalHost unmounts the modal.
+    const active = get().activeRewinds.find((item) => item.jobId === jobId);
+    if (!active) return;
+    set({ rewindTarget: null });
+  },
+
+  dismissRewind: (jobId?: string, sessionId?: string) => {
+    // Drop only the selected settled job when the modal supplies an id. Keep
+    // the legacy no-arg behavior for callers that want to clear all settled
+    // entries; in-flight jobs always survive.
+    set((s) => ({
+      activeRewinds: s.activeRewinds.filter((item) => (
+        item.status === 'running' || (jobId ? item.jobId !== jobId : sessionId ? item.sessionId !== sessionId : false)
+      )),
+    }));
+  },
+
+  openRewind: (message: Message) => {
+    set({ rewindTarget: message });
+  },
+
+  closeRewind: () => {
+    set({ rewindTarget: null });
   },
 
   createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {

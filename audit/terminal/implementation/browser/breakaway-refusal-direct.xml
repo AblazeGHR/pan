@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="2.619" timestamp="2026-10-04T12:22:12.344157+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_service" name="test_real_service_detach_refused_zero_state_change" time="2.477" /></testsuite></testsuites>

@@ -1,0 +1,128 @@
+{
+  "captured_at": "2026-10-03 00:48:37",
+  "versions": {
+    "installed": {
+      "cmd": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js"
+      ],
+      "version": "codex-cli 0.159.2"
+    },
+    "upstream_local": {
+      "path": "C:\\Users\\14709/.codex/packages/app-server-daemon/releases\\0.160.0-x86_64-pc-windows-msvc\\bin\\codex.exe",
+      "version": "codex-cli 0.160.0"
+    }
+  },
+  "surfaces": {
+    "top-level": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [
+        "resume            Resume a previous interactive session (picker by default; use --last to continue",
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ],
+      "upstream_interesting_lines": [
+        "resume            Resume a previous interactive session (picker by default; use --last to continue",
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ]
+    },
+    "app-server": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [
+        "--listen <URL>",
+        "Transport endpoint URL. Supported values: `stdio://` (default), `unix://`, `unix://PATH`,",
+        "`ws://IP:PORT`, `off`",
+        "--stdio",
+        "Use stdio as the transport (equivalent to `--listen stdio://`)"
+      ],
+      "upstream_interesting_lines": [
+        "--listen <URL>",
+        "Transport endpoint URL. Supported values: `stdio://` (default), `unix://`, `unix://PATH`,",
+        "`ws://IP:PORT`, `off`",
+        "--stdio",
+        "Use stdio as the transport (equivalent to `--listen stdio://`)"
+      ]
+    },
+    "app-server daemon": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [],
+      "upstream_interesting_lines": []
+    },
+    "app-server proxy": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [],
+      "upstream_interesting_lines": []
+    },
+    "resume": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [
+        "Resume a previous interactive session (picker by default; use --last to continue the most recent)",
+        "Usage: codex resume [OPTIONS] [SESSION_ID] [PROMPT]",
+        "[SESSION_ID]",
+        "Include non-interactive sessions in the resume picker and --last selection",
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ],
+      "upstream_interesting_lines": [
+        "Resume a previous interactive session (picker by default; use --last to continue the most recent)",
+        "Usage: codex resume [OPTIONS] [SESSION_ID] [PROMPT]",
+        "[SESSION_ID]",
+        "Include non-interactive sessions in the resume picker and --last selection",
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ]
+    },
+    "agents": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ],
+      "upstream_interesting_lines": [
+        "--remote <ADDR>",
+        "Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.",
+        "--remote-auth-token-env <ENV_VAR>"
+      ]
+    },
+    "remote-control": {
+      "installed_rc": 0,
+      "upstream_rc": 0,
+      "installed_only_flags": [],
+      "upstream_only_flags": [],
+      "identical_output": true,
+      "installed_interesting_lines": [],
+      "upstream_interesting_lines": []
+    }
+  },
+  "note": "Only --help was executed. No daemon subcommand was run and nothing was installed."
+}

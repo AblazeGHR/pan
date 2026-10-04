@@ -1,0 +1,10 @@
+[
+  {
+    "file": "tests/test_terminal_driver.py",
+    "case": "test_core_has_no_adapter_menu_literals",
+    "detail": "该用例断言 packages/core/terminal/ 下 .py 文件恰好 9 个（P0 不变式）；P1 按计划新增 ipc.py/win_pipe.py/secret_store.py 后必然变化",
+    "owner": "核心 TA / MA（本 TA 写范围不含该文件）",
+    "suggested_change": "把 len(files) == 9 改为按计划文件集断言（或更新为 12 并保留字面量检查）",
+    "verified_not_caused_by_content": "新增三个模块不含 cbc/codex/never mind/restore and fork 字面量（grep 计数 0）"
+  }
+]

@@ -1,0 +1,15 @@
+............                                                             [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_machine_fields_absent_engine
+PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_old_protocol_fake_unknown
+PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_trusted_source_and_consistency_rule
+PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_source_exceptions_are_unknown_and_leakless
+PASSED tests/test_terminal_runner.py::test_f5_snapshot_detail_survives_oversize_and_long_note_reduction
+PASSED tests/test_terminal_runner.py::test_f5_r2_confirmation_sources_strict_bool_types
+PASSED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_stale_snapshot_and_no_coercion
+PASSED tests/test_terminal_runner.py::test_f5_r2_baseline_cursor_legal_big_integer
+PASSED tests/test_terminal_runner.py::test_f5_r2_reset_completion_gate_snapshot_before_after
+PASSED tests/test_terminal_runner.py::test_f5_r3_ledger_int_parser_matrix
+PASSED tests/test_terminal_runner.py::test_f5_r3_long_digit_baseline_snapshot_no_raise
+PASSED tests/test_terminal_runner.py::test_f5_r3_whitespace_plus_negative_baseline_behavior_lock

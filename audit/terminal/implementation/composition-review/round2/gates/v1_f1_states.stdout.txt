@@ -1,0 +1,7 @@
+[gate] evidence -> D:\project\pan-worktrees\terminal-composition-r2-review-20261003\audit\terminal\implementation\composition-review\round2\gates\v1_f1_states.json
+{
+  "pre_spawn_owner_none": true,
+  "eof_raises_owner_retry_clean": true,
+  "fatal_raises_owner_retry_clean": true,
+  "timeout_raises_owner_retry_clean": true
+}

@@ -1,0 +1,12 @@
+..............................................F......................... [ 63%]
+..........................................                               [100%]
+================================== FAILURES ===================================
+E   AssertionError: 前两个用例必须零字节: [b'']
+    assert [b''] == [b'', b'']
+
+      Right contains one more item: b''
+      Use -v to get more diff
+D:\project\pan-worktrees\terminal-ipc-implement-20261003\tests\test_terminal_runner_ipc.py:1428: AssertionError: 前两个用例必须零字节: [b'']
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_runner_ipc.py::test_impostor_pipe_server_identity_is_rejected_before_credentials
+1 failed, 113 passed in 50.85s

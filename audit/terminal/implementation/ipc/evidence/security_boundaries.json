@@ -1,0 +1,20 @@
+{
+  "verified_with_real_evidence": [
+    "owner-only DACL 从创建时生效：secrets 目录/秘密文件/自建 .hello 的 DACL 枚举只有当前用户 SID 的 allow ACE（tests/test_terminal_secret_store.py::test_secrets_dir_and_files_are_owner_only_from_creation）",
+    "文件 ACL 被加宽（加入 Everyone allow ACE）后读取/校验一律拒绝：SecretSecurityError（test_foreign_ace_on_secret_file_is_rejected）",
+    "管道创建参数带 FILE_FLAG_FIRST_PIPE_INSTANCE（首实例）与 dwPipeMode 的 PIPE_REJECT_REMOTE_CLIENTS，并传入非空 owner-only SECURITY_ATTRIBUTES（monkeypatch spy：test_pipe_creation_parameters_carry_owner_only_dacl_and_reject_remote）",
+    "管道名被外部进程占用 → PipeServer.create() 抛 PipeBusyError，绝不静默共用同名管道（test_pipe_name_squatting_detected_and_retryable）",
+    "冒充者持有同名管道：PID 不符 / PID 相同但 raw FILETIME 不符 → 客户端在发送任何字节前拒绝（test_impostor_pipe_server_identity_is_rejected_before_credentials）",
+    "DPAPI 用户作用域：密文可跨进程解密且不含明文 token；跨用途 entropy 不匹配解不开（test_secret_is_decryptable_from_another_process / test_protector_reports_user_scope）"
+  ],
+  "structurally_verified_only_not_live_tested": [
+    "其它 Windows 用户 / 另一安全上下文连接被拒：需要第二账户或第二安全上下文；本 TA 未创建账户、未改账户权限，只有 DACL 结构性证据（无其它 SID 的 allow ACE）",
+    "PIPE_REJECT_REMOTE_CLIENTS 的跨主机拒绝：无第二主机、未开任何网络监听，只有创建参数 spy + 常量断言"
+  ],
+  "not_claimed": [
+    "同 Windows 用户下的恶意进程：可解密该用户作用域的 DPAPI 秘密、也可连接本用户管道。首版信任边界 = 同一 Pan 用户，不承诺防同用户恶意软件",
+    "token 轮换/吊销：本层未实现（计划 §13 记为可选、默认不 rotate）",
+    "runner 生命周期（PTY/Job/lease/detach/stop）与 Web/MCP 入口检查：不在本 TA 范围"
+  ],
+  "credential_layering": "IPC token（DPAPI 秘密）与 attachment lease（revocation_id/generation）互不通用；用 lease 值冒充 IPC 凭据认证失败（test_ipc_token_is_independent_from_attachment_lease）"
+}

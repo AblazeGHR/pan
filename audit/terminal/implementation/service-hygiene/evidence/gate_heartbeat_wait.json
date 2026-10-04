@@ -1,0 +1,34 @@
+{
+  "gate": "service-hygiene F12 心跳有界等待语义回归",
+  "helper_source": "tests/test_terminal_service.py::_await_heartbeat_advance",
+  "helper_source_sha256_worktree": "82ce8c5716e65a1aaf202d502df6ee1c8707d4a10d0be1f72483dd17762d409c",
+  "results": [
+    {
+      "gate": "G1_delayed_advance",
+      "ok": true,
+      "beats": 1,
+      "ticks": 6,
+      "elapsed_seconds": 0.313,
+      "business_inputs": 7,
+      "detail": "延迟推进在有界预算内返回；耗时≈延迟，非固定 sleep"
+    },
+    {
+      "gate": "G2_never_advances_timeout",
+      "ok": true,
+      "raised": "AssertionError",
+      "elapsed_seconds": 0.406,
+      "diagnostic_has_before_field": true,
+      "diagnostic_sample": "独立心跳在有界等待内未推进（首拍需先完成 attach + HMAC 握手）：before=0 observed=0 budget=0.4s ticks=8",
+      "detail": "持续不推进必须以显式超时失败收场（不放宽成无条件 True）"
+    },
+    {
+      "gate": "G3_business_window_witness",
+      "ok": true,
+      "on_tick_calls": 5,
+      "business_inputs": 5,
+      "detail": "窗口内业务确被下发 ⇒ 可作'业务进行期间推进'的窗口见证"
+    }
+  ],
+  "passed": 3,
+  "failed": 0
+}

@@ -1,0 +1,169 @@
+{
+  "scenario": "subscriber",
+  "purpose": "attribute the interrupt of a live turn: TUI keystroke vs resume/disconnect lifecycle",
+  "isolation": {
+    "codex_home": "C:\\Users\\14709\\AppData\\Local\\Temp\\codex_tui_probe_b5u2955n",
+    "listener_port": 63342,
+    "provider": "http://127.0.0.1:63343/v1"
+  },
+  "backend_pid": 37432,
+  "control": {
+    "thread": "01a0fd93-607c-7c90-83ca-8809a9be2eee",
+    "turn": "01a0fd93-60f1-7fe0-95b8-b916e7578a01"
+  },
+  "target": {
+    "thread": "01a0fd93-610a-7cb3-a564-5f4580f635ed",
+    "turn": "01a0fd93-6154-7c11-985b-d41c2f99507f"
+  },
+  "before": {
+    "control": [
+      [
+        "01a0fd93-60f1-7fe0-95b8-b916e7578a01",
+        "inProgress"
+      ]
+    ],
+    "target": [
+      [
+        "01a0fd93-6154-7c11-985b-d41c2f99507f",
+        "inProgress"
+      ]
+    ]
+  },
+  "peer_resume": "ok",
+  "during_peer": {
+    "control": [
+      [
+        "01a0fd93-60f1-7fe0-95b8-b916e7578a01",
+        "inProgress"
+      ]
+    ],
+    "target": [
+      [
+        "01a0fd93-6154-7c11-985b-d41c2f99507f",
+        "inProgress"
+      ]
+    ]
+  },
+  "after_peer_left": {
+    "control": [
+      [
+        "01a0fd93-60f1-7fe0-95b8-b916e7578a01",
+        "inProgress"
+      ]
+    ],
+    "target": [
+      [
+        "01a0fd93-6154-7c11-985b-d41c2f99507f",
+        "inProgress"
+      ]
+    ]
+  },
+  "peer_requests": [
+    "deprecationNotice",
+    "thread/goal/cleared",
+    "deprecationNotice",
+    "deprecationNotice",
+    "deprecationNotice",
+    "deprecationNotice"
+  ],
+  "conclusion": "inconclusive: control_alive=True target_alive=True",
+  "pan_client_event_tail": [
+    "{\"method\": \"item/completed\", \"params\": {\"item\": {\"type\": \"userMessage\", \"id\": \"01a0fd93-617f-7453-b233-7ab875c03d49\", \"clientId\": null, \"content\": [{\"type\": \"text\", \"text\": \"TARGET: peer will resume then leave\", \"text_elements\": []}]}, \"threadId\": \"01a0fd93-610a-7cb3-a564-5f4580f635ed\", \"turnId\": \"0",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960693508}",
+    "{\"id\": 6, \"result\": {\"thread\": {\"id\": \"01a0fd93-607c-7c90-83ca-8809a9be2eee\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960693523}",
+    "{\"id\": 7, \"result\": {\"thread\": {\"id\": \"01a0fd93-610a-7cb3-a564-5f4580f635ed\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\",
+    "{\"method\": \"thread/goal/cleared\", \"params\": {\"threadId\": \"01a0fd93-610a-7cb3-a564-5f4580f635ed\"}, \"emittedAtMs\": 1790960693532}",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960698540}",
+    "{\"id\": 8, \"result\": {\"thread\": {\"id\": \"01a0fd93-607c-7c90-83ca-8809a9be2eee\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960698543}",
+    "{\"id\": 9, \"result\": {\"thread\": {\"id\": \"01a0fd93-610a-7cb3-a564-5f4580f635ed\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960704546}",
+    "{\"id\": 10, \"result\": {\"thread\": {\"id\": \"01a0fd93-607c-7c90-83ca-8809a9be2eee\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n",
+    "{\"method\": \"deprecationNotice\", \"params\": {\"summary\": \"Full-history hydration is deprecated for paginated threads; omit `includeTurns` or set it to `false`, then page with `thread/turns/list` and `thread/items/list`.\", \"details\": null}, \"emittedAtMs\": 1790960704548}",
+    "{\"id\": 11, \"result\": {\"thread\": {\"id\": \"01a0fd93-610a-7cb3-a564-5f4580f635ed\", \"environments\": [{\"environmentId\": \"local\", \"cwd\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\\\\probe-cwd\", \"runtimeWorkspaceRoots\": [\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n"
+  ],
+  "checks": [
+    {
+      "check": "app_server_ready",
+      "ok": true,
+      "detail": "ws://127.0.0.1:63342"
+    },
+    {
+      "check": "both_turns_live_before_peer",
+      "ok": true,
+      "detail": {
+        "control": [
+          [
+            "01a0fd93-60f1-7fe0-95b8-b916e7578a01",
+            "inProgress"
+          ]
+        ],
+        "target": [
+          [
+            "01a0fd93-6154-7c11-985b-d41c2f99507f",
+            "inProgress"
+          ]
+        ]
+      }
+    },
+    {
+      "check": "control_turn_still_in_progress",
+      "ok": true,
+      "detail": [
+        [
+          "01a0fd93-60f1-7fe0-95b8-b916e7578a01",
+          "inProgress"
+        ]
+      ]
+    },
+    {
+      "check": "resumed_turn_interrupted_by_peer_disconnect",
+      "ok": false,
+      "detail": [
+        [
+          "01a0fd93-6154-7c11-985b-d41c2f99507f",
+          "inProgress"
+        ]
+      ]
+    },
+    {
+      "check": "listener_released",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "temp_home_removed",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "backend_stop": {
+    "was_running": true,
+    "returncode": 1
+  },
+  "port_still_listening": false,
+  "home_removed": true,
+  "passed": false,
+  "failed_checks": [
+    {
+      "check": "resumed_turn_interrupted_by_peer_disconnect",
+      "ok": false,
+      "detail": [
+        [
+          "01a0fd93-6154-7c11-985b-d41c2f99507f",
+          "inProgress"
+        ]
+      ]
+    }
+  ],
+  "log": [
+    "[spawn] D:\\software\\nodeJs\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js -c model_provider=\"probe_bh\" -c model_providers.probe_bh={name=\"probe_bh\",base_url=\"http://127.0.0.1:63343/v1\",wire_api=\"responses\"} app-server --listen ws://127.0.0.1:63342 (pid=37432)",
+    "[app-server] WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\codex_tui_probe_b5u2955n\"))",
+    "[app-server] codex app-server (WebSockets)",
+    "[app-server]   listening on: ws://127.0.0.1:63342",
+    "[app-server]   readyz: http://127.0.0.1:63342/readyz",
+    "[app-server]   healthz: http://127.0.0.1:63342/healthz",
+    "[app-server]   note: binds localhost only (use SSH port-forwarding for remote access)"
+  ]
+}

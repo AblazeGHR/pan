@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="23.513" timestamp="2026-10-04T12:36:31.548616+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_pan_lifecycle_ma" name="test_real_pan_managed_cleanup_detached_restart_same_shell[False]" time="10.150"><failure message="AssertionError: assert not True&#10; +  where True = exists()&#10; +    where exists = ((WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1786/test_real_pan_managed_cleanup_0') / 'terminals/secrets') / 'term_c80183f0f7bb4789.secret').exists">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1786/test_real_pan_managed_cleanup_0')
+crash = False
+
+    @pytest.mark.parametrize('crash', [False, True])
+    def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        (tmp_path / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'qq': {}}))
+        pan = Pan(tmp_path)
+        records, handles = [], []
+        try:
+            pan.start()
+            # Negative Origin and real readiness: rejection is not an all-deny fake pass.
+            assert pan.client.get('/api/terminals', headers={'Origin': 'http://wrong.invalid'}).status_code == 403
+            for _ in range(2):
+                response = pan.client.post('/api/terminals', json={'cwd': str(tmp_path)})
+                assert response.status_code == 200, response.text
+                view = response.json()['result']
+                records.append(view)
+                handle = identity.open_process_for_probe(view['pid'])
+                assert handle
+                handles.append(handle)
+                assert identity.read_creation_filetime(handle) == int(view['process_created_at_filetime'])
+            managed, detached = records
+            tid = detached['terminal_id']
+            pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
+            response = pan.client.post(f'/api/terminals/{tid}/detach', json={})
+            assert response.status_code == 200, response.text
+            pan.stop(crash=crash)
+            until(lambda: identity.wait_state(handles[0]) is ProcessStatus.DEAD, 15)
+            assert identity.wait_state(handles[1]) is ProcessStatus.ALIVE
+            if not crash:
+&gt;               assert not (tmp_path / 'terminals/secrets' / f"{managed['terminal_id']}.secret").exists()
+E               AssertionError: assert not True
+E                +  where True = exists()
+E                +    where exists = ((WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1786/test_real_pan_managed_cleanup_0') / 'terminals/secrets') / 'term_c80183f0f7bb4789.secret').exists
+
+tests\test_terminal_pan_lifecycle_ma.py:123: AssertionError</failure></testcase><testcase classname="tests.test_terminal_pan_lifecycle_ma" name="test_real_pan_managed_cleanup_detached_restart_same_shell[True]" time="12.989" /></testsuite></testsuites>

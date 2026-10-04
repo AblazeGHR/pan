@@ -1,0 +1,5 @@
+{
+  "test": "ctrl_c_input_channel_and_survival",
+  "observed": "0x03 releases a pending console read; channel stays usable",
+  "os_level_ctrl_c_event": "not verified (measured ineffective on build 26200)"
+}

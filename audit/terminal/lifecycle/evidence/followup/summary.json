@@ -1,0 +1,51 @@
+{
+  "env": {
+    "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-term-lifecycle-probe-venv\\Scripts\\python.exe",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "win32_ver": [
+      "11",
+      "10.0.26200",
+      "SP0",
+      "Multiprocessor Free"
+    ],
+    "pywinpty": "3.0.5",
+    "driverInAnyJob": true
+  },
+  "results": {
+    "s1_default_normal_exit": {
+      "passed": true,
+      "checks": 11,
+      "failed": 0
+    },
+    "s2_default_crash": {
+      "passed": true,
+      "checks": 8,
+      "failed": 0
+    },
+    "s3_detach_normal_exit": {
+      "passed": true,
+      "checks": 16,
+      "failed": 0
+    },
+    "s4_controller_churn": {
+      "passed": true,
+      "checks": 14,
+      "failed": 0
+    },
+    "s5_detach_crash_tree": {
+      "passed": true,
+      "checks": 9,
+      "failed": 0
+    },
+    "s6_startup_assign_failure": {
+      "passed": true,
+      "checks": 9,
+      "failed": 0
+    }
+  },
+  "commands": {
+    "python": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "driver": "D:\\project\\pan-worktrees\\terminal-lifecycle-explore-20261003\\audit\\terminal\\lifecycle\\driver.py"
+  }
+}

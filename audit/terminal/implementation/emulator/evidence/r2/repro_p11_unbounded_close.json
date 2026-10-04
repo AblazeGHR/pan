@@ -1,0 +1,51 @@
+{
+  "ok": true,
+  "old_commit": "1daff2a6",
+  "results": {
+    "old": {
+      "p11": {
+        "root_dead": true,
+        "holder_pid_file": true,
+        "holder_alive": true,
+        "holder_in_job": true,
+        "blocked_beyond_budget": true,
+        "blocked_for_sec": 12.0,
+        "total_sec": 12.016,
+        "closed": true,
+        "job_verified": null,
+        "process_exited": true
+      },
+      "p1b": {
+        "blocked_beyond_budget": true,
+        "total_sec": 15.016,
+        "exception": "EmulatorUnavailableError",
+        "owner_present": false,
+        "residual_present": false,
+        "root_dead": true
+      }
+    },
+    "new": {
+      "p11": {
+        "root_dead": true,
+        "holder_pid_file": true,
+        "holder_alive": true,
+        "holder_in_job": true,
+        "blocked_beyond_budget": false,
+        "blocked_for_sec": 0.0,
+        "total_sec": 0.0,
+        "closed": true,
+        "job_verified": true,
+        "process_exited": true
+      },
+      "p1b": {
+        "blocked_beyond_budget": false,
+        "total_sec": 2.047,
+        "exception": "EmulatorStartupError",
+        "owner_present": true,
+        "residual_present": true,
+        "retry_cleanup_closed": true,
+        "root_dead": true
+      }
+    }
+  }
+}

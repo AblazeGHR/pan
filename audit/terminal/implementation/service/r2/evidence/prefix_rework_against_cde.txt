@@ -1,0 +1,103 @@
+# PRE-FIX reproduction against read-only archive of cde2dbd8 (git archive, no .git)
+# python: E:/software/miniforge/python.exe ; cwd: C:/Users/14709/AppData/Local/Temp/cde-ro
+# cmd: python -m pytest tests/test_terminal_service_rework.py -o addopts= -q -p no:cacheprovider --tb=no --timeout=60
+
+FFFF.FFF..F...FFFFFFFFFFFFF..                                            [100%]
+================================== FAILURES ===================================
+E   AssertionError: 身份仍 ALIVE 不得判已死
+    assert 1 == 0
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:120: AssertionError: 身份仍 ALIVE 不得判已死
+E   assert 1 == 0
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:140: assert 1 == 0
+E   dataclasses.FrozenInstanceError: cannot assign to field 'pid'
+<string>:4: dataclasses.FrozenInstanceError: cannot assign to field 'pid'
+E   AssertionError: PID 不同即不可归因（即使 FILETIME 同）
+    assert 'alive' == 'unattributable'
+      
+      - unattributable
+      + alive
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:184: AssertionError: PID 不同即不可归因（即使 FILETIME 同）
+E   AssertionError: 应调用身份探针
+    assert []
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:251: AssertionError: 应调用身份探针
+E   packages.core.terminal.service.CleanupUnconfirmed: explicit-close
+C:\Users\14709\AppData\Local\Temp\cde-ro\packages\core\terminal\service.py:1311: packages.core.terminal.service.CleanupUnconfirmed: explicit-close
+E   packages.core.terminal.service.CleanupUnconfirmed: explicit-close
+C:\Users\14709\AppData\Local\Temp\cde-ro\packages\core\terminal\service.py:1311: packages.core.terminal.service.CleanupUnconfirmed: explicit-close
+E   Failed: DID NOT RAISE CleanupUnconfirmed
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:383: Failed: DID NOT RAISE CleanupUnconfirmed
+E   assert 0 == 1
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:467: assert 0 == 1
+E   packages.core.terminal.service.StartupFailed: gates-not-confirmed: runner-state-not-running
+C:\Users\14709\AppData\Local\Temp\cde-ro\packages\core\terminal\service.py:882: packages.core.terminal.service.StartupFailed: gates-not-confirmed: runner-state-not-running
+E   AssertionError: 未收敛项必须保留 client 供重试
+    assert (_TerminalState(terminal_id='term_aa9bfc09c44f485b', record=TerminalRecord(terminal_id='term_aa9bfc09c44f485b', owner='..._reason='service-shutdown', lock=<unlocked _thread.RLock object owner=0 count=0 at 0x000001CE5C720280>, attached=False) is not None and None is not None)
+     +  where None = _TerminalState(terminal_id='term_aa9bfc09c44f485b', record=TerminalRecord(terminal_id='term_aa9bfc09c44f485b', owner='..._reason='service-shutdown', lock=<unlocked _thread.RLock object owner=0 count=0 at 0x000001CE5C720280>, attached=False).client
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:536: AssertionError: 未收敛项必须保留 client 供重试
+E   AssertionError: 在途 worker 使用的连接不得被提前释放
+    assert None is not None
+     +  where None = _TerminalState(terminal_id='term_95407f754b0841ed', record=TerminalRecord(terminal_id='term_95407f754b0841ed', owner='..._reason='service-shutdown', lock=<unlocked _thread.RLock object owner=0 count=0 at 0x000001CE5C713A80>, attached=False).client
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:569: AssertionError: 在途 worker 使用的连接不得被提前释放
+E   AssertionError: close 未在预算内有界返回（等锁 3.02s > stop_confirm 0.4s）
+    assert not True
+     +  where True = is_alive()
+     +    where is_alive = <Thread(Thread-25 (worker), started daemon 11972)>.is_alive
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:621: AssertionError: close 未在预算内有界返回（等锁 3.02s > stop_confirm 0.4s）
+E   AssertionError: shutdown 未在预算内有界返回（等锁 3.02s > shutdown_budget 0.5s）
+    assert not True
+     +  where True = is_alive()
+     +    where is_alive = <Thread(Thread-28 (worker), started daemon 25544)>.is_alive
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:661: AssertionError: shutdown 未在预算内有界返回（等锁 3.02s > shutdown_budget 0.5s）
+E   AssertionError: budget=0 被抬高为 0.1
+    assert (0.1 == 0.0 or 0.1 < 0.1)
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:677: AssertionError: budget=0 被抬高为 0.1
+E   AssertionError: 有记录未被列出：4 vs 1
+    assert 1 == 4
+     +  where 1 = len({'term_6227d27b34874f9c'})
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:717: AssertionError: 有记录未被列出：4 vs 1
+E   Failed: DID NOT RAISE any of (StaleLeaseError, RuntimeError, TerminalNotAttached)
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:738: Failed: DID NOT RAISE any of (StaleLeaseError, RuntimeError, TerminalNotAttached)
+E   AssertionError: 内存态仍陈旧 running
+    assert <RuntimeState.RUNNING: 'running'> is not <RuntimeState.RUNNING: 'running'>
+     +  where <RuntimeState.RUNNING: 'running'> = TerminalRecord(terminal_id='term_ffe5fc3e956e46f4', owner='service', status=<RuntimeState.RUNNING: 'running'>, created...e(workspace_id=None, session_id=None), exit_code=None, exit_reason=None, lease_grace_seconds=5.0, created_by='service').status
+     +    where TerminalRecord(terminal_id='term_ffe5fc3e956e46f4', owner='service', status=<RuntimeState.RUNNING: 'running'>, created...e(workspace_id=None, session_id=None), exit_code=None, exit_reason=None, lease_grace_seconds=5.0, created_by='service') = _TerminalState(terminal_id='term_ffe5fc3e956e46f4', record=TerminalRecord(terminal_id='term_ffe5fc3e956e46f4', owner='...ose_reason='explicit-close', lock=<unlocked _thread.RLock object owner=0 count=0 at 0x000001CE5C535640>, attached=True).record
+     +  and   <RuntimeState.RUNNING: 'running'> = RuntimeState.RUNNING
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:752: AssertionError: 内存态仍陈旧 running
+E   Failed: DID NOT RAISE TerminalServiceError
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:767: Failed: DID NOT RAISE TerminalServiceError
+E   AssertionError: assert 'created' == 'rejected'
+      
+      - rejected
+      + created
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:810: AssertionError: assert 'created' == 'rejected'
+E   AssertionError: 缺不同证明须给不同 reason
+    assert 'explicit-close' != 'explicit-close'
+     +  where 'explicit-close' = CleanupUnconfirmed('explicit-close').reason
+     +    where CleanupUnconfirmed('explicit-close') = <ExceptionInfo CleanupUnconfirmed('explicit-close') tblen=2>.value
+     +  and   'explicit-close' = CleanupUnconfirmed('explicit-close').reason
+     +    where CleanupUnconfirmed('explicit-close') = <ExceptionInfo CleanupUnconfirmed('explicit-close') tblen=2>.value
+C:\Users\14709\AppData\Local\Temp\cde-ro\tests\test_terminal_service_rework.py:839: AssertionError: 缺不同证明须给不同 reason
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_service_rework.py::test_f1_reconcile_live_alive_identity_keeps_secret_and_record
+FAILED tests/test_terminal_service_rework.py::test_f1_reconcile_live_unknown_identity_keeps_secret
+FAILED tests/test_terminal_service_rework.py::test_f1_reconcile_live_dead_identity_is_the_only_delete_path
+FAILED tests/test_terminal_service_rework.py::test_f1_identity_evidence_requires_pid_and_filetime_match
+FAILED tests/test_terminal_service_rework.py::test_f1_reconcile_never_terminates_unknown_pid
+FAILED tests/test_terminal_service_rework.py::test_f2_stop_returning_closing_can_be_retried_boundedly
+FAILED tests/test_terminal_service_rework.py::test_f2_stop_raising_exception_can_be_retried
+FAILED tests/test_terminal_service_rework.py::test_f3_persisted_cleanup_failed_gets_bounded_stop_reentry
+FAILED tests/test_terminal_service_rework.py::test_f3_reconcile_survives_endpoint_refusal_without_termination
+FAILED tests/test_terminal_service_rework.py::test_f4_reconnect_releases_old_client_and_stops_old_heartbeat
+FAILED tests/test_terminal_service_rework.py::test_f5_unconfirmed_terminal_keeps_client_for_retry
+FAILED tests/test_terminal_service_rework.py::test_f5_inflight_close_worker_survives_shutdown_release
+FAILED tests/test_terminal_service_rework.py::test_f6_close_budget_includes_state_lock_wait
+FAILED tests/test_terminal_service_rework.py::test_f6_shutdown_budget_includes_lock_and_reports_honestly
+FAILED tests/test_terminal_service_rework.py::test_f6_zero_budget_is_not_inflated
+FAILED tests/test_terminal_service_rework.py::test_f7_budget_exhausted_records_all_listed_as_unconfirmed
+FAILED tests/test_terminal_service_rework.py::test_f8_close_admission_gate_blocks_input_before_rpc
+FAILED tests/test_terminal_service_rework.py::test_f8_memory_record_synced_after_close
+FAILED tests/test_terminal_service_rework.py::test_f9_create_rejected_after_shutdown
+FAILED tests/test_terminal_service_rework.py::test_f9_create_and_shutdown_linearized
+FAILED tests/test_terminal_service_rework.py::test_f10_close_reason_distinguishes_missing_proof
+21 failed, 8 passed in 7.92s
+rc=1

@@ -1,0 +1,6 @@
+{
+  "test": "handle_count_regression",
+  "baseline": 363,
+  "after": 363,
+  "delta": 0
+}

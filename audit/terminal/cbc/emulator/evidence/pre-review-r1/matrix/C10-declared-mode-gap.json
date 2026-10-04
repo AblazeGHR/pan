@@ -1,0 +1,31 @@
+{
+  "id": "C10-declared-mode-gap",
+  "title": "synchronized output (2026) 缺口：声明式降级",
+  "status": "pass-partial",
+  "declared_status": "pass-partial",
+  "expectations": [
+    {
+      "name": "declared gap degrades fidelity",
+      "ok": true
+    },
+    {
+      "name": "capability table records the gap",
+      "ok": true
+    },
+    {
+      "name": "text content still restores (only the mode is lost)",
+      "ok": true
+    }
+  ],
+  "details": {
+    "snapshot": {
+      "fidelity": "partial",
+      "fidelity_reasons": [
+        "SYNCHRONIZED_OUTPUT_NOT_SERIALIZED"
+      ]
+    },
+    "restoredScreen": "MODE-CHECKMORE\n\n\n\n\n\n\n"
+  },
+  "ms": 53,
+  "failed_expectations": []
+}

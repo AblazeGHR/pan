@@ -127,6 +127,9 @@ def get_data_catalog() -> dict:
     managed = "data_retention_policy"
     protected = "not_auto_cleanable"
     categories = [
+        _category("rewind-records", "Rewind sidecar records", "Session-scoped rewind jobs and Pan-to-cbc checkpoint mappings.", "session_lifecycle_cleanup",
+                  [_path("Rewind records", DATA_ROOT / "rewind")],
+                  note="Sidecar JSON only; cbc does not track files edited manually or via bash."),
         _category("sessions-history", "Sessions 元数据与 history", "Session JSON、history JSONL、queue_pending 与投递状态。", managed,
                   [_path("Sessions 与 history 目录", DATA_ROOT / "sessions")],
                   note="独立保留策略；活跃 Worker、队列、关系和任务引用会阻止到期删除。"),

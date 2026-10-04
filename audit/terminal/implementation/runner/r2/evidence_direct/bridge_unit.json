@@ -1,0 +1,12 @@
+{
+  "gap_first": [
+    6,
+    10
+  ],
+  "fallback_gap": [
+    4,
+    9
+  ],
+  "feed_at_used": true,
+  "base_feed_used": true
+}

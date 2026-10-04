@@ -1,0 +1,19 @@
+{
+  "stream_bytes": 307800,
+  "feed_ops": 2280,
+  "chunk_bytes": 135,
+  "feed_and_snapshot_seconds": 35.078,
+  "ops_per_second": 65.0,
+  "serialized_utf8_bytes": 82863,
+  "cursor": 307800,
+  "rows": 24,
+  "cols": 80,
+  "fidelity": "full",
+  "recovery": "full",
+  "reasons": [],
+  "findings": {
+    "wire_field_limit": "ipc 响应 snapshot/detail 字段 ≤4096 字符；serialized 必须走 data_b64（≤128KiB）",
+    "serialized_fits_data_b64": true,
+    "engine_throughput_note": "applier 单飞：每 op 一次往返；小读块下吞吐受 op 速率限制（本探针量化）"
+  }
+}

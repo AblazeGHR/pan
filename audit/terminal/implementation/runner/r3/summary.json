@@ -1,0 +1,61 @@
+{
+  "collected_at": "2026-10-03 07:14:34",
+  "python": "3.12.12 | packaged by conda-forge | (main, Oct 22 2025, 23:13:34) [MSC v.1944 64 bit (AMD64)]",
+  "executable": "E:\\software\\miniforge\\python.exe",
+  "git_head": "a704abbb3a74e71485493198ec31c75dcb8aa83c",
+  "steps": {
+    "pre_fix": {
+      "returncode": 0,
+      "seconds": 2.33
+    },
+    "pytest_direct": {
+      "returncode": 0,
+      "seconds": 84.17,
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_n4_finalize_budget_includes_lock_wait_and_owner_retry\nPASSED tests/test_terminal_runner.py::test_n4_finalize_zero_budget_no_silent_extension",
+      "cleanup": {
+        "tests_with_cleanup_evidence": 21,
+        "handles": 20,
+        "alive_before_cleanup": 0,
+        "terminated": 0
+      }
+    },
+    "pytest_uv": {
+      "returncode": 0,
+      "seconds": 85.52,
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:\\software\\miniforge\\python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_terminal_runner.py",
+        "-q",
+        "-rA"
+      ],
+      "tail": "PASSED tests/test_terminal_runner.py::test_n4_finalize_budget_includes_lock_wait_and_owner_retry\nPASSED tests/test_terminal_runner.py::test_n4_finalize_zero_budget_no_silent_extension"
+    }
+  },
+  "leftover_processes": {
+    "available": true,
+    "count": 0,
+    "processes": []
+  }
+}

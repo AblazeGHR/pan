@@ -1,0 +1,14 @@
+{
+  "exit_code": 8,
+  "status_dir_empty": true,
+  "events": [
+    [
+      "engine-startup-no-owner",
+      "node-missing"
+    ],
+    [
+      "status-path-rejected",
+      "ValueError"
+    ]
+  ]
+}

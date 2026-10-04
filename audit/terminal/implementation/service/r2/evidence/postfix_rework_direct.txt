@@ -1,0 +1,9 @@
+# r2 POST-FIX direct run (python -m pytest, -o addopts= -q)
+# env: windows; python: E:/software/miniforge/python.exe
+# python_version: 3.12.12
+# platform: Windows-11-10.0.26200-SP0
+# cmd: python -m pytest tests/test_terminal_service_rework.py -o addopts= -q -p no:cacheprovider --timeout=200
+
+...............................                                          [100%]
+31 passed in 15.86s
+rework rc=0

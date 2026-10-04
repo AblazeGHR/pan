@@ -1,0 +1,38 @@
+{
+  "uv_version": "uv 0.9.14 (05814f9cd 2025-12-01)",
+  "r3_direct_argv": [
+    "E:\\software\\miniforge\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_terminal_launcher.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "-k",
+    "r3_ or r2_ or status or residual or startup or close or illegal or sentinel or tmp"
+  ],
+  "r3_uv_argv": [
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "E:\\software\\miniforge\\python.exe",
+    "--with-requirements",
+    "minimal-requirements.txt",
+    "--with",
+    "pytest",
+    "--with",
+    "pytest-timeout",
+    "--",
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_terminal_launcher.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "-k",
+    "r3_ or r2_ or status or residual or startup or close or illegal or sentinel or tmp"
+  ],
+  "note": "argv 记录；日志见 pytest_r3_{direct,uv}.txt（单 q 含汇总行）"
+}

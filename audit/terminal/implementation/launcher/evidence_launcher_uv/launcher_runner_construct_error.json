@@ -1,0 +1,14 @@
+{
+  "exit_code": 5,
+  "close_calls": 1,
+  "cleanup": {
+    "converged": true,
+    "attempts": 1,
+    "last_error_type": null,
+    "retained": [],
+    "in_flight": false,
+    "seconds": 0.0,
+    "outcome": "closed",
+    "detail": "closed-after-1-attempt(s)"
+  }
+}

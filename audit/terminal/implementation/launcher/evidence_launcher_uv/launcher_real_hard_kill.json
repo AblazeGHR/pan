@@ -1,0 +1,15 @@
+{
+  "terminate": {
+    "pid": 10532,
+    "requestedCreateTimeFiletime": 134354690912711299,
+    "opened": true,
+    "createTimeFiletime": 134354690912711299,
+    "filetimeMatch": true,
+    "running": true,
+    "terminated": true,
+    "detail": "terminated"
+  },
+  "shell_dead": true,
+  "sidecar_dead": true,
+  "kernel_guard_note": "本场景实测（已测布局）；不泛化"
+}
