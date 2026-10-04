@@ -93,7 +93,10 @@ export default function TerminalPanel() {
     try {
       await terminalRequest(`/${encodeURIComponent(selected)}/${action}`, {});
       await refresh();
-      if (action === 'close') setSelected('');
+      if (action === 'close') {
+        setSelected('');
+        setState(initial);
+      }
     } catch (reason) { setError(reason instanceof Error ? reason.message : '未确认完成；可以重试'); }
     finally { setBusy(false); }
   }

@@ -184,6 +184,8 @@ try {
   report.browserlessFirstRetained = evictedRead.result.first_retained_seq;
   report.browserlessTotalBytes = evictedRead.result.total_bytes;
   await page.screenshot({ path: path.join(output, 'browserless-screen.png') });
+  await page.getByRole('button', { name: '取得输入控制权', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('控制模式'));
   for (let attempt = 0; attempt < 8; attempt++) {
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '终止终端', exact: true }).click();
@@ -195,6 +197,9 @@ try {
     await page.waitForTimeout(300);
   }
   await page.waitForFunction(() => document.querySelector('[aria-label="选择终端"]')?.value === '', null, { timeout: 30000 });
+  assert.equal(await page.getByRole('status').textContent(), '只观察 · 请选择终端');
+  assert(await page.getByRole('button', { name: '释放控制权', exact: true }).isDisabled());
+  report.confirmedCloseClearsControlDisplay = true;
   assert.deepEqual(report.errors, []);
   report.terminalId = id;
   report.passed = true;

@@ -157,3 +157,17 @@ repair is supported by three pre-fail/post-pass WS gates. See
 `PAN_TERMINAL_STEADY_PRESSURE_MA_20261004.md` for exact metrics, fixture failures,
 transport ping isolation, and the finite-duration limitations. This is stronger
 than the earlier 5.34 MB check, but still not hours-long certification.
+
+## Confirmed-close display reset
+
+A new component gate exposes a stale UI: confirmed close clears selection but
+previously left "control mode" and the release button active. The close-success
+branch now also resets display state. An unconfirmed close still preserves the
+same selected terminal and enabled retry. Pre: one failed / one passed;
+post: panel + stream + keyboard **27/27**. The actual browser control at
+`panel-close-native-final` takes control immediately before explicit close,
+then confirms empty selection, observer/choose-terminal status and a disabled
+release button; all prior Chinese/Ctrl-C/takeover/resize/durable/browserless
+controls remain passing. Harness exit is 0. TypeScript/build and 36 compressed
+assets pass, as does scoped ESLint. No Python source/test was changed during
+the ongoing frozen `ed1fbddd` whole-repository Python run.
