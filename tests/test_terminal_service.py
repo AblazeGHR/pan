@@ -1370,26 +1370,41 @@ def test_real_service_independent_heartbeat_and_same_pid_after_disconnect(tmp_pa
 
 @requires_sidecar
 def test_real_service_detach_refused_zero_state_change(tmp_path):
-    """真实 ambient 约束：detach 拒绝且零状态变化（不做环境逃脱）。"""
+    """自有真实宿主 Job 禁止 breakaway，detach 仍拒绝且零状态变化。"""
+    from packages.core.terminal.guard import JobObjectGuard
+
+    host_guard = JobObjectGuard()
     service = _real_service(tmp_path, log_stderr=False)
+
+    def guarded_spawn(terminal_id, **kwargs):
+        kwargs.pop("root")
+        process = service._spawn_production_launcher(terminal_id, rows=24, cols=80, **kwargs)
+        # 只把本用例新建的 launcher 纳入自有宿主 Job，不修改 pytest/外部 Job。
+        host_guard.assign(int(process._handle))
+        assert host_guard.is_member(int(process._handle))
+        return process
+
+    service._spawn_launcher_impl = guarded_spawn
     terminal_id = None
     try:
         terminal_id = service.create()["terminal_id"]
         before = service.get(terminal_id)
         result = service.detach(terminal_id)
+        after = service.get(terminal_id)
         assert result["detached"] is False
         assert result["status"] in ("detach-refused", "rejected")
         assert result["state_changed"] is False
-        after = service.get(terminal_id)
         assert after["status"] == before["status"]
-        assert after["pid"] == before["pid"]
         assert after["detached"] is False
+        assert after["pid"] == before["pid"]
+        assert after["process_created_at_filetime"] == before["process_created_at_filetime"]
         assert service._store().exists(terminal_id)
         assert win_pipe.probe_process(int(before["pid"])).status is ProcessStatus.ALIVE
     finally:
         if terminal_id:
             service.shutdown(budget=20.0)
             _cleanup_terminal(service, terminal_id)
+        assert host_guard.close()
 
 
 @requires_sidecar

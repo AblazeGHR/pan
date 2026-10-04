@@ -1060,9 +1060,11 @@ class TerminalService:
         cwd: str | os.PathLike[str] | None,
         shell_argv: Sequence[str] | None,
     ) -> Any:
-        """真实派生：独立进程 + DETACHED（不依赖 Pan 服务生存，符合 detach 前提）。
+        """派生独立 launcher；请求脱离允许 breakaway 的外层 Job。
 
-        我们**不**在这里判定 runner 身份；身份权威来自 hello 自证 + 内核核验。
+        DETACHED_PROCESS 只解除控制台关联，不证明 Job 独立。外层拒绝 breakaway
+        时退回受限布局，runner 的真实 ambient-Job 探测仍决定 detach 是否可用。
+        我们不在这里判定 runner 身份；身份权威来自 hello 自证 + 内核核验。
         """
         argv = self._launcher_argv(
             terminal_id, secret_file, rows=rows, cols=cols, cwd=cwd, shell_argv=shell_argv
@@ -1080,14 +1082,37 @@ class TerminalService:
             "env": env,
             "stdin": subprocess.DEVNULL,
             "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
         }
+        stderr_stream = None
         if self.log_stderr:
             log_path = self._stderr_log_path(terminal_id)
-            kwargs["stderr"] = log_path.open("a", encoding="utf-8", errors="replace")
+            stderr_stream = log_path.open("a", encoding="utf-8", errors="replace")
+            kwargs["stderr"] = stderr_stream
         if os.name == "nt":
-            # 独立进程组：launcher（及其中 engine/runner）不随 Pan 服务退出而消亡。
-            kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
-        return subprocess.Popen(argv, **kwargs)
+            kwargs["creationflags"] = (
+                getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
+            )
+        try:
+            try:
+                return subprocess.Popen(argv, **kwargs)
+            except OSError as exc:
+                # CreateProcess 的拒绝没有创建子进程；只对这一已知策略拒绝回落。
+                # 其他 spawn 错误必须原样传播，不能以重试掩盖路径/权限故障。
+                if os.name != "nt" or getattr(exc, "winerror", None) != 5:
+                    raise
+                self._note("launcher-breakaway-denied", "ambient-job-restricted")
+                kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                return subprocess.Popen(argv, **kwargs)
+        finally:
+            # Popen 已复制/继承其所需句柄；父服务不长期持有每次创建的日志文件。
+            if stderr_stream is not None:
+                try:
+                    stderr_stream.close()
+                except OSError as exc:
+                    # 子进程可能已成功创建；日志关闭故障不得丢掉其 owner 返回值。
+                    self._note("launcher-parent-log-close-failed", type(exc).__name__)
 
     def _stderr_log_path(self, terminal_id: str) -> Path:
         directory = self.root / _SERVICE_LOG_DIRNAME
@@ -2112,6 +2137,8 @@ class TerminalService:
         reusable = state.client is not None and state.attached
         if reusable:
             state.record = record
+            if state.channel is None:
+                state.channel = _ChannelProxy(self, terminal_id)
             if state.heartbeat is None:
                 heartbeat = self._new_heartbeat(terminal_id)
                 state.heartbeat = heartbeat
@@ -2143,6 +2170,8 @@ class TerminalService:
         state.client = client
         state.attached = True
         state.record = record
+        # 跨进程恢复只重建控制桥，不派生 PTY，也不复活旧 attachment token。
+        state.channel = _ChannelProxy(self, terminal_id)
         state.heartbeat = self._new_heartbeat(terminal_id)
         state.heartbeat.start()
         self._note("reconnected", terminal_id)

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="7.494" timestamp="2026-10-04T12:24:26.453656+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_durable_ma" name="test_detached_shell_survives_real_service_host_exit_and_reconnect" time="7.192"><failure message="packages.core.terminal.service.TerminalNotAttached: channel-not-ready">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1777/test_detached_shell_survives_r0')
+
+    def test_detached_shell_survives_real_service_host_exit_and_reconnect(tmp_path):
+        if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+            pytest.skip('sidecar dependencies absent')
+        script = tmp_path / 'host.py'
+        script.write_text(CHILD, encoding='utf-8')
+        env = dict(os.environ, PYTHONPATH=str(REPO), PYTHONIOENCODING='utf-8')
+        host = subprocess.Popen([getattr(sys, '_base_executable', sys.executable), str(script), str(tmp_path)],
+                                cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        service = TerminalService(tmp_path / 'terminals', log_stderr=False)
+        tid = None
+        retained = None
+        try:
+            stdout, stderr = host.communicate(timeout=35)
+            report = json.loads((tmp_path / 'report.json').read_text())
+            tid = report['view']['terminal_id']
+            if host.returncode == 23:
+                pytest.skip('actual ancestor Job disallows breakaway; detach safely refused')
+            assert host.returncode == 0, (stdout, stderr)
+            assert report['detach']['detached'] is True
+            pid = report['view']['pid']
+            filetime = int(report['view']['process_created_at_filetime'])
+            retained = identity.open_process_for_probe(pid)
+            assert retained
+            observed = identity.probe_handle(retained, pid)
+            assert observed.status is ProcessStatus.ALIVE
+            assert observed.identity.created_at_filetime == filetime
+            # Beyond managed lease grace; neither surviving heartbeats nor parent ownership.
+            time.sleep(2.5)
+            assert identity.wait_state(retained) is ProcessStatus.ALIVE
+            reconciled = service.reconcile()
+            assert {'terminal_id': tid} in reconciled['buckets']['alive']
+            view = service.get(tid)
+            assert view['pid'] == pid and int(view['process_created_at_filetime']) == filetime
+&gt;           token = service.attach(tid, 'durable-new-controller', role='control')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_durable_ma.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x000001DC560E9700&gt;
+terminal_id = 'term_cb79ccd0cad449af', client_id = 'durable-new-controller'
+role = 'control', rows = 0, cols = 0
+
+    def attach(
+        self,
+        terminal_id: str,
+        client_id: str,
+        *,
+        role: str = LEASE_ROLE_OBSERVER,
+        rows: int = 0,
+        cols: int = 0,
+    ) -&gt; LeaseToken:
+        """签发浏览器 attachment lease（**连接级**，与 IPC 所有者心跳分层）。"""
+        state = self._require_state(terminal_id)
+        if state.channel is None:
+&gt;           raise TerminalNotAttached("channel-not-ready")
+E           packages.core.terminal.service.TerminalNotAttached: channel-not-ready
+
+packages\core\terminal\service.py:1135: TerminalNotAttached</failure></testcase></testsuite></testsuites>
