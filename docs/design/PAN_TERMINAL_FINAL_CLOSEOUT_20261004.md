@@ -112,6 +112,25 @@ Target Session is `ses_be105a81379e8cb1`; no final result is claimed at launch.
 The 5h live quota query was 34% used, stale=false, observed at
 2026-10-04T16:04:41.296001+00:00. The Agent enters idle to receive completion.
 
+### Final isolated regression accepted
+
+Job `job_2e3e267da17418da9bac6024` completed with exit code 0. The log
+reports **2727 passed, 10 skipped, 2 warnings in 1095.86s**. Its JUnit XML
+independently records 2737 tests, 0 failures, 0 errors and 10 skipped:
+`audit/terminal/implementation/browser/final-isolated-job-full-repository-uv.xml`.
+The tested Python/tests source is frozen at `680c9bcf`; `933575b9` only added
+the dispatch documentation. This result supersedes the earlier failed/invalid
+runs for acceptance; their evidence remains unchanged.
+
+The completion event was delivered to the target Session while the Agent was
+idle. This proves this Job's execution and terminal notification, not delivery
+across an actual Pan restart. No service restart or main/practical integration
+was performed. Both canonical checkouts remain at `e6a5e84e`.
+
+The final stage quota query reports 5h usage 41%, remaining 59%, stale=false,
+received at `2026-10-04T16:24:41.295357+00:00`. Automated closeout is complete;
+the next gate is the user's isolated human acceptance, not more duplicate tests.
+
 ## Human acceptance boundary
 
 Acceptance checkout is `D:/project/pan-worktrees/terminal-final-integration-ma-20261004`,
