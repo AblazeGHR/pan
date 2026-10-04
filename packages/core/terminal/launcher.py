@@ -721,7 +721,27 @@ def _parse_shell_argv(raw: str | None) -> list[str] | None:
     return [str(item) for item in parsed]
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _enable_child_console_interrupts() -> None:
+    """Clear the inherited Ctrl-C ignore attribute in this dedicated host.
+
+    Windows inherits this flag independently of application handler tables.
+    A CLI supervisor can have it set; a new pseudoconsole does not clear it.
+    Only the launcher entrypoint calls this: never mutate a borrowed Pan/MA
+    host's console state from TerminalLauncher.run or ConPtyBackend.spawn.
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.SetConsoleCtrlHandler.argtypes = [ctypes.c_void_p, wintypes.BOOL]
+    api.SetConsoleCtrlHandler.restype = wintypes.BOOL
+    if not api.SetConsoleCtrlHandler(None, False):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def main(argv: Sequence[str] | None = None, *, initialize_console: bool = False) -> int:
     """命令行入口：argv 只有 id 与 secret 路径（无 token）。"""
     try:
         args = _parse_argv(argv)
@@ -741,6 +761,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         shell_argv=shell_argv,
     )
     try:
+        if initialize_console:
+            _enable_child_console_interrupts()
         return int(launcher.run())
     except Exception as exc:  # noqa: BLE001 - 顶层兜底：只输出类型名
         try:
@@ -754,4 +776,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover - 由 -m 执行
-    raise SystemExit(main())
+    raise SystemExit(main(initialize_console=True))

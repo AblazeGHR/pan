@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -69,6 +69,31 @@ try {
   }
   assert(report.events.some(event => event.type === 'input-result' && event.accepted === true));
   assert(report.events.some(event => event.type === 'output' && Buffer.from(event.data_b64, 'base64').includes('PAN_BROWSER_REAL')));
+  // True Windows control event, not an echoed byte or a released console read.
+  // The foreground child deliberately does not reset its inherited ignore flag.
+  const foreground = path.join(root, 'foreground.py');
+  const ready = path.join(root, 'foreground.ready');
+  const signal = path.join(root, 'foreground.signal');
+  const shellAfter = path.join(root, 'shell-after.txt');
+  await writeFile(foreground, `import ctypes,sys,time\nfrom pathlib import Path\nk=ctypes.WinDLL('kernel32',use_last_error=True)\nH=ctypes.WINFUNCTYPE(ctypes.c_int,ctypes.c_uint)\nstopped=False\ndef handler(event):\n global stopped\n Path(sys.argv[2]).write_text(str(event))\n stopped=True\n return 1\nh=H(handler)\nassert k.SetConsoleCtrlHandler(h,True)\nPath(sys.argv[1]).write_text('ready')\nwhile not stopped: time.sleep(0.05)\n`);
+  const command = [process.argv[2] || 'python', foreground, ready, signal].map(value => `"${value}"`).join(' ');
+  await page.keyboard.insertText(command);
+  await page.keyboard.press('Enter');
+  async function waitFile(filename, expected) {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      try { if ((await readFile(filename, 'utf8')).trim() === expected) return; } catch { /* not yet */ }
+      await page.waitForTimeout(50);
+    }
+    throw new Error(`missing foreground witness: ${path.basename(filename)}`);
+  }
+  await waitFile(ready, 'ready');
+  await page.keyboard.press('Control+c');
+  await waitFile(signal, '0');
+  await page.keyboard.insertText(`echo SHELL_STILL_ALIVE>"${shellAfter}"`);
+  await page.keyboard.press('Enter');
+  await waitFile(shellAfter, 'SHELL_STILL_ALIVE');
+  report.osCtrlCEventVerified = true;
+  report.foregroundInterruptedShellPreserved = true;
   await page.setViewportSize({ width: 1100, height: 760 });
   await page.waitForTimeout(300);
   assert(report.events.some(event => event.type === 'resize-result'));
@@ -123,7 +148,9 @@ try {
   }
   await browser?.close();
   child.stdin.write('stop\n');
-  const code = await Promise.race([exit, new Promise(resolve => setTimeout(() => resolve('timeout'), 30000))]);
+  let exitTimer;
+  const code = await Promise.race([exit, new Promise(resolve => { exitTimer = setTimeout(() => resolve('timeout'), 30000); })]);
+  clearTimeout(exitTimer);
   report.harnessExit = code;
   report.logs = logs;
   await writeFile(path.join(output, 'result.json'), JSON.stringify(report, null, 2));

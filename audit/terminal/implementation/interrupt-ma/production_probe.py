@@ -28,7 +28,7 @@ print("CHILD_INTERRUPTED", flush=True)
 '''
 
 
-def main():
+def run_probe():
     result = {"layout": "production-service-launcher-default-shell", "explicit_child_reset": False}
     with tempfile.TemporaryDirectory(prefix="pan-prod-interrupt-") as temporary:
         root = Path(temporary)
@@ -77,7 +77,15 @@ def main():
                         time.sleep(0.2)
                 assert service.get(tid)["status"] == "exited"
                 result["secret_removed"] = not service._store().exists(tid)
-    Path(__file__).with_name("production_result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
+
+
+def main():
+    result = run_probe()
+    destination = sys.argv[1] if len(sys.argv) > 1 else "production_post_result.json"
+    if Path(destination).name != destination:
+        raise ValueError("output must be a local evidence filename")
+    Path(__file__).with_name(destination).write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
 
 

@@ -129,7 +129,7 @@ export default function TerminalPanel() {
     <p className="text-xs text-text-tertiary">屏幕恢复范围：{state.recovery || '未确认'}（控制权变化不会升级屏幕保真）</p>
     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
     <div ref={element} className="flex-1 min-h-40 min-w-0 overflow-hidden rounded bg-[#15171b] p-2" data-testid="terminal-screen" />
-    <p className="text-xs text-text-tertiary">离开本页或断线不会终止进程。屏幕恢复按服务器声明，partial 不等于完整保真；Ctrl-C 的 OS 中断语义仍未验收。</p>
+    <p className="text-xs text-text-tertiary">离开本页或断线不会终止进程。屏幕恢复按服务器声明，partial 不等于完整保真；Ctrl-C 转交前台程序，具体响应由程序决定。</p>
     <p className="text-xs text-text-tertiary">关联 ID 仅为元数据，不授予权限，也不改变终端寿命。</p>
   </section>;
 }

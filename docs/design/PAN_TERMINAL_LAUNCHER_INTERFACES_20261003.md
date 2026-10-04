@@ -224,10 +224,24 @@ def main(argv: Sequence[str] | None = None) -> int
 
 ## 8. 明确不承诺（未验收门维持）
 
-- 不接 P2 / Web / MCP / registry；Ctrl-C 未验收；真实 durable detach 在 ambient Job
+- 首轮未接 P2 / Web / MCP / registry；真实 durable detach 在 ambient Job
   下维持**拒绝**（本机不可 breakaway，不做逃脱实验）。
 - 浏览器渲染/fit、provider/账号/网络服务、跨用户/主机、长稳/慢客户端背压、POSIX、
   跨 sidecar 重启恢复未验收。
+
+### MA 2026-10-04：生产 Ctrl-C 校准
+
+专用 `python -m packages.core.terminal.launcher` 入口在派生任何子进程前调用
+`SetConsoleCtrlHandler(NULL,FALSE)`，清除由 CLI 宿主继承的忽略 Ctrl-C 属性。
+普通借入 `TerminalLauncher.run()` / 程序式 `main()` 不改调用方控制台全局状态。
+初始化失败先于资源派生，走静态 internal-error（5）。
+
+真实默认 shell 的前台子程序收到 **CTRL_C_EVENT(0)** 后退出，同一个 shell
+仍能执行下一条命令；真实 Chromium Control+C 经 xterm/WS/IPC/ConPTY 对拍通过。
+证据：`audit/terminal/implementation/interrupt-ma/` 与
+`audit/terminal/implementation/browser/ctrl-c-production/`。旧负结论是未清除继承
+属性的原快照，不倒写历史。该生产布局的基本 Ctrl-C 门通过；应用自行忽略信号、
+关闭 processed input、任意借入宿主和跨 build 行为不据此外推。
 - write budget 是发起取消的截止、**非硬 SLA**；真实会话 partial 是常态（未验证 VT
   序列不升级）；F5 确认字段为保守近似、**无历史世代原子绑定**。
 - Job 内核退出兜底只按已测布局（launcher 硬死 → 整树消亡）陈述，不泛化。
