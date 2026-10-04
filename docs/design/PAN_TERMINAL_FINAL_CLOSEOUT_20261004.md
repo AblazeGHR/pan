@@ -53,6 +53,13 @@ lifecycle file rerun is **5 passed**, `final-closeout-pan-lifecycle-uv.xml`.
 Prior failed XML is preserved, not retroactively declared successful. A new
 whole run will be executed through a durable Job on the frozen repaired source.
 
+Final Job dispatched: `job_e98f4895dafb6ddc426e548f`, target
+`ses_be105a81379e8cb1`, frozen Python source `17b33e35`. Output XML:
+`audit/terminal/implementation/browser/final-closeout-job-full-repository-uv.xml`.
+Log: `D:/project/Pan/data/background_jobs/logs/job_e98f4895dafb6ddc426e548f.log`.
+No final result is claimed at dispatch. The Agent enters idle to receive the
+terminal notice, then will inspect exit code/XML and complete the handoff.
+
 ## Human acceptance boundary
 
 Acceptance checkout is `D:/project/pan-worktrees/terminal-final-integration-ma-20261004`,
