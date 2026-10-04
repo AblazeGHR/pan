@@ -1078,11 +1078,16 @@ def test_import_has_no_side_effects_and_disabled_constructs_nothing(tmp_path):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def test_real_pan_app_registers_terminal_routes_without_full_lifespan():
+def test_real_pan_app_registers_terminal_routes_without_full_lifespan(monkeypatch):
     """真实 ``packages.web.server.app`` 已注册路由（未启动 lifespan → 503，而非 404）。"""
 
     async def scenario() -> None:
         import packages.web.server as server
+
+        # Other full-suite TestClients may already have run and closed this global
+        # app's lifespan. This test explicitly exercises the no-runtime state,
+        # while monkeypatch restores the previous owner rather than discarding it.
+        monkeypatch.setattr(server.app.state, "terminal_runtime", None, raising=False)
 
         # 路由注册走 include_router（本 FastAPI 版本为惰性包含），以真实请求验证可达。
         assert getattr(server, "terminal_api", None) is terminal_api

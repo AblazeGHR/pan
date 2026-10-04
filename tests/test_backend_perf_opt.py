@@ -30,8 +30,20 @@ def _make_event(event_type: str, **fields) -> bytes:
 
 
 def _no_ts(entries):
-    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
-    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+    """剥掉 append_history 打的 ts 与 messageId 字段，便于断言消息本体。
+
+    messageId 是追加边界分配的身份元数据（``Session.append_history``），不属
+    于消息业务形状；身份本身由 ``_message_ids`` 显式断言，保持身份契约覆盖。
+    """
+    return [
+        {k: v for k, v in e.items() if k not in ("ts", "messageId")}
+        for e in entries
+    ]
+
+
+def _message_ids(entries):
+    """取出每行的 Pan 消息身份，供身份契约显式断言。"""
+    return [e.get("messageId") for e in entries]
 
 
 def _assistant_event(text: str = None) -> bytes:
@@ -175,6 +187,11 @@ def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
     asyncio.run(worker._read_stdout(w))
 
     assert _no_ts(s.history) == [{"role": "assistant", "content": "hi"}], s.history
+    # 落盘的 assistant 正文必须带 Pan 身份（防抖 + result flush 不影响身份分配）。
+    (assistant_id,) = _message_ids(s.history)
+    assert _sess.is_pan_message_id(assistant_id), (
+        f"streamed assistant history must carry a Pan messageId, got {assistant_id!r}"
+    )
     assert s.last_result["status"] == "done"
     assert saved == [1], f"expected exactly 1 save (result flush), got {saved}"
     _cleanup()
