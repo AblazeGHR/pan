@@ -298,7 +298,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `agent_send_force` | `session_id`, `text` | **强制推送** = restart + send（§2.3）：卡死/忙/连接异常导致普通 `agent_send` 无法送达时兜底；**也用于需要打断当前执行的时效性消息**（操作约束、危险操作警告）；无活 worker 时直接入队不报错；自动加 `////by agent` 前缀（§7.5） |
 | `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send` 的持久 FIFO 语义；返回每个目标结果 |
 | `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，普通任务继续用 `agent_assign`/`agent_send`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。 |
-| `agent_background_start` | `argv`, `cwd`, `target_session_id?`, `label?` | 启动持久后台 Job；默认目标为当前 Agent Session。创建者由当前 `PAN_AGENT_SESSION_ID` 记录为 `creatorSessionId`，目标记录为 `targetSessionId`；A 可为 managed 的 B 创建 Job，但终态通知只投递给 B。argv 不经过 shell，MVP 的 `cwd` 仅允许 Pan 项目目录内；Job 由独立 Runner 执行，不占用当前 Session 的 Worker 生命周期 |
+| `agent_background_start` | `argv`, `cwd`, `target_session_id?`, `label?` | 启动持久后台 Job；默认目标为当前 Agent Session。创建者由当前 `PAN_AGENT_SESSION_ID` 记录为 `creatorSessionId`，目标记录为 `targetSessionId`；A 可为 managed 的 B 创建 Job，但终态通知只投递给 B。argv 不经过 shell，`cwd` 可为任意已存在目录（Agent 应传绝对路径，含仓库外 worktree）；Job 由独立 Runner 执行，不占用当前 Session 的 Worker 生命周期 |
 | `agent_background_get` | `job_id` | 读取 Job Registry 事实，包括状态、PID 身份、日志路径和通知状态；只允许当前或 managed Session 目标，不消费目标的 `queue_pending` |
 | `agent_background_list` | `target_session_id?` | 列出后台 Job；省略目标时默认列出当前 Agent Session，显式目标必须是当前或 managed Session。目标 Session 删除后 Job 事实仍可保留 |
 | `agent_background_cancel` | `job_id` | 取消已拥有的 Job 并终止经身份校验的进程树；Runner/任务 PID 创建时间无法验证时返回 `cancel_unsafe`，绝不按不明 PID 强杀 |
@@ -340,7 +340,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 后台 Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到 `targetSessionId` 的 `queue_pending`。通知 envelope 结构化携带 `noticeKind=background_job_terminal`、`jobId`、`status`、`targetSessionId`/`targetSessionIds` 和可选 `creatorSessionId`；格式化后使用固定 `////by pan system` 前缀，不再从缺失来源推导 `@@@@by agent : unknown | unknown`。A 创建、B 接收时，`creatorSessionId` 只作所有权/审计/权限元数据，不会把通知复制回 A。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。
 后台 Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到持久化 target Session 的 `queue_pending`。通知 queue item 的 envelope 结构化携带 `noticeKind=background_job_terminal`、`jobId`、`status`、`targetSessionId`/`targetSessionIds` 和可选 `creatorSessionId`；格式化后使用固定 `////by pan system` 前缀，不再从缺失来源推导 `@@@@by agent : unknown | unknown`。creator 只用于来源、所有权、审计和权限，不会被自动当作通知目标。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。Session-message/broadcast Job 复用普通 send，不自动复制终态通知回 creator。
 
-当前 MVP 的产品边界：argv 不经过 shell，`cwd` 仅允许 Pan 项目目录内；尚未提供命令白名单、结果文件契约或 Remote/Tunnel 认证。不要把后台 Job 当成绕过权限、审批、managed 隔离或远程安全边界的通道。
+当前产品边界：argv 不经过 shell，`cwd` 可为任意已存在目录（相对路径按服务进程工作目录解析，Agent 应传绝对路径）；尚未提供命令白名单、结果文件契约或 Remote/Tunnel 认证。不要把后台 Job 当成绕过权限、审批、managed 隔离或远程安全边界的通道。长任务启动后若无独立工作，应结束回合进入 idle，让完成通知唤醒后再读取日志与验收；结果入队与当前 Agent 实际接收是两步。
 
 `agent_notify(target_session_id, text)` 是“事后回报”原语，不是派发原语。典型顺序是：
 

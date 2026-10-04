@@ -89,10 +89,12 @@ System Jobs have a null creator and render with source `automation`.
 
 ## Security and product decisions
 
-This local MVP accepts an argv array, never a shell string, and only permits a
-cwd inside the Pan project directory. It does not yet provide a command
-allowlist, result-file contract, or remote/tunnel authentication. These are
-product decisions before enabling external work directories or remote control.
+Background-process Jobs accept an argv array, never a shell string, and permit
+any existing directory as cwd, including sibling worktrees. Relative paths are
+resolved against the service process cwd; agents should pass absolute paths.
+Scheduled shell actions share this directory validation. This is an explicitly
+authorized local agent capability, not a directory sandbox. Command allowlists,
+result-file contracts and remote/tunnel authentication remain separate work.
 Only terminal Jobs may be retried; retrying a `starting`/`running` Job is
 rejected and the caller must cancel it first. `sourceSessionId` remains
 metadata and is not an authentication credential;

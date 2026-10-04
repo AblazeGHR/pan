@@ -651,9 +651,9 @@ def _validate_cwd(cwd: Any) -> Path:
     if not isinstance(cwd, str) or not cwd:
         raise ValueError("cwd is required")
     path = Path(cwd).expanduser().resolve()
-    allowed = PROJECT_ROOT.resolve()
-    if not (path == allowed or allowed in path.parents):
-        raise ValueError("cwd must be inside the Pan project directory")
+    # Jobs execute agent work in arbitrary existing directories, including
+    # sibling Git worktrees. The command and notification permissions are
+    # separate from cwd validation; cwd is not a project-containment boundary.
     if not path.is_dir():
         raise ValueError("cwd does not exist or is not a directory")
     return path

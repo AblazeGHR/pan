@@ -58,6 +58,56 @@ def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):
         jobs.start("ses_target", argv, cwd)
 
 
+def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):
+    from packages.core import background_runner
+
+    project = tmp_path / "project"
+    external = tmp_path / "external 中文 worktree"
+    project.mkdir()
+    external.mkdir()
+    monkeypatch.setattr(jobs, "PROJECT_ROOT", project)
+    _session(tmp_path)
+    # Run the production Runner entrypoint locally against an isolated registry;
+    # its command subprocess is real, while no deployed service is touched.
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", [sys.executable, "-c",
+        "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"], str(external))
+    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
+    assert background_runner.main() == 0
+    result = jobs.get(job["jobId"])
+    assert result["cwd"] == str(external.resolve())
+    assert result["status"] == "completed" and result["exitCode"] == 0
+    log = Path(result["logPath"]).read_bytes().decode(errors="replace")
+    assert "JOB_EXTERNAL_CWD_OK" in log
+    assert json.dumps(str(external.resolve())) in log
+    notices = []
+
+    async def notify(target, text, **kwargs):
+        notices.append((target, json.loads(text), kwargs))
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    assert asyncio.run(jobs.recover_notifications()) == 1
+    assert asyncio.run(jobs.recover_notifications()) == 0
+    assert len(notices) == 1 and notices[0][0] == "ses_target"
+    assert notices[0][1]["exitCode"] == 0
+    assert notices[0][2]["event_id"] == f"{job['jobId']}:terminal"
+
+
+def test_external_cwd_shared_by_shell_validation(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    external = tmp_path / "external"
+    project.mkdir()
+    external.mkdir()
+    monkeypatch.setattr(jobs, "PROJECT_ROOT", project)
+    command, cwd = jobs.validate_shell_action("echo JOB_CWD", str(external))
+    assert command == "echo JOB_CWD" and cwd == external.resolve()
+    for invalid in (str(external / "missing"), str(project / "file"), "", None):
+        (project / "file").touch()
+        with pytest.raises(ValueError):
+            jobs.validate_shell_action("echo JOB_CWD", invalid)
+
+
 def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
     target = _session(tmp_path)
     job = {
