@@ -202,6 +202,37 @@ API 默认无身份验证且绑定 loopback。不要仅通过设置 `PAN_HOST` �
 
 手动删除 Session 会停止其 Worker、删除会话记录和历史，但会保留普通 workdir。另有默认关闭的数据保留策略；若启用 Session 自动清理，Pan 可能删除经验证只属于该 Session 且未被其他 Session 或 Workspace 引用的默认 workdir。重要文件应在清理前提交或备份。
 
+## 11. 常驻终端（Windows）
+
+Dashboard 的 **终端** 页面提供独立常驻 shell，不需要创建或启动模型 Session。
+可选的 Workspace/Session ID 仅为关联元数据，不授予权限，也不改变进程寿命。
+
+1. 在“初始工作目录”填写有效目录（可留空），点击“新建终端”。默认 shell 为
+   `cmd.exe /q /d`。当前版本支持 Windows；需要 Python 最小依赖和可执行的 Node。
+   首次安装需在 `packages/core/terminal/emulator_sidecar` 执行 `npm ci`，使用仓库
+   锁定的 headless/serialize 版本，不安装全局包。
+2. 新连接默认只观察；点击“取得输入控制权”后才会输入或调整 PTY 尺寸。同一终端
+   同时只有一个控制连接，新连接取得控制权会撤销旧控制权，旧输入不会重放。
+3. 关闭页面、断线、刷新或离开终端页面不会终止 shell。“重连”重新读取服务器
+   屏幕；`partial` 表示只恢复已确认的部分状态，不等于完整 TUI 保真。发生输出 gap
+   时会明确重建显示基线，不自动 reset 正在运行的 shell。
+4. Ctrl-C 通过终端输入转交前台程序。本机生产 launcher 已验证 Windows
+   `CTRL_C_EVENT` 和中断后 shell 可继续执行，但程序可忽略 Ctrl-C 或自行改变输入
+   模式。Ctrl-D 不承诺通用 POSIX EOF。
+5. 默认终端在 Pan 停止或宿主失联后收尾。若希望跨 Pan 重启保留 shell，先点击
+   “持久脱离”。只有 runner 确认不受外层宿主 Job 控制才会成功；环境不允许
+   breakaway 时明确拒绝，终端不被替换。成功后新 Pan 核验原 PID/FILETIME 和本地
+   凭据，再接回原 shell；旧连接控制 token 失效，重连后须重新取得控制权。
+6. “终止终端”会停止整棵自有进程树并清理凭据；未确认完成时保持可重试状态，
+   不把“已发停止请求”当作“已清理”。持久脱离不保证跨系统重启、注销或 sidecar
+   重启恢复，也不能抵抗用户显式结束进程。
+
+终端 REST/WS 只面向可信本机控制面，有同源/Host 防护。`PAN_TERMINAL_ALLOW_REMOTE`
+不是远程身份验证；不要用它把 shell 暴露到不可信网络。浏览器不持有 runner token，
+本地凭据使用同用户 DPAPI 和 owner-only ACL；不要删除仍在运行终端的 secrets 文件。
+机器字段、接口和已验证边界见[终端服务接口](design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md)
+与[durable 验收](design/PAN_TERMINAL_DURABLE_MA_20261004.md)。
+
 ## 相关文档
 
 - [README](../README.md)：项目简介和快速开始。

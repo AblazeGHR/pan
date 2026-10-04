@@ -2272,6 +2272,26 @@ class TerminalService:
                 outcome = self._close_for_shutdown(
                     terminal_id, reason=reason, budget=min(self.stop_confirm, remaining)
                 )
+                # stop 返回时 launcher 的引擎收尾/进程 signaled 可能尚未落地。
+                # 同一自持 owner 在总预算内重评证据，不能一次未确认就结束整个
+                # graceful shutdown。_close_state 自带单飞与幂等停止纪律。
+                while (
+                    outcome.get("status") != "exited"
+                    and terminal_id in self._states
+                    and time.monotonic() < deadline
+                ):
+                    pause = min(0.05, max(0.0, deadline - time.monotonic()))
+                    if pause:
+                        time.sleep(pause)
+                    remaining = max(0.0, deadline - time.monotonic())
+                    if remaining <= 0:
+                        exhausted = True
+                        break
+                    outcome = self._close_for_shutdown(
+                        terminal_id, reason=reason, budget=min(self.stop_confirm, remaining)
+                    )
+                if outcome.get("status") != "exited" and time.monotonic() >= deadline:
+                    exhausted = True
             except Exception as exc:  # noqa: BLE001
                 self._note_error("shutdown-close-failed", exc)
                 outcome = {"status": "cleanup-failed", "reason": type(exc).__name__}

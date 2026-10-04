@@ -202,6 +202,43 @@ The API has no authentication by default and binds to loopback. Do not expose it
 
 Manual Session deletion stops its Worker and removes Session records and history, but preserves an ordinary workdir. A separate data-retention policy is disabled by default. If Session auto-retention is enabled, Pan may delete a default workdir only after verifying that it belongs to that Session and is not referenced by another Session or Workspace. Commit or back up important files before cleanup.
 
+## 11. Persistent terminals (Windows)
+
+The Dashboard **Terminal** page runs an independent shell without starting a model
+Session. Optional Workspace/Session IDs are association metadata, not permissions
+or lifecycle ownership.
+
+Create a terminal with an optional valid working directory, then claim input
+control. The default shell is `cmd.exe /q /d`. Install the minimal Python
+requirements and run `npm ci` inside `packages/core/terminal/emulator_sidecar`
+with Node available; use the committed exact-pinned dependencies, not global ones.
+New connections are observers. Only one connection controls input/PTY size at a
+time; a takeover revokes the previous control lease and never replays old input.
+
+Closing the page or reconnecting does not terminate the shell. Server screen
+recovery may be `partial`, which is not a promise of complete TUI fidelity. A gap
+rebuilds the display baseline explicitly without resetting the running shell.
+Ctrl-C is forwarded to the foreground program; the production Windows layout has
+been tested with a real control event and a surviving shell, but programs can
+ignore it or change input modes. Ctrl-D is not universal POSIX EOF.
+
+Ordinary terminals are cleaned up when Pan stops or its owner lease is lost.
+Choose **Detach** before stopping Pan to retain a shell across a Pan restart.
+The runner must prove independence from the host Job; restricted ancestors still
+cause a safe refusal. A new Pan instance verifies the original PID/raw FILETIME
+and local credential before reattaching the same shell. Old connection leases
+are revoked; reconnect and claim fresh control. Detach does not promise survival
+across logout, machine/sidecar restart, or explicit process termination.
+
+**Terminate** stops the owned process tree and removes its credential only after
+confirmation. Unconfirmed cleanup remains retryable, not falsely completed.
+Terminal REST/WS is a trusted-local interface with same-origin/Host checks.
+`PAN_TERMINAL_ALLOW_REMOTE` is not remote authentication: do not expose a shell to
+an untrusted network. Browsers never receive runner tokens. Credentials use
+same-user DPAPI and owner-only ACLs; do not delete secrets for live terminals.
+See the [service interface](design/PAN_TERMINAL_SERVICE_INTERFACES_20261003.md)
+and [durable validation](design/PAN_TERMINAL_DURABLE_MA_20261004.md) for exact limits.
+
 ## Related documents
 
 - [README](../README.en.md): project overview and quick start.
