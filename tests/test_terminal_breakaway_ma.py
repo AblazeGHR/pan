@@ -32,7 +32,7 @@ def test_launcher_requests_breakaway_and_closes_parent_log(tmp_path, monkeypatch
     monkeypatch.setattr(subprocess, "Popen", popen)
     assert _spawn(service) is owner
     assert len(calls) == 1
-    assert calls[0][1]["creationflags"] == 0x01000008
+    assert calls[0][1]["creationflags"] == 0x09000000
     assert calls[0][1]["stderr"].closed
 
 
@@ -51,7 +51,7 @@ def test_job_rejection_falls_back_without_claiming_durability(tmp_path, monkeypa
 
     monkeypatch.setattr(subprocess, "Popen", popen)
     assert _spawn(service) is owner
-    assert [c["creationflags"] for c in calls] == [0x01000008, 8]
+    assert [c["creationflags"] for c in calls] == [0x09000000, 0x08000000]
     assert calls[0]["stderr"] is calls[1]["stderr"]
     assert calls[1]["stderr"].closed
     assert ("launcher-breakaway-denied", "ambient-job-restricted") in service._events

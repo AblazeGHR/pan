@@ -28,6 +28,21 @@ print("CHILD_INTERRUPTED", flush=True)
 '''
 
 
+def wait_file_text(path, predicate, seconds):
+    """Creation precedes write completion; only complete contents are evidence."""
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            text = path.read_text()
+        except FileNotFoundError:
+            text = ""
+        if predicate(text):
+            return text
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.05)
+
+
 def run_probe():
     result = {"layout": "production-service-launcher-default-shell", "explicit_child_reset": False}
     with tempfile.TemporaryDirectory(prefix="pan-prod-interrupt-") as temporary:
@@ -43,24 +58,18 @@ def run_probe():
             argv = [getattr(sys, "_base_executable", sys.executable), "-X", "utf8",
                     str(script), str(ready), str(event)]
             service.input(tid, token, (subprocess.list2cmdline(argv) + "\r").encode("utf-8"))
-            deadline = time.monotonic() + 8
-            while not ready.exists() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            assert ready.exists(), "real child command did not start"
-            result["child_pid"] = int(ready.read_text())
+            ready_text = wait_file_text(ready,
+                lambda text: text.isascii() and text.isdecimal() and int(text) > 0, 8)
+            assert ready_text is not None, "real child command did not publish its PID"
+            result["child_pid"] = int(ready_text)
             service.input(tid, token, b"\x03")
-            deadline = time.monotonic() + 2
-            while not event.exists() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            result["ctrl_c_delivered"] = event.exists() and event.read_text() == "0"
+            result["ctrl_c_delivered"] = wait_file_text(event, lambda text: text == "0", 2) == "0"
             if result["ctrl_c_delivered"]:
                 # This cannot be an echo false-positive: only an executing shell
                 # writes the next file after its foreground child was interrupted.
                 service.input(tid, token, f'echo SHELL_STILL_ALIVE>"{after}"\r'.encode("utf-8"))
-                deadline = time.monotonic() + 3
-                while not after.exists() and time.monotonic() < deadline:
-                    time.sleep(0.05)
-                result["shell_still_usable"] = after.exists() and "SHELL_STILL_ALIVE" in after.read_text()
+                result["shell_still_usable"] = wait_file_text(after,
+                    lambda text: "SHELL_STILL_ALIVE" in text, 3) is not None
             result["same_runner_identity"] = (service.get(tid)["pid"] == view["pid"]
                 and service.get(tid)["process_created_at_filetime"] == view["process_created_at_filetime"])
         finally:

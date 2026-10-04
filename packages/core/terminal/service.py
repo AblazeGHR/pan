@@ -1112,8 +1112,10 @@ class TerminalService:
     ) -> Any:
         """派生独立 launcher；请求脱离允许 breakaway 的外层 Job。
 
-        DETACHED_PROCESS 只解除控制台关联，不证明 Job 独立。外层拒绝 breakaway
-        时退回受限布局，runner 的真实 ambient-Job 探测仍决定 detach 是否可用。
+        CREATE_NO_WINDOW 保持无可见控制台，包括 Python shim 派生解释器的路径。
+        不与 DETACHED_PROCESS 混用（Windows 会忽略 CREATE_NO_WINDOW）；隐藏窗口
+        不证明 Job 独立。外层拒绝 breakaway 时仍保持无窗口，runner 的真实
+        ambient-Job 探测决定 detach 是否可用。
         我们不在这里判定 runner 身份；身份权威来自 hello 自证 + 内核核验。
         """
         argv = self._launcher_argv(
@@ -1141,7 +1143,7 @@ class TerminalService:
             kwargs["stderr"] = stderr_stream
         if os.name == "nt":
             kwargs["creationflags"] = (
-                getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
                 | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
             )
         try:
@@ -1153,7 +1155,7 @@ class TerminalService:
                 if os.name != "nt" or getattr(exc, "winerror", None) != 5:
                     raise
                 self._note("launcher-breakaway-denied", "ambient-job-restricted")
-                kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
                 return subprocess.Popen(argv, **kwargs)
         finally:
             # Popen 已复制/继承其所需句柄；父服务不长期持有每次创建的日志文件。
