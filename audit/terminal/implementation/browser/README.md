@@ -63,3 +63,21 @@ returned scope metadata. Empty fields are omitted. These values are labels, not
 caller identities, authorization proofs or lifecycle coupling. The real browser
 check submits both labels and reads back the exact persisted scope through the
 product GET API. Build and focused ESLint pass; the complete browser chain passes.
+
+## Combined regression and test repair (2026-10-04)
+
+The previous full Terminal uv run is retained as `terminal-regression.xml`:
+701 passed / 2 failed. Direct controls are retained in
+`regression-direct-control.xml` (2 passed). No failed history was overwritten.
+
+The cancellation-ownership test now gates a completed real WriteFile until the
+budget canceller enters, rather than relying on an 8 MiB write being slow enough.
+The paired worker/handle refusal and retry assertions are unchanged.
+The Job root-death test uses `sys._base_executable` for its standard-library-only
+children: uv's launcher is a different process and terminating that shim can also
+change console lifetime. The real root PID equality and surviving-grandchild
+membership/cleanup assertions remain intact; no assertion was weakened.
+
+Affected backend+guard suites: 35 passed direct and 35 passed uv (new
+`regression-repair-direct.xml` / `regression-repair-uv.xml`). This is not a claim
+that the 703-test combined run was rerun after the repair.

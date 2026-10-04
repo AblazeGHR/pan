@@ -1197,9 +1197,19 @@ def test_close_refuses_while_cancel_worker_in_flight(tmp_path, monkeypatch):
         "        break\n",
     )
     b = ConPtyBackend.spawn([PYTHON, drain], cwd=str(tmp_path), write_budget=0.15)
+    real_write_raw = b._spawn.write_raw
+
+    def hold_completed_write_until_cancel(chunk):
+        # A successful real write is followed by an explicit test gate. Fast
+        # conhost drains must not let the entire write finish before the timer.
+        written = real_write_raw(chunk)
+        assert entered.wait(3.0), "budget canceller did not enter the gate"
+        return written
+
+    monkeypatch.setattr(b._spawn, "write_raw", hold_completed_write_until_cancel)
     try:
-        # 8MiB 多块写（drain 子进程 + conhost 节流）：timer 在写中途触发（确定性），
-        # 写经“loop 到期/下一块检查”返回时取消者仍被 gate 卡住 -> 配对必须保留。
+        # The test gate, not payload throughput, holds the writer until the
+        # canceller is in flight. All subsequent ownership checks remain real.
         b.write(b"x" * (8 * 1024 * 1024))
         assert entered.wait(3.0), "预算 timer 必须触发取消 worker"
         assert rec["handle"] is not None

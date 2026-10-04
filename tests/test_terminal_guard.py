@@ -27,7 +27,10 @@ from packages.core.terminal.contracts import ProcessIdentity, ProcessStatus
 from packages.core.terminal.guard import GuardQueryError, JobObjectGuard
 from packages.core.terminal.spawn_win import spawn_conpty_suspended
 
-PYTHON = sys.executable
+# These child probes use only the standard library. Use the actual interpreter,
+# not uv's executable shim: killing a shim can close its console and thereby
+# change the root-dead/grandchild-alive scenario this suite is intended to test.
+PYTHON = getattr(sys, "_base_executable", None) or sys.executable
 REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 
 pytestmark = pytest.mark.skipif(
