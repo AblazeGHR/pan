@@ -511,7 +511,7 @@ export function GlobalHistorySearch({
       >
         <Globe size={16} />
       </button>
-      {open && (<HistorySearchPopup container={popupContainer}>
+      {open && (<HistorySearchPopup container={popupContainer} title="Global history search" onClose={closeSearch}>
         <div className="global-history-search__popup" role="search" aria-label="Global history search">
           <div className="global-history-search__controls">
             <input

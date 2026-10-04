@@ -8,6 +8,7 @@ import { HistorySearchRoles } from './HistorySearchRoles';
 import { ALL_SEARCH_ROLES } from './searchRoleOptions';
 import { HistorySearchPopup } from './HistorySearchPopup';
 import { HistorySearchOverview } from './HistorySearchOverview';
+import { HistorySearchOrdinal } from './HistorySearchOrdinal';
 
 interface SessionHistorySearchProps {
   popupContainer?: HTMLElement | null;
@@ -175,7 +176,11 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
               if (selected) setResponse(located);
             }
             if (selected) setOccurrence(selected.matchStart ?? 0);
-          } else if (!navigationOnly && page.hits.length) await navigate(0, page, token);
+          } else if (page.hits.length) {
+            // Seek beyond page one: API ordinals ascend in message order.
+            const latest = (page.totalMatches ?? page.hits.reduce((sum, hit) => sum + countOf(hit), 0)) - 1;
+            await navigate(latest, page, token);
+          }
         }).catch((error: unknown) => {
           if (controller.signal.aborted || generation.current !== token) return;
           setStatus(error instanceof ApiRequestError && error.status === 409 ? 'stale' : 'error');
@@ -187,7 +192,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
   const total = response?.totalMatches ?? response?.hits.reduce((sum, hit) => sum+countOf(hit), 0) ?? 0;
   const move = (delta: number) => {
     if (!response || !total || status !== 'ready') return;
-    const next = (occurrence+delta+total)%total;
+    const next = (occurrence-delta+total)%total;
     setOccurrence(next);
     void navigate(next, response, generation.current);
   };
@@ -215,7 +220,9 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
         : status === 'ready' && !total ? 'No results in searchable history'
           : roles.length === 0 ? 'Select content types to search.' : '';
   const navigationControls = <>
-    <span data-testid={navigationOnly ? 'global-current-session-count' : 'session-history-search-count'} className="session-history-search__count" aria-live="polite">{total ? occurrence+1 : 0} / {total}</span>
+    <HistorySearchOrdinal testId={navigationOnly ? 'global-current-session-count' : 'session-history-search-count'}
+      value={total ? total-occurrence : 0} total={total} disabled={navigating || status !== 'ready' || !total}
+      onConfirm={(number) => { if (response) void navigate(total-number, response, generation.current); }} />
     <button type="button" aria-label="Previous result" disabled={!total || navigating || status !== 'ready'} onClick={() => move(-1)}><ChevronUp size={16} /></button>
     <button type="button" aria-label="Next result" disabled={!total || navigating || status !== 'ready'} onClick={() => move(1)}><ChevronDown size={16} /></button>
   </>;
@@ -231,7 +238,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
       <button type="button" className="session-history-search__toggle" data-testid="session-history-search-toggle"
         aria-label={open ? 'Close Session history search' : 'Search Session history'} title="Search Session history (Ctrl+F)"
         onClick={() => open ? close() : setOpen(true)}><Search size={16} /></button>
-      {open && <HistorySearchPopup container={popupContainer}><div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
+      {open && <HistorySearchPopup container={popupContainer} title="Session history search" onClose={close}><div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
         <div className="session-history-search__controls">
           <Search size={16} />
           <input ref={input} data-testid="session-history-search-input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={keyboard}
