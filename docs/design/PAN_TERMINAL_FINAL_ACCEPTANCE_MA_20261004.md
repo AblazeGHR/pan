@@ -171,3 +171,9 @@ release button; all prior Chinese/Ctrl-C/takeover/resize/durable/browserless
 controls remain passing. Harness exit is 0. TypeScript/build and 36 compressed
 assets pass, as does scoped ESLint. No Python source/test was changed during
 the ongoing frozen `ed1fbddd` whole-repository Python run.
+
+That immutable Python run subsequently completes **2604 passed / zero failed /
+10 skipped**, 1023.08s, with two dependency warnings. It covers current identity
+and WS failure/pressure fixes. The separately discovered natural-shell-exit
+browser failure is an open acceptance gap, not erased by the collected suite's
+all-green result; this ledger must be updated with its own repair evidence.

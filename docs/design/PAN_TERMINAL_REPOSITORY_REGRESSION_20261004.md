@@ -113,3 +113,18 @@ durability. That last case is not a positive durability result; previously retai
 direct/browser/cross-Pan positive evidence remains separate. No provider account,
 existing Pan service, or port 8768 was used. This run does not grant deployment,
 cross-platform, long-steady-state, or all-mode rendering acceptance.
+
+## Current frozen Python confirmation (`ed1fbddd`)
+
+After the shim-bound identity and completed-WS-task repairs, the next whole
+repository run completes **2604 passed / zero failed / 10 skipped**, 1023.08s,
+two dependency warnings (`full-repository-ed1-final-uv.xml`). The three-minute
+pressure fixture is part of this run. Python package/test sources remain equal
+to the frozen commit throughout (`git diff ed1fbddd -- '*.py'` empty). Frontend
+only display/keyboard work proceeds independently, not as Python source changes.
+Skip categories are unchanged from the ten explicitly described above.
+
+A subsequent real browser natural-shell-exit negative control exposes a missing
+automatic natural-exit transition. It is not covered by this all-green collected
+set and is not declared repaired by the above count. Its new fix and focused
+evidence must be reported separately rather than retroactively changing this run.
