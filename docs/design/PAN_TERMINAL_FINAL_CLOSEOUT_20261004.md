@@ -38,8 +38,20 @@ keep metadata below 50KiB. This catches O(N) history scans regardless of elapsed
 time; timing checks are not used as the sole correctness witness.
 
 Focused uv regression: **54 passed**, `final-closeout-three-files-uv.xml`.
-Direct result and frozen candidate whole-regression result will be recorded
-after completion; prior failures are not retroactively marked successful.
+Focused direct regression: **54 passed**, `final-closeout-three-files-direct.xml`.
+The frozen `43ba670d` whole run finished **2717 passed / 1 failed / 10 skipped**,
+1055.998 seconds (`final-closeout-full-repository-uv.xml`). The original three
+failures all passed, but this is still not an all-green result.
+
+The remaining failure is the crash/restart lifecycle test reading an empty
+`restart-witness`: cmd redirection creates/truncates its file before writing
+echo output. Existence alone was the wait condition. The test now waits for
+the exact expected text, retaining its final equality, shell identity, restart
+and cleanup assertions. Deterministic empty/partial-content controls require a
+later complete value and a wrong-content control must time out. The real
+lifecycle file rerun is **5 passed**, `final-closeout-pan-lifecycle-uv.xml`.
+Prior failed XML is preserved, not retroactively declared successful. A new
+whole run will be executed through a durable Job on the frozen repaired source.
 
 ## Human acceptance boundary
 

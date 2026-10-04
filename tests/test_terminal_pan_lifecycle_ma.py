@@ -33,6 +33,31 @@ def until(fn, seconds=15):
     raise AssertionError('owned lifecycle condition did not converge')
 
 
+def wait_witness_text(path, expected, seconds=15):
+    # cmd redirection creates/truncates the file before echo writes its bytes.
+    # Existence alone is not evidence that the shell command has completed.
+    return until(lambda: path.exists() and path.read_text().strip() == expected, seconds)
+
+
+@pytest.mark.parametrize('intermediate', ['', 'UNCHANGED_'])
+def test_witness_wait_requires_complete_content(intermediate):
+    from unittest.mock import Mock
+    path = Mock()
+    path.exists.return_value = True
+    path.read_text.side_effect = [intermediate, 'UNCHANGED_SHELL\n']
+    assert wait_witness_text(path, 'UNCHANGED_SHELL') is True
+    assert path.read_text.call_count == 2
+
+
+def test_witness_wait_wrong_content_does_not_pass():
+    from unittest.mock import Mock
+    path = Mock()
+    path.exists.return_value = True
+    path.read_text.return_value = 'WRONG_SHELL'
+    with pytest.raises(AssertionError, match='did not converge'):
+        wait_witness_text(path, 'UNCHANGED_SHELL', seconds=.001)
+
+
 class Pan:
     def __init__(self, root):
         self.root = root
@@ -130,7 +155,7 @@ def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
         assert restored['process_created_at_filetime'] == detached['process_created_at_filetime']
         witness = tmp_path / 'restart-witness'
         pan.command(tid, f'echo %PAN_RESTART_VALUE%>"{witness}"\r')
-        until(witness.exists)
+        wait_witness_text(witness, 'UNCHANGED_SHELL')
         assert witness.read_text().strip() == 'UNCHANGED_SHELL'
         def close():
             response = pan.client.post(f'/api/terminals/{tid}/close', json={})

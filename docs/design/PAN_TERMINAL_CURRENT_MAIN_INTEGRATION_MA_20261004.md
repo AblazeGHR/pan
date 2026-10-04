@@ -126,3 +126,22 @@ test process has exited; all earlier browser harnesses exited zero. Main/practic
 remain untouched. The candidate is a local integration handoff with strong
 Terminal/browser evidence and explicit outstanding repository regression failures,
 not unconditional final acceptance or deployment authorization.
+
+## User-authorized resumed closeout
+
+The subsequent closeout aligns the two queue contract tests with current main
+without changing production queue guards, retains all incremental performance
+thresholds and adds a structural no-history-scan guard. Focused three-file
+regression: uv 54 passed and direct 54 passed. Whole run on `43ba670d`:
+2717 passed / 1 failed / 10 skipped; all original three failures passed.
+Its new failure was an empty witness-file read in the real crash/restart test.
+Waiting for exact completed content instead of filename existence retains the
+acceptance condition; the lifecycle file rerun is 5 passed. Historical failed
+XML remains untouched. Final whole acceptance is pending a frozen-source Job.
+
+User separately authorized arbitrary cwd for agent Jobs. The candidate removes
+only cwd project containment, preserving existing-directory validation and
+Session permission/delivery rules. Focused Job regression: 60 passed. Actual
+deployed completion-notification probe succeeded; this does not deploy the cwd
+change. See `PAN_AGENT_JOB_CWD_CLOSEOUT_20261004.md` and the dedicated human
+acceptance guide. Canonical branches and service are unchanged.
