@@ -10,7 +10,6 @@ change or the post-restore screen, and never blind-kill on timeout.
 from __future__ import annotations
 
 import time
-import types
 
 import pytest
 
@@ -30,7 +29,10 @@ CRASH = ('Promise {<rejected> CheckpointRestoreValidationError: '
 class GateFakeSession:
     def __init__(self, screen: str, alive: bool = True):
         self._screen = screen
-        self.proc = types.SimpleNamespace(isalive=lambda: alive)
+        self._alive = alive
+
+    def alive(self) -> bool:
+        return self._alive
 
     def text(self) -> str:
         return self._screen
