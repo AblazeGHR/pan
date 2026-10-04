@@ -71,3 +71,19 @@ certified by these checks. Write cancellation budgets remain conditional, not
 hard OS deadlines. F5 confirmation remains a conservative approximation without
 atomic historical generation binding. Explicit authorization is still required
 to advance canonical branches, push, build practical or restart deployed Pan.
+
+## Candidate full-regression work in progress
+
+A subsequent whole candidate Python run is in progress; it is not yet an
+accepted result. One early failure was independently isolated:
+`test_queue_edit_cannot_make_text_disagree_with_parts` expects
+`parts_text_conflict`, whereas the current-main queue parser returns
+`invalid_queue_body`. The same single test fails on canonical main `e6a5e84e`
+without the Terminal merge (read-only test, isolated temporary fixtures, cache
+disabled). The merged test file is unchanged relative to main and the queue
+update implementation has no Terminal delta. Candidate attachment-file rerun is
+13 passed / 1 failed; a separate backend performance file passes 8/8.
+This is a reproduced main baseline assertion conflict, not a root-cause claim or
+permission to change attachment semantics. It remains a failure; no assertion
+was weakened and no canonical file edited. Final whole results will supersede
+only this in-progress statement, not these measured controls.

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="14" time="2.169" timestamp="2026-10-04T20:11:38.079342+08:00" hostname="ablaze"><testcase classname="tests.test_attachment_parts_protocol" name="test_structured_parts_canonicalize_and_preserve_queue_shape" time="0.012" /><testcase classname="tests.test_attachment_parts_protocol" name="test_structured_parts_reject_cross_session_stale_and_incomplete" time="0.014" /><testcase classname="tests.test_attachment_parts_protocol" name="test_server_file_registration_rejects_directory" time="0.003" /><testcase classname="tests.test_attachment_parts_protocol" name="test_worker_projection_uses_canonical_path_and_never_api_href" time="0.003" /><testcase classname="tests.test_attachment_parts_protocol" name="test_cross_session_server_reference_is_imported_without_copying_bytes" time="0.010" /><testcase classname="tests.test_attachment_parts_protocol" name="test_legacy_markdown_attachment_is_upgraded_for_worker_projection" time="0.058" /><testcase classname="tests.test_attachment_parts_protocol" name="test_unknown_cross_session_reference_is_rejected" time="0.004" /><testcase classname="tests.test_attachment_parts_protocol" name="test_queue_edit_updates_plain_composer_parts_and_delivery" time="0.005" /><testcase classname="tests.test_attachment_parts_protocol" name="test_queue_edit_cannot_make_text_disagree_with_parts" time="0.010"><failure message="AssertionError: assert 'invalid_queue_body' == 'parts_text_conflict'&#10;  &#10;  - parts_text_conflict&#10;  + invalid_queue_body">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024D6C282270&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1832/test_queue_edit_cannot_make_te0')
+
+    def test_queue_edit_cannot_make_text_disagree_with_parts(monkeypatch, tmp_path):
+        first, _second = _setup(tmp_path, monkeypatch)
+        monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+        monkeypatch.setattr(srv.worker, "_schedule_session_recovery", lambda _sid: None)
+        # Keep the path construction explicit on Windows; this test is intended
+        # to cover only the queue contract.
+        stored = srv._attachment_session_dir(first.id) / ("upload_" + "f" * 32 + ".txt")
+        stored.parent.mkdir(parents=True)
+        stored.write_text("body", encoding="utf-8")
+        srv._register_attachment(first.id, stored.name, {
+            "source": "upload", "displayName": "file.txt", "storageFilename": stored.name,
+            "path": str(stored), "size": 4, "mimeType": "text/plain",
+        })
+        result = asyncio.run(srv.api_session_queue_enqueue(first.id, {
+            "parts": [{"type": "attachment", "attachmentId": stored.name}],
+        }))
+        item_id = result["item"]["id"]
+        edit_token = "attachment-conflict-token"
+        locked = asyncio.run(srv.api_session_queue_edit_lock(first.id, item_id, {
+            "editToken": edit_token, "expectedRevision": 1,
+        }))
+        assert locked["ok"] is True
+        conflict = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
+            "text": "different", "expectedRevision": 1, "editToken": edit_token,
+        }))
+        assert conflict["ok"] is False
+&gt;       assert conflict["error"]["code"] == "parts_text_conflict"
+E       AssertionError: assert 'invalid_queue_body' == 'parts_text_conflict'
+E         
+E         - parts_text_conflict
+E         + invalid_queue_body
+
+tests\test_attachment_parts_protocol.py:263: AssertionError</failure></testcase><testcase classname="tests.test_attachment_parts_protocol" name="test_history_projects_existing_local_link_to_opaque_editor_reference" time="0.007" /><testcase classname="tests.test_attachment_parts_protocol" name="test_live_result_and_stream_projection_match_history_projection" time="1.466" /><testcase classname="tests.test_attachment_parts_protocol" name="test_attachment_source_rejects_relative_workdir_escape" time="0.004" /><testcase classname="tests.test_attachment_parts_protocol" name="test_editor_destination_parser_covers_paths_ranges_and_external_urls" time="0.003" /><testcase classname="tests.test_attachment_parts_protocol" name="test_text_fallback_cannot_use_a_foreign_session_attachment_link" time="0.005" /></testsuite></testsuites>
