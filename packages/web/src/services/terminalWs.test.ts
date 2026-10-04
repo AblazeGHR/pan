@@ -112,4 +112,14 @@ describe('terminal display protocol A', () => {
     await f.stream.settled();
     expect(f.stream.state.message).not.toContain('输出已确认完整');
   });
+  it('revokes commands at terminal-state before the transport close arrives', async () => {
+    const f = fixture(); f.event('terminal-state', { status: 'exited', exit_code: 7 });
+    await f.stream.settled();
+    const sent = f.commands.length;
+    f.stream.claim(); f.stream.snapshot(); f.stream.release();
+    expect(f.commands).toHaveLength(sent);
+    expect(f.stream.state.terminalStatus).toBe('exited');
+    expect(f.stream.state.connected).toBe(false);
+    expect(f.stream.state.message).toContain('退出码 7');
+  });
 });

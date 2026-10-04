@@ -78,6 +78,14 @@ try {
   assert(report.screenText.includes('NATIVE_FINAL_中文'));
   assert.equal(report.record.status, 'exited');
   assert.equal(report.record.exit.code, 7);
+  await page.getByRole('option', { name: `${id} · exited`, exact: true }).waitFor({ state: 'attached' });
+  report.selectedLabel = await page.getByRole('option', { name: `${id} · exited`, exact: true }).textContent();
+  const frontier = report.frames.filter(frame => frame.type === 'output').at(-1).next_seq;
+  report.finalRead = await page.evaluate(async ({ id, frontier }) =>
+    (await (await fetch(`/api/terminals/${id}/read?cursor=${frontier}`)).json()).result, { id, frontier });
+  assert.equal(report.finalRead.status, 'exited');
+  assert.equal(report.finalRead.exit_code, 7);
+  assert.equal(report.finalRead.output_complete, false);
   assert(report.frames.some(frame => frame.type === 'terminal-state' && frame.status === 'exited'));
   assert(report.statusText.includes('终端状态：exited'), report.statusText);
   assert(await page.getByRole('button', { name: '取得输入控制权', exact: true }).isDisabled());

@@ -859,7 +859,7 @@ def project_read(raw: Mapping[str, Any]) -> dict[str, Any]:
     gap_out = None
     if isinstance(gap, (list, tuple)) and len(gap) == 2 and all(_is_real_int(item) for item in gap):
         gap_out = [str(int(gap[0])), str(int(gap[1]))]
-    return {
+    out = {
         "terminal_id": raw.get("terminal_id"),
         "data_b64": _b64(raw.get("data")),
         "seq": _dec(raw.get("seq")),
@@ -874,6 +874,13 @@ def project_read(raw: Mapping[str, Any]) -> dict[str, Any]:
         "zero_fill": False,
         "status": _str_or_none(raw.get("status")),
     }
+    if any(key in raw for key in ("exit_code", "output_complete", "process_exit_seen", "reader_done")):
+        code = raw.get("exit_code")
+        out["exit_code"] = code if type(code) is int and 0 <= code <= 0xFFFFFFFF else None
+        for key in ("output_complete", "process_exit_seen", "reader_done"):
+            value = raw.get(key)
+            out[key] = value if type(value) is bool else None
+    return out
 
 
 def project_engine(value: Any) -> str | None:

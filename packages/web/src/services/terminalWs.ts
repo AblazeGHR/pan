@@ -16,6 +16,7 @@ export interface TerminalState {
   recovering: boolean;
   message: string;
   recovery?: string;
+  terminalStatus?: string;
 }
 
 function cursor(value: unknown): string | null {
@@ -56,7 +57,7 @@ export class TerminalStream {
     this.changed(this.state);
   }
   private command(op: string, fields: Record<string, unknown> = {}) {
-    if (!this.disposed && !this.disconnecting && this.socket?.readyState === 1) {
+    if (!this.disposed && !this.disconnecting && !this.terminalEnded && this.socket?.readyState === 1) {
       this.socket.send(JSON.stringify({ v: 1, type: 'command', terminal_id: this.id, op, ...fields }));
       return true;
     }
@@ -75,6 +76,7 @@ export class TerminalStream {
     }
   }
   snapshot() {
+    if (this.terminalEnded) return;
     this.update({ recovering: true, message: '读取服务器屏幕；不会重启终端' });
     this.snapshotRequested = true;
     this.awaitingResume = false;
@@ -196,7 +198,9 @@ export class TerminalStream {
         case 'terminal-state':
           this.generation = null;
           this.terminalEnded = true;
-          this.update({ control: false, message: `终端状态：${event.status}${Number.isSafeInteger(event.exit_code) ? `（退出码 ${event.exit_code}）` : ''}；${event.output_complete === true ? '输出已确认完整' : '输出完整性未确认'}` });
+          this.update({ connected: false, control: false,
+            terminalStatus: ['exited', 'lost', 'cleanup-failed'].includes(event.status) ? event.status : undefined,
+            message: `终端状态：${event.status}${Number.isSafeInteger(event.exit_code) ? `（退出码 ${event.exit_code}）` : ''}；${event.output_complete === true ? '输出已确认完整' : '输出完整性未确认'}` });
           break;
       }
     }).catch(() => {

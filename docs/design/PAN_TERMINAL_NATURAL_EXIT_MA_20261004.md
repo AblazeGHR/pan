@@ -79,6 +79,30 @@ A targeted run is not substituted for a new whole-repository run. The earlier
 
 ## Limits
 
+### Public record/read consistency follow-up
+
+The final stream event now revokes all further commands before the close frame
+arrives. Its typed terminal status triggers one authoritative list refresh while
+retaining the selected final screen. Known exited/lost owners no longer offer
+reconnect/detach; cleanup-failed owners still retain retry. These two new UI gates
+fail before the follow-up and pass afterwards (32 panel/keyboard/stream gates).
+The refreshed selector and unchanged tail are measured in actual Chromium at
+`natural-record-ui-browser-final` and `natural-public-exit-browser-final`.
+
+REST/MCP's shared read projection adds optional `exit_code`, `output_complete`,
+`process_exit_seen` and `reader_done` only when evidence is supplied. Exit code
+must be a genuine integer DWORD, flags must be real bool; invalid/unknown is
+null, not coerced, and absent evidence does not add invented metadata. No secret
+or arbitrary diagnostic field is exported. Five pre-fail/one positive control
+become six passing gates; REST/MCP neighboring uv run is **69 passed**, including
+its real ASGI create/read/snapshot/close case. Actual final browser REST read at
+the sent frontier confirms exited/code 7/output_complete=false.
+
+`frontend-exit-record-final.json` is the complete follow-up frontend result;
+earlier 1247/1242 results remain attached to their earlier source versions.
+TypeScript/build (36 compressed assets) and scoped ESLint pass. No deployment
+or existing Pan restart is implied.
+
 Finite local Windows/Chromium checks only. No new claim about old Windows builds,
 POSIX, all browser engines, arbitrary native TUI fidelity, cross-user/network
 authentication or hours-long durability. Main/practical, deployed assets and

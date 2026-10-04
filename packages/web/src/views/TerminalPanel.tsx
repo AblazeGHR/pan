@@ -38,11 +38,16 @@ export default function TerminalPanel() {
     terminal.open(element.current);
     terminal.attachCustomKeyEventHandler(terminalKeyHandler);
     let wasControl = false;
+    let terminalRecordRefreshed = false;
     const connection = new TerminalStream(selected, terminal, (next) => {
       if (alive) {
         setState(next);
         if (next.control && !wasControl) fitScreen();
         wasControl = next.control;
+        if (next.terminalStatus && !terminalRecordRefreshed) {
+          terminalRecordRefreshed = true;
+          void refresh(); // keep the selected tail screen; refresh record facts only
+        }
       }
     });
     stream.current = connection;
@@ -75,7 +80,7 @@ export default function TerminalPanel() {
       if (stream.current === connection) stream.current = null;
       terminal.dispose();
     };
-  }, [selected, revision]);
+  }, [selected, revision, refresh]);
 
   async function create() {
     setBusy(true);
@@ -126,8 +131,8 @@ export default function TerminalPanel() {
       <button disabled={!selected || state.control || !state.connected} onClick={() => stream.current?.claim()}>取得输入控制权</button>
       <button disabled={!state.control} onClick={() => stream.current?.release()}>释放控制权</button>
       <button disabled={!selected || !state.connected} onClick={() => stream.current?.snapshot()}>重取服务器屏幕</button>
-      <button disabled={!selected} onClick={() => { setState(initial); setRevision((value) => value + 1); }}>重连</button>
-      <button disabled={!selected || busy} onClick={() => void lifecycle('detach')}>持久脱离</button>
+      <button disabled={!selected || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => { setState(initial); setRevision((value) => value + 1); }}>重连</button>
+      <button disabled={!selected || busy || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => void lifecycle('detach')}>持久脱离</button>
       <button disabled={!selected || busy} onClick={() => void lifecycle('close')} className="text-red-400">终止终端</button>
     </div>
     <p role="status" className="text-xs text-text-secondary">{state.control ? '控制模式' : '只观察'} · {state.message}</p>

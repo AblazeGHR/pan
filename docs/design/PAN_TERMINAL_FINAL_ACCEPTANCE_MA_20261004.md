@@ -189,3 +189,12 @@ WS tail/end sender ordering are fixed with deterministic negative controls.
 See `PAN_TERMINAL_NATURAL_EXIT_MA_20261004.md` for pre/post gates, bounded fallback,
 queued-render behavior, source/run ordering and retained failed browser evidence.
 This focused repair does not retroactively change the 2604-test frozen result.
+
+The follow-up refreshes the authoritative selected list record on terminal end
+without removing the final screen. It also revokes commands before transport
+close and exposes strict bool-or-null/DWORD exit facts through the shared REST/MCP
+read projection. Chromium confirms the exited option, preserved Chinese tail,
+and final REST read code 7 with output_complete=false. The optional fields add no
+secret/private diagnostic exposure. REST/MCP neighbor selection passes 69/69;
+UI pre two failures become 32 passing gates; the complete follow-up frontend
+result is separately retained in `frontend-exit-record-final.json`.
