@@ -98,6 +98,7 @@ function mk(id: string, name: string, extra?: Partial<Session>): Session {
 
 describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
+    useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
     wsMock.send.mockClear();
     wsMock.sendInteractiveSync.mockClear();
@@ -126,6 +127,7 @@ describe('useWebSocket worker.result wiring', () => {
       sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      _sessionEventPatches: {},
       _historyRefreshSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},

@@ -55,7 +55,11 @@ beforeEach(() => {
     queueDeliveredIds: {},
   });
   vi.clearAllMocks();
-  api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  api.acquireSessionQueueItemEdit.mockImplementation(async (sessionId: string, id: string) => {
+    const row = (useQueueStore.getState().queues[sessionId] ?? useQueueStore.getState().agentQueues[sessionId] ?? []).find(item => item.id === id);
+    if (!row) throw new Error(`Missing queue lease fixture: ${sessionId}/${id}`);
+    return { expiresAt: Math.floor(Date.now() / 1000) + 300, text: row.text, revision: row.meta?.revision ?? 1, bodyFormat: 'text' };
+  });
   api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
 });
 
@@ -155,7 +159,7 @@ describe('server-backed queue store', () => {
 
     await expect(useQueueStore.getState().enqueue('hello')).resolves.toBe(true);
 
-    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'hello', expect.any(String));
+    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'hello', expect.any(String), undefined, undefined);
     expect(useQueueStore.getState().queues.s1).toEqual([queued]);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-native');
   });
@@ -179,7 +183,7 @@ describe('server-backed queue store', () => {
       useQueueStore.getState().enqueue('captured', undefined, 's1', 'client-stable'),
     ).resolves.toBe(true);
 
-    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'captured', 'client-stable');
+    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'captured', 'client-stable', undefined, undefined);
     expect(useQueueStore.getState().queues.s1).toEqual([queued]);
     expect(useQueueStore.getState().queues.s2).toBeUndefined();
   });
@@ -380,7 +384,7 @@ describe('server-backed queue store', () => {
   it('releases a late lease after cancel without clearing the other Session edit', async () => {
     const first = item('q-late-acquire', 'A original');
     const second = item('q-session-b-edit', 'B original');
-    let resolveAcquire!: (value: { expiresAt: number }) => void;
+    let resolveAcquire!: (value: { expiresAt: number; text: string; revision: number }) => void;
     api.acquireSessionQueueItemEdit.mockReturnValueOnce(
       new Promise((resolve) => { resolveAcquire = resolve; }),
     );
@@ -393,7 +397,7 @@ describe('server-backed queue store', () => {
     useQueueStore.getState().startEdit(second.id);
     await vi.waitFor(() => expect(useQueueStore.getState().edits.s2?.acquiring).toBe(false));
 
-    resolveAcquire({ expiresAt: Date.now() + 300_000 });
+    resolveAcquire({ expiresAt: Math.floor(Date.now() / 1000) + 300, text: first.text, revision: 1 });
     await vi.waitFor(() => expect(api.releaseSessionQueueItemEdit).toHaveBeenCalledWith(
       's1', first.id, oldToken,
     ));
@@ -414,7 +418,7 @@ describe('server-backed queue store', () => {
     await expect(useQueueStore.getState().enqueue('B message', undefined, 's2', 'client-b'))
       .resolves.toBe(true);
 
-    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s2', 'B message', 'client-b');
+    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s2', 'B message', 'client-b', undefined, undefined);
     expect(useQueueStore.getState().edits.s1?.id).toBe(first.id);
     expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual([first.id]);
     expect(useQueueStore.getState().queues.s2?.map((entry) => entry.id)).toEqual([sentInB.id]);

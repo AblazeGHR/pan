@@ -85,7 +85,7 @@ describe('server-backed queue snapshot', () => {
 
     await expect(useQueueStore.getState().enqueue('hello')).resolves.toBe(true);
 
-    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'hello', expect.any(String));
+    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'hello', expect.any(String), undefined, undefined);
     expect(useQueueStore.getState().queues.s1).toEqual([queued]);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-native');
   });

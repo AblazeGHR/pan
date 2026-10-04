@@ -33,3 +33,25 @@ repository rerun or a guarantee against resource-pressure/timing failures.
 Tests use isolated session stores, deterministic fake CLI providers, and a
 fresh loopback test port, never the existing 8768 service. No main/practical
 branch, remote push, provider account, or deployment was changed.
+
+## Complete React fixture regression
+
+The first JSON-reported Vitest run recorded 1210 passed / 19 failed across
+112 files (`frontend-full.json`). Eighteen failures concerned stale expectations
+or shared test state: queue enqueue optional arguments, truthful edit-lease
+fixtures, DONE transcript rows, worker/event-patch reset, settings switch counts,
+and adapter quick-action placement. The matching existing main test corrections
+were reviewed and used only where this tree's production contracts agree.
+Notification and removed-edit behavior differ from current main, so their
+existing assertions were preserved rather than importing incompatible changes.
+One static layout expression now explicitly requires the PR6 RewindStatusBar
+between the chat stage and InputRow instead of forbidding that component.
+
+An intermediate run retained in `frontend-full-final.json` has 1227 passed /
+2 failed; the incompatible notification/removed-edit expectations were corrected
+back to this tree's existing behavior. Final `frontend-full-accepted.json`:
+**1229 passed / 0 failed**, all 112 test files. No frontend production file was
+modified in this repair. TypeScript and production build subsequently passed;
+the asset verifier reported **36 compressed production assets**. This fixture
+run is distinct from the real Chromium browser acceptance and real Pan lifecycle
+tests, and does not grant provider/account or deployment acceptance.
