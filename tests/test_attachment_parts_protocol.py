@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -256,11 +257,38 @@ def test_queue_edit_cannot_make_text_disagree_with_parts(monkeypatch, tmp_path):
         "editToken": edit_token, "expectedRevision": 1,
     }))
     assert locked["ok"] is True
+    before = json.loads(json.dumps(first.queue_pending))
     conflict = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
         "text": "different", "expectedRevision": 1, "editToken": edit_token,
     }))
     assert conflict["ok"] is False
-    assert conflict["error"]["code"] == "parts_text_conflict"
+    # The current structured editor returns the full JSON template. Plain text
+    # is invalid input, not a competing canonical-text field in the old API.
+    assert locked["bodyFormat"] == "parts"
+    assert conflict["error"]["code"] == "invalid_queue_body"
+    assert first.queue_pending == before
+    assert srv.worker.queue_item_edit_locked(first, item_id) is True
+
+    edited_parts = json.loads(locked["text"])
+    attachment_before = next(part for part in edited_parts if part["type"] == "attachment")
+    forged = json.loads(locked["text"])
+    next(part for part in forged if part["type"] == "attachment")["attachmentId"] = "foreign"
+    refused = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
+        "text": json.dumps(forged), "expectedRevision": 1, "editToken": edit_token,
+    }))
+    assert refused["error"]["code"] == "invalid_queue_body"
+    assert first.queue_pending == before
+
+    edited_parts[0]["text"] = "prefix "
+    accepted = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
+        "text": json.dumps(edited_parts), "expectedRevision": 1, "editToken": edit_token,
+    }))
+    assert accepted["ok"] is True
+    after_attachment = next(part for part in first.queue_pending[0]["parts"]
+                            if part["type"] == "attachment")
+    assert {key: value for key, value in after_attachment.items()
+            if key != "__serverPath"} == attachment_before
+    assert first.queue_pending[0]["text"].startswith("prefix ")
 
 
 def test_history_projects_existing_local_link_to_opaque_editor_reference(monkeypatch, tmp_path):

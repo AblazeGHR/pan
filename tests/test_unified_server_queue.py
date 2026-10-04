@@ -206,7 +206,7 @@ def test_report_and_qq_same_content_get_distinct_native_ids(monkeypatch):
     _cleanup()
 
 
-def test_queue_api_edits_only_queued_user_and_reorders_all_sources(monkeypatch):
+def test_queue_api_requires_own_edit_lease_and_reorders_all_sources(monkeypatch):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -243,10 +243,30 @@ def test_queue_api_edits_only_queued_user_and_reorders_all_sources(monkeypatch):
     assert events[-1]["item"]["text"] == "user edited"
     denied = asyncio.run(server.api_session_queue_update(
         value.id, agent_id, {"text": "spoof", "editToken": "browser-edit-1"}))
-    assert denied["error"]["code"] == "queue_item_readonly"
+    assert denied["error"]["code"] == "queue_item_edit_expired"
+    assert agent["text"] == "agent"
     report_denied = asyncio.run(server.api_session_queue_update(
         value.id, "q-report", {"text": "spoof", "editToken": "browser-edit-1"}))
-    assert report_denied["error"]["code"] == "queue_item_readonly"
+    assert report_denied["error"]["code"] == "queue_item_edit_expired"
+    assert report["result"] == "report"
+
+    # Current main supports all queued body kinds. Each target needs its own
+    # lease; a consumed user-item lease cannot authorize another row.
+    for item_id, field, replacement in [(agent_id, "text", "agent edited"),
+                                         ("q-report", "result", "report edited")]:
+        token = "own-edit-" + item_id
+        acquired = asyncio.run(server.api_session_queue_edit_lock(
+            value.id, item_id, {"editToken": token, "expectedRevision": 1}))
+        assert acquired["ok"] is True
+        original = next(item for item in value.queue_pending if item["id"] == item_id)
+        identity = {key: original.get(key) for key in ("id", "kind", "source", "type")}
+        updated = asyncio.run(server.api_session_queue_update(value.id, item_id, {
+            "text": replacement, "expectedRevision": 1, "editToken": token,
+        }))
+        assert updated["ok"] is True
+        assert original[field] == replacement
+        assert {key: original.get(key) for key in identity} == identity
+        assert value.queue_delivery_ledger[item_id][field] == replacement
 
     ordered = asyncio.run(server.api_session_queue_order(
         value.id, {"orderedIds": ["q-report", agent_id, user_id],
