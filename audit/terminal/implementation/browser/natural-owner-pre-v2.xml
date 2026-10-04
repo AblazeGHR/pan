@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="15" time="0.255" timestamp="2026-10-04T19:30:39.549675+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[True-True-7-True]" time="0.006"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req0')
+seen = True, reader_done = True, code = 7, should_close = True
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[True-False-7-False]" time="0.003"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req1')
+seen = True, reader_done = False, code = 7, should_close = False
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[False-True-7-False]" time="0.002"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req2')
+seen = False, reader_done = True, code = 7, should_close = False
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[True-True-None-False]" time="0.002"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req3')
+seen = True, reader_done = True, code = None, should_close = False
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[True-True-True-False]" time="0.002"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req4')
+seen = True, reader_done = True, code = True, should_close = False
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_watchdog_natural_exit_requires_real_code_and_finished_reader[true-True-7-False]" time="0.002"><failure message="AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_watchdog_natural_exit_req5')
+seen = 'true', reader_done = True, code = 7, should_close = False
+
+    @pytest.mark.parametrize('seen,reader_done,code,should_close', [
+        (True, True, 7, True), (True, False, 7, False),
+        (False, True, 7, False), (True, True, None, False),
+        (True, True, True, False), ('true', True, 7, False),
+    ])
+    def test_watchdog_natural_exit_requires_real_code_and_finished_reader(tmp_path, seen, reader_done, code, should_close):
+        runner = TerminalRunner('term_natural', tmp_path / 'secrets/term_natural.secret')
+        info = SimpleNamespace(process_exit_seen=seen, reader_done=reader_done, code=code)
+        runner._runtime = SimpleNamespace(poll_exit=lambda: info)
+        runner._runner_state = 'running'
+        calls = []
+        runner.close = lambda **kwargs: calls.append(kwargs) or {'status': 'exited'}
+&gt;       assert runner._natural_exit_tick(now=0) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalRunner' object has no attribute '_natural_exit_tick'
+
+tests\test_terminal_natural_exit_ma.py:23: AttributeError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[TAIL-True-True-7]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[-True-False-7]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[-False-True-7]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[-True-True-None]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[-true-True-7]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_does_not_close_before_tail_or_unknown_exit[-True-True-True]" time="0.002" /><testcase classname="tests.test_terminal_natural_exit_ma" name="test_service_consumes_natural_cleanup_with_same_owner_and_no_fake_eof" time="0.002"><failure message="AssertionError: assert 'running' == 'closing'&#10;  &#10;  - closing&#10;  + running">def test_service_consumes_natural_cleanup_with_same_owner_and_no_fake_eof():
+        service = TerminalService.__new__(TerminalService)
+        result = {'data': b'', 'size': 0, 'seq': 5, 'next_cursor': 5,
+                  'total_bytes': 5, 'status': 'running',
+                  'describe': {'exit': {'seen': True, 'reader_done': True, 'code': 7,
+                                        'output_complete': False}}}
+        state = SimpleNamespace(terminal_id='term_natural', natural_exit=None, lock=threading.RLock(),
+                                client=SimpleNamespace(read=lambda *args, **kwargs: result))
+        service._require_state = lambda _id: state
+        service._require_client = lambda state: state.client
+        calls = []
+        def close(owner, **kwargs):
+            calls.append(owner)
+            if len(calls) == 1:
+                return {'status': 'closing'}
+            owner.client = None
+            return {'status': 'exited'}
+        service._close_state = close
+        first = service.read('term_natural', 5)
+&gt;       assert first['status'] == 'closing'
+E       AssertionError: assert 'running' == 'closing'
+E         
+E         - closing
+E         + running
+
+tests\test_terminal_natural_exit_ma.py:70: AssertionError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_heartbeat_join_return_value_is_not_mistaken_for_join_result" time="0.003"><failure message="assert None is True&#10; +  where None = stop(0.1)&#10; +    where stop = &lt;packages.core.terminal.service._Heartbeat object at 0x000001C43DA21D60&gt;.stop">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1816/test_heartbeat_join_return_val0')
+
+    def test_heartbeat_join_return_value_is_not_mistaken_for_join_result(tmp_path):
+        heartbeat = _Heartbeat(terminal_id='term_natural', client_factory=lambda *args, **kwargs: None,
+                               data_root=tmp_path, client_id='owner')
+        heartbeat._thread = threading.Thread(target=lambda: None)
+        heartbeat._thread.start()
+        heartbeat._thread.join()
+        released = []
+        heartbeat._client = SimpleNamespace(release_connection=lambda: released.append(True))
+&gt;       assert heartbeat.stop(.1) is True
+E       assert None is True
+E        +  where None = stop(0.1)
+E        +    where stop = &lt;packages.core.terminal.service._Heartbeat object at 0x000001C43DA21D60&gt;.stop
+
+tests\test_terminal_natural_exit_ma.py:86: AssertionError</failure></testcase><testcase classname="tests.test_terminal_natural_exit_ma" name="test_heartbeat_owner_is_retained_when_thread_is_still_in_flight" time="0.003"><failure message="assert None is namespace(stop=&lt;function test_heartbeat_owner_is_retained_when_thread_is_still_in_flight.&lt;locals&gt;.&lt;lambda&gt; at 0x000001C43DBABA60&gt;)&#10; +  where None = namespace(heartbeat=None).heartbeat">def test_heartbeat_owner_is_retained_when_thread_is_still_in_flight():
+        service = TerminalService.__new__(TerminalService)
+        heartbeat = SimpleNamespace(stop=lambda **kwargs: False)
+        state = SimpleNamespace(heartbeat=heartbeat)
+        service._stop_heartbeat(state)
+&gt;       assert state.heartbeat is heartbeat
+E       assert None is namespace(stop=&lt;function test_heartbeat_owner_is_retained_when_thread_is_still_in_flight.&lt;locals&gt;.&lt;lambda&gt; at 0x000001C43DBABA60&gt;)
+E        +  where None = namespace(heartbeat=None).heartbeat
+
+tests\test_terminal_natural_exit_ma.py:95: AssertionError</failure></testcase></testsuite></testsuites>

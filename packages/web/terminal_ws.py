@@ -299,6 +299,8 @@ class _Outbound:
         self._inflight_bytes = 0
         self.send_lock = asyncio.Lock()
         self._wake = asyncio.Event()
+        self.drained = asyncio.Event()
+        self.drained.set()
         self._closed = False
         #: sender 因 slow-client 自行退出时置位（外层据此 close(1013)）。
         self.slow = False
@@ -339,6 +341,7 @@ class _Outbound:
         if self.total_bytes + frame.size > self._max_bytes:
             raise SlowClient("queue-bytes-exceeded")
         self._queue.append(frame)
+        self.drained.clear()
         self._queued_bytes += frame.size
         self._wake.set()
 
@@ -383,6 +386,8 @@ class _Outbound:
                 raise SlowClient("send-failed") from exc
             finally:
                 self._inflight_bytes = 0
+                if not self._queue:
+                    self.drained.set()
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -985,6 +990,19 @@ async def _reader_loop(conn: _Connection) -> None:
             # 原样报告缺口并**暂停**本连接 raw 读取（不补零/不自动 reset/不杀 PTY）。
             conn._paused = True
             conn.send_event("gap", from_seq=_dec(gap[0]), to_seq=_dec(gap[1]), fresh_view_required=True)
+            if raw.get("status") in TERMINAL_END_STATES:
+                # Already-ended owners cannot promise a fresh live snapshot.
+                # Report the lost interval before terminal-state, never wait
+                # forever on resume after the retained owner has been released.
+                conn.send_event(
+                    "terminal-state", status=raw["status"],
+                    exit_code=raw.get("exit_code") if type(raw.get("exit_code")) is int else None,
+                    output_complete=raw.get("output_complete") is True,
+                    process_exit_seen=raw.get("process_exit_seen") is True,
+                    reader_done=raw.get("reader_done") is True,
+                )
+                conn._terminal_sent = True
+                return
             continue
         data = raw.get("data") or b""
         next_cursor = int(raw.get("next_cursor") or conn.cursor)
@@ -1002,7 +1020,14 @@ async def _reader_loop(conn: _Connection) -> None:
             continue
         status = str(raw.get("status") or "")
         if status in TERMINAL_END_STATES:
-            conn.send_event("terminal-state", status=status)
+            code = raw.get("exit_code")
+            conn.send_event(
+                "terminal-state", status=status,
+                exit_code=code if type(code) is int else None,
+                output_complete=raw.get("output_complete") is True,
+                process_exit_seen=raw.get("process_exit_seen") is True,
+                reader_done=raw.get("reader_done") is True,
+            )
             conn._terminal_sent = True
             return
         await asyncio.sleep(POLL_IDLE_SECONDS)
@@ -1082,8 +1107,6 @@ async def _serve(websocket: WebSocket, conn: _Connection, manager: _Manager) -> 
         conn.start()
         # 任一任务结束（慢客户端/终态/断开）即进入收尾。
         done, pending = await asyncio.wait(conn._tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in pending:
-            task.cancel()
         # Queue admission can fail in the reader/receiver, not just in sender.
         # asyncio.wait does not propagate those exceptions. Consume them before
         # cleanup so an exhausted queue cannot silently drop the close frame.
@@ -1093,6 +1116,19 @@ async def _serve(websocket: WebSocket, conn: _Connection, manager: _Manager) -> 
             and not isinstance(error, WebSocketDisconnect)
             for task in done
         )
+        if conn._terminal_sent and not failed and not conn.outbound.slow:
+            # The reader finishing is not the sender finishing. Preserve FIFO
+            # tail + terminal-state, including the in-flight frame, before 1000.
+            try:
+                await asyncio.wait_for(conn.outbound.drained.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                failed = True
+            failed = failed or any(
+                task.done() and not task.cancelled() and task.exception() is not None
+                for task in conn._tasks
+            )
+        for task in pending:
+            task.cancel()
         if conn.outbound.slow or failed:
             with contextlib.suppress(Exception):
                 await websocket.close(code=1013)

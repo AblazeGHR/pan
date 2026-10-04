@@ -1185,6 +1185,73 @@ def test_reader_failure_closes_protocol_instead_of_silently_returning(monkeypatc
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("release_sender", [True, False])
+def test_terminal_close_waits_for_tail_and_end_frame_or_marks_slow(monkeypatch, release_sender):
+    async def scenario():
+        trigger, entered, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def reader(conn):
+            await trigger.wait()
+            conn.send_event("output", data_b64="VEFJTA==", seq="0", next_seq="4", size=4)
+            conn.send_event("terminal-state", status="exited", exit_code=7, output_complete=False)
+            conn._terminal_sent = True
+
+        monkeypatch.setattr(terminal_ws, "_reader_loop", reader)
+        runtime = make_runtime(FakeService())
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        send = ws.send_text
+
+        async def gated_send(text):
+            if json.loads(text)["type"] == "output":
+                entered.set()
+                await release.wait()
+            await send(text)
+
+        ws.send_text = gated_send
+        task, _ = await accepted_connection(app, ws)
+        await wait_for_event(ws, "hello")
+        trigger.set()
+        await asyncio.wait_for(entered.wait(), 1)
+        await asyncio.sleep(.05)
+        assert ws.closed is None and not task.done()
+        if release_sender:
+            release.set()
+        await asyncio.wait_for(task, 5)
+        if release_sender:
+            assert [e["type"] for e in ws.events()][-2:] == ["output", "terminal-state"]
+            assert ws.of_type("terminal-state")[0]["output_complete"] is False
+            assert ws.closed[0] == 1000
+        else:
+            assert ws.closed[0] == 1013
+            assert not ws.of_type("terminal-state")
+        assert app.state.terminal_ws_manager.snapshot()["active"] == 0
+
+    asyncio.run(scenario())
+
+
+def test_ended_gap_reports_loss_then_end_instead_of_waiting_for_impossible_resume():
+    async def scenario():
+        service = FakeService()
+        service.read_pages = [{"data": b"", "gap": [0, 42], "next_cursor": 0,
+                               "status": "exited", "exit_code": 7,
+                               "output_complete": False}]
+        runtime = make_runtime(service)
+        app = await start_app(runtime)
+        await wait_ready(runtime)
+        ws = make_ws(app)
+        task, _ = await accepted_connection(app, ws)
+        await asyncio.wait_for(task, 5)
+        events = ws.events()
+        assert [e["type"] for e in events][-2:] == ["gap", "terminal-state"]
+        assert events[-2]["from_seq"] == "0" and events[-2]["to_seq"] == "42"
+        assert events[-1]["output_complete"] is False
+        assert ws.closed[0] == 1000
+
+    asyncio.run(scenario())
+
+
 def test_runtime_four_slots_busy_is_static_and_not_queued():
     """4 槽满 → busy 静态 error（不排队）；释放后可继续。"""
 

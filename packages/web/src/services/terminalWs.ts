@@ -37,21 +37,26 @@ export class TerminalStream {
   private resumingCursor: string | null = null;
   private snapshotRequested = false;
   private disposed = false;
+  private disconnecting = false;
+  private terminalEnded = false;
   state: TerminalState = { connected: false, control: false, recovering: true, message: '连接中' };
 
   constructor(private id: string, private screen: TerminalRenderer,
               private changed: (state: TerminalState) => void) {}
 
   bind(socket: Transport) {
+    this.epoch++;
     this.socket = socket;
     this.disposed = false;
+    this.disconnecting = false;
+    this.terminalEnded = false;
   }
   private update(values: Partial<TerminalState>) {
     this.state = { ...this.state, ...values };
     this.changed(this.state);
   }
   private command(op: string, fields: Record<string, unknown> = {}) {
-    if (!this.disposed && this.socket?.readyState === 1) {
+    if (!this.disposed && !this.disconnecting && this.socket?.readyState === 1) {
       this.socket.send(JSON.stringify({ v: 1, type: 'command', terminal_id: this.id, op, ...fields }));
       return true;
     }
@@ -75,11 +80,25 @@ export class TerminalStream {
     this.awaitingResume = false;
     this.command('snapshot', { timeout_ms: 1000 });
   }
-  disconnected() {
-    this.epoch++;
+  disconnected(graceful = false) {
+    const epoch = this.epoch;
+    this.disconnecting = true;
     this.generation = null;
-    this.snapshotRequested = false;
-    this.update({ connected: false, control: false, recovering: true, recovery: 'unknown', message: '已断开；终端仍由服务器持有。可重连' });
+    this.update({ connected: false, control: false });
+    const finish = () => {
+      if (epoch !== this.epoch || this.disposed) return;
+      this.epoch++;
+      this.snapshotRequested = false;
+      if (graceful && this.terminalEnded) {
+        this.update({ connected: false, control: false, recovering: false });
+      } else {
+        this.update({ connected: false, control: false, recovering: true, recovery: 'unknown', message: '已断开；可重连核对服务器终端状态' });
+      }
+    };
+    // A normal close frame follows the server's final queued output/state.
+    // Preserve their rendering FIFO; abnormal disconnect still invalidates it.
+    if (graceful) this.serial = this.serial.then(finish);
+    else finish();
   }
   dispose() {
     this.disposed = true;
@@ -88,7 +107,7 @@ export class TerminalStream {
     this.socket = null;
   }
   receive(text: string) {
-    if (this.disposed) return;
+    if (this.disposed || this.disconnecting) return;
     const size = new TextEncoder().encode(text).length;
     if (this.queuedBytes + size > 4 * 1024 * 1024 || this.queuedItems >= 256) {
       this.socket?.close();
@@ -105,11 +124,13 @@ export class TerminalStream {
       if (event.v !== 1 || event.terminal_id !== this.id) return;
       switch (event.type) {
         case 'hello':
+          if (this.disconnecting) break;
           this.generation = null;
           this.update({ connected: true, control: false });
           this.snapshot();
           break;
         case 'claim-result':
+          if (this.disconnecting) break;
           this.generation = cursor(event.generation);
           this.update({ control: this.generation !== null, message: '已取得输入控制权（可被其它连接抢占）' });
           break;
@@ -174,7 +195,8 @@ export class TerminalStream {
           break;
         case 'terminal-state':
           this.generation = null;
-          this.update({ control: false, message: `终端状态：${event.status}；不推断输出完整` });
+          this.terminalEnded = true;
+          this.update({ control: false, message: `终端状态：${event.status}${Number.isSafeInteger(event.exit_code) ? `（退出码 ${event.exit_code}）` : ''}；${event.output_complete === true ? '输出已确认完整' : '输出完整性未确认'}` });
           break;
       }
     }).catch(() => {

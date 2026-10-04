@@ -558,6 +558,7 @@ class TerminalRunner:
         self._input_ack_wait = max(0.0, float(input_ack_wait))
         self._close_wait = max(0.0, float(close_wait))
         self._lease_cleanup_retries = max(0, int(lease_cleanup_retries))
+        self._natural_exit_ready_at: float | None = None
         self._emulator = emulator
         self._bridge = RunnerEmulatorBridge(emulator) if emulator is not None else None
         #: 生产必须为 backend.probe（装配约束）；注入仅测试/诊断用。
@@ -1064,6 +1065,7 @@ class TerminalRunner:
                 "runner_identity": self._status_identity(),
                 "prior_record_identity_mismatch": self._prior_record_identity_mismatch(path),
                 "cleanup": dict(cleanup if cleanup is not None else self._status_cleanup()),
+                "runtime_exit": self._runtime_exit_facts(),
                 "updated_at": round(time.time(), 3),
             }
             tmp = path.with_name(
@@ -1403,6 +1405,50 @@ class TerminalRunner:
             self._expiry_in_progress = True
             return "granted"
 
+    def _runtime_exit_facts(self) -> dict[str, Any] | None:
+        if self._runtime is None:
+            return None
+        try:
+            info = self._runtime.poll_exit()
+            return {
+                "seen": info.process_exit_seen is True,
+                "code": info.code,
+                "reader_done": info.reader_done is True,
+                "output_complete": getattr(info, "output_complete", None),
+            }
+        except Exception:
+            return None
+
+    def _natural_exit_tick(self, *, now: float | None = None) -> bool:
+        """Retained root death + finished drain, not pipe EOF or owner lease loss.
+
+        Allow five seconds for active readers to fetch tail output. The service
+        may finish sooner after consuming the final empty page. Cleanup always
+        uses the existing single-flight runtime close and whole-Job proof.
+        """
+        facts = self._runtime_exit_facts()
+        if not facts or facts["seen"] is not True or facts["reader_done"] is not True:
+            return False
+        code = facts["code"]
+        if type(code) is not int or not 0 <= code <= 0xFFFFFFFF:
+            return False
+        now = time.monotonic() if now is None else now
+        if self._natural_exit_ready_at is None:
+            self._natural_exit_ready_at = now
+        if now - self._natural_exit_ready_at < 5.0:
+            return False
+        result = self.close(reason="natural-exit", wait=0.25)
+        if result.get("status") == "exited":
+            return True
+        # A blocked worker is retained and reused; never start overlapping closes.
+        if now - self._natural_exit_ready_at >= 17.0:
+            self._note("natural-cleanup-exhausted")
+            self._runner_state = "cleanup-failed"
+            self._exit_reason = "natural-cleanup-exhausted"
+            self._request_shutdown(RUNNER_EXIT_CLEANUP_FAILED)
+            return True
+        return False
+
     def _watchdog_loop(self) -> None:
         """lease 看门狗：只读时间戳 + 触发 close worker（与 handler 互不拖死）。
 
@@ -1415,6 +1461,8 @@ class TerminalRunner:
                 return
             if self._runtime is None:
                 continue
+            if self._natural_exit_tick():
+                return
             established, last, epoch, started = self._lease_snapshot()
             now = time.monotonic()
             if established:
@@ -1632,6 +1680,8 @@ class TerminalRunner:
                     "code": info.code,
                     "reason": info.reason,
                     "reader_done": bool(info.reader_done),
+                    "output_complete": info.output_complete,
+                    "bytes_at_stop": info.bytes_at_stop,
                     "drain_stop_reason": info.drain_stop_reason.value,
                 }
             except Exception as exc:  # noqa: BLE001 - 句柄释放后探针可能不可用

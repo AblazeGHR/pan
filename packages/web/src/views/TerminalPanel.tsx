@@ -51,7 +51,7 @@ export default function TerminalPanel() {
     const socket = new WebSocket(url);
     connection.bind(socket);
     socket.onmessage = (event) => { if (alive && typeof event.data === 'string') connection.receive(event.data); };
-    socket.onclose = () => { if (alive) connection.disconnected(); };
+    socket.onclose = (event) => { if (alive) connection.disconnected(event.code === 1000); };
     socket.onerror = () => { if (alive) setError('连接失败：请检查同源入口与终端状态'); };
     const dataSubscription = terminal.onData((text) => connection.input(text));
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;

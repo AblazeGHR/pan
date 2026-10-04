@@ -77,4 +77,39 @@ describe('terminal display protocol A', () => {
     expect(f.closed()).toBeGreaterThan(0);
     f.pending.shift()?.(); await f.stream.settled();
   });
+  it('drains queued tail and preserves terminal status on a graceful close', async () => {
+    const f = fixture(); f.event('hello'); await f.stream.settled();
+    f.snapshot({ cursor: '0' }); await f.stream.settled();
+    f.event('resume-result', { cursor: '0' });
+    f.event('claim-result', { generation: '1' }); await f.stream.settled();
+    f.hold(); f.event('output', { seq: '0', next_seq: '4', data_b64: encodeInput('TAIL') });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    f.event('terminal-state', { status: 'exited', exit_code: 7, output_complete: false });
+    f.stream.disconnected(true);
+    expect(f.stream.state.control).toBe(false);
+    const sent = f.commands.length;
+    f.stream.input('never replay after close');
+    f.pending.shift()?.(); await f.stream.settled();
+    expect(new TextDecoder().decode(f.writes.at(-1))).toBe('TAIL');
+    expect(f.commands).toHaveLength(sent);
+    expect(f.stream.state.message).toContain('终端状态：exited');
+    expect(f.stream.state.message).toContain('退出码 7');
+    expect(f.stream.state.message).toContain('输出完整性未确认');
+    expect(f.stream.state.connected).toBe(false);
+  });
+  it('does not accept queued old terminal state after an abrupt disconnect', async () => {
+    const f = fixture(); f.event('hello'); await f.stream.settled();
+    f.hold(); f.snapshot({ cursor: '0' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    f.event('terminal-state', { status: 'exited', exit_code: 7 });
+    f.stream.disconnected();
+    f.pending.shift()?.(); await f.stream.settled();
+    expect(f.stream.state.message).not.toContain('终端状态：exited');
+    expect(f.stream.state.recovery).toBe('unknown');
+  });
+  it('never promotes a non-boolean output-complete flag', async () => {
+    const f = fixture(); f.event('terminal-state', { status: 'exited', output_complete: 'true' });
+    await f.stream.settled();
+    expect(f.stream.state.message).not.toContain('输出已确认完整');
+  });
 });

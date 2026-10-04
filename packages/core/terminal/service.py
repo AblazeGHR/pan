@@ -380,7 +380,9 @@ class _Heartbeat:
     def stop(self, timeout: float = 2.0) -> bool:
         self._stop.set()
         thread = self._thread
-        joined = thread is None or thread.join(timeout=max(0.0, float(timeout)))
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=max(0.0, float(timeout)))
+        joined = thread is None or not thread.is_alive()
         if joined:
             self._release()
         return joined
@@ -401,9 +403,12 @@ class _Heartbeat:
 
     # -- 内部 ----------------------------------------------------------
     def _loop(self) -> None:
-        while not self._stop.is_set():
-            self._beat_once()
-            self._stop.wait(self.interval)
+        try:
+            while not self._stop.is_set():
+                self._beat_once()
+                self._stop.wait(self.interval)
+        finally:
+            self._release()
 
     def _beat_once(self) -> None:
         client = self._ensure_client()
@@ -560,6 +565,8 @@ class _TerminalState:
     close_op_lock: threading.Lock = field(default_factory=threading.Lock)
     lock: threading.RLock = field(default_factory=threading.RLock)
     attached: bool = False
+    #: Authenticated, completed natural drain facts; retained across close retries.
+    natural_exit: dict[str, Any] | None = None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -681,13 +688,48 @@ class TerminalService:
     # ------------------------------------------------------------ 公共查询
     def list(self) -> list[dict[str, Any]]:
         """列出全部记录（公共视图：**不含 pipe/token**）。"""
+        for terminal_id in self._known_states():
+            self._refresh_finished_owner(terminal_id)
         views = [self._view(record) for record in self._registry.list()]
         views.sort(key=lambda item: (item.get("created_at") or 0.0, item.get("terminal_id") or ""))
         return views
 
     def get(self, terminal_id: str) -> dict[str, Any]:
         """取单条记录的公共视图。"""
+        self._refresh_finished_owner(terminal_id)
         return self._view(self._registry.get(terminal_id))
+
+    def _refresh_finished_owner(self, terminal_id: str) -> None:
+        """Consume completed browserless cleanup; never start a stop from GET.
+
+        Root death alone is insufficient: identity-bound runner cleanup, engine
+        cleanup and retained launcher death must all agree before secret deletion.
+        """
+        with self._global_lock:
+            state = self._states.get(terminal_id)
+        if state is None or state.record.status in _TERMINAL_STATUSES:
+            return
+        if not state.lock.acquire(blocking=False):
+            return
+        try:
+            if not self._runner_cleanup_record_confirmed(state):
+                return
+            evidence = self._launcher_status_evidence(state)
+            evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
+            if (evidence.get("engine_converged") is not True
+                    or evidence["process_exit"].get("exited") is not True):
+                return
+            facts = self._finished_runtime_exit(state)
+            if (facts is None or facts.get("seen") is not True
+                    or facts.get("reader_done") is not True):
+                return
+            if not self._release_runner_identity_handle(state):
+                return
+            evidence["runner_exit"] = facts
+            self._finalize_exited(state, reason="natural-exit", evidence=evidence)
+            self._sync_state_record(state)
+        finally:
+            state.lock.release()
 
     def describe(self) -> dict[str, Any]:
         """服务层诊断（静态字段 + 计数；无秘密）。"""
@@ -1211,11 +1253,28 @@ class TerminalService:
         - 不自动 reset、不杀 PTY；``data`` 是"从 ``seq`` 开始"的事实。
         """
         state = self._require_state(terminal_id)
+        if state.natural_exit is not None:
+            return self._natural_exit_page(state, int(cursor))
         client = self._require_client(state)
         result = client.read(int(cursor), max_bytes=max_bytes)
         gap = result.get("gap")
         first_retained = int(result.get("first_retained_seq") or 0)
         next_cursor = int(result.get("next_cursor") or cursor)
+        description = result.get("describe")
+        facts = description.get("exit") if isinstance(description, Mapping) else None
+        code = facts.get("code") if isinstance(facts, Mapping) else None
+        if (
+            not result.get("data") and not gap and not result.get("truncated")
+            and isinstance(facts, Mapping) and facts.get("seen") is True
+            and facts.get("reader_done") is True and type(code) is int
+            and 0 <= code <= 0xFFFFFFFF
+            and int(cursor) >= int(result.get("total_bytes") or 0)
+        ):
+            state.natural_exit = {
+                "code": code, "total_bytes": int(result.get("total_bytes") or 0),
+                "output_complete": self._bool_or_none(facts.get("output_complete")),
+            }
+            return self._natural_exit_page(state, int(cursor))
         return {
             "terminal_id": terminal_id,
             "data": result.get("data") or b"",
@@ -1231,6 +1290,24 @@ class TerminalService:
             "cursor_advanced": next_cursor != int(cursor),
             "status": result.get("status"),
             "zero_fill": False,
+        }
+
+    def _natural_exit_page(self, state: _TerminalState, cursor: int) -> dict[str, Any]:
+        facts = state.natural_exit
+        assert facts is not None
+        outcome = self._close_state(
+            state, reason="natural-exit", budget=0.25, fresh_retry=False,
+        )
+        total = facts["total_bytes"]
+        return {
+            "terminal_id": state.terminal_id, "data": b"", "size": 0,
+            "seq": cursor, "next_cursor": cursor, "total_bytes": total,
+            "first_retained_seq": total, "truncated": cursor < total,
+            "gap": [cursor, total] if cursor < total else None,
+            "fresh_view_required": cursor < total, "cursor_advanced": False,
+            "status": "exited" if outcome.get("status") == "exited" else "closing",
+            "exit_code": facts["code"], "output_complete": facts["output_complete"],
+            "process_exit_seen": True, "reader_done": True, "zero_fill": False,
         }
 
     def snapshot(self, terminal_id: str, *, timeout_ms: int = 5000) -> dict[str, Any]:
@@ -1546,6 +1623,7 @@ class TerminalService:
             stop_confirmed = True
             evidence["runner_confirmed"] = True
             evidence["runner_confirmation_source"] = "identity-bound-final-record"
+            evidence["runner_exit"] = self._finished_runtime_exit(state)
         if error_type is not None and not stop_confirmed:
             self._mark_unproven(state, "close-worker-error", error_type)
             return {
@@ -1688,6 +1766,19 @@ class TerminalService:
             if not isinstance(exc, FileNotFoundError):
                 self._note_error("runner-status-unreadable", exc)
             return False
+
+    def _finished_runtime_exit(self, state: _TerminalState) -> dict[str, Any] | None:
+        try:
+            payload = json.loads((self.root / "runner-status" / f"{state.terminal_id}.json").read_text(encoding="utf-8"))
+            if not self._identity_matches(payload.get("runner_identity"), state.runner_pid, state.runner_filetime):
+                return None
+            facts = payload.get("runtime_exit")
+            if (not isinstance(facts, Mapping) or type(facts.get("code")) is not int
+                    or not 0 <= facts["code"] <= 0xFFFFFFFF):
+                return None
+            return dict(facts)
+        except (OSError, ValueError, TypeError, AttributeError):
+            return None
 
     def _launcher_status_evidence(self, state: _TerminalState) -> dict[str, Any]:
         """读 launcher-status（引擎收尾事实 + 身份交叉核验）。"""
@@ -1874,6 +1965,8 @@ class TerminalService:
         if isinstance(runner_exit, Mapping):
             raw = runner_exit.get("code")
             exit_code = int(raw) if isinstance(raw, int) else None
+        if state.natural_exit is not None:
+            exit_code = state.natural_exit["code"]
         if exit_code is None:
             process_exit = evidence.get("process_exit") if isinstance(evidence, Mapping) else None
             if isinstance(process_exit, Mapping) and isinstance(process_exit.get("returncode"), int):
@@ -1885,6 +1978,7 @@ class TerminalService:
             )
         except Exception as exc:  # noqa: BLE001 - 记录写失败仍继续删秘密（已证明终止）
             self._note_error("exited-record-write-failed", exc)
+        self._sync_state_record(state)
         self._release_client(state)
         self._stop_heartbeat(state)
         # 只有**已证明终止**后才按 SecretStore 约束删除秘密（verified_exit=True）；
@@ -2514,13 +2608,14 @@ class TerminalService:
         F6：不无界取 ``state.lock``（等锁超时路径上再取锁会重新挂死）；
         属性读取在 CPython 下是原子的，足够安全。
         """
-        heartbeat, state.heartbeat = state.heartbeat, None
+        heartbeat = state.heartbeat
         if heartbeat is None:
             return
         timeout = 2.0
         if deadline is not None:
             timeout = max(0.0, min(timeout, deadline - time.monotonic()))
-        heartbeat.stop(timeout=timeout)
+        if heartbeat.stop(timeout=timeout) is True and state.heartbeat is heartbeat:
+            state.heartbeat = None
 
     def _stop_heartbeat_for(self, terminal_id: str, *, deadline: float | None = None) -> None:
         with self._global_lock:

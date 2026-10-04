@@ -177,3 +177,15 @@ That immutable Python run subsequently completes **2604 passed / zero failed /
 and WS failure/pressure fixes. The separately discovered natural-shell-exit
 browser failure is an open acceptance gap, not erased by the collected suite's
 all-green result; this ledger must be updated with its own repair evidence.
+
+## Natural shell exit repair (separate from the immutable suite)
+
+The real failure is now repaired and directly verified: actual Chromium receives
+the Chinese final tail and exited/code 7, input is disabled, the public record
+agrees, and the owned harness exits 0. Output completeness remains false rather
+than a fabricated EOF. Browserless natural exit also converges through all three
+cleanup proofs without read/explicit stop. The heartbeat join/owner defects and
+WS tail/end sender ordering are fixed with deterministic negative controls.
+See `PAN_TERMINAL_NATURAL_EXIT_MA_20261004.md` for pre/post gates, bounded fallback,
+queued-render behavior, source/run ordering and retained failed browser evidence.
+This focused repair does not retroactively change the 2604-test frozen result.
