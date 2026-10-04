@@ -11,8 +11,8 @@ account, user Session, production port 8768, or foreign Job was used.
 | Plan scenario | Current evidence | Remaining boundary |
 | --- | --- | --- |
 | T1 create/cwd | service real tests; REST/WS and real Pan chains | Workspace/Session IDs are optional labels, not authorization or lifecycle coupling |
-| T2 input | real Chromium Chinese input; native Control+C reaches foreground handler event 0 and shell survives; long writes in backend/runner suites | Not every TUI, keyboard layout, bracketed-paste program, or Ctrl+D EOF convention has been verified |
-| T3 resize/TUI | browser resize-result; backend console-size evidence; headless main/alternate-screen matrix | Engine confirmation and PTY acceptance remain separate; real less/full-browser TUI fidelity is not accepted |
+| T2 input | real Chromium Chinese input; native Control+C reaches foreground handler event 0 and shell survives; native msvcrt receives Left/Tab/CJK/Enter exactly; long writes in backend/runner suites | Not every TUI, keyboard layout, bracketed-paste program, or Ctrl+D EOF convention has been verified |
+| T3 resize/TUI | native console 137×46→91×30; browser alternate-screen entry/return; installed real less 685 navigation and exit to same shell; headless mode matrix | Engine confirmation and PTY acceptance remain separate; less used explicit TERM=xterm-256color; universal TUI snapshot fidelity is not accepted |
 | T4 output/backpressure | bounded raw log; WS in-flight queue accounting/slow-client isolation; browserless 309254-byte output and explicit eviction gap | Long-running natural slow-client/throughput stress remains unverified |
 | T5 exit/tail | retained-handle exit code 7 and CJK tail tests; natural-exit-not-EOF negative control | Root exit is not channel EOF; output_complete is never inferred from root death |
 | T6 disconnect | real WS/browser close/reload retains PID and shell variables | This is not durability across logout/machine restart |
@@ -87,3 +87,22 @@ The bilingual user manual now covers creation, control takeover, observe/reload,
 partial views, detach/reconnect, explicit close, dependencies, and these limits.
 No main/practical advance, push, practical build, service restart, or memory write
 was performed. Later integration/deployment remains a separately authorized step.
+
+## Real browser native interaction control
+
+`audit/terminal/implementation/browser/native-tui.mjs` drives the actual React
+panel and production REST/WS/ConPTY path. The owned native console child records
+`[224,75,9,20013,25991,13]` for Left, Tab, Chinese characters and Enter, and reads
+its actual console size before and after viewport resizing (137×46→91×30).
+Screenshots show alternate-screen content and return to the primary screen.
+Installed Git/MSYS less 685 navigates a 500-line file to line 499, exits, and the
+original shell successfully executes a file witness command. Explicit close and
+test-harness exit both succeed, with no browser errors.
+
+`native-tui-uppercase-control/result.json` is the overall passing run. The first
+run retains less's missing-terminal-declaration warning; the TERM-controlled run
+retains a test-driver mistake (`Shift+g` produced the lowercase pager command).
+The passing run uses explicit `TERM=xterm-256color` and uppercase `G`. These are
+environment/test controls, not silent production fixes. No global TERM setting
+or borrowed host console was changed. This evidence does not establish every
+keyboard layout, every native TUI, bracketed-paste semantics or full TUI restore.
