@@ -1,0 +1,60 @@
+{
+  "passed": true,
+  "browser": "chromium",
+  "cases": [
+    {
+      "name": "same-site-different-port",
+      "rest": {
+        "unreadableByCrossOriginJS": true
+      },
+      "ws": {
+        "opened": false,
+        "frames": 0,
+        "code": 1006
+      },
+      "wireRestStatuses": [
+        403
+      ]
+    },
+    {
+      "name": "cross-site-hostname",
+      "rest": {
+        "unreadableByCrossOriginJS": true
+      },
+      "ws": {
+        "opened": false,
+        "frames": 0,
+        "code": 1006
+      },
+      "wireRestStatuses": [
+        403
+      ]
+    },
+    {
+      "name": "opaque-sandbox-null-origin",
+      "rest": {
+        "unreadableByCrossOriginJS": true
+      },
+      "ws": {
+        "opened": false,
+        "frames": 0,
+        "code": 1006
+      },
+      "wireRestStatuses": [
+        403
+      ]
+    }
+  ],
+  "positive": {
+    "types": [
+      "hello",
+      "output",
+      "claim-result"
+    ],
+    "generation": "1"
+  },
+  "sameRunnerIdentity": true,
+  "confirmedClose": true,
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:55513', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\nERROR:    ASGI callable returned without completing handshake.\r\nERROR:    ASGI callable returned without completing handshake.\r\nERROR:    ASGI callable returned without completing handshake.\r\n"
+}

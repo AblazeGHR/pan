@@ -32,6 +32,7 @@ to manufacture a clean historical diff-check.
 | Session incremental file, uv | 16 passed |
 | Real complete browser/ConPTY chain | passed=true, harnessExit=0 |
 | Real natural-exit/archived-selection browser | passed=true, harnessExit=0 |
+| Real browser-generated Origin rejection/positive controls | passed=true, harnessExit=0 |
 
 Evidence is in `audit/terminal/implementation/browser/candidate-main-*`.
 The complete real browser fixture verifies Chinese input, Ctrl-C interaction,
@@ -87,3 +88,14 @@ This is a reproduced main baseline assertion conflict, not a root-cause claim or
 permission to change attachment semantics. It remains a failure; no assertion
 was weakened and no canonical file edited. Final whole results will supersede
 only this in-progress statement, not these measured controls.
+
+### Current-main browser security control
+
+`candidate-main-browser-origin-control/result.json` uses real Chromium-generated
+headers (no forged Origin overrides). Same-site different port, different
+loopback hostname and opaque sandbox `Origin:null` each witness HTTP 403 through
+CDP wire status and WS unopened/zero received frames. JavaScript cannot read the
+CORS denial body, as expected. Same-origin hello/claim succeeds; original runner
+PID/FILETIME remains unchanged after all attacks; explicit close confirms exited
+and owned harness exits zero. This is a measured current-main local browser gate,
+not all-browser, remote or cross-account authentication certification.
