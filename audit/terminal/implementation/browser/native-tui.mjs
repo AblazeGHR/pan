@@ -31,6 +31,7 @@ child.stderr.on('data', chunk => { logs += chunk; });
 const exit = new Promise(resolve => child.once('exit', resolve));
 const report = { realConPTY: true, browser: 'chromium', passed: false, errors: [] };
 let browser, page;
+let clipboardBackup;
 try {
   for (let attempt = 0; attempt < 150; attempt++) {
     try { if ((await fetch(`http://127.0.0.1:${port}/react/terminals`)).ok) break; } catch { /* starting */ }
@@ -67,18 +68,20 @@ try {
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('Tab');
   await page.keyboard.insertText('中文');
+  await page.keyboard.press('Control+d');
   await page.keyboard.press('Enter');
   for (let attempt = 0; attempt < 200; attempt++) {
     try { report.native = JSON.parse(await readFile(witness, 'utf8')); break; } catch { /* child still consuming */ }
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  assert.deepEqual(report.native?.keys, [224, 75, 9, 20013, 25991, 13]);
+  assert.deepEqual(report.native?.keys, [224, 75, 9, 20013, 25991, 4, 13]);
   assert.notDeepEqual(report.native.initial_size, report.native.final_size);
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('NATIVE_TUI_RETURNED'), null, { timeout: 15000 });
   await page.screenshot({ path: path.join(output, 'primary-screen-return.png') });
   report.nativeConsoleKeyboardVerified = true;
   report.alternateScreenAndReturnVerified = true;
   report.resizeReachedNativeConsole = true;
+  report.ctrlDReceivedAsByteNotUniversalEOF = true;
   // Exercise the installed real pager, separately from our native key witness.
   // Its path is supplied explicitly; absence is not silently treated as a pass.
   const pager = process.argv[4];
@@ -108,7 +111,18 @@ try {
   await page.keyboard.insertText([python, pasteScript, pasteWitness].map(value => `"${value}"`).join(' '));
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('BRACKETED_PASTE_READY'), null, { timeout: 15000 });
+  const beforeReload = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
+  await page.reload();
+  await page.getByLabel('选择终端').selectOption(id);
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 15000 });
+  await page.getByRole('button', { name: '取得输入控制权', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('控制模式'));
+  const afterReload = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
+  assert.equal(afterReload.result.pid, beforeReload.result.pid);
+  assert.equal(afterReload.result.process_created_at_filetime, beforeReload.result.process_created_at_filetime);
+  report.pasteReloadSamePidFiletime = true;
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${port}` });
+  clipboardBackup = await page.evaluate(() => navigator.clipboard.readText());
   await page.evaluate(() => navigator.clipboard.writeText('PASTE_中文'));
   await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.press('Control+v');
@@ -137,6 +151,14 @@ try {
   report.failureStack = error.stack;
   if (page) await page.screenshot({ path: path.join(output, 'failure.png') });
 } finally {
+  if (clipboardBackup !== undefined && page && !page.isClosed()) {
+    try {
+      await page.evaluate(value => navigator.clipboard.writeText(value), clipboardBackup);
+      report.clipboardRestored = true;
+    } catch {
+      report.clipboardRestored = false;
+    }
+  }
   await browser?.close();
   child.stdin.write('stop\n');
   let timer;

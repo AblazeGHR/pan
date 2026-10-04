@@ -117,3 +117,10 @@ The failing real run is retained (`native-clipboard-initial`). Ordinary Ctrl-C/D
 arrow and Tab handling is unchanged. Keyboard/stream fixtures pass 25/25;
 TypeScript/build (36 compressed assets) and scoped ESLint pass. This is a local
 Chromium/program-mode control, not a guarantee for every platform or TUI.
+
+The further `native-paste-reload/result.json` control receives Ctrl-D as byte 4
+in the native child's raw input mode (not an assertion of POSIX EOF). Reloading
+the browser while that child has bracketed paste enabled preserves the exact
+PTY PID/FILETIME; the subsequently pasted Chinese text still arrives with the
+correct delimiters. The fixture restores the prior browser clipboard text in
+`finally` without logging it. Explicit close and harness exit both succeed.
