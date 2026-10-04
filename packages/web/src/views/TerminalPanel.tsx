@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { terminalRequest } from '@/services/terminal';
 import type { TerminalView } from '@/services/terminal';
 import { TerminalStream } from '@/services/terminalWs';
+import { terminalKeyHandler } from '@/services/terminalKeyboard';
 import type { TerminalState } from '@/services/terminalWs';
 
 const initial: TerminalState = { connected: false, control: false, recovering: true, message: '请选择终端' };
@@ -35,6 +36,7 @@ export default function TerminalPanel() {
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(element.current);
+    terminal.attachCustomKeyEventHandler(terminalKeyHandler);
     let wasControl = false;
     const connection = new TerminalStream(selected, terminal, (next) => {
       if (alive) {

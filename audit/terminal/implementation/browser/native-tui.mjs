@@ -102,6 +102,23 @@ try {
   }
   assert.equal(report.realLessExitedToSameShell, true);
   report.realLessNavigationVerified = true;
+  const pasteScript = path.join(root, 'paste.py');
+  const pasteWitness = path.join(root, 'paste.json');
+  await writeFile(pasteScript, `import ctypes,json,msvcrt,sys,time\nfrom pathlib import Path\nk=ctypes.WinDLL('kernel32',use_last_error=True)\nk.GetStdHandle.restype=ctypes.c_void_p\ninp=ctypes.c_void_p(k.GetStdHandle(-10));out=ctypes.c_void_p(k.GetStdHandle(-11))\nmi=ctypes.c_uint();mo=ctypes.c_uint()\nassert k.GetConsoleMode(inp,ctypes.byref(mi)) and k.GetConsoleMode(out,ctypes.byref(mo))\nassert k.SetConsoleMode(out,mo.value|4)\nassert k.SetConsoleMode(inp,(mi.value|512)&~6)\nkeys=[]\ntry:\n sys.stdout.write('\\x1b[?2004h\\r\\nBRACKETED_PASTE_READY\\r\\n');sys.stdout.flush()\n deadline=time.monotonic()+10\n while time.monotonic()<deadline:\n  if not msvcrt.kbhit(): time.sleep(0.01);continue\n  keys.append(msvcrt.getwch())\n  if ''.join(keys).endswith('\\x1b[201~'): break\n Path(sys.argv[1]).write_text(json.dumps({'received':''.join(keys),'completed':''.join(keys).endswith('\\x1b[201~')}))\nfinally:\n sys.stdout.write('\\x1b[?2004l\\r\\nPASTE_RETURNED\\r\\n');sys.stdout.flush()\n k.SetConsoleMode(inp,mi.value);k.SetConsoleMode(out,mo.value)\n`);
+  await page.keyboard.insertText([python, pasteScript, pasteWitness].map(value => `"${value}"`).join(' '));
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('BRACKETED_PASTE_READY'), null, { timeout: 15000 });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: `http://127.0.0.1:${port}` });
+  await page.evaluate(() => navigator.clipboard.writeText('PASTE_中文'));
+  await page.locator('.xterm-helper-textarea').focus();
+  await page.keyboard.press('Control+v');
+  for (let attempt = 0; attempt < 250; attempt++) {
+    try { report.paste = JSON.parse(await readFile(pasteWitness, 'utf8')); break; } catch { /* pending native read */ }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(report.paste?.received, '\x1b[200~PASTE_中文\x1b[201~');
+  assert.equal(report.paste.completed, true);
+  report.realClipboardBracketedPasteVerified = true;
   for (let attempt = 0; attempt < 12; attempt++) {
     const result = await page.evaluate(async terminalId => {
       const response = await fetch(`/api/terminals/${terminalId}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

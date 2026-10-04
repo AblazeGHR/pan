@@ -219,6 +219,10 @@ Dashboard 的 **终端** 页面提供独立常驻 shell，不需要创建或启�
 4. Ctrl-C 通过终端输入转交前台程序。本机生产 launcher 已验证 Windows
    `CTRL_C_EVENT` 和中断后 shell 可继续执行，但程序可忽略 Ctrl-C 或自行改变输入
    模式。Ctrl-D 不承诺通用 POSIX EOF。
+   Ctrl-V 使用浏览器剪贴板粘贴；程序启用 bracketed paste 时由 xterm 生成对应
+   边界，而不是发送 Ctrl-V 控制字节。粘贴多行命令仍可能被程序立即执行，请先
+   检查内容。Git/MSYS 的 `less` 等程序若提示终端能力不足，可在该 shell 内设置
+   `TERM=xterm-256color`；这不会使 partial 快照自动变成完整 TUI 恢复。
 5. 默认终端在 Pan 停止或宿主失联后收尾。若希望跨 Pan 重启保留 shell，先点击
    “持久脱离”。只有 runner 确认不受外层宿主 Job 控制才会成功；环境不允许
    breakaway 时明确拒绝，终端不被替换。成功后新 Pan 核验原 PID/FILETIME 和本地

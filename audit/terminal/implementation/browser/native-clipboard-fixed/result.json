@@ -1,0 +1,67 @@
+{
+  "realConPTY": true,
+  "browser": "chromium",
+  "passed": true,
+  "errors": [],
+  "native": {
+    "keys": [
+      224,
+      75,
+      9,
+      20013,
+      25991,
+      13
+    ],
+    "initial_size": [
+      137,
+      46
+    ],
+    "final_size": [
+      91,
+      30
+    ]
+  },
+  "nativeConsoleKeyboardVerified": true,
+  "alternateScreenAndReturnVerified": true,
+  "resizeReachedNativeConsole": true,
+  "realLessExitedToSameShell": true,
+  "realLessNavigationVerified": true,
+  "paste": {
+    "received": "\u001b[200~PASTE_中文\u001b[201~",
+    "completed": true
+  },
+  "realClipboardBracketedPasteVerified": true,
+  "close": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "result": {
+        "terminal_id": "term_b3bf3411ea9e4a79",
+        "status": "exited",
+        "owner": "service",
+        "rows": 24,
+        "cols": 80,
+        "pid": 40332,
+        "process_created_at_filetime": "134355838984818751",
+        "detached": false,
+        "detached_at": null,
+        "lease_grace_seconds": 2,
+        "created_by": "web-local",
+        "created_at": 1791110298.4678907,
+        "updated_at": 1791110303.9131086,
+        "attached": false,
+        "authorization": "scope-is-metadata-not-permission",
+        "scope": {
+          "workspace_id": null,
+          "session_id": null
+        },
+        "exit": {
+          "code": 0,
+          "reason": "explicit-close"
+        }
+      }
+    }
+  },
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:58819', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:58819', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

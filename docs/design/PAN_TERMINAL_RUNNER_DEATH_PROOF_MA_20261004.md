@@ -56,3 +56,7 @@ skipped**; it predates this repair and is not claimed as its full-suite result.
 Arbitrarily late UNKNOWN after every verifier handle is gone still does not mean
 DEAD. Cross-platform, cross-user and all-build OS failure behavior remain outside
 this local measurement. No main/practical advance, deployment, push, or restart.
+
+The final fixed-source uv neighboring logical selection passes **108 / 9
+deselected**, 206.92 seconds (`shim-service-final-uv.xml`). It includes same-owner
+cleanup/retry and the repaired fake Popen identity; no assertions were removed.

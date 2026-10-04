@@ -221,6 +221,11 @@ rebuilds the display baseline explicitly without resetting the running shell.
 Ctrl-C is forwarded to the foreground program; the production Windows layout has
 been tested with a real control event and a surviving shell, but programs can
 ignore it or change input modes. Ctrl-D is not universal POSIX EOF.
+Ctrl-V uses browser clipboard paste, with xterm applying bracketed-paste framing
+when the program enables that mode, rather than sending the Ctrl-V control byte.
+Review pasted commands first: programs may execute multiple lines immediately.
+Git/MSYS programs such as less may require `TERM=xterm-256color` in that shell;
+this does not upgrade a partial snapshot into full TUI recovery.
 
 Ordinary terminals are cleaned up when Pan stops or its owner lease is lost.
 Choose **Detach** before stopping Pan to retain a shell across a Pan restart.

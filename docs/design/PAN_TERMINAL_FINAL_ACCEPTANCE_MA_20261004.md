@@ -11,7 +11,7 @@ account, user Session, production port 8768, or foreign Job was used.
 | Plan scenario | Current evidence | Remaining boundary |
 | --- | --- | --- |
 | T1 create/cwd | service real tests; REST/WS and real Pan chains | Workspace/Session IDs are optional labels, not authorization or lifecycle coupling |
-| T2 input | real Chromium Chinese input; native Control+C reaches foreground handler event 0 and shell survives; native msvcrt receives Left/Tab/CJK/Enter exactly; long writes in backend/runner suites | Not every TUI, keyboard layout, bracketed-paste program, or Ctrl+D EOF convention has been verified |
+| T2 input | real Chromium Chinese input; native Control+C reaches foreground handler event 0 and shell survives; native msvcrt receives Left/Tab/CJK/Enter exactly; real ClipboardEvent with bracketed paste reaches native program; long writes in backend/runner suites | Not every TUI, keyboard layout, paste program, or Ctrl+D EOF convention has been verified |
 | T3 resize/TUI | native console 137×46→91×30; browser alternate-screen entry/return; installed real less 685 navigation and exit to same shell; headless mode matrix | Engine confirmation and PTY acceptance remain separate; less used explicit TERM=xterm-256color; universal TUI snapshot fidelity is not accepted |
 | T4 output/backpressure | bounded raw log; WS in-flight queue accounting/slow-client isolation; browserless 309254-byte output and explicit eviction gap | Long-running natural slow-client/throughput stress remains unverified |
 | T5 exit/tail | retained-handle exit code 7 and CJK tail tests; natural-exit-not-EOF negative control | Root exit is not channel EOF; output_complete is never inferred from root death |
@@ -106,3 +106,14 @@ The passing run uses explicit `TERM=xterm-256color` and uppercase `G`. These are
 environment/test controls, not silent production fixes. No global TERM setting
 or borrowed host console was changed. This evidence does not establish every
 keyboard layout, every native TUI, bracketed-paste semantics or full TUI restore.
+
+The subsequent clipboard control exposed a real frontend omission: xterm's
+default Ctrl-V key handler sent byte 0x16 and prevented the browser paste action.
+`terminalKeyHandler` now leaves Ctrl-V (including Ctrl-Shift-V) to the browser;
+xterm's existing ClipboardEvent handler supplies program-mode-aware paste framing.
+`native-clipboard-fixed/result.json` records the native child receiving exactly
+`ESC[200~PASTE_中文ESC[201~`, successful explicit close and harness exit 0.
+The failing real run is retained (`native-clipboard-initial`). Ordinary Ctrl-C/D,
+arrow and Tab handling is unchanged. Keyboard/stream fixtures pass 25/25;
+TypeScript/build (36 compressed assets) and scoped ESLint pass. This is a local
+Chromium/program-mode control, not a guarantee for every platform or TUI.
