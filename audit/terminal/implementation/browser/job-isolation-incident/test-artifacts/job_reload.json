@@ -1,0 +1,10 @@
+{
+  "jobId": "job_reload",
+  "targetSessionId": "ses_target",
+  "status": "failed",
+  "createdAt": 1,
+  "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+  "terminalEventId": "job_reload:terminal",
+  "notificationState": "pending",
+  "updatedAt": 1791128291.22623
+}

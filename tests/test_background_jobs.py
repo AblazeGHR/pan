@@ -177,6 +177,23 @@ def test_runner_registry_survives_reload(tmp_path):
     assert json.loads((tmp_path / "background_jobs" / "jobs" / "job_reload.json").read_text())["status"] == "running"
 
 
+def test_list_handles_mixed_legacy_timestamps_without_rewriting(tmp_path):
+    values = {"job_missing": None, "job_number": 10, "job_string": "20",
+              "job_iso": "2026-10-04T12:00:00Z", "job_bad": "invalid",
+              "job_bool": True, "job_list": [], "job_inf": float('inf')}
+    for job_id, value in values.items():
+        record = {"jobId": job_id, "status": "completed"}
+        if job_id != "job_missing":
+            record["createdAt"] = value
+        jobs._save(record)
+    paths = list((tmp_path / "background_jobs/jobs").glob('job_*.json'))
+    before = {path: path.read_bytes() for path in paths}
+    result = jobs.list_jobs()
+    assert [job['jobId'] for job in result[:3]] == ['job_iso', 'job_string', 'job_number']
+    assert {job['jobId'] for job in result} == set(values)
+    assert {path: path.read_bytes() for path in paths} == before
+
+
 def test_legacy_job_defaults_creator_without_rewriting(tmp_path):
     _session(tmp_path)
     jobs._save({"jobId": "job_legacy", "targetSessionId": "ses_target",

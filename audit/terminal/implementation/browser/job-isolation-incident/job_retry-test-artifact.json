@@ -1,0 +1,7 @@
+{
+  "jobId": "job_retry",
+  "targetSessionId": "ses_target",
+  "creatorSessionId": "ses_creator",
+  "status": "running",
+  "retryOf": "job_finished"
+}

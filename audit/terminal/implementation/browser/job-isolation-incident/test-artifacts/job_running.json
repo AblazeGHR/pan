@@ -1,0 +1,14 @@
+{
+  "jobId": "job_running",
+  "targetSessionId": "ses_target",
+  "status": "failed",
+  "argv": [
+    "python"
+  ],
+  "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1839\\test_retry_rejects_running_job0",
+  "createdAt": 1,
+  "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+  "terminalEventId": "job_running:terminal",
+  "notificationState": "pending",
+  "updatedAt": 1791128762.914414
+}

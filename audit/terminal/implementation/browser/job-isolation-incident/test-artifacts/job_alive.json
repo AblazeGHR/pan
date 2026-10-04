@@ -1,0 +1,12 @@
+{
+  "jobId": "job_alive",
+  "targetSessionId": "ses_target",
+  "status": "failed",
+  "runnerPid": 11,
+  "runnerProcessCreatedAt": 2,
+  "createdAt": 1,
+  "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+  "terminalEventId": "job_alive:terminal",
+  "notificationState": "pending",
+  "updatedAt": 1791128762.9079282
+}

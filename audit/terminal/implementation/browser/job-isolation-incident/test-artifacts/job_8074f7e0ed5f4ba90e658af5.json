@@ -1,0 +1,36 @@
+{
+  "jobId": "job_8074f7e0ed5f4ba90e658af5",
+  "targetSessionId": "ses_target",
+  "argv": [
+    "python",
+    "train.py",
+    "--epochs",
+    "2"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_creator",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_creator"
+  },
+  "targetStruct": {
+    "sessionId": "ses_target"
+  },
+  "name": "job-18",
+  "description": "",
+  "commandSummary": "python train.py --epochs …",
+  "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1839\\test_start_persists_metadata_a0",
+  "label": null,
+  "status": "failed",
+  "createdAt": 1791128290.4681919,
+  "updatedAt": 1791128290.6199703,
+  "pid": null,
+  "processCreatedAt": null,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_8074f7e0ed5f4ba90e658af5.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_8074f7e0ed5f4ba90e658af5:terminal",
+  "runnerPid": 4321,
+  "runnerProcessCreatedAt": 12.5,
+  "error": "orphaned: runner identity missing, unavailable, dead, or PID reused"
+}

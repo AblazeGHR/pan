@@ -1,0 +1,65 @@
+{
+  "jobId": "job_5bc2982d0bb7b0a93876be98",
+  "kind": "session-broadcast",
+  "operation": "broadcast",
+  "targetSessionIds": [
+    "ses_a",
+    "ses_b",
+    "ses_c"
+  ],
+  "text": "////by agent : ses_caller | sender\nrun",
+  "name": "job-1",
+  "description": "scheduled fan-out",
+  "source": "agent",
+  "sourceSessionId": "ses_caller",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_caller"
+  },
+  "targetStruct": {
+    "sessionId": "ses_a",
+    "sessionIds": [
+      "ses_a",
+      "ses_b",
+      "ses_c"
+    ]
+  },
+  "creatorSessionId": "ses_caller",
+  "schedule": {
+    "type": "once",
+    "delaySeconds": 1.0
+  },
+  "nextRunAt": null,
+  "status": "failed",
+  "runCount": 1,
+  "lastRunAt": "2026-10-04T15:46:02.803614Z",
+  "lastDelivery": {
+    "status": "error",
+    "results": [
+      {
+        "status": "error",
+        "result": "Session ses_a not found",
+        "sessionId": "ses_a"
+      },
+      {
+        "status": "error",
+        "result": "Session ses_b not found",
+        "sessionId": "ses_b"
+      },
+      {
+        "status": "error",
+        "result": "Session ses_c not found",
+        "sessionId": "ses_c"
+      }
+    ],
+    "errors": [
+      "ses_a: Session ses_a not found",
+      "ses_b: Session ses_b not found",
+      "ses_c: Session ses_c not found"
+    ]
+  },
+  "lastError": null,
+  "createdAt": 1791128393.6016202,
+  "updatedAt": 1791128762.8036144,
+  "runStartedAt": 1791128762.670877
+}

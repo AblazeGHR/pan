@@ -1,0 +1,32 @@
+{
+  "jobId": "job_9b0614423e6257c692f23df5",
+  "targetSessionId": "ses_target",
+  "argv": [
+    "D:\\uv\\cache\\builds-v0\\.tmpt5ne6G\\Scripts\\python.exe",
+    "-c",
+    "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": null,
+  "sourceStruct": {
+    "type": "agent"
+  },
+  "targetStruct": {
+    "sessionId": "ses_target"
+  },
+  "name": "job-19",
+  "description": "",
+  "commandSummary": "D:\\uv\\cache\\builds-v0\\.tmpt5ne6G\\Scripts\\python.exe -c import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))",
+  "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1839\\test_external_cwd_runs_and_pro0\\external 中文 worktree",
+  "label": null,
+  "status": "completed",
+  "createdAt": 1791128290.4940455,
+  "updatedAt": 1791128290.6169698,
+  "pid": 7552,
+  "processCreatedAt": 1791128290.501016,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_9b0614423e6257c692f23df5.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_9b0614423e6257c692f23df5:terminal",
+  "exitCode": 0
+}

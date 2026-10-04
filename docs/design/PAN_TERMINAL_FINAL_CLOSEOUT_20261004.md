@@ -60,6 +60,49 @@ Log: `D:/project/Pan/data/background_jobs/logs/job_e98f4895dafb6ddc426e548f.log`
 No final result is claimed at dispatch. The Agent enters idle to receive the
 terminal notice, then will inspect exit code/XML and complete the handoff.
 
+### Background-run isolation incident (run invalidated)
+
+The above Job run is **invalidated**, not an accepted regression result. The
+wrapper removed Agent identity variables but missed the Runner-injected
+`PAN_BACKGROUND_JOBS_DIR`. That environment override supersedes tests' patched
+`DEFAULT_ROOT`, so some Job tests wrote into the deployed registry. The concrete
+`job_retry.json` fixture had no `createdAt`; old `list_jobs` sorts a mixture of
+its empty-string fallback and numeric timestamps, raising TypeError. Actual
+`GET /api/jobs` and `/api/jobs/next` returned 500.
+
+The registry had already marked the real Runner orphaned/failed, so the ordinary
+cancel API returned its terminal record without killing the still-running
+process. The recorded owned Runner PID 40500 was independently checked against
+its exact psutil creation time 1791128280.5850768 before stopping only its tree.
+The offending fixture was verified by jobId/target/creator/missing timestamp and
+quarantined, not deleted, at
+`audit/terminal/implementation/browser/job-isolation-incident/job_retry-test-artifact.json`.
+Both live GET endpoints then returned 200 without a service restart. Other test
+artifacts/possible record changes are not yet exhaustively audited; recovery is
+not declared complete. Future regression launch must clear inherited Pan data
+directory/configuration overrides before invoking tests; notification belongs
+to the outer Job Runner, not its isolated pytest child.
+
+The directory-support source change was never deployed. The GUI incident was
+triggered by this Agent's test-launch isolation error, exposing an existing
+mixed-sort defect, not by the deployed service loading that source change.
+
+### Containment and prevention follow-up
+
+18 source-attributable fixture records have now been quarantined (not deleted).
+Live Jobs list/next both return 200; no synthetic fixture target IDs remain.
+There is no complete pre-incident registry snapshot, so unknown prior metadata
+cannot be reconstructed or certified unchanged. The invalid Job run is not
+reused. Exact recovery boundaries and backups are under job-isolation-incident/.
+
+The new isolated test entrypoint clears inherited PAN_* application settings for
+pytest only. Public pytest bootstrap/fixtures also isolate Session, Job,
+scheduler, Terminal and config storage; tests must explicitly opt into owned
+temporary settings. docs/TESTING.md and CODEBUDDY.md document this for future
+feature development. Related suites: 132 passed; entrypoint retention/scheduler
+suite: 100 passed / 1 skipped. Mixed legacy Job timestamps now use a numeric
+read-only sort key without rewriting records. All changes remain undeployed.
+
 ## Human acceptance boundary
 
 Acceptance checkout is `D:/project/pan-worktrees/terminal-final-integration-ma-20261004`,

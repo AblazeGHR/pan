@@ -1,0 +1,38 @@
+{
+  "jobId": "job_d938a7ebc37653c130a2a742",
+  "kind": "session-broadcast",
+  "operation": "broadcast",
+  "targetSessionIds": [
+    "ses_c",
+    "ses_a"
+  ],
+  "text": "later",
+  "name": "job-1",
+  "description": "edited",
+  "source": "agent",
+  "sourceSessionId": null,
+  "sourceStruct": {
+    "type": "agent"
+  },
+  "targetStruct": {
+    "sessionId": "ses_c",
+    "sessionIds": [
+      "ses_c",
+      "ses_a"
+    ]
+  },
+  "creatorSessionId": null,
+  "schedule": {
+    "type": "once",
+    "delaySeconds": 120.0
+  },
+  "nextRunAt": null,
+  "status": "cancelled",
+  "runCount": 0,
+  "lastRunAt": null,
+  "lastDelivery": null,
+  "lastError": null,
+  "createdAt": 1791128393.9400394,
+  "updatedAt": 1791128393.9511127,
+  "cancelRequestedAt": 1791128393.9511127
+}

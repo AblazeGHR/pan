@@ -1,0 +1,12 @@
+{
+  "jobId": "job_finished",
+  "targetSessionId": "ses_target",
+  "creatorSessionId": "ses_creator",
+  "status": "failed",
+  "argv": [
+    "python",
+    "job.py"
+  ],
+  "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-1839\\test_retry_inherits_creator_an0",
+  "createdAt": 1
+}

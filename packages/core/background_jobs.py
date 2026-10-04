@@ -311,7 +311,31 @@ def default_job_name(registry_root: str | Path | None = None) -> str:
 def list_jobs(registry_root: str | Path | None = None) -> list[dict]:
     root = _root(registry_root) / "jobs"
     jobs = [_normalize_job(_load_path(p)) for p in root.glob("job_*.json")]
-    return sorted((j for j in jobs if j), key=lambda j: j.get("createdAt", ""), reverse=True)
+    return sorted((j for j in jobs if j), key=_job_creation_sort_key, reverse=True)
+
+
+def _job_creation_sort_key(job: dict) -> tuple[float, str]:
+    """Legacy/malformed timestamps must not take down the whole Jobs GUI.
+
+    Use a numeric read-time key; preserve the original record on disk and in
+    its public view. Missing, bool, nonfinite and invalid values sort oldest.
+    """
+    value = job.get("createdAt")
+    timestamp = 0.0
+    try:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            timestamp = float(value)
+        elif isinstance(value, str):
+            try:
+                timestamp = float(value)
+            except ValueError:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                timestamp = parsed.replace(tzinfo=timezone.utc).timestamp() if parsed.tzinfo is None else parsed.timestamp()
+    except (ValueError, TypeError, OverflowError, OSError):
+        timestamp = 0.0
+    if not math.isfinite(timestamp):
+        timestamp = 0.0
+    return timestamp, str(job.get("jobId") or "")
 
 
 # ── 结构化 source / target（PLAN §1/§3；2026-09-25 定形）──

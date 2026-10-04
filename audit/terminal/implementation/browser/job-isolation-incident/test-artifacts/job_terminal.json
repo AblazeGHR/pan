@@ -1,0 +1,12 @@
+{
+  "jobId": "job_terminal",
+  "targetSessionId": "ses_target",
+  "status": "completed",
+  "exitCode": 0,
+  "notificationState": "delivered",
+  "terminalEventId": "job_terminal:terminal",
+  "logPath": "x",
+  "createdAt": 1,
+  "creatorSessionId": "ses_creator",
+  "updatedAt": 1791128291.0812304
+}

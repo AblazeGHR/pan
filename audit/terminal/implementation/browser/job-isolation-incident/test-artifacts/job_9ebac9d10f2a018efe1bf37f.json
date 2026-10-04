@@ -1,0 +1,36 @@
+{
+  "jobId": "job_9ebac9d10f2a018efe1bf37f",
+  "kind": "session-message",
+  "operation": "send",
+  "targetSessionId": "ses_target",
+  "text": "recover",
+  "name": "job-1",
+  "description": "",
+  "source": "agent",
+  "sourceSessionId": null,
+  "sourceStruct": {
+    "type": "agent"
+  },
+  "targetStruct": {
+    "sessionId": "ses_target"
+  },
+  "creatorSessionId": null,
+  "schedule": {
+    "type": "once",
+    "delaySeconds": 60.0
+  },
+  "nextRunAt": null,
+  "status": "failed",
+  "runCount": 1,
+  "lastRunAt": "2026-10-04T15:46:02.820021Z",
+  "lastDelivery": {
+    "status": "error",
+    "result": "Session ses_target not found",
+    "sessionId": "ses_target"
+  },
+  "lastError": "Session ses_target not found",
+  "createdAt": 1791128393.422866,
+  "updatedAt": 1791128762.8200212,
+  "paused": false,
+  "runStartedAt": 1791128762.670877
+}

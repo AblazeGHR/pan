@@ -18,3 +18,7 @@
 ## 校验
 
 启用仓库 hook（`git config core.hooksPath scripts`）后，暂存 React 源码变更会校验 React TypeScript。常规测试命令为 `python -m pytest tests/ -q`。
+
+从 Agent/后台 Job/已配置应用终端运行测试，优先使用
+`python scripts/run_tests_isolated.py -- <测试命令>`；环境、配置与数据目录隔离
+要求见 `docs/TESTING.md`。工作树 cwd 不等于数据隔离，禁止测试复用实用 data。

@@ -1,0 +1,36 @@
+{
+  "jobId": "job_dd31df12dc342c3b0b8f6310",
+  "kind": "session-message",
+  "operation": "send",
+  "targetSessionId": "ses_target",
+  "text": "////by agent : ses_caller | caller\nrun report",
+  "name": "job-1",
+  "description": "T-043 once",
+  "source": "agent",
+  "sourceSessionId": "ses_caller",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_caller"
+  },
+  "targetStruct": {
+    "sessionId": "ses_target"
+  },
+  "creatorSessionId": "ses_caller",
+  "schedule": {
+    "type": "once",
+    "delaySeconds": 1.0
+  },
+  "nextRunAt": null,
+  "status": "failed",
+  "runCount": 1,
+  "lastRunAt": "2026-10-04T15:46:02.845173Z",
+  "lastDelivery": {
+    "status": "error",
+    "result": "Session ses_target not found",
+    "sessionId": "ses_target"
+  },
+  "lastError": "Session ses_target not found",
+  "createdAt": 1791128393.0340874,
+  "updatedAt": 1791128762.845173,
+  "runStartedAt": 1791128762.670877
+}

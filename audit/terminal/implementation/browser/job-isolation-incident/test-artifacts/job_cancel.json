@@ -1,0 +1,12 @@
+{
+  "jobId": "job_cancel",
+  "targetSessionId": "ses_target",
+  "status": "cancelled",
+  "pid": 10,
+  "processCreatedAt": 1,
+  "createdAt": 1,
+  "exitCode": null,
+  "updatedAt": 1791128291.2063975,
+  "terminalEventId": "job_cancel:terminal",
+  "notificationState": "pending"
+}
