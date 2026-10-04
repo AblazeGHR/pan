@@ -237,6 +237,14 @@ across logout, machine/sidecar restart, or explicit process termination.
 
 **Terminate** stops the owned process tree and removes its credential only after
 confirmation. Unconfirmed cleanup remains retryable, not falsely completed.
+
+When the shell itself exits, cleanup runs automatically. Final output is delivered
+before the actual exit code and exited state; root death does not prove complete
+output. The current panel retains the last rendered screen and refreshes the
+record, but an exited process cannot be reconnected. Screens are not permanently
+archived: selecting an exited record after leaving shows that limitation instead
+of pretending to restore old output. Copy any results you need to keep.
+
 Terminal REST/WS is a trusted-local interface with same-origin/Host checks.
 `PAN_TERMINAL_ALLOW_REMOTE` is not remote authentication: do not expose a shell to
 an untrusted network. Browsers never receive runner tokens. Credentials use

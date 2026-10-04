@@ -30,7 +30,7 @@ child.stdout.on('data', chunk => { logs += chunk; });
 child.stderr.on('data', chunk => { logs += chunk; });
 const exit = new Promise(resolve => child.once('exit', resolve));
 const origin = `http://127.0.0.1:${port}`;
-const report = { passed: false, browser: 'chromium', realConPTY: true, frames: [] };
+const report = { passed: false, browser: 'chromium', realConPTY: true, frames: [], websocketConnections: 0 };
 let browser, page;
 try {
   for (let attempt = 0; attempt < 150; attempt++) {
@@ -48,6 +48,7 @@ try {
   page = await context.newPage();
   page.on('websocket', socket => {
     if (!socket.url().includes('/ws/terminal/')) return;
+    report.websocketConnections++;
     socket.on('framereceived', frame => report.frames.push(JSON.parse(String(frame.payload))));
   });
   await page.goto(`${origin}/react/terminals`);
@@ -89,6 +90,14 @@ try {
   assert(report.frames.some(frame => frame.type === 'terminal-state' && frame.status === 'exited'));
   assert(report.statusText.includes('终端状态：exited'), report.statusText);
   assert(await page.getByRole('button', { name: '取得输入控制权', exact: true }).isDisabled());
+  const priorConnections = report.websocketConnections;
+  await page.getByLabel('选择终端').selectOption('');
+  await page.getByLabel('选择终端').selectOption(id);
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('历史屏幕未持久化'));
+  report.reselectedStatus = await page.getByRole('status').textContent();
+  assert.equal(report.websocketConnections, priorConnections);
+  assert(await page.getByRole('button', { name: '重连', exact: true }).isDisabled());
+  await page.screenshot({ path: path.join(output, 'ended-record.png') });
   report.passed = true;
 } catch (error) {
   report.error = String(error);

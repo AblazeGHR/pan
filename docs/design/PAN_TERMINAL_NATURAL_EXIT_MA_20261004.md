@@ -103,6 +103,17 @@ earlier 1247/1242 results remain attached to their earlier source versions.
 TypeScript/build (36 compressed assets) and scoped ESLint pass. No deployment
 or existing Pan restart is implied.
 
+The additional ended-record selection gate fails before repair (one failed /
+three passed), then panel/stream selection passes **21/21**. Selecting a known
+exited/lost record no longer constructs a new WS stream; it reports the actual
+record limitation instead. It does not dispose the still-selected final tail
+on an automatic list refresh. `ended-selection-reselect-control/result.json`
+measures original tail/code 7/read metadata, then explicitly selects empty and
+the exited record: the historical-screen notice appears, reconnect is disabled,
+WS connection count does not increase, harness exit 0. Both manuals state that
+ended screens are not permanently archived. Build/scoped ESLint pass; only TS,
+fixtures and docs changed during the frozen Python run.
+
 Finite local Windows/Chromium checks only. No new claim about old Windows builds,
 POSIX, all browser engines, arbitrary native TUI fidelity, cross-user/network
 authentication or hours-long durability. Main/practical, deployed assets and

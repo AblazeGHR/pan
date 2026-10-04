@@ -22,6 +22,7 @@ export default function TerminalPanel() {
   const [state, setState] = useState(initial);
   const element = useRef<HTMLDivElement>(null);
   const stream = useRef<TerminalStream | null>(null);
+  const endedSelection = useRef<string | undefined>(undefined);
   const refresh = useCallback(async () => {
     try { setRecords(await terminalRequest<TerminalView[]>()); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '终端列表不可用'); }
@@ -30,6 +31,14 @@ export default function TerminalPanel() {
 
   useEffect(() => {
     if (!selected || !element.current) return;
+    if (endedSelection.current) {
+      setState({ connected: false, control: false, recovering: false,
+        terminalStatus: endedSelection.current,
+        message: endedSelection.current === 'exited'
+          ? '终端已退出；历史屏幕未持久化，不能重连旧进程。'
+          : '终端记录为 lost；请核对服务端清理状态。' });
+      return;
+    }
     let alive = true;
     const terminal = new Terminal({ rows: 24, cols: 80, scrollback: 1000, fontSize: 13,
       theme: { background: '#15171b', foreground: '#e7e9ee' }, allowProposedApi: false });
@@ -88,6 +97,7 @@ export default function TerminalPanel() {
       const view = await terminalRequest<TerminalView>('', { rows: 24, cols: 80, ...(cwd ? { cwd } : {}),
         ...(workspaceId ? { workspace_id: workspaceId } : {}), ...(sessionId ? { session_id: sessionId } : {}) });
       await refresh();
+      endedSelection.current = undefined;
       setSelected(view.terminal_id);
     } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); }
     finally { setBusy(false); }
@@ -119,7 +129,11 @@ export default function TerminalPanel() {
       <button onClick={() => void refresh()} className="px-2 py-1">刷新列表</button>
     </header>
     <div className="flex flex-wrap gap-2 items-center">
-      <select aria-label="选择终端" value={selected} onChange={(event) => { setSelected(event.target.value); setState(initial); }}
+      <select aria-label="选择终端" value={selected} onChange={(event) => {
+        const selectedRecord = records.find(record => record.terminal_id === event.target.value);
+        endedSelection.current = selectedRecord && ['exited', 'lost'].includes(selectedRecord.status) ? selectedRecord.status : undefined;
+        setSelected(event.target.value); setState(initial);
+      }}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1">
         <option value="">选择终端</option>
         {records.map((record) => <option key={record.terminal_id} value={record.terminal_id}>

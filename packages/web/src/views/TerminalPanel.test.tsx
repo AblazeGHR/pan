@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TerminalPanel from './TerminalPanel';
 
-const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, listStatus: 'running',
+const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, listStatus: 'running', binds: 0,
   changed: (_state: object) => {} }));
 vi.mock('@/services/terminal', () => ({ terminalRequest: fixtures.request }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
@@ -14,7 +14,7 @@ vi.mock('@xterm/xterm', () => ({ Terminal: class {
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }));
 vi.mock('@/services/terminalWs', () => ({ TerminalStream: class {
   constructor(_id: string, _screen: unknown, private changed: (state: object) => void) { fixtures.changed = changed; }
-  bind() { queueMicrotask(() => this.changed({ connected: true, control: false, recovering: false, message: 'ready' })); }
+  bind() { fixtures.binds++; queueMicrotask(() => this.changed({ connected: true, control: false, recovering: false, message: 'ready' })); }
   claim() { this.changed({ connected: true, control: true, recovering: false, message: 'claimed' }); }
   resize() {} dispose() {}
 } }));
@@ -22,6 +22,7 @@ vi.mock('@/services/terminalWs', () => ({ TerminalStream: class {
 beforeEach(() => {
   fixtures.closeFails = false;
   fixtures.listStatus = 'running';
+  fixtures.binds = 0;
   fixtures.request.mockReset().mockImplementation(async (suffix = '', body?: object) => {
     if (suffix.endsWith('/close')) {
       if (fixtures.closeFails) throw new Error('cleanup-unconfirmed');
@@ -73,4 +74,15 @@ it('refreshes the authoritative record after natural end without erasing the tai
   expect(screen.getByRole('status').textContent).toContain('退出码 7');
   expect((screen.getByText('持久脱离') as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByText('重连') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('does not try to reconnect a selected exited record or promise archived output', async () => {
+  fixtures.listStatus = 'exited';
+  render(<TerminalPanel />);
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('历史屏幕未持久化'));
+  expect(fixtures.binds).toBe(0);
+  expect((screen.getByText('重连') as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByText('持久脱离') as HTMLButtonElement).disabled).toBe(true);
 });
