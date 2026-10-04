@@ -103,6 +103,15 @@ feature development. Related suites: 132 passed; entrypoint retention/scheduler
 suite: 100 passed / 1 skipped. Mixed legacy Job timestamps now use a numeric
 read-only sort key without rewriting records. All changes remain undeployed.
 
+Real Terminal/API/WS adjacent regression under the new fixtures: 79 passed
+(`job-isolation-terminal-adjacent-uv.xml`). Frozen repaired source `680c9bcf` is
+now running in `job_2e3e267da17418da9bac6024` through
+`scripts/run_tests_isolated.py`. Final XML target:
+`audit/terminal/implementation/browser/final-isolated-job-full-repository-uv.xml`.
+Target Session is `ses_be105a81379e8cb1`; no final result is claimed at launch.
+The 5h live quota query was 34% used, stale=false, observed at
+2026-10-04T16:04:41.296001+00:00. The Agent enters idle to receive completion.
+
 ## Human acceptance boundary
 
 Acceptance checkout is `D:/project/pan-worktrees/terminal-final-integration-ma-20261004`,
