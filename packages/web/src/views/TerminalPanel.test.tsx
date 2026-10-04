@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TerminalPanel from './TerminalPanel';
 
-const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, listStatus: 'running', binds: 0,
+const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, removeFails: false, removed: false, listStatus: 'running', binds: 0,
   changed: (_state: object) => {} }));
 vi.mock('@/services/terminal', () => ({ terminalRequest: fixtures.request }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
@@ -21,15 +21,22 @@ vi.mock('@/services/terminalWs', () => ({ TerminalStream: class {
 
 beforeEach(() => {
   fixtures.closeFails = false;
+  fixtures.removeFails = false;
+  fixtures.removed = false;
   fixtures.listStatus = 'running';
   fixtures.binds = 0;
   fixtures.request.mockReset().mockImplementation(async (suffix = '', body?: object) => {
+    if (suffix.endsWith('/remove')) {
+      if (fixtures.removeFails) throw new Error('cleanup-unconfirmed');
+      fixtures.removed = true;
+      return { terminal_id: 'term_test', removed: true };
+    }
     if (suffix.endsWith('/close')) {
       if (fixtures.closeFails) throw new Error('cleanup-unconfirmed');
       return { terminal_id: 'term_test', status: 'exited' };
     }
     if (body) return { terminal_id: 'term_test', status: 'running' };
-    return [{ terminal_id: 'term_test', status: fixtures.listStatus }];
+    return fixtures.removed ? [] : [{ terminal_id: 'term_test', status: fixtures.listStatus }];
   });
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
   vi.stubGlobal('WebSocket', class {});
@@ -85,4 +92,48 @@ it('does not try to reconnect a selected exited record or promise archived outpu
   expect(fixtures.binds).toBe(0);
   expect((screen.getByText('重连') as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByText('持久脱离') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('terminates before deleting a running terminal and clears the selection', async () => {
+  await controlledPanel();
+  fireEvent.click(screen.getByText('删除终端'));
+  await waitFor(() => expect(screen.queryByRole('option', { name: 'term_test · running' })).toBeNull());
+  const actions = fixtures.request.mock.calls.map(([path]) => path).filter((path: string) => path);
+  expect(actions).toEqual(['/term_test/close', '/term_test/remove']);
+  expect((screen.getByLabelText('选择终端') as HTMLSelectElement).value).toBe('');
+  expect(screen.getByRole('status').textContent).toContain('请选择终端');
+});
+
+it('deletes an exited record without issuing a stop', async () => {
+  fixtures.listStatus = 'exited';
+  render(<TerminalPanel />);
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  fireEvent.click(screen.getByText('删除终端'));
+  await waitFor(() => expect(fixtures.removed).toBe(true));
+  expect(fixtures.request.mock.calls.map(([path]) => path).filter(Boolean)).toEqual(['/term_test/remove']);
+});
+
+it('does not delete when termination is unconfirmed', async () => {
+  fixtures.closeFails = true;
+  await controlledPanel();
+  fireEvent.click(screen.getByText('删除终端'));
+  await screen.findByRole('alert');
+  expect(fixtures.request.mock.calls.some(([path]) => path?.endsWith('/remove'))).toBe(false);
+  expect((screen.getByLabelText('选择终端') as HTMLSelectElement).value).toBe('term_test');
+});
+
+it('retains an exited record when removal fails and honours cancellation', async () => {
+  fixtures.listStatus = 'exited';
+  fixtures.removeFails = true;
+  render(<TerminalPanel />);
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  vi.mocked(window.confirm).mockReturnValueOnce(false);
+  fireEvent.click(screen.getByText('删除终端'));
+  expect(fixtures.request.mock.calls.some(([path]) => path?.endsWith('/remove'))).toBe(false);
+  fireEvent.click(screen.getByText('删除终端'));
+  await screen.findByRole('alert');
+  expect(screen.getByRole('option', { name: 'term_test · exited' })).toBeTruthy();
+  expect((screen.getByLabelText('选择终端') as HTMLSelectElement).value).toBe('term_test');
 });

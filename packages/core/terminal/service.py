@@ -699,6 +699,31 @@ class TerminalService:
         self._refresh_finished_owner(terminal_id)
         return self._view(self._registry.get(terminal_id))
 
+    def remove(self, terminal_id: str) -> dict[str, Any]:
+        """Delete only a confirmed exited record; never erase a cleanup owner."""
+        with self._global_lock:
+            state = self._states.get(terminal_id)
+        if state is not None and not state.lock.acquire(timeout=self.stop_confirm):
+            raise CleanupUnconfirmed("remove-lock-busy")
+        try:
+            record = self._registry.get(terminal_id)
+            if record.status is not RuntimeState.EXITED:
+                raise CleanupUnconfirmed("remove-requires-confirmed-exit")
+            if self._store().exists(terminal_id):
+                raise CleanupUnconfirmed("remove-secret-retained")
+            if state is not None and (state.runner_identity_handle is not None
+                                      or state.client is not None or state.heartbeat is not None):
+                raise CleanupUnconfirmed("remove-owner-retained")
+            self._registry.remove(terminal_id)
+            with self._global_lock:
+                if self._states.get(terminal_id) is state:
+                    self._states.pop(terminal_id, None)
+            self._attachments().forget(terminal_id)
+            return {"terminal_id": terminal_id, "removed": True}
+        finally:
+            if state is not None:
+                state.lock.release()
+
     def _refresh_finished_owner(self, terminal_id: str) -> None:
         """Consume completed browserless cleanup; never start a stop from GET.
 

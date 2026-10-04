@@ -1218,6 +1218,30 @@ async def close_terminal(terminal_id: str, request: Request) -> JSONResponse:
     )
 
 
+@router.post("/{terminal_id}/remove")
+async def remove_terminal(terminal_id: str, request: Request) -> JSONResponse:
+    runtime, denied = _enter(request)
+    if denied is not None:
+        return denied
+    invalid = _id_or_error(terminal_id)
+    if invalid is not None:
+        return invalid
+    payload, bad_body = await _body_or_error(request, allow_empty=True)
+    if bad_body is not None:
+        return bad_body
+    if payload:
+        return fail(422, "unknown-field")
+    assert runtime is not None
+
+    def handler() -> dict[str, Any]:
+        result = runtime.service.remove(terminal_id)
+        if not isinstance(result, Mapping) or result.get("removed") is not True:
+            raise CleanupUnconfirmed("remove-unconfirmed")
+        return {"terminal_id": terminal_id, "removed": True}
+
+    return await _execute(runtime, handler)
+
+
 @router.post("/{terminal_id}/detach")
 async def detach_terminal(terminal_id: str, request: Request) -> JSONResponse:
     runtime, denied = _enter(request)

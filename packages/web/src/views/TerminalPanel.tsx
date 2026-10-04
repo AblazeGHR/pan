@@ -116,6 +116,30 @@ export default function TerminalPanel() {
     finally { setBusy(false); }
   }
 
+  async function remove() {
+    const record = records.find((item) => item.terminal_id === selected);
+    if (!record || busy) return;
+    const ended = record.status === 'exited';
+    if (!window.confirm(ended ? '删除此终端记录？删除后不能恢复。'
+      : '终止此终端及其子进程，并删除记录？只有确认清理成功后才会删除。')) return;
+    setBusy(true);
+    try {
+      const id = selected;
+      if (!ended) await terminalRequest(`/${encodeURIComponent(id)}/close`, {});
+      const result = await terminalRequest<{ removed: boolean }>(`/${encodeURIComponent(id)}/remove`, {});
+      if (result.removed !== true) throw new Error('删除未确认；记录已保留，请刷新后重试');
+      setRecords((items) => items.filter((item) => item.terminal_id !== id));
+      endedSelection.current = undefined;
+      setSelected('');
+      setState(initial);
+      setError('');
+      await refresh();
+    } catch (reason) {
+      await refresh();
+      setError(reason instanceof Error ? reason.message : '删除失败；记录已保留，可以重试');
+    } finally { setBusy(false); }
+  }
+
   return <section className="flex flex-col flex-1 min-h-0 p-3 gap-2" aria-label="全局终端">
     <header className="flex flex-wrap items-center gap-2">
       <h1 className="font-semibold">全局终端</h1>
@@ -148,6 +172,7 @@ export default function TerminalPanel() {
       <button disabled={!selected || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => { setState(initial); setRevision((value) => value + 1); }}>重连</button>
       <button disabled={!selected || busy || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => void lifecycle('detach')}>持久脱离</button>
       <button disabled={!selected || busy} onClick={() => void lifecycle('close')} className="text-red-400">终止终端</button>
+      <button disabled={!selected || busy} onClick={() => void remove()} className="text-red-400">删除终端</button>
     </div>
     <p role="status" className="text-xs text-text-secondary">{state.control ? '控制模式' : '只观察'} · {state.message}</p>
     <p className="text-xs text-text-tertiary">屏幕恢复范围：{state.recovery || '未确认'}（控制权变化不会升级屏幕保真）</p>

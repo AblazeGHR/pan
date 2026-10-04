@@ -39,6 +39,8 @@ uv run --no-project --python E:/software/miniforge/python.exe --with-requirement
 6. 输入 `echo FINAL_中文&exit 7`（默认 cmd shell）：最终尾部保留、列表 exited、
    退出码 7、输入禁用；再次选择退出记录应提示无法重连旧进程，不伪造归档屏幕。
 7. 退出测试服务前主动关闭所有测试终端；确认关闭失败时可重试、不是假 exited。
+8. 使用“删除终端”：已退出记录应从列表消失；运行记录需确认终止并删除。
+   清理失败时必须保留记录，不删除用户工作目录。新删除接口需要重启验收服务。
 
 ## Rewind 检查（真实 CBC 能力尚需验收）
 
