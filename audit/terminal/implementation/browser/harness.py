@@ -51,7 +51,8 @@ def frontend(path: str):
 
 
 async def main():
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="error"))
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="error",
+                                         timeout_graceful_shutdown=5))
     loop = asyncio.get_running_loop()
     def stop():
         sys.stdin.readline()

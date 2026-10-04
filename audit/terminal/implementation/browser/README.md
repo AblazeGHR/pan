@@ -94,3 +94,19 @@ After the PR6 import/build, real Chromium `check.mjs` again passed (28 observed
 terminal events; harness exit 0), with output in `pr6-integration/`. The optional
 label argument preserves earlier browser results/screenshots instead of
 overwriting them. No full Pan service/provider or 8768 listener was used.
+
+## Browserless recovery beyond retained raw output (2026-10-04)
+
+`browserless-recovery-final/` exercises the real Chromium/REST/WS/ConPTY path.
+After durable reconnect, all browser pages close while a child emits 3500 lines.
+Reopening restores the final marker from the continuously fed headless screen;
+the raw read from zero reports an explicit gap and a nonzero first-retained
+offset, with more than 256 KiB produced. The same terminal PID is preserved.
+Explicit close and harness exit 0 are both required for overall success.
+
+The first run (`browserless-recovery/`) passed the display assertions but its
+harness exceeded the 30-second exit wait; it is not an overall pass. The owned
+harness subsequently exited. Its temporary diagnostic root was retained. The
+fixture now sets uvicorn's graceful connection wait to five seconds, after which
+the existing WS/REST lifecycle cleanup still runs. No production shutdown policy
+was changed. The final run passes with 66 observed terminal events and exit 0.

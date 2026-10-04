@@ -82,7 +82,7 @@ try {
   async function waitFile(filename, expected) {
     for (let attempt = 0; attempt < 80; attempt++) {
       try { if ((await readFile(filename, 'utf8')).trim() === expected) return; } catch { /* not yet */ }
-      await page.waitForTimeout(50);
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
     throw new Error(`missing foreground witness: ${path.basename(filename)}`);
   }
@@ -151,6 +151,39 @@ try {
   assert.equal(durableView.result.process_created_at_filetime, view.result.process_created_at_filetime);
   report.durableDetachBrowserReconnect = true;
   report.durableShellStatePreserved = true;
+  // Browserless engine feeding beyond the 256 KiB raw-output retention window.
+  const producer = path.join(root, 'browserless.py');
+  const producerReady = path.join(root, 'browserless.ready');
+  const producerDone = path.join(root, 'browserless.done');
+  await writeFile(producer, `import sys,time\nfrom pathlib import Path\nPath(sys.argv[1]).write_text('ready')\ntime.sleep(1)\nfor index in range(3500): print(f'ROW_{index:04d}|'+('x'*75))\nprint('BROWSERLESS_FINAL_MARKER')\nsys.stdout.flush()\nPath(sys.argv[2]).write_text('done')\n`);
+  await page.keyboard.insertText([process.argv[2] || 'python', producer, producerReady, producerDone].map(value => `"${value}"`).join(' '));
+  await page.keyboard.press('Enter');
+  await waitFile(producerReady, 'ready');
+  await page.close(); // zero display connections while the child produces output
+  await waitFile(producerDone, 'done');
+  page = await context.newPage();
+  page.on('pageerror', error => report.errors.push(error.message));
+  page.on('websocket', socket => {
+    if (!socket.url().includes('/ws/terminal/')) return;
+    socket.on('framereceived', frame => {
+      try { report.events.push(JSON.parse(String(frame.payload))); } catch { /* not JSON */ }
+    });
+  });
+  await page.goto(`http://127.0.0.1:${port}/react/terminals`);
+  await page.getByLabel('选择终端').selectOption(id);
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('BROWSERLESS_FINAL_MARKER'), null, { timeout: 15000 });
+  const evictedRead = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}/read?cursor=0`)).json(), id);
+  assert.equal(evictedRead.ok, true);
+  assert(BigInt(evictedRead.result.first_retained_seq) > 0n);
+  assert(BigInt(evictedRead.result.total_bytes) > 262144n);
+  assert(evictedRead.result.gap !== null);
+  const recoveredView = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
+  assert.equal(recoveredView.result.pid, view.result.pid);
+  report.browserlessEvictionRecovery = true;
+  report.browserlessFirstRetained = evictedRead.result.first_retained_seq;
+  report.browserlessTotalBytes = evictedRead.result.total_bytes;
+  await page.screenshot({ path: path.join(output, 'browserless-screen.png') });
   for (let attempt = 0; attempt < 8; attempt++) {
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '终止终端', exact: true }).click();
@@ -176,6 +209,7 @@ try {
   const code = await Promise.race([exit, new Promise(resolve => { exitTimer = setTimeout(() => resolve('timeout'), 30000); })]);
   clearTimeout(exitTimer);
   report.harnessExit = code;
+  report.passed = report.passed && code === 0;
   report.logs = logs;
   await writeFile(path.join(output, 'result.json'), JSON.stringify(report, null, 2));
   if (code !== 'timeout') await rm(root, { recursive: true, force: true });
