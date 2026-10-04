@@ -1,0 +1,8 @@
+{
+  "passed": false,
+  "browser": "chromium",
+  "cases": [],
+  "error": "AssertionError [ERR_ASSERTION]: same-site-different-port: no actual REST 403 witnessed",
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:61551', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\nERROR:    ASGI callable returned without completing handshake.\r\n"
+}

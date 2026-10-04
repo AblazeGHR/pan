@@ -124,3 +124,24 @@ the browser while that child has bracketed paste enabled preserves the exact
 PTY PID/FILETIME; the subsequently pasted Chinese text still arrives with the
 correct delimiters. The fixture restores the prior browser clipboard text in
 `finally` without logging it. Explicit close and harness exit both succeed.
+
+## Browser-generated origin negative controls
+
+`browser/origin-security.mjs` uses actual Chromium page contexts from a different
+port, a different loopback hostname, and an opaque sandbox iframe (`Origin:null`).
+All three close attempts receive HTTP 403 at the wire and all three WebSocket
+attempts fail before opening, with zero received frames. The exact original
+runner PID/FILETIME remains running. A legal same-origin positive receives hello
+and claim-result; explicit close then confirms exited, and harness exit is 0.
+This measures browser-generated headers, not a forged Origin option.
+
+The initial fixture incorrectly expected a Playwright response event for a CORS
+failure and is retained as failed. The passing CDP control reads HTTP status from
+`Network.responseReceivedExtraInfo`, without recording headers or credentials.
+Cross-origin JavaScript still cannot read the denial response; that is not a
+failure of the gate. This control covers local Chromium only, not all browser
+engines or remote/cross-account authentication.
+
+The complete post-clipboard frontend run passes **1242 tests / zero failures /
+zero pending**, `frontend-after-clipboard.json`. It is separate from the earlier
+1229-test frozen result and from any Python regression result.
