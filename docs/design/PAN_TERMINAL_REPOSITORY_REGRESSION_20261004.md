@@ -91,3 +91,8 @@ The nine strict final-record gates plus two shutdown gates pass direct and uv:
 
 The whole repository was **not rerun after these last changes**. Its latest whole
 run remains 2569/2/10; the repaired subset and pressure result are separate facts.
+
+Final direct-interpreter pressure control also passes: **5340825 total bytes,
+5340713 seen by fast connection, zero fast gaps, same PID, confirmed close**,
+23.69s (`slow-observer-final-direct.xml`). Thus the finite pressure/cleanup path
+has real direct and uv positive controls; neither is a long-duration stress claim.
