@@ -96,3 +96,20 @@ Final direct-interpreter pressure control also passes: **5340825 total bytes,
 5340713 seen by fast connection, zero fast gaps, same PID, confirmed close**,
 23.69s (`slow-observer-final-direct.xml`). Thus the finite pressure/cleanup path
 has real direct and uv positive controls; neither is a long-duration stress claim.
+
+## Frozen-source whole-repository confirmation
+
+The subsequent immutable run at `4823fc0e` completed **2581 passed / 0 failed /
+10 skipped**, 837.54 seconds, with two dependency warnings. The JUnit result is
+`full-repository-4823-final-uv.xml`. No Python source or tests were changed while
+that run was executing. Both formerly failing tests and the final cleanup-record
+and finite pressure tests are in this collected set.
+
+The ten skips are explicit environment/capability boundaries: a gitignored skill
+copy, unavailable directory-symlink support, three absent machine-local Kimi
+fixtures, three tests requiring a sibling worktree's esbuild, absent zoneinfo
+timezone data, and one same-service detach case whose actual ancestor Job refused
+durability. That last case is not a positive durability result; previously retained
+direct/browser/cross-Pan positive evidence remains separate. No provider account,
+existing Pan service, or port 8768 was used. This run does not grant deployment,
+cross-platform, long-steady-state, or all-mode rendering acceptance.

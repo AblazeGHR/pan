@@ -66,6 +66,13 @@ connection gaps, original PID, and confirmed explicit close. Strict cleanup-reco
 gates are 11/11 direct and uv. These are targeted post-fix results, **not** a claim
 of a subsequent all-green whole-repository run.
 
+Subsequent frozen-source whole-repository confirmation at `4823fc0e`:
+**2581 passed / 0 failed / 10 skipped**, 837.54 seconds. See
+`full-repository-4823-final-uv.xml` and the repository-regression ledger for all
+ten skip reasons. One detach test explicitly skips on its measured restrictive
+ancestor Job; it is not counted as a durable-detach positive. The result covers
+the last cleanup/pressure fixes without rewriting any earlier failed evidence.
+
 ## Limits and handoff
 
 The feature is implemented in an isolated tree and its measured local subset is
