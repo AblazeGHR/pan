@@ -201,6 +201,18 @@ class AttachmentRegistry:
                     if not issued:
                         del state.observers[token.client_id]
 
+    def revoke_all(self, terminal_id: str) -> None:
+        """撤销当前连接代，但不终结终端；durable detach 后可签发新 lease。"""
+        state = self._state_for(terminal_id)
+        with state.lock:
+            if state.control is not None:
+                state.revoked.add(state.control.revocation_id)
+            for issued in state.observers.values():
+                state.revoked.update(issued)
+            state.control = None
+            state.observers.clear()
+            state.generation += 1
+
     def forget(self, terminal_id: str) -> None:
         """终态 terminal 的 lease 资料回收（可不调用；调用后不可复活）。
 

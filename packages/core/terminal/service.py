@@ -1131,6 +1131,10 @@ class TerminalService:
     ) -> LeaseToken:
         """签发浏览器 attachment lease（**连接级**，与 IPC 所有者心跳分层）。"""
         state = self._require_state(terminal_id)
+        if not state.attached or state.client is None:
+            record = self._registry.get(terminal_id)
+            if not record.detached or self._reconcile_live(state, record) != "alive":
+                raise TerminalNotAttached("detached-reconnect-unconfirmed")
         if state.channel is None:
             raise TerminalNotAttached("channel-not-ready")
         token = self._attachments().attach(
@@ -1799,6 +1803,7 @@ class TerminalService:
         # detach 后 runtime 不再随服务停止：停心跳、保留秘密（重连闭环靠它）。
         self._stop_heartbeat(state)
         self._release_client(state)
+        self._attachments().revoke_all(terminal_id)
         self._note("terminal-detached", terminal_id)
         return {
             "terminal_id": terminal_id,

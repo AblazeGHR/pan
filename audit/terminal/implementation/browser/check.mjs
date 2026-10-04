@@ -127,6 +127,30 @@ try {
   await page.getByLabel('选择终端').selectOption(id);
   await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 30000 });
   assert((await page.getByRole('status').textContent()).startsWith('只观察'));
+  // Same-service durable detach, explicit browser reconnect, and preserved shell
+  // state. This is a production REST/WS path, not the standalone object test.
+  await page.getByRole('button', { name: '取得输入控制权', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('控制模式'));
+  await page.locator('.xterm-helper-textarea').focus();
+  await page.keyboard.insertText('set PAN_BROWSER_DURABLE=ORIGINAL_SHELL');
+  await page.keyboard.press('Enter');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '持久脱离', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="选择终端"]')?.selectedOptions[0]?.textContent.includes('detached'));
+  await page.getByRole('button', { name: '重连', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 30000 });
+  await page.getByRole('button', { name: '取得输入控制权', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.startsWith('控制模式'));
+  const durableWitness = path.join(root, 'browser-durable.txt');
+  await page.locator('.xterm-helper-textarea').focus();
+  await page.keyboard.insertText(`echo %PAN_BROWSER_DURABLE%>"${durableWitness}"`);
+  await page.keyboard.press('Enter');
+  await waitFile(durableWitness, 'ORIGINAL_SHELL');
+  const durableView = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
+  assert.equal(durableView.result.pid, view.result.pid);
+  assert.equal(durableView.result.process_created_at_filetime, view.result.process_created_at_filetime);
+  report.durableDetachBrowserReconnect = true;
+  report.durableShellStatePreserved = true;
   for (let attempt = 0; attempt < 8; attempt++) {
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '终止终端', exact: true }).click();

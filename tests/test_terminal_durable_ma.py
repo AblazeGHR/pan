@@ -10,6 +10,7 @@ import pytest
 
 from packages.core.terminal import identity
 from packages.core.terminal.contracts import ProcessStatus
+from packages.core.terminal.contracts import StaleLeaseError
 from packages.core.terminal.service import CleanupUnconfirmed, TerminalService
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows Job ownership")
@@ -37,6 +38,43 @@ if not detached['detached']:
 # Exit the actual owning service process, without service.shutdown().
 sys.exit(0)
 '''
+
+
+def test_same_service_detach_reconnect_revokes_old_connection_tokens(tmp_path):
+    if not (REPO / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless').exists():
+        pytest.skip('sidecar dependencies absent')
+    service = TerminalService(tmp_path / 'terminals', log_stderr=False)
+    view = service.create(cwd=str(tmp_path))
+    tid = view['terminal_id']
+    try:
+        old = service.attach(tid, 'old-controller', role='control')
+        result = service.detach(tid)
+        if not result['detached']:
+            pytest.skip('actual ancestor Job restricts detach')
+        # A new observer reconnects the IPC bridge without claiming control.
+        observer = service.attach(tid, 'new-observer')
+        assert service.control_holder(tid) is None
+        with pytest.raises(StaleLeaseError):
+            service.input(tid, old, b'OLD_MUST_NOT_REVIVE\r')
+        control = service.attach(tid, 'new-controller', role='control')
+        service.input(tid, control, b'echo SAME_SERVICE_RECONNECTED>reconnect-witness\r')
+        deadline = time.monotonic() + 8
+        witness = tmp_path / 'reconnect-witness'
+        while not witness.exists() and time.monotonic() < deadline:
+            time.sleep(.05)
+        assert witness.read_text().strip() == 'SAME_SERVICE_RECONNECTED'
+        assert service.get(tid)['pid'] == view['pid']
+        service.release_attachment(observer)
+    finally:
+        deadline = time.monotonic() + 25
+        while True:
+            try:
+                service.close(tid)
+                break
+            except CleanupUnconfirmed:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(.1)
 
 
 def test_detached_shell_survives_real_service_host_exit_and_reconnect(tmp_path):

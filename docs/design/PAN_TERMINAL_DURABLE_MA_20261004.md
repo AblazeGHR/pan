@@ -51,3 +51,19 @@ Reproduce with declared requirements and installed exact-pinned sidecar deps:
 The final combined uv service selection is **88 passed, zero skipped**, 104.85s
 (`durable-service-final-uv.xml`). The additional focused uv rerun verifies the
 final test cleanup path separately; historical failed XML files are retained.
+
+## Same-service/browser recovery follow-up
+
+After successful detach, current attachment leases are revoked without a
+terminal tombstone; the terminal can issue new leases. When a new observer
+attaches to a detached terminal whose IPC connection was released, the service
+rechecks the original identity and reconnects that same runner before issuing
+the observer lease. Non-detached disconnected states are not implicitly revived.
+The old control token fails even before the new observer claims control.
+
+Direct durable+lease tests: **22 passed** (`durable-attachments-direct.xml`).
+Real Chromium (`durable-browser/result.json`) additionally proves the UI's
+detach/reconnect/reclaim flow, shell variable preservation, same runner raw
+identity, and explicit final cleanup. The existing Ctrl-C, Chinese input,
+resize, takeover, reload, and close checks remain in that run: 63 observed
+events, zero page errors, `passed=true`, harness exit 0.
