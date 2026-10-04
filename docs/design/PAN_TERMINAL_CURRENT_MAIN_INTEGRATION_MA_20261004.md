@@ -60,7 +60,7 @@ candidate whole-repository runs. Earlier all-green whole runs remain historical.
 ## Handoff boundaries
 
 This candidate is verified locally, **not deployed and not main/practical**.
-Complete candidate whole-repository testing has not been run. Dependency warnings
+Complete candidate whole-repository testing subsequently ran (result below). Dependency warnings
 about unresolved lifespan annotations/Starlette remain recorded in XML; no claim
 of warning-free validation is made. Browser screenshots and transcripts are
 fixture artifacts on owned ephemeral listeners, not existing user sessions.
@@ -99,3 +99,30 @@ CORS denial body, as expected. Same-origin hello/claim succeeds; original runner
 PID/FILETIME remains unchanged after all attacks; explicit close confirms exited
 and owned harness exits zero. This is a measured current-main local browser gate,
 not all-browser, remote or cross-account authentication certification.
+
+## Final whole candidate result and quota stop
+
+The frozen candidate whole run finished **2714 passed / 3 failed / 10 skipped**,
+1056.42 seconds, two dependency warnings. Python sources/tests remained unchanged
+relative to `09ceb806` throughout. The exact JUnit evidence is
+`candidate-main-full-repository-uv.xml`. This is **not an all-green candidate**.
+
+Failures:
+
+- `test_queue_edit_cannot_make_text_disagree_with_parts`: the reproduced main
+  baseline error-code conflict described above.
+- `test_perf_incremental_vs_full`: incremental-save performance ratio assertion;
+  candidate isolated file previously passed 16/16, but that does not erase this
+  whole-run failure or prove its cause.
+- `test_queue_api_edits_only_queued_user_and_reorders_all_sources`: expects
+  `queue_item_readonly`, receives `queue_item_edit_expired`. No separate main
+  baseline rerun or causal attribution was performed for this final failure.
+
+At completion the live five-hour quota query reported **usedPercent=100**,
+`stale=false`, observed at `2026-10-04T12:28:21.469682+00:00`. Work stopped as
+requested; only this final handoff and XML archival were completed afterwards.
+No further repair/dispatch/deployment or investigation was started. The completed
+test process has exited; all earlier browser harnesses exited zero. Main/practical
+remain untouched. The candidate is a local integration handoff with strong
+Terminal/browser evidence and explicit outstanding repository regression failures,
+not unconditional final acceptance or deployment authorization.
