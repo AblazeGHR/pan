@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="14" time="0.187" timestamp="2026-10-04T18:18:37.191278+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_runner_identity_ma" name="test_exited_shim_never_proves_live_or_unknown_runner_dead[alive]" time="0.006"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_exited_shim_never_proves_0')
+status = &lt;ProcessStatus.ALIVE: 'alive'&gt;
+
+    @pytest.mark.parametrize('status', [ProcessStatus.ALIVE, ProcessStatus.UNKNOWN])
+    def test_exited_shim_never_proves_live_or_unknown_runner_dead(tmp_path, status):
+        service = TerminalService(tmp_path, identity_probe=lambda pid: ProcessProbe(
+            status=status, identity=ProcessIdentity(pid=pid, created_at_filetime=9)))
+        proof = service._spawn_handle_exit_evidence(state())
+&gt;       assert proof['exited'] is False
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:20: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_exited_shim_never_proves_live_or_unknown_runner_dead[unknown]" time="0.002"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_exited_shim_never_proves_1')
+status = &lt;ProcessStatus.UNKNOWN: 'unknown'&gt;
+
+    @pytest.mark.parametrize('status', [ProcessStatus.ALIVE, ProcessStatus.UNKNOWN])
+    def test_exited_shim_never_proves_live_or_unknown_runner_dead(tmp_path, status):
+        service = TerminalService(tmp_path, identity_probe=lambda pid: ProcessProbe(
+            status=status, identity=ProcessIdentity(pid=pid, created_at_filetime=9)))
+        proof = service._spawn_handle_exit_evidence(state())
+&gt;       assert proof['exited'] is False
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:20: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_same_pid_popen_keeps_its_original_bound_exit_proof" time="0.002" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity0-True]" time="0.002"><failure message="AssertionError: assert 'self-spawn-handle' == 'runner-retained-handle'&#10;  &#10;  - runner-retained-handle&#10;  + self-spawn-handle">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_runner_handle_re0')
+status = &lt;ProcessStatus.DEAD: 'dead'&gt;
+identity = ProcessIdentity(pid=42, created_at_filetime=9, created_at=None, image=None)
+expected = True
+
+    @pytest.mark.parametrize('status,identity,expected', [
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=9), True),
+        (ProcessStatus.ALIVE, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.UNKNOWN, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=43, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=10), False),
+    ])
+    def test_retained_runner_handle_requires_same_identity_and_signaled(tmp_path, status, identity, expected):
+        service = TerminalService(tmp_path)
+        handle = NS(probe=lambda: ProcessProbe(status=status, identity=identity))
+        proof = service._spawn_handle_exit_evidence(state(handle=handle))
+        assert proof['exited'] is expected
+&gt;       assert proof['source'] == 'runner-retained-handle'
+E       AssertionError: assert 'self-spawn-handle' == 'runner-retained-handle'
+E         
+E         - runner-retained-handle
+E         + self-spawn-handle
+
+tests\test_terminal_runner_identity_ma.py:43: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[alive-identity1-False]" time="0.002"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_runner_handle_re1')
+status = &lt;ProcessStatus.ALIVE: 'alive'&gt;
+identity = ProcessIdentity(pid=42, created_at_filetime=9, created_at=None, image=None)
+expected = False
+
+    @pytest.mark.parametrize('status,identity,expected', [
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=9), True),
+        (ProcessStatus.ALIVE, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.UNKNOWN, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=43, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=10), False),
+    ])
+    def test_retained_runner_handle_requires_same_identity_and_signaled(tmp_path, status, identity, expected):
+        service = TerminalService(tmp_path)
+        handle = NS(probe=lambda: ProcessProbe(status=status, identity=identity))
+        proof = service._spawn_handle_exit_evidence(state(handle=handle))
+&gt;       assert proof['exited'] is expected
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:42: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[unknown-identity2-False]" time="0.003"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_runner_handle_re2')
+status = &lt;ProcessStatus.UNKNOWN: 'unknown'&gt;
+identity = ProcessIdentity(pid=42, created_at_filetime=9, created_at=None, image=None)
+expected = False
+
+    @pytest.mark.parametrize('status,identity,expected', [
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=9), True),
+        (ProcessStatus.ALIVE, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.UNKNOWN, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=43, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=10), False),
+    ])
+    def test_retained_runner_handle_requires_same_identity_and_signaled(tmp_path, status, identity, expected):
+        service = TerminalService(tmp_path)
+        handle = NS(probe=lambda: ProcessProbe(status=status, identity=identity))
+        proof = service._spawn_handle_exit_evidence(state(handle=handle))
+&gt;       assert proof['exited'] is expected
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:42: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity3-False]" time="0.002"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_runner_handle_re3')
+status = &lt;ProcessStatus.DEAD: 'dead'&gt;
+identity = ProcessIdentity(pid=43, created_at_filetime=9, created_at=None, image=None)
+expected = False
+
+    @pytest.mark.parametrize('status,identity,expected', [
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=9), True),
+        (ProcessStatus.ALIVE, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.UNKNOWN, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=43, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=10), False),
+    ])
+    def test_retained_runner_handle_requires_same_identity_and_signaled(tmp_path, status, identity, expected):
+        service = TerminalService(tmp_path)
+        handle = NS(probe=lambda: ProcessProbe(status=status, identity=identity))
+        proof = service._spawn_handle_exit_evidence(state(handle=handle))
+&gt;       assert proof['exited'] is expected
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:42: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity4-False]" time="0.002"><failure message="assert True is False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_runner_handle_re4')
+status = &lt;ProcessStatus.DEAD: 'dead'&gt;
+identity = ProcessIdentity(pid=42, created_at_filetime=10, created_at=None, image=None)
+expected = False
+
+    @pytest.mark.parametrize('status,identity,expected', [
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=9), True),
+        (ProcessStatus.ALIVE, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.UNKNOWN, ProcessIdentity(pid=42, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=43, created_at_filetime=9), False),
+        (ProcessStatus.DEAD, ProcessIdentity(pid=42, created_at_filetime=10), False),
+    ])
+    def test_retained_runner_handle_requires_same_identity_and_signaled(tmp_path, status, identity, expected):
+        service = TerminalService(tmp_path)
+        handle = NS(probe=lambda: ProcessProbe(status=status, identity=identity))
+        proof = service._spawn_handle_exit_evidence(state(handle=handle))
+&gt;       assert proof['exited'] is expected
+E       assert True is False
+
+tests\test_terminal_runner_identity_ma.py:42: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[True-9]" time="0.002" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42.1-9]" time="0.002"><failure message="AssertionError: assert True is False&#10; +  where True = _identity_matches({'pid': 42.1, 'process_created_at_filetime': '9'}, 42, 9)&#10; +    where _identity_matches = &lt;packages.core.terminal.service.TerminalService object at 0x0000025241FBBB90&gt;._identity_matches">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_cleanup_identity_fields_d1')
+pid = 42.1, filetime = '9'
+
+    @pytest.mark.parametrize('pid,filetime', [(True, '9'), (42.1, '9'), (42, True),
+                                           (42, 9.1), (42, '9'*5000)])
+    def test_cleanup_identity_fields_do_not_coerce_invalid_values(tmp_path, pid, filetime):
+        service = TerminalService(tmp_path)
+&gt;       assert service._identity_matches({'pid': pid, 'process_created_at_filetime': filetime}, 42, 9) is False
+E       AssertionError: assert True is False
+E        +  where True = _identity_matches({'pid': 42.1, 'process_created_at_filetime': '9'}, 42, 9)
+E        +    where _identity_matches = &lt;packages.core.terminal.service.TerminalService object at 0x0000025241FBBB90&gt;._identity_matches
+
+tests\test_terminal_runner_identity_ma.py:50: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-True]" time="0.002" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-9.1]" time="0.002"><failure message="AssertionError: assert True is False&#10; +  where True = _identity_matches({'pid': 42, 'process_created_at_filetime': 9.1}, 42, 9)&#10; +    where _identity_matches = &lt;packages.core.terminal.service.TerminalService object at 0x000002524200CC50&gt;._identity_matches">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_cleanup_identity_fields_d3')
+pid = 42, filetime = 9.1
+
+    @pytest.mark.parametrize('pid,filetime', [(True, '9'), (42.1, '9'), (42, True),
+                                           (42, 9.1), (42, '9'*5000)])
+    def test_cleanup_identity_fields_do_not_coerce_invalid_values(tmp_path, pid, filetime):
+        service = TerminalService(tmp_path)
+&gt;       assert service._identity_matches({'pid': pid, 'process_created_at_filetime': filetime}, 42, 9) is False
+E       AssertionError: assert True is False
+E        +  where True = _identity_matches({'pid': 42, 'process_created_at_filetime': 9.1}, 42, 9)
+E        +    where _identity_matches = &lt;packages.core.terminal.service.TerminalService object at 0x000002524200CC50&gt;._identity_matches
+
+tests\test_terminal_runner_identity_ma.py:50: AssertionError</failure></testcase><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999]" time="0.002" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_handle_close_failure_keeps_owner_for_retry" time="0.002"><failure message="AttributeError: 'TerminalService' object has no attribute '_release_runner_identity_handle'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1799/test_retained_handle_close_fai0')
+
+    def test_retained_handle_close_failure_keeps_owner_for_retry(tmp_path):
+        service = TerminalService(tmp_path)
+        outcomes = iter([False, True])
+        handle = NS(close=lambda: next(outcomes))
+        owner = state(handle=handle)
+&gt;       assert service._release_runner_identity_handle(owner) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TerminalService' object has no attribute '_release_runner_identity_handle'
+
+tests\test_terminal_runner_identity_ma.py:58: AttributeError</failure></testcase></testsuite></testsuites>

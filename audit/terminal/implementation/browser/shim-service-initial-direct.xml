@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="101" time="222.410" timestamp="2026-10-04T18:19:58.505281+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_service" name="test_import_has_no_side_effects_and_construction_creates_nothing" time="0.086" /><testcase classname="tests.test_terminal_service" name="test_capacity_admission_rejects_before_any_state_change" time="0.017" /><testcase classname="tests.test_terminal_service" name="test_concurrent_create_never_exceeds_capacity" time="15.009" /><testcase classname="tests.test_terminal_service" name="test_duplicate_terminal_id_does_not_overwrite_existing" time="5.030" /><testcase classname="tests.test_terminal_service" name="test_create_publishes_running_only_after_gates" time="5.014" /><testcase classname="tests.test_terminal_service" name="test_gates_not_confirmed_keeps_record_and_owner" time="0.015" /><testcase classname="tests.test_terminal_service" name="test_heartbeat_uses_its_own_connection_and_survives_slow_business" time="5.607" /><testcase classname="tests.test_terminal_service" name="test_heartbeat_loss_is_reported_not_hidden" time="5.104" /><testcase classname="tests.test_terminal_service" name="test_revoked_control_lease_writes_nothing" time="5.030" /><testcase classname="tests.test_terminal_service" name="test_observer_lease_cannot_input_or_resize" time="5.026" /><testcase classname="tests.test_terminal_service" name="test_control_holder_changes_and_old_token_stale" time="5.018" /><testcase classname="tests.test_terminal_service" name="test_input_resize_report_pty_and_engine_separately" time="5.020" /><testcase classname="tests.test_terminal_service" name="test_read_gap_is_reported_without_zero_fill_or_cursor_jump" time="5.006" /><testcase classname="tests.test_terminal_service" name="test_snapshot_keeps_f5_bool_or_null_and_never_upgrades" time="5.023" /><testcase classname="tests.test_terminal_service" name="test_snapshot_applied_evicted_gives_hint_without_reset" time="5.006" /><testcase classname="tests.test_terminal_service" name="test_close_requires_all_three_proofs" time="0.031"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_close_requires_all_three_0')
+
+    def test_close_requires_all_three_proofs(tmp_path):
+        """close：runner 确认 + 引擎收尾 + 经身份核验的进程退出，三者齐备才 exited。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_close", client_id="c", close_status="exited")
+        service = _make_service(tmp_path, clients={"primary": client}, process=process,
+                                heartbeat_interval=5.0)
+        terminal_id = service.create()["terminal_id"]
+        record_pid = service.get(terminal_id)["pid"]
+        record_ft = int(service.get(terminal_id)["process_created_at_filetime"])
+    
+        # ① 只有 runner 确认，缺引擎收尾与进程退出 -&gt; 不标 exited
+        with pytest.raises(CleanupUnconfirmed):
+            service.close(terminal_id)
+        assert service.get(terminal_id)["status"] not in (
+            RuntimeState.EXITED.value,
+            RuntimeState.LOST.value,
+        )
+        assert service._store().deleted == [], "未证明不得删除秘密"
+    
+        # ② 引擎收尾已确证，但进程仍在 -&gt; 仍不标 exited
+        _converged_launcher_status(service.root, terminal_id, record_pid, record_ft)
+        with pytest.raises(CleanupUnconfirmed):
+            service.close(terminal_id)
+        assert service.get(terminal_id)["status"] not in (
+            RuntimeState.EXITED.value,
+            RuntimeState.LOST.value,
+        )
+    
+        # ③ 三项齐备 -&gt; exited + 删秘密（verified_exit=True，无 caller_responsible）
+        process.exit(0)
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDA7B920&gt;
+terminal_id = 'term_46abacbf061d4ce7', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service" name="test_close_uses_exit_mapping_and_records_closing_first" time="0.020" /><testcase classname="tests.test_terminal_service" name="test_close_late_result_is_consumed_without_second_stop" time="0.036"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_close_late_result_is_cons0')
+
+    def test_close_late_result_is_consumed_without_second_stop(tmp_path):
+        """迟到成功被消费：重试**不重复**发 stop（worker 复用、不叠加）。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_late", client_id="c", close_status="exited")
+        service = _make_service(tmp_path, clients={"primary": client}, process=process,
+                                heartbeat_interval=5.0, stop_confirm=0.4)
+        terminal_id = service.create()["terminal_id"]
+        with pytest.raises(CleanupUnconfirmed):
+            service.close(terminal_id)
+        stop_calls = client.calls.get("close", 0)
+        # 补齐证明后重试：复用同一 worker 结果，stop 调用次数不增加
+        record = service.get(terminal_id)
+        _converged_launcher_status(
+            service.root, terminal_id, record["pid"], int(record["process_created_at_filetime"])
+        )
+        process.exit(0)
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service.py:774: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDA4BCE0&gt;
+terminal_id = 'term_9218ec0607f44386', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service" name="test_secret_deleted_only_after_proof_even_when_record_write_fails" time="0.026"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_secret_deleted_only_after0')
+
+    def test_secret_deleted_only_after_proof_even_when_record_write_fails(tmp_path):
+        """记录写失败时：已证明终止**仍**删秘密（次序不倒置），且如实报告写失败。
+    
+        记录因写失败保持陈旧（``running``）—— 这是**如实的**：不得为了让视图好看而
+        伪造 ``exited``。重启后 reconcile 会因"记录说存活但秘密已删"归入
+        unattributable（安全且可恢复）。
+        """
+        process = _FakeProcess()
+        client = _FakeClient("term_wf", client_id="c", close_status="exited")
+        registry = TerminalRegistry(tmp_path / "terminals")
+        service = _make_service(
+            tmp_path, registry=registry, clients={"primary": client}, process=process,
+            heartbeat_interval=5.0,
+        )
+        terminal_id = service.create()["terminal_id"]
+        record = service.get(terminal_id)
+        _converged_launcher_status(
+            service.root, terminal_id, record["pid"], int(record["process_created_at_filetime"])
+        )
+        process.exit(0)
+    
+        original_update = registry.update
+        calls = {"n": 0}
+    
+        def flaky_update(target_id, mutator):
+            calls["n"] += 1
+            # 第 1 次是 CLOSING 记录（必须能写），第 2 次是标记 exited —— 让它失败。
+            if calls["n"] == 2:
+                raise OSError("injected-record-write-failure")
+            return original_update(target_id, mutator)
+    
+        registry.update = flaky_update  # type: ignore[method-assign]
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service.py:811: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDA7B7A0&gt;
+terminal_id = 'term_07c66887b2904e82', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service" name="test_secret_delete_failure_is_reported_not_faked" time="0.018"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_secret_delete_failure_is_0')
+
+    def test_secret_delete_failure_is_reported_not_faked(tmp_path):
+        """删秘密失败：记类型名，不假装成功。"""
+        store = _FakeStore(tmp_path / "terminals", delete_error=OSError("injected-delete-failure"))
+        process = _FakeProcess()
+        client = _FakeClient("term_sd", client_id="c", close_status="exited")
+        service = _make_service(tmp_path, store=store, clients={"primary": client},
+                                process=process, heartbeat_interval=5.0)
+        terminal_id = service.create()["terminal_id"]
+        record = service.get(terminal_id)
+        _converged_launcher_status(
+            service.root, terminal_id, record["pid"], int(record["process_created_at_filetime"])
+        )
+        process.exit(0)
+&gt;       assert service.close(terminal_id)["status"] == RuntimeState.EXITED.value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service.py:835: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDA784D0&gt;
+terminal_id = 'term_38683fe0bf324e91', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service" name="test_detach_refused_has_zero_state_change" time="0.011" /><testcase classname="tests.test_terminal_service" name="test_detach_injected_detached_marks_mechanism" time="0.016" /><testcase classname="tests.test_terminal_service" name="test_reconcile_unknown_identity_zero_termination" time="0.010" /><testcase classname="tests.test_terminal_service" name="test_reconcile_fresh_pid_absence_is_not_dead_evidence" time="0.015" /><testcase classname="tests.test_terminal_service" name="test_reconcile_identity_mismatch_zero_touch" time="0.015" /><testcase classname="tests.test_terminal_service" name="test_reconcile_never_creates_replacement_runner_or_revives_lease" time="5.022" /><testcase classname="tests.test_terminal_service" name="test_reconcile_dead_confirmed_with_matching_identity" time="0.019" /><testcase classname="tests.test_terminal_service" name="test_reconcile_separates_unconfirmed_cleanup" time="0.014" /><testcase classname="tests.test_terminal_service" name="test_shutdown_budget_includes_lock_wait" time="0.627" /><testcase classname="tests.test_terminal_service" name="test_shutdown_keeps_detached_runtime_and_secret" time="0.015" /><testcase classname="tests.test_terminal_service" name="test_shutdown_reports_exited_with_proof" time="20.009"><failure message="AssertionError: assert [] == ['term_f7ac417ff46d45db']&#10;  &#10;  Right contains one more item: 'term_f7ac417ff46d45db'&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_shutdown_reports_exited_w0')
+
+    def test_shutdown_reports_exited_with_proof(tmp_path):
+        """正常 shutdown：三项证明齐备的终端如实收敛为 exited。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_sd3", client_id="c", close_status="exited")
+        service = _make_service(tmp_path, clients={"primary": client}, process=process,
+                                heartbeat_interval=5.0, stop_confirm=2.0)
+        view = service.create()
+        terminal_id = view["terminal_id"]
+        record = service.get(terminal_id)
+        _converged_launcher_status(
+            service.root, terminal_id, record["pid"], int(record["process_created_at_filetime"])
+        )
+        # 进程退出在 close 之前发生（模拟 runner 已收尾）
+        process.exit(0)
+        result = service.shutdown()
+&gt;       assert result["exited"] == [terminal_id]
+E       AssertionError: assert [] == ['term_f7ac417ff46d45db']
+E         
+E         Right contains one more item: 'term_f7ac417ff46d45db'
+E         Use -v to get more diff
+
+tests\test_terminal_service.py:1054: AssertionError</failure></testcase><testcase classname="tests.test_terminal_service" name="test_public_views_expose_no_pipe_or_secret_material" time="5.026" /><testcase classname="tests.test_terminal_service" name="test_created_by_comes_from_context_not_session_id" time="5.017" /><testcase classname="tests.test_terminal_service" name="test_errors_are_static_reasons_and_type_names_only" time="0.011" /><testcase classname="tests.test_terminal_service" name="test_filetime_exposed_as_decimal_string" time="5.011" /><testcase classname="tests.test_terminal_service" name="test_default_shell_is_cmd_q_d_and_size_defaults" time="5.020" /><testcase classname="tests.test_terminal_service" name="test_launcher_argv_contains_no_token_and_carries_cwd" time="0.005" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_alive_identity_keeps_secret_and_record" time="0.016"><failure message="assert (0 + 0) &gt;= 1">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_f1_reconcile_live_alive_i0')
+
+    def test_f1_reconcile_live_alive_identity_keeps_secret_and_record(tmp_path):
+        """F1：句柄已退出但 runner 身份仍 **ALIVE** → 绝不写 exited / 删秘密。"""
+        from packages.core.terminal.contracts import ProcessIdentity, ProcessProbe
+    
+        process = _FakeProcess()
+        process.exit(0)  # 我们派生的进程退出
+        probes: dict[int, Any] = {}
+    
+        def probe(pid: int):
+            return probes.get(pid, ProcessProbe(status=ProcessStatus.UNKNOWN))
+    
+        service = _service(tmp_path, process=process, heartbeat_interval=5.0, probe=probe)
+        terminal_id = service.create()["terminal_id"]
+        pid, filetime = _record_identity(service, terminal_id)
+        # 身份**精确匹配**（pid + FILETIME）且仍 ALIVE —— 最难区分的场景
+        probes[pid] = ProcessProbe(
+            status=ProcessStatus.ALIVE,
+            identity=ProcessIdentity(pid=pid, created_at_filetime=filetime),
+        )
+    
+        result = service.reconcile()
+        assert result["counts"]["dead-confirmed"] == 0, "身份仍 ALIVE 不得判已死"
+&gt;       assert result["counts"]["cleanup-unconfirmed"] + result["counts"]["unattributable"] &gt;= 1
+E       assert (0 + 0) &gt;= 1
+
+tests\test_terminal_service_rework.py:129: AssertionError</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_unknown_identity_keeps_secret" time="5.012" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_dead_identity_is_the_only_delete_path" time="0.022" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_identity_evidence_requires_pid_and_filetime_match" time="0.003" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_launcher_exit6_engine_unproven_is_not_clean_success" time="0.014" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_never_terminates_unknown_pid" time="5.002" /><testcase classname="tests.test_terminal_service_rework" name="test_f2_stop_returning_closing_can_be_retried_boundedly" time="0.026"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_f2_stop_returning_closing0')
+
+    def test_f2_stop_returning_closing_can_be_retried_boundedly(tmp_path):
+        """F2：stop 首次返回 ``closing`` → 补齐证据后允许**再发一次**并收敛。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_f2a", client_id="c", close_status="closing")
+        service = _service(tmp_path, client=client, process=process,
+                           heartbeat_interval=5.0, stop_confirm=1.0)
+        terminal_id = service.create()["terminal_id"]
+        with pytest.raises(CleanupUnconfirmed):
+            service.close(terminal_id)
+        first_calls = client.calls.get("close", 0)
+    
+        # 第二次 close 仍返回 closing，但补齐外部证据后应能收敛
+        client.close_status = "exited"
+        pid, filetime = _record_identity(service, terminal_id)
+        _converged_launcher_status(service.root, terminal_id, pid, filetime)
+        process.exit(0)
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service_rework.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDB9F860&gt;
+terminal_id = 'term_ebb74bb1df13446c', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_f2_stop_raising_exception_can_be_retried" time="0.035"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_f2_stop_raising_exception0')
+
+    def test_f2_stop_raising_exception_can_be_retried(tmp_path):
+        """F2：stop 抛异常（瞬时）也不得永久缓存。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_f2b", client_id="c")
+        boom = {"raise": True}
+        original_close = client.close
+    
+        def flaky(*, reason="explicit-close"):
+            if boom["raise"]:
+                boom["raise"] = False
+                raise RuntimeError("injected-transient-stop-failure")
+            return original_close(reason=reason)
+    
+        client.close = flaky  # type: ignore[method-assign]
+        service = _service(tmp_path, client=client, process=process,
+                           heartbeat_interval=5.0, stop_confirm=1.0)
+        terminal_id = service.create()["terminal_id"]
+        with pytest.raises(CleanupUnconfirmed):
+            service.close(terminal_id)
+        pid, filetime = _record_identity(service, terminal_id)
+        _converged_launcher_status(service.root, terminal_id, pid, filetime)
+        process.exit(0)
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service_rework.py:317: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDB22330&gt;
+terminal_id = 'term_7b412244b7d4467d', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_f2_already_confirmed_success_is_not_resent" time="0.020"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_f2_already_confirmed_succ0')
+
+    def test_f2_already_confirmed_success_is_not_resent(tmp_path):
+        """F2：已确认成功（exited）**不**机械重复发 stop。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_f2c", client_id="c", close_status="exited")
+        service = _service(tmp_path, client=client, process=process,
+                           heartbeat_interval=5.0, stop_confirm=1.0)
+        terminal_id = service.create()["terminal_id"]
+        pid, filetime = _record_identity(service, terminal_id)
+        _converged_launcher_status(service.root, terminal_id, pid, filetime)
+        process.exit(0)
+&gt;       service.close(terminal_id)
+
+tests\test_terminal_service_rework.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDB37B00&gt;
+terminal_id = 'term_521bccdf2e014d3d', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_f2_inflight_stop_is_single_flight" time="0.220" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_persisted_cleanup_failed_gets_bounded_stop_reentry" time="2.028" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_persisted_unattributable_never_touches" time="0.016" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_no_selfspawn_handle_means_no_fabricated_proof" time="0.016" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_does_not_revive_old_managed_by_renewal" time="0.008" /><testcase classname="tests.test_terminal_service_rework" name="test_f3_reconcile_survives_endpoint_refusal_without_termination" time="0.011" /><testcase classname="tests.test_terminal_service_rework" name="test_f4_reconnect_releases_old_client_and_stops_old_heartbeat" time="0.225" /><testcase classname="tests.test_terminal_service_rework" name="test_f5_unconfirmed_terminal_keeps_client_for_retry" time="5.027"><failure message="packages.core.terminal.service.CleanupUnconfirmed: process-still-running">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_f5_unconfirmed_terminal_k0')
+
+    def test_f5_unconfirmed_terminal_keeps_client_for_retry(tmp_path):
+        """F5：未收敛终端在 shutdown 后仍**保留**连接，可继续重试 close 收敛。"""
+        process = _FakeProcess()
+        client = _FakeClient("term_f5", client_id="c", close_status="closing")
+        service = _service(tmp_path, client=client, process=process,
+                           heartbeat_interval=5.0, stop_confirm=1.0)
+        terminal_id = service.create()["terminal_id"]
+        # 先制造未收敛（缺引擎证据 + 进程仍在）
+        result = service.shutdown(budget=5.0)
+        assert result["unconfirmed"] == [terminal_id]
+        # 未收敛项必须保留连接（否则永远无法收敛）
+        state = service._states.get(terminal_id)
+        assert state is not None and state.client is not None, "未收敛项必须保留 client 供重试"
+        # 补齐证据后可继续重试并收敛
+        client.close_status = "exited"
+        pid, filetime = _record_identity(service, terminal_id)
+        _converged_launcher_status(service.root, terminal_id, pid, filetime)
+        process.exit(0)
+&gt;       view = service.close(terminal_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_terminal_service_rework.py:595: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.terminal.service.TerminalService object at 0x00000282EDB72240&gt;
+terminal_id = 'term_103efd5307c24f64', reason = 'explicit-close'
+
+&gt;   ???
+E   packages.core.terminal.service.CleanupUnconfirmed: process-still-running
+
+packages\core\terminal\service.py:1412: CleanupUnconfirmed</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_f5_inflight_close_worker_survives_shutdown_release" time="0.339" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_close_budget_includes_state_lock_wait" time="0.631" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_shutdown_budget_includes_lock_and_reports_honestly" time="0.713" /><testcase classname="tests.test_terminal_service_rework" name="test_f6_zero_budget_is_not_inflated" time="0.009" /><testcase classname="tests.test_terminal_service_rework" name="test_f7_budget_exhausted_records_all_listed_as_unconfirmed" time="0.241" /><testcase classname="tests.test_terminal_service_rework" name="test_f8_close_admission_gate_blocks_input_before_rpc" time="0.032" /><testcase classname="tests.test_terminal_service_rework" name="test_f8_memory_record_synced_after_close" time="0.013" /><testcase classname="tests.test_terminal_service_rework" name="test_f9_create_rejected_after_shutdown" time="20.015" /><testcase classname="tests.test_terminal_service_rework" name="test_f9_create_and_shutdown_linearized" time="35.020" /><testcase classname="tests.test_terminal_service_rework" name="test_f10_close_reason_distinguishes_missing_proof" time="0.033" /><testcase classname="tests.test_terminal_service_rework" name="test_f10_no_free_text_leak_in_close_error" time="0.014" /><testcase classname="tests.test_terminal_service_rework" name="test_f12_heartbeat_progress_uses_bounded_wait" time="5.152" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_missing_pid_with_matching_filetime_is_unattributable" time="0.008" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_non_integer_pid_or_filetime_is_static_unknown" time="0.006" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_true_pid_and_filetime_is_positive_control" time="0.007" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_identity_wrong_pid_with_matching_filetime_rejected" time="0.005" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_close_reset_false_keeps_original_stop_result" time="0.032" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_close_two_callers_resend_is_serialized" time="0.227"><failure message="AssertionError: 真成功必须被消费：['unconfirmed', 'unconfirmed']&#10;assert 'exited' in ['unconfirmed', 'unconfirmed']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1801/test_r3_close_two_callers_rese0')
+
+    def test_r3_close_two_callers_resend_is_serialized(tmp_path):
+        """门 2b：同终端两个 caller 的重发决定**串行**；max concurrent stop == 1。
+    
+        两个 caller 各自 close 时，``max_concurrent`` 必须恒为 1（不叠加），
+        且真成功被消费（不因序列化而丢结果）。
+        """
+        process = _FakeProcess()
+        concurrent = {"now": 0, "max": 0}
+        lock = threading.Lock()
+    
+        class _CountingClient(_FakeClient):
+            def close(self, *, reason="explicit-close"):
+                with lock:
+                    concurrent["now"] += 1
+                    concurrent["max"] = max(concurrent["max"], concurrent["now"])
+                time.sleep(0.2)  # 保持重叠窗口
+                with lock:
+                    concurrent["now"] -= 1
+                return {"status": "exited", "ok": True, "describe": {}}
+    
+        client = _CountingClient("term_r3b", client_id="c")
+        service = _service(tmp_path, client=client, process=process,
+                           heartbeat_interval=5.0, stop_confirm=3.0)
+        terminal_id = service.create()["terminal_id"]
+        # 补齐另两项证据，使"真成功"可被消费（否则只会unconfirmed，测不到"成功被消费"）
+        _converged_launcher_status(service.root, terminal_id, *_record_identity(service, terminal_id))
+        process.exit(0)
+        results: list[str] = []
+    
+        def worker() -&gt; None:
+            results.append(_try_close(service, terminal_id) or "unconfirmed")
+    
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+        assert concurrent["max"] == 1, f"同终端 stop 不得并发叠加（实测 max={concurrent['max']}）"
+        # 真成功被消费（至少一个 caller 看到exited）
+&gt;       assert "exited" in results, f"真成功必须被消费：{results}"
+E       AssertionError: 真成功必须被消费：['unconfirmed', 'unconfirmed']
+E       assert 'exited' in ['unconfirmed', 'unconfirmed']
+
+tests\test_terminal_service_rework.py:1250: AssertionError</failure></testcase><testcase classname="tests.test_terminal_service_rework" name="test_r3_shutdown_admission_lock_wait_is_bounded_and_reported" time="0.121" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_shutdown_budget_zero_is_not_inflated" time="0.012" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_create_after_shutdown_always_rejected_even_racing" time="19.998" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_persisted_stop_endpoint_transient_refusal_recovers" time="2.035" /><testcase classname="tests.test_terminal_service_rework" name="test_r3_persisted_stop_attach_count_and_no_fake_handle" time="2.024" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change0]" time="0.009" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change1]" time="0.007" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change2]" time="0.006" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change3]" time="0.005" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change4]" time="0.005" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change5]" time="0.004" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change6]" time="0.006" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change7]" time="0.005" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_runner_final_record_requires_exact_identity_and_cleanup_facts[change8]" time="0.004" /><testcase classname="tests.test_terminal_shutdown_ma" name="test_shutdown_consumes_late_owned_cleanup_within_same_total_budget" time="0.053" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_exited_shim_never_proves_live_or_unknown_runner_dead[alive]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_exited_shim_never_proves_live_or_unknown_runner_dead[unknown]" time="0.004" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_same_pid_popen_keeps_its_original_bound_exit_proof" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity0-True]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[alive-identity1-False]" time="0.003" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[unknown-identity2-False]" time="0.006" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity3-False]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_runner_handle_requires_same_identity_and_signaled[dead-identity4-False]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[True-9]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42.1-9]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-True]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-9.1]" time="0.005" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_cleanup_identity_fields_do_not_coerce_invalid_values[42-99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999]" time="0.006" /><testcase classname="tests.test_terminal_runner_identity_ma" name="test_retained_handle_close_failure_keeps_owner_for_retry" time="0.005" /></testsuite></testsuites>

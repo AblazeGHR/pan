@@ -281,7 +281,7 @@ class _FakeClient:
 class _FakeProcess:
     """``Popen`` 替身：``poll()`` 由测试控制。"""
 
-    def __init__(self, pid: int = 50000) -> None:
+    def __init__(self, pid: int = 40001) -> None:
         self.pid = int(pid)
         self._returncode: int | None = None
 

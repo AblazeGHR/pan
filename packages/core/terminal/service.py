@@ -56,6 +56,7 @@ import subprocess
 import sys
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -545,6 +546,10 @@ class _TerminalState:
     #: hello 自证 + 内核核验后的 runner 身份（权威）。
     runner_pid: int | None = None
     runner_filetime: int | None = None
+    #: Only needed when an interpreter shim's Popen PID differs from bootstrap.
+    runner_identity_handle: Any | None = None
+    runner_handle_finalizer: Any | None = None
+    runner_identity_lock: threading.Lock = field(default_factory=threading.Lock)
     heartbeat: _Heartbeat | None = None
     channel: _ChannelProxy | None = None
     close_call: _BoundedCall | None = None
@@ -892,6 +897,9 @@ class TerminalService:
             raise StartupFailed("bootstrap-unverified", error_type=type(exc).__name__) from None
         state.runner_pid = int(bootstrap.pid)
         state.runner_filetime = int(bootstrap.filetime)
+        if (sys.platform == "win32" and self._spawn_launcher_impl is None
+                and state.spawn_pid != state.runner_pid):
+            self._retain_runner_identity_handle(state)
 
         from . import runner_client
 
@@ -1557,6 +1565,10 @@ class TerminalService:
             and evidence.get("engine_converged")
             and (evidence.get("process_exit") or {}).get("exited")
         )
+        if proven and not self._release_runner_identity_handle(state):
+            # A failed CloseHandle keeps the exact same object for retry.
+            proven = False
+            evidence["identity_handle_retained"] = True
         outcome = {
             "terminal_id": terminal_id,
             "status": "exited" if proven else "cleanup-failed",
@@ -1711,24 +1723,112 @@ class TerminalService:
             return False
         if pid is None or filetime is None:
             return False
+        for value in (identity.get("pid"), identity.get("process_created_at_filetime"), pid, filetime):
+            if isinstance(value, bool) or not (isinstance(value, int) or
+                    (isinstance(value, str) and value.isascii() and value.isdecimal())):
+                return False
         try:
             status_pid = int(identity.get("pid"))
             status_ft = int(identity.get("process_created_at_filetime"))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return False
-        return status_pid == int(pid) and status_ft == int(filetime)
+        return status_pid > 0 and status_ft > 0 and status_pid == int(pid) and status_ft == int(filetime)
+
+    def _retain_runner_identity_handle(self, state: _TerminalState) -> None:
+        """Retain the real bootstrap identity, not the Python launcher trampoline."""
+        from .win_pipe import ProcessIdentityHandle
+
+        handle = ProcessIdentityHandle.open(state.runner_pid)
+        if handle is None:
+            self._mark_unproven(state, "runner-handle-unavailable", None)
+            raise StartupFailed("runner-handle-unavailable")
+        state.runner_identity_handle = handle
+        # GC of an abandoned service only releases this query/synchronize handle;
+        # it never kills the runner. Normal confirmed close releases it explicitly.
+        state.runner_handle_finalizer = weakref.finalize(state, handle.close)
+        probe = handle.probe()
+        identity = getattr(probe, "identity", None)
+        if (getattr(getattr(probe, "status", None), "value", None) != "alive"
+                or not self._identity_matches(
+                    {"pid": getattr(identity, "pid", None),
+                     "process_created_at_filetime": getattr(identity, "created_at_filetime", None)},
+                    state.runner_pid, state.runner_filetime)):
+            self._mark_unproven(state, "runner-handle-identity-unverified", None)
+            raise StartupFailed("runner-handle-identity-unverified")
+
+    def _release_runner_identity_handle(self, state: _TerminalState) -> bool:
+        lock = self._runner_identity_lock(state)
+        if not lock.acquire(blocking=False):
+            return False
+        try:
+            return self._release_runner_identity_handle_locked(state)
+        finally:
+            lock.release()
+
+    @staticmethod
+    def _runner_identity_lock(state: _TerminalState) -> threading.Lock:
+        lock = getattr(state, "runner_identity_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            state.runner_identity_lock = lock
+        return lock
+
+    def _release_runner_identity_handle_locked(self, state: _TerminalState) -> bool:
+        handle = getattr(state, "runner_identity_handle", None)
+        if handle is None:
+            return True
+        try:
+            if handle.close() is not True:
+                return False
+        except Exception as exc:
+            self._note_error("runner-handle-close-failed", exc)
+            return False
+        finalizer = getattr(state, "runner_handle_finalizer", None)
+        if finalizer is not None:
+            finalizer.detach()
+        state.runner_identity_handle = None
+        state.runner_handle_finalizer = None
+        return True
 
     def _spawn_handle_exit_evidence(self, state: _TerminalState) -> dict[str, Any]:
         """经身份核验的进程退出证据（close 的第三项证明）。
 
-        优先用**我们派生**的 ``Popen`` 句柄：它就是 ``CreateProcess`` 返回的那一个，
-        对它判活是绑定证据（不是"再查一次 PID"，无PID 复用窗口）。
+        Popen 只在其 PID 等于 bootstrap runner PID 时提供绑定退出证据。
+        Python shim PID 不同时，优先用启动期间核验并保留的真实 runner 句柄。
+        包装进程退出不能证明它的后代已退出。
 
         **本实例不拥有该句柄时**（跨进程重启后的遗留记录）**不造证明**：退回到
         身份三态——只有 ``dead-confirmed``（pid+FILETIME 精确匹配且同 handle
         ``Wait`` 已退出）才算退出证据，并显式标注来源。其余一律"未证明"。
         """
+        handle = getattr(state, "runner_identity_handle", None)
+        if handle is not None:
+            lock = self._runner_identity_lock(state)
+            if not lock.acquire(blocking=False):
+                return {"exited": False, "source": "runner-retained-handle", "detail": "handle-busy"}
+            try:
+                probe = handle.probe()
+                identity = getattr(probe, "identity", None)
+                matches = self._identity_matches(
+                    {"pid": getattr(identity, "pid", None),
+                     "process_created_at_filetime": getattr(identity, "created_at_filetime", None)},
+                    state.runner_pid, state.runner_filetime)
+                exited = matches and getattr(getattr(probe, "status", None), "value", None) == "dead"
+                return {"exited": bool(exited), "source": "runner-retained-handle",
+                        "detail": "same-handle-signaled" if exited else "runner-not-confirmed-dead"}
+            except Exception as exc:
+                self._note_error("runner-handle-probe-failed", exc)
+                return {"exited": False, "source": "runner-retained-handle", "detail": "probe-failed"}
+            finally:
+                lock.release()
         process = state.process
+        if process is not None and not self._identity_matches(
+                {"pid": state.spawn_pid, "process_created_at_filetime": state.runner_filetime},
+                state.runner_pid, state.runner_filetime):
+            identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
+            return {"exited": identity.get("status") == "dead-confirmed",
+                    "source": "runner-identity-probe", "identity_status": identity.get("status"),
+                    "detail": "spawn-pid-not-runner-pid"}
         if process is None:
             identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
             if identity.get("status") == "dead-confirmed":
@@ -1927,6 +2027,9 @@ class TerminalService:
         identity_status = str(identity.get("status") or "")
 
         if handle_exit.get("exited") and identity_status == "dead-confirmed":
+            if not self._release_runner_identity_handle(state):
+                self._mark_unproven(state, "runner-handle-retained", None)
+                return "cleanup-unconfirmed"
             self._mark_persisted(
                 terminal_id,
                 lambda item: self._apply_exited(
@@ -1938,7 +2041,13 @@ class TerminalService:
             self._delete_secret(terminal_id, "reconcile-observed-exit")
             return "dead-confirmed"
 
-        if handle_exit.get("exited"):
+        spawn_finished = False
+        if state.process is not None:
+            try:
+                spawn_finished = state.process.poll() is not None
+            except Exception as exc:
+                self._note_error("spawn-handle-poll-failed", exc)
+        if handle_exit.get("exited") or spawn_finished:
             # 句柄退出但身份未确认终止 → 不写 exited、不删秘密（F1）。
             self._note(
                 "reconcile-handle-exited-identity-not-dead",

@@ -188,7 +188,7 @@ TerminalService(
 | --- | --- |
 | ① runner 收尾确认 | stop 响应 `status == "exited"` |
 | ② launcher 引擎收尾 | `launcher-status/<tid>.json` 的 `engine.cleanup.converged is True` **且** `launcher_identity` 与 hello 自证身份精确一致。**launcher 以 `exit 6`（`LAUNCHER_EXIT_CLEANUP_UNPROVEN`）退出时 `converged` 为 false → 不算成功**（r2 / F1） |
-| ③ 经身份核验的进程退出 | 优先用**我们派生**的 `Popen` 句柄（`CreateProcess` 返回的那一个，绑定证据、无 PID 复用窗口）；**本实例不拥有该句柄时**（跨进程遗留）退回到**身份三态**——只有 `dead-confirmed` 才算，并标注 `source="identity-retained-handle"`；**拿不到就不造证明**（r2 / F3） |
+| ③ 经身份核验的进程退出 | `Popen` 只有在其 PID 精确等于 bootstrap runner PID 时提供该 runner 的绑定退出证据。Python shim PID 不同时，生产启动期间核验并保留真实 runner 句柄（PID+raw FILETIME+ALIVE），关闭时须同句柄 signaled；包装进程退出不算 runner 退出。无自持句柄的跨进程遗留记录仍须身份三态 `dead-confirmed`，UNKNOWN 不造证明。新增句柄 probe/close 非阻塞串行，CloseHandle 失败保 owner、秘密和可重试状态。 |
 
 任一缺失 → 记录停在 `EXITING` / `CLEANUP_FAILED` + **静态分类** reason，**保留**
 owner/record/secret 可重试；**不标 exited/lost**；**绝不使用 `caller_responsible`
