@@ -2,6 +2,9 @@ export interface TerminalView {
   terminal_id: string;
   status: string;
   detached?: boolean;
+  archived?: boolean;
+  cleanup_pending?: boolean;
+  exit?: { code?: number | null; reason?: string | null };
   pid?: number | null;
   scope?: { workspace_id?: string | null; session_id?: string | null };
 }

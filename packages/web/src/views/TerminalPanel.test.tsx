@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TerminalPanel from './TerminalPanel';
 
-const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, removeFails: false, removed: false, listStatus: 'running', binds: 0,
+const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, removeFails: false, removed: false, archived: false, pending: false, scope: {} as { workspace_id?: string | null; session_id?: string | null }, listStatus: 'running', binds: 0,
   changed: (_state: object) => {} }));
 vi.mock('@/services/terminal', () => ({ terminalRequest: fixtures.request }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
@@ -23,9 +23,21 @@ beforeEach(() => {
   fixtures.closeFails = false;
   fixtures.removeFails = false;
   fixtures.removed = false;
+  fixtures.archived = false;
+  fixtures.pending = false;
+  fixtures.scope = {};
   fixtures.listStatus = 'running';
   fixtures.binds = 0;
   fixtures.request.mockReset().mockImplementation(async (suffix = '', body?: object) => {
+    if (suffix.endsWith('/archive')) {
+      fixtures.archived = (body as { archived: boolean }).archived;
+      return { terminal_id: 'term_test', status: fixtures.listStatus, archived: fixtures.archived };
+    }
+    if (suffix.endsWith('/scope')) {
+      const binding = body as { workspace_id?: string; session_id?: string };
+      fixtures.scope = binding.session_id ? { workspace_id: 'ws_session', session_id: binding.session_id } : binding;
+      return { terminal_id: 'term_test', status: fixtures.listStatus, scope: fixtures.scope };
+    }
     if (suffix.endsWith('/remove')) {
       if (fixtures.removeFails) throw new Error('cleanup-unconfirmed');
       fixtures.removed = true;
@@ -36,13 +48,42 @@ beforeEach(() => {
       return { terminal_id: 'term_test', status: 'exited' };
     }
     if (body) return { terminal_id: 'term_test', status: 'running' };
-    return fixtures.removed ? [] : [{ terminal_id: 'term_test', status: fixtures.listStatus }];
+    return fixtures.removed ? [] : [{ terminal_id: 'term_test', status: fixtures.listStatus, archived: fixtures.archived, cleanup_pending: fixtures.pending, scope: fixtures.scope }];
   });
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
   vi.stubGlobal('WebSocket', class {});
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('archives an unconfirmed externally exited record without stopping or deleting it and can restore it', async () => {
+  fixtures.listStatus = 'exited';
+  fixtures.pending = true;
+  render(<TerminalPanel />);
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  expect(screen.getByText(/剩余资源清理尚未确认/)).toBeTruthy();
+  fireEvent.click(screen.getByText('归档终端'));
+  await waitFor(() => expect(screen.queryByRole('option', { name: 'term_test · exited' })).toBeNull());
+  expect(fixtures.request.mock.calls.some(([url]) => /\/(close|remove)$/.test(url))).toBe(false);
+  fireEvent.click(screen.getByLabelText('已归档'));
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  fireEvent.click(screen.getByText('恢复到列表'));
+  await waitFor(() => expect(fixtures.archived).toBe(false));
+});
+
+it('inherits the Session workspace and manual workspace binding clears the Session', async () => {
+  await controlledPanel();
+  fireEvent.change(screen.getByLabelText('关联 Session ID'), { target: { value: 'ses_bound' } });
+  fireEvent.click(screen.getByText('应用绑定'));
+  await waitFor(() => expect((screen.getByLabelText('关联工作区 ID') as HTMLInputElement).value).toBe('ws_session'));
+  expect((screen.getByLabelText('关联 Session ID') as HTMLInputElement).value).toBe('ses_bound');
+  fireEvent.change(screen.getByLabelText('关联工作区 ID'), { target: { value: 'ws_manual' } });
+  expect((screen.getByLabelText('关联 Session ID') as HTMLInputElement).value).toBe('');
+  fireEvent.click(screen.getByText('应用绑定'));
+  await waitFor(() => expect(fixtures.scope).toEqual({ workspace_id: 'ws_manual', session_id: null }));
+});
 
 async function controlledPanel() {
   render(<TerminalPanel />);

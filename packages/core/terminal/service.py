@@ -707,7 +707,7 @@ class TerminalService:
             raise CleanupUnconfirmed("remove-lock-busy")
         try:
             record = self._registry.get(terminal_id)
-            if record.status is not RuntimeState.EXITED:
+            if record.status is not RuntimeState.EXITED or record.cleanup_pending:
                 raise CleanupUnconfirmed("remove-requires-confirmed-exit")
             if self._store().exists(terminal_id):
                 raise CleanupUnconfirmed("remove-secret-retained")
@@ -724,6 +724,20 @@ class TerminalService:
             if state is not None:
                 state.lock.release()
 
+    def archive(self, terminal_id: str, *, archived: bool = True) -> dict[str, Any]:
+        """Hide a record without stopping its process or discarding its owner."""
+        def update(record: TerminalRecord) -> TerminalRecord:
+            record.archived = archived
+            return record
+        return self._view(self._registry.update(terminal_id, update))
+
+    def bind_scope(self, terminal_id: str, *, workspace_id: str | None,
+                   session_id: str | None) -> dict[str, Any]:
+        def update(record: TerminalRecord) -> TerminalRecord:
+            record.scope = TerminalScope(workspace_id=workspace_id, session_id=session_id)
+            return record
+        return self._view(self._registry.update(terminal_id, update))
+
     def _refresh_finished_owner(self, terminal_id: str) -> None:
         """Consume completed browserless cleanup; never start a stop from GET.
 
@@ -732,11 +746,14 @@ class TerminalService:
         """
         with self._global_lock:
             state = self._states.get(terminal_id)
-        if state is None or state.record.status in _TERMINAL_STATUSES:
+        if state is None or (state.record.status in _TERMINAL_STATUSES and not state.record.cleanup_pending):
             return
         if not state.lock.acquire(blocking=False):
             return
         try:
+            if self._spawn_handle_exit_evidence(state).get("exited") is True:
+                self._reconcile_live(state, self._registry.get(terminal_id))
+                return
             if not self._runner_cleanup_record_confirmed(state):
                 return
             evidence = self._launcher_status_evidence(state)
@@ -781,6 +798,8 @@ class TerminalService:
         view: dict[str, Any] = {
             "terminal_id": record.terminal_id,
             "status": record.status.value,
+            "archived": record.archived,
+            "cleanup_pending": record.cleanup_pending,
             "owner": record.owner,
             "rows": int(record.rows),
             "cols": int(record.cols),
@@ -1548,6 +1567,11 @@ class TerminalService:
             }
         try:
             if state.record.status is RuntimeState.EXITED:
+                if state.record.cleanup_pending:
+                    self._reconcile_live(state, self._registry.get(terminal_id))
+                    if state.record.cleanup_pending:
+                        return {"terminal_id": terminal_id, "status": "cleanup-failed",
+                                "missing": "exited-cleanup-unconfirmed"}
                 return {"terminal_id": terminal_id, "status": "exited", "reason": "already-exited"}
             # ① 先记录 CLOSING（映射既有合法枚举 EXITING；不引入新枚举值）。
             try:
@@ -2020,6 +2044,7 @@ class TerminalService:
     @staticmethod
     def _apply_exited(record: TerminalRecord, *, reason: str, exit_code: int | None) -> TerminalRecord:
         record.status = RuntimeState.EXITED
+        record.cleanup_pending = False
         record.exit_reason = str(reason)
         record.exit_code = exit_code
         record.detached = False
@@ -2117,7 +2142,7 @@ class TerminalService:
         }
 
     def _reconcile_one(self, record: TerminalRecord) -> str:
-        if record.status in _TERMINAL_STATUSES:
+        if record.status in _TERMINAL_STATUSES and not record.cleanup_pending:
             return "already-terminal"
         terminal_id = record.terminal_id
         with self._global_lock:
@@ -2132,11 +2157,11 @@ class TerminalService:
 
         **F1（核心纪律）**：我们派生的进程句柄退出**不是**整树终止证明。launcher
         可能以 ``exit 6``（引擎收尾未确证）退出，shim 场景下句柄 pid 还可能
-        **不是** runner pid。因此写 ``exited`` / 删秘密**必须**以 **runner 身份
-        三态 = dead-confirmed** 为门：
+        **不是** runner pid。显示 ``exited`` 必须有身份绑定的死亡证明；
+        删除秘密还必须有 runner 整树和引擎的清理确认：
 
         - 身份 ``dead-confirmed``（pid + FILETIME 均精确匹配且已退出）→ 才补记
-          ``exited`` 并删秘密；
+          ``exited``；缺清理确认则置 ``cleanup_pending`` 并保留秘密；
         - 身份 ``alive`` → 记``cleanup-unconfirmed``，**保秘密 + 保记录**
           （launcher 走了但 runner 仍活着；删秘密不可逆）；
         - 身份 ``unattributable``（UNKNOWN / PID 或 FILETIME 不符）→ 同样
@@ -2147,19 +2172,29 @@ class TerminalService:
         identity = self._identity_evidence(state.runner_pid, state.runner_filetime)
         identity_status = str(identity.get("status") or "")
 
-        if handle_exit.get("exited") and identity_status == "dead-confirmed":
-            if not self._release_runner_identity_handle(state):
-                self._mark_unproven(state, "runner-handle-retained", None)
-                return "cleanup-unconfirmed"
-            self._mark_persisted(
-                terminal_id,
-                lambda item: self._apply_exited(
-                    item, reason=str(item.exit_reason or "observed-exit"), exit_code=None
-                ),
-            )
-            self._release_client(state)
-            self._stop_heartbeat(state)
-            self._delete_secret(terminal_id, "reconcile-observed-exit")
+        # This evidence already checks the original retained handle AND identity.
+        # A fresh OpenProcess failure must not override its signaled result.
+        if (handle_exit.get("exited") is True and
+                (handle_exit.get("source") == "runner-retained-handle"
+                 or identity_status == "dead-confirmed")):
+            engine = self._launcher_status_evidence(state)
+            proven = (self._runner_cleanup_record_confirmed(state)
+                      and engine.get("engine_converged") is True)
+            if proven and self._release_runner_identity_handle(state):
+                self._finalize_exited(state, reason="observed-exit", evidence={
+                    "process_exit": handle_exit, "runner_exit": self._finished_runtime_exit(state)})
+            else:
+                def observed(record: TerminalRecord) -> TerminalRecord:
+                    record.status = RuntimeState.EXITED
+                    record.cleanup_pending = True
+                    record.detached = False
+                    record.exit_reason = "externally-terminated"
+                    return record
+                self._registry.update(terminal_id, observed)
+                self._release_client(state)
+                self._stop_heartbeat(state)
+                self._attachments().revoke_all(terminal_id)
+            self._sync_state_record(state)
             return "dead-confirmed"
 
         spawn_finished = False
@@ -2201,10 +2236,20 @@ class TerminalService:
             return "unattributable"
         evidence = self._identity_evidence(record.pid, record.process_created_at_filetime)
         if evidence["status"] == "dead-confirmed":
-            self._mark_persisted(terminal_id, lambda item: self._apply_exited(
-                item, reason=str(item.exit_reason or "observed-exit"), exit_code=None
-            ))
-            self._delete_secret(terminal_id, "reconcile-observed-exit")
+            # Root death is not proof that its whole process tree was cleaned.
+            state = _TerminalState(terminal_id=terminal_id, record=record)
+            state.runner_pid = record.pid
+            state.runner_filetime = record.process_created_at_filetime
+            proven = (self._runner_cleanup_record_confirmed(state)
+                      and self._launcher_status_evidence(state).get("engine_converged") is True)
+            def mark(item):
+                item.status = RuntimeState.EXITED
+                item.cleanup_pending = not proven
+                item.detached = False
+                item.exit_reason = "observed-exit" if proven else "externally-terminated"
+            self._mark_persisted(terminal_id, mark)
+            if proven:
+                self._delete_secret(terminal_id, "reconcile-observed-exit")
             return "dead-confirmed"
         if evidence["status"] == "unattributable":
             # 身份未知/错配：**零终止**、保留记录与秘密（不冒充恢复、不删凭据）。

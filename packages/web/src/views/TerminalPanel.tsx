@@ -12,6 +12,7 @@ const initial: TerminalState = { connected: false, control: false, recovering: t
 
 export default function TerminalPanel() {
   const [records, setRecords] = useState<TerminalView[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [selected, setSelected] = useState('');
   const [cwd, setCwd] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -28,6 +29,21 @@ export default function TerminalPanel() {
     catch (reason) { setError(reason instanceof Error ? reason.message : '终端列表不可用'); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const timer = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(timer);
+  }, [refresh]);
+  const selectedRecord = records.find((record) => record.terminal_id === selected);
+  const ended = selectedRecord?.status === 'exited' || selectedRecord?.status === 'lost';
+  useEffect(() => {
+    if (selectedRecord?.status === 'exited') {
+      setState((previous) => previous.terminalStatus === 'exited' ? previous : {
+        ...previous, connected: false, control: false, recovering: false, terminalStatus: 'exited',
+        message: selectedRecord.exit?.reason === 'externally-terminated'
+          ? '进程已被外部终止；可以归档记录。' : '终端已退出。',
+      });
+    }
+  }, [selectedRecord]);
 
   useEffect(() => {
     if (!selected || !element.current) return;
@@ -99,6 +115,9 @@ export default function TerminalPanel() {
       await refresh();
       endedSelection.current = undefined;
       setSelected(view.terminal_id);
+      setWorkspaceId(view.scope?.workspace_id || '');
+      setSessionId(view.scope?.session_id || '');
+      setShowArchived(false);
     } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); }
     finally { setBusy(false); }
   }
@@ -125,7 +144,7 @@ export default function TerminalPanel() {
     setBusy(true);
     try {
       const id = selected;
-      if (!ended) await terminalRequest(`/${encodeURIComponent(id)}/close`, {});
+      if (!ended || record.cleanup_pending) await terminalRequest(`/${encodeURIComponent(id)}/close`, {});
       const result = await terminalRequest<{ removed: boolean }>(`/${encodeURIComponent(id)}/remove`, {});
       if (result.removed !== true) throw new Error('删除未确认；记录已保留，请刷新后重试');
       setRecords((items) => items.filter((item) => item.terminal_id !== id));
@@ -140,45 +159,73 @@ export default function TerminalPanel() {
     } finally { setBusy(false); }
   }
 
+  async function metadata(action: 'archive' | 'scope') {
+    if (!selected || busy) return;
+    if (action === 'archive' && !selectedRecord?.archived && !window.confirm(
+      '归档仅从默认列表移除，不终止进程；清理线索会保留，可从“已归档”恢复。')) return;
+    setBusy(true);
+    try {
+      const view = await terminalRequest<TerminalView>(`/${encodeURIComponent(selected)}/${action}`,
+        action === 'archive' ? { archived: !selectedRecord?.archived }
+          : { workspace_id: workspaceId || null, session_id: sessionId || null });
+      if (action === 'scope') {
+        setWorkspaceId(view.scope?.workspace_id || '');
+        setSessionId(view.scope?.session_id || '');
+      } else {
+        setSelected(''); setState(initial); endedSelection.current = undefined;
+      }
+      await refresh();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '操作失败，记录已保留'); }
+    finally { setBusy(false); }
+  }
+
   return <section className="flex flex-col flex-1 min-h-0 p-3 gap-2" aria-label="全局终端">
-    <header className="flex flex-wrap items-center gap-2">
-      <h1 className="font-semibold">全局终端</h1>
+    <header className="flex flex-wrap items-center gap-2 rounded-xl border border-border-default bg-bg-secondary p-3">
+      <h1 className="font-semibold mr-2">全局终端 <span className="text-xs font-normal text-text-tertiary">{records.filter(record => !record.archived).length} 个未归档 · {records.filter(record => record.archived).length} 个已归档</span></h1>
       <input aria-label="工作目录" placeholder="工作目录（留空用默认值）" value={cwd} onChange={(event) => setCwd(event.target.value)}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
-      <input aria-label="关联工作区 ID" placeholder="关联工作区 ID（可选）" value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)}
+      <input aria-label="关联工作区 ID" placeholder="工作区 ID（解除 Session 绑定）" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setSessionId(''); }}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
-      <input aria-label="关联 Session ID" placeholder="关联 Session ID（可选）" value={sessionId} onChange={(event) => setSessionId(event.target.value)}
+      <input aria-label="关联 Session ID" placeholder="Session ID（继承其工作区）" value={sessionId} onChange={(event) => { setSessionId(event.target.value); if (event.target.value) setWorkspaceId(''); }}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1 text-sm" />
       <button disabled={busy} onClick={() => void create()} className="px-2 py-1 rounded bg-accent/20">新建终端</button>
       <button onClick={() => void refresh()} className="px-2 py-1">刷新列表</button>
+      <button disabled={!selected || busy} onClick={() => void metadata('scope')} className="px-2 py-1 rounded border border-border-default">应用绑定</button>
     </header>
-    <div className="flex flex-wrap gap-2 items-center">
+    <div className="flex flex-wrap gap-3 items-center rounded-xl border border-border-default p-3 text-sm [&>button]:px-2 [&>button]:py-1 [&>button]:rounded [&>button:disabled]:opacity-40">
+      <label className="flex items-center gap-1 text-text-secondary"><input type="checkbox" checked={showArchived} onChange={(event) => {
+        setShowArchived(event.target.checked); setSelected(''); setState(initial); endedSelection.current = undefined;
+      }} />已归档</label>
       <select aria-label="选择终端" value={selected} onChange={(event) => {
         const selectedRecord = records.find(record => record.terminal_id === event.target.value);
         endedSelection.current = selectedRecord && ['exited', 'lost'].includes(selectedRecord.status) ? selectedRecord.status : undefined;
+        setWorkspaceId(selectedRecord?.scope?.workspace_id || '');
+        setSessionId(selectedRecord?.scope?.session_id || '');
         setSelected(event.target.value); setState(initial);
       }}
         className="bg-bg-tertiary border border-border-default rounded px-2 py-1">
         <option value="">选择终端</option>
-        {records.map((record) => <option key={record.terminal_id} value={record.terminal_id}>
+        {records.filter(record => Boolean(record.archived) === showArchived).map((record) => <option key={record.terminal_id} value={record.terminal_id}>
           {record.terminal_id} · {record.status}{record.detached ? ' · detached' : ''}
           {record.scope?.workspace_id ? ` · 工作区 ${record.scope.workspace_id}` : ''}
           {record.scope?.session_id ? ` · Session ${record.scope.session_id}` : ''}
         </option>)}
       </select>
-      <button disabled={!selected || state.control || !state.connected} onClick={() => stream.current?.claim()}>取得输入控制权</button>
+      <button disabled={!selected || ended || state.control || !state.connected} onClick={() => stream.current?.claim()}>取得输入控制权</button>
       <button disabled={!state.control} onClick={() => stream.current?.release()}>释放控制权</button>
-      <button disabled={!selected || !state.connected} onClick={() => stream.current?.snapshot()}>重取服务器屏幕</button>
-      <button disabled={!selected || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => { setState(initial); setRevision((value) => value + 1); }}>重连</button>
-      <button disabled={!selected || busy || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => void lifecycle('detach')}>持久脱离</button>
+      <button disabled={!selected || ended || !state.connected} onClick={() => stream.current?.snapshot()}>重取服务器屏幕</button>
+      <button disabled={!selected || ended || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => { setState(initial); setRevision((value) => value + 1); }}>重连</button>
+      <button disabled={!selected || busy || ended || state.terminalStatus === 'exited' || state.terminalStatus === 'lost'} onClick={() => void lifecycle('detach')}>持久脱离</button>
       <button disabled={!selected || busy} onClick={() => void lifecycle('close')} className="text-red-400">终止终端</button>
       <button disabled={!selected || busy} onClick={() => void remove()} className="text-red-400">删除终端</button>
+      <button disabled={!selected || busy} onClick={() => void metadata('archive')}>{selectedRecord?.archived ? '恢复到列表' : '归档终端'}</button>
     </div>
     <p role="status" className="text-xs text-text-secondary">{state.control ? '控制模式' : '只观察'} · {state.message}</p>
     <p className="text-xs text-text-tertiary">屏幕恢复范围：{state.recovery || '未确认'}（控制权变化不会升级屏幕保真）</p>
     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
+    {selectedRecord?.cleanup_pending && <p className="text-xs rounded border border-amber-500/30 bg-amber-500/10 p-2 text-amber-400">进程已退出，剩余资源清理尚未确认。可以归档或重试清理；归档不等于资源已释放。</p>}
     <div ref={element} className="flex-1 min-h-40 min-w-0 overflow-hidden rounded bg-[#15171b] p-2" data-testid="terminal-screen" />
     <p className="text-xs text-text-tertiary">离开本页或断线不会终止进程。屏幕恢复按服务器声明，partial 不等于完整保真；Ctrl-C 转交前台程序，具体响应由程序决定。</p>
-    <p className="text-xs text-text-tertiary">关联 ID 仅为元数据，不授予权限，也不改变终端寿命。</p>
+    <p className="text-xs text-text-tertiary">绑定 Session 时继承其有效工作区；手动绑定工作区会解除 Session 绑定。归档保留记录，删除仅用于已确认清理的终端。绑定不授予权限，也不改变终端寿命。</p>
   </section>;
 }

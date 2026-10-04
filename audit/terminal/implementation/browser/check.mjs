@@ -54,7 +54,7 @@ try {
   });
   await page.goto(`http://127.0.0.1:${port}/react/terminals`);
   await page.getByLabel('关联工作区 ID').fill('browser-workspace-metadata');
-  await page.getByLabel('关联 Session ID').fill('browser-session-metadata');
+  // Session binding now requires a real Session; arbitrary metadata ids are rejected.
   await page.getByRole('button', { name: '新建终端', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[aria-label="选择终端"]')?.value.startsWith('term_'), null, { timeout: 30000 });
   const id = await page.getByLabel('选择终端').inputValue();
@@ -117,7 +117,7 @@ try {
   assert.equal(view.ok, true);
   assert.equal(view.result.status, 'running');
   assert.equal(view.result.scope.workspace_id, 'browser-workspace-metadata');
-  assert.equal(view.result.scope.session_id, 'browser-session-metadata');
+  assert.equal(view.result.scope.session_id, null);
   report.optionalMetadataVerified = true;
   report.twoConnectionTakeover = true;
   report.disconnectPreservedRuntime = true;

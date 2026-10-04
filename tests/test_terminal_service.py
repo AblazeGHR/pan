@@ -977,7 +977,8 @@ def test_reconcile_dead_confirmed_with_matching_identity(tmp_path):
     result = service.reconcile()
     assert result["counts"]["dead-confirmed"] == 1
     assert service.get(terminal_id)["status"] == RuntimeState.EXITED.value
-    assert service._store().deleted, "已证明终止才删秘密"
+    assert service.get(terminal_id)["cleanup_pending"] is True
+    assert service._store().deleted == [], "根进程死亡不证明整树清理，不删凭据"
 
 
 def test_reconcile_separates_unconfirmed_cleanup(tmp_path):

@@ -816,6 +816,8 @@ def project_view(raw: Mapping[str, Any]) -> dict[str, Any]:
         if key in raw:
             out[key] = raw[key]
     scope = raw.get("scope")
+    out["archived"] = raw.get("archived") is True
+    out["cleanup_pending"] = raw.get("cleanup_pending") is True
     if isinstance(scope, Mapping):
         out["scope"] = {
             "workspace_id": scope.get("workspace_id"),
@@ -1125,13 +1127,14 @@ async def create_terminal(request: Request) -> JSONResponse:
     assert runtime is not None
 
     def handler() -> Any:
+        bound_workspace, bound_session = resolve_terminal_scope(workspace_id, session_id)
         return project_view(
             runtime.service.create(
                 rows=int(rows),
                 cols=int(cols),
                 cwd=cwd,
-                workspace_id=workspace_id,
-                session_id=session_id,
+                workspace_id=bound_workspace,
+                session_id=bound_session,
                 # 固定上下文：来自通过入口检查的本地信任面；不从 session_id 推断。
                 context=WEB_LOCAL_CONTEXT,
             )
@@ -1216,6 +1219,50 @@ async def close_terminal(terminal_id: str, request: Request) -> JSONResponse:
         runtime,
         lambda: project_view(runtime.service.close(terminal_id, reason="explicit-close")),
     )
+
+
+def resolve_terminal_scope(workspace_id: str | None, session_id: str | None) -> tuple[str | None, str | None]:
+    if session_id:
+        from packages.core import session
+        target = session.get(session_id, load_history=False)
+        if target is None:
+            raise GateRejected(422, "unknown-session")
+        workspaces = session.effective_workspace_ids(target)
+        return (workspaces[0] if workspaces else None), session_id
+    return workspace_id, None
+
+
+@router.post("/{terminal_id}/archive")
+@router.post("/{terminal_id}/scope")
+async def update_terminal_metadata(terminal_id: str, request: Request) -> JSONResponse:
+    runtime, denied = _enter(request)
+    if denied is not None:
+        return denied
+    invalid = _id_or_error(terminal_id)
+    if invalid is not None:
+        return invalid
+    payload, bad_body = await _body_or_error(request, allow_empty=True)
+    if bad_body is not None:
+        return bad_body
+    assert runtime is not None and payload is not None
+    if request.url.path.endswith("/archive"):
+        if set(payload) - {"archived"} or type(payload.get("archived", True)) is not bool:
+            return fail(422, "invalid-archive")
+        return await _execute(runtime, lambda: project_view(runtime.service.archive(
+            terminal_id, archived=payload.get("archived", True))))
+    if set(payload) - {"workspace_id", "session_id"}:
+        return fail(422, "unknown-field")
+    workspace_id, error = _optional_string_field(payload, "workspace_id")
+    if error:
+        return fail(422, error)
+    session_id, error = _optional_string_field(payload, "session_id")
+    if error:
+        return fail(422, error)
+
+    def handler() -> dict[str, Any]:
+        workspace, target = resolve_terminal_scope(workspace_id, session_id)
+        return project_view(runtime.service.bind_scope(terminal_id, workspace_id=workspace, session_id=target))
+    return await _execute(runtime, handler)
 
 
 @router.post("/{terminal_id}/remove")

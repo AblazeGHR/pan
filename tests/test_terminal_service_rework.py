@@ -152,8 +152,8 @@ def test_f1_reconcile_live_unknown_identity_keeps_secret(tmp_path):
     service.shutdown(budget=5.0)
 
 
-def test_f1_reconcile_live_dead_identity_is_the_only_delete_path(tmp_path):
-    """F1 反向：身份**精确匹配且已死**才允许 dead-confirmed + 删秘密。"""
+def test_f1_reconcile_live_dead_identity_preserves_unconfirmed_tree(tmp_path):
+    """根进程死亡可显示 exited，但整树未确认时保留凭据。"""
     process = _FakeProcess()
     process.exit(0)
     probes: dict[int, Any] = {}
@@ -173,7 +173,8 @@ def test_f1_reconcile_live_dead_identity_is_the_only_delete_path(tmp_path):
     result = service.reconcile()
     assert result["counts"]["dead-confirmed"] == 1
     assert service.get(terminal_id)["status"] == RuntimeState.EXITED.value
-    assert service._store().deleted, "唯一允许删秘密的路径"
+    assert service.get(terminal_id)["cleanup_pending"] is True
+    assert service._store().deleted == [], "不能把根进程死亡当作整树清理证明"
 
 
 def test_f1_identity_evidence_requires_pid_and_filetime_match(tmp_path):

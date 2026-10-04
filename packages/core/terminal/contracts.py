@@ -478,6 +478,9 @@ class TerminalRecord:
     lease_grace_seconds: float | None = None
     created_by: str | None = None
 
+    archived: bool = False
+    cleanup_pending: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": 1,
@@ -497,6 +500,8 @@ class TerminalRecord:
             "exit": {"code": self.exit_code, "reason": self.exit_reason},
             "lease_grace_seconds": self.lease_grace_seconds,
             "created_by": self.created_by,
+            "archived": self.archived,
+            "cleanup_pending": self.cleanup_pending,
         }
 
     @classmethod
@@ -524,6 +529,8 @@ class TerminalRecord:
             exit_reason=exit_info.get("reason"),
             lease_grace_seconds=data.get("lease_grace_seconds"),
             created_by=data.get("created_by"),
+            archived=data.get("archived") is True,
+            cleanup_pending=data.get("cleanup_pending") is True,
         )
 
 

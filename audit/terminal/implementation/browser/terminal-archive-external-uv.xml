@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="19" time="7.781" timestamp="2026-10-05T01:41:28.317847+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_archive_scope_ma" name="test_archive_roundtrip_preserves_owner_secret_and_scope[running]" time="0.014" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_archive_roundtrip_preserves_owner_secret_and_scope[cleanup-failed]" time="0.009" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_archive_roundtrip_preserves_owner_secret_and_scope[exited]" time="0.008" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_old_record_defaults_and_binding_roundtrip" time="0.008" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_session_binding_uses_effective_workspace_and_unknown_fails" time="0.002" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_retained_death_wins_over_fresh_unknown_but_cleanup_is_separate[False]" time="0.008" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_retained_death_wins_over_fresh_unknown_but_cleanup_is_separate[True]" time="0.010"><failure message="assert False is True&#10; +  where False = bool([])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-1860/test_retained_death_wins_over_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000150C1D3CB30&gt;
+proven = True
+
+    @pytest.mark.parametrize("proven", [False, True])
+    def test_retained_death_wins_over_fresh_unknown_but_cleanup_is_separate(tmp_path, monkeypatch, proven):
+        service = TerminalService(tmp_path)
+        record = service._registry.create(TerminalRecord(terminal_id="term_dead", status=RuntimeState.RUNNING))
+        state = _TerminalState(terminal_id=record.terminal_id, record=record)
+        service._states[record.terminal_id] = state
+        monkeypatch.setattr(service, "_spawn_handle_exit_evidence", lambda _s: {"exited": True, "source": "runner-retained-handle"})
+        monkeypatch.setattr(service, "_identity_evidence", lambda *_args: {"status": "unattributable"})
+        monkeypatch.setattr(service, "_runner_cleanup_record_confirmed", lambda _s: proven)
+        monkeypatch.setattr(service, "_launcher_status_evidence", lambda _s: {"engine_converged": proven})
+        monkeypatch.setattr(service, "_secret_present", lambda _id: True)
+        deleted = []
+        monkeypatch.setattr(service, "_delete_secret", lambda *args: deleted.append(args))
+        assert service._reconcile_live(state, record) == "dead-confirmed"
+        view = service.get(record.terminal_id)
+        assert view["status"] == "exited"
+        assert view["cleanup_pending"] is (not proven)
+&gt;       assert bool(deleted) is proven
+E       assert False is True
+E        +  where False = bool([])
+
+tests\test_terminal_archive_scope_ma.py:78: AssertionError</failure></testcase><testcase classname="tests.test_terminal_archive_scope_ma" name="test_real_external_kill_is_exited_and_archivable" time="2.330" /><testcase classname="tests.test_terminal_archive_scope_ma" name="test_archive_and_scope_http_gates_and_binding" time="0.054" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_preserves_unconfirmed_records[running]" time="0.010" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_preserves_unconfirmed_records[exiting]" time="0.013" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_preserves_unconfirmed_records[cleanup-failed]" time="0.009" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_preserves_unconfirmed_records[lost]" time="0.009" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_exited_record_and_reject_retained_secret" time="0.019" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_retains_in_memory_cleanup_owner" time="0.005" /><testcase classname="tests.test_terminal_remove_ma" name="test_remove_http_gate_body_and_confirmed_result" time="0.010" /><testcase classname="tests.test_terminal_remove_ma" name="test_real_close_then_remove" time="4.522" /><testcase classname="tests.test_terminal_service" name="test_reconcile_dead_confirmed_with_matching_identity" time="0.025" /><testcase classname="tests.test_terminal_service_rework" name="test_f1_reconcile_live_dead_identity_preserves_unconfirmed_tree" time="0.038" /></testsuite></testsuites>

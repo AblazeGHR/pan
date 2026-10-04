@@ -49,6 +49,8 @@ _RECORD_KEYS = {
     "exit",
     "lease_grace_seconds",
     "created_by",
+    "archived",
+    "cleanup_pending",
 }
 
 _CHILD_SCRIPT = r"""
