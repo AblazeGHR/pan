@@ -944,6 +944,13 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       // but intentionally returns an empty string from getData(). Keep the
       // source payload here so a node can still be dropped into the editor.
       activeDragPayloadRef.current = payload;
+      // Starting a drag is a new suppression lifecycle: cancel any pending
+      // reset from a previous drag so a late timer can never un-suppress an
+      // in-flight drag.
+      if (attachmentDraggedResetTimerRef.current !== null) {
+        clearTimeout(attachmentDraggedResetTimerRef.current);
+        attachmentDraggedResetTimerRef.current = null;
+      }
       attachmentDraggedRef.current = true;
     };
 

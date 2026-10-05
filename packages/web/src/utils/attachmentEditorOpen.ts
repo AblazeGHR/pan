@@ -66,8 +66,21 @@ export async function openComposerAttachmentInEditor(
       ? { ...target.location, path: metadata.path }
       : undefined;
     const opened = await useEditorStore.getState().openFile(metadata.path, location);
+    // openFile's own request-generation guard (isCurrentOpenRequest) rejects
+    // reads whose editor root changed mid-flight, but it only watches the
+    // editor store: a Session switch whose setRoot has not landed yet would
+    // still let openFile resolve true. Re-validate both identities directly;
+    // no await sits between this check and navigate, so the decision is
+    // atomic with the navigation itself.
+    if (
+      useSessionStore.getState().currentSessionId !== context.sessionId
+      || useEditorStore.getState().sessionId !== context.sessionId
+    ) return;
     if (opened) context.navigate('/editor');
   } catch (error) {
+    // A lookup that fails after switching Sessions must not surface as a
+    // toast in the Session the user moved to.
+    if (useSessionStore.getState().currentSessionId !== context.sessionId) return;
     useUIStore.getState().showToast(
       `打开文件失败：${error instanceof Error ? error.message : '附件引用已失效'}`,
       'error',

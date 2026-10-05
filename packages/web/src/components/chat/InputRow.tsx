@@ -908,6 +908,31 @@ export function InputRow() {
       attachmentChipDraggedResetRef.current = null;
     }, 0);
   }, []);
+  const beginAttachmentChipDragSuppression = useCallback(() => {
+    // Starting a drag is a new suppression lifecycle: cancel any pending
+    // reset from a previous drag so a late timer can never un-suppress an
+    // in-flight drag.
+    if (attachmentChipDraggedResetRef.current !== null) {
+      clearTimeout(attachmentChipDraggedResetRef.current);
+      attachmentChipDraggedResetRef.current = null;
+    }
+    attachmentChipDraggedRef.current = true;
+  }, []);
+  // Fallback for chip drags whose dragend never reaches the chip element
+  // (source node removed, drop elsewhere) and unmount cleanup for the timer.
+  useEffect(() => {
+    const clear = () => clearAttachmentChipDragSuppression();
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+      if (attachmentChipDraggedResetRef.current !== null) {
+        clearTimeout(attachmentChipDraggedResetRef.current);
+        attachmentChipDraggedResetRef.current = null;
+      }
+    };
+  }, [clearAttachmentChipDragSuppression]);
 
   // Short click on a composer attachment (inline node or standalone chip)
   // opens the underlying file through the existing Editor flow. Uploading,
@@ -1571,7 +1596,7 @@ export function InputRow() {
                   }
                   onDragStart={(event) => {
                     if (attachment.status !== 'ready' || !attachment.href) return;
-                    attachmentChipDraggedRef.current = true;
+                    beginAttachmentChipDragSuppression();
                     writePanAttachmentPayload(event.dataTransfer, {
                       displayName: attachment.displayName,
                       href: attachment.href,
