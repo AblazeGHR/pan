@@ -23,8 +23,15 @@ function label(item: AgentQueueItem): string {
 }
 
 /** Read-only full-text preview of a single queued message. Reuses the shared
- *  Modal (Escape / close button / click-outside) and the clipboard helper. */
-function QueueMessagePreview({ item, onClose }: { item: AgentQueueItem; onClose: () => void }) {
+ *  Modal (Escape / close button / click-outside) and the clipboard helper.
+ *  编辑入口走既有 startEdit 流程（确认设置 + 编辑锁完整正文），预览文本
+ *  （可能为截断预览）绝不会作为编辑正文传入主输入框。 */
+function QueueMessagePreview({ item, canEdit, onEdit, onClose }: {
+  item: AgentQueueItem;
+  canEdit: boolean;
+  onEdit: (item: AgentQueueItem) => void;
+  onClose: () => void;
+}) {
   const showToast = useUIStore((state) => state.showToast);
   const [copied, setCopied] = useState(false);
 
@@ -55,6 +62,12 @@ function QueueMessagePreview({ item, onClose }: { item: AgentQueueItem; onClose:
           {item.text}
         </div>
         <div className="flex justify-end gap-2">
+          {canEdit && (
+            <button type="button" onClick={() => onEdit(item)} className={PREVIEW_PRIMARY}>
+              <Pencil size={14} />
+              编辑
+            </button>
+          )}
           <button type="button" onClick={handleCopy} className={PREVIEW_PRIMARY}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? '已复制' : '复制'}
@@ -217,7 +230,19 @@ export function SendQueuePanel() {
           }}>确认</Button>
         </div>
       </Modal>
-      {preview && <QueueMessagePreview item={preview} onClose={() => setPreview(null)} />}
+      {preview && (
+        <QueueMessagePreview
+          item={preview}
+          canEdit={!!sessionId && !edit && !readonlySession && preview.meta?.dispatchState === 'queued'}
+          onEdit={(item) => {
+            // 先关阅读窗再进入既有编辑流程；lease/确认失败时 toast 可观察，
+            // 队列原文仍在服务端与面板行中，不会丢失。
+            setPreview(null);
+            void requestEdit(item);
+          }}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </div>
   );
 }

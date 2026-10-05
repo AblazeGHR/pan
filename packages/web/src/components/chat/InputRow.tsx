@@ -67,6 +67,9 @@ const PILL_CLASS =
 
 const DROPDOWN_ITEM = 'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
 
+// 队列编辑固定无附件：正文事务只允许改 text 片段，附件字段保持原样。
+const QUEUE_EDIT_ATTACHMENTS: never[] = [];
+
 // ── helpers ──
 
 function supportsSetting(config: AdapterConfig | null, name: string): boolean {
@@ -449,18 +452,53 @@ export function InputRow() {
     const q = s.queues[currentSessionId];
     return q?.filter((item) => item.meta?.dispatchState === 'queued').length ?? 0;
   });
+  // 红色指示复用真实队列锁语义（manual / auto-report 均落在 meta.locked）：
+  // 队列非空且每一条待发消息都带锁时为全锁；不使用 running/paused 等运行态。
+  const queueAllLocked = useQueueStore((s) => {
+    if (!currentSessionId) return false;
+    const queued = s.queues[currentSessionId]?.filter(
+      (item) => item.meta?.dispatchState === 'queued',
+    );
+    return !!queued && queued.length > 0 && queued.every((item) => item.meta?.locked === true);
+  });
   const queueEdit = useQueueStore((s) => currentSessionId ? s.edits[currentSessionId] : null);
   const queueEditActive = !!queueEdit;
   const saveQueueEdit = useQueueStore((s) => s.saveEdit);
   const cancelQueueEdit = useQueueStore((s) => s.cancelEdit);
   const updateQueueEdit = useQueueStore((s) => s.updateEditDraft);
+  // 队列编辑复用与普通输入一致的 RichTextComposer；正文/附件事务与普通草稿隔离。
+  const queueComposerRef = useRef<RichTextComposerHandle | null>(null);
+  const queueComposerFocusTokenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!queueEdit || queueEdit.acquiring) return;
+    const focusToken = queueEdit.editToken ?? null;
+    if (queueComposerFocusTokenRef.current === focusToken) return;
+    queueComposerFocusTokenRef.current = focusToken;
+    queueComposerRef.current?.focus();
+  }, [queueEdit]);
+  const handleQueueComposerChange = useCallback(
+    (value: ComposerValue) => updateQueueEdit(value.text),
+    [updateQueueEdit],
+  );
+  const handleQueueComposerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.nativeEvent.isComposing) return;
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        saveQueueEdit();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelQueueEdit();
+      }
+    },
+    [saveQueueEdit, cancelQueueEdit],
+  );
   useEffect(() => {
     if (!queueEditActive) return;
     setAttachmentMenuOpen(false);
     setAttachmentBrowserOpen(false);
     setSettingsOpen(false);
   }, [queueEditActive]);
-  const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
@@ -1519,26 +1557,50 @@ export function InputRow() {
       </div>
 
       {queueEdit && (
-        <div data-testid="queue-composer-edit" className="flex shrink-0 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
+        <div data-testid="queue-composer-edit" className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
           <p className="text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
           {queueEdit.acquiring && <p className="text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
+          {queueEdit.saving && <p className="text-xs text-text-secondary">正在保存…</p>}
           {queueEdit.bodyFormat === 'json' && <p className="text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
           {queueEdit.bodyFormat === 'parts' && <p className="text-xs text-text-secondary">此消息含附件；仅修改 text 类型片段的 text/value 正文。请保留全部片段、顺序和附件字段。</p>}
           {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
-          <div className="flex gap-2">
-            <textarea key={`${currentSessionId}:${queueEdit.editToken}`} autoFocus aria-label="队列消息正文"
-              value={queueEdit.text} rows={5} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing}
-              onChange={(event) => updateQueueEdit(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
-                if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveQueueEdit(); }
-                else if (event.key === 'Escape') { event.preventDefault(); cancelQueueEdit(); }
-              }} className="min-w-0 flex-1 resize-y rounded border border-accent bg-bg-secondary p-2 text-sm text-text-primary" />
-            <div className="flex items-end gap-1">
-              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
-                onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
-              <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
-                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+          <div className={`flex min-h-24 min-w-0 flex-1 gap-2 ${queueEdit.saving || queueEdit.releasing ? 'pointer-events-none opacity-60' : ''}`}>
+            {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
+                绝不把面板里的截断预览当作编辑正文。 */}
+            {!queueEdit.acquiring && (
+              <RichTextComposer
+                key={`queue-edit:${currentSessionId ?? 'no-session'}:${queueEdit.editToken ?? 'none'}`}
+                ref={queueComposerRef}
+                editorTestId="queue-rich-text-composer"
+                initialText={queueEdit.text}
+                attachments={QUEUE_EDIT_ATTACHMENTS}
+                sessionId={currentSessionId || undefined}
+                onChange={handleQueueComposerChange}
+                onAttachmentDrop={() => null}
+                onNativeInputIssue={() => showToast('队列编辑模式下不能添加附件', 'error')}
+                onRemoveAttachment={() => {}}
+                onKeyDown={handleQueueComposerKeyDown}
+              />
+            )}
+            <div className="flex shrink-0 flex-col items-end gap-1 self-stretch">
+              {isMobile && (
+                <button
+                  type="button"
+                  data-testid="queue-edit-fullscreen"
+                  aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  onClick={() => setMobileFullscreen((current) => !current)}
+                  className="flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                >
+                  {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
+                </button>
+              )}
+              <div className="mt-auto flex items-center gap-1">
+                <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
+                  onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+                <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
+                  onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1572,21 +1634,16 @@ export function InputRow() {
                   />
                 </div>
                 <div className="relative">
-                  {queuedWhileBusy && (
-                    <span
-                      data-testid="queued-while-busy"
-                      className="mr-1 hidden text-xs text-accent md:inline"
-                      title="Worker 正在处理上一条任务，当前消息将在之后处理"
-                    >
-                      排队中
-                    </span>
-                  )}
                   <button
                     id="send-queue-button"
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     aria-label={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
-                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${queueAllLocked
+                      ? 'border-danger/60 bg-danger/10 text-danger hover:bg-danger/15'
+                      : panelOpen
+                        ? 'border-accent/50 bg-accent/10 text-accent'
+                        : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                   >
                     <ChevronUp
                       size={14}

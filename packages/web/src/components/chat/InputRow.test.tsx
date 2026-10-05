@@ -1034,12 +1034,14 @@ describe('InputRow send queue wiring', () => {
     const row = screen.getByText('before').closest('.queue-row-in');
     expect(row).toBeTruthy();
     fireEvent.click(row!.querySelector('[title="编辑"]')!);
-    const editBox = await screen.findByDisplayValue('before') as HTMLTextAreaElement;
-    await waitFor(() => expect(editBox.disabled).toBe(false));
+    // 编辑器为复用的 RichTextComposer：仅在 lease 取得完整正文后挂载。
+    const editBox = await screen.findByTestId('queue-rich-text-composer');
+    await waitFor(() => expect(editBox.textContent).toBe('before'));
+    await waitFor(() => expect(useQueueStore.getState().edits.s1?.acquiring).toBe(false));
     expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
     expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual(['q-count-edit']);
 
-    fireEvent.change(editBox, { target: { value: 'after' } });
+    useQueueStore.getState().updateEditDraft('after');
     useQueueStore.getState().saveEdit();
     useQueueStore.getState().saveEdit();
     await waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());

@@ -52,6 +52,8 @@ interface RichTextComposerProps {
   /** Short click on an inline attachment node; the argument is the occurrence id. */
   onOpenAttachment?: (attachmentId: string) => void;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  /** Editable host testid; instances embedded elsewhere pass their own to stay unique. */
+  editorTestId?: string;
 }
 
 interface ComposerAttachment {
@@ -719,6 +721,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       onRemoveAttachment,
       onOpenAttachment,
       onKeyDown,
+      editorTestId = 'rich-text-composer',
     },
     ref,
   ) {
@@ -1247,7 +1250,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
           role="textbox"
           aria-multiline="true"
           aria-label="消息输入框"
-          data-testid="rich-text-composer"
+          data-testid={editorTestId}
           data-placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
           className="composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
           onInput={handleInput}
