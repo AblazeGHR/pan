@@ -32,6 +32,10 @@ function historyPage(messages: Message[], total = messages.length, start = 0, re
   };
 }
 
+function countText(element: HTMLElement): string {
+  return `${element.querySelector('input')?.value}${element.textContent}`;
+}
+
 function makeChatRef(scrollToMessage = vi.fn(() => true)) {
   return {
     ref: { current: { scrollToMessage } } as RefObject<ChatMessagesHandle | null>,
@@ -66,8 +70,8 @@ describe('SessionHistorySearch', () => {
     fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
     fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
     await waitFor(() => expect(view.getByRole('list', { name: 'Session history results' })).toBeTruthy());
-    expect(view.container.querySelectorAll('.global-history-search__snippet mark')).toHaveLength(2);
-    expect(view.container.querySelector('.global-history-search__session-name')).toBeNull();
+    expect(view.baseElement.querySelectorAll('.global-history-search__snippet mark')).toHaveLength(2);
+    expect(view.baseElement.querySelector('.global-history-search__session-name')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: 'Collapse results' }));
     expect(view.queryByRole('list')).toBeNull();
     expect(view.getByRole('button', { name: 'Next result' })).toBeTruthy();
@@ -75,18 +79,19 @@ describe('SessionHistorySearch', () => {
     await waitFor(() => expect(view.getByRole('button', { name: 'assistant, needle beta' }).hasAttribute('disabled')).toBe(false));
     fireEvent.click(view.getByRole('button', { name: 'assistant, needle beta' }));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
-    expect(view.getByTestId('session-history-search-count').textContent).toBe('2 / 2');
+    await waitFor(() => expect(countText(view.getByTestId('session-history-search-count'))).toBe('1 / 2'));
   });
 
-  it('uses the same occurrence navigator in global mode without auto-jumping or a second search input', async () => {
+  it('keeps the selected global result without auto-jumping or a second search input', async () => {
     const chat = makeChatRef();
     const highlight = vi.fn();
     const roles = ['user', 'assistant'] as const;
-    const view = render(<SessionHistorySearch navigationOnly isOpen isMobile={false} chatRef={chat.ref}
+    const view = render(<SessionHistorySearch navigationOnly isOpen isMobile={false} chatRef={chat.ref} selectedMessageId="user-a"
       externalQuery="needle" externalRoles={[...roles]} onHighlightMessage={highlight} />);
-    await waitFor(() => expect(view.getByTestId('global-current-session-count').textContent).toBe('1 / 2'));
+    await waitFor(() => expect(countText(view.getByTestId('global-current-session-count'))).toBe('2 / 2'));
     expect(chat.scrollToMessage).not.toHaveBeenCalled();
-    expect(view.queryByRole('textbox')).toBeNull();
+    expect(view.queryByTestId('session-history-search-input')).toBeNull();
+    expect(view.getByRole('textbox', { name: /Result number/ })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: 'Next result' }));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
     expect(highlight).toHaveBeenLastCalledWith('assistant-b', 'needle', 0);
@@ -105,10 +110,10 @@ describe('SessionHistorySearch', () => {
     const view = render(<SessionHistorySearch chatRef={chat.ref} isMobile={false} onHighlightMessage={highlight} />);
     fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
     fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
-    await waitFor(() => expect(view.getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    await waitFor(() => expect(countText(view.getByTestId('session-history-search-count'))).toBe('3 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(body, 0));
     fireEvent.keyDown(view.getByTestId('session-history-search-input'), { key: 'Enter' });
-    await waitFor(() => expect(view.getByTestId('session-history-search-count').textContent).toBe('2 / 3'));
+    await waitFor(() => expect(countText(view.getByTestId('session-history-search-count'))).toBe('1 / 3'));
     fireEvent.click(view.getByRole('checkbox', { name: 'Search tool messages' }));
     await waitFor(() => expect(view.getByRole('status').textContent).toBe('No results in searchable history'));
     expect(fetchHistory).toHaveBeenLastCalledWith('needle', 100, undefined, expect.any(AbortSignal),
@@ -138,27 +143,27 @@ describe('SessionHistorySearch', () => {
     const input = getByTestId('session-history-search-input');
     fireEvent.change(input, { target: { value: 'needle' } });
 
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('2 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(MESSAGES[0], 0));
     expect(getByRole('list', { name: 'Session history results' }).textContent).toContain('Needle alpha');
 
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('1 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
 
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('2 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[0], 0));
 
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('1 / 2'));
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('2 / 2'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[0], 0));
 
     await waitFor(() => expect(getByRole('button', { name: 'Previous result' }).hasAttribute('disabled')).toBe(false));
     fireEvent.click(getByRole('button', { name: 'Previous result' }));
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('1 / 2'));
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(queryByTestId('session-history-search-input')).toBeNull();
     expect(onHighlightMessage).toHaveBeenLastCalledWith(null);
@@ -172,16 +177,16 @@ describe('SessionHistorySearch', () => {
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     const input = getByTestId('session-history-search-input');
     fireEvent.change(input, { target: { value: 'needle' } });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('2 / 2'));
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 2'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('1 / 2'));
 
     fireEvent.change(input, { target: { value: 'beta' } });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 1'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('1 / 1'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(MESSAGES[2], 2));
 
     fireEvent.change(input, { target: { value: 'absent' } });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('0 / 0'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('0 / 0'));
     await waitFor(() => expect(getByRole('status').textContent).toBe('No results in searchable history'));
   });
 
@@ -324,16 +329,16 @@ describe('SessionHistorySearch', () => {
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     const input = getByTestId('session-history-search-input');
     fireEvent.change(input, { target: { value: 'needle' } });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('3 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(lead, 0));
 
-    fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('1 / 3'));
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('3 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(target, 0));
 
-    await waitFor(() => expect(getByRole('button', { name: 'Next result' }).hasAttribute('disabled')).toBe(false));
-    fireEvent.click(getByRole('button', { name: 'Next result' }));
-    await waitFor(() => expect(getByTestId('session-history-search-count').textContent).toBe('2 / 3'));
+    await waitFor(() => expect(getByRole('button', { name: 'Previous result' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(getByRole('button', { name: 'Previous result' }));
+    await waitFor(() => expect(countText(getByTestId('session-history-search-count'))).toBe('2 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenLastCalledWith(lead, 1));
     expect(ensureMessageLoaded).toHaveBeenCalledTimes(3);
   });

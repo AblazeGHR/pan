@@ -1,3 +1,4 @@
+import { useIdleHistoryPrefetch } from '@/hooks/useIdleHistoryPrefetch';
 import { forwardRef, useRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -152,6 +153,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const currentMessages = useSessionStore((s) => s.currentMessages);
+  useIdleHistoryPrefetch();
   const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
   const historyLoading = useSessionStore((s) => s.historyLoading);
   const initialLoading = useSessionStore((s) => s.initialLoading);
@@ -1397,7 +1399,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         ) {
           loadOlderFromViewport(true);
         }
-      }, 150);
+      }, useSessionStore.getState().hasPrefetchedOlderMessages() ? 16 : 150);
     };
 
     const handleScrollEnd = () => {

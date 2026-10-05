@@ -183,7 +183,7 @@ describe('GlobalHistorySearch', () => {
     expect(fetchSearch).toHaveBeenCalledWith('needle', 50, undefined, expect.any(AbortSignal),
       { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle in this Session/ })).not.toBeNull();
-    expect(getByTestId('global-history-search').textContent).toContain('1 messages shown');
+    expect(getByRole('search', { name: 'Global history search' }).textContent).toContain('1 messages shown');
     expect(queryByText(/total matches/i)).toBeNull();
 
     fireEvent.click(getByTestId('global-history-search-load-more'));
@@ -191,7 +191,7 @@ describe('GlobalHistorySearch', () => {
     expect(fetchSearch).toHaveBeenLastCalledWith('needle', 50, 'cursor-next', expect.any(AbortSignal),
       { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle second/ })).not.toBeNull();
-    expect(getByTestId('global-history-search').textContent).toContain('2 messages shown');
+    expect(getByRole('search', { name: 'Global history search' }).textContent).toContain('2 messages shown');
   });
 
   it('aborts old pages when the query changes and ignores their late response', async () => {
@@ -203,7 +203,7 @@ describe('GlobalHistorySearch', () => {
     fetchSearch.mockImplementation((query: string, _limit: number, _cursor: string | undefined, signal?: AbortSignal) =>
       new Promise((resolve) => pending.push({ query, signal, resolve })),
     );
-    const { getByTestId, queryByText } = renderSearch();
+    const { getByTestId, getByRole, queryByText } = renderSearch();
     const input = getByTestId('global-history-search-input');
 
     await enterQuery(input, 'old');
@@ -222,8 +222,8 @@ describe('GlobalHistorySearch', () => {
       pending[1]!.resolve(searchPage([hit({ messageId: 'new-hit', snippet: 'new result' })]));
       await Promise.resolve();
     });
-    await waitFor(() => expect(getByTestId('global-history-search').textContent).toContain('new result'));
-    expect(getByTestId('global-history-search').textContent).not.toContain('old result');
+    await waitFor(() => expect(getByRole('search', { name: 'Global history search' }).textContent).toContain('new result'));
+    expect(getByRole('search', { name: 'Global history search' }).textContent).not.toContain('old result');
   });
 
   it.each([

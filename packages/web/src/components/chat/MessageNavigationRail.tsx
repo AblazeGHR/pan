@@ -94,26 +94,10 @@ export function MessageNavigationRail({
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentMessages = useSessionStore((s) => s.currentMessages);
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
-  // The rendered transcript mixes canonical history rows with local terminal
-  // markers and runtime rows, so its length is not a canonical row count. Only
-  // the server-reported total, or the extent proven by the canonical offsets
-  // themselves, may be used as the `total` that `fromEnd` is measured against.
-  const canonicalRows = useMemo(
-    () => canonicalRowsWithOffsets(currentMessages),
-    [currentMessages],
-  );
   const currentHistoryTotal = useSessionStore((s) => {
     const session = s.sessions.find((item) => item.id === s.currentSessionId);
     return session?.historyTotal ?? null;
   });
-  const loadedCanonicalTotal = useMemo(() => {
-    if (currentHistoryTotal !== null) return currentHistoryTotal;
-    // Derived from the offsets `markDurableRow` proved, never from an array
-    // length. With no proven row there is no navigable target, so the loaded
-    // window start is the only canonical figure left.
-    const last = canonicalRows[canonicalRows.length - 1];
-    return last ? last.offset + 1 : historyLoadEnd;
-  }, [canonicalRows, currentHistoryTotal, historyLoadEnd]);
   const ensureMessageLoaded = useSessionStore((s) => s.ensureMessageLoaded);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
@@ -138,6 +122,20 @@ export function MessageNavigationRail({
   const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle');
   const [indexTotal, setIndexTotal] = useState(0);
   const [indexMetrics, setIndexMetrics] = useState({ requests: 0, durationMs: 0 });
+
+  // The completed index already owns every target. Preserve the previous
+  // fast path: live renders must not scan/sort the entire loaded transcript.
+  // During indexing, only proven canonical offsets may define fallback rows;
+  // rendered array positions can include local markers and runtime rows.
+  const canonicalRows = useMemo(
+    () => indexStatus === 'ready' ? [] : canonicalRowsWithOffsets(currentMessages),
+    [currentMessages, indexStatus],
+  );
+  const loadedCanonicalTotal = useMemo(() => {
+    if (currentHistoryTotal !== null) return currentHistoryTotal;
+    const last = canonicalRows[canonicalRows.length - 1];
+    return last ? last.offset + 1 : historyLoadEnd;
+  }, [canonicalRows, currentHistoryTotal, historyLoadEnd]);
 
   const clearScrub = useCallback((suppressClick = false) => {
     const gesture = scrubGestureRef.current;

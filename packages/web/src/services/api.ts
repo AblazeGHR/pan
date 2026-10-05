@@ -1,3 +1,4 @@
+import { beginForegroundRequest } from './foregroundActivity';
 import type {
   Session,
   SessionUsageView,
@@ -145,7 +146,13 @@ export interface ServerFileAttachmentResponse extends AttachmentRef {
   size: number;
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+  const finish = background ? () => {} : beginForegroundRequest();
+  try { return await requestBody<T>(url, options, background); }
+  finally { finish(); }
+}
+
+async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
@@ -162,7 +169,30 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     const status = res.statusText ? `HTTP ${res.status}: ${res.statusText}` : `HTTP ${res.status}`;
     throw new ApiRequestError(res.status, detail ? `${status}: ${detail}` : status);
   }
-  return res.json() as Promise<T>;
+  if (!background) return res.json() as Promise<T>;
+  // Bound speculative decode work, including decompressed responses. A
+  // foreground request may abort this read before JSON.parse starts.
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No speculative history response body');
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (options?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > 512 * 1024) throw new Error('Speculative history byte budget exceeded');
+      chunks.push(decoder.decode(chunk.value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    if (options?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    return JSON.parse(chunks.join('')) as T;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 export interface QqGatewayPlugin {
@@ -243,7 +273,8 @@ export async function uploadSessionAttachment(
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<SessionAttachmentUploadResponse> {
-  return new Promise((resolve, reject) => {
+  const finishRequest = beginForegroundRequest();
+  return new Promise<SessionAttachmentUploadResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let settled = false;
     const finish = (callback: () => void) => {
@@ -290,7 +321,7 @@ export async function uploadSessionAttachment(
     } catch (error) {
       finish(() => reject(error instanceof Error ? error : new Error(String(error))));
     }
-  });
+  }).finally(finishRequest);
 }
 
 /** Register an existing server-side file without sending a client path back in
@@ -373,10 +404,12 @@ export async function fetchSessionHistory(
   limit: number = 50,
   signal?: AbortSignal,
   searchJump = false,
+  background = false,
 ): Promise<ApiSessionHistoryResponse> {
   const data = await request<ApiSessionHistoryResponse>(
     `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}${searchJump ? '&searchJump=true' : ''}`,
-    { signal },
+    background ? { signal, priority: 'low' } : { signal },
+    background,
   );
   if (data.error) throw new Error(data.error);
   return data;
@@ -423,6 +456,15 @@ export interface HistorySearchPreparation {
 }
 
 export async function prepareHistorySearch(
+  query: string, roles: import('@/types').HistorySearchRole[], limit: number,
+  signal: AbortSignal, onProgress: (event: HistorySearchPreparation) => void,
+): Promise<void> {
+  const finish = beginForegroundRequest();
+  try { await prepareHistorySearchBody(query, roles, limit, signal, onProgress); }
+  finally { finish(); }
+}
+
+async function prepareHistorySearchBody(
   query: string, roles: import('@/types').HistorySearchRole[], limit: number,
   signal: AbortSignal, onProgress: (event: HistorySearchPreparation) => void,
 ): Promise<void> {
