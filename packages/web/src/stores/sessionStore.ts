@@ -1,3 +1,4 @@
+import { takeHistoryPrefetch, peekHistoryPrefetch, type HistoryPrefetchContext } from '@/services/historyPagePrefetch';
 import { create } from 'zustand';
 import type {
   Session,
@@ -107,6 +108,7 @@ interface SessionStore {
   ackSessionUnread: (id: string, observedGeneration?: number) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
+  hasPrefetchedOlderMessages: () => boolean;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   createNewSession: (
@@ -2118,6 +2120,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return canonicalRowAtOffset(state, sessionId, absoluteIndex);
   },
 
+  hasPrefetchedOlderMessages: () => peekHistoryPrefetch(getHistoryPrefetchContext(), get().historyLoadEnd),
+
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
     if (
@@ -2134,9 +2138,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({ _historyPageSeq: { ...s._historyPageSeq, [sid]: pageSeq } }));
 
     try {
-      const data: ApiSessionHistoryResponse = signal
+      const context = getHistoryPrefetchContext();
+      const cached = !searchJump && (limit ?? historyPageSize()) === context?.limit
+        ? takeHistoryPrefetch(context, historyLoadEnd) : null;
+      const data: ApiSessionHistoryResponse = cached ?? (signal
         ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal, searchJump)
-        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump);
+        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump));
       if (signal?.aborted || get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;
@@ -4013,4 +4020,21 @@ export function useCurrentSession() {
 if (typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('panE2E')) {
   (window as unknown as Record<string, unknown>).__panSessionStore = useSessionStore;
+}
+
+/** Exact authority boundary for disposable speculative history pages. */
+export function getHistoryPrefetchContext(): HistoryPrefetchContext | null {
+  const state = useSessionStore.getState();
+  const sid = state.currentSessionId;
+  if (!sid || !state.hasMoreMessages || state.historyLoadEnd <= 0) return null;
+  const session = state.sessions.find((item) => item.id === sid);
+  const window = state.sessionTranscripts[sid]?.window;
+  // A replacement may reset the revision counter. Do not reuse the old
+  // window's pages while a newer summary advertises a different epoch.
+  if (window?.epoch && session?.historyEpoch && window.epoch !== session.historyEpoch) return null;
+  const epoch = window?.epoch ?? session?.historyEpoch;
+  const revision = Math.max(window?.revision ?? 0, session?.historyRevision ?? 0);
+  if (typeof epoch !== 'string' || !epoch || !Number.isSafeInteger(revision) || revision < 0) return null;
+  return { sessionId: sid, selection: state._selectionSeq[sid] ?? 0, serverEpoch: state.serverEpoch,
+    historyEpoch: epoch, historyRevision: revision, limit: historyPageSize() };
 }
