@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { GroupMode } from '@/stores/uiStore';
+import { useUIStore } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
 export interface AppSettings {
@@ -209,6 +210,18 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
         .then(fetchUiSettings)
         .then((ui) => {
           if (!dirty) set(sanitizeSettings(ui));
+          // Forward the persisted session-list collapse state to uiStore over
+          // this already-running GET (no extra request). uiStore applies its
+          // own user-action guard, so a stale response can never clobber
+          // toggles made while the request was in flight; an absent key means
+          // "never saved" and keeps the local state, while an explicit array
+          // (even empty) is authoritative.
+          const collapsed = ui.collapsedGroups;
+          if (Array.isArray(collapsed)) {
+            useUIStore.getState().hydrateCollapsedGroupsFromServer(
+              collapsed.filter((x): x is string => typeof x === 'string'),
+            );
+          }
         })
         .catch(() => {
           // Backend unreachable → keep defaults for this session.

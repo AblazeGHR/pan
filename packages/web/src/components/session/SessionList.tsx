@@ -81,19 +81,6 @@ function buildManagerTree(sessions: Session[]): ManagerNode[] {
     .map((s) => nodeMap.get(s.id)!);
 }
 
-/** All descendant ids of a tree node (excluding the node itself). */
-function collectDescendantIds(node: ManagerNode): string[] {
-  const ids: string[] = [];
-  const walk = (n: ManagerNode) => {
-    for (const c of n.children) {
-      ids.push(c.session.id);
-      walk(c);
-    }
-  };
-  walk(node);
-  return ids;
-}
-
 /** Full desired session order after an EDGE drop: the dragged session is
  *  removed and re-inserted right next to the target card (before/after), every
  *  session that is not visible in the DOM (e.g. collapsed/hidden) keeps its
@@ -235,8 +222,6 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     collapsedGroups,
     customOrder,
     toggleGroupCollapse,
-    addCollapsedGroups,
-    removeCollapsedGroups,
     pruneCollapsedGroups,
     pruneHiddenSessions,
     showToast,
@@ -251,8 +236,6 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     collapsedGroups: s.collapsedGroups,
     customOrder: s.customOrder,
     toggleGroupCollapse: s.toggleGroupCollapse,
-    addCollapsedGroups: s.addCollapsedGroups,
-    removeCollapsedGroups: s.removeCollapsedGroups,
     pruneCollapsedGroups: s.pruneCollapsedGroups,
     pruneHiddenSessions: s.pruneHiddenSessions,
     showToast: s.showToast,
@@ -296,8 +279,12 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   // Keep collapsedGroups consistent with the live tree: drop stale keys left
   // behind by session placeholders (`__pending_*`) or deleted sessions so a
-  // newly-joined manager group toggles immediately without a refresh.
+  // newly-joined manager group toggles immediately without a refresh. Guarded
+  // on sessions.length > 0 (like pruneHiddenSessions below) so the pre-fetch
+  // cold load never wipes the persisted collapse state — and, now that the
+  // set is persisted, never writes that wipe back to the cache/server.
   useEffect(() => {
+    if (sessions.length === 0) return;
     if (effectiveGroupBy !== 'manager' && effectiveGroupBy !== 'workdir') return;
     const valid = new Set<string>();
     if (effectiveGroupBy === 'manager') {
@@ -1177,19 +1164,15 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     </div>
   );
 
-  // Recursive collapse/expand: collapsing a manager node also collapses every
-  // descendant; expanding it expands the whole subtree (same for un-collapse).
+  // Per-node collapse toggle: expanding a node only clears ITS OWN key, so
+  // every level keeps its individual collapsed state — e.g. after
+  // "collapse all", re-expanding an outer group leaves its children collapsed
+  // (each child's key is still in the set) until expanded themselves.
   const handleToggleManagerNode = useCallback(
     (node: ManagerNode) => {
-      const ids = [node.session.id, ...collectDescendantIds(node)];
-      const isCollapsed = collapsedGroups.has(node.session.id);
-      if (isCollapsed) {
-        removeCollapsedGroups(ids);
-      } else {
-        addCollapsedGroups(ids);
-      }
+      toggleGroupCollapse(node.session.id);
     },
-    [collapsedGroups, removeCollapsedGroups, addCollapsedGroups],
+    [toggleGroupCollapse],
   );
 
   // Initial list fetch in flight + nothing to show yet → spinner, so an account
