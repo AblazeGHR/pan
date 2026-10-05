@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/react';
+import { render as renderComponent, fireEvent, screen, cleanup, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { InputRow } from './InputRow';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
@@ -23,6 +24,10 @@ import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
 import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 
+// Attachment navigation now requires the same Router context as the Chat route.
+const render = (element: Parameters<typeof renderComponent>[0]) =>
+  renderComponent(<MemoryRouter>{element}</MemoryRouter>);
+
 vi.mock('@/services/ws', () => ({
   wsClient: {
     send: vi.fn(() => true),
@@ -44,6 +49,8 @@ vi.mock('@/services/api', async (importOriginal) => {
   return {
     ...actual,
     ...queueApi,
+    getSessionDraft: vi.fn(async () => ({ revision: 0, draft: null, updatedAt: null })),
+    putSessionDraft: vi.fn(async (_id, draft) => ({ revision: 1, draft, updatedAt: null })),
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
     fetchDirectories: vi.fn(async () => ({
@@ -1034,12 +1041,14 @@ describe('InputRow send queue wiring', () => {
     const row = screen.getByText('before').closest('.queue-row-in');
     expect(row).toBeTruthy();
     fireEvent.click(row!.querySelector('[title="编辑"]')!);
-    const editBox = await screen.findByDisplayValue('before') as HTMLTextAreaElement;
-    await waitFor(() => expect(editBox.disabled).toBe(false));
+    // 编辑器为复用的 RichTextComposer：仅在 lease 取得完整正文后挂载。
+    const editBox = await screen.findByTestId('queue-rich-text-composer');
+    await waitFor(() => expect(editBox.textContent).toBe('before'));
+    await waitFor(() => expect(useQueueStore.getState().edits.s1?.acquiring).toBe(false));
     expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
     expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual(['q-count-edit']);
 
-    fireEvent.change(editBox, { target: { value: 'after' } });
+    useQueueStore.getState().updateEditDraft('after');
     useQueueStore.getState().saveEdit();
     useQueueStore.getState().saveEdit();
     await waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());

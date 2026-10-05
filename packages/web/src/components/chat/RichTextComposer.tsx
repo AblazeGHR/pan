@@ -49,7 +49,17 @@ interface RichTextComposerProps {
   onNativeFiles?: (files: File[], offset: number, source: 'paste' | 'drop') => string[];
   onNativeInputIssue?: (kind: 'directory' | 'uri' | 'invalid-pan-attachment') => void;
   onRemoveAttachment: (attachmentId: string) => void;
+  /** Short click on an inline attachment node; the argument is the occurrence id. */
+  onOpenAttachment?: (attachmentId: string) => void;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  /** Editable host testid; instances embedded elsewhere pass their own to stay unique. */
+  editorTestId?: string;
+  /** Hard editing freeze: contentEditable=false plus handler guards. Unlike a
+   *  pointer-events overlay this also blocks keyboard/IME input on an already
+   *  focused editor, so DOM stays frozen while the caller is mid-transaction
+   *  and DOM/store cannot diverge. Draft content is preserved; flipping back
+   *  to false restores editing over the exact same DOM. */
+  disabled?: boolean;
 }
 
 interface ComposerAttachment {
@@ -715,7 +725,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       onNativeFiles,
       onNativeInputIssue,
       onRemoveAttachment,
+      onOpenAttachment,
       onKeyDown,
+      editorTestId = 'rich-text-composer',
+      disabled = false,
     },
     ref,
   ) {
@@ -741,6 +754,11 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const dropOffsetRef = useRef<number | null>(null);
     const pendingCaretOffsetRef = useRef<number | null>(null);
     const activeDragPayloadRef = useRef<PanAttachmentPayload | null>(null);
+    // Set once a native drag actually starts from an attachment node so the
+    // click that may follow dragend never opens the Editor. Cleared on the
+    // next task (setTimeout 0) after dragend, mirroring message file links.
+    const attachmentDraggedRef = useRef(false);
+    const attachmentDraggedResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const publish = useCallback(
       (nextParts: ComposerPart[]) => {
@@ -795,6 +813,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     }, [attachmentSignature]);
 
     const handleInput = () => {
+      if (disabled) return;
       if (!editorRef.current) return;
       const previousParts = partsRef.current;
       const nextParts = readParts(editorRef.current);
@@ -857,6 +876,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     };
 
     const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (disabled) return;
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       if (
@@ -910,6 +930,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       readPanAttachmentPayload(dataTransfer) || activeDragPayloadRef.current;
 
     const handleAttachmentDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
       const node = target?.closest<HTMLElement>('[data-composer-attachment]');
       if (!node || !editorRef.current?.contains(node)) return;
@@ -936,18 +957,48 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       // but intentionally returns an empty string from getData(). Keep the
       // source payload here so a node can still be dropped into the editor.
       activeDragPayloadRef.current = payload;
+      // Starting a drag is a new suppression lifecycle: cancel any pending
+      // reset from a previous drag so a late timer can never un-suppress an
+      // in-flight drag.
+      if (attachmentDraggedResetTimerRef.current !== null) {
+        clearTimeout(attachmentDraggedResetTimerRef.current);
+        attachmentDraggedResetTimerRef.current = null;
+      }
+      attachmentDraggedRef.current = true;
     };
 
     const handleAttachmentMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest('[data-composer-attachment-delete]')) event.preventDefault();
     };
 
     const handleAttachmentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>('[data-composer-attachment-delete]');
       const attachmentId = button?.dataset.composerAttachmentDelete;
-      if (attachmentId) removeAt(attachmentId);
+      if (attachmentId) {
+        // A drag released over the delete button must not delete either.
+        if (!attachmentDraggedRef.current) removeAt(attachmentId);
+        return;
+      }
+      if (attachmentDraggedRef.current) return;
+      const node = target?.closest<HTMLElement>('[data-composer-attachment]');
+      const occurrenceId = node?.dataset.composerAttachment;
+      if (occurrenceId && node && editorRef.current?.contains(node)) {
+        onOpenAttachment?.(occurrenceId);
+      }
+    };
+
+    const clearAttachmentDragSuppression = () => {
+      if (attachmentDraggedResetTimerRef.current !== null) {
+        clearTimeout(attachmentDraggedResetTimerRef.current);
+      }
+      attachmentDraggedResetTimerRef.current = setTimeout(() => {
+        attachmentDraggedRef.current = false;
+        attachmentDraggedResetTimerRef.current = null;
+      }, 0);
     };
 
     const clearDropIndicator = () => {
@@ -987,6 +1038,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     };
 
     const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const payload = resolveDragPayload(event.dataTransfer);
       if (!payload) {
         if (
@@ -1012,6 +1064,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     };
 
     const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const payload = resolveDragPayload(event.dataTransfer);
       if (!payload) {
         if (hasPanAttachmentMime(event.dataTransfer)) {
@@ -1086,6 +1139,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     };
 
     const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
       const dataTransfer = event.clipboardData;
       const customMime = hasPanAttachmentMime(dataTransfer);
       const payload = customMime ? readPanAttachmentPayload(dataTransfer) : null;
@@ -1169,6 +1223,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const handleDragEnd = () => {
       activeDragPayloadRef.current = null;
       clearDropIndicator();
+      clearAttachmentDragSuppression();
     };
 
     useEffect(() => {
@@ -1182,6 +1237,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         activeDragPayloadRef.current = null;
         dropOffsetRef.current = null;
         setDropIndicator(null);
+        clearAttachmentDragSuppression();
       };
       // This listener runs after the source React handler in the bubble phase,
       // so message links/chips have already populated DataTransfer. Their
@@ -1194,6 +1250,9 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         window.removeEventListener('dragstart', rememberGlobalDragPayload);
         window.removeEventListener('dragend', clearGlobalDropState);
         window.removeEventListener('drop', clearGlobalDropState);
+        if (attachmentDraggedResetTimerRef.current !== null) {
+          clearTimeout(attachmentDraggedResetTimerRef.current);
+        }
       };
     }, []);
 
@@ -1201,14 +1260,16 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       <div className="relative min-h-0 flex-1">
         <div
           ref={editorRef}
-          contentEditable
+          contentEditable={!disabled}
           suppressContentEditableWarning
           role="textbox"
           aria-multiline="true"
+          aria-disabled={disabled || undefined}
           aria-label="消息输入框"
-          data-testid="rich-text-composer"
+          data-testid={editorTestId}
+          data-disabled={disabled || undefined}
           data-placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-          className="composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
+          className={`composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent ${disabled ? 'opacity-60' : ''}`}
           onInput={handleInput}
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}

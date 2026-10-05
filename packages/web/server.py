@@ -43,6 +43,7 @@ import psutil
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import session_drafts
 from packages.core import history_search_index
 from packages.core import history_search_scan
 from packages.core import workspace as workspaces
@@ -5884,6 +5885,91 @@ async def api_set_session_pin(session_id: str, data: dict):
     }
 
 
+@app.get("/api/sessions/{session_id}/draft")
+async def api_get_session_draft(session_id: str):
+    """Read one Session's unsent composer draft for a cold composer load.
+
+    Deliberately separate from GET /api/sessions: drafts are loaded lazily for
+    the one selected Session, never scanned across Sessions, and never folded
+    into the session list or the WebSocket summary.
+
+    A damaged or unreadable sidecar is reported as ``draft_unreadable``, never
+    as an empty draft: telling the client "no draft" when a file exists would
+    make it overwrite real unsent text with whatever it types next.
+    """
+    try:
+        return await asyncio.to_thread(session_drafts.read_draft, session_id)
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_drafts.DraftUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "draft_read_failed", "message": str(exc) or "Could not read draft"}}
+
+
+@app.put("/api/sessions/{session_id}/draft")
+async def api_put_session_draft(session_id: str, data: dict | None = None):
+    """Compare-and-set one Session's unsent composer draft.
+
+    Body: ``{"baseRevision": <int|null>, "draft": {...}|null}``.  ``null``
+    baseRevision means "create only if absent" (a first save that refuses to
+    clobber an existing draft); an integer must equal the revision the caller
+    last read or the write is rejected with the current draft attached.  A
+    ``null`` draft is a versioned tombstone, not a delete, so a save that was
+    already in flight when the composer cleared cannot resurrect the text.
+
+    Failures are reported honestly (``persist_failed`` / ``too_large`` /
+    ``conflict``) and the client keeps its unsaved local copy either way.
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "draft body must be an object"}}
+    base_revision = data.get("baseRevision")
+    if base_revision is not None and (
+        isinstance(base_revision, bool)
+        or not isinstance(base_revision, int)
+        or base_revision < 0
+    ):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "baseRevision must be null or a non-negative integer"}}
+    try:
+        state = await asyncio.to_thread(
+            session_drafts.write_draft, session_id, base_revision, data.get("draft"),
+        )
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_drafts.DraftConflict as exc:
+        # The caller is behind.  Hand back the authoritative draft so it can
+        # merge or surface the conflict instead of overwriting on a stale read.
+        return {"ok": False, "error": {
+            "code": "draft_conflict", "message": "Draft changed; reload before saving"},
+            **exc.current}
+    except session_drafts.DraftUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write: reporting
+        # this as "absent" is what would let a create-if-absent save destroy the
+        # text the file still holds.
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
+    except session_drafts.DraftTooLarge as exc:
+        return {"ok": False, "error": {
+            "code": "draft_too_large", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {
+            "code": "invalid_draft", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "draft_persist_failed",
+            "message": str(exc) or "Could not persist draft"}}
+    # No WS broadcast: a draft is one person's unsent text, not shared Session
+    # state.  Broadcasting it would push keystrokes to every open client, put
+    # draft bodies in the session summary, and overwrite other clients'
+    # composers with text they are not editing.
+    return {"ok": True, **state}
+
+
 @app.post("/api/sessions/{session_id}/unread-done/ack")
 async def api_ack_session_unread_done(session_id: str, data: dict | None = None):
     """Acknowledge unread done up to an observed done-generation cursor.
@@ -6310,6 +6396,7 @@ def _history_search_request(
     content_counts: bool = False,
     match_index: int | None = None,
     message_id: str | None = None,
+    viewport_range: tuple[int, int] | None = None,
 ) -> dict:
     """Run one lazy search against the authoritative Session registry."""
     sessions = sess.list_all(load_history=False)
@@ -6324,7 +6411,7 @@ def _history_search_request(
     if content_counts:
         result = history_search_scan.scan_history(
             scoped_sessions, query, roles=roles, limit=limit, after=after,
-            match_index=match_index, message_id=message_id,
+            match_index=match_index, message_id=message_id, viewport_range=viewport_range,
             source=_history_search_scan_source, cursor_auth=cursor_auth,
         )
     else:
@@ -6466,6 +6553,8 @@ async def api_history_search(
     matchIndex: int | None = None,
     messageId: str | None = None,
     prepareLegacy: bool = False,
+    viewportStart: int | None = None,
+    viewportEnd: int | None = None,
 ):
     """Search lazily selected text partitions in one Session or globally.
 
@@ -6473,6 +6562,9 @@ async def api_history_search(
     explicit empty subset searches nothing. Omission keeps old clients' body
     scope. countMode=content reports non-overlapping literal occurrences and
     matchIndex seeks to a zero-based occurrence without transferring history.
+    An initial scoped content query may include viewportStart/viewportEnd;
+    viewportHit then locates the nearest canonical message without changing
+    the ordinary page, totals, or cursor ordering.
 
     Content mode scans canonical history and caches bounded row references;
     it does not create SQLite. Message mode retains the older lazy FTS index
@@ -6496,6 +6588,14 @@ async def api_history_search(
     if matchIndex is not None and (not content_counts or type(matchIndex) is not int
                                   or not 0 <= matchIndex <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
         raise HTTPException(status_code=422, detail='matchIndex requires content mode and a non-negative bounded integer')
+    viewport_range = None
+    if viewportStart is not None or viewportEnd is not None:
+        if (not content_counts or not sessionId or cursor is not None
+                or matchIndex is not None or messageId is not None
+                or type(viewportStart) is not int or type(viewportEnd) is not int
+                or not 0 <= viewportStart <= viewportEnd <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
+            raise HTTPException(status_code=422, detail='viewport range requires an initial scoped content search and bounded ordered indices')
+        viewport_range = (viewportStart, viewportEnd)
     bounded = history_search_index.bounded_limit(limit)
     decoded_cursor = _decode_history_search_cursor(cursor) if cursor is not None else None
     cursor_data = decoded_cursor["payload"] if decoded_cursor is not None else None
@@ -6547,7 +6647,7 @@ async def api_history_search(
     try:
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
-            selected_roles, content_counts, matchIndex, messageId,
+            selected_roles, content_counts, matchIndex, messageId, viewport_range,
         )
     except _HistorySearchSnapshotChanged:
         if cursor_data is not None:

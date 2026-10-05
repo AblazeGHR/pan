@@ -1,3 +1,4 @@
+import { useIdleHistoryPrefetch } from '@/hooks/useIdleHistoryPrefetch';
 import { forwardRef, useRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -129,6 +130,8 @@ function findRenderedRowByMessageIdentity(
 }
 
 export interface ChatMessagesHandle {
+  /** Snapshot visible canonical indices without scrolling, fetching or scheduling work. */
+  getViewportHistoryRange?: () => { start: number; end: number } | null;
   /** Scroll to a currently loaded message and briefly highlight its row. */
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
@@ -151,6 +154,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const currentMessages = useSessionStore((s) => s.currentMessages);
+  useIdleHistoryPrefetch();
   const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
   const historyLoading = useSessionStore((s) => s.historyLoading);
   const initialLoading = useSessionStore((s) => s.initialLoading);
@@ -700,7 +704,35 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     return true;
   }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition, searchTargetMessageId]);
 
-  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
+  const getViewportHistoryRange = useCallback(() => {
+    const element = parentRef.current;
+    const state = useSessionStore.getState();
+    const transcript = state.currentSessionId ? state.sessionTranscripts[state.currentSessionId] : undefined;
+    if (!element || !transcript) return null;
+    const viewport = element.getBoundingClientRect();
+    const identities = new Set<string>();
+    for (const row of element.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
+      const rectangle = row.getBoundingClientRect();
+      if (rectangle.bottom <= viewport.top || rectangle.top >= viewport.bottom) continue;
+      const item = groupedRef.current[Number(row.dataset.index)];
+      if (!item) continue;
+      const messages = 'type' in item ? item.items : [item as Message];
+      for (const message of messages) identities.add(getMessageIdentity(message));
+    }
+    let start = Infinity, end = -1;
+    for (const [index, message] of transcript.window.rows) {
+      if (!identities.has(getMessageIdentity(message))) continue;
+      start = Math.min(start, index);
+      end = Math.max(end, index);
+    }
+    // Live-only rows follow the canonical window. Anchor to that known boundary,
+    // rather than inventing durable indices for runtime/display-only messages.
+    if (end < 0 && transcript.runtime.some((message) => identities.has(getMessageIdentity(message)))) {
+      return { start: transcript.anchorOffset, end: transcript.anchorOffset };
+    }
+    return end >= 0 ? { start, end } : null;
+  }, []);
+  useImperativeHandle(ref, () => ({ scrollToMessage, getViewportHistoryRange }), [scrollToMessage, getViewportHistoryRange]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
     const state = userScrollStateRef.current;
@@ -1368,7 +1400,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         ) {
           loadOlderFromViewport(true);
         }
-      }, 150);
+      }, useSessionStore.getState().hasPrefetchedOlderMessages() ? 16 : 150);
     };
 
     const handleScrollEnd = () => {

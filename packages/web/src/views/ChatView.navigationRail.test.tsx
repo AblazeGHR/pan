@@ -105,7 +105,8 @@ describe('ChatView: message navigation rail switch', () => {
     expect(panel.getAttribute('aria-hidden')).toBe('false');
     expect(chatStylesSource).toMatch(/\.chat-tools-sidebar__search\s*\{[^}]*flex-direction: column;/);
     fireEvent.click(search.querySelector('button')!);
-    expect(container.querySelector('.session-history-search__popup')?.parentElement?.classList.contains('chat-view-stage')).toBe(true);
+    expect(document.querySelector('.session-history-search__popup')?.parentElement?.classList.contains('history-search-floating')).toBe(true);
+    expect(document.querySelector('.history-search-floating')?.parentElement).toBe(document.body);
     expect(sidebar.querySelector('.session-history-search__popup')).toBeNull();
     act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
     expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).not.toBeNull();
@@ -184,7 +185,7 @@ describe('ChatView: message navigation rail switch', () => {
     addListener.mockRestore();
   });
 
-  it('loads search only through the enabled Suspense branch and constrains its popup to the chat stage', () => {
+  it('loads search only through the enabled Suspense branch and supplies the initial chat-stage anchor for its viewport popup', () => {
     expect(chatViewSource).toMatch(
       /lazy\(\s*\(\s*\)\s*=>\s*import\(\s*['"]@\/components\/chat\/SessionHistorySearch['"]\s*\)\s*\.then\(\s*\(\s*module\s*\)\s*=>\s*\(\s*\{\s*default\s*:\s*module\.SessionHistorySearch\s*,?\s*\}\s*\)\s*\)\s*,?\s*\)/s,
     );

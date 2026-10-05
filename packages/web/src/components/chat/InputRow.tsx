@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   useSessionStore,
   useCurrentSession,
@@ -9,6 +10,15 @@ import { isRuntimeWorkerRunning, useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
+import {
+  canApplyLoadedDraft,
+  flushDraft,
+  installDraftLifecycleFlush,
+  loadDraft,
+  recordDraft,
+  subscribeDraftPersistence,
+} from '@/stores/composerDraftStore';
+import { fromDraft, toDraft } from '@/stores/composerDraftCodec';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
@@ -26,6 +36,7 @@ import {
   uploadSessionAttachment,
 } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
+import { openComposerAttachmentInEditor } from '@/utils/attachmentEditorOpen';
 import {
   isAttachmentPayloadForSession,
   type PanAttachmentPayload,
@@ -55,6 +66,9 @@ const PILL_CLASS =
   'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-default bg-bg-tertiary hover:bg-bg-hover cursor-pointer transition-colors';
 
 const DROPDOWN_ITEM = 'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
+
+// 队列编辑固定无附件：正文事务只允许改 text 片段，附件字段保持原样。
+const QUEUE_EDIT_ATTACHMENTS: never[] = [];
 
 // ── helpers ──
 
@@ -133,6 +147,11 @@ interface SessionComposerDraft {
   value: ComposerValue;
   attachments: PendingAttachment[];
 }
+
+// The durable-draft wire contract (ordered parts, occurrence identity, and
+// recoverable attachment metadata) lives in composerDraftCodec, so the exact
+// shape that is persisted and the exact shape that is restored cannot drift
+// apart, and so the round trip can be exercised without mounting the composer.
 
 type AttachmentStateUpdate =
   PendingAttachment[] | ((current: PendingAttachment[]) => PendingAttachment[]);
@@ -337,6 +356,7 @@ export function InputRow() {
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
+  const navigate = useNavigate();
   const appendLocalMessage = useSessionStore((s) => s.appendLocalMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const steer = useWorkerStore((s) => s.steer);
@@ -382,6 +402,16 @@ export function InputRow() {
   const recoveryBySessionRef = useRef(new Map<string, SendSnapshot>());
   const pendingRecoveryValueRef = useRef<ComposerValue | null>(null);
 
+  // Keep the complete composer draft (text + inline structure + attachment
+  // metadata) in the mounted InputRow, keyed by durable Session id. The
+  // session store still owns the plain-text projection for compatibility, but
+  // text alone cannot reconstruct inline occurrence ordering.
+  //
+  // This is also the single funnel every local composer edit passes through
+  // (keystrokes, attachment add/remove/upload, session switch, restore), so
+  // durable persistence hangs here rather than at each of those call sites.
+  // Recording is synchronous and network-free; the store debounces, rate
+  // limits and coalesces the actual writes.
   const rememberSessionDraft = useCallback(
     (sessionId: string, value: ComposerValue, nextAttachments: PendingAttachment[]) => {
       const clonedValue = cloneComposerValue(value);
@@ -392,12 +422,17 @@ export function InputRow() {
         clonedAttachments.length === 0
       ) {
         draftsBySessionRef.current.delete(sessionId);
+        // An empty composer is still persisted state: recording it writes a
+        // versioned tombstone so a reload cannot resurrect text the user
+        // already sent or deleted.
+        recordDraft(sessionId, null);
         return;
       }
       draftsBySessionRef.current.set(sessionId, {
         value: clonedValue,
         attachments: clonedAttachments,
       });
+      recordDraft(sessionId, toDraft(clonedValue, clonedAttachments));
     },
     [],
   );
@@ -425,18 +460,53 @@ export function InputRow() {
     const q = s.queues[currentSessionId];
     return q?.filter((item) => item.meta?.dispatchState === 'queued').length ?? 0;
   });
+  // 红色指示复用真实队列锁语义（manual / auto-report 均落在 meta.locked）：
+  // 队列非空且每一条待发消息都带锁时为全锁；不使用 running/paused 等运行态。
+  const queueAllLocked = useQueueStore((s) => {
+    if (!currentSessionId) return false;
+    const queued = s.queues[currentSessionId]?.filter(
+      (item) => item.meta?.dispatchState === 'queued',
+    );
+    return !!queued && queued.length > 0 && queued.every((item) => item.meta?.locked === true);
+  });
   const queueEdit = useQueueStore((s) => currentSessionId ? s.edits[currentSessionId] : null);
   const queueEditActive = !!queueEdit;
   const saveQueueEdit = useQueueStore((s) => s.saveEdit);
   const cancelQueueEdit = useQueueStore((s) => s.cancelEdit);
   const updateQueueEdit = useQueueStore((s) => s.updateEditDraft);
+  // 队列编辑复用与普通输入一致的 RichTextComposer；正文/附件事务与普通草稿隔离。
+  const queueComposerRef = useRef<RichTextComposerHandle | null>(null);
+  const queueComposerFocusTokenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!queueEdit || queueEdit.acquiring) return;
+    const focusToken = queueEdit.editToken ?? null;
+    if (queueComposerFocusTokenRef.current === focusToken) return;
+    queueComposerFocusTokenRef.current = focusToken;
+    queueComposerRef.current?.focus();
+  }, [queueEdit]);
+  const handleQueueComposerChange = useCallback(
+    (value: ComposerValue) => updateQueueEdit(value.text),
+    [updateQueueEdit],
+  );
+  const handleQueueComposerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.nativeEvent.isComposing) return;
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        saveQueueEdit();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelQueueEdit();
+      }
+    },
+    [saveQueueEdit, cancelQueueEdit],
+  );
   useEffect(() => {
     if (!queueEditActive) return;
     setAttachmentMenuOpen(false);
     setAttachmentBrowserOpen(false);
     setSettingsOpen(false);
   }, [queueEditActive]);
-  const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
@@ -483,6 +553,11 @@ export function InputRow() {
     const previousSessionId = activeAttachmentSessionRef.current;
     if (previousSessionId && previousSessionId !== currentSessionId) {
       rememberSessionDraft(previousSessionId, composerValueRef.current, attachmentsRef.current);
+      // Leaving a Session is the last chance to persist it cheaply: the
+      // outgoing draft is complete and the user is not typing it any more, so
+      // skip the debounce and write now.  Fire-and-forget; navigation to the
+      // next Session must not wait on the network.
+      flushDraft(previousSessionId);
     }
 
     attachmentEpochRef.current += 1;
@@ -517,6 +592,74 @@ export function InputRow() {
       }
     };
   }, [currentSessionId, rememberSessionDraft]);
+
+  // Durable draft cold load.
+  //
+  // Priority is unchanged — a memory draft, a failed-send recovery, or the
+  // store's plain-text projection all win synchronously, so switching Sessions
+  // never waits on the network.  Only when none of those produced content does
+  // this fetch, and only for the one selected Session: no Session list scan,
+  // no prefetch, no work proportional to the number of Sessions.
+  //
+  // The selection epoch distinguishes "the same Session id, later in time"
+  // from "the Session this read was started for".  Without it an A→B→A switch
+  // lets the first A's slow response land in the second A's composer.
+  const selectionEpochRef = useRef(0);
+  useEffect(() => {
+    selectionEpochRef.current += 1;
+    const epoch = selectionEpochRef.current;
+    const sessionId = currentSessionId;
+    if (!sessionId) return;
+    // Registering the lifecycle flush here (idempotent) keeps it out of the
+    // store module's import side effects, so importing the store in a
+    // non-DOM context stays safe.
+    installDraftLifecycleFlush();
+    const hasLocalContent =
+      !!draftsBySessionRef.current.get(sessionId) ||
+      !!recoveryBySessionRef.current.get(sessionId) ||
+      !!useSessionStore.getState().inputDrafts[sessionId];
+    if (hasLocalContent) return;
+    let cancelled = false;
+    void loadDraft(sessionId).then((draft) => {
+      if (cancelled || !draft) return;
+      if (activeAttachmentSessionRef.current !== sessionId) return;
+      if (!canApplyLoadedDraft(sessionId, epoch, selectionEpochRef.current)) return;
+      const restored = fromDraft(
+        draft,
+        useSessionStore.getState().inputDrafts[sessionId] || '',
+      );
+      if (!restored) return;
+      composerValueRef.current = cloneComposerValue(restored.value);
+      const clonedAttachments = restored.attachments.map((attachment) => ({ ...attachment }));
+      attachmentsRef.current = clonedAttachments;
+      setAttachments(clonedAttachments);
+      setInputDraft(sessionId, restored.value.text);
+      pendingRecoveryValueRef.current = restored.value.occurrenceIds.length
+        ? cloneComposerValue(restored.value)
+        : null;
+      if (!pendingRecoveryValueRef.current) composerRef.current?.replaceValue(restored.value);
+      setComposerText(restored.value.text);
+      setComposerOccurrenceIds([...restored.value.occurrenceIds]);
+      // Keep the local projection authoritative so a later Session switch back
+      // restores from memory instead of re-reading.
+      draftsBySessionRef.current.set(sessionId, restored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId, setInputDraft]);
+
+  // Surface a failed save once. Silently dropping the only copy of unsent text
+  // is the one unacceptable outcome here, so a bounded-retry exhaustion or a
+  // cross-tab conflict is reported instead.
+  useEffect(() => {
+    let lastError: string | null = null;
+    return subscribeDraftPersistence((sessionId, error) => {
+      if (sessionId !== currentSessionId || !error || error === lastError) return;
+      lastError = error;
+      showToast(`${error}`, 'error');
+    });
+  }, [currentSessionId, showToast]);
 
   useEffect(() => {
     const pending = pendingRecoveryValueRef.current;
@@ -899,6 +1042,78 @@ export function InputRow() {
     [updateAttachments],
   );
 
+  // A native drag released from a standalone chip must not later fire the
+  // chip's click open. Cleared on the task after dragend so a subsequent
+  // unrelated click is never swallowed (same pattern as message file links).
+  const attachmentChipDraggedRef = useRef(false);
+  const attachmentChipDraggedResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearAttachmentChipDragSuppression = useCallback(() => {
+    if (attachmentChipDraggedResetRef.current !== null) {
+      clearTimeout(attachmentChipDraggedResetRef.current);
+    }
+    attachmentChipDraggedResetRef.current = setTimeout(() => {
+      attachmentChipDraggedRef.current = false;
+      attachmentChipDraggedResetRef.current = null;
+    }, 0);
+  }, []);
+  const beginAttachmentChipDragSuppression = useCallback(() => {
+    // Starting a drag is a new suppression lifecycle: cancel any pending
+    // reset from a previous drag so a late timer can never un-suppress an
+    // in-flight drag.
+    if (attachmentChipDraggedResetRef.current !== null) {
+      clearTimeout(attachmentChipDraggedResetRef.current);
+      attachmentChipDraggedResetRef.current = null;
+    }
+    attachmentChipDraggedRef.current = true;
+  }, []);
+  // Fallback for chip drags whose dragend never reaches the chip element
+  // (source node removed, drop elsewhere) and unmount cleanup for the timer.
+  useEffect(() => {
+    const clear = () => clearAttachmentChipDragSuppression();
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+      if (attachmentChipDraggedResetRef.current !== null) {
+        clearTimeout(attachmentChipDraggedResetRef.current);
+        attachmentChipDraggedResetRef.current = null;
+      }
+    };
+  }, [clearAttachmentChipDragSuppression]);
+
+  // Short click on a composer attachment (inline node or standalone chip)
+  // opens the underlying file through the existing Editor flow. Uploading,
+  // registering, and failed attachments have no server-openable identity yet
+  // and their chips already surface progress/errors, so those clicks no-op.
+  const openComposerAttachment = useCallback(
+    (occurrenceId: string) => {
+      const sessionId = currentSessionId;
+      const workdir = currentSession?.workdir;
+      if (!sessionId) {
+        showToast('当前没有可用的 Session，无法打开文件', 'error');
+        return;
+      }
+      if (!workdir) {
+        showToast('当前 Session 没有工作目录，无法打开文件', 'error');
+        return;
+      }
+      const attachment = attachmentsRef.current.find(
+        (item) => attachmentOccurrenceId(item) === occurrenceId,
+      );
+      if (!attachment || attachment.status !== 'ready') return;
+      void openComposerAttachmentInEditor(
+        {
+          serverAttachmentId: attachment.attachmentId,
+          href: attachment.href,
+          location: attachment.location,
+        },
+        { sessionId, workdir, navigate },
+      );
+    },
+    [currentSession?.workdir, currentSessionId, navigate, showToast],
+  );
+
   const restoreSubmission = useCallback(
     (snapshot: SendSnapshot) => {
       const activeSessionId = useSessionStore.getState().currentSessionId;
@@ -918,7 +1133,19 @@ export function InputRow() {
         // The old Session may already have a newer text draft when this
         // request settles, so restoring only the plain draft would lose
         // attachment occurrences.
+        const restoredAttachments = [
+          ...(recoveryBySessionRef.current.get(snapshot.sessionId)?.attachments ?? []),
+          ...snapshot.attachments,
+        ];
         recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+        // This Session is not mounted, so nothing else will reach the
+        // persistence funnel for it.  Record the recovered text here or a
+        // reload after a failed send loses exactly the message the user
+        // tried to send.
+        recordDraft(
+          snapshot.sessionId,
+          toDraft(value, restoredAttachments),
+        );
         return;
       }
 
@@ -949,6 +1176,22 @@ export function InputRow() {
       // failed submission.  A later Session switch or remount must restore
       // both the merged text and every attachment occurrence.
       recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+      // Record the merged draft explicitly.  `updateAttachments` above ran
+      // while composerValueRef still held the optimistically-cleared value, so
+      // the funnel recorded that instead; waiting for the composer's onChange
+      // round-trip would leave a window where the server holds a tombstone for
+      // text the user is still trying to send.
+      recordDraft(
+        snapshot.sessionId,
+        toDraft(value, [
+          ...attachments.filter(
+            (attachment) => !snapshot.attachments.some(
+              (sent) => attachmentOccurrenceId(sent) === attachmentOccurrenceId(attachment),
+            ),
+          ),
+          ...snapshot.attachments,
+        ]),
+      );
     },
     [attachments, setInputDraft, updateAttachments],
   );
@@ -1196,6 +1439,13 @@ export function InputRow() {
           if (stillSelected) composerRef.current?.replaceText('');
           setInputDraft(steerSessionId, '');
           if (stillSelected) updateAttachments(() => []);
+          // The steered text is gone from this Session, so the durable draft
+          // must say so too — otherwise a reload restores a message the user
+          // already delivered.  Idempotent when the composer is mounted: the
+          // replaceText round-trip records the same tombstone.  Guarded by
+          // `draftStillOwnsTransaction`, so a steer that resolves after the
+          // user kept typing clears nothing.
+          recordDraft(steerSessionId, null);
         }
         // Optimistic append with a local ts; the server stamps the same
         // moment into history (steer_worker appends + saves right after the
@@ -1315,26 +1565,53 @@ export function InputRow() {
       </div>
 
       {queueEdit && (
-        <div data-testid="queue-composer-edit" className="flex shrink-0 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
+        <div data-testid="queue-composer-edit" className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
           <p className="text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
           {queueEdit.acquiring && <p className="text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
+          {queueEdit.saving && <p className="text-xs text-text-secondary">正在保存…</p>}
           {queueEdit.bodyFormat === 'json' && <p className="text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
           {queueEdit.bodyFormat === 'parts' && <p className="text-xs text-text-secondary">此消息含附件；仅修改 text 类型片段的 text/value 正文。请保留全部片段、顺序和附件字段。</p>}
           {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
-          <div className="flex gap-2">
-            <textarea key={`${currentSessionId}:${queueEdit.editToken}`} autoFocus aria-label="队列消息正文"
-              value={queueEdit.text} rows={5} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing}
-              onChange={(event) => updateQueueEdit(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
-                if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveQueueEdit(); }
-                else if (event.key === 'Escape') { event.preventDefault(); cancelQueueEdit(); }
-              }} className="min-w-0 flex-1 resize-y rounded border border-accent bg-bg-secondary p-2 text-sm text-text-primary" />
-            <div className="flex items-end gap-1">
-              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
-                onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
-              <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
-                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+          <div className="flex min-h-24 min-w-0 flex-1 gap-2">
+            {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
+                绝不把面板里的截断预览当作编辑正文。saving/releasing 时编辑器
+                真禁用（contentEditable=false + 键盘守卫），DOM 冻结，保存失败
+                解除后 DOM 与 store 草稿一致。 */}
+            {!queueEdit.acquiring && (
+              <RichTextComposer
+                key={`queue-edit:${currentSessionId ?? 'no-session'}:${queueEdit.editToken ?? 'none'}`}
+                ref={queueComposerRef}
+                editorTestId="queue-rich-text-composer"
+                initialText={queueEdit.text}
+                attachments={QUEUE_EDIT_ATTACHMENTS}
+                sessionId={currentSessionId || undefined}
+                disabled={queueEdit.saving || queueEdit.releasing}
+                onChange={handleQueueComposerChange}
+                onAttachmentDrop={() => null}
+                onNativeInputIssue={() => showToast('队列编辑模式下不能添加附件', 'error')}
+                onRemoveAttachment={() => {}}
+                onKeyDown={handleQueueComposerKeyDown}
+              />
+            )}
+            <div className="flex shrink-0 flex-col items-end gap-1 self-stretch">
+              {isMobile && (
+                <button
+                  type="button"
+                  data-testid="queue-edit-fullscreen"
+                  aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  onClick={() => setMobileFullscreen((current) => !current)}
+                  className="flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                >
+                  {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
+                </button>
+              )}
+              <div className="mt-auto flex items-center gap-1">
+                <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
+                  onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+                <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
+                  onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1368,21 +1645,16 @@ export function InputRow() {
                   />
                 </div>
                 <div className="relative">
-                  {queuedWhileBusy && (
-                    <span
-                      data-testid="queued-while-busy"
-                      className="mr-1 hidden text-xs text-accent md:inline"
-                      title="Worker 正在处理上一条任务，当前消息将在之后处理"
-                    >
-                      排队中
-                    </span>
-                  )}
                   <button
                     id="send-queue-button"
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     aria-label={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
-                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${queueAllLocked
+                      ? 'border-danger/60 bg-danger/10 text-danger hover:bg-danger/15'
+                      : panelOpen || queueCount > 0
+                        ? 'border-accent/50 bg-accent/10 text-accent'
+                        : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                   >
                     <ChevronUp
                       size={14}
@@ -1529,6 +1801,7 @@ export function InputRow() {
                   }
                   onDragStart={(event) => {
                     if (attachment.status !== 'ready' || !attachment.href) return;
+                    beginAttachmentChipDragSuppression();
                     writePanAttachmentPayload(event.dataTransfer, {
                       displayName: attachment.displayName,
                       href: attachment.href,
@@ -1540,9 +1813,18 @@ export function InputRow() {
                       location: attachment.location,
                     });
                   }}
+                  onDragEnd={clearAttachmentChipDragSuppression}
+                  onClick={(event) => {
+                    // A completed or cancelled drag suppresses the trailing click.
+                    if (attachmentChipDraggedRef.current) return;
+                    const target = event.target instanceof Element ? event.target : null;
+                    // 重试/取消 buttons keep their own handlers; chip body opens.
+                    if (target?.closest('button')) return;
+                    openComposerAttachment(attachmentOccurrenceId(attachment));
+                  }}
                   role="group"
                   aria-label={`附件 ${attachment.displayName}`}
-                  className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
+                  className={`inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary ${attachment.status === 'ready' ? 'cursor-pointer' : ''}`}
                   title={attachment.path || attachment.displayName}
                 >
                   <FileIcon size={13} className="shrink-0" aria-hidden="true" />
@@ -1794,6 +2076,7 @@ export function InputRow() {
               onNativeFiles={handleNativeFiles}
               onNativeInputIssue={handleNativeInputIssue}
               onRemoveAttachment={handleRemoveComposerAttachment}
+              onOpenAttachment={openComposerAttachment}
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">

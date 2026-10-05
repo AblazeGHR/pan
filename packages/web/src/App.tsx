@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
 import { WorkspaceRail } from './components/layout/WorkspaceRail';
@@ -6,7 +6,6 @@ import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { EditorConfirmationModal } from './components/editor/EditorConfirmationModal';
 import { StartupRecoveryPrompt } from './components/layout/StartupRecoveryPrompt';
-import { DetailPanel } from './components/detail/DetailPanel';
 import { CliStatusBanner } from './components/layout/CliStatusBanner';
 import { DemoBadge } from './demo/DemoBadge';
 import { isMockMode } from './demo/mockBackend';
@@ -15,6 +14,12 @@ import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Outlet, useNavigate } from 'react-router-dom';
+
+// The normally closed detail pane imports Markdown; keep it outside the
+// shell's static dependency graph, alongside the deferred chat route.
+const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
+  (module) => ({ default: module.DetailPanel }),
+));
 
 export function Layout() {
   // The dashboard connection is route-independent. Keeping this singleton
@@ -238,7 +243,9 @@ export function Layout() {
       <ToastContainer />
       <StartupRecoveryPrompt />
       {isMockMode() && <DemoBadge />}
-      <DetailPanel />
+      <Suspense fallback={<aside className="w-0 overflow-hidden border-l-0" />}>
+        <DetailPanel />
+      </Suspense>
       <CommandPalette />
       <EditorConfirmationModal />
     </div>

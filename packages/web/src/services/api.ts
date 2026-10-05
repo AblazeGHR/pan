@@ -1,3 +1,4 @@
+import { beginForegroundRequest } from './foregroundActivity';
 import type {
   Session,
   SessionUsageView,
@@ -148,7 +149,13 @@ export interface ServerFileAttachmentResponse extends AttachmentRef {
   size: number;
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+  const finish = background ? () => {} : beginForegroundRequest();
+  try { return await requestBody<T>(url, options, background); }
+  finally { finish(); }
+}
+
+async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
@@ -165,7 +172,30 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     const status = res.statusText ? `HTTP ${res.status}: ${res.statusText}` : `HTTP ${res.status}`;
     throw new ApiRequestError(res.status, detail ? `${status}: ${detail}` : status);
   }
-  return res.json() as Promise<T>;
+  if (!background) return res.json() as Promise<T>;
+  // Bound speculative decode work, including decompressed responses. A
+  // foreground request may abort this read before JSON.parse starts.
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No speculative history response body');
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (options?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > 512 * 1024) throw new Error('Speculative history byte budget exceeded');
+      chunks.push(decoder.decode(chunk.value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    if (options?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    return JSON.parse(chunks.join('')) as T;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 export interface QqGatewayPlugin {
@@ -246,7 +276,8 @@ export async function uploadSessionAttachment(
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<SessionAttachmentUploadResponse> {
-  return new Promise((resolve, reject) => {
+  const finishRequest = beginForegroundRequest();
+  return new Promise<SessionAttachmentUploadResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let settled = false;
     const finish = (callback: () => void) => {
@@ -293,7 +324,7 @@ export async function uploadSessionAttachment(
     } catch (error) {
       finish(() => reject(error instanceof Error ? error : new Error(String(error))));
     }
-  });
+  }).finally(finishRequest);
 }
 
 /** Register an existing server-side file without sending a client path back in
@@ -376,10 +407,12 @@ export async function fetchSessionHistory(
   limit: number = 50,
   signal?: AbortSignal,
   searchJump = false,
+  background = false,
 ): Promise<ApiSessionHistoryResponse> {
   const data = await request<ApiSessionHistoryResponse>(
     `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}${searchJump ? '&searchJump=true' : ''}`,
-    { signal },
+    background ? { signal, priority: 'low' } : { signal },
+    background,
   );
   if (data.error) throw new Error(data.error);
   return data;
@@ -395,6 +428,8 @@ export async function fetchHistorySearch(
     roles?: import('@/types').HistorySearchRole[];
     countMode?: 'messages' | 'content';
     matchIndex?: number;
+    viewportStart?: number;
+    viewportEnd?: number;
     messageId?: string;
     prepareLegacy?: boolean;
   },
@@ -409,6 +444,8 @@ export async function fetchHistorySearch(
     if (options?.countMode) params.set('countMode', options.countMode);
     if (options?.sessionId && options.countMode === 'content' && !cursor && options.prepareLegacy !== false) params.set('prepareLegacy', 'true');
   if (options?.matchIndex !== undefined) params.set('matchIndex', String(options.matchIndex));
+  if (options?.viewportStart !== undefined) params.set('viewportStart', String(options.viewportStart));
+  if (options?.viewportEnd !== undefined) params.set('viewportEnd', String(options.viewportEnd));
   if (options?.messageId) params.set('messageId', options.messageId);
   return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });
 }
@@ -422,6 +459,15 @@ export interface HistorySearchPreparation {
 }
 
 export async function prepareHistorySearch(
+  query: string, roles: import('@/types').HistorySearchRole[], limit: number,
+  signal: AbortSignal, onProgress: (event: HistorySearchPreparation) => void,
+): Promise<void> {
+  const finish = beginForegroundRequest();
+  try { await prepareHistorySearchBody(query, roles, limit, signal, onProgress); }
+  finally { finish(); }
+}
+
+async function prepareHistorySearchBody(
   query: string, roles: import('@/types').HistorySearchRole[], limit: number,
   signal: AbortSignal, onProgress: (event: HistorySearchPreparation) => void,
 ): Promise<void> {
@@ -919,6 +965,97 @@ export async function reorderSessions(
     throw err;
   }
   return { ok: true, order: data.order || [] };
+}
+
+/** One persisted composer attachment occurrence.
+ *
+ * A local `File` is deliberately absent: bytes that were never uploaded cannot
+ * be recovered after a reload, so a draft never claims they can.  Only
+ * server-owned identities (`attachmentId` for an uploaded file, `path` for a
+ * server file) plus display metadata round-trip. */
+export interface ApiSessionDraftAttachment {
+  occurrenceId: string;
+  displayName: string;
+  attachmentId?: string;
+  path?: string;
+  href?: string;
+  mimeType?: string;
+  fileKey?: string;
+  source?: 'upload' | 'server_file';
+  location?: { line: number; endLine?: number };
+}
+
+/** One ordered ComposerValue part.  Attachment occurrences keep their identity
+ *  so the restored inline structure and its order are exact. */
+export type ApiSessionDraftPart =
+  | { type: 'text'; value: string }
+  | { type: 'attachment'; attachmentId: string; occurrenceId?: string };
+
+export interface ApiSessionDraft {
+  text: string;
+  parts: ApiSessionDraftPart[];
+  attachments: ApiSessionDraftAttachment[];
+}
+
+export interface ApiSessionDraftState {
+  revision: number;
+  draft: ApiSessionDraft | null;
+  updatedAt: string | null;
+}
+
+/** Read one Session's unsent composer draft.  Resolves to revision 0 / null
+ *  draft when the Session has none — a missing draft is an empty composer. */
+export async function getSessionDraft(
+  sessionId: string,
+): Promise<ApiSessionDraftState> {
+  const data = await request<ApiSessionDraftState & { ok?: boolean; error?: { message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/draft`,
+  );
+  if (data.error) throw new Error(data.error.message || 'Draft read failed');
+  return {
+    revision: typeof data.revision === 'number' ? data.revision : 0,
+    draft: data.draft ?? null,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+  };
+}
+
+export class DraftConflictError extends Error {
+  /** The authoritative server draft at conflict time, or null if cleared. */
+  readonly current: ApiSessionDraft | null;
+  readonly currentRevision: number;
+
+  constructor(current: ApiSessionDraft | null, currentRevision: number) {
+    super('Draft changed elsewhere');
+    this.name = 'DraftConflictError';
+    this.current = current;
+    this.currentRevision = currentRevision;
+  }
+}
+
+/** Compare-and-set one Session's composer draft.
+ *
+ *  `baseRevision === null` asserts "create only if absent", which is how a
+ *  first save refuses to clobber a draft another client already wrote.  A
+ *  `null` draft is a versioned tombstone (composer cleared), not a delete. */
+export async function putSessionDraft(
+  sessionId: string,
+  draft: ApiSessionDraft | null,
+  baseRevision: number | null,
+): Promise<ApiSessionDraftState> {
+  const data = await request<
+    ApiSessionDraftState & { ok?: boolean; error?: { code?: string; message?: string } }
+  >(`${BASE}/sessions/${encodeURIComponent(sessionId)}/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ draft, baseRevision }),
+  });
+  if (data.error) {
+    if (data.error.code === 'draft_conflict') {
+      throw new DraftConflictError(data.draft ?? null, data.revision ?? 0);
+    }
+    throw new Error(data.error.message || 'Draft save failed');
+  }
+  if (typeof data.revision !== 'number') throw new Error('Draft save failed');
+  return { revision: data.revision, draft: data.draft ?? null, updatedAt: data.updatedAt ?? null };
 }
 
 /** Persist one shared Session pin toggle; pin metadata is separate from order. */

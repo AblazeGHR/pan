@@ -68,15 +68,20 @@ export default defineConfig(({ mode }) => {
         output: {
           // The previous entry URL may be cached with a bad Brotli variant.
           entryFileNames: 'assets/[name]-[hash]-pc2.js',
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'markdown-vendor': [
-              'react-markdown',
-              'remark-gfm',
-              'rehype-highlight',
-              'rehype-katex',
-            ],
-            'monaco-vendor': ['@monaco-editor/react'],
+          manualChunks(id) {
+            const normalized = id.replace(/\\/g, '/');
+            // Explicitly classify React's CJS JSX runtime as well as its entry
+            // points. Otherwise Markdown's dependency walk can capture JSX,
+            // making every shell component statically import Markdown.
+            if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(normalized)) {
+              return 'react-vendor';
+            }
+            if (/\/node_modules\/(react-markdown|remark-gfm|rehype-highlight|rehype-katex)\//.test(normalized)) {
+              return 'markdown-vendor';
+            }
+            if (/\/node_modules\/@monaco-editor\/react\//.test(normalized)) {
+              return 'monaco-vendor';
+            }
           },
         },
       },

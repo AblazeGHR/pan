@@ -9,6 +9,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { fetchSessionHistory } from '@/services/api';
 import type { Message } from '@/types';
+import * as messageOrdering from '@/stores/messageOrdering';
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: vi.fn(),
@@ -558,6 +559,19 @@ describe('jump single-flight lock across session switches', () => {
 });
 
 describe('rail mounting cost', () => {
+  it('does not rescan a complete transcript on streaming renders once the full index is ready', async () => {
+    const scan = vi.spyOn(messageOrdering, 'canonicalRowsWithOffsets');
+    const { container } = render(<MessageNavigationRail chatRef={{ current: null }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector('.message-navigation-rail')?.getAttribute('data-index-status')).toBe('ready');
+    scan.mockClear();
+    await act(async () => {
+      useSessionStore.setState({ currentMessages: Array.from({ length: 5000 }, (_, i) => ({ role: 'user', content: `row ${i}` })) });
+    });
+    expect(scan).not.toHaveBeenCalled();
+    expect(markers(container)).toHaveLength(1);
+  });
+
   it('indexes the full history when it is mounted', async () => {
     const { container } = render(<MessageNavigationRail chatRef={{ current: null }} />);
     await act(async () => {

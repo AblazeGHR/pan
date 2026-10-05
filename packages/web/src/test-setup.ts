@@ -20,3 +20,17 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   });
 }
+
+// jsdom has no layout observer. Real popup/scroll geometry is verified in
+// Chromium; unit fixtures may replace this with an observer that emits sizes.
+if (typeof window !== 'undefined' && !globalThis.ResizeObserver) {
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    writable: true,
+    configurable: true,
+    value: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
+}

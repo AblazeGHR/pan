@@ -1,3 +1,4 @@
+import { takeHistoryPrefetch, peekHistoryPrefetch, type HistoryPrefetchContext } from '@/services/historyPagePrefetch';
 import { create } from 'zustand';
 import type {
   Session,
@@ -155,6 +156,7 @@ interface SessionStore {
   ackSessionUnread: (id: string, observedGeneration?: number) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
+  hasPrefetchedOlderMessages: () => boolean;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   rewindCurrentMessage: (message: Message, scope: RewindScope) => Promise<void>;
@@ -515,6 +517,15 @@ export interface SessionTranscript {
   /** Absolute offset where the runtime region starts. */
   anchorOffset: number;
   serverEpoch: string | null;
+  /** Completed task scopes awaiting their versioned canonical history page. */
+  completedRuns?: Array<{
+    taskKey: string;
+    start: number;
+    epoch: string;
+    revision: number;
+    precedingRevision?: number;
+    finalRow: Message;
+  }>;
 }
 
 // Stable keys for runtime rows so a re-delivered live buffer replaces its own
@@ -1009,6 +1020,47 @@ function coveredTerminalRunEnd(
     if (!durable || (durable.role === 'user' && !used.has(offset))) return undefined;
   }
   return end;
+}
+
+/** Only a complete, versioned task region may replace transient provider items.
+ * Missing native items are legitimate: Codex's final history need not retain
+ * every progress/thinking notification sent over the live stream.
+ */
+function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript {
+  if (!transcript.completedRuns?.length) return transcript;
+  const { window } = transcript;
+  const covered = new Set<string>();
+  const pending = transcript.completedRuns.filter((run) => {
+    if (run.epoch !== window.epoch || window.revision < run.revision) return true;
+    // Same append/revision invariant as terminalMarkerEnd. Later tasks must
+    // not expand the completed task's durable boundary.
+    const end = window.total - (window.revision - run.revision);
+    const precedingEnd = run.precedingRevision === undefined
+      ? run.start
+      : window.total - (window.revision - run.precedingRevision);
+    const start = Math.min(run.start, precedingEnd);
+    if (!Number.isSafeInteger(start) || start < 0
+        || !Number.isSafeInteger(end) || end <= start || end > window.total) return true;
+    let hasFinal = false;
+    for (let offset = start; offset < end; offset += 1) {
+      const row = window.rows.get(offset);
+      if (!row) return true;
+      if (row.role === 'assistant' && runtimeRowCompatible(run.finalRow, row)) hasFinal = true;
+    }
+    if (!hasFinal) return true;
+    covered.add(`slot:${run.taskKey}:`);
+    return false;
+  });
+  if (covered.size === 0) return transcript;
+  const prefixes = [...covered];
+  return {
+    ...transcript,
+    completedRuns: pending,
+    runtime: transcript.runtime.filter((row) => {
+      const key = runtimeKeyOf(row);
+      return key === null || !prefixes.some((prefix) => key.startsWith(prefix));
+    }),
+  };
 }
 
 function projectTranscript(
@@ -1551,7 +1603,7 @@ function applyHistoryPageToState(
   };
   if (merged.replacedEpoch) {
     // A new epoch invalidates every runtime row of the old identity scope.
-    next = { ...next, runtime: [], anchorOffset: merged.window.total };
+    next = { ...next, runtime: [], completedRuns: [], anchorOffset: merged.window.total };
   } else {
     // Track rendered rows that neither carry a canonical offset nor belong to
     // the runtime region, so a rebuild cannot drop them. The leading run that
@@ -1591,6 +1643,7 @@ function applyHistoryPageToState(
   // the window we already have must not reconstruct the display: rows that
   // exist only in the rendered projection (an optimistic user row, an
   // agent-injected message) would be dropped by a rebuild.
+  next = convergeCompletedRuns(next);
   const projected = projectTranscript(next, s.liveStreamBuffers[sessionId]);
   // Keep the previous array reference when the projection is unchanged: callers
   // (and the agent-injection retry) compare array identity to decide whether a
@@ -1653,6 +1706,32 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
   if (transcript) return [...transcript.window.rows.values()];
   const session = sessionOf(state, sessionId);
   return (session?.history ?? []).filter((row) => !isLocalMarker(row));
+}
+
+/**
+ * The canonical row stored at an absolute history offset, or null when that
+ * offset cannot be attributed to a durable row.
+ *
+ * Only a window that already exists is an authority here: its rows were tagged
+ * by `markDurableRow` from a history page response or from the transcript's own
+ * seeding, so the offset it hands back is attributable. A missing offset returns
+ * null so the caller pages or reports the target as unlocatable, never guesses.
+ *
+ * With no transcript there is deliberately no answer. `Session.history` mirrors
+ * the rendered transcript and can still contain runtime, live and optimistic
+ * rows; neither dropping local markers nor handing that array to
+ * `windowFromSession` (which derives offsets from array positions) proves a
+ * canonical origin, and seeding here would also tag runtime objects as durable.
+ * A Session with no transcript is not yet navigable by canonical offset. The
+ * ordinary path is unaffected: `selectSession` and `ensureTranscript` install a
+ * transcript before navigation can run.
+ */
+function canonicalRowAtOffset(
+  state: SessionStore,
+  sessionId: string,
+  offset: number,
+): Message | null {
+  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
 }
 
 /** Append rows that are not already represented, keeping the tail deduped. */
@@ -2148,9 +2227,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     const state = get();
     if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
-    const localIndex = absoluteIndex - state.historyLoadEnd;
-    return state.currentMessages[localIndex] ?? null;
+    // `absoluteIndex` is a canonical history offset, so it must be resolved in
+    // canonical index space. `currentMessages` interleaves local markers
+    // (`[DONE] Task completed`) and runtime rows, so its positions drift from
+    // canonical offsets by one per preceding non-canonical row — indexing it
+    // directly returned the neighbouring row and sent quick-jump to the wrong
+    // message. Resolve the durable row that owns this offset instead; an offset
+    // the window cannot prove stays null so the caller reports it as
+    // unlocatable rather than landing on a guessed neighbour.
+    return canonicalRowAtOffset(state, sessionId, absoluteIndex);
   },
+
+  hasPrefetchedOlderMessages: () => peekHistoryPrefetch(getHistoryPrefetchContext(), get().historyLoadEnd),
 
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
@@ -2168,9 +2256,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({ _historyPageSeq: { ...s._historyPageSeq, [sid]: pageSeq } }));
 
     try {
-      const data: ApiSessionHistoryResponse = signal
+      const context = getHistoryPrefetchContext();
+      const cached = !searchJump && (limit ?? historyPageSize()) === context?.limit
+        ? takeHistoryPrefetch(context, historyLoadEnd) : null;
+      const data: ApiSessionHistoryResponse = cached ?? (signal
         ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal, searchJump)
-        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump);
+        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump));
       if (signal?.aborted || get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;
@@ -3230,6 +3321,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           nextTranscript = { ...nextTranscript, runtime: [...adopted, ...nextTranscript.runtime] };
         }
       }
+      if (previousBuffer?.taskKey && hasResult && coverage.historyEpoch
+          && Number.isSafeInteger(coverage.historyRevision)
+          && previousBuffer.historyStartOffset !== undefined) {
+        const finalRow = finalized[finalSlot >= 0 ? finalSlot : finalized.length - 1];
+        if (finalRow?.role === 'assistant') {
+          nextTranscript = {
+            ...nextTranscript,
+            completedRuns: [...(nextTranscript.completedRuns ?? []), {
+              taskKey: incomingTaskKey,
+              start: previousBuffer.historyStartOffset,
+              epoch: coverage.historyEpoch,
+              revision: coverage.historyRevision!,
+              ...(terminal?.historyEpoch === coverage.historyEpoch
+                && typeof terminal.historyRevision === 'number'
+                && terminal.historyRevision < coverage.historyRevision!
+                ? { precedingRevision: terminal.historyRevision } : {}),
+              finalRow,
+            }],
+          };
+          nextTranscript = convergeCompletedRuns(nextTranscript);
+        }
+      }
       const display = isCurrent && finalized.length > 0
         ? projectTranscript(nextTranscript, previousBuffer)
         : s.currentMessages;
@@ -4223,4 +4336,21 @@ export function useCurrentSession() {
 if (typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('panE2E')) {
   (window as unknown as Record<string, unknown>).__panSessionStore = useSessionStore;
+}
+
+/** Exact authority boundary for disposable speculative history pages. */
+export function getHistoryPrefetchContext(): HistoryPrefetchContext | null {
+  const state = useSessionStore.getState();
+  const sid = state.currentSessionId;
+  if (!sid || !state.hasMoreMessages || state.historyLoadEnd <= 0) return null;
+  const session = state.sessions.find((item) => item.id === sid);
+  const window = state.sessionTranscripts[sid]?.window;
+  // A replacement may reset the revision counter. Do not reuse the old
+  // window's pages while a newer summary advertises a different epoch.
+  if (window?.epoch && session?.historyEpoch && window.epoch !== session.historyEpoch) return null;
+  const epoch = window?.epoch ?? session?.historyEpoch;
+  const revision = Math.max(window?.revision ?? 0, session?.historyRevision ?? 0);
+  if (typeof epoch !== 'string' || !epoch || !Number.isSafeInteger(revision) || revision < 0) return null;
+  return { sessionId: sid, selection: state._selectionSeq[sid] ?? 0, serverEpoch: state.serverEpoch,
+    historyEpoch: epoch, historyRevision: revision, limit: historyPageSize() };
 }
