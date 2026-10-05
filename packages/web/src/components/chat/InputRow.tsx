@@ -488,21 +488,38 @@ export function InputRow() {
   // parts，见 _deliver_queue_unit/_format_report_batch，故不提供附件入口）──
   const updateQueueEditAttachments = useQueueStore((s) => s.updateEditAttachments);
   const queueEditAttachments = queueEdit?.attachments ?? EMPTY_QUEUE_EDIT_ATTACHMENTS;
-  const queueUploadControllersRef = useRef(new Map<string, AbortController>());
+  // Tracked per attempt: aborting one Session's edit must never touch another
+  // Session's in-flight upload, while unmount may cancel everything.
+  const queueUploadControllersRef = useRef(
+    new Map<string, { controller: AbortController; sessionId: string }>(),
+  );
   // Shared attachment menu/browser target: the ordinary composer keeps its
   // draft transaction; queue edits write the isolated edit attachment list.
   const attachmentTargetRef = useRef<'composer' | 'queue-edit'>('composer');
-  const abortQueueEditUploads = useCallback(() => {
-    for (const controller of queueUploadControllersRef.current.values()) controller.abort();
-    queueUploadControllersRef.current.clear();
+  const abortQueueEditUploads = useCallback((sessionId?: string) => {
+    for (const [occurrenceId, entry] of queueUploadControllersRef.current) {
+      if (sessionId === undefined || entry.sessionId === sessionId) {
+        entry.controller.abort();
+        queueUploadControllersRef.current.delete(occurrenceId);
+      }
+    }
   }, []);
+  // Unmount cancels every tracked upload regardless of Session: nobody is
+  // left to consume their callbacks.
+  useEffect(() => () => abortQueueEditUploads(), [abortQueueEditUploads]);
   const queueEditAttachmentLive = useCallback(
     (sessionId: string, occurrenceId: string, token: number | undefined, controller?: AbortController) => {
       // Bound to the transaction's session: a late response must land on the
       // edit it was started in, never on whatever Session is current.
       const edit = useQueueStore.getState().edits[sessionId];
       if (!edit || edit.editToken !== token) return false;
-      if (controller && queueUploadControllersRef.current.get(occurrenceId) !== controller) return false;
+      // The chip must still exist: a retried attempt gets a fresh identity
+      // (or a fresh controller), so stale responses cannot overwrite it.
+      if (!edit.attachments?.some((item) => item.occurrenceId === occurrenceId)) return false;
+      if (controller) {
+        const entry = queueUploadControllersRef.current.get(occurrenceId);
+        if (!entry || entry.controller !== controller) return false;
+      }
       return true;
     },
     [],
@@ -511,14 +528,14 @@ export function InputRow() {
     async (attachment: QueuedEditAttachment, token: number | undefined, sessionId: string) => {
       if (!attachment.file) return;
       const controller = new AbortController();
-      queueUploadControllersRef.current.set(attachment.occurrenceId, controller);
+      queueUploadControllersRef.current.set(attachment.occurrenceId, { controller, sessionId });
       try {
         const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
         const uploaded = await upload(
           sessionId,
           attachment.file,
           (loaded, total) => {
-            if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+            if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
             updateQueueEditAttachments(sessionId, (current) =>
               current.map((item) =>
                 item.occurrenceId === attachment.occurrenceId
@@ -529,7 +546,7 @@ export function InputRow() {
           },
           controller.signal,
         );
-        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
         updateQueueEditAttachments(sessionId, (current) =>
           current.map((item) =>
             item.occurrenceId === attachment.occurrenceId
@@ -550,7 +567,11 @@ export function InputRow() {
           ),
         );
       } catch (error) {
-        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+        // The controller identity is part of the liveness check: a retried
+        // attempt installs a fresh controller, so this stale AbortError (e.g.
+        // cancel -> release failure -> immediate retry) cannot overwrite the
+        // new attempt's uploading/ready state.
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
         updateQueueEditAttachments(sessionId, (current) =>
           current.map((item) =>
             item.occurrenceId === attachment.occurrenceId
@@ -559,7 +580,8 @@ export function InputRow() {
           ),
         );
       } finally {
-        if (queueUploadControllersRef.current.get(attachment.occurrenceId) === controller) {
+        const entry = queueUploadControllersRef.current.get(attachment.occurrenceId);
+        if (entry && entry.controller === controller) {
           queueUploadControllersRef.current.delete(attachment.occurrenceId);
         }
       }
@@ -679,8 +701,11 @@ export function InputRow() {
   const removeQueueEditAttachment = useCallback(
     (sessionId: string | undefined, occurrenceId: string) => {
       if (!sessionId) return;
-      queueUploadControllersRef.current.get(occurrenceId)?.abort();
-      queueUploadControllersRef.current.delete(occurrenceId);
+      const entry = queueUploadControllersRef.current.get(occurrenceId);
+      if (entry) {
+        entry.controller.abort();
+        queueUploadControllersRef.current.delete(occurrenceId);
+      }
       updateQueueEditAttachments(sessionId, (current) =>
         current.filter((item) => item.occurrenceId !== occurrenceId),
       );
@@ -702,15 +727,24 @@ export function InputRow() {
         );
         void uploadQueueEditAttachment(attachment, token, sessionId);
       } else if (attachment.path) {
-        // Path registration retry (server-file picker / chip without a File).
+        // Path registration retry gets a FRESH occurrence id: the previous
+        // attempt's chip is replaced, so a late response from the old
+        // registration cannot overwrite the new attempt (the old occurrence
+        // no longer exists, failing the liveness check).
+        const nextOccurrenceId = attachmentId();
         updateQueueEditAttachments(sessionId, (current) =>
-          current.map((item) =>
-            item.occurrenceId === attachment.occurrenceId
-              ? { ...item, status: 'registering' as const, error: undefined }
-              : item,
-          ),
+          current.flatMap((item) => {
+            if (item.occurrenceId !== attachment.occurrenceId) return [item];
+            return [{
+              ...item,
+              occurrenceId: nextOccurrenceId,
+              id: nextOccurrenceId,
+              status: 'registering' as const,
+              error: undefined,
+            }];
+          }),
         );
-        registerQueueEditAttachment(attachment.occurrenceId, attachment.path, token, sessionId);
+        registerQueueEditAttachment(nextOccurrenceId, attachment.path, token, sessionId);
       }
     },
     [registerQueueEditAttachment, updateQueueEditAttachments, uploadQueueEditAttachment],
@@ -734,7 +768,8 @@ export function InputRow() {
         );
       }
     }
-    abortQueueEditUploads();
+    // Only this transaction's uploads: other Sessions' edits keep theirs.
+    abortQueueEditUploads(sid ?? undefined);
     cancelQueueEdit();
   }, [abortQueueEditUploads, cancelQueueEdit, updateQueueEditAttachments]);
   const handleQueueComposerKeyDown = useCallback(
@@ -2320,6 +2355,16 @@ export function InputRow() {
                         // registration is in flight, and a failure leaves a
                         // retryable error chip instead of a silent loss.
                         if (queueEditToken === undefined) return;
+                        // Busy picker guard: the edit may have entered
+                        // saving/releasing/acquiring between opening the
+                        // picker and selecting a file; the placeholder write
+                        // would be dropped and we'd fire a pointless request.
+                        const editAtSelect = useQueueStore.getState().edits[selectedSessionId];
+                        if (!editAtSelect
+                          || editAtSelect.editToken !== queueEditToken
+                          || editAtSelect.saving || editAtSelect.releasing || editAtSelect.acquiring) {
+                          return;
+                        }
                         const occurrenceId = attachmentId();
                         const displayName = selectedPath.split(/[\\/]/).pop() || selectedPath;
                         updateQueueEditAttachments(selectedSessionId, (current) => [
@@ -2333,10 +2378,19 @@ export function InputRow() {
                             source: 'server_file' as const,
                           },
                         ]);
+                        // The action guard can silently drop the placeholder;
+                        // only fire the request if it actually landed.
+                        const placed = useQueueStore.getState().edits[selectedSessionId]
+                          ?.attachments?.some((item) => item.occurrenceId === occurrenceId);
+                        if (!placed) return;
                         let registered: Awaited<ReturnType<typeof registerServerFileAttachment>>;
                         try {
                           registered = await register(selectedSessionId, selectedPath);
                         } catch (error) {
+                          // Data write stays bound to the originating edit; UI
+                          // side effects only touch the picker the user is
+                          // still looking at (same session, same epoch, same
+                          // target transaction).
                           if (
                             useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
                           )
@@ -2352,9 +2406,16 @@ export function InputRow() {
                                 : item,
                             ),
                           );
-                          setAttachmentDirectoryError(
-                            error instanceof Error ? error.message : '服务端附件注册失败',
-                          );
+                          if (
+                            useSessionStore.getState().currentSessionId === selectedSessionId
+                            && attachmentEpochRef.current === selectedEpoch
+                            && useQueueStore.getState().edits[selectedSessionId]?.editToken === queueEditToken
+                            && attachmentTargetRef.current === 'queue-edit'
+                          ) {
+                            setAttachmentDirectoryError(
+                              error instanceof Error ? error.message : '服务端附件注册失败',
+                            );
+                          }
                           return;
                         }
                         if (
@@ -2377,9 +2438,16 @@ export function InputRow() {
                               : item,
                           ),
                         );
-                        setAttachmentBrowserOpen(false);
-                        setAttachmentMenuOpen(false);
-                        setAttachmentDirectoryError(null);
+                        if (
+                          useSessionStore.getState().currentSessionId === selectedSessionId
+                          && attachmentEpochRef.current === selectedEpoch
+                          && useQueueStore.getState().edits[selectedSessionId]?.editToken === queueEditToken
+                          && attachmentTargetRef.current === 'queue-edit'
+                        ) {
+                          setAttachmentBrowserOpen(false);
+                          setAttachmentMenuOpen(false);
+                          setAttachmentDirectoryError(null);
+                        }
                         return;
                       }
                       const registered = await register(selectedSessionId, selectedPath);
