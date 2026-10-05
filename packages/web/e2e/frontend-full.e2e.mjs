@@ -261,6 +261,7 @@ async function assertLiveVisualOrder(label, snapshots) {
 }
 const ids = {};
 const faults = {
+  transientBeforeResult: false,
   duplicate: false,
   reorder: false,
   held: null,
@@ -289,6 +290,21 @@ try {
     upstream.onMessage(message => {
       if (faults.backgroundDeadSocket === ws) return;
       const e = JSON.parse(String(message));
+      if (faults.transientBeforeResult && e.type === 'worker.result'
+          && String(e.result || '').includes('answer:terminal-transient')) {
+        faults.transientBeforeResult = false;
+        // This fixture frame is unsequenced: copying the result's delivery
+        // cursor would consume it and make the real result look duplicated.
+        ws.send(JSON.stringify({ type: 'worker.stream', sessionId: e.sessionId,
+          workerId: e.workerId, generation: e.generation, taskSeq: e.taskSeq,
+          taskId: e.taskId, serverEpoch: e.serverEpoch, event: {
+          type: 'assistant', item_id: 'ephemeral-fixture-item',
+          message: { content: [
+            { type: 'thinking', thinking: 'ephemeral-fixture-reasoning' },
+            { type: 'tool_use', name: 'ephemeral-fixture-tool', input: { progress: true } },
+          ] },
+        } }));
+      }
       if (faults.delaySnapshot && e.type === 'resync.snapshot') {
         faults.delaySnapshot = false;
         setTimeout(() => ws.send(message), 450);
@@ -339,7 +355,9 @@ try {
   await page.evaluate(() => {
     window.__transcriptTrace = [];
     window.__transientViolations = [];
+    window.__ephemeralSeen = false;
     window.__panSessionStore.subscribe(s => {
+      if (s.currentMessages.some(m => m.content.includes('ephemeral-fixture'))) window.__ephemeralSeen = true;
       const seen = new Set();
       for (const m of s.currentMessages) {
         if (m.role !== 'assistant' || !m.content.startsWith('answer:')) continue;
@@ -385,6 +403,13 @@ try {
     await equalCanonical(`B compound ${turn}`);
   }
   await select('E2E-A');
+  faults.transientBeforeResult = true;
+  await send('terminal-transient');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:terminal-transient'), 'terminal-transient durable final');
+  await equalCanonical('non-durable tool/thinking disappear after terminal coverage without reload');
+  assert.equal(faults.transientBeforeResult, false, 'ephemeral transport frames actually injected');
+  assert.equal(await page.evaluate(() => window.__ephemeralSeen), true, 'ephemeral rows were displayed before canonical convergence');
+  assert.ok(!(await state()).rows.some(m => m.content.includes('ephemeral-fixture')), 'no non-durable tail blocks remain');
   faults.historyDelay = 700;
   faults.duplicate = true;
   faults.reorder = true;

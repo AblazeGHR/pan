@@ -1,5 +1,7 @@
 # Pan browser trace tools
 
+隔离的前端性能与分页验证入口见 [performance/README.md](performance/README.md)，包含旧消息预取、流式运行、导航/滚动条和草稿场景，以及临时文件后端分页基准。
+
 These scripts observe a Pan page in a dedicated Chrome or Edge window. They record WebSocket frames, the frontend message store, and rendered DOM rows so message duplication or ordering issues can be compared across layers.
 
 The recorder does not start, stop, or restart Pan. It launches a separate browser profile and stores trace files under `packages/web/test-results/`, which is ignored by Git.

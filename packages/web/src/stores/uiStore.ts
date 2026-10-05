@@ -658,7 +658,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
           changed = true;
         }
       }
-      if (!changed) return {};
+      if (!changed) return s;
       persistHiddenSessions(next);
       return { hiddenSessionIds: next };
     });
@@ -681,7 +681,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => {
       const next = new Set(s.collapsedGroups);
       for (const k of keys) next.add(k);
-      if (next.size === s.collapsedGroups.size) return {}; // nothing new to collapse
+      if (next.size === s.collapsedGroups.size) return s; // nothing new to collapse
       persistCollapsedGroupsAfterUserAction(next);
       return { collapsedGroups: next };
     });
@@ -694,7 +694,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
       for (const k of keys) {
         if (next.delete(k)) changed = true;
       }
-      if (!changed) return {};
+      if (!changed) return s;
       persistCollapsedGroupsAfterUserAction(next);
       return { collapsedGroups: next };
     });
@@ -711,7 +711,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
           changed = true;
         }
       }
-      if (!changed) return {};
+      // Returning the same state skips Zustand's merge and subscriber fan-out.
+      // Session summaries can trigger this maintenance on every durable update.
+      if (!changed) return s;
       // Automatic maintenance, not a user action: it must not raise
       // collapsedUserDirty (that would wrongly skip a concurrent startup GET),
       // and its write-back is blocked until the startup GET outcome is known —
