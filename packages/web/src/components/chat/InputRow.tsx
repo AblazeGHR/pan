@@ -1564,9 +1564,11 @@ export function InputRow() {
           {queueEdit.bodyFormat === 'json' && <p className="text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
           {queueEdit.bodyFormat === 'parts' && <p className="text-xs text-text-secondary">此消息含附件；仅修改 text 类型片段的 text/value 正文。请保留全部片段、顺序和附件字段。</p>}
           {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
-          <div className={`flex min-h-24 min-w-0 flex-1 gap-2 ${queueEdit.saving || queueEdit.releasing ? 'pointer-events-none opacity-60' : ''}`}>
+          <div className="flex min-h-24 min-w-0 flex-1 gap-2">
             {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
-                绝不把面板里的截断预览当作编辑正文。 */}
+                绝不把面板里的截断预览当作编辑正文。saving/releasing 时编辑器
+                真禁用（contentEditable=false + 键盘守卫），DOM 冻结，保存失败
+                解除后 DOM 与 store 草稿一致。 */}
             {!queueEdit.acquiring && (
               <RichTextComposer
                 key={`queue-edit:${currentSessionId ?? 'no-session'}:${queueEdit.editToken ?? 'none'}`}
@@ -1575,6 +1577,7 @@ export function InputRow() {
                 initialText={queueEdit.text}
                 attachments={QUEUE_EDIT_ATTACHMENTS}
                 sessionId={currentSessionId || undefined}
+                disabled={queueEdit.saving || queueEdit.releasing}
                 onChange={handleQueueComposerChange}
                 onAttachmentDrop={() => null}
                 onNativeInputIssue={() => showToast('队列编辑模式下不能添加附件', 'error')}
@@ -1641,7 +1644,7 @@ export function InputRow() {
                     aria-label={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${queueAllLocked
                       ? 'border-danger/60 bg-danger/10 text-danger hover:bg-danger/15'
-                      : panelOpen
+                      : panelOpen || queueCount > 0
                         ? 'border-accent/50 bg-accent/10 text-accent'
                         : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                   >
