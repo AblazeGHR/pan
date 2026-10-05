@@ -70,6 +70,7 @@ interface MessageBubbleProps {
 const SOURCE_TAG_LABELS: Record<MessageSourceTag, string> = {
   'ta-report': 'TA report',
   'ma-assign': 'MA assign',
+  system: 'System',
 };
 
 export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
@@ -111,7 +112,8 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
   // System messages
   if (role === 'system') {
     return (
-      <div className={`system-message flex justify-center py-2 ${mt}`}>
+      <div className={`system-message flex ${sourceTag ? 'flex-col items-center' : 'justify-center'} py-2 ${mt}`}>
+        {sourceBadge}
         <span className="msg system text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
           {message.content}
         </span>

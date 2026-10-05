@@ -68,6 +68,7 @@ interface NavigationKindMeta {
 const KIND_META: Record<RailNavigationKind, NavigationKindMeta> = {
   user: { label: USER_LABEL, slug: 'user' },
   worker: { label: 'TA report', tag: 'Re', slug: 'worker' },
+  system: { label: 'System', tag: 'Sys', slug: 'system' },
   maAssign: { label: 'MA assign', tag: 'MA', slug: 'ma-assign' },
   maMsg: { label: 'MA msg', tag: 'MA', slug: 'ma-msg' },
 };
