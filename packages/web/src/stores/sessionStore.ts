@@ -1592,30 +1592,28 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
 
 /**
  * The canonical row stored at an absolute history offset, or null when that
- * offset is not known to be loaded.
+ * offset cannot be attributed to a durable row.
  *
- * The window is the only authority for offset → row. A loaded transcript
- * answers directly; a transcript that exists but lacks the offset answers null
- * so the caller can page or report an unlocatable target, never guess. When no
- * transcript exists at all the offset question is settled by `windowFromSession`
- * — the same seed authority `ensureTranscript` uses — rather than by indexing a
- * locally filtered array.
+ * Only a window that already exists is an authority here: its rows were tagged
+ * by `markDurableRow` from a history page response or from the transcript's own
+ * seeding, so the offset it hands back is attributable. A missing offset returns
+ * null so the caller pages or reports the target as unlocatable, never guesses.
  *
- * `Session.history` must never be filtered and indexed here to recover a
- * canonical offset: it mirrors the rendered transcript, so it can still hold
- * runtime/live/optimistic rows. Dropping local markers does not make the
- * remaining positions canonical.
+ * With no transcript there is deliberately no answer. `Session.history` mirrors
+ * the rendered transcript and can still contain runtime, live and optimistic
+ * rows; neither dropping local markers nor handing that array to
+ * `windowFromSession` (which derives offsets from array positions) proves a
+ * canonical origin, and seeding here would also tag runtime objects as durable.
+ * A Session with no transcript is not yet navigable by canonical offset. The
+ * ordinary path is unaffected: `selectSession` and `ensureTranscript` install a
+ * transcript before navigation can run.
  */
 function canonicalRowAtOffset(
   state: SessionStore,
   sessionId: string,
   offset: number,
 ): Message | null {
-  const transcript = state.sessionTranscripts[sessionId];
-  if (transcript) return transcript.window.rows.get(offset) ?? null;
-  const session = sessionOf(state, sessionId);
-  if (!session) return null;
-  return windowFromSession(session).rows.get(offset) ?? null;
+  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
 }
 
 /** Append rows that are not already represented, keeping the tail deduped. */
