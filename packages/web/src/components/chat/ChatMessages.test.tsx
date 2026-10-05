@@ -1469,9 +1469,10 @@ describe('ChatMessages scroll positioning', () => {
     }
   });
 
-  it('re-resolves a grouped pagination anchor when prepended history changes the group key', async () => {
+  it.each([false, true])('re-resolves a grouped pagination anchor when prepended history changes the group key (cached=%s)', async (cached) => {
     vi.useFakeTimers();
     const restoreGeometry = installToolGroupRowGeometry();
+    const originalPrefetchCheck = useSessionStore.getState().hasPrefetchedOlderMessages;
     try {
       useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: false });
       const initial: Message[] = [
@@ -1499,6 +1500,7 @@ describe('ChatMessages scroll positioning', () => {
         hasMoreMessages: true,
         historyLoading: false,
         loadOlderMessages,
+        hasPrefetchedOlderMessages: () => cached,
       });
       m.setTotalSize(700);
       m.setVirtualItems(rowWindow([0, 1, 2, 3]));
@@ -1517,7 +1519,7 @@ describe('ChatMessages scroll positioning', () => {
       const beforeOffset = beforeRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top;
 
       await act(async () => {
-        vi.advanceTimersByTime(180);
+        vi.advanceTimersByTime(cached ? 40 : 180);
         await Promise.resolve();
       });
 
@@ -1529,6 +1531,7 @@ describe('ChatMessages scroll positioning', () => {
       expect(afterRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top).toBe(beforeOffset);
       expect(scrollEl.scrollTop).toBe(200);
     } finally {
+      useSessionStore.setState({ hasPrefetchedOlderMessages: originalPrefetchCheck });
       restoreGeometry();
     }
   });

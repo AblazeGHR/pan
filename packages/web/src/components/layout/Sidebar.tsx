@@ -216,24 +216,37 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     if (!sortLongPressedRef.current) clearSortPress();
   }, [clearSortPress]);
 
-  // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
+  // Scope for collapse-all / expand-all: every collapsible key in the
+  // currently visible (search/filter/workspace-scoped) list, at ALL tree
+  // levels. Derived from the same data-level candidate list SessionList groups
+  // (NOT from rendered DOM nodes), so children hidden under collapsed parents
+  // are included, while sessions filtered out by search/filters/workspace or
+  // hidden are out of scope and keep their own collapse state. Key
+  // normalization mirrors SessionList's workdir/manager grouping.
   const groupKeys = useMemo(() => {
+    if (effectiveGroupBy !== 'workdir' && effectiveGroupBy !== 'manager') return [] as string[];
+    const scoped = getSessionListCandidates(sessions, {
+      multiSelectMode,
+      hiddenSessionIds,
+      searchQuery,
+      specialFilters,
+      activeWorkspaceId,
+      matchingSessionIds,
+    });
     if (effectiveGroupBy === 'workdir') {
       const keys = new Set<string>();
-      for (const s of sessions) {
-        if (s.workdir) {
-          keys.add(s.workdir.replace(/\\/g, '/').replace(/\/$/, ''));
-        } else {
-          keys.add('__no_workdir');
-        }
+      for (const s of scoped) {
+        keys.add(s.workdir ? s.workdir.replace(/\\/g, '/').replace(/\/$/, '') : '__no_workdir');
       }
       return [...keys];
     }
-    if (effectiveGroupBy === 'manager') {
-      return sessions.map((s) => s.id);
-    }
-    return [] as string[];
-  }, [sessions, effectiveGroupBy]);
+    return scoped.map((s) => s.id);
+  }, [sessions, effectiveGroupBy, multiSelectMode, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId, matchingSessionIds]);
+
+  // Binary toggle judged against the operation scope only: collapsed state of
+  // out-of-scope keys must not flip the button (e.g. a group collapsed in
+  // another workspace or before a filter was applied).
+  const allScopeCollapsed = groupKeys.length > 0 && groupKeys.every((k) => collapsedGroups.has(k));
 
   const selectableSessions = useMemo(
     () => getSessionListCandidates(sessions, {
@@ -725,12 +738,12 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
             {(effectiveGroupBy === 'workdir' || effectiveGroupBy === 'manager') && (
               <button
                 onClick={() =>
-                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups(groupKeys)
+                  allScopeCollapsed ? expandAllGroups(groupKeys) : collapseAllGroups(groupKeys)
                 }
                 className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
-                title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
+                title={allScopeCollapsed ? 'Expand all groups' : 'Collapse all groups'}
               >
-                {collapsedGroups.size > 0 ? (
+                {allScopeCollapsed ? (
                   <ChevronUp size={14} />
                 ) : (
                   <ChevronDown size={14} />

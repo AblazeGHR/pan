@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
+import { beginForegroundRequest } from '@/services/foregroundActivity';
 type Config = { enabled: boolean; port: number; public_hostname: string; access_issuer: string;
   access_audience: string; config_path: string; binary_path: string };
 type Status = { config: Config; publicUrl: string; gateway: { listening: boolean }; tunnel: { running: boolean } };
 async function call(path = '', method = 'GET', body?: Config) {
+  const finishRequest = beginForegroundRequest();
+  try {
   const r = await fetch(`/api/remote/mcp${path}`, { method, headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined });
   const s = await r.json();
   if (!r.ok || s.ok === false) throw new Error(s.error || s.detail || 'Request failed');
   return s;
+  } finally { finishRequest(); }
 }
 export function McpRemoteSettings() {
   const [status, setStatus] = useState<Status | null>(null);

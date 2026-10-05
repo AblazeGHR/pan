@@ -1,3 +1,4 @@
+import { takeHistoryPrefetch, peekHistoryPrefetch, type HistoryPrefetchContext } from '@/services/historyPagePrefetch';
 import { create } from 'zustand';
 import type {
   Session,
@@ -107,6 +108,7 @@ interface SessionStore {
   ackSessionUnread: (id: string, observedGeneration?: number) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: (limit?: number, signal?: AbortSignal, searchJump?: boolean) => Promise<void>;
+  hasPrefetchedOlderMessages: () => boolean;
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   createNewSession: (
@@ -1590,6 +1592,32 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
   return (session?.history ?? []).filter((row) => !isLocalMarker(row));
 }
 
+/**
+ * The canonical row stored at an absolute history offset, or null when that
+ * offset cannot be attributed to a durable row.
+ *
+ * Only a window that already exists is an authority here: its rows were tagged
+ * by `markDurableRow` from a history page response or from the transcript's own
+ * seeding, so the offset it hands back is attributable. A missing offset returns
+ * null so the caller pages or reports the target as unlocatable, never guesses.
+ *
+ * With no transcript there is deliberately no answer. `Session.history` mirrors
+ * the rendered transcript and can still contain runtime, live and optimistic
+ * rows; neither dropping local markers nor handing that array to
+ * `windowFromSession` (which derives offsets from array positions) proves a
+ * canonical origin, and seeding here would also tag runtime objects as durable.
+ * A Session with no transcript is not yet navigable by canonical offset. The
+ * ordinary path is unaffected: `selectSession` and `ensureTranscript` install a
+ * transcript before navigation can run.
+ */
+function canonicalRowAtOffset(
+  state: SessionStore,
+  sessionId: string,
+  offset: number,
+): Message | null {
+  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
+}
+
 /** Append rows that are not already represented, keeping the tail deduped. */
 function appendCanonicalRows(history: Message[], rows: Message[]): Message[] {
   if (rows.length === 0) return history;
@@ -2081,9 +2109,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     const state = get();
     if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
-    const localIndex = absoluteIndex - state.historyLoadEnd;
-    return state.currentMessages[localIndex] ?? null;
+    // `absoluteIndex` is a canonical history offset, so it must be resolved in
+    // canonical index space. `currentMessages` interleaves local markers
+    // (`[DONE] Task completed`) and runtime rows, so its positions drift from
+    // canonical offsets by one per preceding non-canonical row — indexing it
+    // directly returned the neighbouring row and sent quick-jump to the wrong
+    // message. Resolve the durable row that owns this offset instead; an offset
+    // the window cannot prove stays null so the caller reports it as
+    // unlocatable rather than landing on a guessed neighbour.
+    return canonicalRowAtOffset(state, sessionId, absoluteIndex);
   },
+
+  hasPrefetchedOlderMessages: () => peekHistoryPrefetch(getHistoryPrefetchContext(), get().historyLoadEnd),
 
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
@@ -2101,9 +2138,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({ _historyPageSeq: { ...s._historyPageSeq, [sid]: pageSeq } }));
 
     try {
-      const data: ApiSessionHistoryResponse = signal
+      const context = getHistoryPrefetchContext();
+      const cached = !searchJump && (limit ?? historyPageSize()) === context?.limit
+        ? takeHistoryPrefetch(context, historyLoadEnd) : null;
+      const data: ApiSessionHistoryResponse = cached ?? (signal
         ? await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), signal, searchJump)
-        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump);
+        : await fetchSessionHistory(sid, historyLoadEnd, limit ?? historyPageSize(), undefined, searchJump));
       if (signal?.aborted || get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;
@@ -3980,4 +4020,21 @@ export function useCurrentSession() {
 if (typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('panE2E')) {
   (window as unknown as Record<string, unknown>).__panSessionStore = useSessionStore;
+}
+
+/** Exact authority boundary for disposable speculative history pages. */
+export function getHistoryPrefetchContext(): HistoryPrefetchContext | null {
+  const state = useSessionStore.getState();
+  const sid = state.currentSessionId;
+  if (!sid || !state.hasMoreMessages || state.historyLoadEnd <= 0) return null;
+  const session = state.sessions.find((item) => item.id === sid);
+  const window = state.sessionTranscripts[sid]?.window;
+  // A replacement may reset the revision counter. Do not reuse the old
+  // window's pages while a newer summary advertises a different epoch.
+  if (window?.epoch && session?.historyEpoch && window.epoch !== session.historyEpoch) return null;
+  const epoch = window?.epoch ?? session?.historyEpoch;
+  const revision = Math.max(window?.revision ?? 0, session?.historyRevision ?? 0);
+  if (typeof epoch !== 'string' || !epoch || !Number.isSafeInteger(revision) || revision < 0) return null;
+  return { sessionId: sid, selection: state._selectionSeq[sid] ?? 0, serverEpoch: state.serverEpoch,
+    historyEpoch: epoch, historyRevision: revision, limit: historyPageSize() };
 }

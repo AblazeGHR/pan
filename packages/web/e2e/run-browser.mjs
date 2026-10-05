@@ -193,6 +193,8 @@ await runCase('markdown files through real editor and external link preservation
   await page.waitForURL(/\/react\/editor$/);
   assert.equal(new URL(page.url()).pathname, '/react/editor');
   const fileLinkEditButton = page.locator('button[title="Edit"]:visible');
+  // The URL changes before the lazy Editor route has mounted.
+  await fileLinkEditButton.first().waitFor({ state: 'visible' });
   assert.equal(await fileLinkEditButton.count(), 1, 'expected exactly one visible file-editor Edit control');
   await fileLinkEditButton.click();
   await page.locator('.monaco-editor').waitFor({ state: 'visible' });

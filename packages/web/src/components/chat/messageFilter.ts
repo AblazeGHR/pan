@@ -1,5 +1,6 @@
 import type { Message } from '@/types';
 import type { AppSettings } from '@/stores/appSettingsStore';
+import type { CanonicalRow } from '@/stores/messageOrdering';
 
 /** Meta-agent orchestration messages (`worker_send` auto-prepends this marker). */
 export const META_AGENT_PREFIX = '////by agent';
@@ -7,6 +8,15 @@ export const META_AGENT_PREFIX = '////by agent';
 export const TASK_AGENT_PREFIX = '@@@@by agent';
 /** QQ-injected messages (inbox reminders / subscription pushes). */
 export const QQ_PREFIX = '@@@@by qq';
+
+/** Current production header and the historical System header. Match a whole
+ * marker after leading whitespace, never a mention or a longer word. */
+const SYSTEM_HEADER = /^\/\/\/\/by (?:pan system|system)(?=\s|:|$)/;
+
+function hasSystemHeader(message: Message): boolean {
+  return (message.role === 'user' || message.role === 'assistant' || message.role === 'system')
+    && SYSTEM_HEADER.test(message.content.trimStart());
+}
 
 export type MessageVisibilitySettings = Pick<
   AppSettings,
@@ -40,6 +50,8 @@ export function filterVisibleMessages(
  *   (browser sends, automation fills, prompt injection, QQ, user-typed
  *   markers).
  * - `worker`   — TA report (`@@@@by agent`); existing value kept verbatim.
+ * - `system`   — current `////by pan system` or legacy `////by system`
+ *   header on a user/assistant/system body row, independent of provenance.
  * - `maAssign` — MA assign: formal dispatch — `role: "user"`,
  *   `source: "agent"`, no inherited task id and no `////by agent` prefix
  *   (mirrors the `ma-assign` label tag).
@@ -47,10 +59,10 @@ export function filterVisibleMessages(
  *   identity prefix that `agent_send` / `agent_send_force` prepend, or an
  *   inherited-task-id follow-up (`taskIdSource: "active"`).
  *
- * Classification is structured: `source: "agent"` is required for both MA
+ * MA classification is structured: `source: "agent"` is required for both MA
  * kinds; a body that merely starts with `////by agent` never classifies.
  */
-export type QuickJumpKind = 'user' | 'worker' | 'maAssign' | 'maMsg';
+export type QuickJumpKind = 'user' | 'worker' | 'system' | 'maAssign' | 'maMsg';
 
 export interface QuickJumpMessage {
   message: Message;
@@ -71,13 +83,15 @@ export interface QuickJumpIndexItem {
 /**
  * Return the marker category used by the quick-location rail, if any.
  *
- * Classification basis — structured agent provenance only.  A body that
+ * MA classification basis — structured agent provenance only.  A body that
  * merely starts with `////by agent` is never enough: a user-typed or
  * source-less row with that literal text stays `user` (the existing
  * `filterVisibleMessages` prefix rule is kept for visibility toggles and is
  * deliberately not reused here).
  * - `@@@@by agent` → `worker` (TA report, the old judgment; checked first and
  *   role-independent because some adapters serialize reports as user rows).
+ * - System header on a body row → `system`, before any role/source split.
+ *   Leading whitespace is ignored; current and legacy headers are accepted.
  * - `role: "user"` + `source: "agent"` → inside the confirmed provenance,
  *   the send/follow-up split: the `////by agent` identity prefix of
  *   `agent_send` / `agent_send_force`, or an inherited
@@ -102,6 +116,7 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   // A task-agent report wins over the role because reports can be serialized
   // as user messages by some adapters.
   if (content.startsWith(TASK_AGENT_PREFIX)) return 'worker';
+  if (hasSystemHeader(message)) return 'system';
   if (message.role !== 'user') return null;
   if (message.source === 'agent') {
     // Within confirmed agent provenance, the send/follow-up markers split
@@ -114,17 +129,19 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
 }
 
 /** Durable source tag rendered next to a message body. */
-export type MessageSourceTag = 'ta-report' | 'ma-assign';
+export type MessageSourceTag = 'ta-report' | 'system' | 'ma-assign';
 
 /**
  * Classify the source tag for a message body, or null when it carries none.
  * The navigation kinds mirror this determination, so the body pill and the
  * rail tooltip can never disagree: `ma-assign` ⇔ kind `maAssign`,
- * `ta-report` ⇔ kind `worker`.
+ * `ta-report` ⇔ kind `worker`, `system` ⇔ kind `system`.
  *
  * - `ta-report` — the task-agent completion report marker (`@@@@by agent`).
  *   Kept exactly as before: prefix-based and role-independent because some
  *   adapters serialize reports as user rows.
+ * - `system` — current/legacy System header on a body row; checked after
+ *   TA report and before MA assign, including histories without source fields.
  * - `ma-assign` — a formal dispatch into this Session: `role: "user"`,
  *   structured `source: "agent"` (编排注入), no inherited task id
  *   (`taskIdSource: "active"`, backend `_is_formal_task_item`) and no
@@ -133,14 +150,15 @@ export type MessageSourceTag = 'ta-report' | 'ma-assign';
  *
  * Browser messages (`user`), scheduler/background jobs (`automation`),
  * prompt injection (`system_prompt`) and report/notice rows (`report`) can
- * never carry the tag; literal `////by agent` text is never treated as an
+ * never carry the MA assign tag; literal `////by agent` text is never treated as an
  * assign.  History persisted before the structured fields existed stays
- * unlabelled on purpose: the current managed relation is never used to guess
+ * without an MA label on purpose: the current managed relation is never used to guess
  * an old origin.
  */
 export function getMessageSourceTag(message: Message): MessageSourceTag | null {
   const content = message.content.trimStart();
   if (content.startsWith(TASK_AGENT_PREFIX)) return 'ta-report';
+  if (hasSystemHeader(message)) return 'system';
   if (
     message.role === 'user'
     && message.source === 'agent'
@@ -155,9 +173,14 @@ export function getMessageSourceTag(message: Message): MessageSourceTag | null {
 /** Remove transport/source headers before showing a compact hover preview. */
 export function getQuickJumpPreview(content: string, maxLength = 120): string {
   const trimmed = content.trimStart();
-  const withoutHeader = trimmed.replace(
-    /^(?:@@@@by agent|\/\/\/\/by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)/,
-    '',
+  // System headers carry no sender metadata. Preserve inline text after an
+  // optional colon as well as the body after the production newline header.
+  const withoutHeader = (SYSTEM_HEADER.test(trimmed)
+    ? trimmed.replace(SYSTEM_HEADER, '').replace(/^[^\S\r\n]*:/, '')
+    : trimmed.replace(
+        /^(?:@@@@by agent|\/\/\/\/by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)/,
+        '',
+      )
   ).trimStart();
   const normalized = withoutHeader.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) return normalized;
@@ -178,6 +201,41 @@ export function getQuickJumpIndexItems(
     return kind
       ? [{
           fromEnd: total - 1 - (start + index),
+          kind,
+          preview: getQuickJumpPreview(message.content),
+        }]
+      : [];
+  });
+}
+
+/**
+ * Build compact navigation targets from canonical rows that already know their
+ * own absolute history offset.
+ *
+ * The rendered transcript interleaves canonical history rows with local
+ * display markers (`[DONE] Task completed`) and runtime rows, so an array
+ * position is not a canonical offset: counting positions instead of reading
+ * offsets shifted every `fromEnd` behind a terminal bar and made the rail jump
+ * to a neighbouring message.
+ *
+ * The caller supplies only rows whose offset `markDurableRow` proved, so a
+ * terminal status bar is excluded for lack of a canonical offset — not by
+ * matching its text. Real TA reports, System notices and any body that merely
+ * contains "task completed" keep their marker-based classification and stay
+ * navigable. The visible filter is still applied per row, so the
+ * showMetaAgent/showTaskAgent/showQQ toggles behave exactly as before.
+ */
+export function getQuickJumpIndexItemsByOffset(
+  rows: readonly CanonicalRow[],
+  total: number,
+  settings: MessageVisibilitySettings,
+): QuickJumpIndexItem[] {
+  return rows.flatMap(({ offset, message }) => {
+    if (filterVisibleMessages([message], settings).length === 0) return [];
+    const kind = getQuickJumpKind(message);
+    return kind
+      ? [{
+          fromEnd: total - 1 - offset,
           kind,
           preview: getQuickJumpPreview(message.content),
         }]

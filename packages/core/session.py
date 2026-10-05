@@ -1027,45 +1027,52 @@ def _history_page_from_jsonl(
     known_total: int | None = None,
 ) -> tuple[list[dict], int]:
     """Read one bounded history page without materializing the full JSONL."""
-    # The common cold-list path asks for the last page (before=0).  A complete
-    # durable summary projection gives us the exact row count, so use that to
-    # avoid parsing every historical JSON object just to count it.  Reading
-    # bytes and counting line separators is implemented in C; only the bounded
-    # tail is decoded and parsed in Python.  If the projection and file disagree
-    # (for example, a writer appended JSONL before committing metadata), or the
-    # file has a crash tail, fall through to the compatibility scan below.
-    if before <= 0 and _is_nonnegative_int(known_total):
+    # A complete projection supplies the row count for both tail and older
+    # pages. Count separators across the file (C-level byte work), but retain
+    # and JSON-decode only the requested absolute window. Validating the final
+    # newline/count preserves the compatibility fallback for stale metadata
+    # and crash tails; this does not publish or hydrate full Session history.
+    if _is_nonnegative_int(known_total):
+        end = known_total if before <= 0 else min(before, known_total)
+        start = max(0, end - limit)
+        page_chunks: list[bytes] = []
+        newline_count = 0
+        tail_chunks: deque[tuple[bytes, int]] = deque()
+        tail_newlines = 0
+        last_byte = b""
         try:
-            # Validate the complete row count without retaining/copying the
-            # complete file. Only the requested tail plus one read chunk lives
-            # in memory, even for a cold, very large Session.
-            tail_chunks: deque[tuple[bytes, int]] = deque()
-            tail_newlines = 0
-            newline_count = 0
-            wanted = min(limit, known_total)
             with path.open("rb") as handle:
                 while chunk := handle.read(1024 * 1024):
+                    previous_count = newline_count
                     chunk_newlines = chunk.count(b"\n")
                     newline_count += chunk_newlines
-                    tail_newlines += chunk_newlines
                     tail_chunks.append((chunk, chunk_newlines))
-                    while len(tail_chunks) > 1 and tail_newlines - tail_chunks[0][1] >= wanted + 1:
-                        _, removed_newlines = tail_chunks.popleft()
-                        tail_newlines -= removed_newlines
-            # Join once: a single multi-megabyte message must not make repeated
-            # chunk concatenations quadratic in its length.
-            tail = b"".join(chunk for chunk, _ in tail_chunks)
-            boundary = len(tail)
-            for _ in range(wanted + 1):
-                boundary = tail.rfind(b"\n", 0, boundary)
-                if boundary < 0:
-                    break
-            if boundary >= 0:
-                tail = tail[boundary + 1:]
+                    tail_newlines += chunk_newlines
+                    while len(tail_chunks) > 1 and tail_newlines - tail_chunks[0][1] >= 2:
+                        _, removed = tail_chunks.popleft()
+                        tail_newlines -= removed
+                    last_byte = chunk[-1:]
+                    if newline_count < start or previous_count >= end:
+                        continue
+                    begin_at = 0
+                    if previous_count < start:
+                        for _ in range(start - previous_count):
+                            begin_at = chunk.find(b"\n", begin_at) + 1
+                    end_at = len(chunk)
+                    if newline_count >= end:
+                        end_at = 0
+                        for _ in range(end - previous_count):
+                            end_at = chunk.find(b"\n", end_at) + 1
+                    page_chunks.append(chunk[begin_at:end_at])
         except OSError:
             return [], 0
-        if tail.endswith(b"\n") and newline_count == known_total:
-            lines = tail.rsplit(b"\n", wanted + 1)[-(wanted + 1):-1]
+        if last_byte == b"\n" and newline_count == known_total:
+            lines = b"".join(page_chunks).split(b"\n")[:-1]
+            # Older windows must also reject a malformed complete final line,
+            # even if an outdated projection accidentally counts that line.
+            if end < known_total:
+                tail = b"".join(chunk for chunk, _ in tail_chunks)
+                lines.append(tail.rsplit(b"\n", 2)[-2])
             parsed: list[dict] = []
             for line in lines:
                 try:
@@ -1076,7 +1083,8 @@ def _history_page_from_jsonl(
                     break
                 parsed.append(value)
             else:
-                return parsed, known_total
+                if len(parsed) == end - start + int(end < known_total):
+                    return parsed[:end - start], known_total
 
     page: deque[dict] = deque(maxlen=limit)
     total = 0

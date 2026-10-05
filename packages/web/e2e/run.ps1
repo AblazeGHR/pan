@@ -37,7 +37,7 @@ try {
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput $log `
     -RedirectStandardError $err `
-    -PassThru
+    -WindowStyle Hidden -PassThru
 
   $launcherPid = $server.Id
   $deadline = (Get-Date).AddSeconds(30)

@@ -16,6 +16,7 @@ import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/atta
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
 import 'highlight.js/styles/github-dark.css';
 import { SearchTextContext, searchTextPlugin } from './searchText';
+import { beginForegroundRequest } from '@/services/foregroundActivity';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
 type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
@@ -85,6 +86,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
         showToast('当前没有可用的 Editor 工作目录，无法预览图片', 'error');
         return;
       }
+      const finishRequest = beginForegroundRequest();
       try {
         const response = await fetch(
           `/api/attachments/editor/${encodeURIComponent(attachmentId)}`
@@ -111,6 +113,8 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
         if (opened) navigate('/editor');
       } catch (error) {
         showToast(`打开图片失败：${error instanceof Error ? error.message : '图片引用已失效'}`, 'error');
+      } finally {
+        finishRequest();
       }
       return;
     }
@@ -128,6 +132,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
 
     let editorPath = fileLink.path;
     if (fileLink.serverAttachmentId) {
+      const finishRequest = beginForegroundRequest();
       try {
         const response = await fetch(
           `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
@@ -141,6 +146,8 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       } catch (error) {
         showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
         return;
+      } finally {
+        finishRequest();
       }
     }
 

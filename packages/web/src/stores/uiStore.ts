@@ -7,6 +7,7 @@ import type {
   UserInputRequest,
 } from '@/types';
 import type { SpecialFilterId } from '@/utils/sessionFilters';
+import { updateUiSettings } from '@/services/api';
 
 // ── localStorage helpers ──
 
@@ -178,6 +179,127 @@ function persistHiddenSessions(ids: Set<string>) {
   }
 }
 
+const COLLAPSED_GROUPS_KEY = 'pan:collapsedGroups';
+
+/**
+ * Collapsed group keys (manager mode: session ids; workdir mode: normalized
+ * workdir paths). localStorage is the synchronous first-paint cache so a
+ * reload renders the remembered state with zero delay; the server copy lives
+ * in config.json's `ui.collapsedGroups` (via the existing GET/PUT
+ * /api/settings/ui endpoints) so the state also survives restarts and is
+ * shared across browsers.
+ */
+function loadCollapsedGroups(): Set<string> {
+  try {
+    const v = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    if (!v) return new Set();
+    const arr: unknown = JSON.parse(v);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistCollapsedGroupsCache(ids: Set<string>) {
+  try {
+    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...ids]));
+  } catch {
+    // no-op
+  }
+}
+
+// ── Collapsed-groups server writeback (merged, single in-flight) ──
+// Every mutation writes the localStorage cache synchronously and schedules ONE
+// merged PUT of the whole set. State machine:
+//   - Coalescing / latest-wins: at most one write per delay window and never
+//     more than one request in flight; changes that arrive during a flight
+//     collapse into a single trailing write of the latest state.
+//   - Bounded failure retry: a failed PUT retries (same window) until
+//     MAX_WRITE_FAILURES consecutive failures within the current burst, then
+//     the burst gives up silently until the next user action starts a new
+//     one. A user action ALWAYS resets the failure counter (new burst), so
+//     sustained user activity keeps retrying with a fresh budget each time.
+//   - No spurious requests: a successful write with nothing pending schedules
+//     nothing.
+// The in-memory and localStorage values stay authoritative throughout; no
+// per-node requests, no polling.
+const COLLAPSED_GROUPS_WRITE_DELAY_MS = 600;
+const COLLAPSED_GROUPS_MAX_WRITE_FAILURES = 3;
+
+let collapsedWriteInFlight = false;
+let collapsedWritePending = false;
+let collapsedWriteTimer: ReturnType<typeof setTimeout> | null = null;
+/** Consecutive failed PUTs in the current burst (reset by user actions and by
+ *  any success). */
+let collapsedWriteFailures = 0;
+/** Set by user-driven mutations so a late startup GET can never clobber them. */
+let collapsedUserDirty = false;
+/**
+ * Latch: true once the startup settings GET outcome is known — hydrated from
+ * the server, key absent, or load failed. Automatic maintenance writes
+ * (prune) are blocked until then, because before that the local set may be
+ * older than the server's and writing it back could clobber the not-yet-
+ * hydrated authoritative state. User actions are exempt: they carry user
+ * intent and stay protected against late GETs by collapsedUserDirty.
+ */
+let collapsedServerStateResolved = false;
+
+function scheduleCollapsedGroupsWrite() {
+  if (collapsedWriteTimer !== null) return; // already scheduled; latest state wins
+  collapsedWriteTimer = setTimeout(flushCollapsedGroupsWrite, COLLAPSED_GROUPS_WRITE_DELAY_MS);
+}
+
+function flushCollapsedGroupsWrite() {
+  collapsedWriteTimer = null;
+  if (collapsedWriteInFlight) {
+    collapsedWritePending = true;
+    return;
+  }
+  collapsedWriteInFlight = true;
+  const payload = { collapsedGroups: [...useUIStore.getState().collapsedGroups] };
+  void updateUiSettings(payload)
+    .then(() => {
+      collapsedWriteFailures = 0; // success closes the burst
+    })
+    .catch(() => {
+      collapsedWriteFailures += 1;
+    })
+    .finally(() => {
+      collapsedWriteInFlight = false;
+      if (collapsedWritePending) {
+        collapsedWritePending = false;
+        // Changes arrived during the flight: one trailing write of the latest
+        // state. Bounded by the same budget — an exhausted burst is not
+        // extended; the next user action re-arms it.
+        if (collapsedWriteFailures < COLLAPSED_GROUPS_MAX_WRITE_FAILURES) {
+          scheduleCollapsedGroupsWrite();
+        }
+      } else if (
+        collapsedWriteFailures > 0 &&
+        collapsedWriteFailures < COLLAPSED_GROUPS_MAX_WRITE_FAILURES
+      ) {
+        // Failed with nothing new pending: bounded retry of the same state.
+        scheduleCollapsedGroupsWrite();
+      }
+      // Else: success with nothing pending (no request), or the burst
+      // exhausted its failure budget (next user action starts a new one).
+    });
+}
+
+function persistCollapsedGroups(ids: Set<string>) {
+  persistCollapsedGroupsCache(ids);
+  scheduleCollapsedGroupsWrite();
+}
+
+/** User-driven mutation: starts a fresh burst (resets the failure budget) in
+ *  addition to the cache write and the coalesced server write. */
+function persistCollapsedGroupsAfterUserAction(ids: Set<string>) {
+  collapsedWriteFailures = 0;
+  collapsedUserDirty = true;
+  persistCollapsedGroups(ids);
+}
+
 // ── Store ──
 
 export type GroupMode = 'none' | 'workdir' | 'manager';
@@ -232,6 +354,9 @@ interface UIStore {
   /** Sessions hidden via Select mode's eye button, keyed by session id.
    *  Persisted to localStorage so hiding survives refreshes/reloads. */
   hiddenSessionIds: Set<string>;
+  /** Collapsed group keys (manager: session ids; workdir: normalized paths).
+   *  Persisted to the localStorage cache and to config.json's
+   *  `ui.collapsedGroups` so collapse state survives refreshes/restarts. */
   collapsedGroups: Set<string>;
   theme: Theme;
   /** Active workspace scope for the session list ('all' | 'ungrouped' | ws id). */
@@ -273,14 +398,24 @@ interface UIStore {
   setSessionHidden: (id: string, hidden: boolean) => void;  /** Drop hidden ids that no longer correspond to a live session. */
   pruneHiddenSessions: (validIds: Set<string>) => void;
   toggleGroupCollapse: (key: string) => void;
+  /** Collapse every key in the operation scope (union): scope nodes all end up
+   *  collapsed in one store update while keys outside the scope (sessions
+   *  filtered out by search/filters/workspace or hidden) keep their state. */
   collapseAllGroups: (keys: string[]) => void;
-  expandAllGroups: () => void;
-  addCollapsedGroups: (ids: string[]) => void;
-  removeCollapsedGroups: (ids: string[]) => void;
+  /** Expand every key in the operation scope (removal): out-of-scope collapse
+   *  preferences are preserved. */
+  expandAllGroups: (keys: string[]) => void;
   /** Drop collapsed keys that no longer correspond to a live group/session
    *  (e.g. stale `__pending_*` placeholders or deleted sessions), keeping the
    *  set consistent with the current tree. */
   pruneCollapsedGroups: (validKeys: Set<string>) => void;
+  /** Apply the server-persisted collapse set from the startup settings GET.
+   *  Always called once the GET settles: an explicit array — including empty —
+   *  is authoritative (applied unless the user already toggled something); an
+   *  absent/invalid key or a failed load passes `undefined`, which keeps the
+   *  local state. Either outcome marks the server state as resolved, lifting
+   *  the automatic-maintenance write-back gate. */
+  hydrateCollapsedGroupsFromServer: (ids: string[] | undefined) => void;
   toggleTheme: () => void;
   /** Switch the session-list scope (callers clear the multi-select selection). */
   setActiveWorkspace: (id: string) => void;
@@ -307,7 +442,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   customOrder: loadCustomOrder(),
   specialFilters: new Set<SpecialFilterId>(),
   hiddenSessionIds: loadHiddenSessions(),
-  collapsedGroups: new Set<string>(),
+  collapsedGroups: loadCollapsedGroups(),
   theme: loadTheme(),
   activeWorkspaceId: loadActiveWorkspaceId(),
   railExpanded: loadRailExpanded(),
@@ -537,31 +672,30 @@ export const useUIStore = create<UIStore>((set, get) => ({
       } else {
         next.add(key);
       }
+      persistCollapsedGroupsAfterUserAction(next);
       return { collapsedGroups: next };
     });
   },
 
   collapseAllGroups: (keys) => {
-    set({ collapsedGroups: new Set(keys) });
-  },
-
-  expandAllGroups: () => {
-    set({ collapsedGroups: new Set() });
-  },
-
-  // Additive/removal collapse for recursive manager-group toggling.
-  addCollapsedGroups: (ids) => {
     set((s) => {
       const next = new Set(s.collapsedGroups);
-      for (const id of ids) next.add(id);
+      for (const k of keys) next.add(k);
+      if (next.size === s.collapsedGroups.size) return {}; // nothing new to collapse
+      persistCollapsedGroupsAfterUserAction(next);
       return { collapsedGroups: next };
     });
   },
 
-  removeCollapsedGroups: (ids) => {
+  expandAllGroups: (keys) => {
     set((s) => {
       const next = new Set(s.collapsedGroups);
-      for (const id of ids) next.delete(id);
+      let changed = false;
+      for (const k of keys) {
+        if (next.delete(k)) changed = true;
+      }
+      if (!changed) return {};
+      persistCollapsedGroupsAfterUserAction(next);
       return { collapsedGroups: next };
     });
   },
@@ -578,8 +712,34 @@ export const useUIStore = create<UIStore>((set, get) => ({
         }
       }
       if (!changed) return {};
+      // Automatic maintenance, not a user action: it must not raise
+      // collapsedUserDirty (that would wrongly skip a concurrent startup GET),
+      // and its write-back is blocked until the startup GET outcome is known —
+      // before that the local set may be older than the server's and writing
+      // it back could clobber the not-yet-hydrated authoritative state. The
+      // in-memory prune still applies so stale placeholders disappear at once.
+      if (collapsedServerStateResolved) {
+        persistCollapsedGroups(next);
+      }
       return { collapsedGroups: next };
     });
+  },
+
+  hydrateCollapsedGroupsFromServer: (ids) => {
+    // The startup GET outcome is now determined either way; automatic
+    // maintenance write-back may proceed from here on.
+    collapsedServerStateResolved = true;
+    // `undefined` / non-array = no usable server state (the key was never
+    // saved, or the load failed) → the local state stays authoritative.
+    // An explicit array — including empty — is authoritative: the user
+    // expanded all groups in some browser.
+    if (!Array.isArray(ids)) return;
+    if (collapsedUserDirty) return; // user acted while the GET was in flight
+    const next = new Set(ids);
+    const current = get().collapsedGroups;
+    if (current.size === next.size && [...current].every((k) => next.has(k))) return;
+    persistCollapsedGroupsCache(next);
+    set({ collapsedGroups: next });
   },
 
   toggleTheme: () => {
