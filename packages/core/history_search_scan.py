@@ -4,6 +4,7 @@ Sources stream canonical rows and support rereading only the selected page.
 No persistent content copies, SQLite writes, background worker or warm-up.
 Per-Session lightweight match references preserve last-ID-wins semantics.
 """
+from bisect import bisect_left
 from contextlib import contextmanager, nullcontext
 import hashlib
 import hmac
@@ -57,8 +58,25 @@ def memory_source(session):
         yield ((index, row, index) for index, row in enumerate(history)), history.__getitem__
 
 
+def _make_hit(read_row, locator, needle, version, identity, index, role, count, start, scope_position):
+    row = read_row(locator)
+    text = row['content']
+    offset = text.casefold().find(needle)
+    if len(text.casefold()) != len(text):
+        consumed = 0
+        for position, character in enumerate(text):
+            consumed += len(character.casefold())
+            if consumed > offset:
+                offset = position
+                break
+    return {**version, 'messageId': identity, 'messageIndex': index,
+            'role': role, 'snippet': _snippet(text, needle, offset),
+            'matchCount': count, 'matchStart': start, 'firstMatch': offset,
+            '_scopePosition': scope_position}
+
+
 def scan_history(sessions, query, *, roles=None, limit=50, after=None,
-                 match_index=None, message_id=None, source=memory_source,
+                 match_index=None, message_id=None, viewport_range=None, source=memory_source,
                  cursor_auth=None):
     selected = normalize_roles(roles)
     needle = query.strip().casefold()
@@ -73,6 +91,7 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
             raise HistorySearchCursorError('search cursor signature is invalid')
     versions, hits, matching_session_ids = [], [], []
     total_matches, total_messages = 0, 0
+    viewport_hit = None
     for scope_position, session in enumerate(sessions):
         epoch, revision, known_total, _ = session_version(session)
         with source(session) as opened:
@@ -116,8 +135,19 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
             versions.append(version)
             if ordered_matches:
                 matching_session_ids.append(session.id)
+            nearest_reference, nearest_start = None, 0
+            if viewport_range is not None and ordered_matches:
+                left, right = viewport_range
+                center = (left + right) / 2
+                position = bisect_left(ordered_matches, center, key=lambda item: item[1][0])
+                candidates = ordered_matches[max(0, position-1):position+1]
+                nearest_reference = min(candidates, key=lambda item: (
+                    max(left-item[1][0], item[1][0]-right, 0),
+                    abs(item[1][0]-center), -item[1][0]))
             for identity, (index, locator, role, count) in ordered_matches:
                 start = total_matches
+                if nearest_reference is not None and identity == nearest_reference[0]:
+                    nearest_start = start
                 total_matches += count
                 total_messages += 1
                 if len(hits) >= limit+1:
@@ -128,20 +158,13 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
                     continue
                 if message_id is not None and identity != message_id:
                     continue
-                row = read_row(locator)
-                text = row['content']
-                offset = text.casefold().find(needle)
-                if len(text.casefold()) != len(text):
-                    consumed = 0
-                    for position, character in enumerate(text):
-                        consumed += len(character.casefold())
-                        if consumed > offset:
-                            offset = position
-                            break
-                hits.append({**version, 'messageId': identity, 'messageIndex': index,
-                             'role': role, 'snippet': _snippet(text, needle, offset),
-                             'matchCount': count, 'matchStart': start, 'firstMatch': offset,
-                             '_scopePosition': scope_position})
+                hits.append(_make_hit(read_row, locator, needle, version, identity, index, role, count, start, scope_position))
+            if nearest_reference is not None:
+                identity, (index, locator, role, count) = nearest_reference
+                viewport_hit = next((hit.copy() for hit in hits if hit['messageId'] == identity), None)
+                if viewport_hit is None:
+                    viewport_hit = _make_hit(read_row, locator, needle, version, identity, index, role, count, nearest_start, scope_position)
+                viewport_hit.pop('_scopePosition', None)
     next_after = None
     if len(hits) > limit:
         last = hits[limit-1]
@@ -152,6 +175,8 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
               'hasMore': len(hits) > limit, 'totalMatches': total_matches,
               'totalMessages': total_messages, 'roles': list(selected), '_cursorKey': key,
               'matchingSessionIds': matching_session_ids}
+    if viewport_range is not None:
+        result['viewportHit'] = viewport_hit
     if next_after is not None:
         result['nextAfter'] = next_after
     return result

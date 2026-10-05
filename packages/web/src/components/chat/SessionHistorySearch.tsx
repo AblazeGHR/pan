@@ -156,7 +156,10 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
     const token = generation.current;
     setStatus('loading');
     const timer = window.setTimeout(() => {
-      void fetchHistorySearch(query, 100, undefined, controller.signal, { sessionId, roles, countMode: 'content', ...(navigationOnly ? { prepareLegacy: false } : {}) })
+      const viewport = chatRef.current?.getViewportHistoryRange?.();
+      void fetchHistorySearch(query, 100, undefined, controller.signal, { sessionId, roles, countMode: 'content',
+          ...(!selectedMessageId && viewport ? { viewportStart: viewport.start, viewportEnd: viewport.end } : {}),
+          ...(navigationOnly ? { prepareLegacy: false } : {}) })
         .then(async (page) => {
           if (controller.signal.aborted || generation.current !== token) return;
           if (page.preparedIdentities) {
@@ -177,9 +180,10 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
             }
             if (selected) setOccurrence(selected.matchStart ?? 0);
           } else if (page.hits.length) {
-            // Seek beyond page one: API ordinals ascend in message order.
-            const latest = (page.totalMatches ?? page.hits.reduce((sum, hit) => sum + countOf(hit), 0)) - 1;
-            await navigate(latest, page, token);
+            // The initial response includes this hit even when it is outside page one.
+            // No follow-up search or additional wait precedes the first selection.
+            const nearest = page.viewportHit ?? page.hits[0];
+            if (nearest) await navigate(nearest.matchStart ?? 0, { ...page, hits: [nearest] }, token);
           }
         }).catch((error: unknown) => {
           if (controller.signal.aborted || generation.current !== token) return;
@@ -187,7 +191,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
         });
     }, 120);
     return () => { clearTimeout(timer); controller.abort(); jumpController.current?.abort(); };
-  }, [open, sessionId, sessionVersion, query, roles, retry, cancel, navigate, navigationOnly, selectedMessageId, navigationEnabled, refreshKey]);
+  }, [open, sessionId, sessionVersion, query, roles, retry, cancel, navigate, navigationOnly, selectedMessageId, navigationEnabled, refreshKey, chatRef]);
 
   const total = response?.totalMatches ?? response?.hits.reduce((sum, hit) => sum+countOf(hit), 0) ?? 0;
   const move = (delta: number) => {

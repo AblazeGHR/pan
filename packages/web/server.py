@@ -6291,6 +6291,7 @@ def _history_search_request(
     content_counts: bool = False,
     match_index: int | None = None,
     message_id: str | None = None,
+    viewport_range: tuple[int, int] | None = None,
 ) -> dict:
     """Run one lazy search against the authoritative Session registry."""
     sessions = sess.list_all(load_history=False)
@@ -6305,7 +6306,7 @@ def _history_search_request(
     if content_counts:
         result = history_search_scan.scan_history(
             scoped_sessions, query, roles=roles, limit=limit, after=after,
-            match_index=match_index, message_id=message_id,
+            match_index=match_index, message_id=message_id, viewport_range=viewport_range,
             source=_history_search_scan_source, cursor_auth=cursor_auth,
         )
     else:
@@ -6447,6 +6448,8 @@ async def api_history_search(
     matchIndex: int | None = None,
     messageId: str | None = None,
     prepareLegacy: bool = False,
+    viewportStart: int | None = None,
+    viewportEnd: int | None = None,
 ):
     """Search lazily selected text partitions in one Session or globally.
 
@@ -6454,6 +6457,9 @@ async def api_history_search(
     explicit empty subset searches nothing. Omission keeps old clients' body
     scope. countMode=content reports non-overlapping literal occurrences and
     matchIndex seeks to a zero-based occurrence without transferring history.
+    An initial scoped content query may include viewportStart/viewportEnd;
+    viewportHit then locates the nearest canonical message without changing
+    the ordinary page, totals, or cursor ordering.
 
     Content mode scans canonical history and caches bounded row references;
     it does not create SQLite. Message mode retains the older lazy FTS index
@@ -6477,6 +6483,14 @@ async def api_history_search(
     if matchIndex is not None and (not content_counts or type(matchIndex) is not int
                                   or not 0 <= matchIndex <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
         raise HTTPException(status_code=422, detail='matchIndex requires content mode and a non-negative bounded integer')
+    viewport_range = None
+    if viewportStart is not None or viewportEnd is not None:
+        if (not content_counts or not sessionId or cursor is not None
+                or matchIndex is not None or messageId is not None
+                or type(viewportStart) is not int or type(viewportEnd) is not int
+                or not 0 <= viewportStart <= viewportEnd <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
+            raise HTTPException(status_code=422, detail='viewport range requires an initial scoped content search and bounded ordered indices')
+        viewport_range = (viewportStart, viewportEnd)
     bounded = history_search_index.bounded_limit(limit)
     decoded_cursor = _decode_history_search_cursor(cursor) if cursor is not None else None
     cursor_data = decoded_cursor["payload"] if decoded_cursor is not None else None
@@ -6528,7 +6542,7 @@ async def api_history_search(
     try:
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
-            selected_roles, content_counts, matchIndex, messageId,
+            selected_roles, content_counts, matchIndex, messageId, viewport_range,
         )
     except _HistorySearchSnapshotChanged:
         if cursor_data is not None:

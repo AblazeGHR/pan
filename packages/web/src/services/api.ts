@@ -392,6 +392,8 @@ export async function fetchHistorySearch(
     roles?: import('@/types').HistorySearchRole[];
     countMode?: 'messages' | 'content';
     matchIndex?: number;
+    viewportStart?: number;
+    viewportEnd?: number;
     messageId?: string;
     prepareLegacy?: boolean;
   },
@@ -406,6 +408,8 @@ export async function fetchHistorySearch(
     if (options?.countMode) params.set('countMode', options.countMode);
     if (options?.sessionId && options.countMode === 'content' && !cursor && options.prepareLegacy !== false) params.set('prepareLegacy', 'true');
   if (options?.matchIndex !== undefined) params.set('matchIndex', String(options.matchIndex));
+  if (options?.viewportStart !== undefined) params.set('viewportStart', String(options.viewportStart));
+  if (options?.viewportEnd !== undefined) params.set('viewportEnd', String(options.viewportEnd));
   if (options?.messageId) params.set('messageId', options.messageId);
   return request<ApiHistorySearchResponse>(`${BASE}/history/search?${params.toString()}`, { signal });
 }

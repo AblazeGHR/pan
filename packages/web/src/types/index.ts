@@ -655,6 +655,8 @@ export interface ApiHistorySearchHit {
 }
 
 export interface ApiHistorySearchResponse {
+  /** Optional nearest visible-window hit; ordinary page ordering is unchanged. */
+  viewportHit?: ApiHistorySearchHit | null;
   matchingSessionIds?: string[];
   preparedIdentities?: number;
   hits: ApiHistorySearchHit[];

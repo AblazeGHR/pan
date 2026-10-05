@@ -129,6 +129,8 @@ function findRenderedRowByMessageIdentity(
 
 export interface ChatMessagesHandle {
   /** Scroll to a currently loaded message and briefly highlight its row. */
+  /** Snapshot visible canonical indices without scrolling, fetching or scheduling work. */
+  getViewportHistoryRange?: () => { start: number; end: number } | null;
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
 
@@ -699,7 +701,30 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     return true;
   }, [clearUserScrollActivity, markProgrammaticChange, rememberScrollPosition, searchTargetMessageId]);
 
-  useImperativeHandle(ref, () => ({ scrollToMessage }), [scrollToMessage]);
+  const getViewportHistoryRange = useCallback(() => {
+    const element = parentRef.current;
+    const state = useSessionStore.getState();
+    const transcript = state.currentSessionId ? state.sessionTranscripts[state.currentSessionId] : undefined;
+    if (!element || !transcript) return null;
+    const viewport = element.getBoundingClientRect();
+    const identities = new Set<string>();
+    for (const row of element.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
+      const rectangle = row.getBoundingClientRect();
+      if (rectangle.bottom <= viewport.top || rectangle.top >= viewport.bottom) continue;
+      const item = groupedRef.current[Number(row.dataset.index)];
+      if (!item) continue;
+      const messages = 'type' in item ? item.items : [item as Message];
+      for (const message of messages) identities.add(getMessageIdentity(message));
+    }
+    let start = Infinity, end = -1;
+    for (const [index, message] of transcript.window.rows) {
+      if (!identities.has(getMessageIdentity(message))) continue;
+      start = Math.min(start, index);
+      end = Math.max(end, index);
+    }
+    return end >= 0 ? { start, end } : null;
+  }, []);
+  useImperativeHandle(ref, () => ({ scrollToMessage, getViewportHistoryRange }), [scrollToMessage, getViewportHistoryRange]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
     const state = userScrollStateRef.current;
