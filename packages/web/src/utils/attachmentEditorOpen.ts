@@ -2,6 +2,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { AttachmentLocation } from '@/types/attachment';
+import { beginForegroundRequest } from '@/services/foregroundActivity';
 
 /**
  * Server-owned attachment ids only (att_…/upload_…). UI occurrence ids,
@@ -45,14 +46,22 @@ export async function openComposerAttachmentInEditor(
     return;
   }
   try {
-    const response = await fetch(
-      `/api/attachments/editor/${encodeURIComponent(attachmentId)}`
-      + `?session_id=${encodeURIComponent(context.sessionId)}`,
-    );
-    const metadata = await response.json() as { ok?: boolean; path?: unknown };
-    if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
-      throw new Error('附件引用已失效');
-    }
+    const finish = beginForegroundRequest();
+    const metadata = await (async () => {
+      try {
+        const response = await fetch(
+          `/api/attachments/editor/${encodeURIComponent(attachmentId)}` +
+            `?session_id=${encodeURIComponent(context.sessionId)}`,
+        );
+        const body = (await response.json()) as { ok?: boolean; path?: unknown };
+        if (!response.ok || body.ok === false || typeof body.path !== 'string') {
+          throw new Error('附件引用已失效');
+        }
+        return { path: body.path };
+      } finally {
+        finish();
+      }
+    })();
     // The registry lookup is async: switching Sessions while it is in flight
     // must not repoint the editor root or open a tab under the wrong Session.
     if (useSessionStore.getState().currentSessionId !== context.sessionId) return;
@@ -62,9 +71,7 @@ export async function openComposerAttachmentInEditor(
       // read run alongside the file read (same pattern as message file links).
       void editor.setRoot(context.sessionId, context.workdir);
     }
-    const location = target.location
-      ? { ...target.location, path: metadata.path }
-      : undefined;
+    const location = target.location ? { ...target.location, path: metadata.path } : undefined;
     const opened = await useEditorStore.getState().openFile(metadata.path, location);
     // openFile's own request-generation guard (isCurrentOpenRequest) rejects
     // reads whose editor root changed mid-flight, but it only watches the
@@ -73,17 +80,20 @@ export async function openComposerAttachmentInEditor(
     // no await sits between this check and navigate, so the decision is
     // atomic with the navigation itself.
     if (
-      useSessionStore.getState().currentSessionId !== context.sessionId
-      || useEditorStore.getState().sessionId !== context.sessionId
-    ) return;
+      useSessionStore.getState().currentSessionId !== context.sessionId ||
+      useEditorStore.getState().sessionId !== context.sessionId
+    )
+      return;
     if (opened) context.navigate('/editor');
   } catch (error) {
     // A lookup that fails after switching Sessions must not surface as a
     // toast in the Session the user moved to.
     if (useSessionStore.getState().currentSessionId !== context.sessionId) return;
-    useUIStore.getState().showToast(
-      `打开文件失败：${error instanceof Error ? error.message : '附件引用已失效'}`,
-      'error',
-    );
+    useUIStore
+      .getState()
+      .showToast(
+        `打开文件失败：${error instanceof Error ? error.message : '附件引用已失效'}`,
+        'error',
+      );
   }
 }
