@@ -452,6 +452,15 @@ export interface SessionTranscript {
   /** Absolute offset where the runtime region starts. */
   anchorOffset: number;
   serverEpoch: string | null;
+  /** Completed task scopes awaiting their versioned canonical history page. */
+  completedRuns?: Array<{
+    taskKey: string;
+    start: number;
+    epoch: string;
+    revision: number;
+    precedingRevision?: number;
+    finalRow: Message;
+  }>;
 }
 
 // Stable keys for runtime rows so a re-delivered live buffer replaces its own
@@ -946,6 +955,47 @@ function coveredTerminalRunEnd(
     if (!durable || (durable.role === 'user' && !used.has(offset))) return undefined;
   }
   return end;
+}
+
+/** Only a complete, versioned task region may replace transient provider items.
+ * Missing native items are legitimate: Codex's final history need not retain
+ * every progress/thinking notification sent over the live stream.
+ */
+function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript {
+  if (!transcript.completedRuns?.length) return transcript;
+  const { window } = transcript;
+  const covered = new Set<string>();
+  const pending = transcript.completedRuns.filter((run) => {
+    if (run.epoch !== window.epoch || window.revision < run.revision) return true;
+    // Same append/revision invariant as terminalMarkerEnd. Later tasks must
+    // not expand the completed task's durable boundary.
+    const end = window.total - (window.revision - run.revision);
+    const precedingEnd = run.precedingRevision === undefined
+      ? run.start
+      : window.total - (window.revision - run.precedingRevision);
+    const start = Math.min(run.start, precedingEnd);
+    if (!Number.isSafeInteger(start) || start < 0
+        || !Number.isSafeInteger(end) || end <= start || end > window.total) return true;
+    let hasFinal = false;
+    for (let offset = start; offset < end; offset += 1) {
+      const row = window.rows.get(offset);
+      if (!row) return true;
+      if (row.role === 'assistant' && runtimeRowCompatible(run.finalRow, row)) hasFinal = true;
+    }
+    if (!hasFinal) return true;
+    covered.add(`slot:${run.taskKey}:`);
+    return false;
+  });
+  if (covered.size === 0) return transcript;
+  const prefixes = [...covered];
+  return {
+    ...transcript,
+    completedRuns: pending,
+    runtime: transcript.runtime.filter((row) => {
+      const key = runtimeKeyOf(row);
+      return key === null || !prefixes.some((prefix) => key.startsWith(prefix));
+    }),
+  };
 }
 
 function projectTranscript(
@@ -1488,7 +1538,7 @@ function applyHistoryPageToState(
   };
   if (merged.replacedEpoch) {
     // A new epoch invalidates every runtime row of the old identity scope.
-    next = { ...next, runtime: [], anchorOffset: merged.window.total };
+    next = { ...next, runtime: [], completedRuns: [], anchorOffset: merged.window.total };
   } else {
     // Track rendered rows that neither carry a canonical offset nor belong to
     // the runtime region, so a rebuild cannot drop them. The leading run that
@@ -1528,6 +1578,7 @@ function applyHistoryPageToState(
   // the window we already have must not reconstruct the display: rows that
   // exist only in the rendered projection (an optimistic user row, an
   // agent-injected message) would be dropped by a rebuild.
+  next = convergeCompletedRuns(next);
   const projected = projectTranscript(next, s.liveStreamBuffers[sessionId]);
   // Keep the previous array reference when the projection is unchanged: callers
   // (and the agent-injection retry) compare array identity to decide whether a
@@ -3025,6 +3076,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         });
         if (adopted.length > 0) {
           nextTranscript = { ...nextTranscript, runtime: [...adopted, ...nextTranscript.runtime] };
+        }
+      }
+      if (previousBuffer?.taskKey && hasResult && coverage.historyEpoch
+          && Number.isSafeInteger(coverage.historyRevision)
+          && previousBuffer.historyStartOffset !== undefined) {
+        const finalRow = finalized[finalSlot >= 0 ? finalSlot : finalized.length - 1];
+        if (finalRow?.role === 'assistant') {
+          nextTranscript = {
+            ...nextTranscript,
+            completedRuns: [...(nextTranscript.completedRuns ?? []), {
+              taskKey: incomingTaskKey,
+              start: previousBuffer.historyStartOffset,
+              epoch: coverage.historyEpoch,
+              revision: coverage.historyRevision!,
+              ...(terminal?.historyEpoch === coverage.historyEpoch
+                && typeof terminal.historyRevision === 'number'
+                && terminal.historyRevision < coverage.historyRevision!
+                ? { precedingRevision: terminal.historyRevision } : {}),
+              finalRow,
+            }],
+          };
+          nextTranscript = convergeCompletedRuns(nextTranscript);
         }
       }
       const display = isCurrent && finalized.length > 0
