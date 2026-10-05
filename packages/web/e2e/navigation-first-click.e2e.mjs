@@ -135,8 +135,8 @@ try {
         assertLocated(position);
       }
     }
-    // Worker reports can be taller than the viewport and have a cold estimate.
-    await page.getByRole('tab', { name: /^Worker/ }).click();
+    // TA reports share the single rail column with user markers; they can be
+    // taller than the viewport and have a cold estimate.
     for (const target of [801, 401, 101]) {
       await page.locator(`.message-navigation-marker[title^="REPORT row ${target}"]`).click();
       await page.waitForTimeout(1000);
@@ -145,7 +145,6 @@ try {
       assertLocated(position);
     }
     // A newer click must own the final viewport even during reconciliation.
-    await page.getByRole('tab', { name: /^用户/ }).click();
     await page.locator('.message-navigation-marker[title="JUMP row 800"]').click();
     await page.waitForTimeout(60);
     await page.locator('.message-navigation-marker[title="JUMP row 200"]').click();
