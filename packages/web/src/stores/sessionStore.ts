@@ -1590,6 +1590,32 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
   return (session?.history ?? []).filter((row) => !isLocalMarker(row));
 }
 
+/**
+ * The canonical row stored at an absolute history offset, or null when that
+ * offset cannot be attributed to a durable row.
+ *
+ * Only a window that already exists is an authority here: its rows were tagged
+ * by `markDurableRow` from a history page response or from the transcript's own
+ * seeding, so the offset it hands back is attributable. A missing offset returns
+ * null so the caller pages or reports the target as unlocatable, never guesses.
+ *
+ * With no transcript there is deliberately no answer. `Session.history` mirrors
+ * the rendered transcript and can still contain runtime, live and optimistic
+ * rows; neither dropping local markers nor handing that array to
+ * `windowFromSession` (which derives offsets from array positions) proves a
+ * canonical origin, and seeding here would also tag runtime objects as durable.
+ * A Session with no transcript is not yet navigable by canonical offset. The
+ * ordinary path is unaffected: `selectSession` and `ensureTranscript` install a
+ * transcript before navigation can run.
+ */
+function canonicalRowAtOffset(
+  state: SessionStore,
+  sessionId: string,
+  offset: number,
+): Message | null {
+  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
+}
+
 /** Append rows that are not already represented, keeping the tail deduped. */
 function appendCanonicalRows(history: Message[], rows: Message[]): Message[] {
   if (rows.length === 0) return history;
@@ -2081,8 +2107,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     const state = get();
     if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
-    const localIndex = absoluteIndex - state.historyLoadEnd;
-    return state.currentMessages[localIndex] ?? null;
+    // `absoluteIndex` is a canonical history offset, so it must be resolved in
+    // canonical index space. `currentMessages` interleaves local markers
+    // (`[DONE] Task completed`) and runtime rows, so its positions drift from
+    // canonical offsets by one per preceding non-canonical row — indexing it
+    // directly returned the neighbouring row and sent quick-jump to the wrong
+    // message. Resolve the durable row that owns this offset instead; an offset
+    // the window cannot prove stays null so the caller reports it as
+    // unlocatable rather than landing on a guessed neighbour.
+    return canonicalRowAtOffset(state, sessionId, absoluteIndex);
   },
 
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {

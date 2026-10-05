@@ -1,5 +1,6 @@
 import type { Message } from '@/types';
 import type { AppSettings } from '@/stores/appSettingsStore';
+import type { CanonicalRow } from '@/stores/messageOrdering';
 
 /** Meta-agent orchestration messages (`worker_send` auto-prepends this marker). */
 export const META_AGENT_PREFIX = '////by agent';
@@ -200,6 +201,41 @@ export function getQuickJumpIndexItems(
     return kind
       ? [{
           fromEnd: total - 1 - (start + index),
+          kind,
+          preview: getQuickJumpPreview(message.content),
+        }]
+      : [];
+  });
+}
+
+/**
+ * Build compact navigation targets from canonical rows that already know their
+ * own absolute history offset.
+ *
+ * The rendered transcript interleaves canonical history rows with local
+ * display markers (`[DONE] Task completed`) and runtime rows, so an array
+ * position is not a canonical offset: counting positions instead of reading
+ * offsets shifted every `fromEnd` behind a terminal bar and made the rail jump
+ * to a neighbouring message.
+ *
+ * The caller supplies only rows whose offset `markDurableRow` proved, so a
+ * terminal status bar is excluded for lack of a canonical offset — not by
+ * matching its text. Real TA reports, System notices and any body that merely
+ * contains "task completed" keep their marker-based classification and stay
+ * navigable. The visible filter is still applied per row, so the
+ * showMetaAgent/showTaskAgent/showQQ toggles behave exactly as before.
+ */
+export function getQuickJumpIndexItemsByOffset(
+  rows: readonly CanonicalRow[],
+  total: number,
+  settings: MessageVisibilitySettings,
+): QuickJumpIndexItem[] {
+  return rows.flatMap(({ offset, message }) => {
+    if (filterVisibleMessages([message], settings).length === 0) return [];
+    const kind = getQuickJumpKind(message);
+    return kind
+      ? [{
+          fromEnd: total - 1 - offset,
           kind,
           preview: getQuickJumpPreview(message.content),
         }]
