@@ -5880,6 +5880,8 @@ async def api_get_session_draft(session_id: str):
     """
     try:
         return await asyncio.to_thread(session_drafts.read_draft, session_id)
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
     except session_drafts.DraftUnreadable as exc:
         return {"ok": False, "error": {
             "code": "draft_unreadable", "message": str(exc)}}
@@ -5918,6 +5920,8 @@ async def api_put_session_draft(session_id: str, data: dict | None = None):
         state = await asyncio.to_thread(
             session_drafts.write_draft, session_id, base_revision, data.get("draft"),
         )
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
     except session_drafts.DraftConflict as exc:
         # The caller is behind.  Hand back the authoritative draft so it can
         # merge or surface the conflict instead of overwriting on a stale read.

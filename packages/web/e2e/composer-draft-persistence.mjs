@@ -73,6 +73,7 @@ const sleepReal = (ms) => new Promise((r) => realSetTimeout(r, ms));
 const net = {
   requests: [],
   revisions: new Map(),
+  drafts: new Map(),
   latencyMs: 0,
   failNext: 0,
   conflictOnSeq: null,
@@ -125,6 +126,7 @@ async function putSessionDraft(sessionId, draft, baseRevision) {
     }
     const revision = current + 1;
     net.revisions.set(sessionId, revision);
+    net.drafts.set(sessionId, draft);
     return { revision, draft, updatedAt: null };
   } finally {
     net.inFlight -= 1;
@@ -133,13 +135,14 @@ async function putSessionDraft(sessionId, draft, baseRevision) {
 
 async function getSessionDraft(sessionId) {
   net.requests.push({ kind: 'GET', sessionId, at: vnow, bytes: 0, seq: net.seq++ });
+  const revision = net.getRev !== null ? net.getRev : (net.revisions.get(sessionId) ?? 0);
+  const draft = net.drafts.get(sessionId) ?? null;
   if (net.holdGet) await net.holdGet;
   if (net.latencyMs) await sleepReal(net.latencyMs);
   // A GET snapshots the revision as of when it was issued, so a read that is
   // held open while a write lands returns the older revision — the real
   // stale-read interleaving, not an artificial one.
-  const revision = net.getRev !== null ? net.getRev : (net.revisions.get(sessionId) ?? 0);
-  return { revision, draft: null, updatedAt: null };
+  return { revision, draft, updatedAt: null };
 }
 
 class DraftConflictError extends Error {
@@ -215,6 +218,7 @@ const { TIMING, recordDraft, loadDraft, canApplyLoadedDraft } = store;
 function resetNet() {
   net.requests = [];
   net.revisions.clear();
+  net.drafts.clear();
   net.latencyMs = 0;
   net.failNext = 0;
   net.conflictOnSeq = null;
@@ -398,7 +402,8 @@ async function failingNetwork() {
   // Long idle afterwards: a failed draft must not become a poller.
   await step(300_000);
   report('F. network failing: 1 keystroke, then nothing', {
-    'attempts made (1 initial + bounded retries)': attempts,
+    'PUT attempts (1 initial + bounded retries)': net.requests.filter((r) => r.kind === 'PUT').length,
+    'GETs to acquire the initial CAS base': net.requests.filter((r) => r.kind === 'GET').length,
     'retry budget': TIMING.RETRY_ATTEMPTS,
     'requests in the following 5 min (must be 0)': net.requests.length - attempts,
   });
@@ -649,28 +654,46 @@ function hotPathCost() {
 
   // The full path a keystroke actually takes: project, then record.
   const full = timeLoop((i) => recordDraft(sid, toDraft(composerValue((i % 900) + 1), attachments)));
-  report('L2. full per-change path: toDraft() + recordDraft()', {
+  report('L2. persistence path: toDraft() + recordDraft()', {
     'median us/call': +full[2].toFixed(3),
     'min us/call': +full[0].toFixed(3),
     'max us/call': +full[4].toFixed(3),
     'requests issued during the whole measurement': net.requests.length,
   });
 
+  // Include InputRow's existing rememberSessionDraft clone/cache work. No
+  // React render is included; this is a CPU projection, not browser latency.
+  const cache = new Map();
+  const total = timeLoop((i) => {
+    const value = composerValue((i % 900) + 1);
+    const occurrenceIds = [...value.occurrenceIds];
+    const clonedValue = {
+      parts: value.parts.map((part) => ({ ...part })),
+      text: value.text, occurrenceIds, attachmentIds: [...occurrenceIds],
+    };
+    const clonedAttachments = attachments.map((attachment) => ({ ...attachment }));
+    cache.set(sid, { value: clonedValue, attachments: clonedAttachments });
+    recordDraft(sid, toDraft(clonedValue, clonedAttachments));
+  });
+  report('L4. clone + local cache + projection + record total CPU cost', {
+    'median us/call': +total[2].toFixed(3),
+    'min us/call': +total[0].toFixed(3),
+    'max us/call': +total[4].toFixed(3),
+  });
+
   // The comparison loop is the part that grew when sameDraft became complete.
   // Same text, same lengths, but the attachment moved: this is the case an
   // incomplete comparison skipped, and it must now walk the parts.
-  const before = timeLoop((i) => toDraft(composerValue((i % 900) + 1), attachments));
   const moving = timeLoop((i) =>
     recordDraft(
       sid,
-      toDraft(composerValue((i % 900) + 1), [attachment('a', 10), attachment('b', 40 + (i % 2))]),
+      toDraft(composerValue(500), [attachment('a', 10), attachment('b', 40 + (i % 2))]),
     ),
   );
   report('L3. comparison with a changing attachment location', {
     'median us/call': +moving[2].toFixed(3),
     'note': 'worst case for the full comparison: text and lengths identical',
   });
-  void before;
 }
 
 // ── 13. regression guards for the reviewed defects ───────────────────────
@@ -750,13 +773,13 @@ async function stalledDraftRearms() {
   await drain(20);
   const spent = net.requests.length;
   net.failNext = 0; // the network is back
-  // The user edits again. This is a fresh user action, so it must persist.
-  recordDraft('stall', makeDraft('keep me, edited'));
+  // The user repeats the same content. Dirty exhaustion must re-arm it.
+  recordDraft('stall', makeDraft('keep me'));
   await step(PHASE_MS);
   await drain(10);
-  report('O. a stalled draft re-arms on the next edit after recovery', {
-    'attempts while failing': spent,
-    'attempts after the user edited again': net.requests.length - spent,
+  report('O. a stalled draft re-arms on an identical explicit operation', {
+    'PUT attempts while failing': spent - 1,
+    'requests after the identical operation': net.requests.length - spent,
     'text became durable': (net.revisions.get('stall') ?? 0) > 0 ? 'yes' : 'NO (BUG)',
   });
 }
@@ -867,16 +890,18 @@ function attachmentRoundTrip() {
     { type: 'text', value: 'before ' },
     { type: 'attachment', attachmentId: 'upload_1', occurrenceId: 'occA' },
     { type: 'text', value: ' between ' },
+    { type: 'attachment', attachmentId: 'local', occurrenceId: 'local' },
     { type: 'attachment', attachmentId: 'upload_2', occurrenceId: 'occB' },
     { type: 'text', value: ' after' },
   ];
   const value = {
     parts,
     text: 'before  between  after',
-    occurrenceIds: ['occA', 'occB'],
-    attachmentIds: ['occA', 'occB'],
+    occurrenceIds: ['occA', 'local', 'occB'],
+    attachmentIds: ['occA', 'local', 'occB'],
   };
   const attachments = [
+    { occurrenceId: 'local', id: 'local', displayName: 'pending.bin', status: 'uploading', file: { name: 'pending.bin' } },
     {
       occurrenceId: 'occA', id: 'occA', displayName: 'a.png', status: 'ready',
       attachmentId: 'upload_1', mimeType: 'image/png', source: 'upload',
@@ -894,7 +919,7 @@ function attachmentRoundTrip() {
   const order = (d) => d.parts.map((p) => (p.type === 'text' ? `T:${p.value}` : `A:${p.occurrenceId}`)).join('|');
   const projectedOrder = order(projected);
   const restoredOrder = restored ? order(restored.value) : '(null)';
-  // The local File had no server identity, so it must not be in the wire form.
+  // Both the local File metadata and its reference must be absent.
   const persistedNames = projected.attachments.map((a) => a.displayName).join(',');
   report('S. attachment order/position round trip through the codec', {
     'projected order': projectedOrder,
@@ -902,6 +927,7 @@ function attachmentRoundTrip() {
     'order identical': projectedOrder === restoredOrder ? 'yes' : 'NO (BUG)',
     'occurrenceIds restored': restored ? restored.value.occurrenceIds.join(',') : 'n/a',
     'attachments persisted (local File must be absent)': persistedNames,
+    'unuploaded File reference persisted': projected.parts.some((part) => part.occurrenceId === 'local'),
     'restored locations': restored
       ? restored.attachments.map((a) => `${a.occurrenceId}@${a.location ? a.location.line : '-'}`).join(',')
       : 'n/a',
@@ -950,9 +976,9 @@ console.log('    scheduler under the stated interaction pattern. They do not');
 console.log('    depend on machine speed.');
 console.log('  * L1/L2/L3 time the real shipped modules (the store and the codec),');
 console.log('    in a tight loop, with the transport drained afterwards. L2 is the');
-console.log('    full per-change cost: projection plus comparison. It excludes');
-console.log('    React rendering, which this feature adds nothing to on the');
-console.log('    typing path because it writes no component state there.');
+console.log('    persistence cost: projection plus comparison. L4 also includes');
+console.log('    the existing InputRow clone/cache work. These exclude React');
+console.log('    rendering and browser scheduling; no absence of jank is claimed.');
 console.log('  * Scenarios G, I and K hold a request open deliberately, so those');
 console.log('    orderings are exercised rather than assumed.');
 console.log('  * The MAX_WAIT_MS figures are SCHEDULING bounds: they say when a');

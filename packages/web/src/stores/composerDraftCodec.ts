@@ -71,13 +71,22 @@ export function occurrenceIdOf(attachment: CodecAttachment): string {
  * rather than persisted as a chip that would fail to resolve on reload, and it
  * is never re-uploaded.
  */
-export function restorableAttachments(
-  draft: ApiSessionDraft | null,
-): ApiSessionDraftAttachment[] {
+export function restorableAttachments(draft: ApiSessionDraft | null): ApiSessionDraftAttachment[] {
   if (!draft) return [];
-  return draft.attachments.filter(
-    (attachment) => !!attachment.attachmentId || !!attachment.path,
-  );
+  return draft.attachments.filter((attachment) => !!attachment.attachmentId || !!attachment.path);
+}
+
+/** Filter references with the same occurrence identity as the metadata. */
+function recoverableParts(
+  parts: CodecPart[],
+  attachments: ApiSessionDraftAttachment[],
+): CodecPart[] {
+  const occurrences = new Set(attachments.map((item) => item.occurrenceId));
+  return parts
+    .filter(
+      (part) => part.type === 'text' || occurrences.has(part.occurrenceId || part.attachmentId),
+    )
+    .map((part) => ({ ...part }));
 }
 
 /** Project live composer state into the persistable draft shape. */
@@ -87,36 +96,28 @@ export function toDraft(
 ): ApiSessionDraft {
   // parts order IS the composer's document order; keeping it verbatim is what
   // makes an interrupted draft restore with identical structure.
-  const parts: ApiSessionDraft['parts'] = value.parts.map((part) =>
-    part.type === 'attachment'
-      ? {
-          type: 'attachment' as const,
-          attachmentId: part.attachmentId,
-          occurrenceId: part.occurrenceId,
-        }
-      : { type: 'text' as const, value: part.value },
-  );
+  const metadata = restorableAttachments({
+    text: value.text,
+    parts: [],
+    attachments: attachments.map((attachment) => {
+      const entry: ApiSessionDraftAttachment = {
+        occurrenceId: occurrenceIdOf(attachment),
+        displayName: attachment.displayName,
+      };
+      if (attachment.attachmentId) entry.attachmentId = attachment.attachmentId;
+      if (attachment.path) entry.path = attachment.path;
+      if (attachment.href) entry.href = attachment.href;
+      if (attachment.mimeType) entry.mimeType = attachment.mimeType;
+      if (attachment.fileKey) entry.fileKey = attachment.fileKey;
+      if (attachment.source) entry.source = attachment.source;
+      if (attachment.location) entry.location = { ...attachment.location };
+      return entry;
+    }),
+  });
   return {
     text: value.text,
-    parts,
-    attachments: restorableAttachments({
-      text: value.text,
-      parts,
-      attachments: attachments.map((attachment) => {
-        const entry: ApiSessionDraftAttachment = {
-          occurrenceId: occurrenceIdOf(attachment),
-          displayName: attachment.displayName,
-        };
-        if (attachment.attachmentId) entry.attachmentId = attachment.attachmentId;
-        if (attachment.path) entry.path = attachment.path;
-        if (attachment.href) entry.href = attachment.href;
-        if (attachment.mimeType) entry.mimeType = attachment.mimeType;
-        if (attachment.fileKey) entry.fileKey = attachment.fileKey;
-        if (attachment.source) entry.source = attachment.source;
-        if (attachment.location) entry.location = { ...attachment.location };
-        return entry;
-      }),
-    }),
+    parts: recoverableParts(value.parts, metadata),
+    attachments: metadata,
   };
 }
 
@@ -132,24 +133,18 @@ export interface RestoredDraft {
  * persisted" as "no restore needed" rather than clearing a composer.
  */
 export function fromDraft(draft: ApiSessionDraft, fallbackText: string): RestoredDraft | null {
+  const metadata = restorableAttachments(draft);
   const parts: CodecPart[] = draft.parts.length
-    ? draft.parts.map((part) =>
-        part.type === 'attachment'
-          ? {
-              type: 'attachment' as const,
-              attachmentId: part.attachmentId,
-              occurrenceId: part.occurrenceId,
-            }
-          : { type: 'text' as const, value: part.value },
-      )
+    ? recoverableParts(draft.parts, metadata)
     : [{ type: 'text', value: fallbackText }];
-  const attachments: CodecAttachment[] = draft.attachments.map((item) => ({
+  const attachments: CodecAttachment[] = metadata.map((item) => ({
     occurrenceId: item.occurrenceId,
     id: item.occurrenceId,
     displayName: item.displayName,
-    // A restored attachment is always server-resolvable by construction: the
-    // server rejected anything without an identity when it was written.
-    status: 'ready',
+    // A path can survive a restart before registration finishes. Keep that
+    // chip retryable via the existing explicit registration action, and block
+    // send until it has both a registered identity and a usable link.
+    status: item.attachmentId && item.href ? 'ready' : 'error',
     ...(item.attachmentId ? { attachmentId: item.attachmentId } : {}),
     ...(item.path ? { path: item.path } : {}),
     ...(item.href ? { href: item.href } : {}),

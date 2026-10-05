@@ -53,9 +53,9 @@ export { restorableAttachments };
  *   is what bounds the *rate* during sustained typing: without it, a user who
  *   pauses for 600 ms every few words would emit a request per pause, which is
  *   the per-keystroke-ish traffic this feature must not have.
- * - `MAX_WAIT_MS = 5000` — ceiling on how long unsaved text may sit unsaved
- *   during *continuous* typing, where the debounce never fires.  This is the
- *   honest worst-case data-loss window if the tab dies mid-sentence.
+ * - `MAX_WAIT_MS = 5000` — maximum scheduling window during continuous
+ *   typing. An in-flight request, base read, network failure or tab close can
+ *   extend the time until acknowledgement; this is not a durability bound.
  *
  * The three interact as intended: a pause writes after 600 ms if the 2 s floor
  * has elapsed; continuous typing writes every 5 s regardless.
@@ -101,6 +101,8 @@ interface SessionDraftState {
    *  re-request.  Null means "the server has no draft for this Session". */
   loadedDraft: ApiSessionDraft | null;
   error: string | null;
+  /** A CAS conflict requires a subsequent explicit local operation. */
+  conflicted: boolean;
 }
 
 type Listener = (sessionId: string, error: string | null) => void;
@@ -127,6 +129,7 @@ function state(sessionId: string): SessionDraftState {
       loaded: false,
       loadedDraft: null,
       error: null,
+      conflicted: false,
     };
     states.set(sessionId, current);
   }
@@ -259,13 +262,11 @@ function scheduleFlush(sessionId: string, current: SessionDraftState) {
   // the debounce alone govern a first write.
   const sinceWrite =
     current.lastWriteAt === 0 ? TIMING.MIN_INTERVAL_MS : now - current.lastWriteAt;
-  let delay: number = TIMING.DEBOUNCE_MS;
-  if (sinceWindow >= TIMING.MAX_WAIT_MS) {
-    // Continuous typing: the debounce has not fired, so write now.
-    delay = 0;
-  } else if (sinceWrite < TIMING.MIN_INTERVAL_MS) {
-    delay = Math.max(delay, TIMING.MIN_INTERVAL_MS - sinceWrite);
-  }
+  const delay = Math.max(
+    0,
+    TIMING.MIN_INTERVAL_MS - sinceWrite,
+    Math.min(TIMING.DEBOUNCE_MS, TIMING.MAX_WAIT_MS - sinceWindow),
+  );
   current.timer = setTimeout(() => {
     current.timer = null;
     void flush(sessionId);
@@ -273,8 +274,8 @@ function scheduleFlush(sessionId: string, current: SessionDraftState) {
 }
 
 /**
- * Record the local draft.  Synchronous and network-free — this is the typing
- * hot path, so it must stay O(1) in the draft's size.  The caller passes an
+ * Record the local draft. Synchronous and network-free. Text changes exit the
+ * equality comparison early; equal-text edits walk parts/metadata. The caller passes an
  * already-cloned payload (the composer's `rememberSessionDraft` already clones),
  * so no defensive copy happens per keystroke here.
  */
@@ -294,6 +295,7 @@ export function recordDraft(sessionId: string, draft: ApiSessionDraft | null) {
     if (current.timer !== null || current.inFlight) return;
     if (!current.dirty) return;
     current.error = null;
+    current.conflicted = false;
     current.retries = 0;
     scheduleFlush(sessionId, current);
     return;
@@ -313,6 +315,7 @@ export function recordDraft(sessionId: string, draft: ApiSessionDraft | null) {
   }
   current.dirty = true;
   current.error = null;
+  current.conflicted = false;
   current.retries = 0;
   scheduleFlush(sessionId, current);
 }
@@ -344,24 +347,36 @@ async function flush(sessionId: string): Promise<void> {
   // while this request was open.
   if (current.inFlight) return;
   if (!current.dirty) return;
+  if (current.conflicted) return;
 
-  const payload = current.draft;
-  const localRevision = current.localRevision;
-  const baseRevision = current.serverRevision;
   current.inFlight = true;
-  current.dirty = false;
-  current.windowStartedAt = 0;
-  current.lastWriteAt = Date.now();
   // Set when this attempt's failure spends the retry budget.  Suppresses only
   // the automatic tail reschedule below, never the local copy.
   let retryExhausted = false;
 
   try {
+    // Browser-cache content skips the display cold read. Acquire its CAS base
+    // lazily on first save, without applying server content over local text.
+    // If a display GET is already in flight, create-if-absent is safe and lets
+    // a stalled read coexist with a first save; an existing draft will reject it.
+    if (current.serverRevision === null && !current.loadPromise) {
+      await loadDraft(sessionId);
+      if (current.serverRevision === null) throw new Error(current.error || 'Draft base read failed');
+    }
+    const payload = current.draft;
+    const localRevision = current.localRevision;
+    const baseRevision = current.serverRevision;
+    current.dirty = false;
+    current.windowStartedAt = 0;
+    current.lastWriteAt = Date.now();
     const result = await putSessionDraft(sessionId, payload, baseRevision);
     // Through the same monotonic guard as the read path: a write response is
     // authoritative, but adopting it unconditionally would let a slow response
     // to an OLD write clobber a revision already learned from a newer one.
-    adoptRevision(current, result.revision);
+    if (adoptRevision(current, result.revision)) {
+      current.loaded = true;
+      current.loadedDraft = result.draft;
+    }
     current.retries = 0;
     current.error = null;
     if (current.localRevision !== localRevision) {
@@ -381,7 +396,12 @@ async function flush(sessionId: string): Promise<void> {
       // No retry: a conflict is not a transport failure, and retrying the same
       // stale base would just fail again.  Monotonic for the same reason as the
       // success path — never step the known revision backwards.
-      adoptRevision(current, error.currentRevision);
+      if (adoptRevision(current, error.currentRevision)) {
+        current.loaded = true;
+        current.loadedDraft = error.current;
+      }
+      clearTimer(current);
+      current.conflicted = true;
       current.dirty = true;
       current.error = 'Draft changed in another tab; this text is not saved yet';
       notify(sessionId);
@@ -391,6 +411,7 @@ async function flush(sessionId: string): Promise<void> {
     // number of times.  After that it stays dirty in memory with `error` set,
     // so the composer can tell the user rather than looping forever.
     current.dirty = true;
+    clearTimer(current);
     current.retries += 1;
     current.error = (error as Error)?.message || 'Draft not saved';
     if (current.retries < TIMING.RETRY_ATTEMPTS) {
@@ -465,17 +486,19 @@ export async function loadDraft(sessionId: string): Promise<ApiSessionDraft | nu
       // rejected adoption means a write already moved past this revision.
       const adopted = adoptRevision(current, result.revision);
       current.loaded = true;
-      if (current.touchedLocally) return null; // local edits win; never clobber
       if (!adopted) {
         // The content belongs to a revision this tab has already superseded.
-        // Record that there is nothing durable to restore so a later visit does
-        // not re-read, and let the local draft stand.
-        current.loadedDraft = null;
+        // Preserve the cached result of the newer PUT/tombstone. A stale read
+        // must change neither its content nor the revision.
         return null;
       }
       current.loadedDraft = result.draft;
+      if (current.touchedLocally) return null; // local edits win; never clobber
+      current.draft = result.draft;
       return result.draft;
-    } catch {
+    } catch (error) {
+      current.error = (error as Error)?.message || 'Draft read failed';
+      notify(sessionId);
       return null;
     } finally {
       current.loadPromise = null;

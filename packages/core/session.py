@@ -2809,13 +2809,13 @@ def delete(session_id: str):
         # scope) because session_drafts reads SESSION_DIR from this module, and
         # deleting a Session must not leave a draft that outlives it.
         from packages.core import session_drafts
-        session_drafts.delete_draft(session_id)
-        path = _path(session_id)
-        if path.exists():
-            path.unlink()
-        hist_path = _history_path(session_id)
-        if hist_path.exists():
-            hist_path.unlink()
+        with session_drafts.session_deletion(session_id):
+            path = _path(session_id)
+            if path.exists():
+                path.unlink()
+            hist_path = _history_path(session_id)
+            if hist_path.exists():
+                hist_path.unlink()
         _cache.pop(session_id, None)
         _newline_terminated_jsonl.discard(str(hist_path))  # 文件已删，缓存作废
 

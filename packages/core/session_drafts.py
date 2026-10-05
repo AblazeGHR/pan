@@ -46,12 +46,12 @@ from datetime import datetime
 from pathlib import Path
 
 from packages.core.data_retention import cross_process_file_lock
-from packages.core.session import SESSION_DIR
+from packages.core import session as sessions
 
 # Beside, but separate from, Session metadata.  Never inside SESSION_DIR: the
 # Session loader globs nothing, but retention and directory listings treat that
 # folder as Session records.
-DRAFT_DIR = SESSION_DIR.parent / "session-drafts"
+DRAFT_DIR = sessions.SESSION_DIR.parent / "session-drafts"
 
 _DRAFT_VERSION = 1
 # Serializes threads *within* this process.  Cross-process exclusion is the
@@ -60,9 +60,7 @@ _DRAFT_VERSION = 1
 # queueing on the OS lock one at a time.
 _DRAFT_LOCK = threading.RLock()
 # One lock file for the whole store.  A single file keeps the on-disk story
-# simple and the critical sections are microseconds long (one stat, one small
-# parse, one replace), so per-Session lock files would add bookkeeping without
-# adding throughput.
+# simple; transactions touch only one bounded sidecar and one Session stat.
 _LOCK_NAME = ".drafts.lock"
 
 # Bounds.  A draft is one person's unsent message, not a document store.  These
@@ -99,6 +97,17 @@ class DraftConflict(Exception):
 
 class DraftTooLarge(Exception):
     """The payload exceeds a documented bound and was not written."""
+
+
+class DraftSessionMissing(Exception):
+    """The Session no longer exists at the draft transaction boundary."""
+
+
+def _require_session(session_id: str) -> None:
+    # Disk is authoritative here; Session's process-local cache may outlive a
+    # deletion in another process. Called only under the deletion/draft lock.
+    if not _safe_session_id(session_id) or not sessions._path(session_id).is_file():
+        raise DraftSessionMissing("Session does not exist")
 
 
 def _path(session_id: str) -> Path:
@@ -149,7 +158,7 @@ def _validate_parts(value: object) -> list[dict]:
         # occurrence.  Rebuilding it field by field (instead of trusting the
         # payload) keeps unexpected keys out of the persisted draft.
         if kind == "text":
-            parts.append({"type": "text", "value": _validate_text(part.get("value", ""))})
+            parts.append({"type": "text", "value": _validate_text(part.get("value"))})
         elif kind == "attachment":
             attachment_id = part.get("attachmentId")
             if not isinstance(attachment_id, str) or not attachment_id:
@@ -201,6 +210,8 @@ def _validate_attachments(value: object) -> list[dict]:
             "occurrenceId": occurrence_id,
             "displayName": _validate_field(item.get("displayName"), "displayName") or "",
         }
+        if not isinstance(item.get("displayName"), str):
+            raise ValueError("draft attachment requires displayName")
         # A File/Blob never reaches this function: the client refuses to send
         # bytes it cannot re-acquire, and the server has no field to put them
         # in.  ``attachmentId`` (already uploaded, server-owned) and ``path``
@@ -211,14 +222,25 @@ def _validate_attachments(value: object) -> list[dict]:
             field = _validate_field(item.get(key), key)
             if field is not None:
                 entry[key] = field
+        if not entry.get("attachmentId") and not entry.get("path"):
+            raise ValueError("draft attachment requires a server identity or path")
         location = item.get("location")
-        if isinstance(location, dict):
+        if location is not None:
+            if not isinstance(location, dict):
+                raise ValueError("attachment location must be an object")
             line = location.get("line")
-            if isinstance(line, int) and not isinstance(line, bool) and line >= 1:
-                entry["location"] = {"line": line}
-                end_line = location.get("endLine")
-                if isinstance(end_line, int) and not isinstance(end_line, bool) and end_line >= line:
-                    entry["location"]["endLine"] = end_line
+            if isinstance(line, bool) or not isinstance(line, int) or line < 1:
+                raise ValueError("attachment location requires a positive line")
+            entry["location"] = {"line": line}
+            end_line = location.get("endLine")
+            if end_line is not None:
+                if isinstance(end_line, bool) or not isinstance(end_line, int) or end_line < line:
+                    raise ValueError("attachment endLine must be at least line")
+                entry["location"]["endLine"] = end_line
+        if item.get("source") is not None and (
+            not isinstance(item["source"], str) or item["source"] not in {"upload", "server_file"}
+        ):
+            raise ValueError("invalid attachment source")
         if item.get("source") in {"upload", "server_file"}:
             entry["source"] = item["source"]
         restored.append(entry)
@@ -235,10 +257,22 @@ def normalize_draft(draft: object) -> dict:
     if not isinstance(draft, dict):
         raise ValueError("draft must be an object")
     normalized = {
-        "text": _validate_text(draft.get("text", "")),
-        "parts": _validate_parts(draft.get("parts", [])),
-        "attachments": _validate_attachments(draft.get("attachments", [])),
+        "text": _validate_text(draft.get("text")),
+        "parts": _validate_parts(draft.get("parts")),
+        "attachments": _validate_attachments(draft.get("attachments")),
     }
+    text_parts = [part["value"] for part in normalized["parts"] if part["type"] == "text"]
+    if (
+        sum(map(len, text_parts)) != len(normalized["text"])
+        or "".join(text_parts) != normalized["text"]
+    ):
+        raise ValueError("draft text must match its ordered text parts")
+    occurrences = {item["occurrenceId"] for item in normalized["attachments"]}
+    if len(occurrences) != len(normalized["attachments"]):
+        raise ValueError("duplicate attachment occurrence")
+    for part in normalized["parts"]:
+        if part["type"] == "attachment" and (part.get("occurrenceId") or part["attachmentId"]) not in occurrences:
+            raise ValueError("attachment part has no recoverable metadata")
     encoded = json.dumps(normalized, ensure_ascii=False)
     if len(encoded.encode("utf-8")) > MAX_DRAFT_SERIALIZED:
         raise DraftTooLarge("draft exceeds the serialized size bound")
@@ -267,7 +301,10 @@ def _read_locked(session_id: str) -> dict:
     mistake unreadable data for no data and write over it.
     """
     path = _path(session_id)
-    stamp = _stamp(path)
+    try:
+        stamp = _stamp(path)
+    except OSError as exc:
+        raise DraftUnreadable(f"Draft for {session_id} could not be inspected") from exc
     cached = _CACHE.get(session_id)
     if cached is not None and cached[0] == path and cached[1] == stamp and stamp is not None:
         return cached[2]
@@ -275,26 +312,37 @@ def _read_locked(session_id: str) -> dict:
         # Genuinely absent.  Distinguishing this from "exists but unreadable" is
         # the whole point: only absence may be treated as an empty composer.
         return dict(_ABSENT)
+    # The compact write ceiling plus pretty-print/envelope overhead is below
+    # this bound. Refuse enormous damaged files before allocating/parsing them.
+    if stamp[1] > MAX_DRAFT_SERIALIZED * 2:
+        _CACHE.pop(session_id, None)
+        raise DraftUnreadable(f"Draft for {session_id} exceeds the file size bound")
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return dict(_ABSENT)          # deleted between stat and read
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as exc:
         _CACHE.pop(session_id, None)
         raise DraftUnreadable(
             f"Draft for {session_id} exists but could not be read: "
-            f"{type(exc).__name__ if isinstance(exc, OSError) else 'invalid JSON'}"
+            f"{type(exc).__name__ if isinstance(exc, OSError) else 'invalid JSON or encoding'}"
         ) from exc
-    if not isinstance(raw, dict) or raw.get("version") != _DRAFT_VERSION:
+    if not isinstance(raw, dict) or type(raw.get("version")) is not int or raw.get("version") != _DRAFT_VERSION:
         _CACHE.pop(session_id, None)
         raise DraftUnreadable(f"Draft for {session_id} has an unsupported format")
     revision = raw.get("revision")
-    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
         _CACHE.pop(session_id, None)
         raise DraftUnreadable(f"Draft for {session_id} has an invalid revision")
     draft = raw.get("draft")
-    if draft is not None and not isinstance(draft, dict):
-        raise DraftUnreadable(f"Draft for {session_id} has an invalid payload")
+    try:
+        if "draft" not in raw:
+            raise ValueError("missing draft payload")
+        if draft is not None:
+            draft = normalize_draft(draft)
+    except (ValueError, DraftTooLarge) as exc:
+        _CACHE.pop(session_id, None)
+        raise DraftUnreadable(f"Draft for {session_id} has an invalid payload: {exc}") from exc
     payload = {
         "revision": revision,
         "draft": draft,
@@ -352,9 +400,8 @@ def read_draft(session_id: str) -> dict:
     Raises :class:`DraftUnreadable` when a file exists but cannot be read, so
     the HTTP layer can report "damaged" instead of "empty".
     """
-    if not _safe_session_id(session_id):
-        return dict(_ABSENT)
     with _exclusive():
+        _require_session(session_id)
         return _read_locked(session_id)
 
 
@@ -375,10 +422,15 @@ def write_draft(session_id: str, base_revision: int | None, draft: dict | None) 
     """
     if not _safe_session_id(session_id):
         raise ValueError("invalid session id")
+    if base_revision is not None and (
+        isinstance(base_revision, bool) or not isinstance(base_revision, int) or base_revision < 0
+    ):
+        raise ValueError("base revision must be null or a non-negative integer")
     # Validate before taking the lock: normalization is pure and can be slow on
     # a large payload, and there is no reason to hold a global lock for it.
     normalized = None if draft is None else normalize_draft(draft)
     with _exclusive():
+        _require_session(session_id)
         current = _read_locked(session_id)   # raises DraftUnreadable, never overwrites
         current_revision = current["revision"]
         if base_revision is None:
@@ -403,24 +455,39 @@ def clear_draft(session_id: str, base_revision: int | None) -> dict:
     return write_draft(session_id, base_revision, None)
 
 
+@contextmanager
+def session_deletion(session_id: str):
+    """Serialize Session metadata removal and draft cleanup against read/CAS.
+
+    A write either commits before deletion (then gets removed), or enters after
+    metadata removal and fails _require_session. Mutual exclusion of sidecar
+    unlink alone cannot provide this guarantee.
+    """
+    with _exclusive():
+        yield
+        _delete_locked(session_id)
+
+
+def _delete_locked(session_id: str) -> None:
+    _CACHE.pop(session_id, None)
+    try:
+        _path(session_id).unlink(missing_ok=True)
+    except OSError:
+        # If cleanup fails, reads/writes still reject the missing Session.
+        pass
+
+
 def delete_draft(session_id: str) -> None:
     """Remove one Session's draft file.  Missing is success.
 
-    Takes the same cross-process lock as the write path.  A Session delete that
-    raced a draft write in another Pan process could otherwise unlink the file
-    and then have that process's write land, leaving a draft for a Session that
-    no longer exists.
+    Takes the same cross-process lock as the write path. This alone is not a
+    Session lifecycle boundary: Session.delete uses
+    session_deletion to hold the same lock while removing its metadata too.
     """
     if not _safe_session_id(session_id):
         return
     with _exclusive():
-        _CACHE.pop(session_id, None)
-        try:
-            _path(session_id).unlink(missing_ok=True)
-        except OSError:
-            # Session deletion must not fail because a sidecar is undeletable;
-            # an orphan draft is inert (its Session can never be selected).
-            pass
+        _delete_locked(session_id)
 
 
 def draft_diagnostics() -> dict:
