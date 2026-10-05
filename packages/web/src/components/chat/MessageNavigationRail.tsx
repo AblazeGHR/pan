@@ -12,9 +12,11 @@ import { createPortal } from 'react-dom';
 import { Loader2, UserRound } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { canonicalRowsWithOffsets } from '@/stores/messageOrdering';
 import { fetchSessionHistory } from '@/services/api';
 import {
   getQuickJumpIndexItems,
+  getQuickJumpIndexItemsByOffset,
   type QuickJumpIndexItem,
   type QuickJumpKind,
 } from './messageFilter';
@@ -92,10 +94,23 @@ export function MessageNavigationRail({
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentMessages = useSessionStore((s) => s.currentMessages);
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
+  // The rendered transcript mixes canonical history rows with local terminal
+  // markers and runtime rows, so its length is not a canonical row count. Only
+  // the server-reported total (or the canonical extent of the loaded window)
+  // may be used as the `total` that `fromEnd` is measured against.
+  const canonicalRows = useMemo(
+    () => canonicalRowsWithOffsets(currentMessages),
+    [currentMessages],
+  );
   const currentHistoryTotal = useSessionStore((s) => {
     const session = s.sessions.find((item) => item.id === s.currentSessionId);
-    return session?.historyTotal ?? (s.historyLoadEnd + s.currentMessages.length);
+    return session?.historyTotal ?? null;
   });
+  const loadedCanonicalTotal = useMemo(() => {
+    if (currentHistoryTotal !== null) return currentHistoryTotal;
+    const last = canonicalRows[canonicalRows.length - 1];
+    return last ? last.offset + 1 : historyLoadEnd;
+  }, [canonicalRows, currentHistoryTotal, historyLoadEnd]);
   const ensureMessageLoaded = useSessionStore((s) => s.ensureMessageLoaded);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
@@ -215,13 +230,8 @@ export function MessageNavigationRail({
       // The full index already wins below. Scanning every loaded message on
       // each delta here used to rebuild a projection that was never rendered.
       ? fullIndex
-      : getQuickJumpIndexItems(
-        currentMessages,
-        currentHistoryTotal,
-        historyLoadEnd,
-        settings,
-      ),
-    [currentMessages, currentHistoryTotal, historyLoadEnd, settings, fullIndex, indexStatus],
+      : getQuickJumpIndexItemsByOffset(canonicalRows, loadedCanonicalTotal, settings),
+    [canonicalRows, loadedCanonicalTotal, settings, fullIndex, indexStatus],
   );
 
   // One merged column: every navigable kind in the session's original message
@@ -240,7 +250,7 @@ export function MessageNavigationRail({
     setJumpError(null);
     setJumpingFromEnd(target.fromEnd);
     try {
-      const total = indexTotal || currentHistoryTotal;
+      const total = indexTotal || loadedCanonicalTotal;
       const message = await ensureMessageLoaded(target.fromEnd, total);
       if (!message || useSessionStore.getState().currentSessionId !== sessionAtClick) {
         if (useSessionStore.getState().currentSessionId === sessionAtClick) {
@@ -395,7 +405,7 @@ export function MessageNavigationRail({
       aria-label={RAIL_LABEL}
       data-index-status={indexStatus}
       data-indexed-targets={targets.length}
-      data-history-total={indexTotal || currentHistoryTotal}
+      data-history-total={indexTotal || loadedCanonicalTotal}
       data-index-requests={indexMetrics.requests}
       data-index-duration-ms={Math.round(indexMetrics.durationMs)}
     >

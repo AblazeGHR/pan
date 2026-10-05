@@ -1590,6 +1590,20 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
   return (session?.history ?? []).filter((row) => !isLocalMarker(row));
 }
 
+/**
+ * The canonical row stored at an absolute history offset, or null when that
+ * offset is not loaded. The window is the single fact source for
+ * offset → row; the rendered transcript must never be indexed by position
+ * because it also holds local markers and runtime rows.
+ */
+function canonicalRowAtOffset(
+  state: SessionStore,
+  sessionId: string,
+  offset: number,
+): Message | null {
+  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
+}
+
 /** Append rows that are not already represented, keeping the tail deduped. */
 function appendCanonicalRows(history: Message[], rows: Message[]): Message[] {
   if (rows.length === 0) return history;
@@ -2081,8 +2095,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     const state = get();
     if (signal?.aborted || !selectionIsCurrent(state) || state.historyLoadEnd > absoluteIndex) return null;
-    const localIndex = absoluteIndex - state.historyLoadEnd;
-    return state.currentMessages[localIndex] ?? null;
+    // `absoluteIndex` is a canonical history offset, so it must be resolved in
+    // canonical index space. `currentMessages` interleaves local markers
+    // (`[DONE] Task completed`) and runtime rows, so its positions drift from
+    // canonical offsets by one per preceding non-canonical row — indexing it
+    // directly returned the neighbouring row and sent quick-jump to the wrong
+    // message. Resolve the durable row that owns this offset instead.
+    const resolved = canonicalRowAtOffset(state, sessionId, absoluteIndex);
+    if (resolved) return resolved;
+    // Seeded snapshots and fixtures have no transcript window yet; their
+    // `Session.history` is the canonical projection, so the same offset applies.
+    const session = sessionOf(state, sessionId);
+    const history = (session?.history ?? []).filter((row) => !isLocalMarker(row));
+    const start = session?.historyStart
+      ?? Math.max(0, (session?.historyTotal ?? history.length) - history.length);
+    return history[absoluteIndex - start] ?? null;
   },
 
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {

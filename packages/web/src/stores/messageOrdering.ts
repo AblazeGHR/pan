@@ -52,6 +52,34 @@ export function durableOffsetOf(message: Message): number | undefined {
   return durableOffsets.get(message);
 }
 
+/** One canonical row paired with the absolute storage offset it occupies. */
+export interface CanonicalRow {
+  offset: number;
+  message: Message;
+}
+
+/**
+ * The canonical rows of a rendered transcript, each with its absolute storage
+ * offset, ordered by that offset.
+ *
+ * `currentMessages` interleaves three kinds of rows: canonical history rows,
+ * local display markers (`[DONE] Task completed`) and runtime rows (live
+ * blocks, optimistic user rows). Only the first kind has a position in
+ * canonical history index space, and only it is tagged by `markDurableRow`.
+ * Deriving a canonical index by counting array positions therefore drifts by
+ * one for every marker or runtime row in front of the target, which is what
+ * made quick-jump land on the wrong row. Consumers that speak canonical
+ * offsets must pair each row with its own offset instead of its position.
+ */
+export function canonicalRowsWithOffsets(display: readonly Message[]): CanonicalRow[] {
+  const rows: CanonicalRow[] = [];
+  for (const message of display) {
+    const offset = durableOffsetOf(message);
+    if (offset !== undefined) rows.push({ offset, message });
+  }
+  return rows.sort((a, b) => a.offset - b.offset);
+}
+
 /**
  * True when this row came from a canonical history response. Runtime rows
  * (live blocks, local user rows, display markers) are deliberately not tagged,
