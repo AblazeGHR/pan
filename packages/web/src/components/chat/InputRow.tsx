@@ -15,10 +15,9 @@ import {
   installDraftLifecycleFlush,
   loadDraft,
   recordDraft,
-  restorableAttachments,
   subscribeDraftPersistence,
-  type ApiSessionDraft,
 } from '@/stores/composerDraftStore';
+import { fromDraft, toDraft } from '@/stores/composerDraftCodec';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
@@ -144,95 +143,10 @@ interface SessionComposerDraft {
   attachments: PendingAttachment[];
 }
 
-// ── durable draft projection ──
-//
-// The in-memory draft above is the composer's source of truth while the tab is
-// open.  These two functions are the only place that shape crosses into the
-// persistence layer, so the wire contract (ordered parts, occurrence identity,
-// recoverable attachment metadata) is defined once.
-
-/** Project the live composer state into the persistable draft shape.
- *
- *  A local `File` is dropped on purpose: bytes that were never uploaded cannot
- *  be recovered after a reload, and re-uploading on restore would silently
- *  duplicate a possibly-large payload the user never asked to send twice.  Such
- *  an attachment simply does not come back. */
-function toPersistableDraft(
-  value: ComposerValue,
-  attachments: PendingAttachment[],
-): ApiSessionDraft {
-  // parts order is the composer's document order; keeping it verbatim is what
-  // makes an interrupted draft restore with identical structure.
-  const parts: ApiSessionDraft['parts'] = value.parts.map((part) =>
-    part.type === 'attachment'
-      ? { type: 'attachment', attachmentId: part.attachmentId, occurrenceId: part.occurrenceId }
-      : { type: 'text', value: part.value },
-  );
-  return {
-    text: value.text,
-    parts,
-    attachments: restorableAttachments({
-      text: value.text,
-      parts,
-      attachments: attachments.map((attachment) => {
-        const entry: ApiSessionDraft['attachments'][number] = {
-          occurrenceId: attachmentOccurrenceId(attachment),
-          displayName: attachment.displayName,
-        };
-        if (attachment.attachmentId) entry.attachmentId = attachment.attachmentId;
-        if (attachment.path) entry.path = attachment.path;
-        if (attachment.href) entry.href = attachment.href;
-        if (attachment.mimeType) entry.mimeType = attachment.mimeType;
-        if (attachment.fileKey) entry.fileKey = attachment.fileKey;
-        if (attachment.source) entry.source = attachment.source;
-        if (attachment.location) entry.location = { ...attachment.location };
-        return entry;
-      }),
-    }),
-  };
-}
-
-/** Rebuild composer state from a loaded draft.  Returns null for an empty
- *  draft so the caller can treat "nothing persisted" as "no restore needed". */
-function fromPersistableDraft(
-  draft: ApiSessionDraft,
-  fallbackText: string,
-): SessionComposerDraft | null {
-  const parts = draft.parts.length
-    ? draft.parts.map((part) =>
-        part.type === 'attachment'
-          ? {
-              type: 'attachment' as const,
-              attachmentId: part.attachmentId,
-              occurrenceId: part.occurrenceId,
-            }
-          : { type: 'text' as const, value: part.value },
-      )
-    : ([{ type: 'text' as const, value: fallbackText }] as ComposerValue['parts']);
-  const attachments: PendingAttachment[] = draft.attachments.map((item) => ({
-    occurrenceId: item.occurrenceId,
-    id: item.occurrenceId,
-    displayName: item.displayName,
-    status: 'ready',
-    ...(item.attachmentId ? { attachmentId: item.attachmentId } : {}),
-    ...(item.path ? { path: item.path } : {}),
-    ...(item.href ? { href: item.href } : {}),
-    ...(item.mimeType ? { mimeType: item.mimeType } : {}),
-    ...(item.fileKey ? { fileKey: item.fileKey } : {}),
-    ...(item.source ? { source: item.source } : {}),
-    ...(item.location ? { location: item.location } : {}),
-  }));
-  if (!draft.text && draft.parts.length === 0 && attachments.length === 0) return null;
-  return {
-    value: {
-      parts,
-      text: draft.text,
-      occurrenceIds: parts.map(composerPartOccurrenceId).filter((id): id is string => !!id),
-      attachmentIds: parts.map(composerPartOccurrenceId).filter((id): id is string => !!id),
-    },
-    attachments,
-  };
-}
+// The durable-draft wire contract (ordered parts, occurrence identity, and
+// recoverable attachment metadata) lives in composerDraftCodec, so the exact
+// shape that is persisted and the exact shape that is restored cannot drift
+// apart, and so the round trip can be exercised without mounting the composer.
 
 type AttachmentStateUpdate =
   PendingAttachment[] | ((current: PendingAttachment[]) => PendingAttachment[]);
@@ -504,7 +418,7 @@ export function InputRow() {
         value: clonedValue,
         attachments: clonedAttachments,
       });
-      recordDraft(sessionId, toPersistableDraft(clonedValue, clonedAttachments));
+      recordDraft(sessionId, toDraft(clonedValue, clonedAttachments));
     },
     [],
   );
@@ -661,7 +575,7 @@ export function InputRow() {
       if (cancelled || !draft) return;
       if (activeAttachmentSessionRef.current !== sessionId) return;
       if (!canApplyLoadedDraft(sessionId, epoch, selectionEpochRef.current)) return;
-      const restored = fromPersistableDraft(
+      const restored = fromDraft(
         draft,
         useSessionStore.getState().inputDrafts[sessionId] || '',
       );
@@ -1109,7 +1023,7 @@ export function InputRow() {
         // tried to send.
         recordDraft(
           snapshot.sessionId,
-          toPersistableDraft(value, restoredAttachments),
+          toDraft(value, restoredAttachments),
         );
         return;
       }
@@ -1148,7 +1062,7 @@ export function InputRow() {
       // text the user is still trying to send.
       recordDraft(
         snapshot.sessionId,
-        toPersistableDraft(value, [
+        toDraft(value, [
           ...attachments.filter(
             (attachment) => !snapshot.attachments.some(
               (sent) => attachmentOccurrenceId(sent) === attachmentOccurrenceId(attachment),

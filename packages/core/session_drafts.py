@@ -15,13 +15,24 @@ is persisted here rather than on ``Session`` for three measured reasons:
   matching constructor field breaks loading of every existing Session.
 
 Layout mirrors the pin-state precedent (``data/session-pins.json``): its own
-directory, its own lock, temp-file + ``os.replace`` atomic commit, a
-``version``/``revision`` envelope, and an ``(mtime_ns, size, ino)``-stamped read
-cache so a hot read is one ``stat`` and no parse.
+directory, temp-file + ``os.replace`` atomic commit, a ``version``/``revision``
+envelope, and an ``(mtime_ns, size, ino)``-stamped read cache so a hot read is
+one ``stat`` and no parse.
 
 One file per Session (not one shared map) is deliberate: a save is O(1) in the
 number of Sessions, so no draft write ever rewrites unrelated drafts, and
 deleting a Session is one unlink with no shared-file rewrite.
+
+Concurrency is a *cross-process* problem, not a thread one.  ``os.replace`` makes
+each individual commit atomic but does nothing to make the read-compare-write
+*sequence* atomic: two Pan processes can both read revision N, both pass the
+check, both commit N+1, and one write is silently lost.  A ``threading.Lock``
+cannot prevent that, because each process has its own.  The read-compare-write is
+therefore wrapped in the same advisory file lock ``data_retention`` already uses
+for its cross-process work, which is a real OS-level lock (``msvcrt.locking`` /
+``fcntl.flock``).  Note this is a *stronger* requirement than the pin-state file,
+which never had a read-compare-write to make atomic — the pin precedent is not
+evidence that a thread lock suffices here.
 """
 
 from __future__ import annotations
@@ -30,9 +41,11 @@ import json
 import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from packages.core.data_retention import cross_process_file_lock
 from packages.core.session import SESSION_DIR
 
 # Beside, but separate from, Session metadata.  Never inside SESSION_DIR: the
@@ -41,7 +54,16 @@ from packages.core.session import SESSION_DIR
 DRAFT_DIR = SESSION_DIR.parent / "session-drafts"
 
 _DRAFT_VERSION = 1
+# Serializes threads *within* this process.  Cross-process exclusion is the
+# advisory file lock below; both are needed because the file lock is held across
+# a read and a write, and the thread lock keeps same-process callers from
+# queueing on the OS lock one at a time.
 _DRAFT_LOCK = threading.RLock()
+# One lock file for the whole store.  A single file keeps the on-disk story
+# simple and the critical sections are microseconds long (one stat, one small
+# parse, one replace), so per-Session lock files would add bookkeeping without
+# adding throughput.
+_LOCK_NAME = ".drafts.lock"
 
 # Bounds.  A draft is one person's unsent message, not a document store.  These
 # cap the write amplification of a paste-happy client and the read cost of a
@@ -223,36 +245,79 @@ def normalize_draft(draft: object) -> dict:
     return normalized
 
 
+_ABSENT: dict = {"revision": 0, "draft": None, "updatedAt": None, "state": "absent"}
+
+
+class DraftUnreadable(Exception):
+    """A draft file exists but could not be read as a valid envelope.
+
+    Distinct from "absent".  Reporting a damaged or temporarily unreadable file
+    as revision 0 makes it indistinguishable from a Session that never had a
+    draft, which lets a create-if-absent write destroy real unsent text.  The
+    caller must surface this instead of overwriting.
+    """
+
+
 def _read_locked(session_id: str) -> dict:
-    """Return the authoritative envelope, or the absent-draft default."""
+    """Return the authoritative envelope, the absent default, or raise.
+
+    The returned envelope always carries ``state``: ``"absent"``,
+    ``"present"`` or ``"unreadable"``.  Only a genuinely missing file is
+    absent; anything else raises :class:`DraftUnreadable` so no caller can
+    mistake unreadable data for no data and write over it.
+    """
     path = _path(session_id)
     stamp = _stamp(path)
     cached = _CACHE.get(session_id)
     if cached is not None and cached[0] == path and cached[1] == stamp and stamp is not None:
         return cached[2]
     if stamp is None:
-        return {"revision": 0, "draft": None, "updatedAt": None}
+        # Genuinely absent.  Distinguishing this from "exists but unreadable" is
+        # the whole point: only absence may be treated as an empty composer.
+        return dict(_ABSENT)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        # A missing or unreadable draft is a missing draft.  The composer
-        # starts empty rather than blocking the UI on a damaged sidecar.
-        return {"revision": 0, "draft": None, "updatedAt": None}
+    except FileNotFoundError:
+        return dict(_ABSENT)          # deleted between stat and read
+    except (OSError, json.JSONDecodeError) as exc:
+        _CACHE.pop(session_id, None)
+        raise DraftUnreadable(
+            f"Draft for {session_id} exists but could not be read: "
+            f"{type(exc).__name__ if isinstance(exc, OSError) else 'invalid JSON'}"
+        ) from exc
     if not isinstance(raw, dict) or raw.get("version") != _DRAFT_VERSION:
-        return {"revision": 0, "draft": None, "updatedAt": None}
+        _CACHE.pop(session_id, None)
+        raise DraftUnreadable(f"Draft for {session_id} has an unsupported format")
     revision = raw.get("revision")
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
-        return {"revision": 0, "draft": None, "updatedAt": None}
+        _CACHE.pop(session_id, None)
+        raise DraftUnreadable(f"Draft for {session_id} has an invalid revision")
     draft = raw.get("draft")
     if draft is not None and not isinstance(draft, dict):
-        draft = None
+        raise DraftUnreadable(f"Draft for {session_id} has an invalid payload")
     payload = {
         "revision": revision,
         "draft": draft,
         "updatedAt": raw.get("updatedAt") if isinstance(raw.get("updatedAt"), str) else None,
+        "state": "present",
     }
     _CACHE[session_id] = (path, stamp, payload)
     return payload
+
+
+@contextmanager
+def _exclusive():
+    """Hold both the in-process lock and the cross-process advisory lock.
+
+    Order is always thread lock then file lock.  ``cross_process_file_lock``
+    blocks, so a caller that held only the file lock and then asked for the
+    thread lock could deadlock against a caller that holds them in this order;
+    never take them the other way round.
+    """
+    with _DRAFT_LOCK:
+        DRAFT_DIR.mkdir(parents=True, exist_ok=True)
+        with cross_process_file_lock(DRAFT_DIR / _LOCK_NAME):
+            yield
 
 
 def _write_locked(session_id: str, revision: int, draft: dict | None) -> None:
@@ -282,10 +347,14 @@ def _write_locked(session_id: str, revision: int, draft: dict | None) -> None:
 
 
 def read_draft(session_id: str) -> dict:
-    """Return one Session's draft envelope for a cold composer load."""
+    """Return one Session's draft envelope for a cold composer load.
+
+    Raises :class:`DraftUnreadable` when a file exists but cannot be read, so
+    the HTTP layer can report "damaged" instead of "empty".
+    """
     if not _safe_session_id(session_id):
-        return {"revision": 0, "draft": None, "updatedAt": None}
-    with _DRAFT_LOCK:
+        return dict(_ABSENT)
+    with _exclusive():
         return _read_locked(session_id)
 
 
@@ -297,12 +366,20 @@ def write_draft(session_id: str, base_revision: int | None, draft: dict | None) 
     client has written a draft it would overwrite.  A mismatch raises
     :class:`DraftConflict` carrying the current envelope, so the caller can
     merge or surface the conflict instead of silently winning on a stale read.
+
+    The read, the comparison and the commit all happen inside one cross-process
+    advisory lock.  Without that, two Pan processes can both read revision N and
+    both commit N+1: ``os.replace`` makes each replace atomic but does nothing
+    to make the sequence atomic, so the loser's write would vanish with no
+    conflict ever reported.
     """
     if not _safe_session_id(session_id):
         raise ValueError("invalid session id")
+    # Validate before taking the lock: normalization is pure and can be slow on
+    # a large payload, and there is no reason to hold a global lock for it.
     normalized = None if draft is None else normalize_draft(draft)
-    with _DRAFT_LOCK:
-        current = _read_locked(session_id)
+    with _exclusive():
+        current = _read_locked(session_id)   # raises DraftUnreadable, never overwrites
         current_revision = current["revision"]
         if base_revision is None:
             if current_revision != 0:
@@ -312,7 +389,7 @@ def write_draft(session_id: str, base_revision: int | None, draft: dict | None) 
         revision = current_revision + 1
         _write_locked(session_id, revision, normalized)
         return {"revision": revision, "draft": normalized,
-                "updatedAt": datetime.now().isoformat()}
+                "updatedAt": datetime.now().isoformat(), "state": "present"}
 
 
 def clear_draft(session_id: str, base_revision: int | None) -> dict:
@@ -327,10 +404,16 @@ def clear_draft(session_id: str, base_revision: int | None) -> dict:
 
 
 def delete_draft(session_id: str) -> None:
-    """Remove one Session's draft file.  Missing is success."""
+    """Remove one Session's draft file.  Missing is success.
+
+    Takes the same cross-process lock as the write path.  A Session delete that
+    raced a draft write in another Pan process could otherwise unlink the file
+    and then have that process's write land, leaving a draft for a Session that
+    no longer exists.
+    """
     if not _safe_session_id(session_id):
         return
-    with _DRAFT_LOCK:
+    with _exclusive():
         _CACHE.pop(session_id, None)
         try:
             _path(session_id).unlink(missing_ok=True)

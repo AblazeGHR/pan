@@ -35,8 +35,10 @@ import {
   type ApiSessionDraft,
   type ApiSessionDraftAttachment,
 } from '@/services/api';
+import { restorableAttachments } from '@/stores/composerDraftCodec';
 
 export type { ApiSessionDraft, ApiSessionDraftAttachment };
+export { restorableAttachments };
 
 /**
  * Save timing.  Each bound closes a different hole; none of them alone is
@@ -160,25 +162,52 @@ function isEmpty(draft: ApiSessionDraft | null): boolean {
 }
 
 /**
- * Cheap structural equality over the fields that are actually persisted.
+ * Structural equality over *every field the server persists*.
  *
- * Not every composer state change is a draft change: an attachment upload
- * reports byte progress through the same state path, and the occurrence
- * identity set is unchanged by that.  Skipping an identical re-record keeps
- * those events from marking the draft dirty and re-arming the save timer.
+ * This must be a complete comparison of the persisted semantics, not a proxy
+ * for them.  An earlier version compared only `parts.length`, which silently
+ * discarded two real edits: reordering an inline attachment chip (same parts,
+ * same length, different order and offsets) and changing an attachment's
+ * `location`.  Both produce a draft that differs on the wire while passing a
+ * length check, so the server kept the stale one.
  *
- * Deliberately not a deep compare: `text` is a string compare (pointer-equal
- * in the common case) and the rest is O(attachments), which is single digits.
- * It never walks `parts` element-by-element beyond the length check because
- * parts are derived from the same edit that changed `text` or the occurrence
- * set.
+ * Cost: O(parts + attachments) with an early exit on `text`, and no allocation
+ * and no deep copy — the caller's already-projected payload is walked in
+ * place.  The hot path is unaffected because `text` differs on every real
+ * keystroke, which returns on the first comparison.  The full walk only runs
+ * for the non-typing events this exists to absorb (upload byte progress,
+ * re-renders) where attachments are single digits.
  */
 function sameDraft(a: ApiSessionDraft | null, b: ApiSessionDraft | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
+  // First and cheapest: every keystroke changes this, so the common case
+  // never reaches the loops below.
   if (a.text !== b.text) return false;
   if (a.parts.length !== b.parts.length) return false;
   if (a.attachments.length !== b.attachments.length) return false;
+  // Order and content of parts. `parts` is the composer's document order, so
+  // position is part of the meaning: [text, att] and [att, text] restore
+  // differently and must not compare equal.
+  for (let i = 0; i < a.parts.length; i += 1) {
+    const left = a.parts[i]!;
+    const right = b.parts[i]!;
+    if (left.type !== right.type) return false;
+    // Narrow each side independently: the discriminant has already been
+    // compared, so both are the same variant here.
+    if (left.type === 'text' && right.type === 'text') {
+      if (left.value !== right.value) return false;
+    } else if (left.type === 'attachment' && right.type === 'attachment') {
+      // occurrenceId is the local occurrence identity; several occurrences may
+      // share one attachmentId, so both must match.
+      if (
+        left.attachmentId !== right.attachmentId ||
+        left.occurrenceId !== right.occurrenceId
+      ) {
+        return false;
+      }
+    }
+  }
   for (let i = 0; i < a.attachments.length; i += 1) {
     const left = a.attachments[i]!;
     const right = b.attachments[i]!;
@@ -187,9 +216,25 @@ function sameDraft(a: ApiSessionDraft | null, b: ApiSessionDraft | null): boolea
       left.displayName !== right.displayName ||
       left.attachmentId !== right.attachmentId ||
       left.path !== right.path ||
-      left.href !== right.href
+      left.href !== right.href ||
+      left.mimeType !== right.mimeType ||
+      left.fileKey !== right.fileKey ||
+      left.source !== right.source
     ) {
       return false;
+    }
+    // location is nested, so an identity check is not enough: a chip that
+    // moved to a different line is a different draft.
+    const leftLocation = left.location;
+    const rightLocation = right.location;
+    if (leftLocation !== rightLocation) {
+      if (!leftLocation || !rightLocation) return false;
+      if (
+        leftLocation.line !== rightLocation.line ||
+        leftLocation.endLine !== rightLocation.endLine
+      ) {
+        return false;
+      }
     }
   }
   return true;
@@ -235,12 +280,24 @@ function scheduleFlush(sessionId: string, current: SessionDraftState) {
  */
 export function recordDraft(sessionId: string, draft: ApiSessionDraft | null) {
   const current = state(sessionId);
-  // An identical re-record is a no-op for content, but NOT when the previous
-  // write failed or conflicted: those paths deliberately leave the draft dirty
-  // with no timer, and this call is the user's next chance to persist it.  Only
-  // skip when a save is already pending or in flight, which is the case that
-  // would actually duplicate work.
-  if (sameDraft(current.draft, draft) && (current.dirty || current.inFlight)) return;
+  if (sameDraft(current.draft, draft)) {
+    // Identical content. Whether anything should happen now depends entirely on
+    // whether a save is already owed AND already scheduled:
+    //
+    //  - a timer is armed, or a write is in flight -> the pending save will
+    //    carry this exact payload, so doing anything here would duplicate it;
+    //  - dirty with nothing scheduled -> a previous attempt failed or
+    //    conflicted and deliberately stopped. This call is the user's next
+    //    chance to persist, so it must re-arm.
+    //  - not dirty -> the server already holds this content; re-writing it
+    //    would be a pointless request.
+    if (current.timer !== null || current.inFlight) return;
+    if (!current.dirty) return;
+    current.error = null;
+    current.retries = 0;
+    scheduleFlush(sessionId, current);
+    return;
+  }
   const empty = isEmpty(draft);
   current.draft = draft;
   current.localRevision += 1;
@@ -301,7 +358,10 @@ async function flush(sessionId: string): Promise<void> {
 
   try {
     const result = await putSessionDraft(sessionId, payload, baseRevision);
-    current.serverRevision = result.revision;
+    // Through the same monotonic guard as the read path: a write response is
+    // authoritative, but adopting it unconditionally would let a slow response
+    // to an OLD write clobber a revision already learned from a newer one.
+    adoptRevision(current, result.revision);
     current.retries = 0;
     current.error = null;
     if (current.localRevision !== localRevision) {
@@ -319,8 +379,9 @@ async function flush(sessionId: string): Promise<void> {
       // adopted so the next explicit edit can save on top; the conflict is
       // reported so the user is not left believing the text is durable.
       // No retry: a conflict is not a transport failure, and retrying the same
-      // stale base would just fail again.
-      current.serverRevision = error.currentRevision;
+      // stale base would just fail again.  Monotonic for the same reason as the
+      // success path — never step the known revision backwards.
+      adoptRevision(current, error.currentRevision);
       current.dirty = true;
       current.error = 'Draft changed in another tab; this text is not saved yet';
       notify(sessionId);
@@ -360,10 +421,34 @@ async function flush(sessionId: string): Promise<void> {
 }
 
 /**
+ * Adopt a server revision, never moving it backwards.
+ *
+ * GET and PUT race: a slow read issued at revision 0 can land after a write has
+ * already advanced the server to 1.  Adopting the read's 0 would make the next
+ * write compare against a revision the server has moved past, so it could never
+ * succeed — a permanent, self-inflicted conflict loop.  A revision is therefore
+ * only accepted if it is at least the highest this tab has already observed.
+ *
+ * Returns true when the value was adopted, so the caller can tell whether the
+ * content it is holding is still current.
+ */
+function adoptRevision(current: SessionDraftState, revision: number): boolean {
+  if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return false;
+  if (current.serverRevision !== null && revision < current.serverRevision) return false;
+  current.serverRevision = revision;
+  return true;
+}
+
+/**
  * Load the persisted draft for one Session, at most once per Session and only
  * when needed.  Both the in-flight promise and the completed result are
  * remembered, so an A→B→A switch reuses the first read instead of issuing one
  * per click, and a Session with no draft is not re-read on every visit.
+ *
+ * The returned content is bound to the revision it was read at: if a write
+ * advanced the server past it while the read was in flight, the content is
+ * dropped (returns null) rather than applied over newer state.  The revision
+ * itself is still adopted when it is not stale, so a later save is a valid CAS.
  *
  * Returns the server draft, or null when there is none.  Never throws: a failed
  * cold read leaves the composer empty, which is where a first-ever visit
@@ -376,11 +461,18 @@ export async function loadDraft(sessionId: string): Promise<ApiSessionDraft | nu
   const promise = (async () => {
     try {
       const result = await getSessionDraft(sessionId);
-      // Adopt the revision even if the caller discards the content, so a later
-      // save is a valid CAS against the state we just read.
-      current.serverRevision = result.revision;
+      // Monotonic: a stale read cannot roll the CAS base backwards, and a
+      // rejected adoption means a write already moved past this revision.
+      const adopted = adoptRevision(current, result.revision);
       current.loaded = true;
       if (current.touchedLocally) return null; // local edits win; never clobber
+      if (!adopted) {
+        // The content belongs to a revision this tab has already superseded.
+        // Record that there is nothing durable to restore so a later visit does
+        // not re-read, and let the local draft stand.
+        current.loadedDraft = null;
+        return null;
+      }
       current.loadedDraft = result.draft;
       return result.draft;
     } catch {
@@ -418,18 +510,6 @@ export function canApplyLoadedDraft(
   const current = states.get(sessionId);
   if (!current) return false;
   return !current.touchedLocally && !current.dirty;
-}
-
-/** Rebuild a draft's attachment list for the composer, dropping occurrences the
- *  server cannot resolve.  A chip whose bytes were never uploaded has no
- *  server identity and is not restored — it is not faked as recoverable. */
-export function restorableAttachments(
-  draft: ApiSessionDraft | null,
-): ApiSessionDraftAttachment[] {
-  if (!draft) return [];
-  return draft.attachments.filter(
-    (attachment) => !!attachment.attachmentId || !!attachment.path,
-  );
 }
 
 /**

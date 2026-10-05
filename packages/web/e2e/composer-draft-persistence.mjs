@@ -81,6 +81,11 @@ const net = {
   inFlight: 0,
   /** When set, the next PUT is held open until the scenario releases it. */
   holdNext: false,
+  /** When set, a GET resolves to this revision regardless of the live one,
+   *  which is how a stale read (issued before a newer write) is simulated. */
+  getRev: null,
+  /** When set, GET resolves only when this promise settles. */
+  holdGet: null,
 };
 
 function makeDraft(text) {
@@ -93,6 +98,11 @@ async function putSessionDraft(sessionId, draft, baseRevision) {
     kind: 'PUT',
     sessionId,
     at: vnow,
+    baseRevision,
+    // The payload is recorded so a scenario can assert on what was actually
+    // persisted. A request count alone can look right while the wrong content
+    // was saved, which is exactly the class of defect these checks exist for.
+    draft,
     bytes: Buffer.byteLength(JSON.stringify(draft ?? null), 'utf8'),
     seq,
   });
@@ -123,8 +133,13 @@ async function putSessionDraft(sessionId, draft, baseRevision) {
 
 async function getSessionDraft(sessionId) {
   net.requests.push({ kind: 'GET', sessionId, at: vnow, bytes: 0, seq: net.seq++ });
+  if (net.holdGet) await net.holdGet;
   if (net.latencyMs) await sleepReal(net.latencyMs);
-  return { revision: net.revisions.get(sessionId) ?? 0, draft: null, updatedAt: null };
+  // A GET snapshots the revision as of when it was issued, so a read that is
+  // held open while a write lands returns the older revision — the real
+  // stale-read interleaving, not an artificial one.
+  const revision = net.getRev !== null ? net.getRev : (net.revisions.get(sessionId) ?? 0);
+  return { revision, draft: null, updatedAt: null };
 }
 
 class DraftConflictError extends Error {
@@ -138,7 +153,9 @@ class DraftConflictError extends Error {
 
 // Compile the real store with only the transport swapped out.  The `type`-
 // only import is erased and the value import is replaced by a stub, so the
-// module graph is exactly one file: the shipped store.
+// module graph is the shipped store plus the shipped codec — nothing is
+// reimplemented here, which is the point: a measurement of a copy would say
+// nothing about the code that runs.
 //
 // The stub reaches the harness's classes through globals rather than defining
 // its own, so `error instanceof DraftConflictError` inside the store is a real
@@ -154,23 +171,44 @@ export class ApiRequestError extends Error {}
     'utf8',
   ).toString('base64');
 
-const storeSource = readFileSync(
-  path.join(webRoot, 'src', 'stores', 'composerDraftStore.ts'),
-  'utf8',
-);
-const transpiled = ts
-  .transpileModule(storeSource, {
+/** Transpile one project module and return its data: URL, rewriting each
+ *  `@/` alias import to the URL the caller resolved for it. */
+function moduleUrl(relPath, aliasMap) {
+  const source = readFileSync(path.join(webRoot, relPath), 'utf8');
+  let out = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    fileName: 'composerDraftStore.ts',
-  })
-  .outputText
-  .replace(/from\s+['"]@\/services\/api['"]/g, `from '${stubApiUrl}'`);
+    fileName: relPath,
+  }).outputText;
+  for (const [specifier, url] of aliasMap) {
+    const pattern = new RegExp(
+      `from\\s+['"]${specifier.replace(/[.*+?^${}()|[\]\\/@]/g, '\\$&')}['"]`,
+      'g',
+    );
+    out = out.replace(pattern, `from '${url}'`);
+  }
+  return 'data:text/javascript;base64,' + Buffer.from(out, 'utf8').toString('base64');
+}
+
+// The codec is a real dependency of the store, so it is loaded as a real
+// module (not inlined) and the store's import of it is pointed at the result.
+// Nothing here reimplements shipped logic: a measurement of a copy would say
+// nothing about the code that runs.
+const typeOnlyUrl =
+  'data:text/javascript,export const attachmentLocation=0';
+const codecUrl = moduleUrl('src/stores/composerDraftCodec.ts', [
+  ['@/services/api', stubApiUrl],
+  ['@/types/attachment', typeOnlyUrl],
+]);
+const storeUrl = moduleUrl('src/stores/composerDraftStore.ts', [
+  ['@/services/api', stubApiUrl],
+  ['@/stores/composerDraftCodec', codecUrl],
+]);
 
 globalThis.__put = putSessionDraft;
 globalThis.__get = getSessionDraft;
 globalThis.__ConflictClass = DraftConflictError;
 
-const storeUrl = 'data:text/javascript;base64,' + Buffer.from(transpiled, 'utf8').toString('base64');
+const codec = await import(codecUrl);
 const store = await import(storeUrl);
 const { TIMING, recordDraft, loadDraft, canApplyLoadedDraft } = store;
 
@@ -184,6 +222,8 @@ function resetNet() {
   net.peakInFlight = 0;
   net.inFlight = 0;
   net.holdNext = false;
+  net.getRev = null;
+  net.holdGet = null;
   timers.clear();
   // Reset the virtual clock too, so a scenario's timestamps are relative to its
   // own start and cross-scenario comparisons are meaningless (as intended).
@@ -552,25 +592,320 @@ async function sendThenReload() {
 
 // ── 12. per-keystroke hot path cost, measured without harness overhead ───
 // Everything above drains the event loop between keystrokes, which dominates
-// the number.  This measures only recordDraft() itself, in a tight loop.
+// the number.  This measures the real per-keystroke work only: the codec
+// projection the composer does on every change, plus recordDraft().
+//
+// Both halves are measured, because a change costs the projection AND the
+// comparison.  Measuring recordDraft alone would hide the projection, which is
+// the larger of the two, and would understate the per-key cost.
 function hotPathCost() {
   resetNet();
+  const { toDraft } = codec;
   const sid = 'hot';
   const N = 20_000;
-  // Warm up so the measurement is not dominated by first-call JIT.
-  for (let i = 0; i < 1_000; i += 1) recordDraft(sid, makeDraft('w'.repeat(i)));
-  const samples = [];
-  for (let round = 0; round < 5; round += 1) {
-    const t0 = process.hrtime.bigint();
-    for (let i = 0; i < N; i += 1) recordDraft(sid, makeDraft('w'.repeat((i % 900) + 1)));
-    samples.push(Number(process.hrtime.bigint() - t0) / 1000 / N);
-  }
-  samples.sort((a, b) => a - b);
-  report('L. recordDraft() hot path, 20k calls x 5 rounds (median)', {
-    'median us/call': +samples[2].toFixed(3),
-    'min us/call': +samples[0].toFixed(3),
-    'max us/call': +samples[4].toFixed(3),
+  // A realistic composer shape: some text and two uploaded attachments, so the
+  // attachment loop in the comparison is actually exercised.
+  const attachment = (occurrenceId, line) => ({
+    occurrenceId,
+    id: occurrenceId,
+    displayName: `${occurrenceId}.png`,
+    status: 'ready',
+    attachmentId: `upload_${occurrenceId}`,
+    mimeType: 'image/png',
+    source: 'upload',
+    location: { line, endLine: line + 4 },
+  });
+  const composerValue = (chars) => ({
+    parts: [
+      { type: 'text', value: 'w'.repeat(chars) },
+      { type: 'attachment', attachmentId: 'upload_a', occurrenceId: 'a' },
+      { type: 'text', value: ' tail' },
+      { type: 'attachment', attachmentId: 'upload_b', occurrenceId: 'b' },
+    ],
+    text: `${'w'.repeat(chars)} tail`,
+    occurrenceIds: ['a', 'b'],
+    attachmentIds: ['a', 'b'],
+  });
+  const attachments = [attachment('a', 10), attachment('b', 40)];
+
+  const timeLoop = (fn, rounds = 5) => {
+    for (let i = 0; i < 1_000; i += 1) fn(i);
+    const samples = [];
+    for (let round = 0; round < rounds; round += 1) {
+      const t0 = process.hrtime.bigint();
+      for (let i = 0; i < N; i += 1) fn(i);
+      samples.push(Number(process.hrtime.bigint() - t0) / 1000 / N);
+    }
+    samples.sort((a, b) => a - b);
+    return samples;
+  };
+
+  const projection = timeLoop((i) => toDraft(composerValue((i % 900) + 1), attachments));
+  report('L1. toDraft() projection alone (the per-change half)', {
+    'median us/call': +projection[2].toFixed(3),
+    'min us/call': +projection[0].toFixed(3),
+    'max us/call': +projection[4].toFixed(3),
+  });
+
+  // The full path a keystroke actually takes: project, then record.
+  const full = timeLoop((i) => recordDraft(sid, toDraft(composerValue((i % 900) + 1), attachments)));
+  report('L2. full per-change path: toDraft() + recordDraft()', {
+    'median us/call': +full[2].toFixed(3),
+    'min us/call': +full[0].toFixed(3),
+    'max us/call': +full[4].toFixed(3),
     'requests issued during the whole measurement': net.requests.length,
+  });
+
+  // The comparison loop is the part that grew when sameDraft became complete.
+  // Same text, same lengths, but the attachment moved: this is the case an
+  // incomplete comparison skipped, and it must now walk the parts.
+  const before = timeLoop((i) => toDraft(composerValue((i % 900) + 1), attachments));
+  const moving = timeLoop((i) =>
+    recordDraft(
+      sid,
+      toDraft(composerValue((i % 900) + 1), [attachment('a', 10), attachment('b', 40 + (i % 2))]),
+    ),
+  );
+  report('L3. comparison with a changing attachment location', {
+    'median us/call': +moving[2].toFixed(3),
+    'note': 'worst case for the full comparison: text and lengths identical',
+  });
+  void before;
+}
+
+// ── 13. regression guards for the reviewed defects ───────────────────────
+// Each of these reproduces a defect that reached a review, and asserts on the
+// CONTENT that reaches the server, not merely on request counts.  A count alone
+// can look correct while the wrong bytes are persisted.
+const partOrder = (draft) =>
+  draft.parts.map((p) => (p.type === 'text' ? `T(${p.value})` : `A(${p.occurrenceId})`)).join(',');
+
+async function attachmentReorderPersists() {
+  resetNet();
+  const before = {
+    text: 'hi',
+    parts: [
+      { type: 'attachment', attachmentId: 'a1', occurrenceId: 'a1' },
+      { type: 'text', value: 'hi' },
+    ],
+    attachments: [{ occurrenceId: 'a1', displayName: 'A', attachmentId: 'a1' }],
+  };
+  const after = {
+    text: 'hi',
+    parts: [
+      { type: 'text', value: 'hi' },
+      { type: 'attachment', attachmentId: 'a1', occurrenceId: 'a1' },
+    ],
+    attachments: [{ occurrenceId: 'a1', displayName: 'A', attachmentId: 'a1' }],
+  };
+  recordDraft('reorder', before);
+  await step(300); // inside the debounce window: nothing sent yet
+  recordDraft('reorder', after); // the user drags the chip after the text
+  await step(PHASE_MS);
+  await drain(5);
+  const put = net.requests.find((r) => r.kind === 'PUT');
+  report('M. inline attachment reorder is persisted (same text, same lengths)', {
+    'user made': partOrder(after),
+    'server got': put ? partOrder(put.draft) : 'nothing was sent',
+    'reorder preserved': put && partOrder(put.draft) === partOrder(after) ? 'yes' : 'NO (BUG)',
+  });
+}
+
+async function attachmentMetadataPersists() {
+  resetNet();
+  const base = { text: 'x', parts: [{ type: 'text', value: 'x' }] };
+  const first = {
+    ...base,
+    attachments: [
+      { occurrenceId: 'o', displayName: 'd', attachmentId: 'at', location: { line: 1, endLine: 3 }, source: 'upload', mimeType: 'image/png', fileKey: 'k1' },
+    ],
+  };
+  const moved = {
+    ...base,
+    attachments: [
+      { occurrenceId: 'o', displayName: 'd', attachmentId: 'at', location: { line: 90, endLine: 92 }, source: 'upload', mimeType: 'image/png', fileKey: 'k1' },
+    ],
+  };
+  recordDraft('meta', first);
+  await step(300);
+  recordDraft('meta', moved);
+  await step(PHASE_MS);
+  await drain(5);
+  const put = net.requests.find((r) => r.kind === 'PUT');
+  const got = put && put.draft.attachments[0];
+  report('N. attachment location/source/mime/fileKey changes are persisted', {
+    'user set line': 90,
+    'server got line': got && got.location && got.location.line,
+    'endLine preserved': got && got.location && got.location.endLine,
+    'all metadata compared': got ? 'yes' : 'NO (BUG)',
+  });
+}
+
+async function stalledDraftRearms() {
+  resetNet();
+  net.failNext = 10_000; // never recovers during the first phase
+  const payload = makeDraft('keep me');
+  recordDraft('stall', payload);
+  for (let i = 0; i < TIMING.RETRY_ATTEMPTS + 2; i += 1) await step(TIMING.RETRY_DELAY_MS);
+  await drain(20);
+  const spent = net.requests.length;
+  net.failNext = 0; // the network is back
+  // The user edits again. This is a fresh user action, so it must persist.
+  recordDraft('stall', makeDraft('keep me, edited'));
+  await step(PHASE_MS);
+  await drain(10);
+  report('O. a stalled draft re-arms on the next edit after recovery', {
+    'attempts while failing': spent,
+    'attempts after the user edited again': net.requests.length - spent,
+    'text became durable': (net.revisions.get('stall') ?? 0) > 0 ? 'yes' : 'NO (BUG)',
+  });
+}
+
+async function identicalRerecordIsFree() {
+  resetNet();
+  const payload = makeDraft('stable');
+  recordDraft('free', payload);
+  await step(PHASE_MS);
+  await drain(5);
+  const afterFirst = net.requests.length;
+  // A re-render or a session switch re-records byte-identical content. The
+  // server already has it, so this must not cost a request.
+  for (let i = 0; i < 5; i += 1) {
+    recordDraft('free', makeDraft('stable'));
+    await step(PHASE_MS);
+  }
+  await drain(10);
+  report('P. identical re-record after a clean save costs nothing', {
+    'requests for the first save': afterFirst,
+    'requests for 5 identical re-records': net.requests.length - afterFirst,
+    'redundant writes avoided': net.requests.length === afterFirst ? 'yes' : 'NO (BUG)',
+  });
+}
+
+async function staleReadDoesNotRegressCAS() {
+  resetNet();
+  net.getRev = 0; // the read observes revision 0
+  let release;
+  net.holdGet = new Promise((r) => {
+    release = r;
+  });
+  const load = loadDraft('cas');
+  await sleepReal(0);
+  // A write lands while the read is still open, advancing the server.
+  recordDraft('cas', makeDraft('local'));
+  await step(PHASE_MS);
+  await drain(5);
+  const serverAfterPut = net.revisions.get('cas') ?? 0;
+  net.holdGet = null;
+  release();
+  await load;
+  await drain(10);
+  // A further edit now issues a PUT. Its base must not be the stale 0.
+  recordDraft('cas', makeDraft('local, edited again'));
+  await step(PHASE_MS);
+  await drain(10);
+  const bases = net.requests.filter((r) => r.kind === 'PUT').map((r) => r.baseRevision);
+  const regressed = bases.some((b) => b !== null && b < serverAfterPut);
+  report('Q. a stale GET cannot roll the CAS base backwards', {
+    'server revision after the first PUT': serverAfterPut,
+    'PUT baseRevision sequence': JSON.stringify(bases),
+    'any base below the server revision': regressed ? 'YES (BUG)' : 'no',
+  });
+}
+
+// ── 14. send-clear interleaved with a cold GET ───────────────────────────
+// The two orderings that could resurrect sent text, both re-checked together
+// because a fix to one can quietly break the other:
+//
+//  a) a save carrying the pre-send text is in flight when the composer clears
+//     (scenario K covers the save half; this adds a concurrent cold GET);
+//  b) a cold GET issued *before* the send lands *after* the tombstone, which
+//     would restore the text if its content were applied blindly.
+async function sendClearVersusColdRead() {
+  resetNet();
+  const sid = 'send-cold';
+  let release;
+  net.holdGet = new Promise((r) => {
+    release = r;
+  });
+  // A cold read is in flight, issued while the draft still holds the text.
+  const coldRead = loadDraft(sid);
+  await sleepReal(0);
+  // The user types and sends: the composer clears and a tombstone is written.
+  recordDraft(sid, makeDraft('the message being sent'));
+  await step(PHASE_MS);
+  await drain(5);
+  recordDraft(sid, null);
+  await step(PHASE_MS);
+  await drain(5);
+  const tombstone = net.revisions.get(sid) ?? 0;
+  // Now the stale cold read lands, still carrying the pre-send revision.
+  net.holdGet = null;
+  release();
+  const applied = await coldRead;
+  await drain(20);
+  // What a client that trusts nothing but the server would read back.
+  const final = net.requests
+    .filter((r) => r.kind === 'PUT')
+    .map((r) => r.draft);
+  const lastPayload = final[final.length - 1];
+  report('R. send clear interleaved with an in-flight cold read', {
+    'revision after the tombstone': tombstone,
+    'did the stale read hand back content': applied ? 'yes (BUG)' : 'no',
+    'last payload the server was given': lastPayload === null ? 'null (tombstone)' : 'text',
+    'sent text could come back': lastPayload !== null ? 'YES (BUG)' : 'no',
+  });
+}
+
+// ── 15. attachment order and position survive the round trip ─────────────
+// Asserts on the codec directly: project a mixed draft, restore it, and
+// compare the restored structure to what was projected. This is the property
+// the review called out, checked end to end rather than by request count.
+function attachmentRoundTrip() {
+  const { toDraft, fromDraft } = codec;
+  const parts = [
+    { type: 'text', value: 'before ' },
+    { type: 'attachment', attachmentId: 'upload_1', occurrenceId: 'occA' },
+    { type: 'text', value: ' between ' },
+    { type: 'attachment', attachmentId: 'upload_2', occurrenceId: 'occB' },
+    { type: 'text', value: ' after' },
+  ];
+  const value = {
+    parts,
+    text: 'before  between  after',
+    occurrenceIds: ['occA', 'occB'],
+    attachmentIds: ['occA', 'occB'],
+  };
+  const attachments = [
+    {
+      occurrenceId: 'occA', id: 'occA', displayName: 'a.png', status: 'ready',
+      attachmentId: 'upload_1', mimeType: 'image/png', source: 'upload',
+      href: '/api/attachments/ref/upload_1?session_id=s', location: { line: 3, endLine: 9 },
+    },
+    {
+      occurrenceId: 'occB', id: 'occB', displayName: 'b.pdf', status: 'ready',
+      path: 'C:/tmp/b.pdf', source: 'server_file', location: { line: 20 },
+      // A local, un-uploaded File must never be persisted or re-uploaded.
+      file: { name: 'c.bin' },
+    },
+  ];
+  const projected = toDraft(value, attachments);
+  const restored = fromDraft(projected, '');
+  const order = (d) => d.parts.map((p) => (p.type === 'text' ? `T:${p.value}` : `A:${p.occurrenceId}`)).join('|');
+  const projectedOrder = order(projected);
+  const restoredOrder = restored ? order(restored.value) : '(null)';
+  // The local File had no server identity, so it must not be in the wire form.
+  const persistedNames = projected.attachments.map((a) => a.displayName).join(',');
+  report('S. attachment order/position round trip through the codec', {
+    'projected order': projectedOrder,
+    'restored order': restoredOrder,
+    'order identical': projectedOrder === restoredOrder ? 'yes' : 'NO (BUG)',
+    'occurrenceIds restored': restored ? restored.value.occurrenceIds.join(',') : 'n/a',
+    'attachments persisted (local File must be absent)': persistedNames,
+    'restored locations': restored
+      ? restored.attachments.map((a) => `${a.occurrenceId}@${a.location ? a.location.line : '-'}`).join(',')
+      : 'n/a',
+    'restored attachment count': restored ? restored.attachments.length : 0,
   });
 }
 
@@ -585,6 +920,13 @@ await payloadSize();
 await perSessionIsolation();
 await raceGuards();
 await sendThenReload();
+await attachmentReorderPersists();
+await attachmentMetadataPersists();
+await stalledDraftRearms();
+await identicalRerecordIsFree();
+await staleReadDoesNotRegressCAS();
+await sendClearVersusColdRead();
+attachmentRoundTrip();
 hotPathCost();
 
 // ── output ──────────────────────────────────────────────────────────────
@@ -606,11 +948,19 @@ console.log('Scope of these numbers:');
 console.log('  * Request COUNTS and concurrency are exact properties of the');
 console.log('    scheduler under the stated interaction pattern. They do not');
 console.log('    depend on machine speed.');
-console.log('  * Scenario L times recordDraft() alone, in a tight loop. It');
-console.log('    excludes React rendering, which this feature adds nothing to');
-console.log('    (it writes no component state on the typing path).');
+console.log('  * L1/L2/L3 time the real shipped modules (the store and the codec),');
+console.log('    in a tight loop, with the transport drained afterwards. L2 is the');
+console.log('    full per-change cost: projection plus comparison. It excludes');
+console.log('    React rendering, which this feature adds nothing to on the');
+console.log('    typing path because it writes no component state there.');
 console.log('  * Scenarios G, I and K hold a request open deliberately, so those');
 console.log('    orderings are exercised rather than assumed.');
+console.log('  * The MAX_WAIT_MS figures are SCHEDULING bounds: they say when a');
+console.log('    write is attempted. They are not a durability guarantee. Under a');
+console.log('    slow or failing network the attempt can fail, exhaust its bounded');
+console.log('    retries, and leave unsent text only in memory (scenario F) — and a');
+console.log('    browser may cancel an in-flight request at close.');
 console.log('  * NOT measured: real HTTP, real server disk latency, real browser');
 console.log('    main-thread contention with the rest of the app, and two Pan');
-console.log('    processes racing on the same draft file.');
+console.log('    processes racing on one draft file (covered by the backend');
+console.log('    cross-process lock, exercised separately, not by this script).');

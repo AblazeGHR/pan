@@ -5873,9 +5873,16 @@ async def api_get_session_draft(session_id: str):
     Deliberately separate from GET /api/sessions: drafts are loaded lazily for
     the one selected Session, never scanned across Sessions, and never folded
     into the session list or the WebSocket summary.
+
+    A damaged or unreadable sidecar is reported as ``draft_unreadable``, never
+    as an empty draft: telling the client "no draft" when a file exists would
+    make it overwrite real unsent text with whatever it types next.
     """
     try:
         return await asyncio.to_thread(session_drafts.read_draft, session_id)
+    except session_drafts.DraftUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
     except Exception as exc:  # noqa: BLE001 - reported, never swallowed
         return {"ok": False, "error": {
             "code": "draft_read_failed", "message": str(exc) or "Could not read draft"}}
@@ -5917,6 +5924,12 @@ async def api_put_session_draft(session_id: str, data: dict | None = None):
         return {"ok": False, "error": {
             "code": "draft_conflict", "message": "Draft changed; reload before saving"},
             **exc.current}
+    except session_drafts.DraftUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write: reporting
+        # this as "absent" is what would let a create-if-absent save destroy the
+        # text the file still holds.
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
     except session_drafts.DraftTooLarge as exc:
         return {"ok": False, "error": {
             "code": "draft_too_large", "message": str(exc)}}
