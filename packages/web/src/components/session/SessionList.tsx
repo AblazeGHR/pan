@@ -277,26 +277,32 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
   }, [defaultGroupBy, showGroupBy, settingsLoaded]);
 
-  // Keep collapsedGroups consistent with the live tree: drop stale keys left
-  // behind by session placeholders (`__pending_*`) or deleted sessions so a
-  // newly-joined manager group toggles immediately without a refresh. Guarded
+  // Keep collapsedGroups consistent with the live tree. The persisted set
+  // holds BOTH key namespaces — manager mode keys are session ids, workdir
+  // mode keys are normalized workdir paths — so the valid-key set here is the
+  // UNION across modes: pruning by the current grouping only would delete the
+  // other mode's saved collapse preferences on every groupBy switch. Guarded
   // on sessions.length > 0 (like pruneHiddenSessions below) so the pre-fetch
-  // cold load never wipes the persisted collapse state — and, now that the
-  // set is persisted, never writes that wipe back to the cache/server.
+  // cold load never wipes persisted state. The valid set is built from the
+  // full session store list — NOT the search/filter/workspace-filtered view —
+  // so temporarily invisible sessions keep their collapse state; only keys
+  // whose session no longer exists (stale `__pending_*` placeholders, deleted
+  // sessions) or whose workdir has no remaining session are dropped.
   useEffect(() => {
     if (sessions.length === 0) return;
-    if (effectiveGroupBy !== 'manager' && effectiveGroupBy !== 'workdir') return;
     const valid = new Set<string>();
-    if (effectiveGroupBy === 'manager') {
-      for (const s of sessions) valid.add(s.id);
-    } else {
-      for (const s of sessions) {
-        if (s.workdir) valid.add(stripPrefix(s.workdir));
+    let hasNoWorkdir = false;
+    for (const s of sessions) {
+      valid.add(s.id);
+      if (s.workdir) {
+        valid.add(stripPrefix(s.workdir));
+      } else {
+        hasNoWorkdir = true;
       }
-      valid.add('__no_workdir');
     }
+    if (hasNoWorkdir) valid.add('__no_workdir');
     pruneCollapsedGroups(valid);
-  }, [sessions, effectiveGroupBy, pruneCollapsedGroups]);
+  }, [sessions, pruneCollapsedGroups]);
 
   // Keep hiddenSessionIds consistent with the live list: drop ids of deleted
   // sessions. Guarded on sessions.length > 0 so a fresh page load (empty list
