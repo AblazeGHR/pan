@@ -137,6 +137,8 @@ def scan_history(sessions, query, *, roles=None, limit=50, after=None,
                 matching_session_ids.append(session.id)
             nearest_reference, nearest_start = None, 0
             if viewport_range is not None and ordered_matches:
+                # Select from the existing ordered references, independent of
+                # page bounds. No second scan and no change to cursor ordering.
                 left, right = viewport_range
                 center = (left + right) / 2
                 position = bisect_left(ordered_matches, center, key=lambda item: item[1][0])

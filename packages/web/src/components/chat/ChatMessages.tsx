@@ -128,9 +128,9 @@ function findRenderedRowByMessageIdentity(
 }
 
 export interface ChatMessagesHandle {
-  /** Scroll to a currently loaded message and briefly highlight its row. */
   /** Snapshot visible canonical indices without scrolling, fetching or scheduling work. */
   getViewportHistoryRange?: () => { start: number; end: number } | null;
+  /** Scroll to a currently loaded message and briefly highlight its row. */
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
 
@@ -721,6 +721,11 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       if (!identities.has(getMessageIdentity(message))) continue;
       start = Math.min(start, index);
       end = Math.max(end, index);
+    }
+    // Live-only rows follow the canonical window. Anchor to that known boundary,
+    // rather than inventing durable indices for runtime/display-only messages.
+    if (end < 0 && transcript.runtime.some((message) => identities.has(getMessageIdentity(message)))) {
+      return { start: transcript.anchorOffset, end: transcript.anchorOffset };
     }
     return end >= 0 ? { start, end } : null;
   }, []);
