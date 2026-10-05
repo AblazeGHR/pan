@@ -1178,6 +1178,36 @@ export interface QueuedEdit {
   bodyFormat?: 'text' | 'json' | 'parts';
   /** Keep the draft available for copying when the lease or item is invalid. */
   error?: string;
+  /** Item kind captured at startEdit; gates attachment editing (task only). */
+  kind?: 'task' | 'report' | 'qq' | 'wechat';
+  /** Attachment parts already on the item (server-authoritative order/metadata;
+   *  shown read-only, they are preserved server-side on save). */
+  originalAttachments?: Array<{ attachmentId: string; displayName: string }>;
+  /** New attachments added during this edit transaction; appended on save. */
+  attachments?: QueuedEditAttachment[];
+}
+
+/** One newly added queued-edit attachment; mirrors PendingAttachment shape. */
+export interface QueuedEditAttachment {
+  /** Local composer occurrence identity; never sent to the server. */
+  occurrenceId: string;
+  /** Compatibility alias used by chip selectors. */
+  id: string;
+  /** Opaque server attachment id once uploaded/registered. */
+  attachmentId?: string;
+  displayName: string;
+  href?: string;
+  path?: string;
+  mimeType?: string;
+  source?: 'upload' | 'server_file';
+  status: 'uploading' | 'registering' | 'ready' | 'error';
+  loadedBytes?: number;
+  totalBytes?: number;
+  error?: string;
+  /** Client File kept for upload/retry; never serialized. */
+  file?: File;
+  /** Dedupe key for repeated picks of the same client file. */
+  fileKey?: string;
 }
 
 // ── Agent queue (backend session.queue_pending, normalized) ──

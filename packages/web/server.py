@@ -7426,6 +7426,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     text = data.get("text")
     expected = data.get("expectedRevision")
     edit_token = data.get("editToken")
+    requested_parts = data.get("parts")
     if not isinstance(edit_token, str) or not edit_token:
         return _queue_error("invalid_edit_token", "editToken is required")
     async with worker.queue_lock(session_id):
@@ -7449,13 +7450,55 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         try:
             field, _, body_format = _queue_edit_body(target)
             new_value = _queue_parse_edit_json(text) if body_format == "json" else text
+            # Optional new-attachment references. The client may only name the
+            # opaque attachmentId; every other field is supplied by the Session
+            # attachment registry via _normalize_message_parts.  Only task
+            # messages may carry attachments: the dispatch path projects parts
+            # for tasks exclusively (_deliver_queue_unit), while report/notice/
+            # channel bodies render from result/text alone, so attachments on
+            # those kinds would never reach the consumer.
+            added_parts: list | None = None
+            if requested_parts is not None:
+                kind = worker._queue_item_kind(target)
+                if target.get("type") is None and isinstance(target.get("text"), str):
+                    kind = "task"  # Mirror _queue_edit_body's legacy envelope rule.
+                if kind != "task" or field != "text":
+                    return _queue_error(
+                        "queue_parts_unsupported",
+                        "Attachments can only be added to task messages; "
+                        "report/notice/channel bodies cannot carry attachment parts", s)
+                if not isinstance(requested_parts, list) or len(requested_parts) > 512:
+                    return _queue_error("invalid_parts", "parts must be an array of at most 512 items", s)
+                for ref in requested_parts:
+                    if (not isinstance(ref, dict) or ref.get("type") != "attachment"
+                            or not isinstance(ref.get("attachmentId"), str)
+                            or not ref["attachmentId"]):
+                        return _queue_error("invalid_parts", "attachment part is invalid", s)
+                existing_parts = target.get("parts") if isinstance(target.get("parts"), list) else []
+                if len(existing_parts) + len(requested_parts) > 512:
+                    return _queue_error("invalid_parts", "too many message parts", s)
+            if requested_parts:
+                added_parts, _, parts_error = _normalize_message_parts(
+                    session_id,
+                    [{"type": "attachment", "attachmentId": ref["attachmentId"]}
+                     for ref in requested_parts])
+                if parts_error is not None:
+                    return _queue_error(parts_error["code"], parts_error["message"], s)
             if body_format == "parts":
                 normalized_parts, new_value = _queue_edit_parts(session_id, target["parts"], text)
-            elif field == "text" and isinstance(target.get("parts"), list):
-                normalized_parts, new_value, error = _normalize_message_parts(
-                    session_id, [{"type": "text", "text": text}])
-                if error is not None:
-                    return _queue_error(error["code"], error["message"], s)
+                if added_parts:
+                    # Existing attachment parts keep their server-side identity,
+                    # metadata and relative order; new attachments are appended.
+                    normalized_parts = normalized_parts + added_parts
+            elif field == "text":
+                if added_parts:
+                    normalized_parts = [{"type": "text", "text": text}] + added_parts
+                    new_value = text
+                elif isinstance(target.get("parts"), list):
+                    normalized_parts, new_value, error = _normalize_message_parts(
+                        session_id, [{"type": "text", "text": text}])
+                    if error is not None:
+                        return _queue_error(error["code"], error["message"], s)
             if field == "text" and not new_value.strip():
                 return _queue_error("text_required", "text is required", s)
         except (ValueError, TypeError, RecursionError) as error:

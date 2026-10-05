@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentQueueItem, MessagePart, QueueDispatchState, QueuedEdit } from '@/types';
+import type { AgentQueueItem, MessagePart, QueueDispatchState, QueuedEdit, QueuedEditAttachment } from '@/types';
 import {
   acquireSessionQueueItemEdit,
   deleteSessionQueueItem,
@@ -71,6 +71,8 @@ interface QueueStore {
   remove: (id: string) => void;
   startEdit: (id: string) => void;
   updateEditDraft: (text: string) => void;
+  /** Replace the queued-edit attachment list (new attachments only). */
+  updateEditAttachments: (update: (current: QueuedEditAttachment[]) => QueuedEditAttachment[]) => void;
   saveEdit: () => void;
   cancelEdit: () => void;
   move: (id: string, delta: number) => void;
@@ -133,6 +135,34 @@ function scheduleEditLeaseRenewal(
 
 function canonicalQueueId(id: string): string {
   return id.startsWith('queue:') ? id.slice('queue:'.length) : id;
+}
+
+/** Extract read-only existing attachments from the parts template returned by
+ *  the edit lease. Malformed templates degrade to an empty list — the server
+ *  remains authoritative for the saved item regardless. */
+function parseTemplateAttachments(
+  templateText: string,
+): Array<{ attachmentId: string; displayName: string }> {
+  try {
+    const parsed: unknown = JSON.parse(templateText);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (part): part is { type: 'attachment'; attachmentId: string; displayName?: unknown } =>
+          !!part && typeof part === 'object'
+          && (part as Record<string, unknown>).type === 'attachment'
+          && typeof (part as Record<string, unknown>).attachmentId === 'string'
+          && (part as Record<string, unknown>).attachmentId !== '',
+      )
+      .map((part) => ({
+        attachmentId: part.attachmentId,
+        displayName: typeof part.displayName === 'string' && part.displayName
+          ? part.displayName
+          : part.attachmentId,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 function queueIdMatches(a: string, b: string): boolean {
@@ -650,6 +680,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       editToken,
       serverToken,
       acquiring: true,
+      kind: item.kind,
+      originalAttachments: [],
+      attachments: [],
     };
     set((state) => ({
       edits: {
@@ -711,6 +744,12 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           bodyFormat,
           revision,
           leaseExpiresAt: expiresAt,
+          // Attachment parts already on the item: read-only chips, preserved
+          // server-side by identity/order on save. Parsed from the parts
+          // template returned under the lease (never from the row preview).
+          originalAttachments: bodyFormat === 'parts'
+            ? parseTemplateAttachments(text)
+            : [],
         };
         set((state) => ({ edits: { ...state.edits, [sid]: acquired } }));
         startLeaseRenewal(sid, editToken);
@@ -737,6 +776,22 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, text } } }));
   },
 
+  updateEditAttachments: (update) => {
+    const sid = useSessionStore.getState().currentSessionId;
+    const edit = sid ? get().edits[sid] : null;
+    if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing) return;
+    set((state) => {
+      const currentEdit = state.edits[sid];
+      if (!currentEdit || currentEdit.saving) return state;
+      return {
+        edits: {
+          ...state.edits,
+          [sid]: { ...currentEdit, attachments: update(currentEdit.attachments ?? []) },
+        },
+      };
+    });
+  },
+
   saveEdit: () => {
     const sid = useSessionStore.getState().currentSessionId;
     const edit = sid ? get().edits[sid] : null;
@@ -746,6 +801,16 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing || !item
         || !edit.serverToken || edit.error || item.meta?.dispatchState !== 'queued'
         || useSessionStore.getState().sessions.find((session) => session.id === sid)?.readonlySession) return;
+    // An unfinished upload/registration must never be committed: the server
+    // would reject the reference anyway, and a partial transaction is better
+    // retried than silently truncated.
+    if ((edit.attachments ?? []).some((attachment) => attachment.status !== 'ready')) return;
+    // Only opaque attachment ids travel; the server resolves every other
+    // field from the Session attachment registry.
+    const newAttachmentParts = (edit.attachments ?? [])
+      .filter((attachment) => attachment.status === 'ready' && attachment.attachmentId)
+      .map((attachment) => ({ type: 'attachment' as const, attachmentId: attachment.attachmentId! }));
+    const requestedParts = newAttachmentParts.length > 0 ? newAttachmentParts : undefined;
     if (edit.leaseExpiresAt !== undefined && edit.leaseExpiresAt * 1000 <= Date.now()) {
       stopEditLeaseRenewal(sid, edit.editToken);
       set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, error: '编辑锁已过期，请复制正文后取消并重新编辑。' } } }));
@@ -767,6 +832,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           text,
           edit.revision,
           edit.serverToken,
+          requestedParts,
         );
         const active = get().edits[sid];
         if (!active || active.editToken !== editToken) return;

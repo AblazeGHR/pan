@@ -774,6 +774,9 @@ export async function updateSessionQueueItem(
   text: string,
   expectedRevision?: number,
   editToken?: string,
+  /** New attachment references only; the server resolves every other field
+   *  from the Session attachment registry. */
+  parts?: Array<{ type: 'attachment'; attachmentId: string }>,
 ): Promise<Omit<ApiSessionQueueResponse, 'error'> & {
   item?: AgentQueueItem;
   error?: { code?: string; message?: string } | string;
@@ -783,7 +786,7 @@ export async function updateSessionQueueItem(
     error?: { code?: string; message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue/${itemId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ text, expectedRevision, editToken }),
+    body: JSON.stringify({ text, expectedRevision, editToken, ...(parts?.length ? { parts } : {}) }),
   });
   if (data.ok === false || data.error) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
