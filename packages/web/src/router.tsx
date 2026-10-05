@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from './App';
-import ChatView from './views/ChatView';
-import EditorView from './views/EditorView';
+import ChatRoute from './views/ChatRoute';
+
+const EditorView = lazy(() => import('./views/EditorView'));
 
 const ManageView = lazy(() => import('./views/ManageView'));
 const JobsView = lazy(() => import('./views/JobsView'));
@@ -22,11 +23,11 @@ export const router = createBrowserRouter(
       children: [
         {
           index: true,
-          element: <ChatView />,
+          element: <ChatRoute />,
         },
         {
           path: 'editor',
-          element: <EditorView />,
+          element: deferredRoute(<EditorView />),
         },
         {
           path: 'manage/:sessionId',
