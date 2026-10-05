@@ -96,8 +96,8 @@ export function MessageNavigationRail({
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
   // The rendered transcript mixes canonical history rows with local terminal
   // markers and runtime rows, so its length is not a canonical row count. Only
-  // the server-reported total (or the canonical extent of the loaded window)
-  // may be used as the `total` that `fromEnd` is measured against.
+  // the server-reported total, or the extent proven by the canonical offsets
+  // themselves, may be used as the `total` that `fromEnd` is measured against.
   const canonicalRows = useMemo(
     () => canonicalRowsWithOffsets(currentMessages),
     [currentMessages],
@@ -108,6 +108,9 @@ export function MessageNavigationRail({
   });
   const loadedCanonicalTotal = useMemo(() => {
     if (currentHistoryTotal !== null) return currentHistoryTotal;
+    // Derived from the offsets `markDurableRow` proved, never from an array
+    // length. With no proven row there is no navigable target, so the loaded
+    // window start is the only canonical figure left.
     const last = canonicalRows[canonicalRows.length - 1];
     return last ? last.offset + 1 : historyLoadEnd;
   }, [canonicalRows, currentHistoryTotal, historyLoadEnd]);

@@ -1592,16 +1592,30 @@ function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
 
 /**
  * The canonical row stored at an absolute history offset, or null when that
- * offset is not loaded. The window is the single fact source for
- * offset → row; the rendered transcript must never be indexed by position
- * because it also holds local markers and runtime rows.
+ * offset is not known to be loaded.
+ *
+ * The window is the only authority for offset → row. A loaded transcript
+ * answers directly; a transcript that exists but lacks the offset answers null
+ * so the caller can page or report an unlocatable target, never guess. When no
+ * transcript exists at all the offset question is settled by `windowFromSession`
+ * — the same seed authority `ensureTranscript` uses — rather than by indexing a
+ * locally filtered array.
+ *
+ * `Session.history` must never be filtered and indexed here to recover a
+ * canonical offset: it mirrors the rendered transcript, so it can still hold
+ * runtime/live/optimistic rows. Dropping local markers does not make the
+ * remaining positions canonical.
  */
 function canonicalRowAtOffset(
   state: SessionStore,
   sessionId: string,
   offset: number,
 ): Message | null {
-  return state.sessionTranscripts[sessionId]?.window.rows.get(offset) ?? null;
+  const transcript = state.sessionTranscripts[sessionId];
+  if (transcript) return transcript.window.rows.get(offset) ?? null;
+  const session = sessionOf(state, sessionId);
+  if (!session) return null;
+  return windowFromSession(session).rows.get(offset) ?? null;
 }
 
 /** Append rows that are not already represented, keeping the tail deduped. */
@@ -2100,16 +2114,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // (`[DONE] Task completed`) and runtime rows, so its positions drift from
     // canonical offsets by one per preceding non-canonical row — indexing it
     // directly returned the neighbouring row and sent quick-jump to the wrong
-    // message. Resolve the durable row that owns this offset instead.
-    const resolved = canonicalRowAtOffset(state, sessionId, absoluteIndex);
-    if (resolved) return resolved;
-    // Seeded snapshots and fixtures have no transcript window yet; their
-    // `Session.history` is the canonical projection, so the same offset applies.
-    const session = sessionOf(state, sessionId);
-    const history = (session?.history ?? []).filter((row) => !isLocalMarker(row));
-    const start = session?.historyStart
-      ?? Math.max(0, (session?.historyTotal ?? history.length) - history.length);
-    return history[absoluteIndex - start] ?? null;
+    // message. Resolve the durable row that owns this offset instead; an offset
+    // the window cannot prove stays null so the caller reports it as
+    // unlocatable rather than landing on a guessed neighbour.
+    return canonicalRowAtOffset(state, sessionId, absoluteIndex);
   },
 
   loadOlderMessages: async (limit?: number, signal?: AbortSignal, searchJump = false) => {

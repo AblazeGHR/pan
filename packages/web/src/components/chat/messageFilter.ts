@@ -216,10 +216,14 @@ export function getQuickJumpIndexItems(
  * display markers (`[DONE] Task completed`) and runtime rows, so an array
  * position is not a canonical offset: counting positions instead of reading
  * offsets shifted every `fromEnd` behind a terminal bar and made the rail jump
- * to a neighbouring message. A row is only navigable when it carries a
- * canonical offset at all — that keeps a terminal status bar out of the
- * navigation index without deleting it from the transcript, and without
- * treating a real System/TA report body as non-navigable.
+ * to a neighbouring message.
+ *
+ * The caller supplies only rows whose offset `markDurableRow` proved, so a
+ * terminal status bar is excluded for lack of a canonical offset — not by
+ * matching its text. Real TA reports, System notices and any body that merely
+ * contains "task completed" keep their marker-based classification and stay
+ * navigable. The visible filter is still applied per row, so the
+ * showMetaAgent/showTaskAgent/showQQ toggles behave exactly as before.
  */
 export function getQuickJumpIndexItemsByOffset(
   rows: readonly CanonicalRow[],
