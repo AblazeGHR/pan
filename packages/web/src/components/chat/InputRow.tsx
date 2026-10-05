@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   useSessionStore,
   useCurrentSession,
@@ -26,6 +27,7 @@ import {
   uploadSessionAttachment,
 } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
+import { openComposerAttachmentInEditor } from '@/utils/attachmentEditorOpen';
 import {
   isAttachmentPayloadForSession,
   type PanAttachmentPayload,
@@ -337,6 +339,7 @@ export function InputRow() {
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
+  const navigate = useNavigate();
   const appendLocalMessage = useSessionStore((s) => s.appendLocalMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const steer = useWorkerStore((s) => s.steer);
@@ -889,6 +892,53 @@ export function InputRow() {
       );
     },
     [updateAttachments],
+  );
+
+  // A native drag released from a standalone chip must not later fire the
+  // chip's click open. Cleared on the task after dragend so a subsequent
+  // unrelated click is never swallowed (same pattern as message file links).
+  const attachmentChipDraggedRef = useRef(false);
+  const attachmentChipDraggedResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearAttachmentChipDragSuppression = useCallback(() => {
+    if (attachmentChipDraggedResetRef.current !== null) {
+      clearTimeout(attachmentChipDraggedResetRef.current);
+    }
+    attachmentChipDraggedResetRef.current = setTimeout(() => {
+      attachmentChipDraggedRef.current = false;
+      attachmentChipDraggedResetRef.current = null;
+    }, 0);
+  }, []);
+
+  // Short click on a composer attachment (inline node or standalone chip)
+  // opens the underlying file through the existing Editor flow. Uploading,
+  // registering, and failed attachments have no server-openable identity yet
+  // and their chips already surface progress/errors, so those clicks no-op.
+  const openComposerAttachment = useCallback(
+    (occurrenceId: string) => {
+      const sessionId = currentSessionId;
+      const workdir = currentSession?.workdir;
+      if (!sessionId) {
+        showToast('当前没有可用的 Session，无法打开文件', 'error');
+        return;
+      }
+      if (!workdir) {
+        showToast('当前 Session 没有工作目录，无法打开文件', 'error');
+        return;
+      }
+      const attachment = attachmentsRef.current.find(
+        (item) => attachmentOccurrenceId(item) === occurrenceId,
+      );
+      if (!attachment || attachment.status !== 'ready') return;
+      void openComposerAttachmentInEditor(
+        {
+          serverAttachmentId: attachment.attachmentId,
+          href: attachment.href,
+          location: attachment.location,
+        },
+        { sessionId, workdir, navigate },
+      );
+    },
+    [currentSession?.workdir, currentSessionId, navigate, showToast],
   );
 
   const restoreSubmission = useCallback(
@@ -1521,6 +1571,7 @@ export function InputRow() {
                   }
                   onDragStart={(event) => {
                     if (attachment.status !== 'ready' || !attachment.href) return;
+                    attachmentChipDraggedRef.current = true;
                     writePanAttachmentPayload(event.dataTransfer, {
                       displayName: attachment.displayName,
                       href: attachment.href,
@@ -1532,9 +1583,18 @@ export function InputRow() {
                       location: attachment.location,
                     });
                   }}
+                  onDragEnd={clearAttachmentChipDragSuppression}
+                  onClick={(event) => {
+                    // A completed or cancelled drag suppresses the trailing click.
+                    if (attachmentChipDraggedRef.current) return;
+                    const target = event.target instanceof Element ? event.target : null;
+                    // 重试/取消 buttons keep their own handlers; chip body opens.
+                    if (target?.closest('button')) return;
+                    openComposerAttachment(attachmentOccurrenceId(attachment));
+                  }}
                   role="group"
                   aria-label={`附件 ${attachment.displayName}`}
-                  className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
+                  className={`inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary ${attachment.status === 'ready' ? 'cursor-pointer' : ''}`}
                   title={attachment.path || attachment.displayName}
                 >
                   <FileIcon size={13} className="shrink-0" aria-hidden="true" />
@@ -1786,6 +1846,7 @@ export function InputRow() {
               onNativeFiles={handleNativeFiles}
               onNativeInputIssue={handleNativeInputIssue}
               onRemoveAttachment={handleRemoveComposerAttachment}
+              onOpenAttachment={openComposerAttachment}
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">

@@ -49,6 +49,8 @@ interface RichTextComposerProps {
   onNativeFiles?: (files: File[], offset: number, source: 'paste' | 'drop') => string[];
   onNativeInputIssue?: (kind: 'directory' | 'uri' | 'invalid-pan-attachment') => void;
   onRemoveAttachment: (attachmentId: string) => void;
+  /** Short click on an inline attachment node; the argument is the occurrence id. */
+  onOpenAttachment?: (attachmentId: string) => void;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
 
@@ -715,6 +717,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       onNativeFiles,
       onNativeInputIssue,
       onRemoveAttachment,
+      onOpenAttachment,
       onKeyDown,
     },
     ref,
@@ -741,6 +744,11 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const dropOffsetRef = useRef<number | null>(null);
     const pendingCaretOffsetRef = useRef<number | null>(null);
     const activeDragPayloadRef = useRef<PanAttachmentPayload | null>(null);
+    // Set once a native drag actually starts from an attachment node so the
+    // click that may follow dragend never opens the Editor. Cleared on the
+    // next task (setTimeout 0) after dragend, mirroring message file links.
+    const attachmentDraggedRef = useRef(false);
+    const attachmentDraggedResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const publish = useCallback(
       (nextParts: ComposerPart[]) => {
@@ -936,6 +944,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       // but intentionally returns an empty string from getData(). Keep the
       // source payload here so a node can still be dropped into the editor.
       activeDragPayloadRef.current = payload;
+      attachmentDraggedRef.current = true;
     };
 
     const handleAttachmentMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -947,7 +956,27 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>('[data-composer-attachment-delete]');
       const attachmentId = button?.dataset.composerAttachmentDelete;
-      if (attachmentId) removeAt(attachmentId);
+      if (attachmentId) {
+        // A drag released over the delete button must not delete either.
+        if (!attachmentDraggedRef.current) removeAt(attachmentId);
+        return;
+      }
+      if (attachmentDraggedRef.current) return;
+      const node = target?.closest<HTMLElement>('[data-composer-attachment]');
+      const occurrenceId = node?.dataset.composerAttachment;
+      if (occurrenceId && node && editorRef.current?.contains(node)) {
+        onOpenAttachment?.(occurrenceId);
+      }
+    };
+
+    const clearAttachmentDragSuppression = () => {
+      if (attachmentDraggedResetTimerRef.current !== null) {
+        clearTimeout(attachmentDraggedResetTimerRef.current);
+      }
+      attachmentDraggedResetTimerRef.current = setTimeout(() => {
+        attachmentDraggedRef.current = false;
+        attachmentDraggedResetTimerRef.current = null;
+      }, 0);
     };
 
     const clearDropIndicator = () => {
@@ -1169,6 +1198,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const handleDragEnd = () => {
       activeDragPayloadRef.current = null;
       clearDropIndicator();
+      clearAttachmentDragSuppression();
     };
 
     useEffect(() => {
@@ -1182,6 +1212,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         activeDragPayloadRef.current = null;
         dropOffsetRef.current = null;
         setDropIndicator(null);
+        clearAttachmentDragSuppression();
       };
       // This listener runs after the source React handler in the bubble phase,
       // so message links/chips have already populated DataTransfer. Their
@@ -1194,6 +1225,9 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         window.removeEventListener('dragstart', rememberGlobalDragPayload);
         window.removeEventListener('dragend', clearGlobalDropState);
         window.removeEventListener('drop', clearGlobalDropState);
+        if (attachmentDraggedResetTimerRef.current !== null) {
+          clearTimeout(attachmentDraggedResetTimerRef.current);
+        }
       };
     }, []);
 
