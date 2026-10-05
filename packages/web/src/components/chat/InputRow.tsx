@@ -9,6 +9,16 @@ import { isRuntimeWorkerRunning, useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
+import {
+  canApplyLoadedDraft,
+  flushDraft,
+  installDraftLifecycleFlush,
+  loadDraft,
+  recordDraft,
+  restorableAttachments,
+  subscribeDraftPersistence,
+  type ApiSessionDraft,
+} from '@/stores/composerDraftStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
@@ -132,6 +142,96 @@ interface SendSnapshot {
 interface SessionComposerDraft {
   value: ComposerValue;
   attachments: PendingAttachment[];
+}
+
+// ── durable draft projection ──
+//
+// The in-memory draft above is the composer's source of truth while the tab is
+// open.  These two functions are the only place that shape crosses into the
+// persistence layer, so the wire contract (ordered parts, occurrence identity,
+// recoverable attachment metadata) is defined once.
+
+/** Project the live composer state into the persistable draft shape.
+ *
+ *  A local `File` is dropped on purpose: bytes that were never uploaded cannot
+ *  be recovered after a reload, and re-uploading on restore would silently
+ *  duplicate a possibly-large payload the user never asked to send twice.  Such
+ *  an attachment simply does not come back. */
+function toPersistableDraft(
+  value: ComposerValue,
+  attachments: PendingAttachment[],
+): ApiSessionDraft {
+  // parts order is the composer's document order; keeping it verbatim is what
+  // makes an interrupted draft restore with identical structure.
+  const parts: ApiSessionDraft['parts'] = value.parts.map((part) =>
+    part.type === 'attachment'
+      ? { type: 'attachment', attachmentId: part.attachmentId, occurrenceId: part.occurrenceId }
+      : { type: 'text', value: part.value },
+  );
+  return {
+    text: value.text,
+    parts,
+    attachments: restorableAttachments({
+      text: value.text,
+      parts,
+      attachments: attachments.map((attachment) => {
+        const entry: ApiSessionDraft['attachments'][number] = {
+          occurrenceId: attachmentOccurrenceId(attachment),
+          displayName: attachment.displayName,
+        };
+        if (attachment.attachmentId) entry.attachmentId = attachment.attachmentId;
+        if (attachment.path) entry.path = attachment.path;
+        if (attachment.href) entry.href = attachment.href;
+        if (attachment.mimeType) entry.mimeType = attachment.mimeType;
+        if (attachment.fileKey) entry.fileKey = attachment.fileKey;
+        if (attachment.source) entry.source = attachment.source;
+        if (attachment.location) entry.location = { ...attachment.location };
+        return entry;
+      }),
+    }),
+  };
+}
+
+/** Rebuild composer state from a loaded draft.  Returns null for an empty
+ *  draft so the caller can treat "nothing persisted" as "no restore needed". */
+function fromPersistableDraft(
+  draft: ApiSessionDraft,
+  fallbackText: string,
+): SessionComposerDraft | null {
+  const parts = draft.parts.length
+    ? draft.parts.map((part) =>
+        part.type === 'attachment'
+          ? {
+              type: 'attachment' as const,
+              attachmentId: part.attachmentId,
+              occurrenceId: part.occurrenceId,
+            }
+          : { type: 'text' as const, value: part.value },
+      )
+    : ([{ type: 'text' as const, value: fallbackText }] as ComposerValue['parts']);
+  const attachments: PendingAttachment[] = draft.attachments.map((item) => ({
+    occurrenceId: item.occurrenceId,
+    id: item.occurrenceId,
+    displayName: item.displayName,
+    status: 'ready',
+    ...(item.attachmentId ? { attachmentId: item.attachmentId } : {}),
+    ...(item.path ? { path: item.path } : {}),
+    ...(item.href ? { href: item.href } : {}),
+    ...(item.mimeType ? { mimeType: item.mimeType } : {}),
+    ...(item.fileKey ? { fileKey: item.fileKey } : {}),
+    ...(item.source ? { source: item.source } : {}),
+    ...(item.location ? { location: item.location } : {}),
+  }));
+  if (!draft.text && draft.parts.length === 0 && attachments.length === 0) return null;
+  return {
+    value: {
+      parts,
+      text: draft.text,
+      occurrenceIds: parts.map(composerPartOccurrenceId).filter((id): id is string => !!id),
+      attachmentIds: parts.map(composerPartOccurrenceId).filter((id): id is string => !!id),
+    },
+    attachments,
+  };
 }
 
 type AttachmentStateUpdate =
@@ -374,6 +474,16 @@ export function InputRow() {
   const recoveryBySessionRef = useRef(new Map<string, SendSnapshot>());
   const pendingRecoveryValueRef = useRef<ComposerValue | null>(null);
 
+  // Keep the complete composer draft (text + inline structure + attachment
+  // metadata) in the mounted InputRow, keyed by durable Session id. The
+  // session store still owns the plain-text projection for compatibility, but
+  // text alone cannot reconstruct inline occurrence ordering.
+  //
+  // This is also the single funnel every local composer edit passes through
+  // (keystrokes, attachment add/remove/upload, session switch, restore), so
+  // durable persistence hangs here rather than at each of those call sites.
+  // Recording is synchronous and network-free; the store debounces, rate
+  // limits and coalesces the actual writes.
   const rememberSessionDraft = useCallback(
     (sessionId: string, value: ComposerValue, nextAttachments: PendingAttachment[]) => {
       const clonedValue = cloneComposerValue(value);
@@ -384,12 +494,17 @@ export function InputRow() {
         clonedAttachments.length === 0
       ) {
         draftsBySessionRef.current.delete(sessionId);
+        // An empty composer is still persisted state: recording it writes a
+        // versioned tombstone so a reload cannot resurrect text the user
+        // already sent or deleted.
+        recordDraft(sessionId, null);
         return;
       }
       draftsBySessionRef.current.set(sessionId, {
         value: clonedValue,
         attachments: clonedAttachments,
       });
+      recordDraft(sessionId, toPersistableDraft(clonedValue, clonedAttachments));
     },
     [],
   );
@@ -475,6 +590,11 @@ export function InputRow() {
     const previousSessionId = activeAttachmentSessionRef.current;
     if (previousSessionId && previousSessionId !== currentSessionId) {
       rememberSessionDraft(previousSessionId, composerValueRef.current, attachmentsRef.current);
+      // Leaving a Session is the last chance to persist it cheaply: the
+      // outgoing draft is complete and the user is not typing it any more, so
+      // skip the debounce and write now.  Fire-and-forget; navigation to the
+      // next Session must not wait on the network.
+      flushDraft(previousSessionId);
     }
 
     attachmentEpochRef.current += 1;
@@ -509,6 +629,74 @@ export function InputRow() {
       }
     };
   }, [currentSessionId, rememberSessionDraft]);
+
+  // Durable draft cold load.
+  //
+  // Priority is unchanged — a memory draft, a failed-send recovery, or the
+  // store's plain-text projection all win synchronously, so switching Sessions
+  // never waits on the network.  Only when none of those produced content does
+  // this fetch, and only for the one selected Session: no Session list scan,
+  // no prefetch, no work proportional to the number of Sessions.
+  //
+  // The selection epoch distinguishes "the same Session id, later in time"
+  // from "the Session this read was started for".  Without it an A→B→A switch
+  // lets the first A's slow response land in the second A's composer.
+  const selectionEpochRef = useRef(0);
+  useEffect(() => {
+    selectionEpochRef.current += 1;
+    const epoch = selectionEpochRef.current;
+    const sessionId = currentSessionId;
+    if (!sessionId) return;
+    // Registering the lifecycle flush here (idempotent) keeps it out of the
+    // store module's import side effects, so importing the store in a
+    // non-DOM context stays safe.
+    installDraftLifecycleFlush();
+    const hasLocalContent =
+      !!draftsBySessionRef.current.get(sessionId) ||
+      !!recoveryBySessionRef.current.get(sessionId) ||
+      !!useSessionStore.getState().inputDrafts[sessionId];
+    if (hasLocalContent) return;
+    let cancelled = false;
+    void loadDraft(sessionId).then((draft) => {
+      if (cancelled || !draft) return;
+      if (activeAttachmentSessionRef.current !== sessionId) return;
+      if (!canApplyLoadedDraft(sessionId, epoch, selectionEpochRef.current)) return;
+      const restored = fromPersistableDraft(
+        draft,
+        useSessionStore.getState().inputDrafts[sessionId] || '',
+      );
+      if (!restored) return;
+      composerValueRef.current = cloneComposerValue(restored.value);
+      const clonedAttachments = restored.attachments.map((attachment) => ({ ...attachment }));
+      attachmentsRef.current = clonedAttachments;
+      setAttachments(clonedAttachments);
+      setInputDraft(sessionId, restored.value.text);
+      pendingRecoveryValueRef.current = restored.value.occurrenceIds.length
+        ? cloneComposerValue(restored.value)
+        : null;
+      if (!pendingRecoveryValueRef.current) composerRef.current?.replaceValue(restored.value);
+      setComposerText(restored.value.text);
+      setComposerOccurrenceIds([...restored.value.occurrenceIds]);
+      // Keep the local projection authoritative so a later Session switch back
+      // restores from memory instead of re-reading.
+      draftsBySessionRef.current.set(sessionId, restored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId, setInputDraft]);
+
+  // Surface a failed save once. Silently dropping the only copy of unsent text
+  // is the one unacceptable outcome here, so a bounded-retry exhaustion or a
+  // cross-tab conflict is reported instead.
+  useEffect(() => {
+    let lastError: string | null = null;
+    return subscribeDraftPersistence((sessionId, error) => {
+      if (sessionId !== currentSessionId || !error || error === lastError) return;
+      lastError = error;
+      showToast(`${error}`, 'error');
+    });
+  }, [currentSessionId, showToast]);
 
   useEffect(() => {
     const pending = pendingRecoveryValueRef.current;
@@ -910,7 +1098,19 @@ export function InputRow() {
         // The old Session may already have a newer text draft when this
         // request settles, so restoring only the plain draft would lose
         // attachment occurrences.
+        const restoredAttachments = [
+          ...(recoveryBySessionRef.current.get(snapshot.sessionId)?.attachments ?? []),
+          ...snapshot.attachments,
+        ];
         recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+        // This Session is not mounted, so nothing else will reach the
+        // persistence funnel for it.  Record the recovered text here or a
+        // reload after a failed send loses exactly the message the user
+        // tried to send.
+        recordDraft(
+          snapshot.sessionId,
+          toPersistableDraft(value, restoredAttachments),
+        );
         return;
       }
 
@@ -941,6 +1141,22 @@ export function InputRow() {
       // failed submission.  A later Session switch or remount must restore
       // both the merged text and every attachment occurrence.
       recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+      // Record the merged draft explicitly.  `updateAttachments` above ran
+      // while composerValueRef still held the optimistically-cleared value, so
+      // the funnel recorded that instead; waiting for the composer's onChange
+      // round-trip would leave a window where the server holds a tombstone for
+      // text the user is still trying to send.
+      recordDraft(
+        snapshot.sessionId,
+        toPersistableDraft(value, [
+          ...attachments.filter(
+            (attachment) => !snapshot.attachments.some(
+              (sent) => attachmentOccurrenceId(sent) === attachmentOccurrenceId(attachment),
+            ),
+          ),
+          ...snapshot.attachments,
+        ]),
+      );
     },
     [attachments, setInputDraft, updateAttachments],
   );
@@ -1188,6 +1404,13 @@ export function InputRow() {
           if (stillSelected) composerRef.current?.replaceText('');
           setInputDraft(steerSessionId, '');
           if (stillSelected) updateAttachments(() => []);
+          // The steered text is gone from this Session, so the durable draft
+          // must say so too — otherwise a reload restores a message the user
+          // already delivered.  Idempotent when the composer is mounted: the
+          // replaceText round-trip records the same tombstone.  Guarded by
+          // `draftStillOwnsTransaction`, so a steer that resolves after the
+          // user kept typing clears nothing.
+          recordDraft(steerSessionId, null);
         }
         // Optimistic append with a local ts; the server stamps the same
         // moment into history (steer_worker appends + saves right after the

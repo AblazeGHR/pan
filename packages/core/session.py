@@ -2797,6 +2797,11 @@ def delete(session_id: str):
 
     def remove_files():
         _remove_session_pin_locked(session_id)
+        # Composer drafts live in a sidecar file. Imported here (not at module
+        # scope) because session_drafts reads SESSION_DIR from this module, and
+        # deleting a Session must not leave a draft that outlives it.
+        from packages.core import session_drafts
+        session_drafts.delete_draft(session_id)
         path = _path(session_id)
         if path.exists():
             path.unlink()

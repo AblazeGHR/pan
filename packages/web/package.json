@@ -21,6 +21,7 @@
     "e2e:mobile-topbar-compact": "node e2e/mobile-topbar-compact.e2e.mjs",
     "e2e:mobile-navigation-scrub": "node e2e/mobile-message-navigation-scrub.e2e.mjs",
     "e2e:session-recovery": "node e2e/session-message-recovery.e2e.mjs",
+    "e2e:composer-draft-persistence": "node e2e/composer-draft-persistence.mjs",
     "e2e:codex-multi-item-order": "node e2e/codex-multi-item-order.e2e.mjs",
     "e2e:frontend-full": "node e2e/frontend-full.e2e.mjs",
     "gen:api": "openapi-typescript http://localhost:8768/api/openapi.json -o src/types/api.d.ts",

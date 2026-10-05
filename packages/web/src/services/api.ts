@@ -892,6 +892,97 @@ export async function reorderSessions(
   return { ok: true, order: data.order || [] };
 }
 
+/** One persisted composer attachment occurrence.
+ *
+ * A local `File` is deliberately absent: bytes that were never uploaded cannot
+ * be recovered after a reload, so a draft never claims they can.  Only
+ * server-owned identities (`attachmentId` for an uploaded file, `path` for a
+ * server file) plus display metadata round-trip. */
+export interface ApiSessionDraftAttachment {
+  occurrenceId: string;
+  displayName: string;
+  attachmentId?: string;
+  path?: string;
+  href?: string;
+  mimeType?: string;
+  fileKey?: string;
+  source?: 'upload' | 'server_file';
+  location?: { line: number; endLine?: number };
+}
+
+/** One ordered ComposerValue part.  Attachment occurrences keep their identity
+ *  so the restored inline structure and its order are exact. */
+export type ApiSessionDraftPart =
+  | { type: 'text'; value: string }
+  | { type: 'attachment'; attachmentId: string; occurrenceId?: string };
+
+export interface ApiSessionDraft {
+  text: string;
+  parts: ApiSessionDraftPart[];
+  attachments: ApiSessionDraftAttachment[];
+}
+
+export interface ApiSessionDraftState {
+  revision: number;
+  draft: ApiSessionDraft | null;
+  updatedAt: string | null;
+}
+
+/** Read one Session's unsent composer draft.  Resolves to revision 0 / null
+ *  draft when the Session has none — a missing draft is an empty composer. */
+export async function getSessionDraft(
+  sessionId: string,
+): Promise<ApiSessionDraftState> {
+  const data = await request<ApiSessionDraftState & { ok?: boolean; error?: { message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/draft`,
+  );
+  if (data.error) throw new Error(data.error.message || 'Draft read failed');
+  return {
+    revision: typeof data.revision === 'number' ? data.revision : 0,
+    draft: data.draft ?? null,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+  };
+}
+
+export class DraftConflictError extends Error {
+  /** The authoritative server draft at conflict time, or null if cleared. */
+  readonly current: ApiSessionDraft | null;
+  readonly currentRevision: number;
+
+  constructor(current: ApiSessionDraft | null, currentRevision: number) {
+    super('Draft changed elsewhere');
+    this.name = 'DraftConflictError';
+    this.current = current;
+    this.currentRevision = currentRevision;
+  }
+}
+
+/** Compare-and-set one Session's composer draft.
+ *
+ *  `baseRevision === null` asserts "create only if absent", which is how a
+ *  first save refuses to clobber a draft another client already wrote.  A
+ *  `null` draft is a versioned tombstone (composer cleared), not a delete. */
+export async function putSessionDraft(
+  sessionId: string,
+  draft: ApiSessionDraft | null,
+  baseRevision: number | null,
+): Promise<ApiSessionDraftState> {
+  const data = await request<
+    ApiSessionDraftState & { ok?: boolean; error?: { code?: string; message?: string } }
+  >(`${BASE}/sessions/${encodeURIComponent(sessionId)}/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ draft, baseRevision }),
+  });
+  if (data.error) {
+    if (data.error.code === 'draft_conflict') {
+      throw new DraftConflictError(data.draft ?? null, data.revision ?? 0);
+    }
+    throw new Error(data.error.message || 'Draft save failed');
+  }
+  if (typeof data.revision !== 'number') throw new Error('Draft save failed');
+  return { revision: data.revision, draft: data.draft ?? null, updatedAt: data.updatedAt ?? null };
+}
+
 /** Persist one shared Session pin toggle; pin metadata is separate from order. */
 export async function setSessionPinned(
   sessionId: string,

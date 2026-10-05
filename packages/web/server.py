@@ -43,6 +43,7 @@ import psutil
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import session_drafts
 from packages.core import history_search_index
 from packages.core import history_search_scan
 from packages.core import workspace as workspaces
@@ -5863,6 +5864,74 @@ async def api_set_session_pin(session_id: str, data: dict):
         "pinRevision": state["pinRevision"],
         "sessionIds": state["sessionIds"],
     }
+
+
+@app.get("/api/sessions/{session_id}/draft")
+async def api_get_session_draft(session_id: str):
+    """Read one Session's unsent composer draft for a cold composer load.
+
+    Deliberately separate from GET /api/sessions: drafts are loaded lazily for
+    the one selected Session, never scanned across Sessions, and never folded
+    into the session list or the WebSocket summary.
+    """
+    try:
+        return await asyncio.to_thread(session_drafts.read_draft, session_id)
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "draft_read_failed", "message": str(exc) or "Could not read draft"}}
+
+
+@app.put("/api/sessions/{session_id}/draft")
+async def api_put_session_draft(session_id: str, data: dict | None = None):
+    """Compare-and-set one Session's unsent composer draft.
+
+    Body: ``{"baseRevision": <int|null>, "draft": {...}|null}``.  ``null``
+    baseRevision means "create only if absent" (a first save that refuses to
+    clobber an existing draft); an integer must equal the revision the caller
+    last read or the write is rejected with the current draft attached.  A
+    ``null`` draft is a versioned tombstone, not a delete, so a save that was
+    already in flight when the composer cleared cannot resurrect the text.
+
+    Failures are reported honestly (``persist_failed`` / ``too_large`` /
+    ``conflict``) and the client keeps its unsaved local copy either way.
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "draft body must be an object"}}
+    base_revision = data.get("baseRevision")
+    if base_revision is not None and (
+        isinstance(base_revision, bool)
+        or not isinstance(base_revision, int)
+        or base_revision < 0
+    ):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "baseRevision must be null or a non-negative integer"}}
+    try:
+        state = await asyncio.to_thread(
+            session_drafts.write_draft, session_id, base_revision, data.get("draft"),
+        )
+    except session_drafts.DraftConflict as exc:
+        # The caller is behind.  Hand back the authoritative draft so it can
+        # merge or surface the conflict instead of overwriting on a stale read.
+        return {"ok": False, "error": {
+            "code": "draft_conflict", "message": "Draft changed; reload before saving"},
+            **exc.current}
+    except session_drafts.DraftTooLarge as exc:
+        return {"ok": False, "error": {
+            "code": "draft_too_large", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {
+            "code": "invalid_draft", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "draft_persist_failed",
+            "message": str(exc) or "Could not persist draft"}}
+    # No WS broadcast: a draft is one person's unsent text, not shared Session
+    # state.  Broadcasting it would push keystrokes to every open client, put
+    # draft bodies in the session summary, and overwrite other clients'
+    # composers with text they are not editing.
+    return {"ok": True, **state}
 
 
 @app.post("/api/sessions/{session_id}/unread-done/ack")
