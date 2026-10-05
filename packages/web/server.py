@@ -7474,9 +7474,6 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                             or not isinstance(ref.get("attachmentId"), str)
                             or not ref["attachmentId"]):
                         return _queue_error("invalid_parts", "attachment part is invalid", s)
-                existing_parts = target.get("parts") if isinstance(target.get("parts"), list) else []
-                if len(existing_parts) + len(requested_parts) > 512:
-                    return _queue_error("invalid_parts", "too many message parts", s)
             if requested_parts:
                 added_parts, _, parts_error = _normalize_message_parts(
                     session_id,
@@ -7499,6 +7496,11 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                         session_id, [{"type": "text", "text": text}])
                     if error is not None:
                         return _queue_error(error["code"], error["message"], s)
+            # Enforce the parts budget on the FINAL assembled array: the text
+            # branch adds one text part on top of the requested attachments, so
+            # counting before assembly can pass while the result exceeds 512.
+            if normalized_parts is not None and len(normalized_parts) > 512:
+                return _queue_error("invalid_parts", "too many message parts", s)
             if field == "text" and not new_value.strip():
                 return _queue_error("text_required", "text is required", s)
         except (ValueError, TypeError, RecursionError) as error:

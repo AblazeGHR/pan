@@ -71,8 +71,13 @@ interface QueueStore {
   remove: (id: string) => void;
   startEdit: (id: string) => void;
   updateEditDraft: (text: string) => void;
-  /** Replace the queued-edit attachment list (new attachments only). */
-  updateEditAttachments: (update: (current: QueuedEditAttachment[]) => QueuedEditAttachment[]) => void;
+  /** Replace the queued-edit attachment list (new attachments only). The
+   *  session id is explicit: late upload/register responses must land on the
+   *  transaction they were started in, never on whatever Session is current. */
+  updateEditAttachments: (
+    sessionId: string,
+    update: (current: QueuedEditAttachment[]) => QueuedEditAttachment[],
+  ) => void;
   saveEdit: () => void;
   cancelEdit: () => void;
   move: (id: string, delta: number) => void;
@@ -776,17 +781,16 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, text } } }));
   },
 
-  updateEditAttachments: (update) => {
-    const sid = useSessionStore.getState().currentSessionId;
-    const edit = sid ? get().edits[sid] : null;
-    if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing) return;
+  updateEditAttachments: (sessionId, update) => {
+    const edit = get().edits[sessionId];
+    if (!edit || edit.saving || edit.acquiring || edit.releasing) return;
     set((state) => {
-      const currentEdit = state.edits[sid];
+      const currentEdit = state.edits[sessionId];
       if (!currentEdit || currentEdit.saving) return state;
       return {
         edits: {
           ...state.edits,
-          [sid]: { ...currentEdit, attachments: update(currentEdit.attachments ?? []) },
+          [sessionId]: { ...currentEdit, attachments: update(currentEdit.attachments ?? []) },
         },
       };
     });
@@ -801,10 +805,12 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing || !item
         || !edit.serverToken || edit.error || item.meta?.dispatchState !== 'queued'
         || useSessionStore.getState().sessions.find((session) => session.id === sid)?.readonlySession) return;
-    // An unfinished upload/registration must never be committed: the server
-    // would reject the reference anyway, and a partial transaction is better
-    // retried than silently truncated.
-    if ((edit.attachments ?? []).some((attachment) => attachment.status !== 'ready')) return;
+    // An unfinished upload/registration must never be committed, and a 'ready'
+    // chip without a server attachment id is an invariant break that must block
+    // saving rather than be silently dropped.
+    if ((edit.attachments ?? []).some(
+      (attachment) => attachment.status !== 'ready' || !attachment.attachmentId,
+    )) return;
     // Only opaque attachment ids travel; the server resolves every other
     // field from the Session attachment registry.
     const newAttachmentParts = (edit.attachments ?? [])

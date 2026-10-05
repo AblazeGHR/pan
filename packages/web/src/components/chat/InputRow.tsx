@@ -497,9 +497,10 @@ export function InputRow() {
     queueUploadControllersRef.current.clear();
   }, []);
   const queueEditAttachmentLive = useCallback(
-    (occurrenceId: string, token: number | undefined, controller?: AbortController) => {
-      const sid = useSessionStore.getState().currentSessionId;
-      const edit = sid ? useQueueStore.getState().edits[sid] : null;
+    (sessionId: string, occurrenceId: string, token: number | undefined, controller?: AbortController) => {
+      // Bound to the transaction's session: a late response must land on the
+      // edit it was started in, never on whatever Session is current.
+      const edit = useQueueStore.getState().edits[sessionId];
       if (!edit || edit.editToken !== token) return false;
       if (controller && queueUploadControllersRef.current.get(occurrenceId) !== controller) return false;
       return true;
@@ -517,8 +518,8 @@ export function InputRow() {
           sessionId,
           attachment.file,
           (loaded, total) => {
-            if (!queueEditAttachmentLive(attachment.occurrenceId, token)) return;
-            updateQueueEditAttachments((current) =>
+            if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+            updateQueueEditAttachments(sessionId, (current) =>
               current.map((item) =>
                 item.occurrenceId === attachment.occurrenceId
                   ? { ...item, loadedBytes: loaded, totalBytes: total }
@@ -528,8 +529,8 @@ export function InputRow() {
           },
           controller.signal,
         );
-        if (!queueEditAttachmentLive(attachment.occurrenceId, token)) return;
-        updateQueueEditAttachments((current) =>
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+        updateQueueEditAttachments(sessionId, (current) =>
           current.map((item) =>
             item.occurrenceId === attachment.occurrenceId
               ? {
@@ -549,8 +550,8 @@ export function InputRow() {
           ),
         );
       } catch (error) {
-        if (!queueEditAttachmentLive(attachment.occurrenceId, token)) return;
-        updateQueueEditAttachments((current) =>
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token)) return;
+        updateQueueEditAttachments(sessionId, (current) =>
           current.map((item) =>
             item.occurrenceId === attachment.occurrenceId
               ? { ...item, status: 'error' as const, error: error instanceof Error ? error.message : String(error) }
@@ -571,8 +572,8 @@ export function InputRow() {
         try {
           const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
           const registered = await register(sessionId, path);
-          if (!queueEditAttachmentLive(occurrenceId, token)) return;
-          updateQueueEditAttachments((current) =>
+          if (!queueEditAttachmentLive(sessionId, occurrenceId, token)) return;
+          updateQueueEditAttachments(sessionId, (current) =>
             current.map((item) =>
               item.occurrenceId === occurrenceId
                 ? {
@@ -589,8 +590,8 @@ export function InputRow() {
             ),
           );
         } catch (error) {
-          if (!queueEditAttachmentLive(occurrenceId, token)) return;
-          updateQueueEditAttachments((current) =>
+          if (!queueEditAttachmentLive(sessionId, occurrenceId, token)) return;
+          updateQueueEditAttachments(sessionId, (current) =>
             current.map((item) =>
               item.occurrenceId === occurrenceId
                 ? { ...item, status: 'error' as const, error: error instanceof Error ? error.message : '附件注册失败' }
@@ -633,7 +634,7 @@ export function InputRow() {
         }))
         .map((attachment) => ({ ...attachment, id: attachment.occurrenceId }));
       if (added.length === 0) return [];
-      updateQueueEditAttachments((current) => [...current, ...added]);
+      updateQueueEditAttachments(sessionId, (current) => [...current, ...added]);
       for (const attachment of added) {
         void uploadQueueEditAttachment(attachment, token, sessionId);
       }
@@ -653,8 +654,9 @@ export function InputRow() {
       const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
       const needsRegistration = !remoteId && !!payload.path;
       const token = queueEdit.editToken;
+      const sessionId = currentSessionId;
       const occurrenceId = attachmentId();
-      updateQueueEditAttachments((current) => [
+      updateQueueEditAttachments(sessionId, (current) => [
         ...current,
         {
           occurrenceId,
@@ -668,42 +670,73 @@ export function InputRow() {
         },
       ]);
       if (needsRegistration) {
-        registerQueueEditAttachment(occurrenceId, payload.path!, token, currentSessionId);
+        registerQueueEditAttachment(occurrenceId, payload.path!, token, sessionId);
       }
       return null;
     },
     [queueEdit, currentSessionId, registerQueueEditAttachment, showToast, updateQueueEditAttachments],
   );
   const removeQueueEditAttachment = useCallback(
-    (occurrenceId: string) => {
+    (sessionId: string | undefined, occurrenceId: string) => {
+      if (!sessionId) return;
       queueUploadControllersRef.current.get(occurrenceId)?.abort();
       queueUploadControllersRef.current.delete(occurrenceId);
-      updateQueueEditAttachments((current) =>
+      updateQueueEditAttachments(sessionId, (current) =>
         current.filter((item) => item.occurrenceId !== occurrenceId),
       );
     },
     [updateQueueEditAttachments],
   );
   const retryQueueEditAttachment = useCallback(
-    (attachment: QueuedEditAttachment) => {
-      const sessionId = useSessionStore.getState().currentSessionId;
-      const token = useQueueStore.getState().edits[sessionId ?? '']?.editToken;
-      if (!sessionId || !attachment.file) return;
-      updateQueueEditAttachments((current) =>
-        current.map((item) =>
-          item.occurrenceId === attachment.occurrenceId
-            ? { ...item, status: 'uploading' as const, error: undefined, loadedBytes: 0 }
-            : item,
-        ),
-      );
-      void uploadQueueEditAttachment(attachment, token, sessionId);
+    (sessionId: string | undefined, attachment: QueuedEditAttachment) => {
+      if (!sessionId) return;
+      const token = useQueueStore.getState().edits[sessionId]?.editToken;
+      if (token === undefined) return;
+      if (attachment.file) {
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.map((item) =>
+            item.occurrenceId === attachment.occurrenceId
+              ? { ...item, status: 'uploading' as const, error: undefined, loadedBytes: 0 }
+              : item,
+          ),
+        );
+        void uploadQueueEditAttachment(attachment, token, sessionId);
+      } else if (attachment.path) {
+        // Path registration retry (server-file picker / chip without a File).
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.map((item) =>
+            item.occurrenceId === attachment.occurrenceId
+              ? { ...item, status: 'registering' as const, error: undefined }
+              : item,
+          ),
+        );
+        registerQueueEditAttachment(attachment.occurrenceId, attachment.path, token, sessionId);
+      }
     },
-    [updateQueueEditAttachments, uploadQueueEditAttachment],
+    [registerQueueEditAttachment, updateQueueEditAttachments, uploadQueueEditAttachment],
   );
   const handleQueueEditCancel = useCallback(() => {
+    const sid = useSessionStore.getState().currentSessionId;
+    if (sid) {
+      // Mark in-flight work as cancelled BEFORE aborting: the late AbortError
+      // lands after cancelEdit flipped releasing (or after the edit cleared),
+      // and if the lease release later fails the action guard would drop it,
+      // leaving a permanently 'uploading' chip and a dead Save button.
+      // Pre-marked error chips stay retryable/removable in every outcome.
+      const edit = useQueueStore.getState().edits[sid];
+      if (edit) {
+        updateQueueEditAttachments(sid, (current) =>
+          current.map((item) =>
+            item.status === 'uploading' || item.status === 'registering'
+              ? { ...item, status: 'error' as const, error: '已取消编辑；可重试或移除' }
+              : item,
+          ),
+        );
+      }
+    }
     abortQueueEditUploads();
     cancelQueueEdit();
-  }, [abortQueueEditUploads, cancelQueueEdit]);
+  }, [abortQueueEditUploads, cancelQueueEdit, updateQueueEditAttachments]);
   const handleQueueComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLElement>) => {
       if (event.nativeEvent.isComposing) return;
@@ -717,8 +750,10 @@ export function InputRow() {
     },
     [saveQueueEdit, handleQueueEditCancel],
   );
+  // Save stays blocked for any non-ready chip AND for a 'ready' chip that
+  // somehow lacks its server id: dropping it silently would lie to the user.
   const queueEditAttachmentsPending = queueEditAttachments.some(
-    (attachment) => attachment.status !== 'ready',
+    (attachment) => attachment.status !== 'ready' || !attachment.attachmentId,
   );
   const queueEditAttachmentsSupported = queueEdit?.kind === 'task'
     && (queueEdit.bodyFormat === 'text' || queueEdit.bodyFormat === 'parts');
@@ -1832,11 +1867,12 @@ export function InputRow() {
                   )}
                   {attachment.status === 'registering' && <span className="shrink-0 text-text-secondary"> 注册中</span>}
                   {attachment.status === 'error' && <span className="shrink-0 text-danger"> 失败</span>}
-                  {attachment.status === 'error' && attachment.file && (
+                  {attachment.status === 'error' && (attachment.file || attachment.path) && (
                     <button
                       type="button"
-                      className="shrink-0 text-accent hover:underline"
-                      onClick={() => retryQueueEditAttachment(attachment)}
+                      className="shrink-0 text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={queueEdit.saving || queueEdit.releasing}
+                      onClick={() => retryQueueEditAttachment(currentSessionId || undefined, attachment)}
                     >
                       重试
                     </button>
@@ -1844,8 +1880,9 @@ export function InputRow() {
                   <button
                     type="button"
                     aria-label={`移除附件 ${attachment.displayName}`}
-                    className="shrink-0 text-danger hover:text-danger/80"
-                    onClick={() => removeQueueEditAttachment(attachment.occurrenceId)}
+                    className="shrink-0 text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={queueEdit.saving || queueEdit.releasing}
+                    onClick={() => removeQueueEditAttachment(currentSessionId || undefined, attachment.occurrenceId)}
                   >
                     <X size={11} />
                   </button>
@@ -1857,11 +1894,12 @@ export function InputRow() {
                   data-testid="queue-edit-attachment-button"
                   aria-label="为队列消息添加附件"
                   title="添加附件（保存时追加到消息末尾）"
+                  disabled={queueEdit.saving || queueEdit.releasing}
                   onClick={() => {
                     attachmentTargetRef.current = 'queue-edit';
                     setAttachmentMenuOpen((open) => !open);
                   }}
-                  className="inline-flex items-center gap-1 rounded border border-border-default px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="inline-flex items-center gap-1 rounded border border-border-default px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Paperclip size={11} /> 添加附件
                 </button>
@@ -2275,53 +2313,96 @@ export function InputRow() {
                         ? mockRegisterServerFileAttachment
                         : registerServerFileAttachment;
                       if (!selectedSessionId) return;
-                      const registered = await register(selectedSessionId, selectedPath);
                       if (queueEditTarget) {
-                        // Late responses must not leak into a different edit
-                        // transaction; the token captured at select time is
-                        // the queue-edit identity.
-                        if (
-                          queueEditToken === undefined
-                          || useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
-                        )
-                          return;
+                        // Transaction binding: token captured now, chip owned
+                        // by selectedSessionId. The placeholder chip exists
+                        // before the await so Save stays blocked while the
+                        // registration is in flight, and a failure leaves a
+                        // retryable error chip instead of a silent loss.
+                        if (queueEditToken === undefined) return;
                         const occurrenceId = attachmentId();
-                        updateQueueEditAttachments((current) => [
+                        const displayName = selectedPath.split(/[\\/]/).pop() || selectedPath;
+                        updateQueueEditAttachments(selectedSessionId, (current) => [
                           ...current,
                           {
                             occurrenceId,
                             id: occurrenceId,
-                            attachmentId: registered.attachmentId,
-                            displayName: registered.displayName,
-                            path: registered.path,
-                            href: registered.href,
-                            mimeType: registered.mimeType,
+                            displayName,
+                            path: selectedPath,
+                            status: 'registering' as const,
                             source: 'server_file' as const,
-                            status: 'ready' as const,
                           },
                         ]);
-                      } else {
+                        let registered: Awaited<ReturnType<typeof registerServerFileAttachment>>;
+                        try {
+                          registered = await register(selectedSessionId, selectedPath);
+                        } catch (error) {
+                          if (
+                            useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
+                          )
+                            return;
+                          updateQueueEditAttachments(selectedSessionId, (current) =>
+                            current.map((item) =>
+                              item.occurrenceId === occurrenceId
+                                ? {
+                                    ...item,
+                                    status: 'error' as const,
+                                    error: error instanceof Error ? error.message : '附件注册失败',
+                                  }
+                                : item,
+                            ),
+                          );
+                          setAttachmentDirectoryError(
+                            error instanceof Error ? error.message : '服务端附件注册失败',
+                          );
+                          return;
+                        }
                         if (
-                          activeAttachmentSessionRef.current !== selectedSessionId ||
-                          attachmentEpochRef.current !== selectedEpoch
+                          useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
                         )
                           return;
-                        const occurrenceId = attachmentId();
-                        updateAttachments((current) => [
-                          ...current,
-                          {
-                            occurrenceId,
-                            id: occurrenceId,
-                            attachmentId: registered.attachmentId,
-                            displayName: registered.displayName,
-                            path: registered.path,
-                            href: registered.href,
-                            mimeType: registered.mimeType,
-                            source: 'server_file' as const,
-                            status: 'ready' as const,
-                          },
-                        ]);
+                        updateQueueEditAttachments(selectedSessionId, (current) =>
+                          current.map((item) =>
+                            item.occurrenceId === occurrenceId
+                              ? {
+                                  ...item,
+                                  attachmentId: registered.attachmentId,
+                                  displayName: registered.displayName,
+                                  href: registered.href,
+                                  path: registered.path,
+                                  mimeType: registered.mimeType,
+                                  source: 'server_file' as const,
+                                  status: 'ready' as const,
+                                }
+                              : item,
+                          ),
+                        );
+                        setAttachmentBrowserOpen(false);
+                        setAttachmentMenuOpen(false);
+                        setAttachmentDirectoryError(null);
+                        return;
                       }
+                      const registered = await register(selectedSessionId, selectedPath);
+                      if (
+                        activeAttachmentSessionRef.current !== selectedSessionId ||
+                        attachmentEpochRef.current !== selectedEpoch
+                      )
+                        return;
+                      const occurrenceId = attachmentId();
+                      updateAttachments((current) => [
+                        ...current,
+                        {
+                          occurrenceId,
+                          id: occurrenceId,
+                          attachmentId: registered.attachmentId,
+                          displayName: registered.displayName,
+                          path: registered.path,
+                          href: registered.href,
+                          mimeType: registered.mimeType,
+                          source: 'server_file' as const,
+                          status: 'ready' as const,
+                        },
+                      ]);
                       setAttachmentBrowserOpen(false);
                       setAttachmentMenuOpen(false);
                       setAttachmentDirectoryError(null);
