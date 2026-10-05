@@ -172,12 +172,14 @@ export function getMessageSourceTag(message: Message): MessageSourceTag | null {
 /** Remove transport/source headers before showing a compact hover preview. */
 export function getQuickJumpPreview(content: string, maxLength = 120): string {
   const trimmed = content.trimStart();
-  const withoutSystemHeader = SYSTEM_HEADER.test(trimmed)
-    ? trimmed.replace(/^\/\/\/\/by (?:pan system|system)(?=\s|:|$)[^\r\n]*(?:\r?\n|$)/, '')
-    : trimmed;
-  const withoutHeader = withoutSystemHeader.replace(
-    /^(?:@@@@by agent|\/\/\/\/by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)/,
-    '',
+  // System headers carry no sender metadata. Preserve inline text after an
+  // optional colon as well as the body after the production newline header.
+  const withoutHeader = (SYSTEM_HEADER.test(trimmed)
+    ? trimmed.replace(SYSTEM_HEADER, '').replace(/^[^\S\r\n]*:/, '')
+    : trimmed.replace(
+        /^(?:@@@@by agent|\/\/\/\/by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)/,
+        '',
+      )
   ).trimStart();
   const normalized = withoutHeader.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) return normalized;

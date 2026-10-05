@@ -112,11 +112,13 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
   // System messages
   if (role === 'system') {
     return (
-      <div className={`system-message flex ${sourceTag ? 'flex-col items-center' : 'justify-center'} py-2 ${mt}`}>
-        {sourceBadge}
-        <span className="msg system text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
-          {message.content}
-        </span>
+      <div className={`system-message flex justify-center py-2 ${mt}`}>
+        <div className="inline-flex min-w-0 flex-col items-start">
+          {sourceBadge}
+          <span className="msg system text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
+            {message.content}
+          </span>
+        </div>
       </div>
     );
   }
