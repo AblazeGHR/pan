@@ -100,8 +100,28 @@ tzdata 支持的 cron 组合 46 passed。Job 日志 reparse 用例以本 fixture
 合入前准备已完成：生产候选仍为 main 合并后的 `d34dd978`；本轮只提交测试、
 探针、文档及证据修正。旧数据 8 项、前端 1320 项、QQ/WeChat 166 项、三个隔离
 浏览器链与生产构建通过；Python 全量原失败和修正后受影响 15 项结果分列。
-lint 85 个既有 errors 未扩大，也未解决，不称 lint 通过。
+该轮核验时 lint 85 个既有 errors 未扩大，尚未解决；随后用户授权的修复结果见下节。
 
 可以交用户验收并准备授权合入，但不等于已合入、部署或全部原始功能目标完成。
 main / practical 仍是 `362d47ff`，服务未重启，实际数据未迁移。5 小时额度阶段核对
 为已用 68%、剩余 32%（2026-10-06 04:11:42 UTC 的非过期缓存快照）。
+
+### 后续：既有 lint 错误修复验收
+
+用户指定 Codex / gpt-6.1-sol / medium TA，在独立树从 `e44a60fc` 修复。
+原提交 `d067047861c0cfbd020826c0a8937c261a0905c9`，以 `cherry-pick -x`
+纳入本集成树为 `07ab09ca`，无冲突、被审范围与来源逐字节相同。
+
+85 个 errors 均在八个 E2E JavaScript harness：82 个环境 globals 未声明、
+3 个未使用定义。只声明实际 Node/browser globals 为 readonly、删除无调用 helper
+与未使用空数组、去掉未使用赋值但保留整个 await poll。没有改规则/排除文件/
+测试断言，运行期前端和 Python 生产零改动。
+
+TA 所有检查经 durable Job：完整 ESLint **0 errors / 19 warnings**，完整 Vitest
+**1320 passed / 0 skipped**，TypeScript/Vite 和 **50 个压缩资产**构建通过。
+MA 独立读取原 JSON/XML 确认计数，复算 8 个源码 SHA256 全等、完整 diff 审查和
+集成后来源范围 diff 空；未重复同一全集。19 个 warning 的签名保持基线不变，
+chunk 提示仍保留。实际浏览器/provider E2E 未为这次低风险 lint 修复重跑。
+
+新证据独立保存在 `audit/frontend-lint/20261006/`；先前 85 errors 的历史报告
+原样保留，不倒写。main / practical 未推进，服务未重启。
