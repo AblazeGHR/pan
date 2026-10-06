@@ -1,0 +1,15 @@
+{
+  ".github/workflows/test.yml": "9b5abfd31d4318766bdb6d3ea323c2c9349e7bdaaeceb69efdefe4ae3ccfea4e",
+  "packages/core/terminal/secret_store.py": "8247503ae3dce22a8bae10c011742c3e68bf03444b1f4f4c66a3258b021c82b4",
+  "tests/test_terminal_identity.py": "2d5b368ac7fff2582be5f55c77979a84806c934b43cd73dc802e7eb3ddccb25d",
+  "tests/test_terminal_secret_store.py": "7b33469ebef4af81086071d5cb33e22d208da86565e551786f654c41a6330bb2",
+  "tests/test_terminal_windows_backend.py": "a70cb6f1d477d7c90cb5ea4f374be7125746d7e9ea878c47eea03f0806489926",
+  "packages/core/terminal/emulator_sidecar/package.json": "f811b022352ce380b11e99414b808df91a40477e9e0a850075a072eddaef08d6",
+  "packages/core/terminal/emulator_sidecar/package-lock.json": "9c88ee512f45573b8139bda9169b3964b1c733e730dd8595c8308ec7d8ac86c3",
+  "minimal-requirements.txt": "40e1982c4785a50f0ca6c063a7a0affb5707d81160cf64bfd7fdf52b9e7b64f8",
+  "packages/qq/requirements.txt": "0daca7634a46b120d6539683b2cd4f64b650273fa5592ecd708df4c8a0d3e18a",
+  "packages/core/terminal/launcher.py": "1ca6a08e886e96fbdbab4b6e1b00caf9683bc5d26b00e62ed3c0cd7dfc33c1ff",
+  "tests/test_terminal_launcher.py": "acd0d69bb77cd97a8b922d9aa32b4e06e8f51900b50bf99674ee829809b78eff",
+  "packages/core/terminal/service.py": "49e1bca1c0e72e03db1818612e4e8b4bae353e5fc7265bc10574449d5c207ddf",
+  "tests/test_terminal_service.py": "8f11d6d2235acef3786495090d60e85e871822ce9bfe0614a0a94b4132d56a73"
+}

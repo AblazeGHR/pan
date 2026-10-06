@@ -1,0 +1,35 @@
+{
+  "jobId": "job_7fce74b12d9ec81967ceb63d",
+  "targetSessionId": "ses_3aa2caf381bcd71b",
+  "argv": [
+    "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe",
+    "D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_3aa2caf381bcd71b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "name": "job-30",
+  "description": "",
+  "commandSummary": "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py",
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "label": "Remaining remote terminal failures baseline diagnostic 3.12/3.14 isolated",
+  "status": "completed",
+  "createdAt": 1791304142.2523112,
+  "updatedAt": 1791304281.8825526,
+  "pid": 43984,
+  "processCreatedAt": 1791304143.0232463,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_7fce74b12d9ec81967ceb63d.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_7fce74b12d9ec81967ceb63d:terminal",
+  "runnerPid": 716,
+  "runnerProcessCreatedAt": 1791304142.2692685,
+  "exitCode": 0,
+  "paused": false
+}

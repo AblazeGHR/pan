@@ -702,6 +702,60 @@ def test_snapshot_applied_evicted_gives_hint_without_reset(tmp_path):
 # ══════════════════════════════════════════════════════════════════════════
 
 
+def test_direct_launcher_retains_runner_handle_without_python_shim(tmp_path, monkeypatch):
+    process = _FakeProcess()
+    service = _make_service(tmp_path, process=process)
+    service._spawn_launcher_impl = None
+    monkeypatch.setattr(service, "_spawn", lambda state, **kw: process)
+    retained = []
+    monkeypatch.setattr(service, "_retain_runner_identity_handle", lambda state: retained.append(
+        (state.spawn_pid, state.runner_pid, state.runner_filetime)))
+    tid = service.create()["terminal_id"]
+    state = service._states[tid]
+    try:
+        assert state.spawn_pid == state.runner_pid
+        assert retained == [(state.spawn_pid, state.runner_pid, state.runner_filetime)]
+    finally:
+        service._stop_heartbeat(state)
+        service._release_client(state)
+
+
+def test_close_waits_for_late_engine_and_exit_proofs_without_resending(tmp_path, monkeypatch):
+    process = _FakeProcess()
+    client = _FakeClient("term_late_proof", client_id="c", close_status="exited")
+    service = _make_service(tmp_path, clients={"primary": client}, process=process,
+                            heartbeat_interval=5.0, stop_confirm=0.5)
+    tid = service.create()["terminal_id"]
+    state = service._states[tid]
+    observed = threading.Event()
+    real_status = service._launcher_status_evidence
+
+    def status(owner):
+        result = real_status(owner)
+        observed.set()
+        return result
+
+    monkeypatch.setattr(service, "_launcher_status_evidence", status)
+
+    def finish():
+        assert observed.wait(1)
+        assert service._store().deleted == []
+        _converged_launcher_status(service.root, tid, state.runner_pid, state.runner_filetime)
+        process.exit(0)
+
+    worker = threading.Thread(target=finish)
+    worker.start()
+    try:
+        assert service.close(tid)["status"] == "exited"
+        assert client.calls.get("close") == 1
+        assert service._store().deleted
+    finally:
+        worker.join(1)
+        service._stop_heartbeat(state)
+        service._release_client(state)
+    assert not worker.is_alive()
+
+
 def test_close_requires_all_three_proofs(tmp_path):
     """close：runner 确认 + 引擎收尾 + 经身份核验的进程退出，三者齐备才 exited。"""
     process = _FakeProcess()

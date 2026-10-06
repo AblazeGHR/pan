@@ -1,0 +1,35 @@
+{
+  "jobId": "job_535fd9aeffa1f75afbee5dff",
+  "targetSessionId": "ses_3aa2caf381bcd71b",
+  "argv": [
+    "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe",
+    "D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_3aa2caf381bcd71b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "name": "job-32",
+  "description": "",
+  "commandSummary": "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py",
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "label": "Fixed terminal external kill and detach repeat 5 rounds per Python",
+  "status": "completed",
+  "createdAt": 1791307302.0458663,
+  "updatedAt": 1791307436.8160427,
+  "pid": 41700,
+  "processCreatedAt": 1791307302.679984,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_535fd9aeffa1f75afbee5dff.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_535fd9aeffa1f75afbee5dff:terminal",
+  "runnerPid": 42008,
+  "runnerProcessCreatedAt": 1791307302.0569816,
+  "exitCode": 0,
+  "paused": false
+}

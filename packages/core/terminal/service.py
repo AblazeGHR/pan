@@ -551,7 +551,7 @@ class _TerminalState:
     #: hello 自证 + 内核核验后的 runner 身份（权威）。
     runner_pid: int | None = None
     runner_filetime: int | None = None
-    #: Only needed when an interpreter shim's Popen PID differs from bootstrap.
+    #: Retain bootstrap identity independently of interpreter shim layout.
     runner_identity_handle: Any | None = None
     runner_handle_finalizer: Any | None = None
     runner_identity_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -983,8 +983,7 @@ class TerminalService:
             raise StartupFailed("bootstrap-unverified", error_type=type(exc).__name__) from None
         state.runner_pid = int(bootstrap.pid)
         state.runner_filetime = int(bootstrap.filetime)
-        if (sys.platform == "win32" and self._spawn_launcher_impl is None
-                and state.spawn_pid != state.runner_pid):
+        if sys.platform == "win32" and self._spawn_launcher_impl is None:
             self._retain_runner_identity_handle(state)
 
         from . import runner_client
@@ -1689,6 +1688,18 @@ class TerminalService:
         # 每轮重新评估外部证据（stop 已确认则不重复发）。
         evidence.update(self._launcher_status_evidence(state))
         evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
+        # Runner's stop response precedes launcher engine finalization. Spend
+        # the remaining existing budget observing those independent proofs;
+        # do not resend stop or treat root death as engine cleanup.
+        while (stop_confirmed and
+               (evidence.get("engine_converged") is not True or
+                evidence["process_exit"].get("exited") is not True)):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.02, remaining))
+            evidence.update(self._launcher_status_evidence(state))
+            evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
         proven = bool(
             stop_confirmed
             and evidence.get("engine_converged")
