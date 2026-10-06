@@ -459,8 +459,10 @@ class TerminalLauncher:
                     if remaining <= 0.0:
                         detail.append("budget-exhausted")
                         break
-                attempts += 1
                 finished, result, error_type = worker.invoke(min(attempt_cap, remaining))
+            # The previous thread can exit between in_flight and invoke. Count
+            # actual starts under the worker's gate, not the caller's snapshot.
+            attempts = worker.invocations
             if not finished:
                 detail.append("close-in-flight")
                 if time.monotonic() >= deadline:

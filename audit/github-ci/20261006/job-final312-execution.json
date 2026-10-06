@@ -1,0 +1,24 @@
+{
+  "command": [
+    "D:\\project\\pan-worktrees\\github-ci-20261006\\.venv-ci312\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/",
+    "packages/qq",
+    "-o",
+    "addopts=",
+    "-o",
+    "junit_family=legacy",
+    "-v",
+    "-ra",
+    "--basetemp=C:\\Users\\14709\\AppData\\Local\\Temp\\pan-ci-20261006-job-312-job-final/pytest",
+    "--junitxml=D:\\project\\pan-worktrees\\github-ci-20261006\\.ci-evidence/job-final312.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "home": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-ci-20261006-job-312-job-final\\profile",
+  "tmp": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-ci-20261006-job-312-job-final\\tmp",
+  "http_port": "51118",
+  "started_at": "2026-10-06T11:27:21.540718+00:00",
+  "exit_code": 0,
+  "completed_at": "2026-10-06T11:45:14.004836+00:00"
+}

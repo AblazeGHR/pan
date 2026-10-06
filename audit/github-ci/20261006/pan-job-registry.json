@@ -1,0 +1,35 @@
+{
+  "jobId": "job_d7bf6eec1c9d8b1142044be1",
+  "targetSessionId": "ses_3aa2caf381bcd71b",
+  "argv": [
+    "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe",
+    "D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/run_job_matrix.py"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_3aa2caf381bcd71b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "name": "job-27",
+  "description": "",
+  "commandSummary": "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/run_job_matrix.py",
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "label": "Pan CI serial 3.12/3.14 + launcher regression 20261006",
+  "status": "completed",
+  "createdAt": 1791285993.9687204,
+  "updatedAt": 1791288264.9444454,
+  "pid": 41092,
+  "processCreatedAt": 1791285994.287454,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_d7bf6eec1c9d8b1142044be1.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_d7bf6eec1c9d8b1142044be1:terminal",
+  "runnerPid": 24516,
+  "runnerProcessCreatedAt": 1791285993.98599,
+  "exitCode": 0,
+  "paused": false
+}

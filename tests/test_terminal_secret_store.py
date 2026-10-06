@@ -1005,6 +1005,71 @@ def _decrypt_secret_text(store: secret_store.SecretStore, terminal_id: str) -> s
 
 
 @windows_only
+def test_read_holds_publication_mutex_and_preserves_io_errors(store, monkeypatch):
+    """A reader protects its checked file until read completes; I/O errors propagate."""
+    terminal_id = "term_read_lock"
+    identity = win_pipe.current_process_identity()
+    payload = _payload(terminal_id, _sentinel_token(), identity)
+    store.write_secret(payload)
+    path = store.secret_path(terminal_id)
+    entered, release, writer_started, published = (threading.Event() for _ in range(4))
+    errors = []
+    real_read = Path.read_bytes
+    real_replace = win_pipe.replace_file_atomic
+
+    def paused_read(self):
+        if self == path:
+            entered.set()
+            assert release.wait(10), "test reader was not released"
+        return real_read(self)
+
+    def replacement(*args):
+        published.set()
+        return real_replace(*args)
+
+    def read():
+        try:
+            assert store.read_secret(terminal_id) == payload
+        except Exception as exc:
+            errors.append(exc)
+
+    def write():
+        try:
+            writer_started.set()
+            # A separate store must participate in the same path mutex.
+            secret_store.SecretStore(store.root).write_secret(payload)
+        except Exception as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(Path, "read_bytes", paused_read)
+    monkeypatch.setattr(win_pipe, "replace_file_atomic", replacement)
+    reader = threading.Thread(target=read)
+    writer = threading.Thread(target=write)
+    reader.start()
+    try:
+        assert entered.wait(10)
+        writer.start()
+        assert writer_started.wait(10)
+        assert not published.wait(0.2), "publication raced a checked reader"
+    finally:
+        release.set()
+        reader.join(10)
+        if writer.ident is not None:
+            writer.join(10)
+    assert not reader.is_alive() and not writer.is_alive()
+    assert errors == []
+    assert published.is_set()
+
+    def failed_read(self):
+        raise PermissionError("injected read failure")
+
+    monkeypatch.setattr(Path, "read_bytes", failed_read)
+    with pytest.raises(secret_store.SecretStoreError) as caught:
+        store.read_secret(terminal_id)
+    assert isinstance(caught.value.__cause__, PermissionError)
+
+
+@windows_only
 def test_f9_concurrent_writes_and_identity_updates_preserve_fields(store):
     """真实并发：写入/身份更新全部正确提交，token/created_at/pipe 不丢、结果可解析。"""
     terminal_id = "term_f9_concurrent"

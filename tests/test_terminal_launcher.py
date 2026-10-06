@@ -418,6 +418,42 @@ def test_engine_close_false_then_success_retries_same_owner_not_stacked(tmp_path
     )
 
 
+def test_engine_close_exit_between_snapshot_and_invoke_counts_retry(tmp_path, monkeypatch):
+    """A completed thread can exit after the caller's in-flight snapshot."""
+    worker_type = launcher_module._EngineCloseWorker
+
+    class ExitBetweenChecks(worker_type):
+        stale_snapshot = False
+
+        @property
+        def in_flight(self):
+            if self.stale_snapshot:
+                self.stale_snapshot = False
+                return True
+            return super().in_flight
+
+        def invoke(self, budget):
+            result = super().invoke(budget)
+            if self.invocations == 1 and result[0]:
+                self._thread.join(timeout=budget)
+                assert not self._thread.is_alive()
+                self.stale_snapshot = True
+            return result
+
+    monkeypatch.setattr(launcher_module, "_EngineCloseWorker", ExitBetweenChecks)
+    engine = _FakeEngine(["false", "true"])
+    launcher = _make_launcher(
+        tmp_path, "term_exit_race", emulator_factory=lambda: engine,
+        runner_factory=lambda _e: _FakeRunner(code=0),
+        engine_total_budget=5.0, engine_close_attempt_budget=1.0,
+        engine_cleanup_retry_interval=0.05,
+    )
+    assert launcher.run() == 0
+    assert engine.close_calls == 2 and engine.max_concurrent == 1
+    assert launcher.engine_cleanup["attempts"] == 2
+    assert launcher.engine_cleanup["converged"] is True
+
+
 def test_engine_close_exception_then_success_retried(tmp_path):
     """close 抛异常 → 记录类型名后同 owner 重试成功；异常文本不入状态。"""
     engine = _FakeEngine(["raise", "true"])

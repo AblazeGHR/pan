@@ -116,11 +116,15 @@ def test_probe_alive_identity_and_retained_dead():
         proc.wait(timeout=5)
 
 
-def test_probe_unknown_is_not_dead():
+def test_probe_unknown_is_not_dead(monkeypatch):
     """查不到/打不开/以及“现查陌生 PID 的 signaled”一律 UNKNOWN，绝不当 dead（r3 §13.4）。"""
-    # PID 4（System）不可打开：open 失败 -> UNKNOWN
-    probe = identity.probe_process(4)
-    assert probe.status is ProcessStatus.UNKNOWN
+    # System can be queryable on elevated runners. Exercise an actual failed
+    # OpenProcess result without depending on the runner's privileges.
+    with monkeypatch.context() as patch:
+        patch.setattr(identity.kernel32(), "OpenProcess", lambda *args: 0)
+        probe = identity.probe_process(4)
+        assert probe.status is ProcessStatus.UNKNOWN
+        assert probe.identity is None
     # 非法 handle：wait_state -> UNKNOWN
     assert identity.wait_state(0) is ProcessStatus.UNKNOWN
 
@@ -182,7 +186,7 @@ def test_exit_code_259_ambiguity_with_retained_handle():
         proc.wait(timeout=5)
 
 
-def test_kill_verified_refusals_and_success():
+def test_kill_verified_refusals_and_success(monkeypatch):
     """kill_verified：unknown/错身份不终止；精确匹配才杀（单句柄）。"""
     proc = spawn_child("import time; time.sleep(60)")
     try:
@@ -204,9 +208,12 @@ def test_kill_verified_refusals_and_success():
         assert mismatch.killed is False and mismatch.reason == "identity_mismatch"
         assert proc.poll() is None
 
-        # 3) 打不开（PID 4 System）-> open_failed，不终止
-        unopenable = identity.kill_verified(4, 0)
-        assert unopenable.killed is False and unopenable.reason == "open_failed"
+        # 3) An open failure refuses termination independently of privileges.
+        with monkeypatch.context() as patch:
+            patch.setattr(identity.kernel32(), "OpenProcess", lambda *args: 0)
+            unopenable = identity.kill_verified(proc.pid, filetime)
+            assert unopenable.killed is False and unopenable.reason == "open_failed"
+        assert proc.poll() is None
 
         # 4) 精确身份 -> 终止并 signaled
         killed = identity.kill_verified(

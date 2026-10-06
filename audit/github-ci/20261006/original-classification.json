@@ -1,0 +1,580 @@
+{
+  "run-37450384323-py312.log": {
+    "failures": [
+      {
+        "test": "tests/test_eventloop_history_offload.py::test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection",
+        "message": "assert 0.06299999999998818 < 0.05",
+        "category": "latency observation, attribution unresolved",
+        "root_cause": "Actual 63ms scheduling gap exceeds unchanged 50ms threshold in Python 3.12. Backfill already uses asyncio.to_thread; 12 fresh local baseline repeats pass. No threshold or test change. Final matrix results and remote SHA run remain required."
+      },
+      {
+        "test": "tests/test_terminal_composition.py::test_composition_r2_engine_close_budget_owner_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=1980\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_construct_ready_identity_and_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=1712\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_start_cursor_beyond_53_bits_travels_as_string",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=9132\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_main_screen_matrix_and_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=1244\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_alternate_screen_matrix_and_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=1552\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_split_utf8_1_4_rest_matches_continuous",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=3784\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_holdback_split_csi_and_protocol_a_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=6048\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_holdback_split_osc_degrades_partial_and_recovers",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=7960\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_excludes_pending_tail",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=7800\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_resize_queue_ordering_matches_reference",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=4052\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_browserless_large_output_and_log_cursor_eviction",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=7672\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_is_applied_not_producer_frontier",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=5448\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_expired_control_never_executes_late",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=5148\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_enqueue_never_waits_for_node",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=5708\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=1408\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_control_queue_overflow_is_visible",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=3284\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_unknown_sequence_after_event_saturation_is_detected",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=3344\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_engine_op_error_is_sticky_degraded",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=8344\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_reset_baseline_uses_execution_position_not_future_frontier",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=2880\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_reset_clears_old_gap_and_never_fakes_full",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=3568\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_duplicate_feed_bytes_not_double_consumed",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=4184\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_sidecar_crash_is_visible_and_close_converges",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=1416\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_close_failure_retains_resources_then_retry_converges",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=6960\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_guard_close_failure_is_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=8096\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_runner_hard_death_kills_sidecar_via_job",
+        "message": "AssertionError: t recent call last):",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_no_process_leaks_after_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=8812\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=2256\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=8260\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=2472\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=5504\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.0s, pid=1248\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_merges_adjacent_feeds",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.015s, pid=4456\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_stops_at_gap_and_control",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=8988\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_prefix_split_utf8_csi_osc_equivalence",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=5796\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_error_ack_binds_batch",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=4428\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_accounting_in_flight_and_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.016s, pid=4320\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_identity.py::test_probe_unknown_is_not_dead",
+        "message": "AssertionError: assert <ProcessStatus.ALIVE: 'alive'> is <ProcessStatus.UNKNOWN: 'unknown'>",
+        "category": "stale test contract",
+        "root_cause": "A readable, live PID 4 is correctly ALIVE; failure to open must be tested by its return value, independent of runner privilege."
+      },
+      {
+        "test": "tests/test_terminal_tools_api.py::test_real_stdio_mcp_conpty_roundtrip",
+        "message": "AssertionError(\"{'ok': False, 'error': {'code': 'terminal-tool-failed'}}\\nassert False\") [single exception in ExceptionGroup]",
+        "category": "dependency configuration",
+        "root_cause": "terminal_create returns terminal-tool-failed in the original stdio/HTTP chain; dependency installation permits the unchanged real chain to pass. Corroborated by exact sidecar startup failures and local runs."
+      },
+      {
+        "test": "tests/test_terminal_windows_backend.py::test_ctrl_c_input_channel_and_survival",
+        "message": "AssertionError: b'a\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_ctrl_c_input_channel_and_0\\\\ctrl_c_child.py\", line 4, in <module>\\r",
+        "category": "stale test contract",
+        "root_cause": "Python receives KeyboardInterrupt at readline on GitHub Windows; default child exits. The test assumed empty-read behavior only. Cooperatively handle both, record outcome, require live child and subsequent PING."
+      }
+    ],
+    "failure_count": 40,
+    "progress": [
+      "........................................................................ [  2%]",
+      "........................................................................ [  4%]",
+      "..................................................s..................sss [  7%]",
+      "ssss.................................................................... [  9%]",
+      "........................................................................ [ 12%]",
+      "..................................................s....F................ [ 14%]",
+      "........................................................................ [ 17%]",
+      "........................................................................ [ 19%]",
+      "........................................................................ [ 22%]",
+      "...........sss.......................................................... [ 24%]",
+      "........................................................................ [ 27%]",
+      "........................................................................ [ 29%]",
+      "........................................................................ [ 32%]",
+      "........................................................................ [ 34%]",
+      "..............................................sss....................... [ 37%]",
+      "........................................................................ [ 39%]",
+      "........................................................................ [ 42%]",
+      "......s................................................................. [ 44%]",
+      "........................................................................ [ 46%]",
+      "........................................................................ [ 49%]",
+      "........................................................................ [ 51%]",
+      "........................................................................ [ 54%]",
+      "........................................................................ [ 56%]",
+      "........................................................................ [ 59%]",
+      "..............................s.................s...................ssss [ 61%]",
+      "s.ssssssF.....................ssFF...FFFFFFFFFFFFFFFFFFFFFFF..FF......FF [ 64%]",
+      ".F.FFFFF..............F.........s............sssss...................... [ 66%]",
+      "........................................................................ [ 69%]",
+      "...............s.........................................ss............. [ 71%]",
+      "..............s......................................................... [ 74%]",
+      "........................................................................ [ 76%]",
+      "........................................................................ [ 79%]",
+      "...........................................................ssss......... [ 81%]",
+      "........................ss......................s..........s............ [ 84%]",
+      "......................F...F............................................. [ 86%]",
+      "...............s........................................................ [ 88%]",
+      "........................................................................ [ 91%]",
+      "........................................................................ [ 93%]",
+      "........................................................................ [ 96%]",
+      "........................................................................ [ 98%]",
+      "..................................                                       [100%]"
+    ],
+    "skip_count": 50
+  },
+  "run-37450384323-py314.log": {
+    "failures": [
+      {
+        "test": "tests/test_terminal_composition.py::test_composition_r2_engine_close_budget_owner_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=3500\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_construct_ready_identity_and_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=5156\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_start_cursor_beyond_53_bits_travels_as_string",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=9264\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_main_screen_matrix_and_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=2428\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_alternate_screen_matrix_and_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=5624\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_split_utf8_1_4_rest_matches_continuous",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.008s, pid=8440\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_holdback_split_csi_and_protocol_a_recovery",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=8772\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_holdback_split_osc_degrades_partial_and_recovers",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=2636\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_excludes_pending_tail",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=6996\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_resize_queue_ordering_matches_reference",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=3808\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_browserless_large_output_and_log_cursor_eviction",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=4968\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_is_applied_not_producer_frontier",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=4376\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_expired_control_never_executes_late",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=9944\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_enqueue_never_waits_for_node",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=5908\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=8636\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_control_queue_overflow_is_visible",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=1692\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_unknown_sequence_after_event_saturation_is_detected",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=7712\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_engine_op_error_is_sticky_degraded",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=1912\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_reset_baseline_uses_execution_position_not_future_frontier",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=9032\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_reset_clears_old_gap_and_never_fakes_full",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=4364\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_duplicate_feed_bytes_not_double_consumed",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=5028\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_sidecar_crash_is_visible_and_close_converges",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=5320\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_close_failure_retains_resources_then_retry_converges",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=2292\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_guard_close_failure_is_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=6452\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_runner_hard_death_kills_sidecar_via_job",
+        "message": "AssertionError: al\\emulator.py\", line 747, in __init__",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_no_process_leaks_after_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=9956\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=3288\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=8300\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=1192\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=6752\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=8684\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_merges_adjacent_feeds",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=1628\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_stops_at_gap_and_control",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=4980\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_prefix_split_utf8_csi_osc_equivalence",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=9364\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_error_ack_binds_batch",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=7660\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_emulator.py::test_feed_batching_accounting_in_flight_and_close",
+        "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar \\u4e0d\\u53ef\\u7528\\uff1adependency-missing:Cannot find package '@xterm/headless' imported from D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\terminal\\\\emulator_sidecar\\\\sidecar.mjs\\uff1b\\u6e05\\u7406=converged\\uff080.006s, pid=2656\\uff09",
+        "category": "dependency configuration",
+        "root_cause": "CI does not install locked standalone emulator sidecar dependencies (@xterm/headless)."
+      },
+      {
+        "test": "tests/test_terminal_identity.py::test_probe_unknown_is_not_dead",
+        "message": "AssertionError: assert <ProcessStatus.ALIVE: 'alive'> is <ProcessStatus.UNKNOWN: 'unknown'>",
+        "category": "stale test contract",
+        "root_cause": "A readable, live PID 4 is correctly ALIVE; failure to open must be tested by its return value, independent of runner privilege."
+      },
+      {
+        "test": "tests/test_terminal_secret_store.py::test_f9_concurrent_writes_and_identity_updates_preserve_fields",
+        "message": "AssertionError: \\u5e76\\u53d1\\u5199/\\u8bfb\\u4e0d\\u5f97\\u5931\\u8d25\\u6216\\u4e22\\u5b57\\u6bb5: [SecretStoreError('cannot read secret file: term_f9_concurrent.secret')]\\nassert [SecretStoreE...rent.secret')] == []\\n  \\n  Left contains one more item: SecretStoreError('cannot read secret file: term_f9_concurrent.secret')\\n  \\n  Full diff:\\n  - []\\n  + [\\n  +     SecretStoreError('cannot read secret file: term_f9_concurrent.secret'),\\n  + ]",
+        "category": "implementation bug",
+        "root_cause": "read_secret did not join the per-path cross-process publication/deletion mutex. Windows read/open conflicts with replacement. Keep ACL/path/read in the same mutex; preserve read exceptions."
+      },
+      {
+        "test": "tests/test_terminal_tools_api.py::test_real_stdio_mcp_conpty_roundtrip",
+        "message": "AssertionError(\"{'ok': False, 'error': {'code': 'terminal-tool-failed'}}\\nassert False\") [single exception in ExceptionGroup]",
+        "category": "dependency configuration",
+        "root_cause": "terminal_create returns terminal-tool-failed in the original stdio/HTTP chain; dependency installation permits the unchanged real chain to pass. Corroborated by exact sidecar startup failures and local runs."
+      },
+      {
+        "test": "tests/test_terminal_windows_backend.py::test_ctrl_c_input_channel_and_survival",
+        "message": "AssertionError: b'ppData\\\\Local\\\\Temp\\\\pytest-of-runneradmin\\\\pytest-0\\\\test_ctrl_c_input_channel_and_0\\\\ctrl_c_child.py\"\\x1b[m, line \\x1b[35m4\\x1b[m, in \\x1b[35m<module>\\x1b[m\\r",
+        "category": "stale test contract",
+        "root_cause": "Python receives KeyboardInterrupt at readline on GitHub Windows; default child exits. The test assumed empty-read behavior only. Cooperatively handle both, record outcome, require live child and subsequent PING."
+      }
+    ],
+    "failure_count": 40,
+    "progress": [
+      "........................................................................ [  2%]",
+      "........................................................................ [  4%]",
+      "..................................................s..................sss [  7%]",
+      "ssss.................................................................... [  9%]",
+      "........................................................................ [ 12%]",
+      "..................................................s..................... [ 14%]",
+      "........................................................................ [ 17%]",
+      "........................................................................ [ 19%]",
+      "........................................................................ [ 22%]",
+      "...........sss.......................................................... [ 24%]",
+      "........................................................................ [ 27%]",
+      "........................................................................ [ 29%]",
+      "........................................................................ [ 32%]",
+      "........................................................................ [ 34%]",
+      "..............................................sss....................... [ 37%]",
+      "........................................................................ [ 39%]",
+      "........................................................................ [ 42%]",
+      "......s................................................................. [ 44%]",
+      "........................................................................ [ 46%]",
+      "........................................................................ [ 49%]",
+      "........................................................................ [ 51%]",
+      "........................................................................ [ 54%]",
+      "........................................................................ [ 56%]",
+      "........................................................................ [ 59%]",
+      "..............................s.................s...................ssss [ 61%]",
+      "s.ssssssF.....................ssFF...FFFFFFFFFFFFFFFFFFFFFFF..FF......FF [ 64%]",
+      ".F.FFFFF..............F.........s............sssss...................... [ 66%]",
+      "........................................................................ [ 69%]",
+      "...............s.........................................ss............. [ 71%]",
+      "..............s......................................................... [ 74%]",
+      "........................................................................ [ 76%]",
+      "........................................................................ [ 79%]",
+      "..................F........................................ssss......... [ 81%]",
+      "........................ss......................s..........s............ [ 84%]",
+      "......................F...F............................................. [ 86%]",
+      "...............s........................................................ [ 88%]",
+      "........................................................................ [ 91%]",
+      "........................................................................ [ 93%]",
+      "........................................................................ [ 96%]",
+      "........................................................................ [ 98%]",
+      "..................................                                       [100%]"
+    ],
+    "skip_count": 50
+  }
+}

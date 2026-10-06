@@ -655,6 +655,13 @@ class SecretStore:
     def read_secret(self, terminal_id: str) -> SecretPayload:
         """解密并解析秘密；不存在/损坏/DPAPI 失败/ACL 不合格一律 fail-closed。"""
         self.validate_terminal_id(terminal_id)
+        # Windows replacement and file opens can conflict even with atomic
+        # publication. Serialize the ACL check and read with writers/deletion;
+        # the named mutex is reentrant for update_runner_identity's locked read.
+        with self._secret_lock(terminal_id):
+            return self._read_secret_locked(terminal_id)
+
+    def _read_secret_locked(self, terminal_id: str) -> SecretPayload:
         path = self.secret_path(terminal_id)
         self._guard_path(path)
         if not os.path.exists(path):

@@ -21,6 +21,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install terminal emulator dependencies
+        run: npm ci --prefix packages/core/terminal/emulator_sidecar
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -31,4 +38,12 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python -m pytest tests/ packages/qq -q
+        run: python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-${{ matrix.python-version }}
+          path: pytest-results.xml
+          if-no-files-found: warn

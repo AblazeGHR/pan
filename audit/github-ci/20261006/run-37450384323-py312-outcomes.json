@@ -1,0 +1,362 @@
+[
+  {
+    "test": "tests/test_claude_adapter.py::test_runtime_argv_avoids_cmd_shim",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_session_exists_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_parse_history_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_get_raw_usage_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_get_session_title_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_write_and_restore_custom_title_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_fork_session_probe_and_cleanup",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_claude_adapter.py::test_list_sessions_probe",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_docs_terminology.py::test_skill_sync_copy_matches_source",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_eventloop_history_offload.py::test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_kimi_adapter.py::test_parse_kimi_history_from_test_session",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_kimi_adapter.py::test_get_raw_usage_from_test_session",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_kimi_adapter.py::test_fork_kimi_session",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_reaudit_frontend_reconcile_order.py::test_partial_history_does_not_reorder_the_turn",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_reaudit_frontend_reconcile_order.py::test_idless_turn_is_not_duplicated",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_reaudit_frontend_reconcile_order.py::test_pins_the_repaired_reorder_result",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_scheduler_cron.py::test_cron_honours_timezone_argument",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_api.py::test_real_isolated_asgi_chain_create_read_snapshot_close",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_archive_scope_ma.py::test_real_external_kill_is_exited_and_archivable",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_browserless_feed_eviction_protocol_a_single_consumption",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_utf8_osc_boundaries_no_fake_full",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_resize_pty_and_engine_recorded_separately",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_feed_lag_no_fake_full",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_reset_unconfirmed_no_fake_full",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_pipe_disconnect_and_slow_snapshot_do_not_kill_runtime",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_write_and_close_workers_do_not_block_loop",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_clean_stop_leaves_no_sidecar_or_tree_residue",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_runner_hard_kill_leaves_no_sidecar_or_tree",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_detach_refused_under_constraint_zero_change",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_r2_eviction_gap_fresh_view_and_catch_up",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_composition.py::test_composition_r2_engine_close_budget_owner_retryable",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_durable_ma.py::test_same_service_detach_reconnect_revokes_old_connection_tokens",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_durable_ma.py::test_detached_shell_survives_real_service_host_exit_and_reconnect",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_construct_ready_identity_and_close",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_start_cursor_beyond_53_bits_travels_as_string",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_main_screen_matrix_and_recovery",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_alternate_screen_matrix_and_recovery",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_split_utf8_1_4_rest_matches_continuous",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_holdback_split_csi_and_protocol_a_recovery",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_holdback_split_osc_degrades_partial_and_recovers",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_excludes_pending_tail",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_resize_queue_ordering_matches_reference",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_browserless_large_output_and_log_cursor_eviction",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_snapshot_cursor_is_applied_not_producer_frontier",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_expired_control_never_executes_late",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_enqueue_never_waits_for_node",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_overflow_is_sticky_degraded_and_bounded",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_control_queue_overflow_is_visible",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_unknown_sequence_after_event_saturation_is_detected",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_engine_op_error_is_sticky_degraded",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_reset_baseline_uses_execution_position_not_future_frontier",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_reset_clears_old_gap_and_never_fakes_full",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_duplicate_feed_bytes_not_double_consumed",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_sidecar_crash_is_visible_and_close_converges",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_close_failure_retains_resources_then_retry_converges",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_guard_close_failure_is_retryable",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_runner_hard_death_kills_sidecar_via_job",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_no_process_leaks_after_close",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_stderr_join_failure_is_accounted_and_retryable",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_stream_close_failure_is_accounted_and_retryable",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_resize_wait_confirmation_surface",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_close_timeout_bounds_total_call_including_lock_wait",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_kill_timeout_wired_to_remaining_budget",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_batching_merges_adjacent_feeds",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_batching_stops_at_gap_and_control",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_batching_prefix_split_utf8_csi_osc_equivalence",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_batching_error_ack_binds_batch",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_emulator.py::test_feed_batching_accounting_in_flight_and_close",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_identity.py::test_probe_unknown_is_not_dead",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_interrupt_ma.py::test_real_production_ctrl_c_interrupts_foreground_and_preserves_shell",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_launcher.py::test_real_launcher_bootstrap_snapshot_protocol_a_and_stop",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_launcher.py::test_real_launcher_lease_loss_self_stop",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_launcher.py::test_real_launcher_bootstrap_refused_still_finalizes_engine",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_launcher.py::test_real_launcher_hard_kill_tree_cleanup",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_launcher.py::test_real_launcher_detach_refused_zero_state",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_natural_exit_ma.py::test_real_browserless_natural_exit_consumes_launcher_cleanup",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_pan_lifecycle_ma.py::test_real_pan_managed_cleanup_detached_restart_same_shell[False]",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_pan_lifecycle_ma.py::test_real_pan_managed_cleanup_detached_restart_same_shell[True]",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_remove_ma.py::test_real_close_then_remove",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service.py::test_real_service_create_cwd_chinese_input_read_snapshot_and_close",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service.py::test_real_service_independent_heartbeat_and_same_pid_after_disconnect",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service.py::test_real_service_detach_refused_zero_state_change",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service.py::test_real_service_new_instance_reconcile_after_host_crash",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service_rework.py::test_real_restart_recovery_converges_via_reconcile",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_service_rework.py::test_real_close_failure_then_retry_converges",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_slow_client_ma.py::test_real_slow_observer_does_not_stall_fast_connection_or_shell",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_steady_pressure_ma.py::test_three_minute_natural_output_isolates_nonconsuming_observer",
+    "outcome": "s"
+  },
+  {
+    "test": "tests/test_terminal_tools_api.py::test_real_stdio_mcp_conpty_roundtrip",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_windows_backend.py::test_ctrl_c_input_channel_and_survival",
+    "outcome": "F"
+  },
+  {
+    "test": "tests/test_terminal_ws.py::test_real_ws_chain_observer_claim_cn_input_preempt_disconnect_same_pid",
+    "outcome": "s"
+  }
+]

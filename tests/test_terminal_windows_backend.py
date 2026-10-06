@@ -229,14 +229,13 @@ def test_resize_reaches_child(tmp_path):
         stop_backend(b)
 
 
-def test_ctrl_c_input_channel_and_survival(tmp_path):
-    """Ctrl-C 基本（本机实测边界）：
+def test_ctrl_c_input_channel_and_survival(tmp_path, record_property):
+    """0x03 must interrupt a pending console read and preserve the input channel.
 
-    - ``\\x03`` 注入到输入通道：阻塞在 ReadConsole 的读取被释放
-      （子进程观察到 INPUT-RELEASED）；
-    - 通道随后仍可用（PING 往返）；
-    - **未证实** OS 级 CTRL_C_EVENT（本机 build 26200：对未阻塞读输入的进程
-      无效；win32-input-mode 序列同样无效）——不得据此宣称已实现 Ctrl-C 语义。
+    Windows/Python combinations expose either an empty read or KeyboardInterrupt.
+    Record which occurred; catching the interrupt in this cooperative child is
+    necessary to test subsequent input rather than Python's default process exit.
+    This does not establish CTRL_C_EVENT delivery to a child outside console I/O.
     """
     child = write_script(
         tmp_path,
@@ -244,9 +243,13 @@ def test_ctrl_c_input_channel_and_survival(tmp_path):
         "import sys\n"
         "print('READY', flush=True)\n"
         "while True:\n"
-        "    line = sys.stdin.readline()\n"
+        "    try:\n"
+        "        line = sys.stdin.readline()\n"
+        "    except KeyboardInterrupt:\n"
+        "        print('INTERRUPT-RECEIVED INPUT-RELEASED', flush=True)\n"
+        "        continue\n"
         "    if line == '':\n"
-        "        print('INPUT-RELEASED', flush=True)\n"
+        "        print('EMPTY-READ INPUT-RELEASED', flush=True)\n"
         "        continue\n"
         "    if line.strip() == 'quit':\n"
         "        print('QUIT', flush=True)\n"
@@ -260,6 +263,10 @@ def test_ctrl_c_input_channel_and_survival(tmp_path):
         b.write(b"\x03")
         buf2, why2 = read_until(b, b"INPUT-RELEASED")
         assert why2 == "found", buf2[-200:]
+        observation = "keyboard-interrupt" if b"INTERRUPT-RECEIVED" in buf2 else "empty-read"
+        record_property("ctrl_c_observation", observation)
+        assert b"INTERRUPT-RECEIVED" in buf2 or b"EMPTY-READ" in buf2, buf2
+        assert b.alive() is True
         b.write(b"PING\r\n")
         buf3, why3 = read_until(b, b"LINE PING")
         assert why3 == "found", buf3[-200:]
@@ -267,8 +274,9 @@ def test_ctrl_c_input_channel_and_survival(tmp_path):
             "backend-ctrl-c",
             {
                 "test": "ctrl_c_input_channel_and_survival",
-                "observed": "0x03 releases a pending console read; channel stays usable",
-                "os_level_ctrl_c_event": "not verified (measured ineffective on build 26200)",
+                "observed": observation,
+                "channel_survived": True,
+                "os_level_ctrl_c_event_outside_console_read": "not verified",
             },
         )
     finally:
