@@ -156,3 +156,57 @@ def test_rewind_endpoint_passes_scope_to_hybrid(isolated_session_store, monkeypa
 
 async def _noop_broadcast(payload):
     return None
+
+
+@pytest.mark.parametrize('message_id', [
+    'pan:0123456789abcdef0123456789abcdef',
+    'pan:01234567-89ab-cdef-0123-456789abcdef',
+])
+def test_rewind_accepts_current_public_message_identity(isolated_session_store, monkeypatch, message_id):
+    parent = _make_parent()
+    parent.history[0]['messageId'] = message_id
+    sess.save(parent)
+    public_id = server._api_history(parent.id, parent.history, history_epoch=parent.history_epoch)[0]['messageId']
+    calls = []
+
+    def fake_hybrid(parent_cli, workdir, anchor, **kwargs):
+        calls.append(anchor)
+        return FakeHybridResult('cli-current-fork', [dict(parent.history[0])])
+
+    monkeypatch.setattr(server, 'broadcast', _noop_broadcast)
+    monkeypatch.setattr(server, 'run_hybrid_rewind', fake_hybrid)
+
+    async def scenario():
+        outcome = await server.api_rewind_session_history(parent.id, public_id, {'scope': 2})
+        assert outcome['ok'] is True
+        await asyncio.wait_for(server._REWIND_TASKS[outcome['jobId']], timeout=5)
+    asyncio.run(scenario())
+    assert calls[0].absolute_index == 0
+    assert parent.history[0]['messageId'] == message_id
+
+
+@pytest.mark.parametrize('field', ['messageId', '_pan_message_id'])
+def test_rewind_resolves_old_msg_identity(isolated_session_store, field):
+    parent = _make_parent()
+    parent.history[0][field] = 'msg_old'
+    sess.save(parent)
+    assert server._resolve_history_message(parent.id, 'msg_old')[1:] == (0, None)
+
+
+def test_rewind_pan_identity_never_guesses_same_text_or_duplicate(isolated_session_store):
+    parent = _make_parent()
+    message_id = 'pan:0123456789abcdef0123456789abcdef'
+    parent.history[0]['messageId'] = message_id
+    parent.history.append(dict(parent.history[0]))
+    sess.save(parent)
+    assert server._resolve_history_message(parent.id, message_id)[2] == 'message_not_found'
+    assert server._resolve_history_message(parent.id, 'pan:' + 'f' * 32)[2] == 'message_not_found'
+    assert server._resolve_history_message(parent.id, f'legacy:{parent.id}:stale:0')[2] == 'message_not_found'
+
+
+@pytest.mark.parametrize('message_id', ['pan:bad', 'native-id', 'pan:' + 'g' * 32])
+def test_rewind_rejects_noncanonical_current_identity(isolated_session_store, message_id):
+    _make_parent()
+    outcome = asyncio.run(server.api_rewind_session_history('parent', message_id, {'scope': 2}))
+    assert outcome['error']['code'] == 'invalid_message_id'
+    assert not server._REWIND_TASKS

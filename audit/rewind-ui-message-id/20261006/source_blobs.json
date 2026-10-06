@@ -1,0 +1,6 @@
+{
+  "packages/web/server.py": "6fbe4b410615dba901a91dc070f2c1639cbda306",
+  "packages/web/src/components/chat/MessageBubble.tsx": "f9dce38d5bee47432ff610baa22062f4c23f38a8",
+  "packages/web/src/components/chat/MessageBubble.rewind.test.tsx": "280b0d6044da0b1d19615c92fdb237b2c982766d",
+  "tests/test_rewind_api.py": "58dee1c5f4210c9e4de6a77d840329cbf89ecd63"
+}

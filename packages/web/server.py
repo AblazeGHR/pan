@@ -6778,17 +6778,19 @@ async def api_prepare_history_search(request: Request, data: dict = Body(...)):
 
 
 def _resolve_history_message(session_id: str, message_id: str):
-    """Resolve one history entry by ``msg_*`` or ``legacy:{sid}:{epoch}:{index}``."""
+    """Resolve a durable Pan identity, or a supported old history identity."""
     s = sess.get(session_id)
     if s is None:
         return None
-    if message_id.startswith("msg_"):
-        index = next((i for i, message in enumerate(s.history)
-                      if isinstance(message, dict)
-                      and message.get("_pan_message_id") == message_id), None)
-        if index is None:
+    if sess.is_pan_message_id(message_id) or message_id.startswith("msg_"):
+        matches = [i for i, message in enumerate(s.history)
+                   if isinstance(message, dict)
+                   and (message.get("messageId") == message_id
+                        or (message_id.startswith("msg_")
+                            and message.get("_pan_message_id") == message_id))]
+        if len(matches) != 1:
             return s, None, "message_not_found"
-        return s, index, None
+        return s, matches[0], None
     parts = message_id.split(":")
     if len(parts) != 4 or parts[0] != "legacy" or parts[1] != session_id:
         return s, None, "message_not_found"
@@ -6823,7 +6825,8 @@ async def api_rewind_session_history(session_id: str, message_id: str,
                        'or 3 (code only)',
         }}
     if (not isinstance(message_id, str)
-            or not (message_id.startswith('msg_') or message_id.startswith('legacy:'))):
+            or not (sess.is_pan_message_id(message_id)
+                    or message_id.startswith('msg_') or message_id.startswith('legacy:'))):
         return {'ok': False, 'error': {'code': 'invalid_message_id', 'message': 'Invalid message id'}}
     resolved = await _store_read(_resolve_history_message, session_id, message_id)
     if resolved is None:

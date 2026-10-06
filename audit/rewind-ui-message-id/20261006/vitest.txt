@@ -1,0 +1,774 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/rewind-ui-message-id-20261006/packages/web/src[39m
+
+ [32m✓[39m stores/editorStore.test.ts [2m([22m[2m36 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m services/api.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m stores/appSettingsStore.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.refresh.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.consistency.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.interleaving.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.rewind.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 135[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.t055.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1 · two ordered turns land in order and a repeated identical delta is idempotent
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1a · resync replay frames without task scope are quarantined per Session
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mdoes not permanently quarantine an unscoped live frame without replay marker
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mexact native item wins over an earlier tool alias when the assistant final arrives
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mmoves an open text delta behind a later tool completion and keeps it there
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mkeeps a tool that started before assistant completion ahead of that completed body
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mpreserves an assistant completed before a later tool starts
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mreconnect snapshot finalizes a partial answer when its terminal frame was lost
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2muses the cumulative body when the first observed frame starts mid-item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1b · Codex delta and final tool envelope with one item renders once
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1c · repeated non-delta full item and same-item multi-block replay are idempotent
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m stores/queueStore.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 799[2mms[22m[39m
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1d · consecutive tasks with identical text remain two ordered messages
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1e · full lifecycle keeps user→thinking/tool→assistant→DONE across A/B switching
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] selectSession fresh-history fetch failed B
+[sessionStore] selectSession fresh-history fetch failed A
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mbackground report and delivered user row stay in B transcript across selection and fresh history
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mlate history page cannot replace selected result summary with the local DONE marker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE2 · a tool block streamed before the assistant text keeps its position after result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE3 · a history refresh after result does not duplicate the tool row
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+ [32m✓[39m stores/sessionStore.race.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 187[2mms[22m[39m
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE4 · two consecutive DONE rounds keep every block and its position
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE5 · an older DONE stays at its completed task boundary through delivery, later blocks, history, and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] selectSession fresh-history fetch failed A
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+ [32m✓[39m stores/reaudit.history.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m hooks/reaudit.orderedEvents.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[90m 120[2mms[22m[39m
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mwaits to index until desktop hover and keeps the indexed rail mounted when folded
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m5[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mdoes not scan a newly selected Session behind a dock opened for the previous Session
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mdoes not scan a newly selected Session behind a dock opened for the previous Session
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'cold-next'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mstays open within the dock, then collapses after pointer click focus leaves
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m21[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mrestores keyboard expansion after pointer focus leaves and supports Escape
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m5[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mdoes not auto-collapse while keyboard focus is using a marker and supports Escape
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m4[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmessage navigation dock[2m > [22m[2mjumps to a history item after the dock is expanded
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mkeeps a mobile short press as a normal jump
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+ [32m✓[39m stores/reaudit.queue.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 77[2mms[22m[39m
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mpreviews multiple markers after a long press and suppresses the release click
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mleaves pre-long-press movement unprevented so the rail can scroll normally
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+ [32m✓[39m components/chat/RichTextComposer.test.tsx [2m([22m[2m25 tests[22m[2m)[22m[33m 604[2mms[22m[39m
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mclears the preview on pointer cancellation and suppresses its compatibility click
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mends the preview when the active finger leaves the rail bounds
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mclears the gesture on session changes and rail close
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mclears the gesture on session changes and rail close
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub-next'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m0[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mmobile message navigation scrub[2m > [22m[2mdoes not start scrubbing on desktop pointer interactions
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-scrub'[39m,
+  total: [33m4[39m,
+  targets: [33m4[39m,
+  requests: [33m1[39m,
+  durationMs: [33m7[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mjump single-flight lock across session switches[2m > [22m[2mre-enables the markers when the session changes while a jump is in flight
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mjump single-flight lock across session switches[2m > [22m[2mre-enables the markers when the session changes while a jump is in flight
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-2'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m0[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mjump single-flight lock across session switches[2m > [22m[2mkeeps the lock while staying in the same session
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mrail mounting cost[2m > [22m[2mdoes not rescan a complete transcript on streaming renders once the full index is ready
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+[90mstdout[2m | components/chat/MessageNavigationRail.test.tsx[2m > [22m[2mrail mounting cost[2m > [22m[2mindexes the full history when it is mounted
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-1'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m2[39m
+}
+
+ [32m✓[39m components/chat/MessageNavigationRail.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 715[2mms[22m[39m
+ [32m✓[39m stores/workspaceStore.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m components/chat/LazyContentBlocks.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 871[2mms[22m[39m
+ [32m✓[39m components/chat/GroupUnreadHighlightRemoval.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 389[2mms[22m[39m
+[90mstderr[2m | components/session/SessionList.specialFilters.test.tsx[2m > [22m[2mselect-mode hide/show sessions[2m > [22m[2meye button does not toggle the card selection
+[22m[39m[sessionStore] selectSession fresh-history fetch failed a
+
+ [32m✓[39m components/session/SessionList.specialFilters.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 669[2mms[22m[39m
+ [32m✓[39m components/session/SessionMenu.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 552[2mms[22m[39m
+[90mstdout[2m | views/ChatView.navigationRail.test.tsx[2m > [22m[2mChatView: message navigation rail switch[2m > [22m[2mshows a folded desktop handle when enabled and indexes only after hover expansion
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-view'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+ [32m✓[39m components/editor/EditorFileTopBar.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 698[2mms[22m[39m
+[90mstdout[2m | views/ChatView.navigationRail.test.tsx[2m > [22m[2mChatView: message navigation rail switch[2m > [22m[2munmounts the dock and releases its indexed content when the master switch turns off
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-view'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m4[39m
+}
+
+[90mstdout[2m | views/ChatView.navigationRail.test.tsx[2m > [22m[2mChatView: message navigation rail switch[2m > [22m[2muses the topbar button on mobile and keeps one index across repeated toggles
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-view'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m5[39m
+}
+
+[90mstdout[2m | views/ChatView.navigationRail.test.tsx[2m > [22m[2mChatView: message navigation rail switch[2m > [22m[2mhides the bottom button only while the enabled mobile navigation rail is expanded
+[22m[39m[message-navigation] full index ready {
+  sessionId: [32m'rail-view'[39m,
+  total: [33m1[39m,
+  targets: [33m1[39m,
+  requests: [33m1[39m,
+  durationMs: [33m3[39m
+}
+
+ [32m✓[39m views/ChatView.navigationRail.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1896[2mms[22m[39m
+   [33m[2m✓[22m[39m ChatView: message navigation rail switch[2m > [22mmounts the shared sidebar for either feature and stacks search above navigation [33m785[2mms[22m[39m
+   [33m[2m✓[22m[39m ChatView: message navigation rail switch[2m > [22mkeeps global search distinct, mutually exclusive, and idle until a non-empty query [33m460[2mms[22m[39m
+[90mstderr[2m | stores/sessionStore.live.test.ts[2m > [22m[2msessionStore selectSession fetches fresh history on entry[2m > [22m[2mkeeps the snapshot when the fresh-history fetch fails (non-blocking)
+[22m[39m[sessionStore] selectSession fresh-history fetch failed A
+
+[90mstderr[2m | stores/sessionStore.live.test.ts[2m > [22m[2msessionStore selectSession fetches fresh history on entry[2m > [22m[2mclears initialLoading when the fresh-history fetch fails
+[22m[39m[sessionStore] selectSession fresh-history fetch failed A
+
+ [32m✓[39m stores/sessionStore.live.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m components/session/ManageModal.test.tsx [2m([22m[2m28 tests[22m[2m)[22m[33m 2659[2mms[22m[39m
+ [32m✓[39m components/session/SessionDetailsModal.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 3308[2mms[22m[39m
+ [32m✓[39m stores/stateProjection.regression.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m components/session/ImportModal.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 1325[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mreconnects a stale socket and lets the open path refresh state
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mforces a new transport after a hidden-to-visible resume even when the socket looks fresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrequests pending native interactions when the singleton is already open
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msends sync_interactive at most once for one socket generation during open/mount race
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps two hook mounts on one socket generation to one interactive replay frame
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdoes not resync native interactions after the authoritative snapshot callback
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlets resync_required send a snapshot without another interactive replay
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mapplies session rename/update payloads before the debounced snapshot
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrefreshes selected history when its summary advances without a result frame
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrefreshes selected history when its summary advances without a result frame
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdoes not refresh the wrong history after selection changes during coalescing
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mapplies shared pin snapshots immediately and ignores stale revisions
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m views/TerminalPanel.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1127[2mms[22m[39m
+   [33m[2m✓[22m[39m archives an unconfirmed externally exited record without stopping or deleting it and can restore it [33m342[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mroutes Claude permission requests and removes them after resolution
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps native Codex waiting status available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps a native system error status and its summary visible to the toolbar
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps the latest native Codex token usage available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps native Codex account rate limits available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders and replaces native Codex turn plans and aggregate diffs
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native Codex turn errors immediately without adding a fake chat message
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msuppresses Codex warning Toasts when the notification setting is disabled
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces Codex MCP startup failures without surfacing ready notifications
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native Codex model reroutes on the active session
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mupdates a background session card in-place on worker.result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mconstructs a browser Notification from a granted Pan completion payload without requesting permission
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mappends the [DONE] notice for the current session without duplicating history
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlabels a native cancelled turn separately from an error
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps the dot settled when the idle worker.status follows worker.result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msettles runtime and legal state atomically from the terminal event summary
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2maccepts a newer-generation result when the replacement spawn was missed
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mignores an out-of-order running status from an older worker generation
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mclears the card status on worker crash and keeps history intact
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrefreshes the durable agent queue after a worker crash
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mopens the clicked session in Chat from Jobs, including when it is already selected
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mcloses an open mobile Sidebar after navigating from Jobs to Chat
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders streamed tool content with backend-compatible ASCII escaping
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m components/layout/Sidebar.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 2638[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mshows an accessible clear button only when the query is non-empty [33m372[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders unknown native Codex items through the generic tool fallback
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mreplaces a running command item as native output deltas arrive
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mupdates interleaved native tools by item id
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native terminal interaction and clears it on result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdrops stale native interaction prompts when a worker is restarted
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mmerges the agent-injected user message into currentMessages on running + source=agent
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mreconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mreconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mretries when the first history snapshot races the injected message persistence
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mdoes not sync for user-originated tasks
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrefreshes the durable queue when receipt transitions to running
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m stores/sessionStore.restartIndicator.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32m✓[39m components/chat/SettingsPopover.optimistic.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 759[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mapplies a consecutive external queue item without a redundant snapshot GET
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrepairs a queue revision gap once and keeps legacy event reconciliation
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2muses a complete queue snapshot without a GET and repairs missing event payloads
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrenders a delivered queue message immediately and keeps it across a stale refresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2msyncs injected report history for a background Session without changing the selected Session
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mkeeps in-flight streamed blocks when the server snapshot lags (diverged tail)
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mdoes not duplicate streamed blocks already persisted on the server
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mis idempotent across repeated running events for the same task
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mupdates a background session card lastMessage on stream text
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m views/JobsView.bulk-search.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 3781[2mms[22m[39m
+   [33m[2m✓[22m[39m JobsView search, status filters, and bulk actions[2m > [22mmatches Completed and Timeout only to their persisted API statuses [33m406[2mms[22m[39m
+   [33m[2m✓[22m[39m JobsView search, status filters, and bulk actions[2m > [22mloads and saves failed, timeout, cancelled, and log retention independently [33m356[2mms[22m[39m
+   [33m[2m✓[22m[39m JobsView search, status filters, and bulk actions[2m > [22mcombines case-insensitive name, ID, and description search with status and kind filters [33m301[2mms[22m[39m
+   [33m[2m✓[22m[39m JobsView search, status filters, and bulk actions[2m > [22mremoves WS-deleted selection before confirmation and retries only a failed DELETE [33m595[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mtruncates the card preview to 200 chars
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m components/chat/SessionHistorySearch.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 4051[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mshows a highlighted title-free overview, folds it without hiding navigation, and selects a row [33m565[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mcounts repeated occurrences, navigates within one block, and filters before searching [33m422[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mshows per-message N/M and cycles with Enter, Shift+Enter, and the buttons [33m405[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mresets to the first result when the query changes and reports an empty search [33m541[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mcancels a scan on Session switch and ignores the old response [33m462[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionHistorySearch[2m > [22mreplaces the hit order and N/M position after relocating the selected message ID [33m494[2mms[22m[39m
+ [32m✓[39m components/editor/EditorDirectoryRoots.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 868[2mms[22m[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mthrottles lastMessage updates within 500ms, flushing the latest text
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mskips stream events without text content
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mresult wins over a pending throttled stream preview
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mmerges native app-server deltas and replaces them with the final item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps the same display identity across id-less streaming deltas
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mgives separate display identities to blocks from one native item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mupdates compound thinking/text/tool blocks by role without collapsing them
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps old task deltas out of the new task watermark window
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mrejects a foreign taskId at the same taskSeq before native alias lookup
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mconverges a delta that arrives after its turn item completed under another native id
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mreconciles id-less Claude deltas with its multi-block final in canonical order
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mdoes not reuse a transient turn alias after the worker is restarted
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps separate completed assistant items with distinct native ids in one turn
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mignores a late cumulative echo without absorbing the next distinct item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mstreams a new cumulative Codex body after a completed body and intervening tool
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps one selected-session assistant message across an interleaved turn, result, and history refresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mrenders each selected-session delta through Markdown and keeps the sidebar preview
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps interleaved native items in event order while each item streams
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps thinking, tools, and content in arrival order across interleaved stream updates
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mdoes not append background-session stream or result messages to the selected chat
+[22m[39m[sessionStore] loadSessions failed
+
+ [32m✓[39m hooks/useWebSocket.test.tsx [2m([22m[2m87 tests[22m[2m)[22m[33m 1075[2mms[22m[39m
+[90mstdout[2m | components/chat/MarkdownRenderer.test.tsx[2m > [22m[2mMarkdownRenderer[2m > [22m[2mrenders list bullets structure and hljs spans
+[22m[39mUL: <ul>
+<li>item one</li>
+<li>item two</li>
+</ul>
+LI: <li>item one</li>
+HLJS_KEYWORD: <span class="hljs-keyword">const</span>
+CODE: <code class="text-xs font-mono leading-relaxed hljs language-js"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;
+</code>
+
+ [32m✓[39m views/ManageView.tabs.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 839[2mms[22m[39m
+   [33m[2m✓[22m[39m ManageView mobile tabs[2m > [22mshares the four Manage tabs and keeps closing the page intact [33m496[2mms[22m[39m
+   [33m[2m✓[22m[39m ManageView mobile tabs[2m > [22mnavigates through Managed by and Manages on the mobile Manage page, restoring the drawer only on close [33m342[2mms[22m[39m
+ [32m✓[39m components/session/SessionWorkspaceDrop.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 2967[2mms[22m[39m
+   [33m[2m✓[22m[39m Workspace rail drag interactions[2m > [22mcreates a uniquely named Workspace when the Session is dropped on New Workspace [33m647[2mms[22m[39m
+   [33m[2m✓[22m[39m Workspace rail drag interactions[2m > [22mopens the Sidebar and attached WorkspaceRail during a touch drop from the mobile chat list [33m471[2mms[22m[39m
+ [32m✓[39m components/layout/StartupRecoveryPrompt.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 786[2mms[22m[39m
+ [32m✓[39m components/layout/TopBar.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 374[2mms[22m[39m
+ [32m✓[39m components/chat/MarkdownRenderer.test.tsx [2m([22m[2m21 tests[22m[2m)[22m[33m 1440[2mms[22m[39m
+   [33m[2m✓[22m[39m MarkdownRenderer[2m > [22mbounds giant highlighted code and copies the entire latest payload [33m682[2mms[22m[39m
+ [32m✓[39m components/session/NewSessionModal.test.tsx [2m([22m[2m28 tests[22m[2m)[22m[33m 4615[2mms[22m[39m
+   [33m[2m✓[22m[39m New Session directory input[2m > [22mshows the complete shared form on Basic and Advanced, with advanced controls only on Advanced [33m581[2mms[22m[39m
+   [33m[2m✓[22m[39m New Session directory input[2m > [22mdoes not submit advanced edits from Basic, but Advanced submits explicit overrides and false/empty values [33m586[2mms[22m[39m
+   [33m[2m✓[22m[39m New Session directory input[2m > [22msaves an Advanced template to the selected writable manifest and refreshes the picker [33m362[2mms[22m[39m
+   [33m[2m✓[22m[39m New Session directory input[2m > [22masks before creating a missing directory; cancel never submits [33m313[2mms[22m[39m
+ [32m✓[39m services/ws.stage3.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.doneIndicator.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.stage3.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m hooks/useIdleHistoryPrefetch.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 82[2mms[22m[39m
+ [32m✓[39m components/chat/GlobalHistorySearch.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 6144[2mms[22m[39m
+   [33m[2m✓[22m[39m shows provisional matches during preparation and enables paging only at completion [33m566[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps results explicitly incomplete on preparation failure [33m372[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps already found results but never exposes complete pagination when the preparation endpoint is unavailable [33m351[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mdoes not search an empty query, pages on demand, and never claims a total hit count [33m444[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22maborts old pages when the query changes and ignores their late response [33m682[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mshows a recoverable HTTP 409 state [33m624[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mshows a recoverable HTTP 503 state [33m751[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mcancels active search requests when closed or unmounted [33m707[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mswitches Session, loads an old page, relocates by ID, then scrolls and highlights the mounted target [33m405[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mreports an expired target when the ID is missing from the fresh Session history [33m361[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22mkeeps the expired state when a result Session has been removed [33m388[2mms[22m[39m
+   [33m[2m✓[22m[39m GlobalHistorySearch[2m > [22maborts navigation if the user switches Sessions while a target page is loading [33m488[2mms[22m[39m
+ [32m✓[39m components/layout/AppSettingsModal.test.tsx [2m([22m[2m46 tests[22m[2m)[22m[33m 6611[2mms[22m[39m
+   [33m[2m✓[22m[39m AppSettingsModal[2m > [22mrequires confirmation and reports successful main-service recovery [33m1188[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.drag.realBackend.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 7146[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mreparents across workspaces without a prompt when confirmation is disabled [33m358[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22medge drop calls POST /api/sessions/order with the full new order and adopts custom sort [33m353[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mdoes NOT fake success when the order endpoint fails [33m359[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mpinned flat drag at y=150 uses only the pin endpoint and clamps over/beyond unpinned rows [33m647[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mpinned flat drag at y=180 uses only the pin endpoint and clamps over/beyond unpinned rows [33m430[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mpinned flat drag at y=210 uses only the pin endpoint and clamps over/beyond unpinned rows [33m782[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mpinned flat drag at y=250 uses only the pin endpoint and clamps over/beyond unpinned rows [33m703[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mmanager pin drag is sibling-only and rejects a cross-parent drop without relationship calls [33m946[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag → real backend APIs (no ?mock=1)[2m > [22mworkdir sections allow pinned reorder but reject a cross-workdir drop [33m1160[2mms[22m[39m
+ [32m✓[39m components/chat/SettingsPopover.context.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 348[2mms[22m[39m
+ [32m✓[39m components/chat/RewindConfirmModal.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 321[2mms[22m[39m
+ [32m✓[39m components/chat/ChatMessages.test.tsx [2m([22m[2m79 tests[22m[2m)[22m[33m 3807[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps an explicit navigation jump when cold-row measurement changes total size without a wheel gesture [33m424[2mms[22m[39m
+   [33m[2m✓[22m[39m non-body disclosure and virtual measurements across a session switch[2m > [22mdrops B's cached expanded height when restoring its saved snapshot after idle [33m313[2mms[22m[39m
+[90mstderr[2m | components/session/SessionList.selectMode.test.tsx[2m > [22m[2mSessionList select-mode interactions[2m > [22m[2mclicking the card body opens the session instead of changing selection
+[22m[39m[sessionStore] selectSession fresh-history fetch failed a
+
+ [32m✓[39m components/chat/SendQueuePanel.pendingOnly.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 382[2mms[22m[39m
+ [32m✓[39m views/JobsView.schedule-shapes.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1237[2mms[22m[39m
+   [33m[2m✓[22m[39m JobsView schedule payload compatibility[2m > [22mopens details for object, missing, null, and scalar schedules safely [33m696[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.selectMode.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 340[2mms[22m[39m
+ [32m✓[39m components/jobs/NewJobForm.scheduled-qq.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1054[2mms[22m[39m
+   [33m[2m✓[22m[39m NewJobForm scheduled QQ message template[2m > [22mloads each bot contact list and creates a targetless scheduled QQ Job [33m537[2mms[22m[39m
+   [33m[2m✓[22m[39m NewJobForm scheduled QQ message template[2m > [22medits an existing QQ Job with a picker-selected bot and shared schedule controls [33m319[2mms[22m[39m
+ [32m✓[39m services/historyPagePrefetch.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m stores/workerStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m components/session/SessionItem.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[90m 214[2mms[22m[39m
+ [32m✓[39m components/ui/Modal.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[90m 102[2mms[22m[39m
+ [32m✓[39m components/chat/InputRow.test.tsx [2m([22m[2m59 tests[22m[2m)[22m[33m 7702[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22mkeeps Codex Steer visible and routes by sessionId when the session summary is stale [33m362[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22mselects server files, renders attachment chips, and enqueues standard Markdown links [33m421[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22msimulates direct client upload in mock mode, then reuses its chip as an inline node [33m321[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22mallows cancelling an in-flight mock file without restoring its chip after completion [33m311[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22mrevalidates a selected server attachment before enqueue and cancels on a stale path [33m412[2mms[22m[39m
+   [33m[2m✓[22m[39m InputRow send queue wiring[2m > [22muploads client files and combines them with server attachments on send [33m315[2mms[22m[39m
+ [32m✓[39m stores/queueStore.serverSnapshot.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m utils/nativeAttachmentInput.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m services/historySearchPreparation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.queueDelivery.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.manager.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 382[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.pins.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m components/editor/FileTree.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 293[2mms[22m[39m
+ [32m✓[39m components/worker/WorkerDot.test.tsx [2m([22m[2m17 tests[22m[2m)[22m[90m 88[2mms[22m[39m
+ [32m✓[39m components/jobs/JobRetentionSettings.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 484[2mms[22m[39m
+ [32m✓[39m components/ui/ModelSelect.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 373[2mms[22m[39m
+ [32m✓[39m components/editor/CodeEditor.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 230[2mms[22m[39m
+ [32m✓[39m components/jobs/JobDetailDrawer.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 272[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.tree.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 229[2mms[22m[39m
+ [32m✓[39m components/editor/EditorPane.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 384[2mms[22m[39m
+ [32m✓[39m demo/mockBackend.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 607[2mms[22m[39m
+   [33m[2m✓[22m[39m frontend mock backend[2m > [22mserves the existing queue API contract for mock send and queue actions [33m386[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.defaultGroupBy.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1002[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.snapshot.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+[90mstdout[2m | stores/sessionStore.stage3.performance.test.ts[2m > [22m[2mstage 3 delta hot-path benchmark[2m > [22m[2mreports bounded repeated delta update cost for H/L matrix
+[22m[39m┌─────────┬─────────┬──────┬─────────────────────┐
+│ (index) │ history │ live │ medianMs            │
+├─────────┼─────────┼──────┼─────────────────────┤
+│ 0       │ [33m50[39m      │ [33m1[39m    │ [33m0.252100000000155[39m   │
+│ 1       │ [33m50[39m      │ [33m100[39m  │ [33m1.3463000000001557[39m  │
+│ 2       │ [33m50[39m      │ [33m1000[39m │ [33m9.653800000000047[39m   │
+│ 3       │ [33m500[39m     │ [33m1[39m    │ [33m0.10710000000017317[39m │
+│ 4       │ [33m500[39m     │ [33m100[39m  │ [33m0.8268000000002758[39m  │
+│ 5       │ [33m500[39m     │ [33m1000[39m │ [33m12.838799999999992[39m  │
+│ 6       │ [33m5000[39m    │ [33m1[39m    │ [33m0.31219999999984793[39m │
+│ 7       │ [33m5000[39m    │ [33m100[39m  │ [33m1.0801000000001295[39m  │
+│ 8       │ [33m5000[39m    │ [33m1000[39m │ [33m8.388899999999921[39m   │
+└─────────┴─────────┴──────┴─────────────────────┘
+
+ [32m✓[39m stores/sessionStore.stage3.performance.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 264[2mms[22m[39m
+ [32m✓[39m utils/attachmentMarkdown.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m App.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 2006[2mms[22m[39m
+   [33m[2m✓[22m[39m responsive WorkspaceRail placement[2m > [22mattaches a touch-sized handle to the mobile Sidebar and expands beside it to fill the viewport [33m739[2mms[22m[39m
+   [33m[2m✓[22m[39m responsive WorkspaceRail placement[2m > [22mkeeps the desktop rail in the Sidebar layout and does not mount a mobile overlay [33m1266[2mms[22m[39m
+ [32m✓[39m components/chat/viewModeStyles.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m components/layout/QqPluginsPanel.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 301[2mms[22m[39m
+ [32m✓[39m services/terminalWs.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 41[2mms[22m[39m
+ [32m✓[39m components/chat/RewindStatusBar.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[90m 247[2mms[22m[39m
+ [32m✓[39m views/ManageView.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 232[2mms[22m[39m
+ [32m✓[39m components/ui/Toast.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 296[2mms[22m[39m
+ [32m✓[39m utils/attachmentDrag.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m components/jobs/NewJobForm.resume-legal-running.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 340[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.selectors.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 75[2mms[22m[39m
+ [32m✓[39m components/layout/WorkspaceManagerChangeConfirmationModal.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 200[2mms[22m[39m
+ [32m✓[39m components/chat/HistorySearchOverview.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 182[2mms[22m[39m
+ [32m✓[39m components/chat/MessageBubble.rewind.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[90m 199[2mms[22m[39m
+ [32m✓[39m services/foregroundActivity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m utils/clipboard.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+[90mstderr[2m | components/session/SessionList.drag.test.tsx[2m > [22m[2mSessionList drag interactions (mock demo)[2m > [22m[2ma plain click on the drag gutter selects the session (threshold)
+[22m[39m[sessionStore] selectSession fresh-history fetch failed A
+
+ [32m✓[39m components/session/SessionList.drag.test.tsx [2m([22m[2m38 tests[22m[2m)[22m[33m 13012[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mworkdir groups expose pin drag handles while unpinned general drag stays disabled [33m777[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mmanager tree: drag handle exists on roots and children [33m545[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mkeeps pins leading and leaves the recent unpinned sequence unchanged [33m548[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mkeeps pins leading and leaves the name unpinned sequence unchanged [33m390[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mkeeps pins leading and leaves the custom unpinned sequence unchanged [33m431[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22mpinned pointer drag clamps onto the unpinned region without switching sort or changing relationships [33m725[2mms[22m[39m
+   [33m[2m✓[22m[39m SessionList drag interactions (mock demo)[2m > [22munpin returns a Session to its selected name sort [33m407[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mcenter drop on a root mocks "root manages dragged session" in the tree [33m780[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop between siblings reorders children under the same manager [33m644[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop past the last root moves the whole subtree after it [33m496[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop on another group child row moves the session into that group [33m1006[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop on a top-level slot moves a child out of its group [33m1035[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mblocks dropping a manager onto its own child (center) [33m773[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mghost lights only 排序 for a sibling slot inside the same group [33m1163[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mghost lights only 管理 over a center manage target [33m730[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mghost lights BOTH when the slot belongs to another level/group [33m773[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mghost lights nothing while over the dragged session itself or empty space [33m433[2mms[22m[39m
+ [32m✓[39m utils/attachmentPayload.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m components/schedule/cronPreview.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m components/session/sessionDragAutoScroll.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 59[2mms[22m[39m
+ [32m✓[39m services/terminalKeyboard.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m components/session/SessionDeleteModal.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 146[2mms[22m[39m
+ [32m✓[39m components/session/PostboxModal.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 153[2mms[22m[39m
+ [32m✓[39m utils/creationWorkspace.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m utils/quickNewSession.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m components/chat/messageFilter.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m utils/sessionFilters.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m utils/sessionFilters.workspace.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m components/session/RenameSessionModal.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 155[2mms[22m[39m
+ [32m✓[39m utils/sessionName.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m utils/codexRateLimits.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m utils/directoryInput.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m stores/adapterStore.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m utils/attachmentEditorOpen.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m components/layout/SidebarResizer.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 41[2mms[22m[39m
+ [32m✓[39m components/chat/ApprovalBanner.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 115[2mms[22m[39m
+ [32m✓[39m utils/sessionFilters.historySearch.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m components/session/sessionDeletePlan.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m stores/uiStore.performance.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.historySearchNavigation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m stores/sessionStore.terminalTransient.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m components/chat/TerminalInteractionBanner.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m components/chat/searchText.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m components/CommandPalette.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 48[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m122 passed[39m[22m[90m (122)[39m
+[2m      Tests [22m [1m[32m1330 passed[39m[22m[90m (1330)[39m
+[2m   Start at [22m 12:44:34
+[2m   Duration [22m 22.33s[2m (transform 35.61s, setup 6.80s, collect 184.32s, tests 99.16s, environment 231.86s, prepare 42.84s)[22m
+
+JUNIT report written to D:/project/pan-worktrees/rewind-ui-message-id-20261006/audit/rewind-ui-message-id/20261006/vitest.xml
