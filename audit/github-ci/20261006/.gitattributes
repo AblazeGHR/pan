@@ -1,0 +1,3 @@
+# Preserve original evidence bytes, including Windows line endings.
+*.log -text
+*.xml -text
