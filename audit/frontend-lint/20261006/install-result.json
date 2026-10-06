@@ -1,0 +1,15 @@
+{
+  "mode": "install",
+  "root": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006",
+  "cwd": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\packages\\web",
+  "commands": [
+    {
+      "argv": [
+        "pnpm.cmd",
+        "install",
+        "--frozen-lockfile"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

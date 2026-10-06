@@ -1,3 +1,4 @@
+/* global setTimeout:readonly, process:readonly, fetch:readonly, AbortSignal:readonly, document:readonly */
 /* Shared helpers for the isolated browser audit harness.
  *
  * Test-only.  Starts the E2E FastAPI server (e2e/server.py) on a port that is

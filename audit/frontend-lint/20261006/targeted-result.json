@@ -1,0 +1,93 @@
+{
+  "mode": "targeted",
+  "root": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006",
+  "cwd": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\packages\\web",
+  "commands": [
+    {
+      "argv": [
+        "pnpm.cmd",
+        "exec",
+        "eslint",
+        "e2e/audit-cbc-strict.mjs",
+        "e2e/audit-lib.mjs",
+        "e2e/codex-background-history-race.e2e.mjs",
+        "e2e/codex-multi-item-order.e2e.mjs",
+        "e2e/editor-browser-runner.mjs",
+        "e2e/historySearchAcceptance.mjs",
+        "e2e/session-message-recovery.e2e.mjs",
+        "e2e/t053-phase1.e2e.mjs",
+        "--format",
+        "json",
+        "--output-file",
+        "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\audit\\frontend-lint\\20261006\\lint-targeted.json"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/audit-cbc-strict.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/audit-lib.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/codex-background-history-race.e2e.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/codex-multi-item-order.e2e.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/editor-browser-runner.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/historySearchAcceptance.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/session-message-recovery.e2e.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "e2e/t053-phase1.e2e.mjs"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "errors": 0,
+  "warnings": 0
+}

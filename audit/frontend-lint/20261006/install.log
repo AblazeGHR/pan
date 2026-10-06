@@ -1,0 +1,62 @@
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +466
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+   ╭──────────────────────────────────────────────────────────────────╮
+   │                                                                  │
+   │                Update available! 9.7.0 → 12.9.1.                 │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v12.9.1   │
+   │                Run "pnpm add -g pnpm" to update.                 │
+   │                                                                  │
+   │         Follow @pnpmjs for updates: https://x.com/pnpmjs         │
+   │                                                                  │
+   ╰──────────────────────────────────────────────────────────────────╯
+
+Progress: resolved 466, reused 462, downloaded 0, added 15
+Progress: resolved 466, reused 464, downloaded 0, added 322
+Progress: resolved 466, reused 466, downloaded 0, added 458
+Progress: resolved 466, reused 466, downloaded 0, added 463
+Progress: resolved 466, reused 466, downloaded 0, added 466, done
+
+dependencies:
++ @monaco-editor/react 4.7.0
++ @tanstack/react-virtual 3.14.8
++ @xterm/addon-fit 0.11.0
++ @xterm/xterm 6.0.0
++ highlight.js 11.11.1
++ katex 0.16.47
++ lucide-react 1.31.0
++ react 19.2.8
++ react-dom 19.2.8
++ react-markdown 9.1.0
++ react-router-dom 7.18.1
++ rehype-highlight 7.0.2
++ rehype-katex 7.0.1
++ remark-gfm 4.0.1
++ zustand 5.0.14
+
+devDependencies:
++ @eslint/js 9.39.5
++ @playwright/test 1.63.0
++ @tailwindcss/vite 4.3.3
++ @testing-library/react 16.3.2
++ @types/node 26.1.1
++ @types/react 19.2.17
++ @types/react-dom 19.2.3
++ @vitejs/plugin-react 4.7.0
++ eslint 9.39.5
++ eslint-config-prettier 9.1.2
++ eslint-plugin-react-hooks 5.2.0
++ eslint-plugin-react-refresh 0.4.26
++ jsdom 25.0.1
++ openapi-typescript 7.13.0
++ prettier 3.9.6
++ tailwindcss 4.3.3
++ typescript 5.9.3
++ typescript-eslint 8.65.0
++ vite 6.4.3
++ vite-bundle-visualizer 1.2.1
++ vitest 2.1.9
+
+Done in 5.8s

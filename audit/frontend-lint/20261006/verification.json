@@ -1,0 +1,25 @@
+{
+  "seed": "e44a60fc77fd13b6cdaef2172f86e265f70ffcd2",
+  "branch": "fix/frontend-lint-codex-20261006",
+  "session": "ses_d8bca20956012e61",
+  "jobs": {
+    "install": "job_4b278de4f614909a7b6c42dd",
+    "targeted": "job_412bc47a8fe6b72b96fe8deb",
+    "lint": "job_303b1ee8ef3c234311431246",
+    "test": "job_696d0b29dc7f604c8510ebe4",
+    "build": "job_87308c475e5c07c0cfac385e"
+  },
+  "sourceDiffSha256": "999428ce8c01b40a00871e08a8f7f5642b7c3db207d974c5fa249ec38ae4b051",
+  "files": {
+    "packages/web/e2e/audit-cbc-strict.mjs": "061970bd98d567ae567f6b22c9d44d0013ebb95c49802ab9cd6b9d3ce2e7640f",
+    "packages/web/e2e/audit-lib.mjs": "ca7244701879fab40b20e88e99a9adc463dd8ac26e820b9736e5d9b6dba2a92f",
+    "packages/web/e2e/codex-background-history-race.e2e.mjs": "7317f0ae972d3c263071d20f0a34e9741a2b3865e7c019caf314284730275c50",
+    "packages/web/e2e/codex-multi-item-order.e2e.mjs": "b590e2943fca056abe2516ec59fc2e8dc02279266456d3ff017491f3679e64ad",
+    "packages/web/e2e/editor-browser-runner.mjs": "a834955c614a6c15f1af5ec53fb27b48d40a3c90eb00e831c6b117ee5bd200be",
+    "packages/web/e2e/historySearchAcceptance.mjs": "ca9f08084529d3210975b03e8fbb7a745df20ef4a713c9aac7d80425a77a10e7",
+    "packages/web/e2e/session-message-recovery.e2e.mjs": "716fe11687eb880c8cb8d58a402d409163acab74dac09b332f6dd8ba84137644",
+    "packages/web/e2e/t053-phase1.e2e.mjs": "c728b6df826a69ee77327d7c0479d767ea90739f5c54edbc74c5d5f056c68a79"
+  },
+  "baselineTestIdentityMultisetUnchanged": true,
+  "baselineTests": 1320
+}

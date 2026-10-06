@@ -1,4 +1,4 @@
-/* global Event, window */
+/* global Event:readonly, window:readonly, process:readonly, fetch:readonly, localStorage:readonly, console:readonly, URL:readonly */
 // Repeatable real-Chromium evidence for T-053 Phase 1. The FastAPI launcher
 // (e2e/server.py) owns disposable sessions and exposes only test-only event
 // injection; the browser uses the production build, REST routes, and /ws.

@@ -1,3 +1,4 @@
+/* global process:readonly, setTimeout:readonly, fetch:readonly, performance:readonly, Buffer:readonly, document:readonly, innerWidth:readonly, console:readonly */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';

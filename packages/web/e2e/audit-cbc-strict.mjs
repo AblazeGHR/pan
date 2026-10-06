@@ -1,3 +1,4 @@
+/* global process:readonly, window:readonly, Event:readonly, document:readonly, console:readonly */
 /* Strict real-Chromium audit: CBC event shape only (no `final`, no `item_id`,
  * no `turn_id`, no `delta`/`stream_text` — none of which cbc emits).
  *
@@ -95,30 +96,6 @@ function record(name, expected, actualStore, extra = {}) {
 const server = createServerRunner({ port: PORT, runtime: RUNTIME });
 let browser; let context; let page; let tracing = false;
 
-// A CBC turn: three separate `assistant` events, each with one content block.
-async function cbcTurn(api, { sessionId, seq, taskId, w, T }) {
-  const analysis = `analysis ${w} ${T}`;
-  const toolText = `Bash({"cmd":"echo ${w}"})`;
-  const finalText = `final ${w} ${T}`;
-  await api.appendHistory(sessionId, [{ role: 'user', content: `q ${w} ${T}` }]);
-  await api.stream(sessionId, { type: 'assistant', message: { content: [{ type: 'thinking', thinking: analysis }] } }, { taskSeq: seq, taskId });
-  await api.stream(sessionId, { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { cmd: `echo ${w}` } }] } }, { taskSeq: seq, taskId });
-  await api.stream(sessionId, { type: 'assistant', message: { content: [{ type: 'text', text: finalText }] } }, { taskSeq: seq, taskId });
-  const appended = await api.appendHistory(sessionId, [
-    { role: 'thinking', content: analysis },
-    { role: 'tool', content: toolText },
-    { role: 'assistant', content: finalText },
-  ]);
-  await api.broadcast({
-    type: 'worker.result', sessionId, workerId: 'e2e-browser-worker', generation: 0,
-    taskSeq: seq, taskId, status: 'done', result: finalText,
-    historyEpoch: appended.historyEpoch, historyRevision: appended.historyRevision,
-    terminalCoverage: { historyEpoch: appended.historyEpoch, historyRevision: appended.historyRevision },
-  });
-  await api.broadcast({ type: 'worker.status', sessionId, workerId: 'e2e-browser-worker', generation: 0, taskSeq: seq, status: 'idle' });
-  return { analysis, toolText, finalText };
-}
-
 try {
   const started = await server.start();
   out.raw.serverStart = started;
@@ -190,7 +167,6 @@ try {
 
   // ── Phase S: three CBC turns, precise sequence assertions ───────────────
   const S = { baseTail, turns: [] };
-  const committed = []; // visible() entries we expect at the end of the current window
   for (const spec of [
     { seq: 501, w: 'alpha' },
     { seq: 502, w: 'bravo' },

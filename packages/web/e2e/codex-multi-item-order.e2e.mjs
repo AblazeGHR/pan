@@ -1,3 +1,4 @@
+/* global setTimeout:readonly, fetch:readonly, Buffer:readonly, window:readonly, console:readonly */
 /*
  * Real FastAPI/Worker/JSONL/WS/Chromium chain for the 2026-09-23 trace:
  * five different Codex assistant items in one turn, with tools between them.
@@ -141,7 +142,7 @@ try {
   const durableStories = canonical.filter(row => row.role === 'assistant'
     && /^story-[1-5]-first\nstory-[1-5]-final$/.test(row.content));
   assert.equal(durableStories.length, 5, 'JSONL/HTTP history has five assistant items');
-  const finalState = await poll(state, s =>
+  await poll(state, s =>
     s.rows.filter(row => row.role === 'assistant'
       && /^story-[1-5]-first\nstory-[1-5]-final$/.test(row.content)).length === 5,
   'Zustand converged to five assistant items');

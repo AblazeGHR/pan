@@ -1,3 +1,4 @@
+/* global fetch:readonly, window:readonly, document:readonly, console:readonly, Buffer:readonly */
 /*
  * Reproduce Codex app-server ordering across a background session switch.
  * The fixture pauses after item/completed has been persisted, lets the browser

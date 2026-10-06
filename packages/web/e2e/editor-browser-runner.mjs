@@ -1,3 +1,4 @@
+/* global process:readonly, fetch:readonly, console:readonly, Buffer:readonly */
 /** Run the real file-link/Editor browser suite against an owned fixture server. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

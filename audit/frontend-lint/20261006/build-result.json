@@ -1,0 +1,14 @@
+{
+  "mode": "build",
+  "root": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006",
+  "cwd": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\packages\\web",
+  "commands": [
+    {
+      "argv": [
+        "pnpm.cmd",
+        "build"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

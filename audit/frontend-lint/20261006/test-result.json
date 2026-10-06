@@ -1,0 +1,30 @@
+{
+  "mode": "test",
+  "root": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006",
+  "cwd": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\packages\\web",
+  "commands": [
+    {
+      "argv": [
+        "pnpm.cmd",
+        "exec",
+        "vitest",
+        "run",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\audit\\frontend-lint\\20261006\\vitest-final.xml"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "junit": {
+    "name": "vitest tests",
+    "tests": "1320",
+    "failures": "0",
+    "errors": "0",
+    "time": "21.43"
+  },
+  "testcases": 1320,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0
+}

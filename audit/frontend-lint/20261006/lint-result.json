@@ -1,0 +1,22 @@
+{
+  "mode": "lint",
+  "root": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006",
+  "cwd": "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\packages\\web",
+  "commands": [
+    {
+      "argv": [
+        "pnpm.cmd",
+        "exec",
+        "eslint",
+        ".",
+        "--format",
+        "json",
+        "--output-file",
+        "D:\\project\\pan-worktrees\\frontend-lint-codex-20261006\\audit\\frontend-lint\\20261006\\lint-final.json"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "errors": 0,
+  "warnings": 19
+}

@@ -1,3 +1,4 @@
+/* global setTimeout:readonly, fetch:readonly, Buffer:readonly, window:readonly, URL:readonly, console:readonly */
 /*
  * Focused real-browser regression for a persisted MA message duplicated when
  * Pan restarts after writing history/RESERVED but before the CLI hand-off.
