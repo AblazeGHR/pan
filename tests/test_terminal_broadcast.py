@@ -63,6 +63,7 @@ def _stream_setup(sid="ses_t041_stream"):
 def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(monkeypatch):
     _reset()
     s, w = _stream_setup()
+    w._execution_seq = 2  # Report turns have an execution cursor even without taskSeq.
     saves = []
     events = []
     timeline = []
@@ -102,6 +103,10 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
                           if e.get("type") == "worker.status"
                           and e.get("status") == "idle")
         assert result_index < idle_index
+        assert events[result_index]['executionSeq'] == 2
+        assert events[idle_index]['executionSeq'] == 2
+        assert s.last_result['executionSeq'] == 2
+        assert s.terminal_results[-1]['executionSeq'] == 2
         assert any(has_result for has_result, _ in saves)
         saved_terminal_index = next(
             i for i, item in enumerate(timeline)

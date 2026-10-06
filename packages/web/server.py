@@ -959,7 +959,9 @@ def _stream_delta_key(data: dict) -> tuple | None:
     worker_id = data.get("workerId")
     if not session_id or not worker_id:
         return None
-    task_key = data.get("taskId")
+    task_key = (("execution", data["executionSeq"])
+                if isinstance(data.get("executionSeq"), int)
+                else data.get("taskId"))
     if task_key is None:
         task_key = data.get("taskSeq", "implicit-task")
     item_key = None
@@ -1812,6 +1814,7 @@ def _resync_snapshot(
             "status": runtime.status,
             "taskId": getattr(runtime, "_current_task_id", None),
             "taskSeq": getattr(runtime, "_current_seq", None),
+            "executionSeq": getattr(runtime, "_execution_seq", 0) or None,
         })
 
     return {
@@ -1940,6 +1943,8 @@ async def _replay_agent_results(
                 "result": _project_editor_links(
                     sid, str(row.get("result") or "")),
                 "taskSeq": task_seq,
+                "executionSeq": row.get("executionSeq"),
+                "generation": row.get("generation"),
                 "resultCursor": result_cursor or None,
                 "terminalKey": row.get("terminalKey"),
                 "replayed": True,
@@ -2293,6 +2298,7 @@ def _session_summary(
         "workerGeneration": worker_generation,
         "workerTaskId": worker_task_id,
         "workerTaskSeq": worker_task_seq,
+        "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
         "unreadDoneGeneration": max(0, int(getattr(s, "unread_done_generation", 0) or 0)),

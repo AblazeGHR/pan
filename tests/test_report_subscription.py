@@ -425,6 +425,43 @@ def test_consumer_drains_reports_as_one_message(monkeypatch):
     _cleanup()
 
 
+def test_execution_order_includes_reports_without_changing_queue_identity(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    mgr = _setup_session("ses_execution")
+    mgr.task_seq = 101
+    mgr.queue_pending = [
+        {"type": "task", "id": "q1", "text": "first", "source": "user",
+         "seq": 100, "deliveryState": "queued", "revision": 1},
+        {"id": "r1", "noticeKind": "background_job_terminal", "jobId": "job1",
+         "status": "done", "result": "job finished", "deliveryState": "queued"},
+        {"type": "task", "id": "q2", "text": "next", "source": "user",
+         "seq": 101, "deliveryState": "queued", "revision": 1},
+    ]
+    w = worker.Worker(worker_id="w-execution", session_id=mgr.id,
+                      adapter=CbcAdapter(), pending_signal=asyncio.Queue())
+    worker.workers[w.worker_id] = w
+    observed = []
+
+    async def consume(ww, text, source, session):
+        observed.append((source, ww._execution_seq, ww._current_seq))
+        worker._ack_current_task(ww, session)
+        worker._ack_current_reports(ww, session)
+
+    monkeypatch.setattr(worker, "_consumer_stream", consume)
+
+    async def scenario():
+        while mgr.queue_pending:
+            await worker._deliver_queue_unit(w, mgr, worker._select_queue_unit(mgr))
+
+    try:
+        asyncio.run(scenario())
+        assert observed == [("user", 1, 100), ("report", 2, None), ("user", 3, 101)]
+        assert mgr.task_seq == 101
+    finally:
+        _cleanup()
+
+
 def test_consumer_report_signal_no_pending_is_noop(monkeypatch):
     """信号到了但队列已空 → 不产生消息、不报错。"""
     _cleanup()

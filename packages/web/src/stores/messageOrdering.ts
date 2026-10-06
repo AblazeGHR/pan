@@ -93,8 +93,8 @@ export function isDurableRow(message: Message): boolean {
 // ── Task-scoped live identity ───────────────────────────────────────────────
 
 /**
- * Identity of the task a live frame belongs to. `taskSeq` is the durable
- * cursor; `taskId` only disambiguates the same cursor after a restart.
+ * Execution order includes seq-less report/Job batches. Legacy frames keep
+ * using the durable queue cursor and task identity.
  */
 export function taskScopeKey(
   sessionId: string,
@@ -103,7 +103,8 @@ export function taskScopeKey(
 ): string {
   const worker = meta.workerId ?? previous?.workerId ?? 'worker';
   const generation = meta.generation ?? previous?.generation ?? 0;
-  const task = meta.taskSeq ?? previous?.taskSeq
+  const task = meta.executionSeq !== undefined ? `execution:${meta.executionSeq}`
+    : meta.taskSeq ?? previous?.taskSeq
     ?? meta.taskId ?? previous?.taskId ?? 'task';
   return `${sessionId}:${worker}:${generation}:${task}`;
 }

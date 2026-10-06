@@ -103,7 +103,7 @@ try {
       const before = performance.now();
       store.getState().applyLiveStream(session.id, [{
         role: 'assistant', content, nativeItemId: 'perf-live-item',
-      }], { workerId: 'perf-worker', generation: 1, taskSeq: 1 });
+      }], { workerId: 'perf-worker', generation: 1, taskSeq: 1, executionSeq: 1 });
       storeTimes.push(performance.now() - before);
       await new Promise(resolve => setTimeout(resolve, 5));
     }

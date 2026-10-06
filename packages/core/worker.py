@@ -249,6 +249,8 @@ class Worker:
     # ── 任务序号（result 与 task 配对用）──
     # 序号计数器在 session.task_seq 上（跨 worker respawn 持久）；send_task
     # 入队时从 session 读、自增后随 item.seq 一起落盘。
+    # Runtime execution order includes report/Job batches; task seq stays queue identity.
+    _execution_seq: int = 0
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     _current_task_idempotent: bool = False  # formal assign vs inherited send context
@@ -1184,6 +1186,7 @@ async def _persist_terminal_state_locked(
         "status": status,
         "result": result_text,
         "taskSeq": task_seq,
+        "executionSeq": w._execution_seq or None,
         "taskId": task_id,
         "taskIdempotent": task_idempotent,
         "workerId": w.worker_id,
@@ -1203,6 +1206,7 @@ async def _persist_terminal_state_locked(
         "cli_session_id": s.cli_session_id,
         "timestamp": datetime.now().isoformat(),
         "taskSeq": task_seq,
+        "executionSeq": w._execution_seq or None,
         "taskId": task_id,
         "taskIdempotent": task_idempotent,
         "workerId": w.worker_id,
@@ -1271,6 +1275,7 @@ async def _persist_terminal_state_locked(
     w._terminal_handled = True
     return {
         "taskSeq": task_seq,
+        "executionSeq": w._execution_seq or None,
         "taskId": task_id,
         "taskIdempotent": task_idempotent,
         "resultCursor": result_cursor,
@@ -1297,6 +1302,7 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "status": terminal["status"],
         "result": terminal["result"],
         "taskSeq": terminal["taskSeq"],
+        "executionSeq": terminal.get("executionSeq"),
         "taskId": terminal["taskId"],
         "resultCursor": terminal["resultCursor"],
         "terminalKey": terminal["terminalKey"],
@@ -1318,6 +1324,7 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "generation": w.generation,
         "status": "idle",
         "taskSeq": terminal["taskSeq"],
+        "executionSeq": terminal.get("executionSeq"),
         "sourceSessionId": terminal["sourceSessionId"],
     })
 
@@ -1865,6 +1872,7 @@ async def _read_stdout(w: Worker):
                 "sessionId": w.session_id,
                 "generation": w.generation,
                 "taskSeq": w._current_seq,
+                "executionSeq": w._execution_seq or None,
                 "taskId": w._current_task_id,
                 "event": event,
             })
@@ -2415,6 +2423,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
     """Reserve one FIFO unit, hand it to the adapter, and wait for completion."""
     if not items:
         return
+    w._execution_seq += 1
     expected_revisions = [item.get("revision", 1) for item in items]
     kind = _queue_item_kind(items[0])
     if kind == "task":
@@ -2757,6 +2766,7 @@ async def request_claude_permission(
             "sessionId": w.session_id,
             "generation": w.generation,
             "taskSeq": w._current_seq,
+            "executionSeq": w._execution_seq or None,
             "taskId": w._current_task_id,
             "event": event,
         })
@@ -2807,6 +2817,7 @@ async def _resolve_claude_permission(worker_id: str, control: dict) -> bool:
             "sessionId": w.session_id,
             "generation": w.generation,
             "taskSeq": w._current_seq,
+            "executionSeq": w._execution_seq or None,
             "taskId": w._current_task_id,
             "event": {
                 "type": "claude.permission_resolved",
@@ -5014,6 +5025,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         "generation": w.generation,
         "status": "running",
         "taskSeq": w._current_seq,
+        "executionSeq": w._execution_seq or None,
         "source": source,
         "sourceSessionId": w._current_source_session_id,
     })
@@ -5133,6 +5145,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "generation": w.generation,
         "status": "running",
         "taskSeq": w._current_seq,
+        "executionSeq": w._execution_seq or None,
         "source": source,
         "sourceSessionId": w._current_source_session_id,
     })
@@ -5385,6 +5398,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             "sessionId": w.session_id,
             "generation": w.generation,
             "taskSeq": w._current_seq,
+            "executionSeq": w._execution_seq or None,
             "taskId": w._current_task_id,
             "event": event,
         })

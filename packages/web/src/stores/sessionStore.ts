@@ -475,6 +475,7 @@ export interface LiveStreamBuffer {
   workerId?: string;
   generation?: number;
   taskSeq?: number;
+  executionSeq?: number;
   taskId?: string;
   replayed?: boolean;
   turnId?: string;
@@ -565,6 +566,7 @@ export interface LiveStreamMeta {
   workerId?: string;
   generation?: number;
   taskSeq?: number;
+  executionSeq?: number;
   taskId?: string;
   /** Stable backend identity for one terminal event, including seq-less tasks. */
   terminalKey?: string;
@@ -614,6 +616,7 @@ export function workerResultMarkerId(
     terminalKey?: string;
     resultCursor?: number;
     taskSeq?: number;
+    executionSeq?: number;
     taskId?: string | null;
   },
 ): string | undefined {
@@ -655,6 +658,17 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
   if (incoming.workerId && known.workerId && incoming.workerId !== known.workerId) {
     return incoming.generation === undefined || known.generation === undefined
       || incoming.generation <= known.generation;
+  }
+  if (incoming.executionSeq !== undefined && known.executionSeq !== undefined) {
+    if (incoming.executionSeq !== known.executionSeq) {
+      return incoming.executionSeq < known.executionSeq;
+    }
+  } else if (incoming.executionSeq !== undefined) {
+    // First post-upgrade execution can follow a persisted legacy terminal.
+    // The backend allocates this cursor only at a new queue execution boundary.
+    return false;
+  } else if (known.executionSeq !== undefined && sameWorkerGeneration(incoming, known)) {
+    return true;
   }
   if (incoming.taskSeq !== undefined && known.taskSeq !== undefined) {
     if (incoming.taskSeq < known.taskSeq) return true;
@@ -702,6 +716,7 @@ function workerStatusMetadata(meta: LiveStreamMeta): Partial<Session> {
   return {
     ...(meta.generation !== undefined ? { workerGeneration: meta.generation } : {}),
     ...(meta.taskSeq !== undefined ? { workerTaskSeq: meta.taskSeq } : {}),
+    ...(meta.executionSeq !== undefined ? { workerExecutionSeq: meta.executionSeq } : {}),
     ...(meta.taskId !== undefined ? { workerTaskId: meta.taskId } : {}),
     ...(meta.lastLegalWorkerState !== undefined
       ? { lastLegalWorkerState: meta.lastLegalWorkerState } : {}),
@@ -715,6 +730,11 @@ function isBlockedByTerminal(
 ): boolean {
   if (!terminal) return false;
   if (isOlderMeta(incoming, terminal)) return true;
+  if (incoming.executionSeq !== undefined && terminal.executionSeq === undefined) return false;
+  if (incoming.executionSeq !== undefined && terminal.executionSeq !== undefined) {
+    return status !== 'idle' && sameWorkerGeneration(incoming, terminal)
+      && incoming.executionSeq <= terminal.executionSeq;
+  }
   if (status === 'idle' && sameWorkerGeneration(incoming, terminal)) return false;
   if (status === 'running'
       && sameWorkerGeneration(incoming, terminal)
@@ -780,27 +800,29 @@ const SUMMARY_PROJECTION_FIELDS = [
 ] as const;
 
 const WORKER_SNAPSHOT_FIELDS = ['workerId', 'workerStatus', 'workerGeneration',
-  'workerTaskId', 'workerTaskSeq', 'lastLegalWorkerState'] as const;
+  'workerTaskId', 'workerTaskSeq', 'workerExecutionSeq', 'lastLegalWorkerState'] as const;
 
 /** Worker generation/task cursors are independent of history summaryRevision. */
 function preserveNewerWorker(current: Session, incoming: Session, terminal?: TerminalWatermark): Session {
   const olderGeneration = typeof current.workerGeneration === 'number'
     && typeof incoming.workerGeneration === 'number'
     && incoming.workerGeneration < current.workerGeneration;
+  const cursorMeta = (session: Session): LiveStreamMeta => ({
+    workerId: session.workerId ?? undefined,
+    generation: session.workerGeneration ?? undefined,
+    taskSeq: session.workerTaskSeq ?? undefined,
+    executionSeq: session.workerExecutionSeq ?? undefined,
+  });
   const olderTask = current.workerId === incoming.workerId
     && current.workerGeneration === incoming.workerGeneration
-    && typeof current.workerTaskSeq === 'number'
-    && typeof incoming.workerTaskSeq === 'number'
-    && incoming.workerTaskSeq < current.workerTaskSeq;
+    && isOlderMeta(cursorMeta(incoming), cursorMeta(current));
   const completedTask = incoming.workerStatus === 'running' && terminal
-    && typeof incoming.workerTaskSeq === 'number' && typeof terminal.taskSeq === 'number'
-    && incoming.workerTaskSeq <= terminal.taskSeq
-    && sameWorkerGeneration({ workerId: incoming.workerId ?? undefined,
-      generation: incoming.workerGeneration ?? undefined }, terminal);
+    && sameWorkerGeneration(cursorMeta(incoming), terminal)
+    && isBlockedByTerminal(cursorMeta(incoming), terminal, 'running');
   if (!olderGeneration && !olderTask && !completedTask) return incoming;
   return { ...incoming, workerId: current.workerId, workerStatus: current.workerStatus,
     workerGeneration: current.workerGeneration, workerTaskId: current.workerTaskId,
-    workerTaskSeq: current.workerTaskSeq, lastLegalWorkerState: current.lastLegalWorkerState };
+    workerTaskSeq: current.workerTaskSeq, workerExecutionSeq: current.workerExecutionSeq, lastLegalWorkerState: current.lastLegalWorkerState };
 }
 
 /** A delayed HTTP/WS snapshot must not roll a newer summary projection back. */
@@ -1947,6 +1969,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               workerGeneration: cur.workerGeneration,
               workerTaskId: cur.workerTaskId,
               workerTaskSeq: cur.workerTaskSeq,
+              workerExecutionSeq: cur.workerExecutionSeq,
             };
           }
           // Legacy summaries can omit workerId. Carry the last-known value
@@ -3038,7 +3061,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   canApplyLiveStream: (sessionId, meta) => {
     const state = get();
-    if (meta.replayed === true && meta.taskSeq === undefined && !meta.taskId
+    if (meta.replayed === true && meta.executionSeq === undefined && meta.taskSeq === undefined && !meta.taskId
         && (state.unscopedReplayPending[sessionId]
           || (state.unscopedReplayPending['*']
             && state.unscopedReplayPending[sessionId] !== false))) return false;
@@ -3052,7 +3075,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!messages.length) return false;
     let accepted = false;
     set((s) => {
-      if (meta.replayed === true && meta.taskSeq === undefined && !meta.taskId
+      if (meta.replayed === true && meta.executionSeq === undefined && meta.taskSeq === undefined && !meta.taskId
           && (s.unscopedReplayPending[sessionId]
             || (s.unscopedReplayPending['*']
               && s.unscopedReplayPending[sessionId] !== false))) return s;
@@ -3077,7 +3100,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         messages: messages.slice(),
       };
       accepted = true;
-      const replayPending = (meta.taskSeq !== undefined || Boolean(meta.taskId))
+      const replayPending = (meta.executionSeq !== undefined || meta.taskSeq !== undefined || Boolean(meta.taskId))
         && (s.unscopedReplayPending[sessionId]
           || s.unscopedReplayPending['*'])
         ? { ...s.unscopedReplayPending, [sessionId]: false }
@@ -3478,10 +3501,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // legacy/taskId-only path compatible by applying this guard only when a
       // taskSeq is present on either side.
       if (previous
-          && (meta.taskSeq !== undefined || previous.taskSeq !== undefined)
+          && (meta.executionSeq !== undefined || previous.executionSeq !== undefined
+            || meta.taskSeq !== undefined || previous.taskSeq !== undefined)
           && isOlderMeta(meta, previous)) return s;
-      if (previous && status === 'running' && meta.taskSeq !== undefined
-          && previous.taskSeq !== undefined && meta.taskSeq > previous.taskSeq) {
+      if (previous && status === 'running'
+          && ((meta.executionSeq !== undefined
+            && (!sameWorkerGeneration(meta, previous)
+              || previous.executionSeq === undefined || meta.executionSeq > previous.executionSeq))
+            || (meta.executionSeq === undefined && meta.taskSeq !== undefined
+              && previous.taskSeq !== undefined && meta.taskSeq > previous.taskSeq))) {
         // A new task on the same worker starts a fresh transient turn. Keep an
         // empty task-scoped watermark instead of deleting the buffer outright:
         // a late old delta must be rejected during the gap before the first
@@ -3495,6 +3523,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           workerId: meta.workerId,
           generation: meta.generation,
           taskSeq: meta.taskSeq,
+          executionSeq: meta.executionSeq,
           taskId: meta.taskId,
           taskKey: taskScopeKey(sessionId, meta),
           historyStartOffset: captureHistoryBoundary(),
@@ -3524,7 +3553,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
       };
       if (!terminal && status === 'running' && !previous
-          && (meta.taskSeq !== undefined || Boolean(meta.taskId))) {
+          && (meta.executionSeq !== undefined || meta.taskSeq !== undefined || Boolean(meta.taskId))) {
         const nextBuffers = { ...s.liveStreamBuffers };
         nextBuffers[sessionId] = {
           ...meta,

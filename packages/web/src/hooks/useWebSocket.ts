@@ -52,7 +52,8 @@ function appendTerminalResultMarker(
     serverEpoch: event.serverEpoch || event.eventEpoch,
     workerId: event.workerId,
     generation: event.generation,
-    taskSeq: event.taskSeq,
+    taskSeq: typeof event.taskSeq === 'number' ? event.taskSeq : undefined,
+    executionSeq: typeof event.executionSeq === 'number' ? event.executionSeq : undefined,
     taskId: typeof event.taskId === 'string' ? event.taskId : undefined,
     terminalKey: event.terminalKey,
     resultCursor: event.resultCursor,
@@ -320,13 +321,16 @@ export function useWebSocket() {
           terminalKey: typeof last.terminalKey === 'string' ? last.terminalKey : undefined,
           resultCursor: typeof last.resultCursor === 'number' ? last.resultCursor : undefined,
           taskSeq: typeof last.taskSeq === 'number' ? last.taskSeq : undefined,
+          executionSeq: typeof last.executionSeq === 'number' ? last.executionSeq : undefined,
           taskId: typeof last.taskId === 'string' ? last.taskId : undefined,
           workerId: typeof last.workerId === 'string' ? last.workerId : undefined,
           generation: typeof last.generation === 'number' ? last.generation : undefined,
         };
         const lastTaskId = typeof last.taskId === 'string' ? last.taskId : undefined;
         const matchingBuffer = Boolean(buffer
-          && (terminalEvent.taskSeq !== undefined
+          && (terminalEvent.executionSeq !== undefined
+            ? buffer.executionSeq === terminalEvent.executionSeq
+            : terminalEvent.taskSeq !== undefined
             ? buffer.taskSeq === terminalEvent.taskSeq
               && !(lastTaskId && buffer.taskId && lastTaskId !== buffer.taskId)
             : lastTaskId && buffer.taskId === lastTaskId)
@@ -338,6 +342,7 @@ export function useWebSocket() {
             workerId: terminalEvent.workerId ?? buffer.workerId,
             generation: terminalEvent.generation ?? buffer.generation,
             taskSeq: terminalEvent.taskSeq,
+            executionSeq: terminalEvent.executionSeq,
             taskId: lastTaskId,
             terminalKey: terminalEvent.terminalKey,
             resultCursor: terminalEvent.resultCursor,
@@ -362,6 +367,7 @@ export function useWebSocket() {
           workerId: typeof worker.workerId === 'string' ? worker.workerId : undefined,
           generation: typeof worker.generation === 'number' ? worker.generation : undefined,
           taskSeq: typeof worker.taskSeq === 'number' ? worker.taskSeq : undefined,
+          executionSeq: typeof worker.executionSeq === 'number' ? worker.executionSeq : undefined,
           taskId: typeof worker.taskId === 'string' ? worker.taskId : undefined,
           serverEpoch: e.serverEpoch || e.eventEpoch,
           session: snapshotSessions.get(worker.sessionId),
@@ -763,7 +769,8 @@ export function useWebSocket() {
         serverEpoch: e.serverEpoch || e.eventEpoch,
         workerId: e.workerId,
         generation: e.generation,
-        taskSeq: e.taskSeq,
+        taskSeq: typeof e.taskSeq === 'number' ? e.taskSeq : undefined,
+      executionSeq: typeof e.executionSeq === 'number' ? e.executionSeq : undefined,
         taskId: typeof e.taskId === 'string' ? e.taskId : undefined,
         terminalKey: typeof e.terminalKey === 'string' ? e.terminalKey : undefined,
         resultCursor: typeof e.resultCursor === 'number' ? e.resultCursor : undefined,
@@ -946,7 +953,8 @@ function handleWorkerUpdate(
       lastLegalWorkerState: e.session?.lastLegalWorkerState,
       workerId: e.workerId,
       generation: e.generation,
-      taskSeq: e.taskSeq,
+      taskSeq: typeof e.taskSeq === 'number' ? e.taskSeq : undefined,
+      executionSeq: typeof e.executionSeq === 'number' ? e.executionSeq : undefined,
       taskId: typeof e.taskId === 'string' ? e.taskId : undefined,
     },
     terminal,
@@ -1125,7 +1133,7 @@ function appendEventToMessages(
   sessionId: string,
   event: StreamEvent['event'],
   initialMessages: Message[],
-  scope?: Pick<StreamEvent, 'workerId' | 'generation' | 'taskSeq' | 'taskId'>,
+  scope?: Pick<StreamEvent, 'workerId' | 'generation' | 'taskSeq' | 'executionSeq' | 'taskId'>,
 ): Message[] {
   if (!event) return initialMessages;
   const t = event.type;
@@ -1163,8 +1171,10 @@ function appendEventToMessages(
       ? String(event.turn_id)
       : undefined;
     const turnId = b.role === 'assistant' ? eventTurnId : undefined;
-    const scopeSuffix = eventTurnId && scope?.taskSeq !== undefined
-      ? `:seq:${scope.taskSeq}`
+    const scopeSuffix = eventTurnId && scope?.executionSeq !== undefined
+      ? `:execution:${scope.executionSeq}`
+      : eventTurnId && scope?.taskSeq !== undefined
+        ? `:seq:${scope.taskSeq}`
       : eventTurnId && scope?.taskId
         ? `:task:${scope.taskId}`
         : '';
@@ -1477,6 +1487,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
     workerId: meta.workerId,
     generation: meta.generation,
     taskSeq: typeof meta.taskSeq === 'number' ? meta.taskSeq : undefined,
+    executionSeq: typeof meta.executionSeq === 'number' ? meta.executionSeq : undefined,
     taskId: typeof meta.taskId === 'string' && meta.taskId ? meta.taskId : undefined,
     replayed: meta.replayed === true,
     turnId: event.turn_id,

@@ -65,6 +65,20 @@ worker_module._queue_item_backoff = _fast_crash_fixture_retry
 worker_module._GLOBAL_WATCHDOG_TICK_SEC = .5
 
 def seed():
+    from fastapi import Body
+    from packages.web import server
+
+    @server.app.post('/__e2e/notice')
+    async def notice(payload: dict = Body(...)):
+        return await worker_module.enqueue_notice(
+            payload['sessionId'], payload['text'],
+            source='automation' if payload.get('noticeKind') else 'agent',
+            source_session_id=payload.get('sourceSessionId') if not payload.get('noticeKind') else None,
+            notice_kind=payload.get('noticeKind'),
+            notice_status='done',
+            job_id='e2e-job-notice' if payload.get('noticeKind') else None,
+        )
+
     fixture.SESSION_DIR.mkdir(parents=True, exist_ok=True)
     # Cold restart must reopen the identical files, never reseed/replace them.
     if list(fixture.SESSION_DIR.glob('*.json')):

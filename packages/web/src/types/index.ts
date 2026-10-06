@@ -102,6 +102,7 @@ export interface Session {
   workerGeneration?: number | null;
   workerTaskId?: string | null;
   workerTaskSeq?: number | null;
+  workerExecutionSeq?: number | null;
   /**
    * Unread done count for this Session: materialized ``generation - read``
    * (backend `_persist_terminal_state` increments the generation after the
@@ -438,6 +439,7 @@ export interface StreamEvent {
   };
   cancelled?: boolean;
   taskSeq?: number;
+  executionSeq?: number;
   /** Durable task identity carried by worker.stream for late-frame isolation. */
   taskId?: string | null;
   /** Stable backend identity for this terminal task result. */

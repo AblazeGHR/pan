@@ -297,6 +297,7 @@ try {
         // cursor would consume it and make the real result look duplicated.
         ws.send(JSON.stringify({ type: 'worker.stream', sessionId: e.sessionId,
           workerId: e.workerId, generation: e.generation, taskSeq: e.taskSeq,
+          executionSeq: e.executionSeq,
           taskId: e.taskId, serverEpoch: e.serverEpoch, event: {
           type: 'assistant', item_id: 'ephemeral-fixture-item',
           message: { content: [
@@ -410,6 +411,23 @@ try {
   assert.equal(faults.transientBeforeResult, false, 'ephemeral transport frames actually injected');
   assert.equal(await page.evaluate(() => window.__ephemeralSeen), true, 'ephemeral rows were displayed before canonical convergence');
   assert.ok(!(await state()).rows.some(m => m.content.includes('ephemeral-fixture')), 'no non-durable tail blocks remain');
+  // Real durable notice queue + provider stdin + WS, staying in the selected
+  // Session throughout. Assert a delta is rendered before terminal persistence.
+  for (const [noticeKind, label] of [
+    ['background_job_terminal', 'system-notice-live'],
+    [null, 'report-notice-live'],
+  ]) {
+    await api('/__e2e/notice', { sessionId: ids['E2E-A'], sourceSessionId: ids['E2E-B'], text: label, noticeKind });
+    await poll(state, s => s.rows.some(m => m.role === 'assistant' && m.content.includes(label)), `${label} live without selection change`);
+    await poll(() => page.locator('main .msg.assistant').filter({ hasText: label }).count(), count => count > 0, `${label} rendered before done`);
+    assert.equal((await api(`/api/sessions/${ids['E2E-A']}`)).workerStatus, 'running', `${label} visible while running`);
+    await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes(label), `${label} terminal`);
+    await equalCanonical(`${label} canonical without reload`);
+  }
+  await send('queued-after-notices');
+  await poll(state, s => s.rows.some(m => m.content.includes('answer:queued-after-notices')), 'queued task streams after report turns');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:queued-after-notices'), 'queued task after notices terminal');
+  await equalCanonical('ordinary queue task after notices');
   faults.historyDelay = 700;
   faults.duplicate = true;
   faults.reorder = true;
@@ -752,9 +770,9 @@ try {
   let editRow = page.locator('.queue-row-in').filter({ hasText: 'edit-me' });
   await editRow.hover();
   await editRow.getByTitle('编辑', { exact: true }).click();
-  await page.getByRole('textbox', { name: '队列消息正文' }).fill('edited-message');
+  await page.getByTestId('queue-rich-text-composer').fill('edited-message');
   await page.getByRole('button', { name: '保存队列编辑', exact: true }).click();
-  await page.getByRole('textbox', { name: '队列消息正文' }).waitFor({ state: 'detached' });
+  await page.getByTestId('queue-rich-text-composer').waitFor({ state: 'detached' });
   await page.locator('.queue-row-in').filter({ hasText: 'edited-message' }).waitFor();
   const deleteRow = page.locator('.queue-row-in').filter({ hasText: 'delete-me' });
   await deleteRow.hover();
@@ -787,9 +805,10 @@ try {
   const perfStart = Date.now();
   await send('long-stream');
   await poll(state, s => s.rows.some(m => m.content.includes('answer:long-stream')), 'long stream live');
-  await scroller.hover();
+  // Target the outer transcript rather than an inner tool/thinking window.
+  await scroller.hover({ position: { x: 120, y: 80 } });
   await page.mouse.wheel(0, -700);
-  await sleep(350);
+  await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d > 100, 'wheel opts out of follow');
   const away = await scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
   assert.ok(away > 100, 'wheel opts out of follow');
   await sleep(450);

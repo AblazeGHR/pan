@@ -456,6 +456,35 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('persisted answer');
   });
 
+  it('finalizes a seq-less report buffer from reconnect execution identity', () => {
+    apiMock.fetchSessions.mockImplementation(() => new Promise(() => {}));
+    apiMock.fetchSessionHistory.mockImplementation(() => new Promise(() => {}));
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.status', { type: 'worker.status', sessionId: 'A',
+        workerId: 'w1', generation: 1, executionSeq: 2, status: 'running' });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A',
+        workerId: 'w1', generation: 1, executionSeq: 2,
+        event: { type: 'assistant', content: 'partial report answer' } });
+      wsMock.trigger('resync.snapshot', { type: 'resync.snapshot',
+        sessions: [mk('A', 'A', { workerStatus: 'idle', workerId: 'w1',
+          workerGeneration: 1, workerExecutionSeq: 2 })],
+        workers: [{ sessionId: 'A', workerId: 'w1', generation: 1,
+          executionSeq: 2, status: 'idle' }],
+        details: { A: { lastResult: { workerId: 'w1', generation: 1,
+          executionSeq: 2, terminalKey: 'report', resultCursor: 2,
+          status: 'done', result: 'complete report answer',
+          historyEpoch: 'report-history', historyRevision: 2 },
+          history: [msg('user', 'u0'), msg('assistant', 'complete report answer')],
+          historyStart: 0, historyTotal: 2, historyTruncated: false,
+          historyEpoch: 'report-history', historyRevision: 2 } },
+      });
+    });
+    expect(useSessionStore.getState().liveStreamBuffers.A).toBeUndefined();
+    expect(useSessionStore.getState().currentMessages.filter(m => m.role === 'assistant')
+      .map(m => m.content)).toEqual(['complete report answer']);
+  });
+
   it('renders authoritative snapshot status and history before slow HTTP fallback completes', () => {
     apiMock.fetchSessions.mockImplementation(() => new Promise(() => {}));
     apiMock.fetchSessionHistory.mockImplementation(() => new Promise(() => {}));
@@ -1710,6 +1739,40 @@ describe('useWebSocket agent-injected message sync', () => {
       'u0',
       '@@@@by qq : group:42 | Chat | bot 100\nnew message',
     ]);
+  });
+
+  it('continues streaming system/report turns after a completed numbered task', async () => {
+    renderHook(() => useWebSocket());
+    const scope = { sessionId: 'A', workerId: 'w1', generation: 1 };
+    await flushTrigger('worker.result', { type: 'worker.result', ...scope,
+      taskSeq: 10, executionSeq: 1, resultCursor: 1, terminalKey: 'first',
+      status: 'done', result: 'first answer' });
+    for (const [executionSeq, notice] of [[2, '////by pan system\nJob completed'],
+      [3, '@@@@by agent\nreport']] as const) {
+      await flushTrigger('queue.item_delivered', { type: 'queue.item_delivered', ...scope,
+        messages: [{ role: 'user', content: notice, deliveryKeys: [`report:${executionSeq}`] }] });
+      apiMock.fetchSessionHistory.mockResolvedValueOnce({
+        history: [msg('user', 'u0'), msg('assistant', 'first answer'), msg('user', notice)],
+        total: 3, hasMore: false, start: 0,
+      });
+      await flushTrigger('worker.status', { type: 'worker.status', ...scope,
+        executionSeq, taskSeq: null, source: 'report', status: 'running' });
+      await flushTrigger('worker.stream', { type: 'worker.stream', ...scope,
+        executionSeq, taskSeq: null,
+        event: { type: 'assistant', content: `response ${executionSeq}` } });
+      expect(useSessionStore.getState().currentMessages.some(m => m.content === `response ${executionSeq}`)).toBe(true);
+      await flushTrigger('worker.result', { type: 'worker.result', ...scope,
+        executionSeq, taskSeq: null, resultCursor: executionSeq, terminalKey: `report-${executionSeq}`,
+        status: 'done', result: `response ${executionSeq}` });
+    }
+    await flushTrigger('worker.status', { type: 'worker.status', ...scope,
+      executionSeq: 4, taskSeq: 11, status: 'running', source: 'user' });
+    await flushTrigger('worker.stream', { type: 'worker.stream', ...scope,
+      executionSeq: 2, event: { type: 'assistant', content: 'late report frame' } });
+    await flushTrigger('worker.stream', { type: 'worker.stream', ...scope,
+      executionSeq: 4, taskSeq: 11, event: { type: 'assistant', content: 'next queued answer' } });
+    expect(useSessionStore.getState().currentMessages.some(m => m.content === 'late report frame')).toBe(false);
+    expect(useSessionStore.getState().currentMessages.some(m => m.content === 'next queued answer')).toBe(true);
   });
 
   it('does not sync for user-originated tasks', async () => {

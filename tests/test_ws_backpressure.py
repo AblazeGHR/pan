@@ -210,6 +210,12 @@ def test_delta_identity_isolated_by_session_worker_generation_task_and_item():
     asyncio.run(scenario())
 
 
+def test_report_delta_coalescing_keeps_execution_boundaries():
+    first = {**_delta("first", "first"), "taskSeq": None, "executionSeq": 1}
+    next_report = {**first, "executionSeq": 2}
+    assert srv._stream_delta_key(first) != srv._stream_delta_key(next_report)
+
+
 def test_agent_result_cursor_advances_only_after_sender_success():
     async def scenario():
         _reset()
