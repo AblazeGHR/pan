@@ -1,0 +1,35 @@
+{
+  "jobId": "job_51c442a2036755c5b2b866ca",
+  "targetSessionId": "ses_3aa2caf381bcd71b",
+  "argv": [
+    "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe",
+    "D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_3aa2caf381bcd71b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "name": "job-35",
+  "description": "",
+  "commandSummary": "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/investigate_remaining.py",
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "label": "Final cross-host cleanup repeat 5 rounds per Python",
+  "status": "completed",
+  "createdAt": 1791312109.9772246,
+  "updatedAt": 1791312246.3209975,
+  "pid": 45792,
+  "processCreatedAt": 1791312110.5955741,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_51c442a2036755c5b2b866ca.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_51c442a2036755c5b2b866ca:terminal",
+  "runnerPid": 42388,
+  "runnerProcessCreatedAt": 1791312109.9943275,
+  "exitCode": 0,
+  "paused": false
+}

@@ -1,0 +1,35 @@
+{
+  "jobId": "job_6963835dd1318c8e067ca138",
+  "targetSessionId": "ses_3aa2caf381bcd71b",
+  "argv": [
+    "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe",
+    "D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/run_cleanup_matrix.py"
+  ],
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_3aa2caf381bcd71b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_3aa2caf381bcd71b"
+  },
+  "name": "job-34",
+  "description": "",
+  "commandSummary": "D:/project/pan-worktrees/github-ci-20261006/.venv-ci314/Scripts/python.exe D:/project/pan-worktrees/github-ci-20261006/.ci-evidence/run_cleanup_matrix.py",
+  "cwd": "D:\\project\\pan-worktrees\\github-ci-20261006",
+  "label": "Durable test cleanup regression and serial 3.12/3.14 full CI",
+  "status": "completed",
+  "createdAt": 1791309230.8798342,
+  "updatedAt": 1791312090.3645391,
+  "pid": 8684,
+  "processCreatedAt": 1791309231.4729962,
+  "logPath": "D:\\project\\Pan\\data\\background_jobs\\logs\\job_6963835dd1318c8e067ca138.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_6963835dd1318c8e067ca138:terminal",
+  "runnerPid": 26540,
+  "runnerProcessCreatedAt": 1791309230.8888652,
+  "exitCode": 0,
+  "paused": false
+}

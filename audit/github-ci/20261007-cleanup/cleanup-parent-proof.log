@@ -1,0 +1,61 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+___ test_refused_host_skip_requires_verified_cleanup_and_releases_resources ___
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pan-cleanup-parent-proof/test_refused_host_skip_require0')
+
+>   ???
+E   Skipped: actual ancestor Job disallows breakaway; detach safely refused
+
+<exact-parent-durable-test>:96: Skipped
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pan-cleanup-parent-proof/test_refused_host_skip_require0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002540E8AEB10>
+
+    def test_refused_host_skip_requires_verified_cleanup_and_releases_resources(tmp_path, monkeypatch):
+        service, facts = _fake_cleanup_owner(monkeypatch, status=ProcessStatus.ALIVE)
+        view = {'terminal_id': 'term_cleanup', 'pid': 42, 'process_created_at_filetime': 123}
+        class Host:
+            returncode = None
+            stdout = io.BytesIO()
+            stderr = io.BytesIO()
+            def __init__(self, *args, **kwargs):
+                (tmp_path / 'report.json').write_text(json.dumps({'view': view}))
+            def communicate(self, timeout):
+                facts['identity_retained_before_close'] = (tmp_path / 'identity-retained').exists()
+                facts['status'] = ProcessStatus.DEAD
+                facts['secret'] = False
+                service._registry.get('term_cleanup').status = RuntimeState.EXITED
+                (tmp_path / 'report.json').write_text(json.dumps({
+                    'view': view, 'detach': {'detached': False},
+                    'closed': {'status': 'exited', 'cleanup_pending': False}}))
+                self.returncode = 23
+                return b'', b''
+            def poll(self):
+                return self.returncode
+        monkeypatch.setattr(subprocess, 'Popen', Host)
+        monkeypatch.setattr(identity, 'open_process_for_probe', lambda pid: 99)
+        monkeypatch.setattr(sys.modules[__name__], 'TerminalService', lambda *a, **kw: service)
+        with pytest.raises(pytest.skip.Exception, match='actual ancestor Job'):
+>           test_detached_shell_survives_real_service_host_exit_and_reconnect(tmp_path)
+
+tests\test_terminal_durable_ma.py:302: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+<exact-parent-durable-test>:131: in test_detached_shell_survives_real_service_host_exit_and_reconnect
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.test_terminal_durable_ma._fake_cleanup_owner.<locals>.Owner object at 0x000002540E8EB230>
+tid = 'term_cleanup'
+
+    def close(self, tid):
+        from packages.core.terminal.service import TerminalNotAttached
+>       raise TerminalNotAttached('not-attached')
+E       packages.core.terminal.service.TerminalNotAttached: not-attached
+
+tests\test_terminal_durable_ma.py:254: TerminalNotAttached
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_durable_ma.py::test_refused_host_skip_requires_verified_cleanup_and_releases_resources
+1 failed in 0.14s
