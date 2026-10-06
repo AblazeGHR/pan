@@ -1059,7 +1059,7 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
     expect(fetchSessionQueue).toHaveBeenCalledWith('s1');
     expect(updateSessionQueueItem).toHaveBeenCalledWith(
-      's1', 'q-count-edit', 'after', 1, expect.any(String),
+      's1', 'q-count-edit', 'after', 1, expect.any(String), undefined,
     );
   });
 

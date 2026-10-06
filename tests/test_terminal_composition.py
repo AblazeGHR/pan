@@ -232,6 +232,52 @@ def _wait_engine_caught_up(
     return snap
 
 
+def _wait_stable_engine_snapshot(session, client, *, timeout=180.0):
+    """同步稳定 producer 边界与 applied 快照，不拿旧 total 判断迟到输出。"""
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        total = _wait_total_stable(client, timeout=remaining)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        snap = _wait_engine_caught_up(session, client, total, timeout=remaining)
+        observed_total = int(client.describe()["total_bytes"])
+        last = (int(snap["cursor"]), observed_total)
+        if last[0] == last[1] == int(total):
+            return snap, observed_total
+    raise AssertionError(f"稳定 producer/applied 边界未确认：last={last}")
+
+
+def test_stable_snapshot_rechecks_late_producer_output(monkeypatch):
+    totals = iter([100, 165])
+    snapshots = iter([{"cursor": 165}, {"cursor": 165}])
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "_wait_total_stable", lambda *a, **k: next(totals))
+    monkeypatch.setattr(module, "_wait_engine_caught_up", lambda *a, **k: next(snapshots))
+
+    class Client:
+        def describe(self):
+            return {"total_bytes": 165}
+    snap, total = _wait_stable_engine_snapshot(object(), Client())
+    assert snap["cursor"] == total == 165
+
+
+def test_stable_snapshot_does_not_accept_unconfirmed_boundary(monkeypatch):
+    module = sys.modules[__name__]
+    ticks = iter([0.0, 0.0, 0.0, 0.0, 2.0])
+    monkeypatch.setattr(time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(module, "_wait_total_stable", lambda *a, **k: 100)
+    monkeypatch.setattr(module, "_wait_engine_caught_up", lambda *a, **k: {"cursor": 165})
+
+    class Client:
+        def describe(self):
+            return {"total_bytes": 165}
+    with pytest.raises(AssertionError, match="边界未确认"):
+        _wait_stable_engine_snapshot(object(), Client(), timeout=1.0)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # launcher（测试专属组合装配；非生产模块）
 # ══════════════════════════════════════════════════════════════════════════
@@ -770,7 +816,7 @@ def test_composition_browserless_feed_eviction_protocol_a_single_consumption(
     _read_until(client, marker.encode(), timeout=20)
     total_now = client.describe()["total_bytes"]
     backlog = session.control("diagnostics")
-    snap = _wait_engine_caught_up(session, client, total_now)
+    snap, total_now = _wait_stable_engine_snapshot(session, client)
     catch_up_seconds = round(time.monotonic() - submit_at, 3)
     caught_diag = session.control("diagnostics")
     assert int(snap["cursor"]) == int(total_now), (

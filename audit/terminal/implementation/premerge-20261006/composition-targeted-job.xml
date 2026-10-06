@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="4.462" timestamp="2026-10-06T11:57:08.667084+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_composition" name="test_composition_utf8_osc_boundaries_no_fake_full" time="4.404" /></testsuite></testsuites>

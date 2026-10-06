@@ -761,7 +761,16 @@ def test_log_cleaner_rejects_reparse_logs_directory(retention_env):
     try:
         os.symlink(external, real_logs, target_is_directory=True)
     except (OSError, NotImplementedError):
-        pytest.skip("directory symlinks are unavailable on this Windows host")
+        if sys.platform != "win32":
+            pytest.skip("directory symlinks unavailable")
+        # A junction is also a real reparse point, but does not require the
+        # symlink privilege. Both paths belong to this fixture; never use a
+        # shared node_modules junction or a live application directory here.
+        try:
+            import _winapi
+            _winapi.CreateJunction(str(external), str(real_logs))
+        except (OSError, AttributeError):
+            pytest.skip("neither directory symlink nor junction is available")
 
     result = jobs.cleanup_job_log_files(registry_root=root, retention_days=1, now=1_000_000)
 

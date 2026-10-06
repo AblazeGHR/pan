@@ -1,0 +1,239 @@
+{
+  "passed": true,
+  "browser": "chromium",
+  "realConPTY": true,
+  "frames": [
+    {
+      "v": 1,
+      "type": "hello",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "connection_id": "conn_40574082f7fd49bcac3a597fd4a1438b",
+      "role": "observer",
+      "control_generation": null,
+      "protocol": {
+        "version": 1,
+        "encoding": "json-text",
+        "cursor": "ascii-decimal-string",
+        "max_inbound_frame_bytes": 262144,
+        "max_input_bytes": 131072,
+        "read_chunk_bytes": 32768
+      }
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "seq": "0",
+      "next_seq": "112",
+      "data_b64": "G1s/OTAwMWgbWz8xMDA0aBtbPzI1bBtbMkobW20bW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bXTA7QzpcV2luZG93c1xTWVNURU0zMlxjbWQuZXhlBxtbPzI1aA==",
+      "size": 112
+    },
+    {
+      "v": 1,
+      "type": "snapshot",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "status": "running",
+      "data_b64": "TWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddG1s/MTAwNGg=",
+      "cursor": "112",
+      "rows": 24,
+      "cols": 80,
+      "fidelity": "partial",
+      "recovery": "partial",
+      "feed_lag": false,
+      "note": "protocol=A(cursor=112, pull original bytes from cursor; do not pre-feed pending tail); engine=xterm-headless/6.0.0+serialize/0.14.0; reasons=PRIVATE_MODE_9001_UNVERIFIED,CURSOR_VISIBILITY_DECTCEM_UNVERIFIED,WINDOW_TITLE_OSC_UNVERIFIED",
+      "note_truncated": false,
+      "engine": "xterm-headless/6.0.0+serialize/0.14.0",
+      "cursors_valid": true,
+      "reset_unconfirmed": false,
+      "applied_evicted": false,
+      "continuation_hint": "partial-view",
+      "auto_reset_applied": false,
+      "diagnostics": null
+    },
+    {
+      "v": 1,
+      "type": "resume-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "cursor": "112"
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "seq": "112",
+      "next_seq": "245",
+      "data_b64": "G1s/MjVsDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1s0OzFIRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLWZpbmFsLWludGVncmF0aW9uLW1hLTIwMjYxMDA0PhtbPzI1aA==",
+      "size": 133
+    },
+    {
+      "v": 1,
+      "type": "claim-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "role": "control",
+      "generation": "1"
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "next_seq": "245"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "accepted": true,
+      "status": "ok",
+      "rows": 28,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "accepted": true,
+      "size": 3,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "seq": "245",
+      "next_seq": "571",
+      "data_b64": "G1s/MjVsG1s4OzI4OzEzN3QbW0hNaWNyb3NvZnQgV2luZG93cyBb54mI5pysIDEwLjAuMjYyMDAuOTQ1N10bW0sNCihjKSBNaWNyb3NvZnQgQ29ycG9yYXRpb27jgILkv53nlZnmiYDmnInmnYPliKnjgIIbW0sNChtbSw0KRDpccHJvamVjdFxwYW4td29ya3RyZWVzXHRlcm1pbmFsLWZpbmFsLWludGVncmF0aW9uLW1hLTIwMjYxMDA0PhtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSxtbNDs2NUgbWz8yNWg=",
+      "size": 326
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "accepted": true,
+      "size": 31,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "next_seq": "571"
+    },
+    {
+      "v": 1,
+      "type": "input-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "accepted": true,
+      "size": 1,
+      "status": "done",
+      "seq": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "seq": "571",
+      "next_seq": "625",
+      "data_b64": "ZWNobyBOQVRJVkVfRklOQUxf5Lit5paHJmV4aXQgNw0KTkFUSVZFX0ZJTkFMX+S4reaWhw0K",
+      "size": 54
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "next_seq": "625"
+    },
+    {
+      "v": 1,
+      "type": "resize-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "accepted": true,
+      "status": "ok",
+      "rows": 29,
+      "cols": 137,
+      "pty_accepted": true,
+      "engine_confirmed": null
+    },
+    {
+      "v": 1,
+      "type": "output",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "seq": "625",
+      "next_seq": "994",
+      "data_b64": "G1s/MjVsG1tITWljcm9zb2Z0IFdpbmRvd3MgW+eJiOacrCAxMC4wLjI2MjAwLjk0NTddG1tLDQooYykgTWljcm9zb2Z0IENvcnBvcmF0aW9u44CC5L+d55WZ5omA5pyJ5p2D5Yip44CCG1tLDQobW0sNCkQ6XHByb2plY3RccGFuLXdvcmt0cmVlc1x0ZXJtaW5hbC1maW5hbC1pbnRlZ3JhdGlvbi1tYS0yMDI2MTAwND5lY2hvIE5BVElWRV9GSU5BTF/kuK3mlocmZXhpdCA3G1tLDQpOQVRJVkVfRklOQUxf5Lit5paHG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLDQobW0sNChtbSw0KG1tLG1s2OzFIG1s/MjVo",
+      "size": 369
+    },
+    {
+      "v": 1,
+      "type": "ack-result",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "next_seq": "994"
+    },
+    {
+      "v": 1,
+      "type": "terminal-state",
+      "terminal_id": "term_fabbddcb0a094e7d",
+      "status": "exited",
+      "exit_code": 7,
+      "output_complete": false,
+      "process_exit_seen": true,
+      "reader_done": true
+    }
+  ],
+  "websocketConnections": 1,
+  "statusText": "只观察 · 终端状态：exited（退出码 7）；输出完整性未确认",
+  "screenText": "Microsoft Windows [版本 10.0.26200.9457]\n(c) Microsoft Corporation。保留所有权利。\nD:\\project\\pan-worktrees\\terminal-final-integration-ma-20261004>echo NATIVE_FINAL_中文&exit 7\nNATIVE_FINAL_中文\n ",
+  "record": {
+    "terminal_id": "term_fabbddcb0a094e7d",
+    "status": "exited",
+    "owner": "service",
+    "rows": 24,
+    "cols": 80,
+    "pid": 39444,
+    "process_created_at_filetime": "134357313868645060",
+    "detached": false,
+    "detached_at": null,
+    "lease_grace_seconds": 2,
+    "created_by": "web-local",
+    "created_at": 1791257786.8299334,
+    "updated_at": 1791257797.836261,
+    "attached": false,
+    "authorization": "scope-is-metadata-not-permission",
+    "archived": false,
+    "cleanup_pending": false,
+    "scope": {
+      "workspace_id": null,
+      "session_id": null
+    },
+    "exit": {
+      "code": 7,
+      "reason": "natural-exit"
+    }
+  },
+  "selectedLabel": "term_fabbddcb0a094e7d · exited",
+  "finalRead": {
+    "terminal_id": "term_fabbddcb0a094e7d",
+    "data_b64": "",
+    "seq": "994",
+    "size": 0,
+    "next_cursor": "994",
+    "total_bytes": "994",
+    "first_retained_seq": "994",
+    "gap": null,
+    "truncated": false,
+    "fresh_view_required": false,
+    "cursor_advanced": false,
+    "zero_fill": false,
+    "status": "exited",
+    "exit_code": 7,
+    "output_complete": false,
+    "process_exit_seen": true,
+    "reader_done": true
+  },
+  "reselectedStatus": "只观察 · 终端已退出；历史屏幕未持久化，不能重连旧进程。",
+  "harnessExit": 0,
+  "logs": "{'origin': None, 'host': '127.0.0.1:65529', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:65529', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:65529', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:65529', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n{'origin': None, 'host': '127.0.0.1:65529', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty'}\r\n"
+}

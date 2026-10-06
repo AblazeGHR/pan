@@ -239,7 +239,7 @@ describe('server-backed queue store', () => {
     );
 
     expect(api.updateSessionQueueItem).toHaveBeenCalledWith(
-      's1', 'q-first', 'first edited', 1, expect.any(String),
+      's1', 'q-first', 'first edited', 1, expect.any(String), undefined,
     );
     expect(useQueueStore.getState().queues.s1).toHaveLength(1);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-first');

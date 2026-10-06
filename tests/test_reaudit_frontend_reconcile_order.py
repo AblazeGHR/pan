@@ -1,9 +1,9 @@
 """Frontend reconcile-order regressions, driven by the real sessionStore bundle.
 
 These tests execute the *real* `sessionStore.reconcileWorkerResult` by bundling
-`packages/web/src/stores/sessionStore.ts` with esbuild (borrowed read-only from a
-sibling worktree that has node_modules installed).  They are skipped when node or
-that esbuild path is unavailable.
+`packages/web/src/stores/sessionStore.ts` with the current checkout's esbuild,
+falling back to the original read-only sibling dependency when needed. They are
+skipped only when node or both dependency locations are unavailable.
 
 `--runxfail` prints the raw reproduced outputs.
 """
@@ -24,10 +24,13 @@ SIBLING_ESBUILD = Path(
     "D:/project/pan-worktrees/frontend-reaudit-history-ds-20260921"
     "/packages/web/node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild"
 )
+LOCAL_ESBUILD = next(iter(sorted(
+    (REPO / "packages/web/node_modules/.pnpm").glob("esbuild@*/node_modules/esbuild")
+)), None)
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None or not SIBLING_ESBUILD.exists(),
-    reason="needs node plus the sibling worktree's esbuild to bundle the real store",
+    shutil.which("node") is None or not (LOCAL_ESBUILD or SIBLING_ESBUILD.exists()),
+    reason="needs node plus local or sibling esbuild to bundle the real store",
 )
 
 

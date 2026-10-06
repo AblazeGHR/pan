@@ -1,16 +1,22 @@
 /**
  * Read-only probe: run the *real* sessionStore reducer path for a worker result.
  *
- * Bundles packages/web/src/stores/sessionStore.ts with esbuild from the sibling
- * worktree (read-only) and stubs only the HTTP/UI collaborators. The resulting
+ * Bundles packages/web/src/stores/sessionStore.ts with local esbuild (legacy
+ * sibling fallback, read-only) and stubs only HTTP/UI collaborators. The resulting
  * bundle stays in memory; this probe does not rewrite its checked-in evidence
  * artifact or any file outside the current worktree.
  */
 const path = require('path');
+const fs = require('fs');
 
 const WEB = path.resolve(__dirname, '..', 'packages', 'web');
 const SIBLING = 'D:/project/pan-worktrees/frontend-reaudit-history-ds-20260921/packages/web';
-const ESBUILD = require(path.resolve(
+const pnpm = path.join(WEB, 'node_modules/.pnpm');
+const local = fs.existsSync(pnpm) && fs.readdirSync(pnpm).sort()
+  .filter(name => name.startsWith('esbuild@'))
+  .map(name => path.join(pnpm, name, 'node_modules/esbuild'))
+  .find(location => fs.existsSync(location));
+const ESBUILD = require(local || path.resolve(
   SIBLING, 'node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild'));
 
 const API_EXPORTS = [
@@ -18,12 +24,16 @@ const API_EXPORTS = [
   'batchDeleteSessions', 'renameSession', 'branchSession', 'reimportSession',
   'sendSessionMessage', 'steerSessionWorker', 'fetchSessionQueue',
   'updateSessionSettings', 'fetchSessionSummary',
+  'rewindSessionHistory', 'setSessionWorkspaces', 'setSessionPinned',
+  'ackSessionUnreadDone', 'reorderPinnedSessions',
 ];
 
 const STUBS = {
   '@/types': 'export {};',
-  '@/demo/mockBackend': 'export const isMockMode = () => false;',
+  '@/demo/mockBackend': 'export const isMockMode = () => false; export const applyMockPinnedOrder = () => {};',
   '@/stores/uiStore': 'export const useUIStore = { getState: () => ({}) };',
+  '@/services/historyPagePrefetch': 'export const takeHistoryPrefetch = () => null; export const peekHistoryPrefetch = () => null;',
+  '@/utils/creationWorkspace': 'export const getCreationWorkspaceIds = async () => [];',
   '@/services/api': API_EXPORTS.map((n) => `export const ${n} = async () => ({});`).join('\n'),
 };
 
@@ -34,8 +44,8 @@ const plugin = {
       if (STUBS[args.path] !== undefined) {
         return { path: args.path, namespace: 'stub' };
       }
-      if (args.path === '@/utils/messageIdentity') {
-        return { path: path.join(WEB, 'src/utils/messageIdentity.ts') };
+      if (args.path === '@/utils/messageIdentity' || args.path === '@/utils/sessionFilters') {
+        return { path: path.join(WEB, 'src', args.path.slice(2) + '.ts') };
       }
       // The repaired store factors its ordering/window helpers into this module;
       // bundle the real one so the probe exercises the shipped behaviour.
@@ -65,7 +75,7 @@ async function build() {
     platform: 'node',
     target: 'node18',
     logLevel: 'silent',
-    nodePaths: [path.resolve(SIBLING, 'node_modules')],
+    nodePaths: [path.resolve(WEB, 'node_modules'), path.resolve(SIBLING, 'node_modules')],
     plugins: [plugin],
   })).outputFiles[0].text;
 }

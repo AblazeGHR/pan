@@ -102,16 +102,22 @@ def test_heartbeat_owner_is_retained_when_thread_is_still_in_flight():
     (True, True, True, True), (False, True, True, False),
     (True, False, True, False), (True, True, False, False),
 ])
-def test_browserless_refresh_requires_all_three_proofs(runner, engine, dead, closed):
-    from packages.core.terminal.contracts import RuntimeState
-    service = TerminalService.__new__(TerminalService)
-    state = SimpleNamespace(record=SimpleNamespace(status=RuntimeState.RUNNING),
-                            lock=threading.RLock())
-    service._global_lock = threading.Lock()
+def test_browserless_refresh_requires_all_three_proofs(tmp_path, runner, engine, dead, closed):
+    from packages.core.terminal.contracts import RuntimeState, TerminalRecord
+    from packages.core.terminal.service import _TerminalState
+    # Refresh now delegates retained death to the shared reconcile path.
+    # Supply its real registry/state instead of bypassing construction; do not
+    # mock reconcile itself, which would stop testing the three-proof gate.
+    service = TerminalService(tmp_path)
+    record = service._registry.create(TerminalRecord(
+        terminal_id='term_natural', status=RuntimeState.RUNNING))
+    state = _TerminalState(terminal_id=record.terminal_id, record=record)
     service._states = {'term_natural': state}
     service._runner_cleanup_record_confirmed = lambda state: runner
     service._launcher_status_evidence = lambda state: {'engine_converged': engine}
-    service._spawn_handle_exit_evidence = lambda state: {'exited': dead}
+    service._spawn_handle_exit_evidence = lambda state: {
+        'exited': dead, 'source': 'runner-retained-handle'}
+    service._identity_evidence = lambda *_args: {'status': 'unattributable'}
     service._finished_runtime_exit = lambda state: {'seen': True, 'reader_done': True, 'code': 7}
     service._release_runner_identity_handle = lambda state: True
     calls = []
@@ -121,6 +127,9 @@ def test_browserless_refresh_requires_all_three_proofs(runner, engine, dead, clo
     assert bool(calls) is closed
     if closed:
         assert calls[0]['evidence']['runner_exit']['code'] == 7
+    elif dead:
+        # Root death can be displayed without falsely proving tree cleanup.
+        assert service.registry.get(record.terminal_id).cleanup_pending is True
 
 
 @pytest.mark.skipif(sys.platform != 'win32' or not (

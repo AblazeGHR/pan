@@ -44,3 +44,16 @@ Session。端口探测后仍有占用竞态；测试监听失败必须显式报�
 
 `tests/test_test_isolation.py` 用真实 pytest 子进程和带污染配置的父环境验证
 这些约定；它使用模拟实用目录，不碰用户应用数据。
+
+## Terminal 安装与旧数据回归
+
+Windows Terminal 的 Python 依赖随 `minimal-requirements.txt` 安装；传统
+`requirements.txt` 经 dev 层包含该文件。前端 `pnpm install --frozen-lockfile`
+与 `pnpm build` **不会**安装 headless 引擎的独立依赖。部署或新 worktree 验收
+前，另在 `packages/core/terminal/emulator_sidecar/` 执行 `npm ci`，使用该目录
+的 exact-pin lock。不要提交 `node_modules`，也不要把缺依赖导致的 skip 当作通过。
+
+旧数据检查使用 `tests/test_premerge_legacy_data.py` 的合成临时记录：验证缺省
+Terminal 字段、Session 旧 CLI id、缺失 Rewind sidecar、Job 混合时间戳；读路径
+前后比较文件 bytes。需要写升级字段时，只允许显式用户操作，并验证 PID、raw
+FILETIME、scope 和退出事实未丢失。此测试不是对实用数据的迁移或修改授权。

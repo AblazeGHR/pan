@@ -129,7 +129,7 @@ describe('SendQueuePanel pending-only view', () => {
     await useQueueStore.getState().saveEdit();
 
     await waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalledWith(
-      's1', 'q-user-edit', '修改后的用户任务', 1, expect.any(String),
+      's1', 'q-user-edit', '修改后的用户任务', 1, expect.any(String), undefined,
     ));
     await waitFor(() => expect(screen.getByText('修改后的用户任务')).toBeTruthy());
     expect(screen.queryByDisplayValue('修改后的用户任务')).toBeNull();
