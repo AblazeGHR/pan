@@ -59,7 +59,7 @@ import {
   Settings,
   X,
 } from 'lucide-react';
-import type { AdapterConfig, MessagePart, PermissionMode } from '@/types';
+import type { AdapterConfig, MessagePart, PermissionMode, QueuedEditAttachment } from '@/types';
 import type { AttachmentLocation } from '@/types/attachment';
 
 const PILL_CLASS =
@@ -67,8 +67,12 @@ const PILL_CLASS =
 
 const DROPDOWN_ITEM = 'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
 
-// 队列编辑固定无附件：正文事务只允许改 text 片段，附件字段保持原样。
+// 队列编辑器正文容器固定无内联附件：新增附件经 chips 区管理（追加模式），
+// 保存时由服务端把新附件 part 追加到 parts 末尾。
 const QUEUE_EDIT_ATTACHMENTS: never[] = [];
+
+// 新增队列编辑附件的稳定空列表（chips 渲染回退值，保持引用稳定）。
+const EMPTY_QUEUE_EDIT_ATTACHMENTS: QueuedEditAttachment[] = [];
 
 // ── helpers ──
 
@@ -488,6 +492,294 @@ export function InputRow() {
     (value: ComposerValue) => updateQueueEdit(value.text),
     [updateQueueEdit],
   );
+  // ── Queued-edit attachments（仅 task 来源；report/notice/channel 派发不消费
+  // parts，见 _deliver_queue_unit/_format_report_batch，故不提供附件入口）──
+  const updateQueueEditAttachments = useQueueStore((s) => s.updateEditAttachments);
+  const queueEditAttachments = queueEdit?.attachments ?? EMPTY_QUEUE_EDIT_ATTACHMENTS;
+  // Tracked per attempt: aborting one Session's edit must never touch another
+  // Session's in-flight upload, while unmount may cancel everything.
+  const queueUploadControllersRef = useRef(
+    new Map<string, { controller: AbortController; sessionId: string }>(),
+  );
+  // Shared attachment menu/browser target: the ordinary composer keeps its
+  // draft transaction; queue edits write the isolated edit attachment list.
+  const attachmentTargetRef = useRef<'composer' | 'queue-edit'>('composer');
+  const abortQueueEditUploads = useCallback((sessionId?: string) => {
+    for (const [occurrenceId, entry] of queueUploadControllersRef.current) {
+      if (sessionId === undefined || entry.sessionId === sessionId) {
+        entry.controller.abort();
+        queueUploadControllersRef.current.delete(occurrenceId);
+      }
+    }
+  }, []);
+  // Unmount cancels every tracked upload regardless of Session: nobody is
+  // left to consume their callbacks.
+  useEffect(() => () => abortQueueEditUploads(), [abortQueueEditUploads]);
+  const queueEditAttachmentLive = useCallback(
+    (sessionId: string, occurrenceId: string, token: number | undefined, controller?: AbortController) => {
+      // Bound to the transaction's session: a late response must land on the
+      // edit it was started in, never on whatever Session is current.
+      const edit = useQueueStore.getState().edits[sessionId];
+      if (!edit || edit.editToken !== token) return false;
+      // The chip must still exist: a retried attempt gets a fresh identity
+      // (or a fresh controller), so stale responses cannot overwrite it.
+      if (!edit.attachments?.some((item) => item.occurrenceId === occurrenceId)) return false;
+      if (controller) {
+        const entry = queueUploadControllersRef.current.get(occurrenceId);
+        if (!entry || entry.controller !== controller) return false;
+      }
+      return true;
+    },
+    [],
+  );
+  const uploadQueueEditAttachment = useCallback(
+    async (attachment: QueuedEditAttachment, token: number | undefined, sessionId: string) => {
+      if (!attachment.file) return;
+      const controller = new AbortController();
+      queueUploadControllersRef.current.set(attachment.occurrenceId, { controller, sessionId });
+      try {
+        const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
+        const uploaded = await upload(
+          sessionId,
+          attachment.file,
+          (loaded, total) => {
+            if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
+            updateQueueEditAttachments(sessionId, (current) =>
+              current.map((item) =>
+                item.occurrenceId === attachment.occurrenceId
+                  ? { ...item, loadedBytes: loaded, totalBytes: total }
+                  : item,
+              ),
+            );
+          },
+          controller.signal,
+        );
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.map((item) =>
+            item.occurrenceId === attachment.occurrenceId
+              ? {
+                  ...item,
+                  attachmentId: uploaded.attachmentId || uploaded.storageFilename,
+                  displayName: uploaded.displayName || uploaded.filename || item.displayName,
+                  path: uploaded.path,
+                  href: uploaded.href || serverFileDownloadHref(sessionId, uploaded.path),
+                  mimeType: attachment.file?.type || undefined,
+                  source: 'upload' as const,
+                  status: 'ready' as const,
+                  loadedBytes: uploaded.size,
+                  totalBytes: uploaded.size,
+                  error: undefined,
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        // The controller identity is part of the liveness check: a retried
+        // attempt installs a fresh controller, so this stale AbortError (e.g.
+        // cancel -> release failure -> immediate retry) cannot overwrite the
+        // new attempt's uploading/ready state.
+        if (!queueEditAttachmentLive(sessionId, attachment.occurrenceId, token, controller)) return;
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.map((item) =>
+            item.occurrenceId === attachment.occurrenceId
+              ? { ...item, status: 'error' as const, error: error instanceof Error ? error.message : String(error) }
+              : item,
+          ),
+        );
+      } finally {
+        const entry = queueUploadControllersRef.current.get(attachment.occurrenceId);
+        if (entry && entry.controller === controller) {
+          queueUploadControllersRef.current.delete(attachment.occurrenceId);
+        }
+      }
+    },
+    [queueEditAttachmentLive, updateQueueEditAttachments],
+  );
+  const registerQueueEditAttachment = useCallback(
+    (occurrenceId: string, path: string, token: number | undefined, sessionId: string) => {
+      void (async () => {
+        try {
+          const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+          const registered = await register(sessionId, path);
+          if (!queueEditAttachmentLive(sessionId, occurrenceId, token)) return;
+          updateQueueEditAttachments(sessionId, (current) =>
+            current.map((item) =>
+              item.occurrenceId === occurrenceId
+                ? {
+                    ...item,
+                    attachmentId: registered.attachmentId,
+                    displayName: registered.displayName,
+                    href: registered.href,
+                    path: registered.path,
+                    mimeType: registered.mimeType,
+                    source: 'server_file' as const,
+                    status: 'ready' as const,
+                  }
+                : item,
+            ),
+          );
+        } catch (error) {
+          if (!queueEditAttachmentLive(sessionId, occurrenceId, token)) return;
+          updateQueueEditAttachments(sessionId, (current) =>
+            current.map((item) =>
+              item.occurrenceId === occurrenceId
+                ? { ...item, status: 'error' as const, error: error instanceof Error ? error.message : '附件注册失败' }
+                : item,
+            ),
+          );
+        }
+      })();
+    },
+    [queueEditAttachmentLive, updateQueueEditAttachments],
+  );
+  const addQueueEditClientFiles = useCallback(
+    (files: File[]): string[] => {
+      if (!queueEdit || queueEdit.kind !== 'task' || files.length === 0) return [];
+      const token = queueEdit.editToken;
+      const sessionId = useSessionStore.getState().currentSessionId;
+      if (!sessionId) return [];
+      const selectedKeys = new Set(
+        queueEdit.attachments
+          ?.filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
+          .map((attachment) => attachment.fileKey) ?? [],
+      );
+      const added = files
+        .filter((file) => {
+          const key = clientFileKey(file);
+          if (selectedKeys.has(key)) return false;
+          selectedKeys.add(key);
+          return true;
+        })
+        .map((file) => ({
+          occurrenceId: attachmentId(),
+          id: '',
+          displayName: file.name,
+          file,
+          fileKey: clientFileKey(file),
+          loadedBytes: 0,
+          totalBytes: file.size,
+          status: 'uploading' as const,
+          source: 'upload' as const,
+        }))
+        .map((attachment) => ({ ...attachment, id: attachment.occurrenceId }));
+      if (added.length === 0) return [];
+      updateQueueEditAttachments(sessionId, (current) => [...current, ...added]);
+      for (const attachment of added) {
+        void uploadQueueEditAttachment(attachment, token, sessionId);
+      }
+      // 追加模式：附件经 chips 区管理，保存时由服务端追加到 parts 末尾，
+      // 不向正文文本流插入内联节点（bodyFormat==='parts' 时正文是 JSON 模板）。
+      return [];
+    },
+    [queueEdit, uploadQueueEditAttachment, updateQueueEditAttachments],
+  );
+  const handleQueueEditAttachmentDrop = useCallback(
+    (payload: PanAttachmentPayload): string | null => {
+      if (!queueEdit || queueEdit.kind !== 'task' || !currentSessionId) return null;
+      if (!isAttachmentPayloadForSession(payload, currentSessionId)) {
+        showToast('附件属于其他 Session，不能拖入当前输入框', 'error');
+        return null;
+      }
+      const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
+      const needsRegistration = !remoteId && !!payload.path;
+      const token = queueEdit.editToken;
+      const sessionId = currentSessionId;
+      const occurrenceId = attachmentId();
+      updateQueueEditAttachments(sessionId, (current) => [
+        ...current,
+        {
+          occurrenceId,
+          id: occurrenceId,
+          attachmentId: remoteId,
+          displayName: payload.displayName,
+          path: payload.path,
+          href: payload.href,
+          status: needsRegistration ? 'registering' as const : 'ready' as const,
+          source: remoteId?.startsWith('upload_') ? 'upload' as const : 'server_file' as const,
+        },
+      ]);
+      if (needsRegistration) {
+        registerQueueEditAttachment(occurrenceId, payload.path!, token, sessionId);
+      }
+      return null;
+    },
+    [queueEdit, currentSessionId, registerQueueEditAttachment, showToast, updateQueueEditAttachments],
+  );
+  const removeQueueEditAttachment = useCallback(
+    (sessionId: string | undefined, occurrenceId: string) => {
+      if (!sessionId) return;
+      const entry = queueUploadControllersRef.current.get(occurrenceId);
+      if (entry) {
+        entry.controller.abort();
+        queueUploadControllersRef.current.delete(occurrenceId);
+      }
+      updateQueueEditAttachments(sessionId, (current) =>
+        current.filter((item) => item.occurrenceId !== occurrenceId),
+      );
+    },
+    [updateQueueEditAttachments],
+  );
+  const retryQueueEditAttachment = useCallback(
+    (sessionId: string | undefined, attachment: QueuedEditAttachment) => {
+      if (!sessionId) return;
+      const token = useQueueStore.getState().edits[sessionId]?.editToken;
+      if (token === undefined) return;
+      if (attachment.file) {
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.map((item) =>
+            item.occurrenceId === attachment.occurrenceId
+              ? { ...item, status: 'uploading' as const, error: undefined, loadedBytes: 0 }
+              : item,
+          ),
+        );
+        void uploadQueueEditAttachment(attachment, token, sessionId);
+      } else if (attachment.path) {
+        // Path registration retry gets a FRESH occurrence id: the previous
+        // attempt's chip is replaced, so a late response from the old
+        // registration cannot overwrite the new attempt (the old occurrence
+        // no longer exists, failing the liveness check).
+        const nextOccurrenceId = attachmentId();
+        updateQueueEditAttachments(sessionId, (current) =>
+          current.flatMap((item) => {
+            if (item.occurrenceId !== attachment.occurrenceId) return [item];
+            return [{
+              ...item,
+              occurrenceId: nextOccurrenceId,
+              id: nextOccurrenceId,
+              status: 'registering' as const,
+              error: undefined,
+            }];
+          }),
+        );
+        registerQueueEditAttachment(nextOccurrenceId, attachment.path, token, sessionId);
+      }
+    },
+    [registerQueueEditAttachment, updateQueueEditAttachments, uploadQueueEditAttachment],
+  );
+  const handleQueueEditCancel = useCallback(() => {
+    const sid = useSessionStore.getState().currentSessionId;
+    if (sid) {
+      // Mark in-flight work as cancelled BEFORE aborting: the late AbortError
+      // lands after cancelEdit flipped releasing (or after the edit cleared),
+      // and if the lease release later fails the action guard would drop it,
+      // leaving a permanently 'uploading' chip and a dead Save button.
+      // Pre-marked error chips stay retryable/removable in every outcome.
+      const edit = useQueueStore.getState().edits[sid];
+      if (edit) {
+        updateQueueEditAttachments(sid, (current) =>
+          current.map((item) =>
+            item.status === 'uploading' || item.status === 'registering'
+              ? { ...item, status: 'error' as const, error: '已取消编辑；可重试或移除' }
+              : item,
+          ),
+        );
+      }
+    }
+    // Only this transaction's uploads: other Sessions' edits keep theirs.
+    abortQueueEditUploads(sid ?? undefined);
+    cancelQueueEdit();
+  }, [abortQueueEditUploads, cancelQueueEdit, updateQueueEditAttachments]);
   const handleQueueComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLElement>) => {
       if (event.nativeEvent.isComposing) return;
@@ -496,11 +788,18 @@ export function InputRow() {
         saveQueueEdit();
       } else if (event.key === 'Escape') {
         event.preventDefault();
-        cancelQueueEdit();
+        handleQueueEditCancel();
       }
     },
-    [saveQueueEdit, cancelQueueEdit],
+    [saveQueueEdit, handleQueueEditCancel],
   );
+  // Save stays blocked for any non-ready chip AND for a 'ready' chip that
+  // somehow lacks its server id: dropping it silently would lie to the user.
+  const queueEditAttachmentsPending = queueEditAttachments.some(
+    (attachment) => attachment.status !== 'ready' || !attachment.attachmentId,
+  );
+  const queueEditAttachmentsSupported = queueEdit?.kind === 'task'
+    && (queueEdit.bodyFormat === 'text' || queueEdit.bodyFormat === 'parts');
   useEffect(() => {
     if (!queueEditActive) return;
     setAttachmentMenuOpen(false);
@@ -900,9 +1199,15 @@ export function InputRow() {
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
       event.target.value = '';
+      // Shared file input: route by the menu target captured at open time so
+      // queue-edit picks never touch the ordinary draft attachment list.
+      if (attachmentTargetRef.current === 'queue-edit') {
+        addQueueEditClientFiles(files);
+        return;
+      }
       void queueClientFiles(files);
     },
-    [queueClientFiles],
+    [addQueueEditClientFiles, queueClientFiles],
   );
 
   const handleNativeFiles = useCallback(
@@ -1565,18 +1870,91 @@ export function InputRow() {
       </div>
 
       {queueEdit && (
-        <div data-testid="queue-composer-edit" className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-default bg-bg-primary p-3">
-          <p className="text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
-          {queueEdit.acquiring && <p className="text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
-          {queueEdit.saving && <p className="text-xs text-text-secondary">正在保存…</p>}
-          {queueEdit.bodyFormat === 'json' && <p className="text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
-          {queueEdit.bodyFormat === 'parts' && <p className="text-xs text-text-secondary">此消息含附件；仅修改 text 类型片段的 text/value 正文。请保留全部片段、顺序和附件字段。</p>}
-          {queueEdit.error && <p role="alert" className="text-xs text-danger">{queueEdit.error}</p>}
+        <div
+          data-testid="queue-composer-edit"
+          className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto border-t border-border-default bg-bg-primary px-3 pt-3 ${
+            isMobile && mobileFullscreen ? 'pb-[max(12px,var(--safe-bottom))]' : 'pb-3'
+          }`}
+        >
+          <p className="shrink-0 text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
+          {queueEdit.acquiring && <p className="shrink-0 text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
+          {queueEdit.saving && <p className="shrink-0 text-xs text-text-secondary">正在保存…</p>}
+          {queueEdit.bodyFormat === 'json' && <p className="shrink-0 text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
+          {queueEdit.bodyFormat === 'parts' && <p className="shrink-0 text-xs text-text-secondary">此消息含附件；正文为 JSON 模板，仅修改 text 片段；已有附件保持原样，可追加新附件。</p>}
+          {queueEdit.error && <p role="alert" className="shrink-0 text-xs text-danger">{queueEdit.error}</p>}
+          {(queueEditAttachmentsSupported || queueEditAttachments.length > 0) && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-testid="queue-edit-attachments">
+              {(queueEdit.originalAttachments ?? []).map((attachment) => (
+                <span
+                  key={attachment.attachmentId}
+                  title={`已有附件（保存时保持原样）：${attachment.displayName}`}
+                  className="inline-flex max-w-[220px] items-center gap-1 rounded border border-border-muted bg-bg-tertiary/60 px-1.5 py-0.5 text-[11px] text-text-secondary"
+                >
+                  <Paperclip size={11} className="shrink-0" />
+                  <span className="truncate">{attachment.displayName}</span>
+                </span>
+              ))}
+              {queueEditAttachments.map((attachment) => (
+                <span
+                  key={attachment.occurrenceId}
+                  data-testid="queue-edit-attachment-chip"
+                  title={attachment.error || attachment.displayName}
+                  className="inline-flex max-w-[240px] items-center gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-primary"
+                >
+                  <Paperclip size={11} className="shrink-0" />
+                  <span className="truncate">{attachment.displayName}</span>
+                  {attachment.status === 'uploading' && (
+                    <span className="shrink-0 text-text-secondary">
+                      {attachment.totalBytes ? ` ${Math.round((attachment.loadedBytes ?? 0) / attachment.totalBytes * 100)}%` : ' 上传中'}
+                    </span>
+                  )}
+                  {attachment.status === 'registering' && <span className="shrink-0 text-text-secondary"> 注册中</span>}
+                  {attachment.status === 'error' && <span className="shrink-0 text-danger"> 失败</span>}
+                  {attachment.status === 'error' && (attachment.file || attachment.path) && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={queueEdit.saving || queueEdit.releasing}
+                      onClick={() => retryQueueEditAttachment(currentSessionId || undefined, attachment)}
+                    >
+                      重试
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`移除附件 ${attachment.displayName}`}
+                    className="shrink-0 text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={queueEdit.saving || queueEdit.releasing}
+                    onClick={() => removeQueueEditAttachment(currentSessionId || undefined, attachment.occurrenceId)}
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+              {queueEditAttachmentsSupported && (
+                <button
+                  type="button"
+                  data-testid="queue-edit-attachment-button"
+                  aria-label="为队列消息添加附件"
+                  title="添加附件（保存时追加到消息末尾）"
+                  disabled={queueEdit.saving || queueEdit.releasing}
+                  onClick={() => {
+                    attachmentTargetRef.current = 'queue-edit';
+                    setAttachmentMenuOpen((open) => !open);
+                  }}
+                  className="inline-flex items-center gap-1 rounded border border-border-default px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Paperclip size={11} /> 添加附件
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex min-h-24 min-w-0 flex-1 gap-2">
             {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
                 绝不把面板里的截断预览当作编辑正文。saving/releasing 时编辑器
                 真禁用（contentEditable=false + 键盘守卫），DOM 冻结，保存失败
-                解除后 DOM 与 store 草稿一致。 */}
+                解除后 DOM 与 store 草稿一致。新增附件走上方 chips（追加模式），
+                不向正文文本流插入内联节点。 */}
             {!queueEdit.acquiring && (
               <RichTextComposer
                 key={`queue-edit:${currentSessionId ?? 'no-session'}:${queueEdit.editToken ?? 'none'}`}
@@ -1587,31 +1965,32 @@ export function InputRow() {
                 sessionId={currentSessionId || undefined}
                 disabled={queueEdit.saving || queueEdit.releasing}
                 onChange={handleQueueComposerChange}
-                onAttachmentDrop={() => null}
-                onNativeInputIssue={() => showToast('队列编辑模式下不能添加附件', 'error')}
+                onAttachmentDrop={handleQueueEditAttachmentDrop}
+                onNativeFiles={addQueueEditClientFiles}
+                onNativeInputIssue={handleNativeInputIssue}
                 onRemoveAttachment={() => {}}
                 onKeyDown={handleQueueComposerKeyDown}
               />
             )}
-            <div className="flex shrink-0 flex-col items-end gap-1 self-stretch">
-              {isMobile && (
-                <button
-                  type="button"
-                  data-testid="queue-edit-fullscreen"
-                  aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
-                  title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
-                  onClick={() => setMobileFullscreen((current) => !current)}
-                  className="flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
-                >
-                  {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
-                </button>
-              )}
-              <div className="mt-auto flex items-center gap-1">
-                <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
-                  onClick={cancelQueueEdit} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
-                <button type="button" aria-label="保存队列编辑" title="确认保存" disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || currentSession?.readonlySession}
-                  onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
-              </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {isMobile && (
+              <button
+                type="button"
+                data-testid="queue-edit-fullscreen"
+                aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                onClick={() => setMobileFullscreen((current) => !current)}
+                className="mr-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+              >
+                {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-1">
+              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
+                onClick={handleQueueEditCancel} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+              <button type="button" aria-label="保存队列编辑" title={queueEditAttachmentsPending ? '等待附件上传/注册完成' : '确认保存'} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || queueEditAttachmentsPending || currentSession?.readonlySession}
+                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
             </div>
           </div>
         </div>
@@ -1716,7 +2095,10 @@ export function InputRow() {
                   type="button"
                   aria-label="添加附件"
                   title="添加附件"
-                  onClick={() => setAttachmentMenuOpen((open) => !open)}
+                  onClick={() => {
+                    attachmentTargetRef.current = 'composer';
+                    setAttachmentMenuOpen((open) => !open);
+                  }}
                   className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                 >
                   <Paperclip size={14} />
@@ -1964,12 +2346,118 @@ export function InputRow() {
                 onSelect={(selectedPath) => {
                   const selectedSessionId = currentSessionId;
                   const selectedEpoch = attachmentEpochRef.current;
+                  const queueEditToken = selectedSessionId
+                    ? useQueueStore.getState().edits[selectedSessionId]?.editToken
+                    : undefined;
+                  const queueEditTarget = attachmentTargetRef.current === 'queue-edit';
                   void (async () => {
                     try {
                       const register = isMockMode()
                         ? mockRegisterServerFileAttachment
                         : registerServerFileAttachment;
                       if (!selectedSessionId) return;
+                      if (queueEditTarget) {
+                        // Transaction binding: token captured now, chip owned
+                        // by selectedSessionId. The placeholder chip exists
+                        // before the await so Save stays blocked while the
+                        // registration is in flight, and a failure leaves a
+                        // retryable error chip instead of a silent loss.
+                        if (queueEditToken === undefined) return;
+                        // Busy picker guard: the edit may have entered
+                        // saving/releasing/acquiring between opening the
+                        // picker and selecting a file; the placeholder write
+                        // would be dropped and we'd fire a pointless request.
+                        const editAtSelect = useQueueStore.getState().edits[selectedSessionId];
+                        if (!editAtSelect
+                          || editAtSelect.editToken !== queueEditToken
+                          || editAtSelect.saving || editAtSelect.releasing || editAtSelect.acquiring) {
+                          return;
+                        }
+                        const occurrenceId = attachmentId();
+                        const displayName = selectedPath.split(/[\\/]/).pop() || selectedPath;
+                        updateQueueEditAttachments(selectedSessionId, (current) => [
+                          ...current,
+                          {
+                            occurrenceId,
+                            id: occurrenceId,
+                            displayName,
+                            path: selectedPath,
+                            status: 'registering' as const,
+                            source: 'server_file' as const,
+                          },
+                        ]);
+                        // The action guard can silently drop the placeholder;
+                        // only fire the request if it actually landed.
+                        const placed = useQueueStore.getState().edits[selectedSessionId]
+                          ?.attachments?.some((item) => item.occurrenceId === occurrenceId);
+                        if (!placed) return;
+                        let registered: Awaited<ReturnType<typeof registerServerFileAttachment>>;
+                        try {
+                          registered = await register(selectedSessionId, selectedPath);
+                        } catch (error) {
+                          // Data write stays bound to the originating edit; UI
+                          // side effects only touch the picker the user is
+                          // still looking at (same session, same epoch, same
+                          // target transaction).
+                          if (
+                            useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
+                          )
+                            return;
+                          updateQueueEditAttachments(selectedSessionId, (current) =>
+                            current.map((item) =>
+                              item.occurrenceId === occurrenceId
+                                ? {
+                                    ...item,
+                                    status: 'error' as const,
+                                    error: error instanceof Error ? error.message : '附件注册失败',
+                                  }
+                                : item,
+                            ),
+                          );
+                          if (
+                            useSessionStore.getState().currentSessionId === selectedSessionId
+                            && attachmentEpochRef.current === selectedEpoch
+                            && useQueueStore.getState().edits[selectedSessionId]?.editToken === queueEditToken
+                            && attachmentTargetRef.current === 'queue-edit'
+                          ) {
+                            setAttachmentDirectoryError(
+                              error instanceof Error ? error.message : '服务端附件注册失败',
+                            );
+                          }
+                          return;
+                        }
+                        if (
+                          useQueueStore.getState().edits[selectedSessionId]?.editToken !== queueEditToken
+                        )
+                          return;
+                        updateQueueEditAttachments(selectedSessionId, (current) =>
+                          current.map((item) =>
+                            item.occurrenceId === occurrenceId
+                              ? {
+                                  ...item,
+                                  attachmentId: registered.attachmentId,
+                                  displayName: registered.displayName,
+                                  href: registered.href,
+                                  path: registered.path,
+                                  mimeType: registered.mimeType,
+                                  source: 'server_file' as const,
+                                  status: 'ready' as const,
+                                }
+                              : item,
+                          ),
+                        );
+                        if (
+                          useSessionStore.getState().currentSessionId === selectedSessionId
+                          && attachmentEpochRef.current === selectedEpoch
+                          && useQueueStore.getState().edits[selectedSessionId]?.editToken === queueEditToken
+                          && attachmentTargetRef.current === 'queue-edit'
+                        ) {
+                          setAttachmentBrowserOpen(false);
+                          setAttachmentMenuOpen(false);
+                          setAttachmentDirectoryError(null);
+                        }
+                        return;
+                      }
                       const registered = await register(selectedSessionId, selectedPath);
                       if (
                         activeAttachmentSessionRef.current !== selectedSessionId ||

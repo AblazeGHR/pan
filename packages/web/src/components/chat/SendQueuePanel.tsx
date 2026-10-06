@@ -175,7 +175,7 @@ export function SendQueuePanel() {
               </button>
             )}
           </div>
-          <div className="queue-list-scroll max-h-[45vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
+          <div className="queue-list-scroll max-h-[45dvh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
             {displayItems.length === 0 ? (
               <div className="px-3 py-3 text-center text-xs text-text-tertiary">队列为空</div>
             ) : (
