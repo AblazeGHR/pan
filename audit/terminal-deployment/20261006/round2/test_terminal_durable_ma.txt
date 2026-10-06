@@ -1,0 +1,4 @@
+s.                                                                       [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_terminal_durable_ma.py:53: actual ancestor Job restricts detach
+1 passed, 1 skipped in 11.78s

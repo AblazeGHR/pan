@@ -1,0 +1,18 @@
+{
+  "python": "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+  "windows_terminal_supported": true,
+  "checks": {
+    "pyte": true,
+    "psutil": true,
+    "fastapi": true,
+    "uvicorn": true,
+    "websockets": true,
+    "httpx": true,
+    "mcp": true,
+    "jwt": true,
+    "node": true,
+    "cbc_command": true,
+    "sidecar": true
+  },
+  "ready": true
+}

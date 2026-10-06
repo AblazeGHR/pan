@@ -1,0 +1,19 @@
+{
+  "python": "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+  "targeted_exit_code": 0,
+  "earlier_round2_totals_before_fixes": {
+    "tests": 903,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 1
+  },
+  "source_blobs": {
+    "packages/core/terminal/observer.py": "1e4a1d8a050d6f03f85cb90f6c81bc66fd3c1e06",
+    "packages/core/rewind/hybrid.py": "04744f9506ebd5240bc150c95d5d7e307c9b3a42",
+    "scripts/check_terminal_deployment.py": "952ca3ab1c7c36068b19fa3e7d6849f4baaada25",
+    "scripts/setup.bat": "5666302df82d3eaccec69704ef5c3254d6cd8b92",
+    "tests/test_terminal_deployment.py": "3668b8772ad3f05a1dbaf6db2e56b8dde3480b04",
+    "tests/test_terminal_pan_lifecycle_ma.py": "33e9695965f58fcef1d557d3c0f8d81aab68de33",
+    "tests/test_terminal_api.py": "6c41c9074a3ff0fbc751183cdccbc0737456a6dc"
+  }
+}

@@ -123,6 +123,20 @@ if %ERRORLEVEL% EQU 0 (
 echo.
 
 echo ========== 汇总 ==========
+REM Terminal headless dependencies are separate from the React bundle.
+where npm >nul 2>&1
+if !ERRORLEVEL! EQU 0 (
+    pushd "%ROOT%\packages\core\terminal\emulator_sidecar"
+    call npm ci --no-audit --no-fund
+    if !ERRORLEVEL! NEQ 0 echo [FAIL] Terminal headless dependency installation failed
+    popd
+) else (
+    echo [FAIL] npm unavailable - Terminal headless engine cannot run
+)
+if defined VPY (
+    "%VPY%" "%ROOT%\scripts\check_terminal_deployment.py"
+    if !ERRORLEVEL! NEQ 0 echo [FAIL] Terminal/Rewind deployment check failed
+)
 echo 按上面 [OK]/[WARN]/[FAIL] 逐项处理；核心齐备后用 scripts\start_pan.bat 启动。
 endlocal
 exit /b 0

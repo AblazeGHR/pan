@@ -1,0 +1,218 @@
+[
+  {
+    "name": "deployment",
+    "exit_code": 0
+  },
+  {
+    "name": "test_premerge_legacy_data",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_adddir",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_anchor",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_api",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_core_ownership",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_filetools",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_restore_gate",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_scope",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_terminal_core",
+    "exit_code": 0
+  },
+  {
+    "name": "test_rewind_transcript",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_api",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_archive_scope_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_attachment_durable",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_breakaway_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_broadcast",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_composition",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_deployment",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_driver",
+    "exit_code": 1
+  },
+  {
+    "name": "test_terminal_durable_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_emulator",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_exit_projection_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_guard",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_identity",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_interrupt_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_launcher",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_launcher_visibility_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_lease",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_natural_exit_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_output",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_ownership",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_pan_lifecycle_ma",
+    "exit_code": 1
+  },
+  {
+    "name": "test_terminal_registry",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_remove_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_runner",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_runner_identity_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_runner_ipc",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_runtime",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_secret_store",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_service",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_service_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_service_rework",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_shutdown_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_slow_client_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_spawn_gate",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_steady_pressure_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_tools",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_tools_api",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_windows_backend",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_ws",
+    "exit_code": 0
+  },
+  {
+    "name": "test_terminal_ws_ma",
+    "exit_code": 0
+  },
+  {
+    "name": "test_test_isolation",
+    "exit_code": 0
+  },
+  {
+    "name": "frontend",
+    "exit_code": 0
+  },
+  {
+    "name": "build",
+    "exit_code": 0
+  }
+]

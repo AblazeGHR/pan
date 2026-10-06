@@ -20,6 +20,7 @@ from packages.core.rewind.driver import (
 )
 from packages.core.rewind.storage import RewindRecordStore
 from packages.core.rewind.transcript import TranscriptAnchor, TruncationResult, truncate_transcript
+from packages.core.terminal.observer import require_pyte
 
 
 StatusCallback = Callable[[str, Mapping[str, Any]], None]
@@ -124,6 +125,7 @@ def run_hybrid_rewind(parent_cli_session_id: str, workdir: str | Path,
 
     try:
         ensure_rewind_supported(adapter)
+        require_pyte()
         emit('starting', parent_cli_session_id=parent_cli_session_id, scope=scope)
         fork = fork_session(parent_cli_session_id, workdir, timeout=max(timeout, 180.0))
         result.fork = fork

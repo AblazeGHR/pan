@@ -1,0 +1,18 @@
+......F........                                                          [100%]
+================================== FAILURES ===================================
+___________________ test_core_has_no_adapter_menu_literals ____________________
+tests\test_terminal_driver.py:175: in test_core_has_no_adapter_menu_literals
+    assert "cbc" not in text
+E   assert 'cbc' not in '"""自动化屏幕观察者...leep(0.02)\n'
+E     
+E     'cbc' is contained here:
+E                "cbc 撤回需要运行 pan 的 python 环境安装 pyte；"
+E     ?           +++
+E                   "请用该解释器执行 `-m pip install -r minimal-requirements.txt`，"
+E                   "再执行 `scripts/check_terminal_deployment.py` 检查部署。"
+E                   "仅在 uv 隔离测试环境安装不会修复正在运行的 pan。"...
+E     
+E     ...Full output truncated (108 lines hidden), use '-vv' to show
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_driver.py::test_core_has_no_adapter_menu_literals
+1 failed, 14 passed in 0.40s

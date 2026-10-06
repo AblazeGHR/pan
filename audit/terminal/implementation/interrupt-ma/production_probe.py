@@ -55,7 +55,7 @@ def run_probe():
             view = service.create(cwd=str(root))
             tid = view["terminal_id"]
             token = service.attach(tid, "ma-interrupt", role="control")
-            argv = [getattr(sys, "_base_executable", sys.executable), "-X", "utf8",
+            argv = [sys.executable, "-X", "utf8",
                     str(script), str(ready), str(event)]
             service.input(tid, token, (subprocess.list2cmdline(argv) + "\r").encode("utf-8"))
             ready_text = wait_file_text(ready,

@@ -1,0 +1,8 @@
+..........                                                               [100%]
+============================== warnings summary ===============================
+tests/test_terminal_tools_api.py::test_mcp_proxy_refuses_missing_caller_or_remote_transport
+  D:\project\Pan\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+10 passed, 1 warning in 7.16s

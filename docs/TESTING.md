@@ -53,6 +53,16 @@ Windows Terminal 的 Python 依赖随 `minimal-requirements.txt` 安装；传统
 前，另在 `packages/core/terminal/emulator_sidecar/` 执行 `npm ci`，使用该目录
 的 exact-pin lock。不要提交 `node_modules`，也不要把缺依赖导致的 skip 当作通过。
 
+部署验收必须使用 Pan 实际选择的解释器（config.python / PAN_PYTHON / .venv
+的解析结果），不能用临时 `uv --with pyte` 环境代替。安装 minimal-requirements.txt
+后，用该解释器执行 `scripts/check_terminal_deployment.py`。该脚本只检查 Python
+依赖、CBC 命令与 Node exact-pin 侧车依赖，不调用 provider、不改 Session；ready
+不是功能验收。setup.bat 也安装侧车并执行该检查。
+真实验收须覆盖 REST/WS、中文输入、快照/gap、resize、control 权限、Ctrl-C、
+detach/重启、归档/删除/外部退出、收尾与旧数据，使用临时根和非实用端口。
+子进程服务 harness 使用 sys.executable，不以 _base_executable 绕过部署 venv。
+真实 CBC 三种撤回范围需自有临时项目/检查点，模拟回归不是 provider 验收。
+
 旧数据检查使用 `tests/test_premerge_legacy_data.py` 的合成临时记录：验证缺省
 Terminal 字段、Session 旧 CLI id、缺失 Rewind sidecar、Job 混合时间戳；读路径
 前后比较文件 bytes。需要写升级字段时，只允许显式用户操作，并验证 PID、raw

@@ -1,0 +1,8 @@
+{
+  "packages/core/terminal/observer.py": "54ab61539d35a243a32a43deb4661311c84a2be2",
+  "packages/core/rewind/hybrid.py": "04744f9506ebd5240bc150c95d5d7e307c9b3a42",
+  "scripts/check_terminal_deployment.py": "952ca3ab1c7c36068b19fa3e7d6849f4baaada25",
+  "tests/test_terminal_deployment.py": "3668b8772ad3f05a1dbaf6db2e56b8dde3480b04",
+  "tests/test_terminal_pan_lifecycle_ma.py": "bd95c0c00f708b638b9ff1bb2b0e1948fb237389",
+  "audit/terminal/implementation/interrupt-ma/production_probe.py": "3631210dbda6a67206373acaea40f94acdaef729"
+}

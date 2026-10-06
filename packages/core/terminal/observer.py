@@ -28,6 +28,20 @@ from .contracts import (
 ALT_SCREEN_DEC_MODES = (47, 1047, 1049)
 
 
+def require_pyte():
+    """Check the host runtime before automation has external side effects."""
+    try:
+        from pyte import Screen, Stream
+        return Screen, Stream
+    except ImportError as exc:
+        raise BackendUnavailableError(
+            "屏幕自动化观察需要运行 Pan 的 Python 环境安装 pyte；"
+            "请用该解释器执行 `-m pip install -r minimal-requirements.txt`，"
+            "再执行 `scripts/check_terminal_deployment.py` 检查部署。"
+            "仅在 uv 隔离测试环境安装不会修复正在运行的 Pan。"
+        ) from exc
+
+
 class PyteScreenObserver:
     """基于 pyte 的参考实现（自动化观察专用，``fidelity=partial``）。
 
@@ -45,13 +59,7 @@ class PyteScreenObserver:
     SUPPORTS_SCROLLBACK = False
 
     def __init__(self, rows: int, cols: int) -> None:
-        try:
-            from pyte import Screen, Stream  # type: ignore[import-not-found]
-        except ImportError as exc:  # pragma: no cover - 依赖缺失路径
-            raise BackendUnavailableError(
-                "PyteScreenObserver 需要 pyte（自动化观察专用）；"
-                "请在隔离环境安装，例如 `uv run --no-project --with pyte==0.8.2 ...`"
-            ) from exc
+        Screen, Stream = require_pyte()
         self.rows = int(rows)
         self.cols = int(cols)
         self._screen = Screen(self.cols, self.rows)

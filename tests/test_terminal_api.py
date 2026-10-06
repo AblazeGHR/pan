@@ -1495,12 +1495,13 @@ def test_request_body_cap_and_bad_json_are_static_422():
         assert excinfo.value.code == "invalid-body"
         assert over.pulled == 1, "应在越界块处立即拒绝，不读完整个 body"
 
-        # 深嵌套 → RecursionError → invalid-json（静态，非 500）
+        # Python 3.14 may decode this list without RecursionError. Both parser
+        # rejection and non-object rejection must stay static, before service.
         deep = b"[" * 6000 + b"]" * 6000
         assert len(deep) <= terminal_api.MAX_JSON_BODY
         with pytest.raises(terminal_api.BodyError) as excinfo:
             await terminal_api.read_json_object(_StreamRequest([deep]), allow_empty=True)
-        assert excinfo.value.code == "invalid-json"
+        assert excinfo.value.code in ("invalid-json", "invalid-body")
 
         service = FakeService()
         runtime = make_runtime(service)

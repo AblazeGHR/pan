@@ -1,0 +1,20 @@
+[
+  {
+    "case": "parent_only",
+    "runner_in_owned_job": null,
+    "host_exited": true,
+    "detached_runner_survived": true
+  },
+  {
+    "case": "kill_on_job_close",
+    "runner_in_owned_job": true,
+    "host_exited": true,
+    "detached_runner_survived": false
+  },
+  {
+    "case": "taskkill_tree",
+    "runner_in_owned_job": null,
+    "host_exited": true,
+    "detached_runner_survived": false
+  }
+]

@@ -1,0 +1,54 @@
+...FF                                                                    [100%]
+================================== FAILURES ===================================
+______ test_real_pan_managed_cleanup_detached_restart_same_shell[False] _______
+tests\test_terminal_pan_lifecycle_ma.py:143: in test_real_pan_managed_cleanup_detached_restart_same_shell
+    assert response.status_code == 200, response.text
+E   AssertionError: {"ok":false,"error":{"code":"detach-refused"}}
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+
+During handling of the above exception, another exception occurred:
+tests\test_terminal_pan_lifecycle_ma.py:177: in test_real_pan_managed_cleanup_detached_restart_same_shell
+    until(lambda: identity.wait_state(handle) is ProcessStatus.DEAD
+tests\test_terminal_pan_lifecycle_ma.py:27: in until
+    value = fn()
+            ^^^^
+tests\test_terminal_pan_lifecycle_ma.py:178: in <lambda>
+    or _close_owned(cleanup, record['terminal_id']), 25)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_terminal_pan_lifecycle_ma.py:187: in _close_owned
+    service.close(tid)
+packages\core\terminal\service.py:1530: in close
+    state = self._require_state(terminal_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\terminal\service.py:2664: in _require_state
+    raise TerminalNotAttached("not-attached")
+E   packages.core.terminal.service.TerminalNotAttached: not-attached
+_______ test_real_pan_managed_cleanup_detached_restart_same_shell[True] _______
+tests\test_terminal_pan_lifecycle_ma.py:143: in test_real_pan_managed_cleanup_detached_restart_same_shell
+    assert response.status_code == 200, response.text
+E   AssertionError: {"ok":false,"error":{"code":"detach-refused"}}
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+
+During handling of the above exception, another exception occurred:
+tests\test_terminal_pan_lifecycle_ma.py:177: in test_real_pan_managed_cleanup_detached_restart_same_shell
+    until(lambda: identity.wait_state(handle) is ProcessStatus.DEAD
+tests\test_terminal_pan_lifecycle_ma.py:27: in until
+    value = fn()
+            ^^^^
+tests\test_terminal_pan_lifecycle_ma.py:178: in <lambda>
+    or _close_owned(cleanup, record['terminal_id']), 25)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_terminal_pan_lifecycle_ma.py:187: in _close_owned
+    service.close(tid)
+packages\core\terminal\service.py:1530: in close
+    state = self._require_state(terminal_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\terminal\service.py:2664: in _require_state
+    raise TerminalNotAttached("not-attached")
+E   packages.core.terminal.service.TerminalNotAttached: not-attached
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_pan_lifecycle_ma.py::test_real_pan_managed_cleanup_detached_restart_same_shell[False]
+FAILED tests/test_terminal_pan_lifecycle_ma.py::test_real_pan_managed_cleanup_detached_restart_same_shell[True]
+2 failed, 3 passed in 6.32s

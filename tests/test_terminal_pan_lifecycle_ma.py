@@ -14,7 +14,7 @@ from websockets.sync.client import connect
 
 from packages.core.terminal import identity
 from packages.core.terminal.contracts import ProcessStatus
-from packages.core.terminal.service import CleanupUnconfirmed, TerminalService
+from packages.core.terminal.service import CleanupUnconfirmed, TerminalNotAttached, TerminalService
 
 REPO = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason='Windows full layout')
@@ -77,7 +77,7 @@ class Pan:
     def start(self):
         self.log = (self.root / 'pan.log').open('a', encoding='utf-8')
         self.process = subprocess.Popen(
-            [getattr(sys, '_base_executable', sys.executable),
+            [sys.executable,
              str(REPO / 'tests/support/terminal_pan_server.py'), '--root', str(self.root), '--port', str(self.port)],
             env=self.env, cwd=REPO, stdout=self.log, stderr=subprocess.STDOUT)
         until(lambda: self.client.get('/api/terminals').status_code == 200, 30)
@@ -140,6 +140,24 @@ def test_real_pan_managed_cleanup_detached_restart_same_shell(tmp_path, crash):
         tid = detached['terminal_id']
         pan.command(tid, 'set PAN_RESTART_VALUE=UNCHANGED_SHELL\r')
         response = pan.client.post(f'/api/terminals/{tid}/detach', json={})
+        if response.status_code == 409:
+            # This deployment may inherit a non-breakaway Job. Verify honest
+            # refusal and managed cleanup/restart, not fictitious durability.
+            assert response.json()['error']['code'] == 'detach-refused'
+            current = pan.client.get(f'/api/terminals/{tid}').json()['result']
+            assert current['pid'] == detached['pid']
+            assert current['status'] == detached['status']
+            assert current['process_created_at_filetime'] == detached['process_created_at_filetime']
+            pan.stop(crash=crash)
+            for handle in handles:
+                until(lambda: identity.wait_state(handle) is ProcessStatus.DEAD, 15)
+            pan.start()
+            for record in records:
+                after = pan.client.get(f"/api/terminals/{record['terminal_id']}").json()['result']
+                assert after['status'] == 'exited'
+                assert not (tmp_path / 'terminals/secrets' / f"{record['terminal_id']}.secret").exists()
+            pan.stop()
+            return
         assert response.status_code == 200, response.text
         pan.stop(crash=crash)
         until(lambda: identity.wait_state(handles[0]) is ProcessStatus.DEAD, 15)
@@ -186,5 +204,5 @@ def _close_owned(service, tid):
     try:
         service.close(tid)
         return True
-    except CleanupUnconfirmed:
+    except (CleanupUnconfirmed, TerminalNotAttached):
         return False

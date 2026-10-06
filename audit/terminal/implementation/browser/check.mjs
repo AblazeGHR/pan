@@ -135,8 +135,20 @@ try {
   await page.keyboard.insertText('set PAN_BROWSER_DURABLE=ORIGINAL_SHELL');
   await page.keyboard.press('Enter');
   page.once('dialog', dialog => dialog.accept());
+  const detachResponse = page.waitForResponse(response => response.url().endsWith(`/api/terminals/${id}/detach`) && response.request().method() === 'POST');
   await page.getByRole('button', { name: '持久脱离', exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('[aria-label="选择终端"]')?.selectedOptions[0]?.textContent.includes('detached'));
+  const detach = await detachResponse;
+  if (detach.status() === 409) {
+    assert.equal((await detach.json()).error.code, 'detach-refused');
+    const unchanged = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
+    assert.equal(unchanged.result.status, view.result.status);
+    assert.equal(unchanged.result.pid, view.result.pid);
+    assert.equal(unchanged.result.process_created_at_filetime, view.result.process_created_at_filetime);
+    report.durableDetachRefusedWithoutMutation = true;
+  } else {
+    assert.equal(detach.status(), 200);
+    await page.waitForFunction(() => document.querySelector('[aria-label="选择终端"]')?.selectedOptions[0]?.textContent.includes('detached'));
+  }
   await page.getByRole('button', { name: '重连', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('部分屏幕恢复'), null, { timeout: 30000 });
   await page.getByRole('button', { name: '取得输入控制权', exact: true }).click();
@@ -149,7 +161,8 @@ try {
   const durableView = await page.evaluate(async terminalId => (await fetch(`/api/terminals/${terminalId}`)).json(), id);
   assert.equal(durableView.result.pid, view.result.pid);
   assert.equal(durableView.result.process_created_at_filetime, view.result.process_created_at_filetime);
-  report.durableDetachBrowserReconnect = true;
+  report.durableDetachBrowserReconnect = detach.status() === 200;
+  report.sameShellBrowserReconnect = true;
   report.durableShellStatePreserved = true;
   // Browserless engine feeding beyond the 256 KiB raw-output retention window.
   const producer = path.join(root, 'browserless.py');
