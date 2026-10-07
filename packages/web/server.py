@@ -10755,25 +10755,40 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
         old_targets = set(target.qq_report_targets)
         old_outbox = {key: dict(value) for key, value in target.qq_report_outbox.items()}
         old_settings = dict(target.notification_settings)
-        target.qq_subscriptions.clear()
-        target.qq_report_targets.clear()
-        qq_reports.cancel_pending(target)
-        target.notification_settings = {
-            "browser": bool(defaults and defaults["browser"]),
-            "system": bool(defaults and defaults["system"]),
-        }
-        if defaults:
-            if defaults["qqReport"]:
-                target.qq_report_targets.update(defaults["qqTargets"])
-            if defaults["qqSubscribe"]:
-                target.qq_subscriptions.update(defaults["qqTargets"])
-        try:
-            await sess.save_async(target)
-        except BaseException:
+        rolled_back = False
+        def rollback():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
             target.qq_subscriptions = old_subscriptions
             target.qq_report_targets = old_targets
             target.qq_report_outbox = old_outbox
             target.notification_settings = old_settings
+        def commit():
+            try:
+                target.qq_subscriptions.clear()
+                target.qq_report_targets.clear()
+                qq_reports.cancel_pending(target)
+                target.notification_settings = {
+                    "browser": bool(defaults and defaults["browser"]),
+                    "system": bool(defaults and defaults["system"]),
+                }
+                if defaults:
+                    if defaults["qqReport"]:
+                        target.qq_report_targets.update(defaults["qqTargets"])
+                    if defaults["qqSubscribe"]:
+                        target.qq_subscriptions.update(defaults["qqTargets"])
+                sess._save_body(target)
+            except BaseException:
+                rollback()
+                raise
+        outcome = sess.DurableOutcome()
+        try:
+            await sess._persist_async_outcome(target.id, commit, outcome)
+        except BaseException:
+            if not outcome.succeeded:
+                rollback()
             raise
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id,
@@ -10803,16 +10818,31 @@ async def api_qq_report(session_id: str, data: dict):
             return {"ok": False, "error": {"code": "state_changed", "message": "Report setting changed; refresh and retry"}}
         old = set(s.qq_report_targets)
         old_outbox = {key: dict(value) for key, value in s.qq_report_outbox.items()}
-        if enabled:
-            s.qq_report_targets.add(target)
-        else:
-            s.qq_report_targets.discard(target)
-            qq_reports.cancel_pending(s, target)
-        try:
-            await sess.save_async(s)
-        except BaseException:
+        rolled_back = False
+        def rollback():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
             s.qq_report_targets = old
             s.qq_report_outbox = old_outbox
+        def commit():
+            try:
+                if enabled:
+                    s.qq_report_targets.add(target)
+                else:
+                    s.qq_report_targets.discard(target)
+                    qq_reports.cancel_pending(s, target)
+                sess._save_body(s)
+            except BaseException:
+                rollback()
+                raise
+        outcome = sess.DurableOutcome()
+        try:
+            await sess._persist_async_outcome(s.id, commit, outcome)
+        except BaseException:
+            if not outcome.succeeded:
+                rollback()
             raise
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id, "qqReportTargets": sorted(s.qq_report_targets), "msgBridgeEnabled": _msg_bridge_enabled(s)}

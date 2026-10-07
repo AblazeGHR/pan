@@ -191,3 +191,31 @@ and passed, as did Python compilation and diff whitespace validation. No test
 suite, real QQ send, service action or main/practical integration was performed.
 Frontend build/lint evidence above belongs to the unchanged frontend at the
 parent commit; this Python-only repair does not claim a new frontend build.
+
+## MA rework: notification API persistence
+
+Incremental repair from `f61e096991c220fc152a1f2d7d93f0cf4772c341` changes only
+the two new Session APIs, `/msg-bridge` and `/qq-report`. Both apply their candidate
+fields, save and roll back actual failure inside one existing persistence ticket.
+A caller-owned `DurableOutcome` preserves successfully written facts when caller
+cancellation propagates. Rollback is idempotent and occurs before the next writer
+can serialize state. Validation, readonly, queue locking and CAS are retained.
+No unrelated legacy API is changed.
+
+Standalone `evidence/api_cancel_probe.py` directly invokes the actual handlers,
+uses real `task.cancel()`, a thread-gated real writer, a temporary Session store,
+and cache eviction/disk reload. Each API's on/off operation is checked with both
+successful and failed persistence (eight cases). A second writer is queued while
+the first is gated; its save and disk reload agree with the correct retained or
+rolled-back connections, bell aggregate and outbox state in every case. Default
+validation and broadcasts are mocked; no QQ sender is invoked. Existing
+`/msg-bridge` activation cancels preexisting pending outbox entries, as before;
+`/qq-report` activation preserves them. Successful off cancels pending records,
+whereas failed off preserves them.
+
+All eight cases pass, along with the original report/API, defaults/API and panel
+probes, Python compilation and diff checking. Original failure probes now inject
+at `_save_body`, matching the new ticket path. Full stdout/stderr is retained in
+`evidence/api_cancel_probe.log`; four intentionally injected write failures emit
+the existing asyncio shield diagnostic. No test suite or real QQ/service action
+was run, and main/practical integration and build remain for MA acceptance.
