@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Code, ListChecks, MessageSquare, TerminalSquare } from 'lucide-react';
 
@@ -22,11 +22,32 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   const group = selection.pathname === pathname ? selection.group : routeGroup;
   const gesture = useRef<{ id: number; x: number; y: number; axis: 'pending' | 'horizontal' | 'vertical' } | null>(null);
   const suppressClickUntil = useRef(0);
-  const step = (direction: number) => setSelection((previous) => ({
+  const navRef = useRef<HTMLElement>(null);
+  const step = useCallback((direction: number) => setSelection((previous) => ({
     pathname, group: Math.max(0, Math.min(groups.length - 1, previous.group + direction)),
-  }));
+  })), [pathname]);
 
-  return <nav aria-label="界面入口" className="flex min-w-0 items-center gap-1">
+  useEffect(() => {
+    const nav = navRef.current;
+    if (isMobile || !nav) return;
+    // One same-direction burst is one operation, including its inertia tail.
+    // Silence rearms it; reversing direction starts a new operation immediately.
+    let lastTime = -Infinity;
+    let lastDirection = 0;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0 || !event.cancelable) return;
+      event.preventDefault();
+      const direction = Math.sign(event.deltaY);
+      const now = performance.now();
+      if (direction !== lastDirection || now - lastTime >= 200) step(direction);
+      lastDirection = direction;
+      lastTime = now;
+    };
+    nav.addEventListener('wheel', onWheel, { passive: false });
+    return () => nav.removeEventListener('wheel', onWheel);
+  }, [isMobile, step]);
+
+  return <nav ref={navRef} aria-label="界面入口" className="flex min-w-0 items-center gap-1">
     {!isMobile && <button type="button" aria-label="上一组界面入口" disabled={group === 0}
       className="shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30" onClick={() => step(-1)}>
       <ChevronLeft size={14} />
