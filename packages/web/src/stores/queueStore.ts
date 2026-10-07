@@ -14,16 +14,11 @@ import {
   updateSessionQueueItem,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
-import { isRuntimeWorkerRunning } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 
 /** The business queue is the server snapshot; localStorage is not a queue. */
 export interface EnqueueOptions {
-  /**
-   * Whether this send transaction may append the queued row to chat history.
-   * InputRow captures this at send start so a running→idle transition cannot
-   * turn a send that began in the live path into a duplicate optimistic row.
-   */
+  /** Legacy caller compatibility. Enqueue never appends a delivered chat row. */
   appendOptimisticHistory?: boolean;
   locked?: boolean;
 }
@@ -668,26 +663,16 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           )) {
         setAgentReportsPauseState(set, sid, result.agentReportsPaused);
       }
-      // Re-check the same cached, Session-keyed runtime registry at the
-      // append boundary.  This covers a non-running→running transition
-      // during HTTP enqueue without another request or an async wait.
-      // Unknown/null/mismatched entries intentionally retain the historical
-      // optimistic behavior; only a confirmed current-session `running`
-      // state suppresses the row.
-      if (accepted
-          && !get().queueTombstones[sid]?.has(canonicalQueueId(result.item.id))
-          && !get().queueDeliveredIds[sid]?.has(canonicalQueueId(result.item.id))
-          && options?.appendOptimisticHistory !== false
-          && !isRuntimeWorkerRunning(sid)) {
-        useSessionStore.getState().appendQueuedMessage(sid, result.item);
-      }
+      // An enqueue receipt proves persistence, never provider hand-off.
+      // Keep feedback in the queue/toast; only the server delivery event or
+      // canonical history may project a sent message into the conversation.
       useUIStore.getState().showToast('消息已进入服务端队列');
       return true;
     } catch (error) {
       useUIStore
         .getState()
         .showToast(
-          `消息尚未入队：${error instanceof Error ? error.message : String(error)}`,
+          `未确认消息入队：${error instanceof Error ? error.message : String(error)}`,
           'error',
         );
       return false;

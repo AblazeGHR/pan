@@ -1,0 +1,275 @@
+[
+  {
+    "outcome": "write-failed",
+    "reserved": {
+      "history": [
+        {
+          "role": "user",
+          "content": "FIFO body",
+          "delivered_keys": [
+            "task:q_write-failed"
+          ],
+          "queueItemIds": [
+            "q_write-failed"
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q_write-failed",
+              "queueItemId": "q_write-failed",
+              "type": "task",
+              "source": "agent",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "taskId": "T-fifo",
+              "taskIdSource": "active",
+              "text": "FIFO body",
+              "revision": 1,
+              "deliveryState": "queued"
+            }
+          ],
+          "messageId": "pan:7f8a3c9759c2496e8cbca3f4bfa26227",
+          "ts": "2026-10-07T20:03:17.930272"
+        }
+      ],
+      "queue": [
+        {
+          "id": "q_write-failed",
+          "queueItemId": "q_write-failed",
+          "type": "task",
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "text": "FIFO body",
+          "revision": 1,
+          "deliveryState": "writing",
+          "reservedBy": "w",
+          "reservedGeneration": 0,
+          "reservedAt": 1791374597.9302819
+        }
+      ]
+    },
+    "finalHistory": [],
+    "finalQueue": [
+      {
+        "id": "q_write-failed",
+        "queueItemId": "q_write-failed",
+        "type": "task",
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-fifo",
+        "taskIdSource": "active",
+        "text": "FIFO body",
+        "revision": 1,
+        "deliveryState": "queued",
+        "deliveryAttempts": 1,
+        "nextAttemptAt": 1791374598.9330487,
+        "lastDeliveryError": "simulated stdin failure"
+      }
+    ],
+    "acked": false
+  },
+  {
+    "outcome": "handed-off",
+    "reserved": {
+      "history": [
+        {
+          "role": "user",
+          "content": "FIFO body",
+          "delivered_keys": [
+            "task:q_handed-off"
+          ],
+          "queueItemIds": [
+            "q_handed-off"
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q_handed-off",
+              "queueItemId": "q_handed-off",
+              "type": "task",
+              "source": "agent",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "taskId": "T-fifo",
+              "taskIdSource": "active",
+              "text": "FIFO body",
+              "revision": 1,
+              "deliveryState": "queued"
+            }
+          ],
+          "messageId": "pan:d76e2c844c054977a549dd3e5f740d13",
+          "ts": "2026-10-07T20:03:17.937621"
+        }
+      ],
+      "queue": [
+        {
+          "id": "q_handed-off",
+          "queueItemId": "q_handed-off",
+          "type": "task",
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "text": "FIFO body",
+          "revision": 1,
+          "deliveryState": "writing",
+          "reservedBy": "w",
+          "reservedGeneration": 0,
+          "reservedAt": 1791374597.9376295
+        }
+      ]
+    },
+    "finalHistory": [
+      {
+        "role": "user",
+        "content": "FIFO body",
+        "delivered_keys": [
+          "task:q_handed-off"
+        ],
+        "queueItemIds": [
+          "q_handed-off"
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-fifo",
+        "taskIdSource": "active",
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q_handed-off",
+            "queueItemId": "q_handed-off",
+            "type": "task",
+            "source": "agent",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "taskId": "T-fifo",
+            "taskIdSource": "active",
+            "text": "FIFO body",
+            "revision": 1,
+            "deliveryState": "queued"
+          }
+        ],
+        "messageId": "pan:d76e2c844c054977a549dd3e5f740d13",
+        "ts": "2026-10-07T20:03:17.937621"
+      }
+    ],
+    "finalQueue": [],
+    "acked": true
+  },
+  {
+    "outcome": "receipt-save-failed",
+    "reserved": {
+      "history": [
+        {
+          "role": "user",
+          "content": "FIFO body",
+          "delivered_keys": [
+            "task:q_receipt-save-failed"
+          ],
+          "queueItemIds": [
+            "q_receipt-save-failed"
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q_receipt-save-failed",
+              "queueItemId": "q_receipt-save-failed",
+              "type": "task",
+              "source": "agent",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "taskId": "T-fifo",
+              "taskIdSource": "active",
+              "text": "FIFO body",
+              "revision": 1,
+              "deliveryState": "queued"
+            }
+          ],
+          "messageId": "pan:d546471815014b83b2ab317d421062cf",
+          "ts": "2026-10-07T20:03:17.944409"
+        }
+      ],
+      "queue": [
+        {
+          "id": "q_receipt-save-failed",
+          "queueItemId": "q_receipt-save-failed",
+          "type": "task",
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "taskId": "T-fifo",
+          "taskIdSource": "active",
+          "text": "FIFO body",
+          "revision": 1,
+          "deliveryState": "writing",
+          "reservedBy": "w",
+          "reservedGeneration": 0,
+          "reservedAt": 1791374597.9444275
+        }
+      ]
+    },
+    "finalHistory": [
+      {
+        "role": "user",
+        "content": "FIFO body",
+        "delivered_keys": [
+          "task:q_receipt-save-failed"
+        ],
+        "queueItemIds": [
+          "q_receipt-save-failed"
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-fifo",
+        "taskIdSource": "active",
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q_receipt-save-failed",
+            "queueItemId": "q_receipt-save-failed",
+            "type": "task",
+            "source": "agent",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "taskId": "T-fifo",
+            "taskIdSource": "active",
+            "text": "FIFO body",
+            "revision": 1,
+            "deliveryState": "queued"
+          }
+        ],
+        "messageId": "pan:d546471815014b83b2ab317d421062cf",
+        "ts": "2026-10-07T20:03:17.944409"
+      }
+    ],
+    "finalQueue": [
+      {
+        "id": "q_receipt-save-failed",
+        "queueItemId": "q_receipt-save-failed",
+        "type": "task",
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-fifo",
+        "taskIdSource": "active",
+        "text": "FIFO body",
+        "revision": 1,
+        "deliveryState": "queued",
+        "dispatchState": "sent_to_cli",
+        "receiptAt": 1791374597.946181,
+        "deliveredAt": 1791374597.946181,
+        "deliveryAttempts": 1,
+        "nextAttemptAt": 1791374598.9462698,
+        "lastDeliveryError": "handoff receipt save failed"
+      }
+    ],
+    "acked": false
+  }
+]

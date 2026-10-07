@@ -702,6 +702,15 @@ def assign_pan_message_ids(
                 and old_id not in used_ids):
             assigned[new_index] = old_id
             used_ids.add(old_id)
+            # Native transcripts describe provider roles, not Pan origins.
+            # Carry metadata only across this already-established identity
+            # match; never infer an Agent/report origin from transcript text.
+            for key in ("source", "kind", "sourceSessionId", "sourceSessionIds",
+                        "taskId", "taskIdSource", "queueItemIds", "deliveryKeys",
+                        "delivered_keys", "clientMessageId", "queueEnvelopes",
+                        "eventId", "channel", "envelope", "noticeKind", "jobId", "parts"):
+                if key in old_row:
+                    rows[new_index][key] = copy.deepcopy(old_row[key])
 
     # A valid Pan ID already present in the incoming row is also Pan-owned and
     # may be continued (for example, a previously materialized branch copy).

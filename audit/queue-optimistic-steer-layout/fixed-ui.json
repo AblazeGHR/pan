@@ -1,0 +1,182 @@
+[
+  {
+    "input": "paused",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-paused",
+        "queueItemId": "q-paused",
+        "kind": "task",
+        "text": "not delivered paused",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "missing",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-missing",
+        "queueItemId": "q-missing",
+        "kind": "task",
+        "text": "not delivered missing",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "recovering",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-recovering",
+        "queueItemId": "q-recovering",
+        "kind": "task",
+        "text": "not delivered recovering",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "running",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-running",
+        "queueItemId": "q-running",
+        "kind": "task",
+        "text": "not delivered running",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "locked",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-locked",
+        "queueItemId": "q-locked",
+        "kind": "task",
+        "text": "not delivered locked",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": true
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "reports-paused",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-reports-paused",
+        "queueItemId": "q-reports-paused",
+        "kind": "task",
+        "text": "not delivered reports-paused",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "http-failure",
+    "ok": false,
+    "queue": [],
+    "currentSessionId": "edge-http-failure",
+    "ui": []
+  },
+  {
+    "input": "ws-before-http",
+    "ok": true,
+    "queue": [],
+    "currentSessionId": "edge-ws-before-http",
+    "ui": [
+      {
+        "role": "user",
+        "content": "full body ws-before-http",
+        "messageId": "pan:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "queueItemIds": [
+          "q-ws-before-http"
+        ],
+        "source": "agent"
+      }
+    ]
+  },
+  {
+    "input": "session-switch",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-session-switch",
+        "queueItemId": "q-session-switch",
+        "kind": "task",
+        "text": "full body session-switch",
+        "source": "agent",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1
+        }
+      }
+    ],
+    "currentSessionId": "edge-other-session-switch",
+    "ui": []
+  },
+  {
+    "input": "duplicate-receipt",
+    "ok": true,
+    "queue": [],
+    "currentSessionId": "edge-duplicate-receipt",
+    "ui": [
+      {
+        "role": "user",
+        "content": "full body duplicate-receipt",
+        "messageId": "pan:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "queueItemIds": [
+          "q-duplicate-receipt"
+        ],
+        "source": "agent"
+      }
+    ]
+  }
+]

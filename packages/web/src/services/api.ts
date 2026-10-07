@@ -766,6 +766,16 @@ export async function setSessionQueuePaused(sessionId: string, paused: boolean):
   return attachQueueSnapshot(data.items || [], data);
 }
 
+export async function steerSessionQueueItem(sessionId: string, itemId: string, expectedRevision: number): Promise<void> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/${encodeURIComponent(itemId)}/steer`,
+    { method: 'POST', body: JSON.stringify({ expectedRevision }) },
+  );
+  if (data.ok !== true || data.error) {
+    throw new Error(queueResponseError(data.error, 'Queue Steer was not confirmed'));
+  }
+}
+
 export async function setSessionAgentReportsPaused(
   sessionId: string,
   paused: boolean,

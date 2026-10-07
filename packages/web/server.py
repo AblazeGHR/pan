@@ -7249,6 +7249,8 @@ def _queue_lock_meta(item: dict) -> dict:
         "locked": worker._queue_item_locked(item),
         "lockManual": bool(item.get("queueLockManual")),
         "lockAutoReport": bool(item.get("queueLockAutoReport")),
+        "steerPending": bool(item.get("queueSteerPending")),
+        "steerError": item.get("lastSteerError"),
     }
 
 
@@ -7852,6 +7854,8 @@ async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict)
                        if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
         if target is None:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         current_revision = int(target.get("revision", 1))
@@ -7923,6 +7927,8 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             return _queue_error("not_found", "Queue item not found", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be edited", s)
         lease = worker._active_queue_edit_lock(s, item_id)
         if (lease is None
                 or lease.get("tokenHash") != worker._queue_edit_token_digest(edit_token)):
@@ -8048,6 +8054,8 @@ async def api_session_queue_delete(session_id: str, item_id: str):
             return {"ok": False, "error": "not_found"}
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be deleted", s)
         old_pending = list(pending)
         old_record = dict(s.queue_delivery_ledger.get(item_id, {}))
         was_edit_locked = worker.queue_item_edit_locked(s, item_id)
@@ -8082,6 +8090,21 @@ async def api_session_queue_delete(session_id: str, item_id: str):
         await worker._wake_worker(session_id, auto_spawn=False)
     return {"ok": True, "queueItemId": item_id,
             "queueRevision": s.queue_revision}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/steer")
+async def api_session_queue_steer(session_id: str, item_id: str, data: dict):
+    revision = data.get("expectedRevision")
+    if type(revision) is not int or revision < 1:
+        return _queue_error("invalid_revision", "A positive item expectedRevision is required")
+    if set(data) != {"expectedRevision"}:
+        return _queue_error("invalid_steer_body", "Queue Steer accepts only expectedRevision; body/source come from the queue")
+    error = await worker.steer_queue_item(session_id, item_id, revision)
+    s = _summary_session_get(session_id)
+    if error:
+        return _queue_error("queue_steer_failed", error, s)
+    async with worker.queue_lock(session_id):
+        return {"ok": True, **_queue_snapshot_locked(s)}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
@@ -9357,6 +9380,7 @@ async def api_list_adapters():
                 "defaultModel": a.default_model,
                 "supportsResume": a.supports_resume,
                 "supportsFork": a.supports_fork,
+                "supportsSteer": bool(getattr(a, "supports_native_steer", False)),
             }
             for a in adapters
         ],
@@ -11606,6 +11630,10 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
             previous_history=(existing.history
                               if getattr(existing, "_history_loaded", True) else []),
         )
+        imported_ids = {row.get("messageId") for row in history if isinstance(row, dict)}
+        if any(isinstance(row, dict) and row.get("queueEnvelopes")
+               and row.get("messageId") not in imported_ids for row in existing.history):
+            return {"ok": False, "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"}
     else:
         history = sess.assign_pan_message_ids(history)
 

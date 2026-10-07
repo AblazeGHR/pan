@@ -7,6 +7,8 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（meta-agent，MA）通过 Pan MCP 工具调度多个 task-agent（TA）会话（cbc / kimi / opencode / claude / codex 等多 adapter，持续增加中），每个会话拥有独立的记忆（workdir）；Worker 是实际运行这些会话的临时 CLI 进程实例。
 
+Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；聊天正文由服务端交接事件或确认 history 生成。队列 Steer 使用原 `queueItemId` 与 `expectedRevision`，由服务端读取全文和来源，遵守 Pause everything、readonly、锁及编辑 lease；仅支持 native Steer 的 adapter 提供按钮。回执不明的条目保持 `steerPending`，不得自动重发。接口与 provider 回执边界见 [HTTP API](references/http-api.md)。
+
 > **术语分层（MA / TA / Session / Worker，全文统一）**：
 > - **角色（职责）**：**meta-agent（MA）** 负责编排元任务——任务拆解、派发、监督、验收、合并；**task-agent（TA）** 执行具体开发、测试、调查或文档任务。MA/TA 是职责角色，不是进程类型或程序形态。
 > - **身份（持久编排对象）**：**Session** 承载 MA 或 TA 身份（`ses_<16hex>`），编排工具一律以 session_id 寻址；生命周期独立于进程。旧文档中的 "Agent" 即编排对象，通常以 Session 身份寻址（Agent = Session，兼容说法保留）。

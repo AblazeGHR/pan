@@ -41,6 +41,12 @@ export interface Message {
   taskId?: string;
   /** `assign` = 正式派发幂等键；`active` = 仅继承活动 taskId 的后续消息。 */
   taskIdSource?: 'assign' | 'active';
+  /** Original Pan queue envelopes; provider role never replaces their origins. */
+  queueEnvelopes?: Array<Record<string, unknown>>;
+  kind?: string;
+  envelope?: Record<string, unknown>;
+  eventId?: string;
+  channel?: string;
 }
 
 export type MessagePart =
@@ -879,6 +885,7 @@ export interface AdapterInfo {
   defaultModel: string;
   supportsResume: boolean;
   supportsFork: boolean;
+  supportsSteer?: boolean;
 }
 
 export interface ApiAdaptersResponse {
@@ -1295,6 +1302,8 @@ export interface AgentQueueItem {
     dispatchState?: QueueDispatchState;
     revision?: number;
     locked?: boolean;
+    steerPending?: boolean;
+    steerError?: string;
     lockManual?: boolean;
     lockAutoReport?: boolean;
   };

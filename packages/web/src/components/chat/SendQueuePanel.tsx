@@ -4,6 +4,9 @@ import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { AgentQueueItem } from '@/types';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { useAdapterStore } from '@/stores/adapterStore';
+import { useWorkerStore } from '@/stores/workerStore';
+import { steerSessionQueueItem } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
@@ -107,6 +110,25 @@ export function SendQueuePanel() {
   const remove = useQueueStore((state) => state.removeAgentItem);
   const move = useQueueStore((state) => state.moveQueueItem);
   const clear = useQueueStore((state) => state.clear);
+  const selectedAdapter = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.adapter);
+  const supportsSteer = useAdapterStore((state) => state.adapters.some((adapter) => adapter.name === selectedAdapter && adapter.supportsSteer === true));
+  const runtimeWorker = useWorkerStore((state) => sessionId ? state.workers[sessionId] : undefined);
+  const [steering, setSteering] = useState<Set<string>>(new Set());
+  const requestSteer = async (item: AgentQueueItem) => {
+    const sid = sessionId;
+    if (!sid || steering.has(`${sid}:${item.id}`)) return;
+    const key = `${sid}:${item.id}`;
+    setSteering((current) => new Set(current).add(key));
+    try {
+      await steerSessionQueueItem(sid, item.id, item.meta?.revision ?? 1);
+      useUIStore.getState().showToast('队列消息已通过 Steer 交接');
+    } catch (error) {
+      useUIStore.getState().showToast(error instanceof Error ? error.message : String(error), 'error');
+    } finally {
+      await useQueueStore.getState().loadAgentQueue(sid);
+      setSteering((current) => { const next = new Set(current); next.delete(key); return next; });
+    }
+  };
   const [preview, setPreview] = useState<AgentQueueItem | null>(null);
 
   const [confirmation, setConfirmation] = useState<{ sessionId: string; itemId: string } | null>(null);
@@ -299,6 +321,15 @@ export function SendQueuePanel() {
                 {displayItems.map((item, index) => {
                   const editable = item.meta?.dispatchState === 'queued';
                   const locked = item.meta?.locked === true;
+                  const steerReason = readonlySession ? 'Session 为只读'
+                    : queuePaused ? 'Pause everything 阻止队列 Steer'
+                    : !queuePauseLoaded || queuePauseUpdating ? '正在确认服务端队列状态'
+                    : edit ? '请先保存或取消队列编辑'
+                    : item.meta?.steerPending ? item.meta.steerError || '正在等待 provider Steer 回执'
+                    : locked ? '消息已锁定，请先解锁'
+                    : runtimeWorker?.sessionId !== sessionId || runtimeWorker?.status !== 'running' ? 'Steer 需要正在运行的 Worker；idle 时优先执行待重启'
+                    : steering.has(`${sessionId}:${item.id}`) ? '正在执行 Steer'
+                    : !editable ? '条目已不在待发队列' : '';
                   return (
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
                       <>
@@ -313,6 +344,9 @@ export function SendQueuePanel() {
                             {item.text}
                           </button>
                           <span className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
+                            {supportsSteer && <button type="button" className={BUTTON + ' px-1.5 text-xs'} disabled={!!steerReason}
+                              aria-label={`Steer queued message ${index + 1}`} title={steerReason || '通过 adapter 原生 Steer 交接原队列消息'}
+                              onClick={() => void requestSteer(item)}>Steer</button>}
                             {editable && <button className={BUTTON} disabled={!!edit || readonlySession} onClick={() => void requestEdit(item)} title="编辑"><Pencil size={12} /></button>}
                             <button className={BUTTON} disabled={index === 0} onClick={() => move(item.id, -1)} title="上移"><ArrowUp size={12} /></button>
                             <button className={BUTTON} disabled={index === displayItems.length - 1} onClick={() => move(item.id, 1)} title="下移"><ArrowDown size={12} /></button>

@@ -60,7 +60,7 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）。等价 MCP 工具：`session_unclaim` |
 | `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`agent_send_force`（MCP，别名 worker_send_force）内部走此端点 |
-| `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入正在运行的 Codex 原生回合，并在写入成功后落盘到 Pan history |
+| `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入支持 native Steer 的 running Worker；Codex 等待实际 `turn/steer` RPC 回执，Claude 使用 streaming stdin/drain 交接边界。确认后记录 history；结果不明不能自动重发 |
 | `POST` | `/api/worker/{worker_id}/control` | `{"control": {"type": "terminal_input", "process_id": "...", "text": "..."}}` | 向运行中的 Codex 发送终端输入；`terminal_terminate` 可终止对应进程。也支持审批、用户输入、权限和 elicitation 控制 |
 | `PUT` | `/api/sessions/{id}/qq-report` | `{"target":"user:123@456", "enabled":true, "expectedEnabled":false}` | 独立 QQ 完成报告对象；支持 user/group、可选 @bot，返回 qqReportTargets/msgBridgeEnabled。readonly/CAS 拒绝，存盘后才成功；done 发本任务最后 assistant 正文，error 发与 TA→MA 相同的本次 result，一次发送无重试 |
 | `PUT` | `/api/sessions/{id}/msg-bridge` | `{"enabled":false, "expectedEnabled":true}` | 灭钟清空 QQ subscribe/report 与 system/browser；亮钟按 ui.notifications.completionBridge 多选默认开启（旧配置为 system-only）；QQ 默认联系人必须非空且点亮时校验可用性，失败不部分开启。任一 QQ subscribe/report 或 system/browser 开启时 summary.msgBridgeEnabled=true；WeChat/TA→MA 关系独立 |
@@ -102,6 +102,7 @@ Codex 的 live 增量游标仍由 adapter 的 `codex_prev_usage` 负责；本查
 | `POST` | `/api/sessions/order` | `{"sessionIds": ["ses_a", "ses_b", ...]}`（期望显示顺序；部分重排允许——未列出的 session 按原相对顺序排在列出的后面） | `{"ok": true, "order": [全量 session id 顺序]}`；广播 `session.orderUpdated`。**Dashboard 同层拖拽排序**即此端点 |
 | `GET` | `/api/sessions/{id}/queue` | — | `{"items": [...], "queueRevision": N}`——只含仍 `queued` 的项（`reserved`/`writing`/`sent_to_cli` 不在 pending 视图中） |
 | `POST` | `/api/sessions/{id}/queue` | `{"text": "...", "clientMessageId"?: "browser-uuid"}` | 用户消息**持久化入队**（`source`/`kind` 由服务端强制为 `user`/`task`）；返回 `{"ok": true, "item": {...queueItemId...}, "queueRevision": N, "duplicate": bool}` |
+| `POST` | `/api/sessions/{id}/queue/{item_id}/steer` | `{"expectedRevision": N}` | 服务端取原条目全文及来源，经真实 native Steer 交接后消费原条目一次；要求 running、adapter `supportsSteer`、非 readonly、无编辑 lease/条目锁，且 Pause everything 未开启。拒绝/冲突保留条目；回执不明保留并标记 `steerPending`，禁止自动重发。前端不得提交重造正文或来源 |
 | `PATCH` | `/api/sessions/{id}/queue/order` | `{"orderedIds": [...], "expectedQueueRevision"?: N}` | 重排全部来源（user/agent/report/qq/system）的 queued 项 |
 | `PATCH` | `/api/sessions/{id}/queue/{item_id}` | `{"text": "...", "expectedRevision"?: N}` | 编辑队列项：**仅 user 源 + queued** 可编辑；否则 `queue_item_readonly` / `queue_item_not_editable`；revision 冲突 `queue_revision_conflict` |
 | `DELETE` | `/api/sessions/{id}/queue/{item_id}` | — | 删除仍 queued 的项；已被 Worker claim（reserved/writing/sent）返回 `queue_item_not_deletable` |

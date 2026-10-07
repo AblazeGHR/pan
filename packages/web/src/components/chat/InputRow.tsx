@@ -6,7 +6,7 @@ import {
   useCurrentSession,
   type SessionSettingPatch,
 } from '@/stores/sessionStore';
-import { isRuntimeWorkerRunning, useWorkerStore } from '@/stores/workerStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
@@ -143,7 +143,6 @@ interface SendSnapshot {
   attachments: PendingAttachment[];
   message: string;
   parts?: MessagePart[];
-  appendOptimisticHistory: boolean;
   locked: boolean;
 }
 
@@ -1535,7 +1534,6 @@ export function InputRow() {
       // Read the cached, Session-keyed runtime registry synchronously at the
       // start of the send transaction.  Session summaries can lag worker
       // events; this must not add a request or wait before enqueueing.
-      const appendOptimisticHistory = !lockedSend && !isRuntimeWorkerRunning(currentSessionId);
       if (attachments.some((attachment) => attachment.status === 'uploading')) {
         showToast('附件仍在上传，请稍候', 'error');
         return;
@@ -1654,7 +1652,6 @@ export function InputRow() {
         attachments: snapshotAttachments,
         message,
         parts: structuredParts.length > 0 ? structuredParts : undefined,
-        appendOptimisticHistory,
         locked: lockedSend,
       };
       sendSnapshotsRef.current.set(snapshot.transactionId, snapshot);
@@ -1702,7 +1699,7 @@ export function InputRow() {
             snapshot.parts,
             snapshot.sessionId,
             snapshot.clientMessageId,
-            { appendOptimisticHistory: snapshot.appendOptimisticHistory, locked: snapshot.locked },
+            { locked: snapshot.locked },
           );
           if (!ok) throw new Error('消息尚未入队');
           sendSnapshotsRef.current.delete(snapshot.transactionId);
@@ -1867,7 +1864,7 @@ export function InputRow() {
         : queueEditActive && mobileFullscreen && queueEditViewport
           ? { height: `${queueEditViewport.height}px`, top: `${queueEditViewport.top}px`, bottom: 'auto' }
           : queueEditActive && !mobileFullscreen
-            ? { height: 'min(300px, 60dvh)' }
+            ? { height: 'min(260px, 60dvh)' }
             : undefined}
     >
       {!isMobile && (
@@ -1894,11 +1891,12 @@ export function InputRow() {
       {queueEdit && (
         <div
           data-testid="queue-composer-edit"
-          className={`flex min-h-0 flex-1 flex-col gap-2 overflow-hidden border-t border-border-default bg-bg-primary px-3 pt-3 ${
-            isMobile ? 'pb-[max(12px,var(--safe-bottom))]' : 'pb-3'
+          className={`flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden bg-bg-primary px-3 pt-1.5 ${
+            isMobile ? 'pb-[max(6px,var(--safe-bottom))]' : 'pb-2'
           }`}
         >
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-xs text-text-secondary" title="正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。">正在修改队列消息；原草稿与附件已保留。</p>
             {isMobile && (
               <button
                 type="button"
@@ -1906,20 +1904,19 @@ export function InputRow() {
                 aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
                 title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
                 onClick={() => setMobileFullscreen((current) => !current)}
-                className="mr-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
               >
                 {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
               </button>
             )}
-            <div className="ml-auto flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
-                onClick={handleQueueEditCancel} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+                onClick={handleQueueEditCancel} className="h-9 w-9 rounded border border-border-default disabled:opacity-50 md:h-8 md:w-8">X</button>
               <button type="button" aria-label="保存队列编辑" title={queueEditAttachmentsPending ? '等待附件上传/注册完成' : '确认保存'} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || queueEditAttachmentsPending || currentSession?.readonlySession}
-                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+                onClick={saveQueueEdit} className="h-9 w-9 rounded bg-accent text-white disabled:opacity-50 md:h-8 md:w-8">√</button>
             </div>
           </div>
           <div className="min-h-0 shrink overflow-y-auto max-h-[35%] space-y-2" data-testid="queue-edit-details">
-            <p className="shrink-0 text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
             {queueEdit.acquiring && <p className="shrink-0 text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
             {queueEdit.saving && <p className="shrink-0 text-xs text-text-secondary">正在保存…</p>}
             {queueEdit.bodyFormat === 'json' && <p className="shrink-0 text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
@@ -2007,7 +2004,7 @@ export function InputRow() {
                 initialText={queueEdit.text}
                 attachments={QUEUE_EDIT_ATTACHMENTS}
                 sessionId={currentSessionId || undefined}
-                disabled={queueEdit.saving || queueEdit.releasing}
+                disabled={queueEdit.saving || queueEdit.releasing || currentSession?.readonlySession}
                 onChange={handleQueueComposerChange}
                 onAttachmentDrop={handleQueueEditAttachmentDrop}
                 onNativeFiles={addQueueEditClientFiles}

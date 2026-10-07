@@ -398,6 +398,8 @@ class ClaudeAdapter:
             raise ValueError("Steer text is required")
         return self.encode_user_message(text)
 
+    supports_native_steer = True
+
     # ── stdout 事件解析 ──
     # claude stream-json 事件格式与 cbc 几乎同构：
     #   {"type":"system","subtype":"init","session_id":...,"model":...}

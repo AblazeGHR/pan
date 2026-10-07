@@ -221,6 +221,7 @@ class AppServer:
         self.auto_approve = "--dangerously-bypass-approvals-and-sandbox" in extra_options
         self._stdin_closed = False
         self.control_queue: Queue[dict[str, Any] | None] | None = None
+        self._turn_active = threading.Event()
 
     def _send(self, message: dict[str, Any]) -> None:
         if not self.process or self.process.stdin is None:
@@ -903,17 +904,27 @@ class AppServer:
                 except (OSError, RuntimeError):
                     state["error"] = "failed to interrupt Codex turn"
             elif kind == "steer" and control.get("text"):
-                if not state.get("turn_id"):
+                request_id = control.get("requestId")
+                if state.get("done") or not state.get("turn_id"):
+                    if request_id:
+                        _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
+                                       "ok": False, "error": "No active Codex turn"})
+                        continue
                     state["steer_pending"] = str(control["text"])
                     continue
                 try:
-                    self._request("turn/steer", {
+                    rpc_id = self._request("turn/steer", {
                         "threadId": self.thread_id,
                         "expectedTurnId": state["turn_id"],
                         "input": [{"type": "text", "text": str(control["text"])}],
                     })
+                    if request_id:
+                        state.setdefault("steer_requests", {})[rpc_id] = request_id
                 except (OSError, RuntimeError):
                     _write_stderr("[codex app-server bridge] failed to steer turn\n")
+                    if request_id:
+                        _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
+                                       "ok": False, "error": "Codex turn/steer rejected"})
             elif kind == "approval_response":
                 request_id = control.get("request_id", control.get("requestId"))
                 pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
@@ -1013,6 +1024,7 @@ class AppServer:
         # A tokenUsage notification is emitted per turn. Do not accidentally
         # attach the previous turn's snapshot to a result if the native server
         # finishes a turn without sending a fresh usage notification.
+        self._turn_active.set()
         self.last_usage = None
         state: dict[str, Any] = {
             "last_text": "", "error": "", "done": False, "is_error": False,
@@ -1039,11 +1051,19 @@ class AppServer:
                     )
                 }
         response_id = self._request("turn/start", params)
-        while not state["done"]:
+        while not state["done"] or state.get("steer_requests"):
             self._drain_controls(state, control_queue)
             try:
                 message = self._next(timeout=0.2)
             except TimeoutError:
+                continue
+            steer_request = (state.get("steer_requests") or {}).pop(message.get("id"), None)
+            if steer_request is not None:
+                receipt = {"type": "pan.steer_receipt", "requestId": steer_request,
+                           "ok": "error" not in message}
+                if "error" in message:
+                    receipt["error"] = self._error_text(message["error"])
+                _write_stdout(receipt)
                 continue
             if message.get("id") == response_id:
                 if "error" in message:
@@ -1060,6 +1080,11 @@ class AppServer:
         result = state["last_text"]
         if state["is_error"] and not result:
             result = state["error"] or "Codex turn failed"
+        # Reject late controls from the completed turn before emitting result.
+        # The stdin reader rejects controls while idle, so none leak into the
+        # next FIFO turn after a terminal race.
+        self._turn_active.clear()
+        self._drain_controls(state, control_queue)
         _write_stdout({"type": "result", "is_error": bool(state["is_error"]),
                        "cancelled": bool(state.get("is_cancelled")),
                        "turn_status": state.get("turn_status", "completed"),
@@ -1089,7 +1114,8 @@ class AppServer:
 
 
 def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
-                    control_queue: Queue[dict[str, Any] | None]) -> None:
+                    control_queue: Queue[dict[str, Any] | None],
+                    turn_active: threading.Event | None = None) -> None:
     stream = getattr(sys.stdin, "buffer", sys.stdin)
     while True:
         line = stream.readline()
@@ -1106,7 +1132,12 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
                 "interrupt", "steer", "approval_response", "user_input_response",
                 "permission_response", "elicitation_response", "terminal_input",
                 "terminal_terminate"):
-            control_queue.put(message)
+            if (message.get("type") == "steer" and message.get("requestId")
+                    and turn_active is not None and not turn_active.is_set()):
+                _write_stdout({"type": "pan.steer_receipt", "requestId": message["requestId"],
+                               "ok": False, "error": "No active Codex turn"})
+            else:
+                control_queue.put(message)
         elif message.get("text"):
             task_queue.put(message)
 
@@ -1140,7 +1171,7 @@ def main(argv: list[str] | None = None) -> int:
     control_queue: Queue[dict[str, Any] | None] = Queue()
     app.control_queue = control_queue
     reader = threading.Thread(target=_read_pan_stdin,
-                              args=(pan_queue, control_queue), daemon=True)
+                              args=(pan_queue, control_queue, app._turn_active), daemon=True)
     reader.start()
     try:
         app.start()

@@ -147,6 +147,8 @@ class CodexAdapter:
     # Pan's interrupt endpoint to stop a turn without killing the whole native
     # thread/app-server process.
     supports_native_interrupt = True
+    supports_native_steer = True
+    supports_steer_receipt = True
     # codex reasoning effort（config: model_reasoning_effort）。空表示不覆盖。
     # models_cache.json may add xhigh/max/ultra; keep the fallback useful even
     # before Codex has populated its cache.

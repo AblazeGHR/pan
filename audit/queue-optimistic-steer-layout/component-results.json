@@ -1,0 +1,329 @@
+[
+  {
+    "name": "desktop",
+    "initial": {
+      "editor": {
+        "x": 12,
+        "y": 697.5,
+        "w": 1256,
+        "h": 94.5
+      },
+      "cancel": {
+        "x": 1200,
+        "y": 631,
+        "w": 32,
+        "h": 32
+      },
+      "save": {
+        "x": 1236,
+        "y": 631,
+        "w": 32,
+        "h": 32
+      },
+      "header": {
+        "x": 12,
+        "y": 631,
+        "w": 1256,
+        "h": 32
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "crowded": {
+      "editor": {
+        "x": 12,
+        "y": 731.34375,
+        "w": 1256,
+        "h": 60.65625
+      },
+      "cancel": {
+        "x": 1200,
+        "y": 631,
+        "w": 32,
+        "h": 32
+      },
+      "save": {
+        "x": 1236,
+        "y": 631,
+        "w": 32,
+        "h": 32
+      },
+      "header": {
+        "x": 12,
+        "y": 631,
+        "w": 1256,
+        "h": 32
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "scrolling": {
+      "editorScroll": 763,
+      "rootScroll": 0,
+      "bodyScroll": 0
+    },
+    "fullscreen": null,
+    "resize": {
+      "editor": {
+        "x": 12,
+        "y": 635.5,
+        "w": 1256,
+        "h": 156.5
+      },
+      "cancel": {
+        "x": 1200,
+        "y": 569,
+        "w": 32,
+        "h": 32
+      },
+      "save": {
+        "x": 1236,
+        "y": 569,
+        "w": 32,
+        "h": 32
+      },
+      "header": {
+        "x": 12,
+        "y": 569,
+        "w": 1256,
+        "h": 32
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "编辑内容正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "cancelRestore": {
+      "draft": "普通草稿保留",
+      "ordinaryText": "普通草稿保留"
+    },
+    "released": 1,
+    "saved": null,
+    "errors": []
+  },
+  {
+    "name": "mobile",
+    "initial": {
+      "editor": {
+        "x": 12,
+        "y": 557.5,
+        "w": 366,
+        "h": 176.5
+      },
+      "cancel": {
+        "x": 302,
+        "y": 487,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 342,
+        "y": 487,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 487,
+        "w": 366,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "crowded": {
+      "editor": {
+        "x": 12,
+        "y": 621.4375,
+        "w": 366,
+        "h": 112.5625
+      },
+      "cancel": {
+        "x": 302,
+        "y": 487,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 342,
+        "y": 487,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 487,
+        "w": 366,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "scrolling": {
+      "editorScroll": 681,
+      "rootScroll": 0,
+      "bodyScroll": 0
+    },
+    "fullscreen": {
+      "editor": {
+        "x": 12,
+        "y": 77.5,
+        "w": 366,
+        "h": 656.5
+      },
+      "cancel": {
+        "x": 302,
+        "y": 7,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 342,
+        "y": 7,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 7,
+        "w": 366,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "编辑内容正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "resize": null,
+    "cancelRestore": {
+      "draft": "普通草稿保留",
+      "ordinaryText": "普通草稿保留"
+    },
+    "released": 1,
+    "saved": null,
+    "errors": []
+  },
+  {
+    "name": "small",
+    "initial": {
+      "editor": {
+        "x": 12,
+        "y": 189.5,
+        "w": 296,
+        "h": 84.5
+      },
+      "cancel": {
+        "x": 232,
+        "y": 119,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 272,
+        "y": 119,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 119,
+        "w": 296,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "crowded": {
+      "editor": {
+        "x": 12,
+        "y": 221.25,
+        "w": 296,
+        "h": 52.75
+      },
+      "cancel": {
+        "x": 232,
+        "y": 119,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 272,
+        "y": 119,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 119,
+        "w": 296,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "全文正文\n第二行",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "scrolling": {
+      "editorScroll": 773,
+      "rootScroll": 0,
+      "bodyScroll": 0
+    },
+    "fullscreen": {
+      "editor": {
+        "x": 12,
+        "y": 77.5,
+        "w": 296,
+        "h": 196.5
+      },
+      "cancel": {
+        "x": 232,
+        "y": 7,
+        "w": 36,
+        "h": 36
+      },
+      "save": {
+        "x": 272,
+        "y": 7,
+        "w": 36,
+        "h": 36
+      },
+      "header": {
+        "x": 12,
+        "y": 7,
+        "w": 296,
+        "h": 36
+      },
+      "bodyScroll": 0,
+      "rootScroll": 0,
+      "text": "编辑内容正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动正文滚动",
+      "ordinaryDraft": "普通草稿保留",
+      "buttonsVisible": true
+    },
+    "resize": null,
+    "cancelRestore": {
+      "draft": "普通草稿保留",
+      "ordinaryText": "普通草稿保留"
+    },
+    "released": 1,
+    "saved": null,
+    "errors": []
+  }
+]

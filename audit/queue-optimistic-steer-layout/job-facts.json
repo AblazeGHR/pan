@@ -1,0 +1,176 @@
+[
+  {
+    "jobId": "job_e83990d56acaed0553628f39",
+    "targetSessionId": "ses_4f6295b4d7af4aef",
+    "argv": [
+      "node",
+      "audit/queue-optimistic-steer-layout/browser.mjs",
+      "fixed-ui.json"
+    ],
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": null,
+    "sourceStruct": {
+      "type": "agent"
+    },
+    "targetStruct": {
+      "sessionId": "ses_4f6295b4d7af4aef"
+    },
+    "name": "job-27",
+    "description": "",
+    "commandSummary": "node audit/queue-optimistic-steer-layout/browser.mjs fixed-ui.json",
+    "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
+    "label": null,
+    "status": "completed",
+    "createdAt": 1791375694.3390386,
+    "updatedAt": 1791375695.2495584,
+    "pid": 12656,
+    "processCreatedAt": 1791375694.6339548,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_e83990d56acaed0553628f39.log",
+    "notificationState": "pending",
+    "terminalEventId": "job_e83990d56acaed0553628f39:terminal",
+    "runnerPid": 19040,
+    "runnerProcessCreatedAt": 1791375694.3498552,
+    "exitCode": 0,
+    "paused": false
+  },
+  {
+    "jobId": "job_5a767c1cb2ba0329f1eaee66",
+    "targetSessionId": "ses_28432c486b85fba4",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "audit/queue-optimistic-steer-layout/backend.py"
+    ],
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": null,
+    "sourceStruct": {
+      "type": "agent"
+    },
+    "targetStruct": {
+      "sessionId": "ses_28432c486b85fba4"
+    },
+    "name": "job-28",
+    "description": "",
+    "commandSummary": "D:/project/Pan-main/.venv/Scripts/python.exe audit/queue-optimistic-steer-layout/backend.py",
+    "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
+    "label": null,
+    "status": "completed",
+    "createdAt": 1791375726.3030796,
+    "updatedAt": 1791375727.3667638,
+    "pid": 34620,
+    "processCreatedAt": 1791375726.5838768,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_5a767c1cb2ba0329f1eaee66.log",
+    "notificationState": "pending",
+    "terminalEventId": "job_5a767c1cb2ba0329f1eaee66:terminal",
+    "runnerPid": 16804,
+    "runnerProcessCreatedAt": 1791375726.311788,
+    "exitCode": 0,
+    "paused": false
+  },
+  {
+    "jobId": "job_e0f8be294a8bc1b96ad35c09",
+    "targetSessionId": "ses_1a8ee761ab61efab",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "audit/queue-optimistic-steer-layout/fifo.py",
+      "fifo-fixed.json"
+    ],
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": null,
+    "sourceStruct": {
+      "type": "agent"
+    },
+    "targetStruct": {
+      "sessionId": "ses_1a8ee761ab61efab"
+    },
+    "name": "job-29",
+    "description": "",
+    "commandSummary": "D:/project/Pan-main/.venv/Scripts/python.exe audit/queue-optimistic-steer-layout/fifo.py fifo-fixed.json",
+    "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
+    "label": null,
+    "status": "completed",
+    "createdAt": 1791375726.4921508,
+    "updatedAt": 1791375727.0120568,
+    "pid": 11984,
+    "processCreatedAt": 1791375726.7856853,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_e0f8be294a8bc1b96ad35c09.log",
+    "notificationState": "pending",
+    "terminalEventId": "job_e0f8be294a8bc1b96ad35c09:terminal",
+    "runnerPid": 31184,
+    "runnerProcessCreatedAt": 1791375726.5030208,
+    "exitCode": 0,
+    "paused": false
+  },
+  {
+    "jobId": "job_5190b8c0037f05b8143d5c7e",
+    "targetSessionId": "ses_bf71e6385064d67c",
+    "argv": [
+      "node",
+      "audit/queue-optimistic-steer-layout/components.mjs"
+    ],
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": null,
+    "sourceStruct": {
+      "type": "agent"
+    },
+    "targetStruct": {
+      "sessionId": "ses_bf71e6385064d67c"
+    },
+    "name": "job-21",
+    "description": "",
+    "commandSummary": "node audit/queue-optimistic-steer-layout/components.mjs",
+    "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
+    "label": null,
+    "status": "completed",
+    "createdAt": 1791374982.0289953,
+    "updatedAt": 1791374985.733453,
+    "pid": 26592,
+    "processCreatedAt": 1791374982.3399053,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_5190b8c0037f05b8143d5c7e.log",
+    "notificationState": "pending",
+    "terminalEventId": "job_5190b8c0037f05b8143d5c7e:terminal",
+    "runnerPid": 24180,
+    "runnerProcessCreatedAt": 1791374982.036791,
+    "exitCode": 0,
+    "paused": false
+  },
+  {
+    "jobId": "job_653a31ee640021647a4ce3a5",
+    "targetSessionId": "ses_18112971bc4b5189",
+    "argv": [
+      "pwsh",
+      "-NoProfile",
+      "-File",
+      "audit/queue-optimistic-steer-layout/quality.ps1"
+    ],
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": null,
+    "sourceStruct": {
+      "type": "agent"
+    },
+    "targetStruct": {
+      "sessionId": "ses_18112971bc4b5189"
+    },
+    "name": "job-30",
+    "description": "",
+    "commandSummary": "pwsh -NoProfile -File …",
+    "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
+    "label": null,
+    "status": "completed",
+    "createdAt": 1791375726.7009685,
+    "updatedAt": 1791375745.2522285,
+    "pid": 5888,
+    "processCreatedAt": 1791375727.039708,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_653a31ee640021647a4ce3a5.log",
+    "notificationState": "pending",
+    "terminalEventId": "job_653a31ee640021647a4ce3a5:terminal",
+    "runnerPid": 10456,
+    "runnerProcessCreatedAt": 1791375726.7128217,
+    "exitCode": 0,
+    "paused": false
+  }
+]

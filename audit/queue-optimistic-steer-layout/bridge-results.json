@@ -1,0 +1,183 @@
+[
+  {
+    "input": "accepted",
+    "native": [
+      {
+        "id": 1,
+        "method": "turn/start",
+        "params": {
+          "threadId": "thread-fixture",
+          "input": [
+            {
+              "type": "text",
+              "text": "initial turn"
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "method": "turn/steer",
+        "params": {
+          "threadId": "thread-fixture",
+          "expectedTurnId": "turn-fixture",
+          "input": [
+            {
+              "type": "text",
+              "text": "provider full body"
+            }
+          ]
+        }
+      }
+    ],
+    "responseBoundary": [
+      {
+        "beforeResponseReceipts": []
+      }
+    ],
+    "events": [
+      {
+        "type": "pan.steer_receipt",
+        "requestId": "request",
+        "ok": true
+      },
+      {
+        "type": "result",
+        "is_error": false,
+        "cancelled": false,
+        "turn_status": "completed",
+        "result": "",
+        "usage": null
+      }
+    ]
+  },
+  {
+    "input": "rejected",
+    "native": [
+      {
+        "id": 1,
+        "method": "turn/start",
+        "params": {
+          "threadId": "thread-fixture",
+          "input": [
+            {
+              "type": "text",
+              "text": "initial turn"
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "method": "turn/steer",
+        "params": {
+          "threadId": "thread-fixture",
+          "expectedTurnId": "turn-fixture",
+          "input": [
+            {
+              "type": "text",
+              "text": "provider full body"
+            }
+          ]
+        }
+      }
+    ],
+    "responseBoundary": [
+      {
+        "beforeResponseReceipts": []
+      }
+    ],
+    "events": [
+      {
+        "type": "pan.steer_receipt",
+        "requestId": "request",
+        "ok": false,
+        "error": "provider refusal"
+      },
+      {
+        "type": "result",
+        "is_error": false,
+        "cancelled": false,
+        "turn_status": "completed",
+        "result": "",
+        "usage": null
+      }
+    ]
+  },
+  {
+    "input": "idle",
+    "events": [
+      {
+        "type": "pan.steer_receipt",
+        "requestId": "idle",
+        "ok": false,
+        "error": "No active Codex turn"
+      }
+    ],
+    "controlsQueued": 0
+  },
+  {
+    "input": "native-reimport-match",
+    "old": {
+      "role": "user",
+      "content": "provider full body",
+      "messageId": "pan:1234567890abcdef1234567890abcdef",
+      "source": "agent",
+      "sourceSessionId": "ses_1234567890abcdef",
+      "taskId": "T",
+      "taskIdSource": "active",
+      "queueItemIds": [
+        "q"
+      ],
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "source": "agent",
+          "envelope": {
+            "report": {
+              "full": true
+            }
+          }
+        }
+      ],
+      "parts": [
+        {
+          "type": "text",
+          "text": "provider full body"
+        }
+      ]
+    },
+    "new": [
+      {
+        "role": "user",
+        "content": "provider full body",
+        "nativeItemId": "native-fixture",
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T",
+        "taskIdSource": "active",
+        "queueItemIds": [
+          "q"
+        ],
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "source": "agent",
+            "envelope": {
+              "report": {
+                "full": true
+              }
+            }
+          }
+        ],
+        "parts": [
+          {
+            "type": "text",
+            "text": "provider full body"
+          }
+        ],
+        "messageId": "pan:1234567890abcdef1234567890abcdef"
+      }
+    ]
+  }
+]

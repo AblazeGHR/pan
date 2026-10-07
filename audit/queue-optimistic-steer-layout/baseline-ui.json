@@ -1,0 +1,162 @@
+[
+  {
+    "input": "paused",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-paused",
+        "queueItemId": "q-paused",
+        "kind": "task",
+        "text": "not delivered paused",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": [
+      {
+        "role": "user",
+        "content": "not delivered paused",
+        "queueItemIds": [
+          "q-paused"
+        ]
+      }
+    ]
+  },
+  {
+    "input": "missing",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-missing",
+        "queueItemId": "q-missing",
+        "kind": "task",
+        "text": "not delivered missing",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": [
+      {
+        "role": "user",
+        "content": "not delivered missing",
+        "queueItemIds": [
+          "q-missing"
+        ]
+      }
+    ]
+  },
+  {
+    "input": "recovering",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-recovering",
+        "queueItemId": "q-recovering",
+        "kind": "task",
+        "text": "not delivered recovering",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": [
+      {
+        "role": "user",
+        "content": "not delivered recovering",
+        "queueItemIds": [
+          "q-recovering"
+        ]
+      }
+    ]
+  },
+  {
+    "input": "running",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-running",
+        "queueItemId": "q-running",
+        "kind": "task",
+        "text": "not delivered running",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": []
+  },
+  {
+    "input": "locked",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-locked",
+        "queueItemId": "q-locked",
+        "kind": "task",
+        "text": "not delivered locked",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": true
+        }
+      }
+    ],
+    "ui": [
+      {
+        "role": "user",
+        "content": "not delivered locked",
+        "queueItemIds": [
+          "q-locked"
+        ]
+      }
+    ]
+  },
+  {
+    "input": "reports-paused",
+    "http": "persisted queued",
+    "ok": true,
+    "queue": [
+      {
+        "id": "q-reports-paused",
+        "queueItemId": "q-reports-paused",
+        "kind": "task",
+        "text": "not delivered reports-paused",
+        "source": "user",
+        "meta": {
+          "dispatchState": "queued",
+          "revision": 1,
+          "locked": false
+        }
+      }
+    ],
+    "ui": [
+      {
+        "role": "user",
+        "content": "not delivered reports-paused",
+        "queueItemIds": [
+          "q-reports-paused"
+        ]
+      }
+    ]
+  }
+]
