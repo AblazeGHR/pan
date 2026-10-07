@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +25,7 @@ import type { ChatMessagesHandle } from './ChatMessages';
 
 interface MessageNavigationRailProps {
   chatRef: RefObject<ChatMessagesHandle | null>;
+  expanded?: boolean;
   isMobile?: boolean;
   mobileExpanded?: boolean;
 }
@@ -88,10 +90,13 @@ function nextPaint(): Promise<void> {
 
 export function MessageNavigationRail({
   chatRef,
+  expanded = true,
   isMobile = false,
   mobileExpanded = false,
 }: MessageNavigationRailProps) {
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const currentHistoryEpoch = useSessionStore((s) => s.currentSessionId
+    ? s.sessionTranscripts[s.currentSessionId]?.window.epoch ?? null : null);
   const currentMessages = useSessionStore((s) => s.currentMessages);
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
   const currentHistoryTotal = useSessionStore((s) => {
@@ -106,6 +111,8 @@ export function MessageNavigationRail({
     () => ({ showMetaAgent, showTaskAgent, showQQ }),
     [showMetaAgent, showTaskAgent, showQQ],
   );
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const [activeFromEnd, setActiveFromEnd] = useState<number | null>(null);
   const [jumpingFromEnd, setJumpingFromEnd] = useState<number | null>(null);
   const [jumpError, setJumpError] = useState<string | null>(null);
@@ -119,6 +126,7 @@ export function MessageNavigationRail({
   const scrubGestureRef = useRef<ScrubGesture | null>(null);
   const suppressNextClickRef = useRef(false);
   const [fullIndex, setFullIndex] = useState<QuickJumpIndexItem[]>([]);
+  const indexOwnerRef = useRef<{ sessionId: string; settings: typeof settings; historyEpoch: string | null } | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle');
   const [indexTotal, setIndexTotal] = useState(0);
   const [indexMetrics, setIndexMetrics] = useState({ requests: 0, durationMs: 0 });
@@ -150,6 +158,7 @@ export function MessageNavigationRail({
   }, []);
 
   useEffect(() => {
+    indexOwnerRef.current = null;
     clearScrub(false);
     setHovered(null);
     setJumpError(null);
@@ -177,6 +186,7 @@ export function MessageNavigationRail({
       let requests = 0;
       let indexed: QuickJumpIndexItem[] = [];
       let historyTotal = 0;
+      let historyEpoch: string | null = null;
       try {
         do {
           const page = await fetchSessionHistory(
@@ -185,9 +195,14 @@ export function MessageNavigationRail({
             INDEX_PAGE_SIZE,
             controller.signal,
           );
+          if (disposed || useSessionStore.getState().currentSessionId !== currentSessionId) return;
+          const pageEpoch = page.historyEpoch ?? null;
+          if (requests > 0 && (page.total !== historyTotal || pageEpoch !== historyEpoch)) {
+            throw new Error('History identity changed during navigation indexing.');
+          }
           requests += 1;
           historyTotal = page.total;
-          if (disposed) return;
+          historyEpoch = pageEpoch;
           const pageItems = getQuickJumpIndexItems(
             page.history || [],
             page.total,
@@ -202,6 +217,7 @@ export function MessageNavigationRail({
         } while (before > 0);
         if (disposed) return;
         const durationMs = performance.now() - startedAt;
+        indexOwnerRef.current = { sessionId: currentSessionId, settings, historyEpoch };
         setIndexStatus('ready');
         setIndexMetrics({ requests, durationMs });
         console.info('[message-navigation] full index ready', {
@@ -214,6 +230,7 @@ export function MessageNavigationRail({
       } catch (error) {
         if (disposed || controller.signal.aborted) return;
         console.warn('[message-navigation] full index failed; using loaded window', error);
+        indexOwnerRef.current = { sessionId: currentSessionId, settings, historyEpoch };
         setIndexStatus('error');
         setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
       }
@@ -245,9 +262,104 @@ export function MessageNavigationRail({
     [targets],
   );
 
+  // Each expansion owns one synchronous snapshot. Existing pagination may
+  // finish it, but reading or interacting cancels it without another snapshot.
+  const openEpochRef = useRef(0);
+  const pendingOpenRef = useRef<{
+    epoch: number;
+    sessionId: string;
+    historyEpoch: string | null;
+    range: { start: number; end: number };
+    settings: typeof settings;
+  } | null>(null);
+  const [viewportTarget, setViewportTarget] = useState<{ sessionId: string; offset: number; historyEpoch: string | null; settings: typeof settings } | null>(null);
+  const cancelOpenLocation = useCallback(() => { pendingOpenRef.current = null; }, []);
+
+  useLayoutEffect(() => {
+    const epoch = ++openEpochRef.current;
+    pendingOpenRef.current = null;
+    setViewportTarget(null);
+    setActiveFromEnd(null);
+    if (!expanded || !currentSessionId) return;
+    const state = useSessionStore.getState();
+    if (state.currentSessionId !== currentSessionId) return;
+    const range = chatRef.current?.getViewportHistoryRange?.();
+    if (!range || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)
+        || range.start < 0 || range.end < range.start) return;
+    pendingOpenRef.current = {
+      epoch, sessionId: currentSessionId,
+      historyEpoch: state.sessionTranscripts[currentSessionId]?.window.epoch ?? null,
+      range, settings: settingsRef.current,
+    };
+    // Capture reading gestures anywhere, including the chat. Pointer-enter that
+    // opened the desktop dock is deliberately not an interaction cancellation.
+    const cancel = () => cancelOpenLocation();
+    window.addEventListener('pointerdown', cancel, true);
+    window.addEventListener('wheel', cancel, true);
+    window.addEventListener('keydown', cancel, true);
+    window.addEventListener('touchmove', cancel, true);
+    window.addEventListener('scroll', cancel, true);
+    return () => {
+      pendingOpenRef.current = null;
+      window.removeEventListener('pointerdown', cancel, true);
+      window.removeEventListener('wheel', cancel, true);
+      window.removeEventListener('keydown', cancel, true);
+      window.removeEventListener('touchmove', cancel, true);
+      window.removeEventListener('scroll', cancel, true);
+    };
+  }, [expanded, currentSessionId, chatRef, cancelOpenLocation]);
+
+  useLayoutEffect(() => {
+    const pending = pendingOpenRef.current;
+    if (!pending || !expanded || pending.epoch !== openEpochRef.current) return;
+    const state = useSessionStore.getState();
+    if (pending.settings !== settings || state.currentSessionId !== pending.sessionId
+        || (state.sessionTranscripts[pending.sessionId]?.window.epoch ?? null) !== pending.historyEpoch) {
+      pendingOpenRef.current = null;
+      return;
+    }
+    // Partial newest-first pages cannot prove the global nearest candidate.
+    // Wait for the existing scan; an error degrades to proven loaded offsets.
+    if (indexStatus === 'idle' || indexStatus === 'loading'
+        || indexOwnerRef.current?.sessionId !== pending.sessionId
+        || indexOwnerRef.current.settings !== settings) return;
+    pendingOpenRef.current = null;
+    if (indexStatus === 'ready' && pending.historyEpoch !== null
+        && indexOwnerRef.current.historyEpoch !== pending.historyEpoch) return;
+    const total = indexStatus === 'ready' ? indexTotal : loadedCanonicalTotal;
+    const { start, end } = pending.range;
+    const center = (start + end) / 2;
+    const distance = (offset: number) => Math.max(start - offset, offset - end, 0);
+    let best: QuickJumpIndexItem | undefined;
+    let bestOffset = -1;
+    for (const target of targets) {
+      const offset = total - 1 - target.fromEnd;
+      if (!Number.isSafeInteger(offset) || offset < 0) continue;
+      if (!best || distance(offset) < distance(bestOffset)
+          || (distance(offset) === distance(bestOffset)
+            && (Math.abs(offset - center) < Math.abs(bestOffset - center)
+              || (Math.abs(offset - center) === Math.abs(bestOffset - center) && offset > bestOffset)))) {
+        best = target;
+        bestOffset = offset;
+      }
+    }
+    if (!best) return;
+    const list = listRef.current;
+    const marker = list?.querySelector<HTMLElement>(`[data-from-end="${best.fromEnd}"]`);
+    if (!list || !marker) return;
+    setViewportTarget({ sessionId: pending.sessionId, offset: bestOffset,
+      historyEpoch: pending.historyEpoch, settings: pending.settings });
+    // Scroll only the rail, never scrollIntoView (which can scroll ancestors).
+    const bounds = list.getBoundingClientRect();
+    const rectangle = marker.getBoundingClientRect();
+    list.scrollTop += rectangle.top + rectangle.height / 2 - bounds.top - bounds.height / 2;
+  }, [expanded, currentSessionId, indexStatus, indexTotal, loadedCanonicalTotal, targets, settings, currentHistoryEpoch]);
+
   const jumpTo = async (target: QuickJumpIndexItem) => {
     if (!currentSessionId || jumpingFromEnd !== null) return;
     const sessionAtClick = currentSessionId;
+    cancelOpenLocation();
+    setViewportTarget(null);
     setJumpError(null);
     setJumpingFromEnd(target.fromEnd);
     try {
@@ -260,10 +372,12 @@ export function MessageNavigationRail({
         return;
       }
       await nextPaint();
+      if (useSessionStore.getState().currentSessionId !== sessionAtClick) return;
       const historyIndex = total - 1 - target.fromEnd;
       let didJump = chatRef.current?.scrollToMessage(message, historyIndex) ?? false;
       if (!didJump) {
         await nextPaint();
+        if (useSessionStore.getState().currentSessionId !== sessionAtClick) return;
         didJump = chatRef.current?.scrollToMessage(message, historyIndex) ?? false;
       }
       if (!didJump) {
@@ -271,7 +385,11 @@ export function MessageNavigationRail({
         return;
       }
       setActiveFromEnd(target.fromEnd);
-      window.setTimeout(() => setActiveFromEnd(null), 1200);
+      const epochAtJump = openEpochRef.current;
+      window.setTimeout(() => {
+        if (useSessionStore.getState().currentSessionId === sessionAtClick
+            && openEpochRef.current === epochAtJump) setActiveFromEnd(null);
+      }, 1200);
     } finally {
       if (useSessionStore.getState().currentSessionId === sessionAtClick) {
         setJumpingFromEnd(null);
@@ -432,6 +550,7 @@ export function MessageNavigationRail({
       <div
         ref={listRef}
         className="message-navigation-list"
+        onScroll={cancelOpenLocation}
         onPointerMove={moveScrub}
         onPointerUp={(event) => finishScrub(event, false)}
         onPointerCancel={(event) => finishScrub(event, true)}
@@ -443,7 +562,7 @@ export function MessageNavigationRail({
             <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.fromEnd}`}>
               <button
                 type="button"
-                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}`}
+                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}${viewportTarget?.sessionId === currentSessionId && viewportTarget.historyEpoch === currentHistoryEpoch && viewportTarget.settings === settings && viewportTarget.offset === (indexStatus === 'ready' ? indexTotal : loadedCanonicalTotal) - 1 - target.fromEnd ? ' is-viewport-target' : ''}`}
                 onClick={(event) => handleMarkerClick(event, target)}
                 onPointerDown={(event) => beginScrub(event, target)}
                 onMouseEnter={(event) => showPreview(event, target)}

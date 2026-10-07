@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -16,6 +16,7 @@ import { collectDescendantIds, hasManagedChildren } from '@/components/session/s
 import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
 import { EditorDirectoryRoots } from '@/components/editor/EditorDirectoryRoots';
 import { SidebarResizer } from './SidebarResizer';
+import { ViewEntryGroups } from './ViewEntryGroups';
 import { Button } from '@/components/ui/Button';
 import { WorkspaceManagerChangeConfirmationModal } from './WorkspaceManagerChangeConfirmationModal';
 import type { WorkspaceMoveConfirmationRequest } from '@/utils/workspaceMoveConfirmation';
@@ -27,9 +28,6 @@ const ManageModal = lazy(() => import('@/components/session/ManageModal').then((
 const PostboxModal = lazy(() => import('@/components/session/PostboxModal').then((module) => ({ default: module.PostboxModal })));
 const SessionDetailsModal = lazy(() => import('@/components/session/SessionDetailsModal').then((module) => ({ default: module.SessionDetailsModal })));
 import {
-  MessageSquare,
-  Code,
-  TerminalSquare,
   PanelLeftClose,
   PanelLeft,
   Plus,
@@ -43,7 +41,6 @@ import {
   ChevronDown,
   Sun,
   Moon,
-  ListChecks,
   Trash2,
   X,
 } from 'lucide-react';
@@ -393,54 +390,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           <PanelLeft size={18} />
         </button>
 
-        <NavLink
-          to="/"
-          end
-          title="Chat"
-          className={({ isActive }) =>
-            `p-1.5 rounded transition-colors ${
-              isActive
-                ? 'text-accent bg-accent/10'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
-            }`
-          }
-        >
-          <MessageSquare size={18} />
-        </NavLink>
-
-        <NavLink
-          to="/editor"
-          title="Editor"
-          className={({ isActive }) =>
-            `p-1.5 rounded transition-colors ${
-              isActive
-                ? 'text-accent bg-accent/10'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
-            }`
-          }
-        >
-          <Code size={18} />
-        </NavLink>
-
-        <NavLink to="/terminals" title="全局终端" className={({ isActive }) =>
-          `p-1.5 rounded transition-colors ${isActive ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'}`}>
-          <TerminalSquare size={18} />
-        </NavLink>
-
-        <NavLink
-          to="/jobs"
-          title="Jobs"
-          className={({ isActive }) =>
-            `p-1.5 rounded transition-colors ${
-              isActive
-                ? 'text-accent bg-accent/10'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
-            }`
-          }
-        >
-          <ListChecks size={18} />
-        </NavLink>
-
         <div className="flex-1" />
 
         <button
@@ -512,49 +461,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
               </div>
             </div>
 
-            {/* Route nav */}
-            <div className="flex gap-1 mb-2">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <MessageSquare size={12} />
-                Chat
-              </NavLink>
-              <NavLink
-                to="/editor"
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <Code size={12} />
-                Editor
-              </NavLink>
-              <NavLink
-                to="/jobs"
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <ListChecks size={12} />
-                Jobs
-              </NavLink>
-            </div>
+            <div className="mb-2"><ViewEntryGroups isMobile={isMobile} /></div>
 
             {/* Buttons */}
             <div className="flex gap-1">
@@ -918,49 +825,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
               </div>
             </div>
 
-            {/* Route nav */}
-            <div className="flex gap-1">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <MessageSquare size={12} />
-                Chat
-              </NavLink>
-              <NavLink
-                to="/editor"
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <Code size={12} />
-                Editor
-              </NavLink>
-              <NavLink
-                to="/jobs"
-                className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
-                    isActive
-                      ? 'bg-accent/20 text-accent font-medium'
-                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-                  }`
-                }
-              >
-                <ListChecks size={12} />
-                Jobs
-              </NavLink>
-            </div>
+            <ViewEntryGroups isMobile={isMobile} />
           </div>
 
           {/* Directory roots: CWD + workspace dirs + temp dirs, each collapsible */}

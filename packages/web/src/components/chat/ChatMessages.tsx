@@ -708,8 +708,9 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     const element = parentRef.current;
     const state = useSessionStore.getState();
     const transcript = state.currentSessionId ? state.sessionTranscripts[state.currentSessionId] : undefined;
-    if (!element || !transcript) return null;
+    if (!element || !transcript || state.currentSessionId !== currentSessionId) return null;
     const viewport = element.getBoundingClientRect();
+    if (viewport.height <= 0 || viewport.width <= 0) return null;
     const identities = new Set<string>();
     for (const row of element.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
       const rectangle = row.getBoundingClientRect();
@@ -731,7 +732,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       return { start: transcript.anchorOffset, end: transcript.anchorOffset };
     }
     return end >= 0 ? { start, end } : null;
-  }, []);
+  }, [currentSessionId]);
   useImperativeHandle(ref, () => ({ scrollToMessage, getViewportHistoryRange }), [scrollToMessage, getViewportHistoryRange]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
