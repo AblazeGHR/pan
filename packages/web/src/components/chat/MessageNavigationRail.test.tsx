@@ -710,4 +710,38 @@ describe('open nearest canonical regression', () => {
     expect(mockedHistory).toHaveBeenCalledTimes(6);
   });
 
+  it('renders strictly adjacent dense pages, continues across eviction, and preserves append boundaries', async () => {
+    vi.useFakeTimers();
+    const rows = Array.from({ length: 200 }, (_, i): Message => ({ role: 'user', content: `dense ${i + 400}`, messageId: `canonical-${i + 400}` }));
+    rows.forEach((message, i) => messageOrdering.markDurableRow(message, i + 400));
+    useSessionStore.setState({ currentSessionId: 'nearest', sessions: [{ id: 'nearest', historyTotal: 3200 } as never], currentMessages: rows, sessionTranscripts: {} });
+    let total = 3200;
+    mockedHistory.mockImplementation(async (_id, before = 0) => historyPage(Array.from({ length: before - Math.max(0,before - 200) }, (_, i) => ({ role: 'user', content: `dense ${Math.max(0,before - 200)+i}`, messageId: `canonical-${Math.max(0,before - 200)+i}` })), total, Math.max(0,before - 200)));
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
+    const offsets = () => markers(view.container).map(marker => Number(marker.dataset.canonicalOffset));
+    expect(offsets()).toEqual(Array.from({ length: 200 }, (_, i) => 400 + i));
+    let last = 599;
+    while (last < total - 1) {
+      fireEvent.click(view.getByRole('button', { name: 'Load later navigation' }));
+      await act(async () => { await vi.runAllTimersAsync(); });
+      const next = offsets(); expect(next).toEqual(Array.from({ length: Math.min(200,total-last-1) }, (_,i) => last+1+i));
+      expect(markers(view.container).map(marker => marker.dataset.messageId)).toEqual(next.map(offset => `canonical-${offset}`));
+      last = next.at(-1)!;
+    }
+    expect(last).toBe(3199);
+    total += 3;
+    act(() => { useSessionStore.setState({ sessions: [{ id: 'nearest', historyTotal: total } as never] }); });
+    fireEvent.click(view.getByRole('button', { name: 'Load later navigation' }));
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(offsets()).toEqual([3200,3201,3202]);
+    let first = 3200;
+    while (first > 0) {
+      fireEvent.click(view.getByRole('button', { name: 'Load earlier navigation' }));
+      await act(async () => { await vi.runAllTimersAsync(); });
+      const previous = offsets(); expect(previous).toEqual(Array.from({ length: Math.min(200,first) }, (_,i) => Math.max(0,first-200)+i));
+      first = previous[0]!;
+    }
+    expect(first).toBe(0);
+  }, 20000);
+
 });

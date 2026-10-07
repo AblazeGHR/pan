@@ -10,6 +10,7 @@ import { chromium } from '@playwright/test';
 
 const root = path.resolve(process.argv[3] || path.resolve(import.meta.dirname, '../../..'));
 const mode = process.argv[2] || 'fixed';
+const pagingOnly = mode.startsWith('paging');
 const output = path.join(root, 'packages/web/test-results', `navigation-open-${mode}-${Date.now()}`);
 const runtime = await fs.mkdtemp(path.join(os.tmpdir(), 'pan-nav-browser-'));
 await fs.mkdir(output, { recursive: true });
@@ -83,7 +84,7 @@ try {
   await api.request.put(`${base}/api/settings/ui`, { data: { showMessageNavigationRail: true, mergeConsecutiveNonBodyBlocks: false,
     showTaskAgent: true, showMetaAgent: true, keepScrollOnSessionSwitch: true, historyPageSize: 200 } });
   await api.close();
-  for (const [session, count, fraction, coldWindow = false] of (mode === 'faults' ? [] : [[dense, 10000, 0.5], [large, 6000, 0.5], [large, 6000, 0], [large, 6000, 1], [small, 200, 0.5], [small, 200, 0], [small, 200, 1], ...(mode === 'baseline' ? [] : [[large, 6000, 1, true]])])) {
+  for (const [session, count, fraction, coldWindow = false] of (mode === 'faults' || pagingOnly ? [] : [[dense, 10000, 0.5], [large, 6000, 0.5], [large, 6000, 0], [large, 6000, 1], [small, 200, 0.5], [small, 200, 0], [small, 200, 1], ...(mode === 'baseline' ? [] : [[large, 6000, 1, true]])])) {
     const context = await browser.newContext({ viewport: { width: 1120, height: 900 } });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     const page = await context.newPage();
@@ -158,7 +159,147 @@ try {
     await context.close();
   }
 
-  if (mode !== 'baseline') {
+
+  if (pagingOnly || mode === 'fixed') {
+    const sparse = sessions.find(session => session.name === 'Sparse Navigation');
+    const sparseOffsets = [0,4800,9600,14400,19200,23999];
+    await apiSeedSparse();
+    async function apiSeedSparse() {
+      const context = await browser.newContext();
+      await context.request.post(`${base}/__e2e/append-history`, { data: { sessionId: sparse.id, messages: Array.from({ length: 24000 }, (_, i) => ({ role: sparseOffsets.includes(i) ? 'user' : 'assistant', content: `SPARSE ${i}` })) } });
+      await context.close();
+    }
+    for (const [session,total,expected] of [[dense,10000,Array.from({ length: 10000 }, (_,i) => i)],[sparse,24000,sparseOffsets]]) {
+      const context = await browser.newContext({ viewport: { width: 1120, height: 900 } });
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+      const scenario = { test: 'continuous-paging', session: session.name, total, expectedCount: expected.length, pages: [], batches: [], requests: [], bytes: 0 };
+      report.scenarios.push(scenario);
+      try {
+        // Independent real-API identity oracle. Preparation reads are separate
+        // from application navigation request/byte measurements below.
+        const identities = new Map();
+        if (session === dense) {
+          for (let before = 200; before <= total; before += 200) {
+            const response = await context.request.get(`${base}/api/sessions/${session.id}/history?before=${before}&limit=200`);
+            const body = await response.json();
+            body.history.forEach((message,i) => identities.set(body.start+i,message.messageId));
+          }
+        } else {
+          for (const offset of expected) {
+            const response = await context.request.get(`${base}/api/sessions/${session.id}/history?before=${offset+1}&limit=1`);
+            const body = await response.json(); identities.set(offset,body.history[0].messageId);
+          }
+        }
+        const page = await context.newPage();
+        page.on('pageerror', error => report.errors.push(error.message));
+        page.on('request', request => { if (/:(8767|8768)(\/|$)/.test(request.url())) report.protectedRequests.push(request.url()); });
+        await page.goto(`${base}/react/?panE2E=1`);
+        await page.locator('[data-session-card-id]').filter({ hasText: session.name }).first().click();
+        await page.waitForFunction(() => window.__panSessionStore.getState().currentMessages.length > 0 && !window.__panSessionStore.getState().historyLoading);
+        if (session === sparse) await page.evaluate(() => window.__panSessionStore.getState().ensureMessageLoaded(11999,24000));
+        await page.evaluate(() => window.__panSessionStore.setState({ hasMoreMessages: false }));
+        const scroller = page.locator('.chat-view-stage .overflow-auto').first();
+        await scroller.hover(); await page.mouse.wheel(0,-120); await delay(200);
+        await scroller.evaluate((element,sparse) => { element.scrollTop = sparse ? 0 : element.scrollHeight-element.clientHeight; },session === sparse);
+        await delay(700);
+        const before = await scroller.evaluate(element => element.scrollTop);
+        const reads = [];
+        page.on('response', response => { if (response.url().includes('/history?')) reads.push((async () => { try { scenario.bytes += (await response.body()).length; } catch { /* canceled owned response */ } })()); });
+        await page.route(`**/api/sessions/${session.id}/history?*`, async route => { scenario.requests.push(route.request().url()); await delay(5); await route.continue(); });
+        await page.locator('.message-navigation-dock__handle').hover();
+        const status = () => page.locator('.message-navigation-rail').getAttribute('data-index-status');
+        const settled = () => poll(status, value => value !== 'loading' && value !== 'idle');
+        let partials = 0;
+        await settled();
+        while (await status() === 'partial') {
+          assert.ok(++partials < 30,'nearest partial must converge after cache eviction');
+          const requestStart = scenario.requests.length;
+          await page.getByRole('button',{name:'Load more nearby navigation'}).click(); await settled();
+          scenario.batches.push({ type:'nearest-continue',requests:scenario.requests.length-requestStart });
+          assert.ok(scenario.requests.length-requestStart <= 6);
+        }
+        scenario.nearestPartials = partials;
+        if (session === sparse) assert.ok(partials > 0,'sparse fixture must cross automatic page budget');
+        const readPage = () => page.locator('.message-navigation-marker').evaluateAll(markers => markers.map(marker => ({ offset:Number(marker.dataset.canonicalOffset),messageId:marker.dataset.messageId })));
+        let current = await readPage();
+        assert.ok(current.length > 0 && current.length <= 200);
+        const validate = rows => {
+          const start = expected.indexOf(rows[0].offset), end = expected.indexOf(rows.at(-1).offset);
+          assert.ok(start >= 0 && end >= start);
+          assert.deepEqual(rows.map(row => row.offset),expected.slice(start,end+1),'no gap within a displayed target page');
+          for (const row of rows) assert.equal(row.messageId,identities.get(row.offset),`canonical identity ${row.offset}`);
+          assert.ok(rows.length <= 200);
+        };
+        // Preserve offsets before checking new data-message-id, so the old
+        // application reproduces the actual skipped-boundary failure first.
+        scenario.pages.push({ direction:'initial',rows:current });
+        const visited = new Set(current.map(row => row.offset));
+        const move = async direction => {
+          const name = direction === -1 ? 'Load earlier navigation' : 'Load later navigation';
+          const button = page.getByRole('button',{name});
+          if (!await button.count()) return false;
+          const previous = current;
+          const requestStart = scenario.requests.length;
+          await button.click(); await settled();
+          let continuations = 0;
+          while (await status() === 'partial') {
+            assert.ok(++continuations < 60,'sparse directional cursor must make bounded progress');
+            const batchStart = scenario.requests.length;
+            await page.getByRole('button',{name:'Load more nearby navigation'}).click(); await settled();
+            scenario.batches.push({ type:'directional-continue',direction,requests:scenario.requests.length-batchStart });
+            assert.ok(scenario.requests.length-batchStart <= 6);
+          }
+          current = await readPage();
+          if (JSON.stringify(current.map(row => row.offset)) === JSON.stringify(previous.map(row => row.offset))) {
+            assert.equal(await button.count(),0,'unchanged page must have reached a proven canonical end'); return false;
+          }
+          scenario.pages.push({ direction,rows:current,requests:scenario.requests.length-requestStart,continuations });
+          const oldFirst = expected.indexOf(previous[0].offset), oldLast = expected.indexOf(previous.at(-1).offset);
+          if (direction === 1) assert.equal(current[0].offset,expected[oldLast+1],'later page must begin at the adjacent target');
+          else assert.equal(current.at(-1).offset,expected[oldFirst-1],'earlier page must end at the adjacent target');
+          validate(current); current.forEach(row => visited.add(row.offset));
+          return true;
+        };
+        for (let guard=0; await move(-1); guard++) assert.ok(guard < 100);
+        assert.equal(current[0].offset,expected[0]);
+        for (let guard=0; await move(1); guard++) assert.ok(guard < 100);
+        assert.equal(current.at(-1).offset,expected.at(-1));
+        assert.deepEqual([...visited].sort((a,b)=>a-b),expected,'every canonical target must be reachable');
+        // Reverse again after >12-page eviction: no hidden dependency on cache.
+        for (let guard=0; await move(-1); guard++) assert.ok(guard < 100);
+        assert.equal(current[0].offset,expected[0]);
+        scenario.baseVisitedCount = visited.size;
+        scenario.pagingBodyDelta = (await scroller.evaluate(element=>element.scrollTop))-before;
+        assert.equal(scenario.pagingBodyDelta,0,'directional paging must not move chat body');
+        if (session === dense) {
+          for (let guard=0; await move(1); guard++) assert.ok(guard < 100);
+          await context.request.post(`${base}/__e2e/append-history`,{data:{sessionId:session.id,messages:[0,1,2].map(i=>({role:'user',content:`APPEND ${i}`}))}});
+          const response = await context.request.get(`${base}/api/sessions/${session.id}/history?before=${total+3}&limit=3`);
+          const body = await response.json(); body.history.forEach((message,i)=>identities.set(total+i,message.messageId));
+          expected.push(total,total+1,total+2);
+          await page.evaluate(() => window.__panSessionStore.getState().refreshCurrentSessionHistory());
+          await poll(()=>page.locator('.message-navigation-rail').getAttribute('data-history-total'),v=>Number(v)===total+3);
+          assert.equal(await move(1),true); assert.deepEqual(current.map(row=>row.offset),[total,total+1,total+2]);
+          assert.equal(await move(-1),true);
+          assert.equal(current.at(-1).offset,total-1);
+          scenario.appendVerified = true;
+        }
+        scenario.bodyDelta = (await scroller.evaluate(element=>element.scrollTop))-before;
+        // Only paging is included here; explicit history refresh for append is
+        // allowed to restore chat geometry and is excluded from this assertion.
+        if (session === sparse) assert.equal(scenario.bodyDelta,0);
+        await Promise.allSettled(reads);
+        scenario.visitedCount = visited.size; scenario.passed = true;
+        await page.screenshot({path:path.join(output,`${session === dense ? 'dense' : 'sparse'}-paging.png`)});
+      } finally {
+        await context.tracing.stop({path:path.join(output,`${session === dense ? 'dense' : 'sparse'}-paging-trace.zip`)});
+        await context.close();
+        await fs.writeFile(path.join(output,'evidence.json'),JSON.stringify(report,null,2));
+      }
+    }
+  }
+
+  if (mode !== 'baseline' && !pagingOnly) {
     for (const test of ['retry', 'retry-click', 'automatic', 'user-takeover', 'session-switch', 'close', 'epoch', 'empty-viewport', 'filter', 'desktop-click', 'mobile']) {
       const mobile = test === 'mobile';
       const context = await browser.newContext({ viewport: { width: mobile ? 390 : 1120, height: mobile ? 844 : 900 }, isMobile: mobile, hasTouch: mobile });

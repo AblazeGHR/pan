@@ -18,7 +18,7 @@ import { fetchSessionHistory } from '@/services/api';
 import {
     type QuickJumpKind,
 } from './messageFilter';
-import { NavigationIndex, NAVIGATION_AUTO_PAGES, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
+import { NavigationIndex, NavigationPager, NavigationSearch, NAVIGATION_AUTO_PAGES, NAVIGATION_CACHE_PAGES, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
 import type { ChatMessagesHandle } from './ChatMessages';
 
 interface MessageNavigationRailProps {
@@ -130,7 +130,12 @@ export function MessageNavigationRail({
   const contextRef = useRef(context);
   contextRef.current = context;
   const [indexView, setIndexView] = useState<{ context: typeof context; targets: NavigationTarget[] } | null>(null);
-  const targets = useMemo(() => indexView?.context === context ? indexView.targets : [], [indexView, context]);
+  const [manualPage, setManualPage] = useState<{ context: typeof context; targets: NavigationTarget[] } | null>(null);
+  const targets = useMemo(() => {
+    const rows = indexView?.context === context ? indexView.targets : [];
+    const displayed = manualPage?.context === context ? manualPage.targets.map(target => ({ ...target, fromEnd: context.index.total - 1 - target.offset })) : [];
+    return [...new Map([...rows, ...displayed].map(target => [target.offset, target])).values()].sort((a, b) => a.offset - b.offset);
+  }, [indexView, context, manualPage]);
   const [indexState, setIndexState] = useState<{ context: typeof context; status: IndexStatus; error: string | null } | null>(null);
   const indexStatus = indexState?.context === context ? indexState.status : 'idle';
   const indexError = indexState?.context === context ? indexState.error : null;
@@ -146,6 +151,9 @@ export function MessageNavigationRail({
   const [retryEpoch, setRetryEpoch] = useState(0);
   const requestedRangeRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
   const skipLocationRef = useRef(false);
+  const pagerRef = useRef<{ context: typeof context; pager: NavigationPager } | null>(null);
+  const searchRef = useRef<{ context: typeof context; search: NavigationSearch } | null>(null);
+  const [exhaustedEdge, setExhaustedEdge] = useState<{ context: typeof context; boundary: number; direction: -1 | 1; total: number } | null>(null);
   const locationRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
 
   const clearScrub = useCallback((suppressClick = false) => {
@@ -180,7 +188,11 @@ export function MessageNavigationRail({
     const requestedRange = requestedRangeRef.current?.context === context ? requestedRangeRef.current.range : null;
     cancelOpenLocation();
     const epoch = ++openEpochRef.current;
-    const allowLocation = !skipLocationRef.current; skipLocationRef.current = false;
+    if (!requestedRange) {
+      pagerRef.current = null; searchRef.current = null; setManualPage(null); setExhaustedEdge(null);
+    }
+    const pager = pagerRef.current?.context === context ? pagerRef.current.pager : null;
+    const allowLocation = !pager && !skipLocationRef.current; skipLocationRef.current = false;
     setViewportTarget(null); setActiveOffset(null);
     if (!expanded || !context.sessionId) return;
     const pending = { epoch, context, range: null as NavigationRange | null };
@@ -192,13 +204,19 @@ export function MessageNavigationRail({
     let requests = 0;
     const current = () => !controller.signal.aborted && contextRef.current === context
       && operationRef.current === operation && useSessionStore.getState().currentSessionId === context.sessionId;
-    const publish = () => { if (current()) setIndexView({ context, targets: context.index.targets() }); };
+    const publish = () => {
+      if (!current()) return;
+      const best = searchRef.current?.context === context ? searchRef.current.search.best : undefined;
+      const rows = context.index.targets();
+      if (best && !rows.some(target => target.offset === best.offset)) rows.push({ ...best, fromEnd: context.index.total - 1 - best.offset });
+      setIndexView({ context, targets: rows.sort((a, b) => a.offset - b.offset) });
+    };
     const status = (value: IndexStatus, error: string | null = null) => {
       if (current()) setIndexState({ context, status: value, error });
     };
     const finishLocation = (range: NavigationRange) => {
       if (pendingOpenRef.current !== pending || !current()) return;
-      const best = nearestNavigationTarget(context.index.targets(), range);
+      const best = searchRef.current?.context === context ? searchRef.current.search.best : nearestNavigationTarget(context.index.targets(), range);
       pendingOpenRef.current = null;
       if (best && allowLocation) setViewportTarget({ context, epoch, offset: best.offset });
     };
@@ -208,7 +226,7 @@ export function MessageNavigationRail({
       controller.signal.addEventListener('abort', abort, { once: true });
     });
     const load = async (range: NavigationRange) => {
-      setDisplayOffset((range.start + range.end) / 2);
+      if (!pager) setDisplayOffset((range.start + range.end) / 2);
       // Only durable offsets may seed coverage. Keep a bounded neighbourhood,
       // rather than projecting/rendering the whole loaded transcript.
       const state = useSessionStore.getState();
@@ -231,12 +249,34 @@ export function MessageNavigationRail({
         context.index.addRows(canonicalRowsWithOffsets(state.currentMessages).filter(row => row.offset >= start && row.offset <= end));
       }
       publish();
-      if ((context.index.total > 0 || (context.knownTotal && context.index.total === 0)) && context.index.proven(range)) { finishLocation(range); status('ready'); return; }
+      if (!pager && searchRef.current?.context !== context && (context.index.total > 0 || (context.knownTotal && context.index.total === 0)) && context.index.proven(range)) { finishLocation(range); status('ready'); return; }
+      const search = !pager ? (searchRef.current?.context === context ? searchRef.current.search : new NavigationSearch(range, context.index)) : null;
+      if (search) searchRef.current = { context, search };
+      const complete = () => {
+        if (!context.knownTotal && context.index.total === 0) return false;
+        if (pager) {
+          if (!pager.done(context.index)) return false;
+          return true;
+        }
+        if (search?.proven(context.index)) { publish(); finishLocation(range); status('ready'); return true; }
+        return false;
+      };
+      const finishPage = () => {
+        if (!pager || !current()) return;
+        if (pager.targets.length) setManualPage({ context, targets: pager.page(context.index) });
+        else if (pager.exhausted(context.index)) setExhaustedEdge({ context, boundary: pager.boundary, direction: pager.direction, total: context.index.total });
+        pagerRef.current = null; pendingOpenRef.current = null; status('ready');
+      };
       status('loading');
       try {
-        for (let pageCount = 0; pageCount < NAVIGATION_AUTO_PAGES && current(); pageCount++) {
-          const key = context.index.total === 0 ? 0 : context.index.nextPage(range);
+        let pages = 0;
+        for (let work = 0; work < NAVIGATION_CACHE_PAGES + NAVIGATION_AUTO_PAGES + 1 && current(); work++) {
+          if (complete()) { finishPage(); return; }
+          const key = context.index.total === 0 ? 0 : pager ? pager.nextPage() : search!.nextPage(context.index);
           if (key === null) break;
+          if (context.index.total > 0 && (pager ? pager.consume(context.index) : search!.consume(key, context.index))) continue;
+          if (pages >= NAVIGATION_AUTO_PAGES) break;
+          pages++;
           const before = Math.min(context.index.total, (key + 1) * NAVIGATION_PAGE_SIZE);
           let page: Awaited<ReturnType<typeof fetchSessionHistory>> | undefined;
           // At most two transient retries per page, with one in-flight request.
@@ -256,7 +296,7 @@ export function MessageNavigationRail({
           const pageEpoch = page.historyEpoch ?? null;
           if (context.responseEpoch === undefined) context.responseEpoch = pageEpoch;
           if (pageEpoch !== context.responseEpoch) throw new Error('History identity changed during nearby navigation loading.');
-          if (context.index.total === 0 && !context.knownTotal) context.index.total = page.total;
+          if (context.index.total === 0 && !context.knownTotal) { context.index.total = page.total; context.knownTotal = true; }
           if (page.total > context.index.total && page.historyEpoch === context.historyEpoch) context.index.total = page.total;
           if (page.total !== context.index.total || (context.historyEpoch !== null && page.historyEpoch !== context.historyEpoch)) {
             throw new Error('History changed. Reopen navigation after the chat refreshes.');
@@ -267,9 +307,15 @@ export function MessageNavigationRail({
           }
           context.index.addPage(page.history, page.start); publish();
           setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
-          if (context.index.proven(range)) { finishLocation(range); status('ready'); return; }
+          if (pager) pager.consume(context.index); else search!.consume(key, context.index);
+          if (complete()) { finishPage(); return; }
         }
-        if (current()) status('partial');
+        if (current()) {
+          // A nonempty directional page is valid even when shorter than 200:
+          // every intervening canonical row was consumed. Empty sparse spans
+          // keep their cursor for explicit continuation rather than restarting.
+          if (pager && pager.targets.length) finishPage(); else status('partial');
+        }
       } catch (error) {
         if (current()) {
           const message = error instanceof Error ? error.message : String(error);
@@ -329,12 +375,18 @@ export function MessageNavigationRail({
 
   const retryIndex = () => {
     if (!expanded || (operationRef.current && indexStatus === 'loading')) return;
-    if (locationRef.current?.context === context) requestedRangeRef.current = locationRef.current;
+    const pager = pagerRef.current?.context === context ? pagerRef.current.pager : null;
+    if (pager) { requestedRangeRef.current = { context, range: { start: Math.max(0, pager.cursor), end: Math.max(0, pager.cursor) } }; skipLocationRef.current = true; }
+    else if (locationRef.current?.context === context) requestedRangeRef.current = locationRef.current;
     setRetryEpoch(value => value + 1);
   };
-  const loadMore = (offset: number) => {
+  const loadMore = (boundary: number, direction: -1 | 1) => {
     if (indexStatus === 'loading') return;
-    requestedRangeRef.current = { context, range: { start: offset, end: offset } }; skipLocationRef.current = true;
+    if (manualPage?.context !== context) setManualPage({ context, targets: displayTargets });
+    const existing = pagerRef.current?.context === context ? pagerRef.current.pager : null;
+    const pager = existing?.direction === direction && existing.boundary === boundary ? existing : new NavigationPager(boundary, direction);
+    pagerRef.current = { context, pager };
+    requestedRangeRef.current = { context, range: { start: Math.max(0, pager.cursor), end: Math.max(0, pager.cursor) } }; skipLocationRef.current = true;
     setRetryEpoch(value => value + 1);
   };
 
@@ -488,12 +540,23 @@ export function MessageNavigationRail({
   // A dense canonical window can contain thousands of markers. Keep the DOM
   // to one 200-marker page; the edge controls can use cached/nearby pages.
   const displayTargets = useMemo(() => {
-    let middle = targets.findIndex(target => target.offset >= displayOffset);
-    if (middle < 0) middle = targets.length - 1;
-    const start = Math.max(0, Math.min(targets.length - NAVIGATION_PAGE_SIZE, middle - NAVIGATION_PAGE_SIZE / 2));
-    return targets.slice(start, start + NAVIGATION_PAGE_SIZE);
-  }, [targets, displayOffset]);
+    if (manualPage?.context === context) return manualPage.targets.map(target => ({ ...target, fromEnd: context.index.total - 1 - target.offset }));
+    const nearest = nearestNavigationTarget(targets, { start: displayOffset, end: displayOffset });
+    if (!nearest) return [];
+    // Initial markers must belong to one contiguous known canonical segment.
+    // Cached targets on the other side of an unknown gap are not adjacent.
+    const coverage = context.index.contiguousRange(nearest.offset);
+    const contiguous = targets.filter(target => target.offset >= coverage.start && target.offset <= coverage.end);
+    let middle = contiguous.findIndex(target => target.offset >= displayOffset);
+    if (middle < 0) middle = contiguous.length - 1;
+    const start = Math.max(0, Math.min(contiguous.length - NAVIGATION_PAGE_SIZE, middle - NAVIGATION_PAGE_SIZE / 2));
+    return contiguous.slice(start, start + NAVIGATION_PAGE_SIZE);
+  }, [targets, displayOffset, context, manualPage]);
   const firstTarget = displayTargets[0], lastTarget = displayTargets.at(-1);
+  const earlierBoundary = firstTarget?.offset ?? Math.max(0, Math.floor(displayOffset));
+  const laterBoundary = lastTarget?.offset ?? Math.min(indexTotal - 1, Math.ceil(displayOffset));
+  const exhausted = (direction: -1 | 1, boundary: number) => exhaustedEdge?.context === context
+    && exhaustedEdge.direction === direction && exhaustedEdge.boundary === boundary && exhaustedEdge.total === indexTotal;
   return (
     <aside
       className="message-navigation-rail"
@@ -533,9 +596,9 @@ export function MessageNavigationRail({
         onPointerCancel={(event) => finishScrub(event, true)}
         onLostPointerCapture={(event) => finishScrub(event, true)}
       >
-        {firstTarget && firstTarget.offset > 0 && <button type="button" data-navigation-load
+        {earlierBoundary > 0 && !exhausted(-1, earlierBoundary) && <button type="button" data-navigation-load
           className="message-navigation-page" aria-label="Load earlier navigation" disabled={indexStatus === 'loading'}
-          onClick={() => loadMore(Math.max(0, firstTarget.offset - NAVIGATION_PAGE_SIZE))}>↑</button>}
+          onClick={() => loadMore(earlierBoundary, -1)}>↑</button>}
         {displayTargets.map((target) => {
           const meta = KIND_META[target.kind];
           return (
@@ -553,6 +616,7 @@ export function MessageNavigationRail({
                 title={target.preview || PREVIEW_FALLBACK}
                 data-from-end={target.fromEnd}
                 data-canonical-offset={target.offset}
+                data-message-id={target.messageId}
                 aria-current={viewportTarget?.context === context && viewportTarget.offset === target.offset ? 'location' : undefined}
                 data-kind={target.kind}
                 disabled={jumpingOffset !== null}
@@ -564,9 +628,9 @@ export function MessageNavigationRail({
             </div>
           );
         })}
-        {lastTarget && lastTarget.offset < indexTotal - 1 && <button type="button" data-navigation-load
+        {laterBoundary < indexTotal - 1 && !exhausted(1, laterBoundary) && <button type="button" data-navigation-load
           className="message-navigation-page" aria-label="Load later navigation" disabled={indexStatus === 'loading'}
-          onClick={() => loadMore(Math.min(indexTotal - 1, lastTarget.offset + NAVIGATION_PAGE_SIZE))}>↓</button>}
+          onClick={() => loadMore(laterBoundary, 1)}>↓</button>}
         {targets.length === 0 && <span className="message-navigation-empty">{'\u00b7'}</span>}
       </div>
 

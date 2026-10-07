@@ -9,6 +9,7 @@ spec.loader.exec_module(fixture)
 original_seed = fixture._seed_sessions
 def seed():
     original_seed()
+    fixture.session_store.create('Sparse Navigation', adapter='cbc', workdir=str(fixture.WORKDIR))
     fixture.session_store.create('Dense Navigation', adapter='cbc', workdir=str(fixture.WORKDIR))
     server = sys.modules['packages.web.server']
     from fastapi import Body
