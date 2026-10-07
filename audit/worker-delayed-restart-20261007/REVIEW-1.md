@@ -96,4 +96,35 @@ retry of a failed delayed intent is intentionally not introduced: the error is
 explicit, terminal persistence can be retried by its caller, and immediate
 Restart is the recovery control. No claim of OS/native recovery acceptance.
 
-Combination syntax/type/build results and precise commits follow after merge.
+## Combination and commits
+
+- Exception repair: `1254b131b2a64ebca0b8df45196f50dea2ef552e`, parent original
+  `4e757eadaa2c803d8775c19aded192737b944674`.
+- History-preserving merge: `21d1cced5985345e3beb2f91964e0f91c3563f7c`, parents
+  repair commit and exact main target `92770472624077264c7210e49ca6ba8f74888f7a`.
+  Docs auto-merged; both delayed restart API guidance and the new OS-background
+  Job no-polling rules are present. No source conflict or dependency change.
+- Final evidence-only commit follows the merge; its complete HEAD is given in
+  the delivery response. It does not change production source.
+
+Short validation ran in foreground, not a notified background Job (expected
+well below the new three-minute general threshold). Actual combined checks:
+
+| Command/check | Actual outcome |
+| --- | --- |
+| Python py_compile worker.py / web/server.py / mcp/server.py | all pass; bytecode only in ignored isolated scratch |
+| node node_modules/typescript/bin/tsc -b | exit 0, 9.298 seconds |
+| node node_modules/vite/bin/vite.js build | exit 0, 6.565 seconds |
+| node e2e/verify-precompressed-assets.mjs | exit 0, 56 compressed artifacts verified, 0.130 seconds |
+| git diff --check | pass |
+
+Commands/results are in validate_combination.py, combination-results.json and
+combination.log. Existing worktree-local dependencies from the original
+delivery were reused; no installation or shared junction was introduced.
+Vite reports its existing large-chunk advisory; the build succeeds. No suite
+was run; inherited main test-file changes are simply part of the merge history.
+
+Both protected branch refs remained `92770472624077264c7210e49ca6ba8f74888f7a`.
+Existing main/practical untracked Scepter documents and node_modules backups
+remain untouched. No main/practical build or service operation, push/tag/release,
+memory material access, native provider/user-data write, or stash/reset.

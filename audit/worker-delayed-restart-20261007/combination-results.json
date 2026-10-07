@@ -1,0 +1,46 @@
+[
+  {
+    "check": "py_compile",
+    "file": "packages/core/worker.py",
+    "exit_code": 0,
+    "seconds": 0.062
+  },
+  {
+    "check": "py_compile",
+    "file": "packages/web/server.py",
+    "exit_code": 0,
+    "seconds": 0.165
+  },
+  {
+    "check": "py_compile",
+    "file": "packages/mcp/server.py",
+    "exit_code": 0,
+    "seconds": 0.019
+  },
+  {
+    "argv": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "-b"
+    ],
+    "exit_code": 0,
+    "seconds": 9.298
+  },
+  {
+    "argv": [
+      "node",
+      "node_modules/vite/bin/vite.js",
+      "build"
+    ],
+    "exit_code": 0,
+    "seconds": 6.565
+  },
+  {
+    "argv": [
+      "node",
+      "e2e/verify-precompressed-assets.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 0.13
+  }
+]
