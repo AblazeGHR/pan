@@ -484,6 +484,7 @@ class TerminalRuntime:
         """入口 + 就绪检查；拒绝时尚未调用 service（零副作用）。"""
         if not self.allowlist.config_valid:
             raise GateRejected(403, "forbidden-origin")
+        origins = self.request_origins(request.app)
         origin_raw = request.headers.get("origin")
         if origin_raw is None:
             # Browsers omit Origin on same-origin GET. Do not invent one in JS:
@@ -498,8 +499,16 @@ class TerminalRuntime:
             if not browser_read:
                 raise GateRejected(403, "forbidden-origin")
             origin_raw = f"{request.url.scheme}://{request.headers.get('host', '')}"
+            # Native HTTPS Serve preserves Host but terminates TLS before the
+            # loopback hop. Match only an active, exact authority; never trust
+            # arbitrary forwarded headers to widen the gate.
+            host = _normalize_authority(request.headers.get("host"))
+            for candidate in origins:
+                if _normalize_authority(urlsplit(candidate).netloc) == host:
+                    origin_raw = candidate
+                    break
         normalized = normalize_origin(origin_raw)
-        if normalized is None or normalized not in self.allowlist.origins:
+        if normalized is None or normalized not in origins:
             raise GateRejected(403, "forbidden-origin")
         authority = _normalize_authority(urlsplit(normalized).netloc)
         host_raw = request.headers.get("host")
@@ -512,6 +521,11 @@ class TerminalRuntime:
         if request.method == "POST" and _media_type(request.headers.get("content-type")) != "application/json":
             raise GateRejected(403, "forbidden-content-type")
         self._check_ready()
+
+    def request_origins(self, app) -> frozenset[str]:
+        controller = getattr(app.state, "tailscale_controller", None)
+        extra = controller.origins if controller is not None else frozenset()
+        return self.allowlist.origins | extra if self.allowlist.config_valid else frozenset()
 
     def check_ready(self) -> None:
         """就绪门（**公开**，供 WS 桥在 accept 前复用同一判定）。

@@ -211,7 +211,7 @@ def check_ws_gate(websocket: WebSocket, runtime: TerminalRuntime) -> None:
     if origin_raw is None:
         raise GateRejected(STATUS_FORBIDDEN, "forbidden-origin")
     normalized = normalize_origin(origin_raw)
-    if normalized is None or normalized not in runtime.allowlist.origins:
+    if normalized is None or normalized not in runtime.request_origins(websocket.app):
         raise GateRejected(STATUS_FORBIDDEN, "forbidden-origin")
     authority = _normalize_authority(urlsplit(normalized).netloc)
     host_raw = websocket.headers.get("host")

@@ -37,6 +37,7 @@ from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResp
 from fastapi.staticfiles import StaticFiles
 
 from packages.web.static_assets import ReactStaticFiles
+from packages.remote.tailscale_runtime import Controller as TailscaleController
 
 import httpx
 import psutil
@@ -263,7 +264,15 @@ async def lifespan(app: FastAPI):
     async with terminal_api.terminal_lifespan(app):
         async with terminal_tools_api.terminal_tools_lifespan(app):
             async with terminal_ws.websocket_lifespan(app):
-                yield
+                tailscale = _tailscale_controller()
+                app.state.tailscale_controller = tailscale
+                try:
+                    await tailscale.operation(tailscale.startup)
+                    yield
+                finally:
+                    result = await tailscale.operation(tailscale.shutdown)
+                    if not result["ok"]:
+                        _log(f"[Tailscale] cleanup failed: {result['error']}")
 
     await asyncio.to_thread(gateway_plugins.stop_all)
     # Request cancellation at a Session boundary.  The bounded wait protects
@@ -9852,6 +9861,41 @@ async def api_remote_status():
         "port": config.get("port"),
         "running": bool((_owned_tunnel() or {}).get("identity", {}).get("ok")),
     }
+
+
+_TAILSCALE_CONTROLLER = None
+
+
+def _tailscale_controller():
+    global _TAILSCALE_CONTROLLER
+    if _TAILSCALE_CONTROLLER is None:
+        uvicorn_server = getattr(app.state, "pan_uvicorn_server", None)
+        runtime_port = uvicorn_server.config.port if uvicorn_server is not None else _main_restart_port()
+        _TAILSCALE_CONTROLLER = TailscaleController(
+            DATA_DIR / "tailscale", runtime_port,
+            read_config=read_config_file, write_config=save_config,
+        )
+    return _TAILSCALE_CONTROLLER
+
+
+@app.get("/api/remote/tailscale")
+async def api_tailscale_status():
+    controller = _tailscale_controller()
+    return await controller.operation(controller.status)
+
+
+@app.put("/api/remote/tailscale")
+async def api_tailscale_config(request: Request):
+    controller = _tailscale_controller()
+    return await controller.operation(controller.control, "save", await request.json())
+
+
+@app.post("/api/remote/tailscale/{action}")
+async def api_tailscale_control(action: str):
+    if action not in {"start", "stop"}:
+        raise HTTPException(status_code=400, detail="Unknown Tailscale action")
+    controller = _tailscale_controller()
+    return await controller.operation(controller.control, action)
 
 
 @app.post("/api/remote/restart")

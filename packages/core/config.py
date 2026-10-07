@@ -181,6 +181,7 @@ DEFAULT_CONFIG: dict = {
         "protocol": "http2",
     },
     # Independent authenticated MCP gateway + named tunnel; opt-in only.
+    "tailscale": {"startupEnabled": False, "protocol": "http", "port": 8768},
     "mcp_remote": {"enabled": False, "port": 9742, "public_hostname": "",
                    "access_issuer": "", "access_audience": "",
                    "config_path": "", "binary_path": ""},
