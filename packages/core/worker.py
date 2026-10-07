@@ -1297,11 +1297,13 @@ async def _persist_terminal_state_locked(
     await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
     # This is the base commit.  If it fails, the exception prevents both
     # worker.result and idle broadcasts, as required by the terminal contract.
-    try:
-        await _flush_history_now(w)
-    except BaseException:
-        # A failed first commit must remain retryable, never look like a
-        # durable duplicate or cause a QQ send from an uncommitted outbox.
+    outcome = _sess.DurableOutcome()
+    rolled_back = False
+    def rollback_terminal():
+        nonlocal rolled_back
+        if rolled_back:
+            return
+        rolled_back = True
         s.last_result = prior_result
         s.terminal_results = prior_terminals
         for key, value in old_terminal_state.items():
@@ -1310,6 +1312,16 @@ async def _persist_terminal_state_locked(
             setattr(w, key, value)
         s.qq_report_outbox = old_qq_outbox
         w.status = status
+    try:
+        await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal)
+    except BaseException:
+        if outcome.succeeded:
+            # Cancellation still propagates, but the authoritative ticket
+            # committed. Keep its dedup/outbox fact and runtime terminal latch.
+            w.status = status
+            w._terminal_handled = True
+        else:
+            rollback_terminal()
         raise
     w.status = status
     w._terminal_handled = True
@@ -1765,13 +1777,34 @@ async def _flush_history_loop(w: Worker) -> None:
         w._hist_save_task = None
 
 
-async def _flush_history_now(w: Worker) -> None:
+async def _flush_history_now(
+    w: Worker, *, outcome: _sess.DurableOutcome | None = None, rollback=None,
+) -> None:
     """立即落盘（result 处理 / worker 退出 / kill / 重启前调用），保证缓冲块不丢。
 
     单写者协作：若防抖任务在跑，置 force + 唤醒并 shield 等待其落完（由该任务完成
     落盘），避免与它并发写同一文件；无防抖任务则直接落盘。调用方被取消时 shield
     保护防抖任务继续落盘，取消仍向上传播（不吞 CancelledError）。
     """
+    if outcome is not None:
+        # Terminal commits need their own observable result. The existing
+        # per-Session ticket gate orders this write with debounce writes, so
+        # cancellation cannot mistake an unfinished shielded task for failure.
+        s = _session(w)
+        if s is None:
+            raise RuntimeError("Session disappeared before terminal persistence")
+        w._hist_dirty = False
+        w._hist_block_count = 0
+        w._hist_force_flush = False
+        def commit():
+            try:
+                _sess._save_body(s)
+            except BaseException:
+                if rollback is not None:
+                    rollback()
+                raise
+        await _sess._persist_async_outcome(s.id, commit, outcome)
+        return
     if w._hist_flush_event is None:
         w._hist_flush_event = asyncio.Event()
     w._hist_force_flush = True

@@ -148,3 +148,46 @@ store/API and checks inline validation, Save disabled without contacts, multi-mo
 save and visible save failure. Neither probe invokes a test runner or sends QQ.
 Durable Job `job_fcec2b334e585129b7588271` completed TypeScript/build/assets/full
 lint with exit 0; full lint had 0 errors and the same 18 unrelated warnings.
+
+## MA rework: locked claim and actual persistence outcome
+
+Incremental repair starts from `7c4882bec64ee1f02ae23c5820b743869570a5da`.
+After acquiring the Session queue lock, the drain checks both the current outbox
+record identity and its pending state again. Bell off/on while it waits cannot
+turn a cancelled or replaced snapshot into an attempted report.
+
+Claims use the existing `DurableOutcome` and per-Session persistence ticket.
+The attempted mutation and write-failure rollback execute in that ticket, before
+the next writer can run. Caller cancellation still propagates, but a successful
+write keeps attempted in memory and on disk; only an unsuccessful write restores
+pending. Cancellation after a committed claim can therefore lose a delivery,
+consistent with the single-attempt policy, and cannot trigger a resend.
+
+Worker terminal first persistence uses an observable ticket through
+`_flush_history_now`. Actual failure rolls back terminal fields, runtime task
+identity and outbox before retiring the ticket. Successful persistence followed
+by cancellation retains the terminal dedup facts and runtime latch. Its pending
+outbox can be drained after reload, while a fresh Worker rejects the same terminal.
+Done/error payload selection and Notification defaults are unchanged.
+
+Standalone `evidence/rework_probe.py` and `evidence/rework_probe.log` are outside
+the checkout. The probe uses actual `task.cancel()` (including repeated cancel),
+a thread-gated real Session writer, temporary disk JSON, cache eviction/reload,
+and only a mocked QQ sender. All six deterministic cases passed:
+
+| Interleaving | Durable result | Mock sends after reload |
+| --- | --- | --- |
+| Bell off/on while drain awaits lock | cancelled | 0 |
+| Outbox record replaced while awaiting lock | replacement retained | 0 |
+| Claim cancellation, writer succeeds | attempted | 0 |
+| Claim cancellation, writer fails | pending; later claim succeeds | 1 |
+| Terminal cancellation, writer succeeds | cursor 1; fresh replay suppressed | 1 |
+| Terminal cancellation, writer fails | cursor 0; later terminal commit allowed | 1 |
+
+The two intentionally injected writer failures emit asyncio shield diagnostics;
+the probe exits 0 and confirms their real failed outcome and disk rollback.
+Original offline report/API, defaults/API and rendered-panel probes were rerun
+and passed, as did Python compilation and diff whitespace validation. No test
+suite, real QQ send, service action or main/practical integration was performed.
+Frontend build/lint evidence above belongs to the unchanged frontend at the
+parent commit; this Python-only repair does not claim a new frontend build.

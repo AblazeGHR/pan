@@ -88,23 +88,38 @@ async def _drain(session_id: str) -> None:
         s = sess.get(session_id, load_history=False)
         if not s:
             return
-        for record in list(s.qq_report_outbox.values()):
+        for identity, record in list(s.qq_report_outbox.items()):
             if record.get("state") != "pending":
                 continue
             async with queue_lock(session_id):
                 if sess.get(session_id, load_history=False) is not s:
                     return
+                # Waiting for this lock can cross bell off/on or a metadata
+                # rollback that replaces the outbox. Never revive that snapshot.
+                if (s.qq_report_outbox.get(identity) is not record
+                        or record.get("state") != "pending"):
+                    continue
                 # Persist before any external effect, including a terminal
                 # commit which previously failed and left memory dirty.
                 if record["target"] not in s.qq_report_targets or s.readonly_session:
                     record["state"] = "cancelled"
                     await sess.save_async(s)
                     continue
-                record["state"] = "attempted"
+                outcome = sess.DurableOutcome()
+                def claim():
+                    record["state"] = "attempted"
+                    try:
+                        sess._save_body(s)
+                    except BaseException:
+                        # Roll back before retiring the ticket, so the next
+                        # writer cannot serialize an unsuccessful claim.
+                        record["state"] = "pending"
+                        raise
                 try:
-                    await sess.save_async(s)
+                    await sess._persist_async_outcome(s.id, claim, outcome)
                 except BaseException:
-                    record["state"] = "pending"
+                    if not outcome.succeeded:
+                        record["state"] = "pending"
                     raise
                 target = parse_target(record["target"])
             if target is None:
