@@ -213,7 +213,7 @@ try {
           await page.evaluate(()=>window.__panSessionStore.getState().refreshCurrentSessionHistory());
           await poll(()=>rail.getAttribute('data-history-total'),s=>Number(s)===privateSnapshot.history.length+2);
           await poll(status,s=>s==='ready');scenario.appendMs=performance.now()-appendStarted;
-          scenario.appendVerified=true;scenario.fullBodyLength=await page.evaluate(()=>Math.max(...window.__panSessionStore.getState().currentMessages.map(m=>m.content.length)));assert.ok(scenario.fullBodyLength>=2_000_000);if(test==='append')await poll(()=>page.locator('.chat-view-stage .prose-kimi p').evaluateAll(nodes=>Math.max(0,...nodes.map(n=>n.textContent.length))),length=>length>=2_000_000,10000);scenario.canonicalAfter=await page.evaluate(()=>{const s=window.__panSessionStore.getState();return {rows:s.sessionTranscripts[s.currentSessionId].window.rows.size,messages:s.currentMessages.length};});
+          scenario.appendVerified=true;scenario.fullBodyLength=await page.evaluate(()=>Math.max(...window.__panSessionStore.getState().currentMessages.map(m=>m.content.length)));assert.ok(scenario.fullBodyLength>=2_000_000);scenario.canonicalAfter=await page.evaluate(()=>{const s=window.__panSessionStore.getState();return {rows:s.sessionTranscripts[s.currentSessionId].window.rows.size,messages:s.currentMessages.length};});
         }
         if(cpu){const {profile}=await cpu.send('Profiler.stop');await fs.writeFile(path.join(runtime,`${test}.private.cpuprofile`),JSON.stringify(profile));}
         scenario.indexedTargets=Number(await rail.getAttribute('data-indexed-targets'));
@@ -269,6 +269,13 @@ try {
           await poll(()=>page.locator(`.message-navigation-marker.is-jumped[data-canonical-offset="${scenario.expected}"]`).count(),n=>n===1);
           const clickedRange=await visibleRange(page);assert.ok(clickedRange.start<=scenario.expected&&clickedRange.end>=scenario.expected);scenario.clickJumpVerified=true;
           assert.equal(await page.locator('.message-navigation-jump-error').count(),0);
+        }
+        if(test==='append'){
+          // A virtualized row may leave the DOM after restoration. Verify the
+          // full rendered body by an explicit navigation click, after timing.
+          await page.locator(`.message-navigation-marker[data-canonical-offset="${privateSnapshot.history.length}"]`).click();
+          await poll(()=>page.locator('.chat-view-stage .prose-kimi p').evaluateAll(nodes=>Math.max(0,...nodes.map(n=>n.textContent.length))),length=>length>=2_000_000,15000);
+          scenario.fullBodyRenderVerified=true;
         }
         if(test==='retry')assert.equal(scenario.maxConcurrent,1);
         if(test==='automatic')assert.ok(calls>=2);
