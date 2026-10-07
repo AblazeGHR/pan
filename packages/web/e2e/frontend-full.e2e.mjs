@@ -373,6 +373,12 @@ try {
       const t = s.sessionTranscripts[s.currentSessionId];
       if (!t) return;
       const trace = { at: Date.now(), id: s.currentSessionId, anchor: t.anchorOffset, total: t.window.total,
+        live: s.liveStreamBuffers[s.currentSessionId] ? {
+          workerId: s.liveStreamBuffers[s.currentSessionId].workerId,
+          generation: s.liveStreamBuffers[s.currentSessionId].generation,
+          executionSeq: s.liveStreamBuffers[s.currentSessionId].executionSeq,
+          taskKey: s.liveStreamBuffers[s.currentSessionId].taskKey,
+        } : null,
         runtime: t.runtime.map(m => [m.role, m.content.slice(0,60)]),
         tail: s.currentMessages.slice(-16).map(m => [m.role,m.content.slice(0,60)]) };
       window.__transcriptTrace.push(trace);
@@ -892,7 +898,7 @@ try {
 
   const reservationMarker = path.join(runtime, 'handoff-reservation-paused-once');
   await poll(() => fs.stat(reservationMarker).then(() => true).catch(() => false),
-    Boolean, 'queue history/receipt persisted before the CLI hand-off');
+    Boolean, 'queue reservation persisted before the CLI hand-off');
   const historyFile = path.join(runtime, 'sessions', `${ids['E2E-A']}.history.jsonl`);
   const countPersistedAgentRows = async () => {
     const contents = await fs.readFile(historyFile, 'utf8');
@@ -902,8 +908,26 @@ try {
       return row.role === 'user' && String(row.content).includes(recoveryLabel);
     }).length;
   };
-  assert.equal(await countPersistedAgentRows(), 1,
-    'the reservation boundary appends one durable agent history row');
+  assert.equal(await countPersistedAgentRows(), 0,
+    'reservation must not claim a user history receipt before provider hand-off');
+  const reservedQueue = await api(`/api/sessions/${ids['E2E-A']}/queue`);
+  assert.ok(!reservedQueue.items.some(item => item.queueItemId === recoveryQueueItem.queueItemId),
+    'reading the queue must not reopen a live handoff as an editable pending row');
+  const persistedReservation = JSON.parse(await fs.readFile(targetSessionFile, 'utf8'));
+  // Another Session save may capture the in-memory writing phase while the
+  // gate is held. Both states are unfinished handoffs; neither may be queued
+  // again by a GET, nor appear as a committed user history receipt.
+  const persistedHandoff = persistedReservation.queue_pending.find(item =>
+    item.queueItemId === recoveryQueueItem.queueItemId);
+  assert.ok(persistedHandoff && ['reserved', 'writing'].includes(persistedHandoff.deliveryState),
+    'the unfinished handoff remains durable without being requeued');
+  assert.ok(typeof persistedHandoff.reservedBy === 'string' && persistedHandoff.reservedBy.length > 0);
+  assert.ok(Number.isInteger(persistedHandoff.reservedGeneration));
+  const persistedLedger = persistedReservation.queue_delivery_ledger[recoveryQueueItem.queueItemId];
+  assert.equal(persistedLedger.reservedBy, persistedHandoff.reservedBy);
+  assert.equal(persistedLedger.reservedGeneration, persistedHandoff.reservedGeneration);
+  assert.equal(persistedLedger.deliveryState,
+    'reserved', 'the ledger retains the uncommitted reservation');
 
   const socketsBeforeCrash = socketConnectionCount;
   await stop();
@@ -923,7 +947,7 @@ try {
     s => s.lastResult?.result?.includes(recoveryLabel),
     'recovered agent message reaches CLI and completes');
   assert.equal(await countPersistedAgentRows(), 1,
-    'reserved-state recovery does not append a second JSONL user row');
+    'reserved-state recovery appends exactly one JSONL user row after hand-off');
   const cliReceiptFile = path.join(runtime, 'crash-recovery-cli-inputs.jsonl');
   const cliReceipts = await fs.readFile(cliReceiptFile, 'utf8');
   assert.equal(cliReceipts.trim().split(/\r?\n/).length, 1,

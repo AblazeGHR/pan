@@ -847,6 +847,26 @@ describe('ChatMessages scroll positioning', () => {
     ]);
   });
 
+  it('keeps upward intent when a layout scroll arrives before the wheel movement', () => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    fireEvent.wheel(scrollEl, { deltaY: -700 });
+    // A queued browser anchoring correction reaches the old bottom before
+    // the upward wheel's actual scroll. It must not re-enable tail follow.
+    scrollEl.scrollTop = 2020;
+    fireEvent.scroll(scrollEl);
+    act(() => useSessionStore.setState({ currentMessages: [...msgs(4)] }));
+    scrollEl.scrollTop = 1300;
+    fireEvent.scroll(scrollEl);
+    act(() => vi.advanceTimersByTime(1000));
+    m.setTotalSize(2400);
+    act(() => useSessionStore.setState({ currentMessages: [...msgs(4)] }));
+    expect(scrollEl.scrollTop).toBe(1300);
+  });
+
   it.each(['wheel', 'touchstart'] as const)(
     'keeps a %s gesture active across delayed multi-frame inertia scrolls',
     (inputType) => {

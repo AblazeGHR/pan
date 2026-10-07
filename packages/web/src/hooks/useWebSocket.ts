@@ -528,7 +528,9 @@ export function useWebSocket() {
     }
     unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {
       if (!e.sessionId || !Array.isArray(e.messages)) return;
-      useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages);
+      useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages, {
+        workerId: e.workerId, generation: e.generation, executionSeq: e.executionSeq,
+      });
     }));
 
     // Worker spawned / restarted / reconfigured

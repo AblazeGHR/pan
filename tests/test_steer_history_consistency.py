@@ -44,12 +44,17 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
         process=MagicMock(),
     )
     worker.workers[live.worker_id] = live
+    live.process.returncode = None
+    live.status = "running"
     timeline: list[str] = []
 
     async def fake_control(worker_id, control):
         assert worker_id == live.worker_id
-        assert control == {"type": "steer", "text": "steer now"}
+        assert control["type"] == "steer"
+        assert control["text"] == "steer now"
+        assert isinstance(control["requestId"], str)
         timeline.append("control-written")
+        live._steer_receipts[control["requestId"]].set_result(None)
         return None
 
     monkeypatch.setattr(worker, "send_control_message", fake_control)

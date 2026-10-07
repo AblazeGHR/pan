@@ -9,6 +9,54 @@ vi.mock('@/services/api', async (original) => ({
 }));
 const row = (content: string): Message => ({ role: 'assistant', content });
 const meta = { workerId: 'w', generation: 0, taskSeq: 1 };
+it('places a late handoff receipt before its own live blocks without blocking native reorder', () => {
+  const execution = { ...meta, executionSeq: 12 };
+  const thinking: Message = { role: 'thinking', content: 'thinking', nativeItemId: 'think' };
+  const answer: Message = { role: 'assistant', content: 'answer', nativeItemId: 'answer' };
+  const tool: Message = { role: 'tool', content: 'tool', nativeItemId: 'tool' };
+  store().applyLiveStream('A', [thinking, answer], execution);
+  store().appendDeliveredMessages('A', [{ role: 'user', content: 'prompt', queueItemIds: ['q12'] }], execution);
+  expect(texts()).toEqual(['prompt', 'thinking', 'answer']);
+  store().applyLiveStream('A', [thinking, tool, answer], execution);
+  expect(texts()).toEqual(['prompt', 'thinking', 'tool', 'answer']);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  expect(texts()).toEqual(['prompt', 'thinking', 'tool', 'answer']);
+});
+
+it('keeps a different execution receipt and Steer after the blocks already emitted', () => {
+  const execution = { ...meta, executionSeq: 12 };
+  const answer: Message = { role: 'assistant', content: 'answer', nativeItemId: 'answer' };
+  store().applyLiveStream('A', [answer], execution);
+  store().appendLocalMessage('A', { role: 'user', content: 'steer', messageId: 'steer:12' });
+  store().appendDeliveredMessages('A', [{ role: 'user', content: 'other', queueItemIds: ['q13'] }],
+    { ...execution, executionSeq: 13 });
+  expect(texts()).toEqual(['answer', 'steer', 'other']);
+});
+
+it('repairs the display when the queue projection has consumed the same receipt before its execution scope', () => {
+  const execution = { ...meta, executionSeq: 12 };
+  store().applyLiveStream('A', [{ role: 'assistant', content: 'answer', nativeItemId: 'answer' }], execution);
+  const receipt: Message[] = [{ role: 'user', content: 'prompt', queueItemIds: ['q12'] }];
+  store().appendDeliveredMessages('A', receipt);
+  expect(texts()).toEqual(['answer', 'prompt']);
+  store().appendDeliveredMessages('A', receipt, execution);
+  expect(texts()).toEqual(['prompt', 'answer']);
+});
+
+it('repairs a pending receipt while streaming in the background and ignores duplicate delivery', () => {
+  const execution = { ...meta, executionSeq: 12 };
+  const answer: Message = { role: 'assistant', content: 'answer', nativeItemId: 'answer' };
+  store().applyLiveStream('A', [answer], execution);
+  store().appendQueuedMessage('A', { id: 'q12', text: 'prompt' });
+  void store().selectSession('B');
+  const receipt: Message[] = [{ role: 'user', content: 'prompt', queueItemIds: ['q12'] }];
+  store().appendDeliveredMessages('A', receipt, execution);
+  store().appendDeliveredMessages('A', receipt, execution);
+  expect(texts()).toEqual([]);
+  void store().selectSession('A');
+  expect(texts()).toEqual(['prompt', 'answer']);
+});
 const store = () => useSessionStore.getState();
 const texts = () => store().currentMessages.map(m => m.content);
 beforeEach(() => {

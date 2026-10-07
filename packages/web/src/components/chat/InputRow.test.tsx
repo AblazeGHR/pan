@@ -969,11 +969,12 @@ describe('InputRow send queue wiring', () => {
       expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('queued msg'),
     );
     expect((textarea as HTMLTextAreaElement).value).toBe('');
-    // Successful enqueue is visible immediately, correlated by the server
-    // queue id; a later delivery event must merge idempotently.
-    expect(useSessionStore.getState().currentMessages).toEqual([{
-      role: 'user', content: 'queued msg', queueItemIds: ['q-queued-msg'],
-    }]);
+    // Successful enqueue is visible in the queue immediately. The transcript
+    // starts only at provider hand-off, correlated by the same server queue id.
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useQueueStore.getState().queues.s1?.[0]).toMatchObject({
+      id: 'q-queued-msg', text: 'queued msg',
+    });
 
     // ^ 按钮角标显示 1（面板头部的计数也在 DOM 中，用 getAllByText）
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
@@ -1120,8 +1121,8 @@ describe('InputRow send queue wiring', () => {
       { s1: { id: 'w-other', sessionId: 's2', status: 'running' as const } },
     ],
   ])('keeps one optimistic row for %s', async (_name, workers) => {
-    // The summary deliberately says running in every case; only the
-    // current-session runtime registry is authoritative for this decision.
+    // The summary deliberately says running in every case. Each runtime shape
+    // must keep the pending input in the queue until actual provider hand-off.
     setBusySession();
     useWorkerStore.setState({ workers });
     render(<InputRow />);
@@ -1134,9 +1135,10 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() =>
       expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('fallback path msg'),
     );
-    expect(useSessionStore.getState().currentMessages).toEqual([{
-      role: 'user', content: 'fallback path msg', queueItemIds: ['q-fallback-path-msg'],
-    }]);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useQueueStore.getState().queues.s1?.[0]).toMatchObject({
+      id: 'q-fallback-path-msg', text: 'fallback path msg',
+    });
   });
 
   it('does not render a stale localStorage queue after a page reload', async () => {
@@ -1183,9 +1185,10 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() =>
       expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('direct msg'),
     );
-    expect(useSessionStore.getState().currentMessages).toEqual([{
-      role: 'user', content: 'direct msg', queueItemIds: ['q-direct-msg'],
-    }]);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useQueueStore.getState().queues.s1?.[0]).toMatchObject({
+      id: 'q-direct-msg', text: 'direct msg',
+    });
   });
 
   it('uses the durable HTTP enqueue path when WS is unavailable', async () => {
@@ -1224,9 +1227,10 @@ describe('InputRow send queue wiring', () => {
         false,
       ),
     );
-    expect(useSessionStore.getState().currentMessages).toEqual([{
-      role: 'user', content: 'survive reconnect', queueItemIds: ['q-survive-reconnect'],
-    }]);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useQueueStore.getState().queues.s1?.[0]).toMatchObject({
+      id: 'q-survive-reconnect', text: 'survive reconnect',
+    });
   });
 
   it('clears optimistically and restores the complete draft when enqueue fails', async () => {

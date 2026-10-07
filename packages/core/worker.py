@@ -2481,6 +2481,12 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     await _bcast({
         "type": "queue.item_delivered",
         "sessionId": s.id,
+        # The receipt may trail the first stream frame while persistence
+        # yields. Bind it to this execution so clients can place its input
+        # before these blocks without moving another turn's queued input.
+        "workerId": w.worker_id,
+        "generation": getattr(w, "generation", 0),
+        "executionSeq": w._execution_seq,
         "queueItemIds": delivered_ids,
         # The delivery event is the first client-visible proof that the
         # pending rows crossed the provider hand-off boundary.  Include the
@@ -3852,6 +3858,18 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
         if state == _DELIVERY_SENT:
             _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True
+            continue
+        # Queue snapshots also run this migration. A reservation still owned
+        # by the active coordinator is not a crash receipt: normalizing it
+        # would reopen the delivery boundary while stdin is being written.
+        reserved_by = item.get("reservedBy")
+        owner = workers.get(reserved_by) if isinstance(reserved_by, str) else None
+        if (state in {_DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT}
+                and owner is not None and owner.session_id == s.id
+                and owner.generation == item.get("reservedGeneration")
+                and owner._queue_unit_active and _process_alive(owner)
+                and _worker_owns_queue_item(owner, item)):
+            keep.append(item)
             continue
         if state in {
             _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
@@ -7003,6 +7021,10 @@ def _queue_origin_metadata(items: list[dict]) -> dict:
             metadata[key] = copy.deepcopy(first[key])
     if isinstance(first.get("parts"), list):
         metadata["parts"] = public_message_parts(first["parts"])
+    source_ids = sorted({item["sourceSessionId"] for item in items
+                         if isinstance(item.get("sourceSessionId"), str) and item["sourceSessionId"]})
+    if source_ids and (kind != "task" or len(source_ids) > 1):
+        metadata["sourceSessionIds"] = source_ids
     return metadata
 
 

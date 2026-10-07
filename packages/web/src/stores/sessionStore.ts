@@ -249,7 +249,7 @@ interface SessionStore {
   updateQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
   removeQueuedMessage: (sessionId: string, queueItemId: string) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
-  appendDeliveredMessages: (sessionId: string, msgs: Message[]) => void;
+  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta) => void;
   /** Apply settings locally first, then reconcile or roll back the exact mutation. */
   patchSessionSettings: (
     sessionId: string,
@@ -1363,6 +1363,31 @@ interface LiveProjection {
   indexes: Record<string, number>;
   refs: Record<string, Message>;
   appended: number;
+}
+
+/**
+ * A persisted hand-off receipt can trail its first stream frames. Place only
+ * the input identified by that receipt ahead of the matching execution.
+ */
+function placeDeliveredInput(
+  rows: Message[], incoming: Message[], buffer: LiveStreamBuffer | undefined,
+  meta: LiveStreamMeta | undefined,
+): Message[] {
+  if (!buffer || meta?.executionSeq === undefined
+      || buffer.executionSeq !== meta.executionSeq
+      || !meta.workerId || buffer.workerId !== meta.workerId
+      || meta.generation === undefined || buffer.generation !== meta.generation) return rows;
+  const prefix = `slot:${buffer.taskKey}:`;
+  const first = rows.findIndex(row => runtimeKeyOf(row)?.startsWith(prefix));
+  if (first < 0) return rows;
+  const moving = new Set(rows.slice(first + 1).filter(row =>
+    row.role === 'user' && !isDurableRow(row)
+      && incoming.some(message => hasExplicitIdentityOverlap(row, message))));
+  if (moving.size === 0) return rows;
+  // Only a proven input for this execution crosses its live rows. Steer and
+  // unrelated queue arrivals retain their interleaving and canonical offsets.
+  return [...rows.slice(0, first), ...moving,
+    ...rows.slice(first).filter(row => !moving.has(row))];
 }
 
 /**
@@ -3767,7 +3792,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  appendDeliveredMessages: (sessionId: string, msgs: Message[]) => {
+  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
     const localMessages = msgs.map((message) => ({
@@ -3883,6 +3908,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             bindRuntimeKey(row, `delivered:${touchSeq}:${index}`),
           )
         : [];
+      const deliveryDisplay = [...selectedMessages, ...currentAppend];
+      const display = placeDeliveredInput(deliveryDisplay, localMessages,
+        s.liveStreamBuffers[sessionId], meta);
+      const runtime = placeDeliveredInput([...deliveredRuntime, ...runtimeRows], localMessages,
+        s.liveStreamBuffers[sessionId], meta);
       return {
         sessions,
         _pendingQueueIds: {
@@ -3899,10 +3929,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...s._sessionLocalTouchedSeq,
           [sessionId]: touchSeq,
         },
-        ...(selected && (currentAppend.length || currentChanged)
-          ? { currentMessages: [...selectedMessages, ...currentAppend] }
+        ...(selected && (currentAppend.length || currentChanged || display !== deliveryDisplay)
+          ? { currentMessages: display }
           : {}),
-        ...withTranscript(s, sessionId, { ...base, runtime: [...deliveredRuntime, ...runtimeRows] }),
+        ...withTranscript(s, sessionId, { ...base, runtime }),
       };
     });
   },

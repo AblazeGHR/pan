@@ -379,6 +379,57 @@ def _write_worker(value, item, stdin):
     return current
 
 
+@pytest.mark.parametrize("kind", ["task", "report"])
+@pytest.mark.parametrize("lost_owner", ["generation", "dead", "inactive", "context", "session", "missing", "invalid_id"])
+def test_queue_get_preserves_live_handoff_and_recovers_lost_owner(monkeypatch, kind, lost_owner):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item = {"type": kind, "kind": kind, "queueItemId": "q-live",
+            "id": "q-live", "source": "user" if kind == "task" else "report",
+            "text": "live", "result": "live", "deliveryState": "queued", "revision": 1}
+    current = _write_worker(value, item, _Stdin())
+    current._queue_unit_active = True
+    if kind == "report":
+        current._current_queue_item = None
+        current._current_report_items = [item]
+
+    async def scenario():
+        await worker._reserve_queue_unit(current, value, [item], "live", expected_revisions=[1])
+        assert item["deliveryState"] == "writing"
+        for _ in range(2):
+            snapshot = await server.api_session_queue(value.id)
+            assert snapshot["items"] == []  # active handoffs are not editable pending rows
+            assert item["deliveryState"] == "writing"
+            assert item["reservedBy"] == current.worker_id
+            assert value.queue_delivery_ledger["q-live"]["deliveryState"] == "reserved"
+            assert item.get("deliveryAttempts", 0) == 0
+        # Recover the same receipt when ownership is lost; merely finding a
+        # Worker with the reserved id must never suppress crash recovery.
+        if lost_owner == "generation":
+            current.generation += 1
+        elif lost_owner == "dead":
+            current.process.returncode = 1
+        elif lost_owner == "inactive":
+            current._queue_unit_active = False
+        elif lost_owner == "context":
+            current._current_queue_item = None
+            current._current_report_items = []
+        elif lost_owner == "session":
+            current.session_id = "another-session"
+        elif lost_owner == "invalid_id":
+            item["reservedBy"] = [current.worker_id]
+        else:
+            worker.workers.pop(current.worker_id)
+        await server.api_session_queue(value.id)
+        assert item["deliveryState"] == "queued"
+        assert "reservedBy" not in item
+        assert value.queue_delivery_ledger["q-live"]["deliveryState"] == "queued"
+
+    asyncio.run(scenario())
+    _cleanup()
+
+
 @pytest.mark.parametrize("mode,expected", [
     ("ok", "sent_to_cli"),
     ("fail", "queued"),
@@ -419,6 +470,7 @@ def test_successful_delivery_broadcasts_user_message_after_durable_commit(monkey
             "id": "q-event", "source": "user", "text": "shown",
             "deliveryState": "reserved", "revision": 1}
     current = _write_worker(value, item, _Stdin("ok"))
+    current._execution_seq = 12
     events = []
 
     async def capture(event):
@@ -434,10 +486,21 @@ def test_successful_delivery_broadcasts_user_message_after_durable_commit(monkey
     assert value.queue_delivery_ledger["q-event"]["deliveryState"] == "sent_to_cli"
     assert delivered["queueItemIds"] == ["q-event"]
     assert delivered["queueRevision"] == value.queue_revision
-    assert delivered["messages"] == [{
+    assert delivered["workerId"] == current.worker_id
+    assert delivered["generation"] == current.generation
+    assert delivered["executionSeq"] == 12
+    assert len(delivered["messages"]) == 1
+    message = delivered["messages"][0]
+    assert set(message) == {"role", "content", "queueItemIds", "deliveryKeys", "source",
+                            "kind", "messageId", "ts", "queueEnvelopes"}
+    assert {key: message[key] for key in ("role", "content", "queueItemIds", "deliveryKeys", "source")} == {
         "role": "user", "content": "shown", "queueItemIds": ["q-event"],
         "deliveryKeys": ["task:q-event"], "source": "user",
-    }]
+    }
+    assert message["kind"] == "task"
+    assert message["messageId"] == value.history[-1]["messageId"]
+    assert message["ts"] == value.history[-1]["ts"]
+    assert message["queueEnvelopes"] == [item]
     assert delivered_index < next(i for i, event in enumerate(events)
                                   if event.get("type") == "queue.snapshot")
     _cleanup()

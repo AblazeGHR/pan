@@ -581,6 +581,9 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     generation: number;
     timer: ReturnType<typeof setTimeout> | null;
   }>({ active: false, generation: 0, timer: null });
+  // A queued anchoring scroll can arrive before the wheel's actual movement.
+  // Until that upward movement arrives, bottom geometry is not renewed intent.
+  const pendingOlderScrollRef = useRef(false);
   const upwardPaginationArmedRef = useRef(false);
   const lastScrollTopRef = useRef<number | null>(null);
   const lastTouchYRef = useRef<number | null>(null);
@@ -653,6 +656,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   }, [clearProgrammaticSuppression]);
 
   const clearUserScrollActivity = useCallback(() => {
+    pendingOlderScrollRef.current = false;
     const state = userScrollStateRef.current;
     if (state.timer !== null) clearTimeout(state.timer);
     state.timer = null;
@@ -835,6 +839,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     const state = userScrollStateRef.current;
     state.generation += 1;
     state.active = true;
+    pendingOlderScrollRef.current = direction === 'older';
     scheduleUserScrollExpiry();
   }, [clearProgrammaticSuppression, scheduleUserScrollExpiry]);
 
@@ -1397,6 +1402,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       const previousTop = lastScrollTopRef.current;
       const movedOlder = previousTop !== null && el.scrollTop < previousTop;
       const movedNewer = previousTop !== null && el.scrollTop > previousTop;
+      const pendingOlderScroll = pendingOlderScrollRef.current;
+      if (movedOlder) pendingOlderScrollRef.current = false;
       lastScrollTopRef.current = el.scrollTop;
       const nearBottom = isNearBottomPosition();
       if (ignoreUnattributedScrollRef.current) {
@@ -1411,11 +1418,11 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         // wheel/touch/pointer/key input cancels this suppression first, so a
         // later genuine gesture can never be permanently ignored.
         clearProgrammaticSuppression();
-      } else if (userDrivenScroll) {
+      } else if (userDrivenScroll && (!pendingOlderScroll || movedOlder)) {
         shouldFollowBottomRef.current = nearBottom;
         if (movedOlder) upwardPaginationArmedRef.current = true;
         else if (movedNewer) upwardPaginationArmedRef.current = false;
-      } else if (nearBottom) {
+      } else if (nearBottom && !pendingOlderScroll) {
         // Returning to the bottom is an explicit recovery path even when the
         // browser emits the final scroll without another input event.
         shouldFollowBottomRef.current = nearBottom;

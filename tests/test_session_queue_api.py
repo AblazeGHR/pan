@@ -73,13 +73,15 @@ def test_get_queue_mixed(monkeypatch):
     assert items[0]["createdAt"] != 0
     assert items[0]["meta"] == {"seq": 1, "taskId": "t-a", "revision": 1,
                                  "dispatchState": "queued", "locked": False,
-                                 "lockManual": False, "lockAutoReport": False}
+                                 "lockManual": False, "lockAutoReport": False,
+                                 "steerPending": False, "steerError": None}
     # report（无 type 字段）：result 即 text
     assert items[1]["kind"] == "report"
     assert items[1]["text"] == "report r1"
     assert items[1]["meta"] == {"status": "done", "taskId": "t-a", "workerId": "worker-1",
                                   "revision": 1, "dispatchState": "queued", "locked": False,
-                                  "lockManual": False, "lockAutoReport": False}
+                                  "lockManual": False, "lockAutoReport": False,
+                                  "steerPending": False, "steerError": None}
     # zombie report（type=zombie）也归为 report
     assert items[3]["kind"] == "report"
     assert items[3]["text"] == "worker died"
@@ -92,7 +94,8 @@ def test_get_queue_mixed(monkeypatch):
                                   "revision": 1, "dispatchState": "queued",
                                   "channel": "qq", "canReply": True,
                                   "channelTarget": "user:12345", "locked": False,
-                                  "lockManual": False, "lockAutoReport": False}
+                                  "lockManual": False, "lockAutoReport": False,
+                                  "steerPending": False, "steerError": None}
     _cleanup()
 
 
@@ -154,7 +157,7 @@ def test_get_queue_empty(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     s = _setup_session("ses_q")
     assert asyncio.run(srv.api_session_queue("ses_q")) == {
-        "items": [], "queueRevision": 0, "agentReportsPaused": False,
+        "items": [], "queueRevision": 0, "agentReportsPaused": False, "queuePaused": False,
     }
     _cleanup()
 

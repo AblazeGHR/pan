@@ -38,8 +38,8 @@ async def _reserve_with_crash_gate(worker, session, items, text, expected_revisi
     )
     marker = fixture.RUNTIME / 'handoff-reservation-paused-once'
     if is_target and not marker.exists():
-        # _reserve_queue_unit has durably written the user's history row and
-        # reserved queue receipt, but the provider callback has not started.
+        # _reserve_queue_unit has durably reserved the queue item; history is
+        # written only after hand-off. The provider callback has not started.
         # The browser harness kills this Pan process at that exact boundary.
         marker.write_text('reserved', encoding='utf-8')
         release = fixture.RUNTIME / 'release-handoff-reservation'

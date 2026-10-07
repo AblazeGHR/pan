@@ -122,6 +122,10 @@ describe('AppSettingsModal', () => {
     // McpRemoteSettings uses fetch directly rather than the mocked API module.
     // Keep the real panel mounted without adding an unrelated network-error alert.
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input === '/api/remote/tailscale' && init?.method === 'GET') {
+        return new Response(JSON.stringify({ config: { startupEnabled: false, protocol: 'http', port: 18080 },
+          running: false, url: '', target: '', error: '', pendingCleanup: false }));
+      }
       if (input !== '/api/remote/mcp' || init?.method !== 'GET') {
         throw new Error(`Unexpected settings fetch: ${init?.method} ${String(input)}`);
       }
