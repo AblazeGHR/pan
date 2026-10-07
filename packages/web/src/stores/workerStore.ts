@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { WorkerInfo, SettingsBody, ApiGenericResponse } from '@/types';
+import type { WorkerInfo, SettingsBody, ApiGenericResponse, DelayedRestartState } from '@/types';
 import {
   killSessionWorker,
   restartOrStartWorker,
+  requestDelayedRestart,
   interruptSessionWorker,
   steerSessionWorker,
   takeoverSessionWorker,
@@ -37,6 +38,10 @@ function sameRuntimeWorker(previous: WorkerInfo | undefined, workerId: string | 
 }
 
 interface WorkerStore {
+  delayedRestarts: Record<string, DelayedRestartState>;
+  applyDelayedRestart: (intent: DelayedRestartState) => void;
+  delayedRestart: (sessionId: string) => Promise<DelayedRestartState | null>;
+  refreshDelayedRestart: (sessionId: string) => Promise<void>;
   workers: Record<string, WorkerInfo>;
   currentWorkerId: string | null;
   refreshSeq: number;
@@ -83,6 +88,23 @@ interface WorkerStore {
 let workerTouchSeq = 0;
 
 export const useWorkerStore = create<WorkerStore>((set, get) => ({
+  delayedRestarts: {},
+  applyDelayedRestart: (intent) => {
+    const previous = get().delayedRestarts[intent.sessionId];
+    if (previous && previous.revision >= intent.revision) return;
+    set((s) => ({ delayedRestarts: { ...s.delayedRestarts, [intent.sessionId]: intent } }));
+  },
+  delayedRestart: async (sessionId) => {
+    const epoch = get().runtimeEpoch;
+    const intent = await requestDelayedRestart(sessionId);
+    if (get().runtimeEpoch === epoch && intent) get().applyDelayedRestart(intent);
+    return intent;
+  },
+  refreshDelayedRestart: async (sessionId) => {
+    const epoch = get().runtimeEpoch;
+    const intent = await requestDelayedRestart(sessionId, 'GET');
+    if (get().runtimeEpoch === epoch && intent) get().applyDelayedRestart(intent);
+  },
   workers: {},
   currentWorkerId: null,
   currentWorker: null,
@@ -362,6 +384,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
       ? state
       : {
           runtimeEpoch: epoch,
+          delayedRestarts: {},
           workers: {},
           currentWorkerId: null,
           currentWorker: null,

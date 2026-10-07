@@ -53,6 +53,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（meta-agent，MA�
 关键规则：
 - **角色 = MA/TA，身份 = Session（编排对象），进程 = Worker（物理执行体）**：`agent_*` 工具以 session_id 寻址 Session（承载 MA 或 TA 身份）；无活进程也容忍（send 入队待投、kill 无害 no-op）。
 - Session 是持久化的——kill/回收 Worker（无论 MA Worker 还是 TA Worker）不会删除 Session 数据。
+- Worker 的 **Delayed restart**（Settings 的 Worker 区及顶栏时钟按钮）会等待当前任务完整结束，再在有效 idle 边界优先于队列续派执行；与 settings 自动重启合并，重复点击幂等。无 Worker 时按 Restart 的 start 语义处理；pending/执行中/失败/取消状态可观察。它不抢占运行、终态保存/报告或立即 kill/restart/force，只在本次 Pan 服务进程内有效。HTTP 字段与状态见 references/http-api.md。
 - 一个 Session 同一时间只有一个 Worker（spawn 时若有旧 worker 先 kill）。
 - 回复是异步的——`agent_assign` 返回 `queued`，随后 `report_subscribe` 订阅收完成报告，或 `session_get` 读取。
 - Worker 会被 watchdog 自动回收（空闲/静默超时），用前若 `workerStatus` 为 `null` 需重新 `agent_spawn`（或直接 `agent_assign` 自动 spawn）。

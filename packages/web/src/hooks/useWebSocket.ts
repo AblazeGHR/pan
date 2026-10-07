@@ -249,6 +249,7 @@ export function useWebSocket() {
       if (sessionId) {
         if (!historyInSnapshot) void useSessionStore.getState().refreshCurrentSessionHistory();
         void useQueueStore.getState().loadAgentQueue(sessionId);
+        void useWorkerStore.getState().refreshDelayedRestart(sessionId).catch(() => {});
       }
     };
 
@@ -268,6 +269,7 @@ export function useWebSocket() {
       const sessionId = useSessionStore.getState().currentSessionId;
       if (sessionId) {
         void useQueueStore.getState().loadAgentQueue(sessionId);
+        void useWorkerStore.getState().refreshDelayedRestart(sessionId).catch(() => {});
       }
       syncAuthoritativeSnapshot();
       syncInteractiveRequests();
@@ -530,6 +532,11 @@ export function useWebSocket() {
     }));
 
     // Worker spawned / restarted / reconfigured
+    unsubscribers.push(wsClient.on('worker.delayed_restart', (e: StreamEvent) => {
+      if (e.delayedRestart && e.delayedRestart.sessionId === e.sessionId) {
+        useWorkerStore.getState().applyDelayedRestart(e.delayedRestart);
+      }
+    }));
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e)) return;
       if (e.sessionId) {

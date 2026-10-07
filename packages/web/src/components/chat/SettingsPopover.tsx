@@ -58,6 +58,16 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const showToast = useUIStore((s) => s.showToast);
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
+  const delayedRestart = useWorkerStore((s) =>
+    session?.id ? s.delayedRestarts[session.id] : undefined,
+  );
+  const [delayedRequesting, setDelayedRequesting] = useState(false);
+  useEffect(() => {
+    if (open && session?.id) {
+      useWorkerStore.getState().refreshDelayedRestart(session.id)
+        .catch((e: Error) => showToast(e.message, 'error'));
+    }
+  }, [open, session?.id, showToast]);
   const config = useAdapterStore((s) => s.getConfig());
   const applySettings = useAdapterStore((s) => s.applySettings);
   const loadSessions = useSessionStore((s) => s.loadSessions);
@@ -543,6 +553,35 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
           >
             ⟳ Restart
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={delayedRequesting || delayedRestart?.status === 'pending'
+              || delayedRestart?.status === 'restarting'}
+            title="Finish the current task, then restart before queued work. Starts a worker if offline."
+            onClick={() => {
+              if (!session?.id) return;
+              setDelayedRequesting(true);
+              useWorkerStore.getState().delayedRestart(session.id)
+                .then((intent) => showToast(intent?.action === 'start'
+                  ? 'Worker start scheduled'
+                  : 'Worker will restart after the current task completes'))
+                .catch((e: Error) => showToast(e.message, 'error'))
+                .finally(() => setDelayedRequesting(false));
+            }}
+          >
+            ◷ Delayed restart
+          </Button>
+          {delayedRestart && (
+            <p role="status" className={`text-xs ${delayedRestart.status === 'failed'
+              ? 'text-status-error' : 'text-text-secondary'}`}>
+              {delayedRestart.status === 'pending' ? 'Restart pending: waiting for task completion'
+                : delayedRestart.status === 'restarting' ? `${delayedRestart.action === 'start' ? 'Starting' : 'Restarting'} worker…`
+                : delayedRestart.status === 'completed' ? 'Worker restart/start completed'
+                : delayedRestart.status === 'cancelled' ? 'Delayed restart cancelled'
+                : `Delayed restart failed: ${delayedRestart.error || 'Unknown error'}`}
+            </p>
+          )}
           {effectiveWorkerId && (
             <>
               <Button
