@@ -4984,6 +4984,11 @@ class _QueuePausedBeforeHandoff(Exception):
     pass
 
 
+class _OneShotSpawnFailed(Exception):
+    """Only raised by the subprocess creation operation, before a handle exists."""
+
+
+
 async def _queue_handoff(w: Worker, s, operation, on_handoff):
     """Serialize pause with write/drain or spawn and receipt, not execution.
 
@@ -5221,57 +5226,67 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         w.worker_id, args[0], len(args),
     )
 
+    proc = None
     try:
-        async def spawn_input():
-            proc = await asyncio.create_subprocess_exec(
-                *args,
-                cwd=s.workdir or None,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-            w._mcp_proc = proc
-            return proc
-        proc = await _queue_handoff(w, s, spawn_input, on_handoff)
-    except asyncio.CancelledError:
-        if standalone_items and not w._current_handoff_acked:
-            await asyncio.shield(_requeue_queue_unit(
-                w, s, standalone_items, "worker cancelled before CLI hand-off"))
-        raise
-    except _QueuePausedBeforeHandoff:
-        if standalone_items:
-            await _requeue_queue_unit(w, s, standalone_items, "Session queue paused")
-        else:
+        try:
+            async def spawn_input():
+                nonlocal proc
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        *args,
+                        cwd=s.workdir or None,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                    )
+                except Exception as exc:
+                    raise _OneShotSpawnFailed(str(exc)) from exc
+                w._mcp_proc = proc
+                return proc
+            proc = await _queue_handoff(w, s, spawn_input, on_handoff)
+        except asyncio.CancelledError:
+            if standalone_items and not w._current_handoff_acked:
+                await asyncio.shield(_requeue_queue_unit(
+                    w, s, standalone_items, "worker cancelled before CLI hand-off"))
             raise
-        w.status = "idle"
-        await _record_legal_worker_state(w, "idle", "queue/paused")
-        return
-    except Exception as e:
-        _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
-        if standalone_items:
-            await _requeue_queue_unit(w, s, standalone_items,
-                                       f"one-shot spawn failed: {e}")
-        await _finish_task_error(w, s, format_cli_spawn_error(adapter.name, e))
-        # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
-        w.last_activity = time.monotonic()
-        _maybe_restart_pending(w)
-        return
+        except _QueuePausedBeforeHandoff:
+            if standalone_items:
+                await _requeue_queue_unit(w, s, standalone_items, "Session queue paused")
+            else:
+                raise
+            w.status = "idle"
+            await _record_legal_worker_state(w, "idle", "queue/paused")
+            return
+        except _OneShotSpawnFailed as e:
+            _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
+            if standalone_items:
+                await _requeue_queue_unit(w, s, standalone_items,
+                                           f"one-shot spawn failed: {e}")
+            await _finish_task_error(w, s, format_cli_spawn_error(adapter.name, e))
+            # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
+            w.last_activity = time.monotonic()
+            _maybe_restart_pending(w)
+            return
+        except Exception as exc:
+            if standalone_items and not w._current_handoff_acked:
+                await _requeue_queue_unit(w, s, standalone_items,
+                                           f"one-shot hand-off callback failed: {exc}")
+            raise
 
-    # Track in-flight process so kill_worker can terminate it (see #3).
-    w._mcp_proc = proc
+        # Track in-flight process so kill_worker can terminate it (see #3).
+        w._mcp_proc = proc
 
-    # Save provider/session metadata only; queue removal was committed by the
-    # callback above and does not wait for provider business output.
-    sess = _session(w)
-    if sess:
-        await _sess.save_async(sess)
+        # Save provider/session metadata only; queue removal was committed by the
+        # callback above and does not wait for provider business output.
+        sess = _session(w)
+        if sess:
+            await _sess.save_async(sess)
 
-    # Collect output
-    output = b""
-    timed_out = False
-    if not _DEFAULTS_INITIALIZED:
-        load_worker_config()
-    read_timeout = _WORKER_TIMEOUT_SEC
-    try:
+        # Collect output
+        output = b""
+        timed_out = False
+        if not _DEFAULTS_INITIALIZED:
+            load_worker_config()
+        read_timeout = _WORKER_TIMEOUT_SEC
         try:
             while True:
                 chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=read_timeout)
@@ -5295,14 +5310,36 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             proc.kill()
             await proc.wait()
     finally:
-        # If cancelled (CancelledError) or the process is still alive after
-        # wait(), kill it — prevents orphaned cbc/MCP processes (#3).
-        if proc.returncode is None:
+        # This scope begins before creation and covers the handoff callback,
+        # metadata persistence and reads. Never abandon a successfully created
+        # process when any of those operations raises or is cancelled.
+        if proc is not None:
+            async def cleanup_process():
+                if proc.returncode is None:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=10)
+                except (asyncio.TimeoutError, OSError) as exc:
+                    _log.warning("[Worker %s] one-shot cleanup wait failed: %s", w.worker_id, exc)
+
+            cleanup_task = asyncio.create_task(cleanup_process())
             try:
-                proc.kill()
-            except Exception:
-                pass
-        w._mcp_proc = None
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                # A second cancellation must not interrupt reap/cleanup.
+                while not cleanup_task.done():
+                    try:
+                        await asyncio.shield(cleanup_task)
+                    except asyncio.CancelledError:
+                        continue
+                cleanup_task.result()
+                raise
+            finally:
+                if w._mcp_proc is proc:
+                    w._mcp_proc = None
 
     returncode = proc.returncode
     _log.info(
@@ -7205,9 +7242,14 @@ async def send_session(session_id: str, text: str, source: str = "agent",
             return {"status": "error", "result": persist_error}
         # The queue write is the acknowledgement boundary.  Start recovery
         # now; watchdog is intentionally only the eventual retry path.
-        _schedule_session_recovery(session_id)
-        return {"status": "queued", "workerId": None, "sessionId": session_id,
-                "pendingSpawn": True}
+        paused = bool(getattr(s, "queue_paused", False))
+        live = find_alive_worker_by_session(session_id)
+        recovery = _schedule_session_recovery(session_id) if not paused and live is None else None
+        if not paused and live is not None:
+            await _wake_worker(session_id, auto_spawn=False)
+        return {"status": "queued", "workerId": live.worker_id if live else None,
+                "sessionId": session_id, "queuePaused": paused,
+                "pendingSpawn": recovery is not None}
     if force:
         restarted = await restart_or_start_worker(session_id)
         if isinstance(restarted, str):
