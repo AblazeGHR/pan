@@ -2413,13 +2413,17 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     for item in items:
         _set_delivery_state(s, item, _DELIVERY_SENT)
         _clear_delivery_reservation(item)
+    outcome = _sess.DurableOutcome()
     try:
         # The first save is the durable sent_to_cli marker.  A crash between
         # this save and the removal save is recovered by migration.
-        await _save_receipt(s)
+        await _save_receipt(s, outcome=outcome)
     except asyncio.CancelledError:
         w._current_handoff_acked = True
         _remove_queue_items_by_identity(s, items)
+        # Handoff is already real even if cancellation coincided with a failed
+        # writer. An independent owner finishes persistence without resending.
+        await asyncio.shield(_own_queue_steer_task(_persist_queue_steer_state(w, s)))
         raise
     except Exception as exc:
         _log.warning(
@@ -2483,7 +2487,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         # post-removal revision so a delayed GET /queue cannot overwrite the
         # delivered snapshot with an older response.
         "queueRevision": getattr(s, "queue_revision", 0),
-        "messages": [delivered_message],
+        "messages": [_public_queue_receipt(delivered_message)],
     })
     await _bcast({
         "type": "queue.snapshot",
@@ -4001,7 +4005,7 @@ def _delivery_mark_in_history(s, item: dict) -> bool:
     return False
 
 
-async def _save_receipt(s) -> None:
+async def _save_receipt(s, *, outcome: _sess.DurableOutcome | None = None) -> None:
     """Persist a queue receipt even when restart cancels the consumer.
 
     ``restart_worker`` deliberately cancels the old consumer before killing the
@@ -4015,6 +4019,11 @@ async def _save_receipt(s) -> None:
     # queue hand-off.  This does not alter queue_pending or terminal event
     # ordering; it only removes/compresses old terminal metadata.
     _prepare_receipt_persistence(s)
+    if outcome is not None:
+        # The ordered outcome API already owns cancellation through writer
+        # retirement and exposes both cancelled success and cancelled failure.
+        await _sess.save_async(s, outcome=outcome)
+        return
     save_task = asyncio.create_task(_sess.save_async(s))
     try:
         await asyncio.shield(save_task)
@@ -4026,6 +4035,10 @@ async def _save_receipt(s) -> None:
                 await asyncio.shield(save_task)
             except asyncio.CancelledError:
                 continue
+            except Exception:
+                # Inspect the retired writer below instead of replacing the
+                # caller's cancellation with its concurrent disk exception.
+                break
         if save_task.cancelled():
             # Shield normally prevents this, but an event-loop shutdown or a
             # caller that explicitly cancels the save task can still cancel it.
@@ -6973,7 +6986,8 @@ def _queue_origin_metadata(items: list[dict]) -> dict:
     envelopes = []
     for item in items:
         envelope = copy.deepcopy(item)
-        for key in ("reservedBy", "reservedGeneration", "reservedAt", "queueSteerPending"):
+        for key in ("reservedBy", "reservedGeneration", "reservedAt", "queueSteerPending", "queueSteerRequestId",
+                    "queueSteerWorkerId", "queueSteerGeneration"):
             envelope.pop(key, None)
         if isinstance(envelope.get("parts"), list):
             envelope["parts"] = public_message_parts(envelope["parts"])
@@ -6990,6 +7004,15 @@ def _queue_origin_metadata(items: list[dict]) -> dict:
     if isinstance(first.get("parts"), list):
         metadata["parts"] = public_message_parts(first["parts"])
     return metadata
+
+
+def _public_queue_receipt(value):
+    """Strip internal paths recursively, including retained origin envelopes."""
+    if isinstance(value, dict):
+        return {key: _public_queue_receipt(part) for key, part in value.items() if key != "__serverPath"}
+    if isinstance(value, list):
+        return [_public_queue_receipt(part) for part in value]
+    return value
 
 
 def _queue_history_row(items: list[dict], text: str | None = None) -> dict:
@@ -7009,6 +7032,41 @@ def _queue_history_row(items: list[dict], text: str | None = None) -> dict:
 
 
 _queue_steer_tasks: dict[tuple[str, str], asyncio.Task] = {}
+_queue_steer_owners: set[asyncio.Task] = set()
+
+
+def _own_queue_steer_task(coroutine) -> asyncio.Task:
+    task = asyncio.create_task(coroutine)
+    _queue_steer_owners.add(task)
+    def finished(done):
+        _queue_steer_owners.discard(done)
+        if not done.cancelled() and done.exception() is not None:
+            _log.error("Queue Steer owner failed", exc_info=done.exception())
+    task.add_done_callback(finished)
+    return task
+
+
+async def _persist_queue_steer_state(w: Worker, s) -> bool:
+    """Retain ownership through cancellation and retry persistence, never control."""
+    for attempt in range(2):
+        outcome = _sess.DurableOutcome()
+        try:
+            await _save_receipt(s, outcome=outcome)
+            return True
+        except BaseException:
+            if outcome.succeeded:
+                return True
+            if attempt == 1:
+                _mark_history_dirty(w)
+                _log.exception("Queue Steer persistence unresolved session=%s", s.id)
+    return False
+
+
+async def _queue_steer_bcast(event: dict) -> None:
+    try:
+        await _bcast(event)
+    except Exception:
+        _log.exception("Queue Steer broadcast failed; durable receipt remains authoritative")
 
 
 async def steer_queue_item(session_id: str, item_id: str, expected_revision: int):
@@ -7078,81 +7136,138 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 history_text = native_text = _format_report_batch([item])
             else:
                 return "Unknown queue kind cannot be steered losslessly"
-            # The marker is durable but not a user lock. Keep the item visible,
-            # prevent edit/delete/FIFO, and never erase its original metadata.
-            item["queueSteerPending"] = True
-            s.queue_revision += 1
-            try:
-                await _save_receipt(s)
-            except Exception:
-                item.pop("queueSteerPending", None)
-                raise
-            # Write inside the queue critical section. Pause and lease acquisition
-            # cannot slip between the authority checks and the control write.
+            # Encode before reserving: encoding failure proves no provider write.
             request_id = uuid.uuid4().hex
+            process, generation = w.process, w.generation
+            try:
+                wire = w.adapter.encode_control_message({
+                    "type": "steer", "text": native_text, "requestId": request_id}) + b"\n"
+            except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
+                return f"Steer encoding failed before handoff: {exc}"
+            # The token binds late receipts to this original item/Worker turn.
+            item["queueSteerPending"] = True
+            item["queueSteerRequestId"] = request_id
+            item["queueSteerWorkerId"] = w.worker_id
+            item["queueSteerGeneration"] = generation
+            s.queue_revision += 1
+            outcome = _sess.DurableOutcome()
+            try:
+                await _save_receipt(s, outcome=outcome)
+            except BaseException:
+                # Cancellation may follow a successful ticket. In either case
+                # no control has been written: durably release the reservation.
+                item.pop("queueSteerPending", None)
+                item.pop("queueSteerRequestId", None)
+                item.pop("queueSteerWorkerId", None)
+                item.pop("queueSteerGeneration", None)
+                s.queue_revision += 1
+                cleanup = _own_queue_steer_task(_persist_queue_steer_state(w, s))
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        continue
+                raise
+            if (workers.get(w.worker_id) is not w or w.generation != generation
+                    or w.process is not process or w.status != "running"
+                    or process is None or process.returncode is not None or process.stdin is None):
+                item.pop("queueSteerPending", None)
+                item.pop("queueSteerRequestId", None)
+                item.pop("queueSteerWorkerId", None)
+                item.pop("queueSteerGeneration", None)
+                s.queue_revision += 1
+                await _persist_queue_steer_state(w, s)
+                return "Worker turn ended before Steer handoff"
             future = asyncio.get_running_loop().create_future()
             wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
             if wants_receipt:
                 w._steer_receipts[request_id] = future
-            error = await _send_control_message_unlocked(w.worker_id, {
-                "type": "steer", "text": native_text, "requestId": request_id})
-        await _bcast({"type": "queue.snapshot", "sessionId": s.id,
-                      "queueRevision": s.queue_revision})
-        if error == "Worker control write failed":
-            # drain can fail after bytes reached the provider. An actual Codex
-            # receipt can still settle the write; Claude cannot disambiguate it.
-            error = None if wants_receipt else "Steer outcome unknown: control write/drain failed"
-        if not error and wants_receipt:
-            deadline = time.monotonic() + 30
-            while _process_alive(w) and not future.done():
-                if time.monotonic() >= deadline:
-                    break
-                await asyncio.wait({future}, timeout=1)
-            error = future.result() if future.done() else "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
-        late_receipt = wants_receipt and not future.done() and error and error.startswith("Steer outcome unknown")
-        if not late_receipt:
-            w._steer_receipts.pop(request_id, None)
-        await _settle_queue_steer(w, s, item, history_text, error)
-        if late_receipt:
-            def settle_late(done):
-                w._steer_receipts.pop(request_id, None)
-                if not done.cancelled():
-                    task = asyncio.create_task(_settle_queue_steer(w, s, item, history_text, done.result()))
-                    task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
-            future.add_done_callback(settle_late)
+                def settle_receipt(done):
+                    if w._steer_receipts.get(request_id) is done:
+                        w._steer_receipts.pop(request_id, None)
+                    if not done.cancelled():
+                        _own_queue_steer_task(_settle_queue_steer(
+                            w, s, item, history_text, done.result(), request_id, generation))
+                future.add_done_callback(settle_receipt)
+            # This synchronous write is the pause/lease linearization boundary.
+            # Once attempted, even a write/drain error is conservatively unknown.
+            write_error = None
+            try:
+                process.stdin.write(wire)
+            except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                write_error = str(exc)
+            owner = _own_queue_steer_task(_finish_queue_steer(
+                w, s, item, history_text, request_id, generation, process,
+                future if wants_receipt else None, write_error))
+    # No lifecycle or queue lock is held while drain/RPC/broadcast is awaited.
+    return await asyncio.shield(owner)
+
+
+async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error):
+    await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
+                             "queueRevision": s.queue_revision})
+    drain = asyncio.create_task(process.stdin.drain()) if write_error is None else None
+    error = "Steer outcome unknown: control write/drain failed"
+    deadline = asyncio.get_running_loop().time() + 30
+    try:
+        if drain is not None:
+            waiting = {drain} | ({future} if future is not None else set())
+            await asyncio.wait(waiting, timeout=30, return_when=asyncio.FIRST_COMPLETED)
+        if future is not None:
+            if not future.done():
+                await asyncio.wait({future}, timeout=max(0, deadline-asyncio.get_running_loop().time()))
+            error = future.result() if future.done() and not future.cancelled() else (
+                "Steer outcome unknown: provider receipt missing; item retained, no automatic retry")
+        elif drain is not None and drain.done() and not drain.cancelled() and drain.exception() is None:
+            error = None
+        await _settle_queue_steer(w, s, item, text, error, request_id, generation)
         return error
+    finally:
+        if drain is not None:
+            if not drain.done():
+                drain.cancel()
+            await asyncio.gather(drain, return_exceptions=True)
 
 
-async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None):
+async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None,
+                            request_id: str, generation: int):
     """Apply an authoritative receipt, including one arriving after HTTP timeout."""
+    delivery = None
     async with queue_lock(s.id):
-        if not any(candidate is item for candidate in s.queue_pending) or not item.get("queueSteerPending"):
+        if (not any(candidate is item for candidate in s.queue_pending)
+                or not item.get("queueSteerPending") or item.get("queueSteerRequestId") != request_id
+                or item.get("queueSteerWorkerId") != w.worker_id or item.get("queueSteerGeneration") != generation):
             return
         if error:
             if not error.startswith("Steer outcome unknown"):
                 item.pop("queueSteerPending", None)
+                item.pop("queueSteerRequestId", None)
+                item.pop("queueSteerWorkerId", None)
+                item.pop("queueSteerGeneration", None)
             item["lastSteerError"] = error
             s.queue_revision += 1
-            await _save_receipt(s)
-            if not item.get("queueSteerPending"):
+            await _persist_queue_steer_state(w, s)
+            if (not item.get("queueSteerPending") and workers.get(w.worker_id) is w
+                    and w.generation == generation):
                 _wake_after_queue_unit(w, s)
         else:
             item.pop("queueSteerPending", None)
+            item.pop("queueSteerRequestId", None)
+            item.pop("queueSteerWorkerId", None)
+            item.pop("queueSteerGeneration", None)
             row = _queue_history_row([item], history_text)
             _sess.append_history(s, row)
             # Provider accepted: never requeue on a later persistence failure.
             _set_delivery_state(s, item, _DELIVERY_SENT)
             s.queue_revision += 1
             _remove_queue_items_by_identity(s, [item])
-            try:
-                await _save_receipt(s)
-            except Exception:
-                _mark_history_dirty(w)
-                _log.exception("Steer accepted; receipt persistence pending session=%s", s.id)
-            await _bcast({"type": "queue.item_delivered", "sessionId": s.id,
+            await _persist_queue_steer_state(w, s)
+            delivery = {"type": "queue.item_delivered", "sessionId": s.id,
                           "queueItemIds": [_queue_item_id(item)], "queueRevision": s.queue_revision,
-                          "messages": [{**row, **_queue_origin_metadata([item])}]})
-    await _bcast({"type": "queue.snapshot", "sessionId": s.id,
+                          "messages": [_public_queue_receipt({**row, **_queue_origin_metadata([item])})]}
+    if delivery is not None:
+        await _queue_steer_bcast(delivery)
+    await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
                   "queueRevision": s.queue_revision})
 
 async def _interrupt_worker_unlocked(worker_id: str) -> str | None:

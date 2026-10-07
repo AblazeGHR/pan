@@ -1,0 +1,163 @@
+[
+  {
+    "input": "bridge-missing-response",
+    "terminalWithoutReceipt": true,
+    "futureTurnResult": true,
+    "lateReceipt": true
+  },
+  {
+    "input": "cancel-after-marker",
+    "controls": 0,
+    "queue": 1,
+    "history": 0,
+    "diskQueue": 1,
+    "diskHistory": 0,
+    "pending": false,
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "cancel-before-marker-commit",
+    "controls": 0,
+    "queue": 1,
+    "history": 0,
+    "diskQueue": 1,
+    "diskHistory": 0,
+    "pending": false,
+    "writerOutcomes": [
+      {
+        "succeeded": false,
+        "cancelled": false,
+        "error": "OSError"
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "cancel-after-write",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "broadcast-failure",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "settle-save-failure",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "replacement-before-receipt",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "item-replaced-before-receipt",
+    "controls": 1,
+    "queue": 1,
+    "history": 0,
+    "diskQueue": 1,
+    "diskHistory": 0,
+    "pending": false
+  },
+  {
+    "input": "write-error-unknown",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "restart-boundary",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "kill-boundary",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "terminal-delayed-boundary",
+    "controls": 1,
+    "queue": 0,
+    "history": 2,
+    "diskQueue": 0,
+    "diskHistory": 2,
+    "pending": false
+  },
+  {
+    "input": "missing-receipt-late",
+    "controls": 1,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false,
+    "unknownThenLateAccepted": true
+  },
+  {
+    "input": "fifo-cancel-writer-commit",
+    "controls": null,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "fifo-cancel-writer-failure",
+    "controls": null,
+    "queue": 0,
+    "history": 1,
+    "diskQueue": 0,
+    "diskHistory": 1,
+    "pending": false
+  },
+  {
+    "input": "public-receipt-attachment-path",
+    "internalKeys": 0
+  }
+]

@@ -31,6 +31,7 @@ from typing import Any
 
 
 _APPROVAL_TIMEOUT_SEC = 120.0
+_STDOUT_LOCK = threading.Lock()
 _INTERACTIVE_APPROVAL_METHODS = {
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
@@ -64,8 +65,9 @@ _CANCELLED_TURN_STATUSES = {"interrupted", "cancelled", "canceled"}
 
 def _write_stdout(event: dict[str, Any]) -> None:
     raw = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
-    sys.stdout.buffer.write(raw.encode("utf-8", errors="replace") + b"\n")
-    sys.stdout.buffer.flush()
+    with _STDOUT_LOCK:
+        sys.stdout.buffer.write(raw.encode("utf-8", errors="replace") + b"\n")
+        sys.stdout.buffer.flush()
 
 
 def _write_stderr(text: str) -> None:
@@ -222,6 +224,8 @@ class AppServer:
         self._stdin_closed = False
         self.control_queue: Queue[dict[str, Any] | None] | None = None
         self._turn_active = threading.Event()
+        self._steer_requests: dict[int, str] = {}
+        self._steer_requests_lock = threading.Lock()
 
     def _send(self, message: dict[str, Any]) -> None:
         if not self.process or self.process.stdin is None:
@@ -315,7 +319,7 @@ class AppServer:
                     value = json.loads(line.decode("utf-8", errors="replace"))
                 except json.JSONDecodeError:
                     continue
-                if isinstance(value, dict):
+                if isinstance(value, dict) and not self._emit_steer_receipt(value):
                     self.incoming.put(value)
         finally:
             self.incoming.put(None)
@@ -340,6 +344,20 @@ class AppServer:
             code = self.process.returncode if self.process else None
             raise RuntimeError(f"Codex app-server exited (returncode={code})")
         return message
+
+    def _emit_steer_receipt(self, message: dict[str, Any]) -> bool:
+        # The reader continues while idle. A late RPC response therefore
+        # settles its original request without holding a completed turn open.
+        with self._steer_requests_lock:
+            request_id = self._steer_requests.pop(message.get("id"), None)
+        if request_id is None:
+            return False
+        receipt = {"type": "pan.steer_receipt", "requestId": request_id,
+                   "ok": "error" not in message}
+        if "error" in message:
+            receipt["error"] = self._error_text(message["error"])
+        _write_stdout(receipt)
+        return True
 
     def _wait_response(self, request_id: int) -> dict[str, Any]:
         while True:
@@ -913,18 +931,24 @@ class AppServer:
                     state["steer_pending"] = str(control["text"])
                     continue
                 try:
-                    rpc_id = self._request("turn/steer", {
-                        "threadId": self.thread_id,
-                        "expectedTurnId": state["turn_id"],
-                        "input": [{"type": "text", "text": str(control["text"])}],
-                    })
-                    if request_id:
-                        state.setdefault("steer_requests", {})[rpc_id] = request_id
+                    with self._steer_requests_lock:
+                        if len(self._steer_requests) >= 128:
+                            if request_id:
+                                _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
+                                               "ok": False, "error": "Too many unconfirmed Steer requests"})
+                            continue
+                        rpc_id = self._request("turn/steer", {
+                            "threadId": self.thread_id,
+                            "expectedTurnId": state["turn_id"],
+                            "input": [{"type": "text", "text": str(control["text"])}],
+                        })
+                        if request_id:
+                            self._steer_requests[rpc_id] = request_id
                 except (OSError, RuntimeError):
                     _write_stderr("[codex app-server bridge] failed to steer turn\n")
                     if request_id:
                         _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
-                                       "ok": False, "error": "Codex turn/steer rejected"})
+                                       "ok": False, "error": "Steer outcome unknown: Codex turn/steer request write failed"})
             elif kind == "approval_response":
                 request_id = control.get("request_id", control.get("requestId"))
                 pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
@@ -1021,10 +1045,17 @@ class AppServer:
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
+        self._turn_active.set()
+        try:
+            self._run_turn(text, effort, control_queue)
+        finally:
+            self._turn_active.clear()
+
+    def _run_turn(self, text: str, effort: str | None = None,
+                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
         # A tokenUsage notification is emitted per turn. Do not accidentally
         # attach the previous turn's snapshot to a result if the native server
         # finishes a turn without sending a fresh usage notification.
-        self._turn_active.set()
         self.last_usage = None
         state: dict[str, Any] = {
             "last_text": "", "error": "", "done": False, "is_error": False,
@@ -1051,19 +1082,13 @@ class AppServer:
                     )
                 }
         response_id = self._request("turn/start", params)
-        while not state["done"] or state.get("steer_requests"):
+        while not state["done"]:
             self._drain_controls(state, control_queue)
             try:
                 message = self._next(timeout=0.2)
             except TimeoutError:
                 continue
-            steer_request = (state.get("steer_requests") or {}).pop(message.get("id"), None)
-            if steer_request is not None:
-                receipt = {"type": "pan.steer_receipt", "requestId": steer_request,
-                           "ok": "error" not in message}
-                if "error" in message:
-                    receipt["error"] = self._error_text(message["error"])
-                _write_stdout(receipt)
+            if self._emit_steer_receipt(message):
                 continue
             if message.get("id") == response_id:
                 if "error" in message:

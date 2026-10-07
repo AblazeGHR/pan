@@ -2,6 +2,8 @@
 
 MA: `ses_aa02ab3cd00ae7d2`. One TA completed the three tasks sequentially; no subagents or test suites were added or run. This branch is a candidate for MA review, not integrated or released.
 
+MA rejected the first candidate on bridge terminal/transaction/lifecycle boundaries. Subsequent narrow correction and final evidence are documented in [MA-REWORK.md](MA-REWORK.md); its ownership/lock descriptions supersede the corresponding initial implementation descriptions below.
+
 ## Baseline and execution boundary
 
 Canonical main root `D:/project/Pan-main`, branch `main`, HEAD `839d5ff3b494ce4a76c8ababd03c2fd9828be162`. Practical root `D:/project/Pan`, branch `practical`, same HEAD at initial inspection. Main untracked files: `docs/SCEPTER_SESSION_MAILBOX_ARCH_REVIEW_BRIEF_20261002.md`, `docs/design/Scepter-Session-Inbox-Architecture.md`, `packages/web/node_modules.backup-20261003/`. Practical untracked files: `docs/SCEPTER_PHASE1_EXTERNAL_SESSION_POLICY_RELOAD_SPEC.md`, `packages/web/node_modules.backup-20261003/`. Preserved all. No stash/reset/main or practical ref operation, push, service restart, or request to 8767/8768.

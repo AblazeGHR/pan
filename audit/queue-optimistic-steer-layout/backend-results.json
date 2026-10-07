@@ -23,7 +23,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "7ff648d68f4847a5a94d6077b7bcca3d"
+        "requestId": "4d9158abe8524e3fb18f58688e977695"
       }
     ],
     "queue": [],
@@ -88,19 +88,19 @@
             "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
           }
         ],
-        "messageId": "pan:d06e7fe4bfc9466fbfeb55e567c0749b",
-        "ts": "2026-10-07T20:25:42.126511"
+        "messageId": "pan:7c891f40e8324645b05590563d3ff43c",
+        "ts": "2026-10-07T20:39:42.443800"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_7d05abb538033c5b",
+        "sessionId": "ses_59aa18961a337b2d",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_7d05abb538033c5b",
+        "sessionId": "ses_59aa18961a337b2d",
         "queueItemIds": [
           "q_success"
         ],
@@ -146,8 +146,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.1265216,
-                "deliveredAt": 1791375942.1265216
+                "receiptAt": 1791376782.4438093,
+                "deliveredAt": 1791376782.4438093
               }
             ],
             "source": "agent",
@@ -169,14 +169,14 @@
                 "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
               }
             ],
-            "messageId": "pan:d06e7fe4bfc9466fbfeb55e567c0749b",
-            "ts": "2026-10-07T20:25:42.126511"
+            "messageId": "pan:7c891f40e8324645b05590563d3ff43c",
+            "ts": "2026-10-07T20:39:42.443800"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_7d05abb538033c5b",
+        "sessionId": "ses_59aa18961a337b2d",
         "queueRevision": 2
       }
     ],
@@ -211,8 +211,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.1265216,
-      "deliveredAt": 1791375942.1265216
+      "receiptAt": 1791376782.4438093,
+      "deliveredAt": 1791376782.4438093
     }
   },
   {
@@ -260,7 +260,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "284117bac131403fa3ee31d46c4da39b"
+        "requestId": "93d9cf08c43a45d7aa0160f42452a19f"
       }
     ],
     "queue": [
@@ -299,12 +299,12 @@
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_681e6491d927ec4d",
+        "sessionId": "ses_e1a96a9b33f6f4ee",
         "queueRevision": 1
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_681e6491d927ec4d",
+        "sessionId": "ses_e1a96a9b33f6f4ee",
         "queueRevision": 2
       }
     ],
@@ -1108,7 +1108,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "8f6fba807432498ba1f00c17c2df73d5"
+        "requestId": "dd20028080a5478d9bd31dd07e7c3e3d"
       }
     ],
     "queue": [],
@@ -1173,19 +1173,19 @@
             "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
           }
         ],
-        "messageId": "pan:13f72801144b426781676d09ddecd5c5",
-        "ts": "2026-10-07T20:25:42.169446"
+        "messageId": "pan:69a1b2e1ebf24bf5b4aa49998b0ffb60",
+        "ts": "2026-10-07T20:39:42.489173"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_09d2b4c8516886aa",
+        "sessionId": "ses_6557d61bc904c15d",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_09d2b4c8516886aa",
+        "sessionId": "ses_6557d61bc904c15d",
         "queueItemIds": [
           "q_running-pending-restart"
         ],
@@ -1231,8 +1231,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.1694565,
-                "deliveredAt": 1791375942.1694565
+                "receiptAt": 1791376782.4891837,
+                "deliveredAt": 1791376782.4891837
               }
             ],
             "source": "agent",
@@ -1254,14 +1254,14 @@
                 "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
               }
             ],
-            "messageId": "pan:13f72801144b426781676d09ddecd5c5",
-            "ts": "2026-10-07T20:25:42.169446"
+            "messageId": "pan:69a1b2e1ebf24bf5b4aa49998b0ffb60",
+            "ts": "2026-10-07T20:39:42.489173"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_09d2b4c8516886aa",
+        "sessionId": "ses_6557d61bc904c15d",
         "queueRevision": 2
       }
     ],
@@ -1296,8 +1296,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.1694565,
-      "deliveredAt": 1791375942.1694565
+      "receiptAt": 1791376782.4891837,
+      "deliveredAt": 1791376782.4891837
     }
   },
   {
@@ -1528,7 +1528,7 @@
       {
         "type": "steer",
         "text": "@@@@by agent : ses_1234567890abcdef | unknown\nstatus: null\ntype: report\nresult:\n{'full': '报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告'}\nsessionId: null\ntaskId: T-identity\nworkerId: null",
-        "requestId": "0b3f4328e82f48d0a2a3a6e9ebb98a3e"
+        "requestId": "c2bd266a998b4080bda416feb299fed8"
       }
     ],
     "queue": [],
@@ -1586,19 +1586,19 @@
           }
         },
         "parts": [],
-        "messageId": "pan:6044f8799c064ad099ae1b15c5ef9cdd",
-        "ts": "2026-10-07T20:25:42.182646"
+        "messageId": "pan:11ba9a3e0d984cf1b84c64cae7a7303f",
+        "ts": "2026-10-07T20:39:42.504300"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_065fee1231592101",
+        "sessionId": "ses_ebbb7285f7cc3a80",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_065fee1231592101",
+        "sessionId": "ses_ebbb7285f7cc3a80",
         "queueItemIds": [
           "q_report"
         ],
@@ -1642,8 +1642,8 @@
                   "full": "报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告"
                 },
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.1826549,
-                "deliveredAt": 1791375942.1826549
+                "receiptAt": 1791376782.504308,
+                "deliveredAt": 1791376782.504308
               }
             ],
             "source": "report",
@@ -1660,14 +1660,14 @@
               }
             },
             "parts": [],
-            "messageId": "pan:6044f8799c064ad099ae1b15c5ef9cdd",
-            "ts": "2026-10-07T20:25:42.182646"
+            "messageId": "pan:11ba9a3e0d984cf1b84c64cae7a7303f",
+            "ts": "2026-10-07T20:39:42.504300"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_065fee1231592101",
+        "sessionId": "ses_ebbb7285f7cc3a80",
         "queueRevision": 2
       }
     ],
@@ -1700,8 +1700,8 @@
         "full": "报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告"
       },
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.1826549,
-      "deliveredAt": 1791375942.1826549
+      "receiptAt": 1791376782.504308,
+      "deliveredAt": 1791376782.504308
     }
   },
   {
@@ -1718,7 +1718,7 @@
       {
         "type": "steer",
         "text": "////by pan system\nstatus: null\nnoticeKind: background_job_terminal\njobId: null\ntargetSessionId: null\ntargetSessionIds: []\neventId: event-system\nresult:\nsystem",
-        "requestId": "4d06f46ba4144b76b94ea53cc0595a27"
+        "requestId": "c74a5d3aeae54e00b35864c8d3a3152b"
       }
     ],
     "queue": [],
@@ -1776,19 +1776,19 @@
         },
         "noticeKind": "background_job_terminal",
         "parts": [],
-        "messageId": "pan:a2435111c14f4342a738e774e03f60be",
-        "ts": "2026-10-07T20:25:42.190156"
+        "messageId": "pan:65b0006192c648d8a61a91a7d8a7f2b4",
+        "ts": "2026-10-07T20:39:42.511745"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_fefd61ecd2470750",
+        "sessionId": "ses_bab8b11e8a54492e",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_fefd61ecd2470750",
+        "sessionId": "ses_bab8b11e8a54492e",
         "queueItemIds": [
           "q_system"
         ],
@@ -1831,8 +1831,8 @@
                 "noticeKind": "background_job_terminal",
                 "result": "system",
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.1901636,
-                "deliveredAt": 1791375942.1901636
+                "receiptAt": 1791376782.5117517,
+                "deliveredAt": 1791376782.5117517
               }
             ],
             "source": "automation",
@@ -1850,14 +1850,14 @@
             },
             "noticeKind": "background_job_terminal",
             "parts": [],
-            "messageId": "pan:a2435111c14f4342a738e774e03f60be",
-            "ts": "2026-10-07T20:25:42.190156"
+            "messageId": "pan:65b0006192c648d8a61a91a7d8a7f2b4",
+            "ts": "2026-10-07T20:39:42.511745"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_fefd61ecd2470750",
+        "sessionId": "ses_bab8b11e8a54492e",
         "queueRevision": 2
       }
     ],
@@ -1889,8 +1889,8 @@
       "noticeKind": "background_job_terminal",
       "result": "system",
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.1901636,
-      "deliveredAt": 1791375942.1901636
+      "receiptAt": 1791376782.5117517,
+      "deliveredAt": 1791376782.5117517
     }
   },
   {
@@ -1907,7 +1907,7 @@
       {
         "type": "steer",
         "text": "@@@@by qq : group:1 | fixture\ntargetType: null\ntargetId: null\nnickname: fixture\nmessage:\noriginal body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文\ntime: null",
-        "requestId": "b51ff5b0a6914a0eb4bf94c664a2fe46"
+        "requestId": "952fef9c675f4f82b249a0ee24b7163d"
       }
     ],
     "queue": [],
@@ -1964,19 +1964,19 @@
           }
         },
         "parts": [],
-        "messageId": "pan:756ce1ee27e6448a95a28ed76d88f26e",
-        "ts": "2026-10-07T20:25:42.197207"
+        "messageId": "pan:dfc76c45d0fc45eb9cbb37ad284e16b3",
+        "ts": "2026-10-07T20:39:42.519749"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_0aebf3e08858511c",
+        "sessionId": "ses_5c57a6fa9483522f",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_0aebf3e08858511c",
+        "sessionId": "ses_5c57a6fa9483522f",
         "queueItemIds": [
           "q_channel"
         ],
@@ -2019,8 +2019,8 @@
                 "channelTarget": "group:1",
                 "nickname": "fixture",
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.197215,
-                "deliveredAt": 1791375942.197215
+                "receiptAt": 1791376782.5197568,
+                "deliveredAt": 1791376782.5197568
               }
             ],
             "source": "qq",
@@ -2037,14 +2037,14 @@
               }
             },
             "parts": [],
-            "messageId": "pan:756ce1ee27e6448a95a28ed76d88f26e",
-            "ts": "2026-10-07T20:25:42.197207"
+            "messageId": "pan:dfc76c45d0fc45eb9cbb37ad284e16b3",
+            "ts": "2026-10-07T20:39:42.519749"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_0aebf3e08858511c",
+        "sessionId": "ses_5c57a6fa9483522f",
         "queueRevision": 2
       }
     ],
@@ -2076,8 +2076,8 @@
       "channelTarget": "group:1",
       "nickname": "fixture",
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.197215,
-      "deliveredAt": 1791375942.197215
+      "receiptAt": 1791376782.5197568,
+      "deliveredAt": 1791376782.5197568
     }
   },
   {
@@ -2201,7 +2201,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文@\"D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\experiments\\attachment.txt\"",
-        "requestId": "641ca35edd304e6ba0216cf20ecc000e"
+        "requestId": "ea222710efc54f31a7d5f778ea68e8ac"
       }
     ],
     "queue": [],
@@ -2277,19 +2277,19 @@
             "__serverPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\experiments\\attachment.txt"
           }
         ],
-        "messageId": "pan:03de274795d64adb99f0216c0117dbde",
-        "ts": "2026-10-07T20:25:42.208813"
+        "messageId": "pan:ce72d36634d84f41a325bc11bc03026b",
+        "ts": "2026-10-07T20:39:42.531789"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_c72c807f8b890197",
+        "sessionId": "ses_8e1f55decbb5dfca",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_c72c807f8b890197",
+        "sessionId": "ses_8e1f55decbb5dfca",
         "queueItemIds": [
           "q_attachment"
         ],
@@ -2340,8 +2340,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.208821,
-                "deliveredAt": 1791375942.208821
+                "receiptAt": 1791376782.5317981,
+                "deliveredAt": 1791376782.5317981
               }
             ],
             "source": "agent",
@@ -2368,14 +2368,14 @@
                 "displayName": "attachment.txt"
               }
             ],
-            "messageId": "pan:03de274795d64adb99f0216c0117dbde",
-            "ts": "2026-10-07T20:25:42.208813"
+            "messageId": "pan:ce72d36634d84f41a325bc11bc03026b",
+            "ts": "2026-10-07T20:39:42.531789"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_c72c807f8b890197",
+        "sessionId": "ses_8e1f55decbb5dfca",
         "queueRevision": 2
       }
     ],
@@ -2416,8 +2416,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.208821,
-      "deliveredAt": 1791375942.208821
+      "receiptAt": 1791376782.5317981,
+      "deliveredAt": 1791376782.5317981
     }
   },
   {
@@ -2777,7 +2777,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "bd3d219789aa43e6a1cf925c60ef7a68"
+        "requestId": "b628016d79db4e2e871085baa907deb9"
       }
     ],
     "queue": [],
@@ -2842,19 +2842,19 @@
             "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
           }
         ],
-        "messageId": "pan:56aaaacc18204048b276337f392adac2",
-        "ts": "2026-10-07T20:25:42.242934"
+        "messageId": "pan:8ec6984dff0a458b855e394a381c3f8c",
+        "ts": "2026-10-07T20:39:42.564860"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_c2305d086ae53ff9",
+        "sessionId": "ses_467cdcf7112269d7",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_c2305d086ae53ff9",
+        "sessionId": "ses_467cdcf7112269d7",
         "queueItemIds": [
           "q_pending"
         ],
@@ -2900,8 +2900,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375942.242946,
-                "deliveredAt": 1791375942.242946
+                "receiptAt": 1791376782.5648692,
+                "deliveredAt": 1791376782.5648692
               }
             ],
             "source": "agent",
@@ -2923,14 +2923,14 @@
                 "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
               }
             ],
-            "messageId": "pan:56aaaacc18204048b276337f392adac2",
-            "ts": "2026-10-07T20:25:42.242934"
+            "messageId": "pan:8ec6984dff0a458b855e394a381c3f8c",
+            "ts": "2026-10-07T20:39:42.564860"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_c2305d086ae53ff9",
+        "sessionId": "ses_467cdcf7112269d7",
         "queueRevision": 2
       }
     ],
@@ -3072,8 +3072,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375942.242946,
-      "deliveredAt": 1791375942.242946
+      "receiptAt": 1791376782.5648692,
+      "deliveredAt": 1791376782.5648692
     }
   }
 ]

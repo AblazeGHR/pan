@@ -1,0 +1,82 @@
+OSError exception in shielded future
+future: <Future finished exception=OSError('fixture writer failed before commit')>
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 139, in run
+    value = operation()
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2506, in <lambda>
+    ticket, lambda: context.run(
+                    ~~~~~~~~~~~^
+        _run_persistence_ticket, state, ticket, enqueued_at, operation,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2306, in _run_persistence_ticket
+    return operation()
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2544, in <lambda>
+    return await _persist_async_outcome(s.id, lambda: _save_body(s, force_full=force_full), outcome)
+                                                      ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 92, in gated_save
+    raise OSError('fixture writer failed before commit')
+OSError: fixture writer failed before commit
+Queue Steer broadcast failed; durable receipt remains authoritative
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 7067, in _queue_steer_bcast
+    await _bcast(event)
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 541, in _bcast
+    await r
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 98, in bcast
+    if name=='broadcast-failure': raise RuntimeError('fixture broadcast failure')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: fixture broadcast failure
+Queue Steer broadcast failed; durable receipt remains authoritative
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 7067, in _queue_steer_bcast
+    await _bcast(event)
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 541, in _bcast
+    await r
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 98, in bcast
+    if name=='broadcast-failure': raise RuntimeError('fixture broadcast failure')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: fixture broadcast failure
+Queue Steer broadcast failed; durable receipt remains authoritative
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 7067, in _queue_steer_bcast
+    await _bcast(event)
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 541, in _bcast
+    await r
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 98, in bcast
+    if name=='broadcast-failure': raise RuntimeError('fixture broadcast failure')
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: fixture broadcast failure
+[Session ses_5957a6ae2e93d06c] delayed restart failed
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 6391, in _respawn_worker
+    error = await _kill_worker_unlocked(w.worker_id, preserve_restart_intent=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\worker.py", line 6106, in _kill_worker_unlocked
+    await _kill_process_tree(w)
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 139, in os_boundary
+    raise RuntimeError('fixture OS boundary reached')
+RuntimeError: fixture OS boundary reached
+OSError exception in shielded future
+future: <Future finished exception=OSError('fixture first receipt writer failed')>
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 139, in run
+    value = operation()
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2506, in <lambda>
+    ticket, lambda: context.run(
+                    ~~~~~~~~~~~^
+        _run_persistence_ticket, state, ticket, enqueued_at, operation,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2306, in _run_persistence_ticket
+    return operation()
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\packages\core\session.py", line 2544, in <lambda>
+    return await _persist_async_outcome(s.id, lambda: _save_body(s, force_full=force_full), outcome)
+                                                      ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\queue-optimistic-steer-layout-20261007\audit\queue-optimistic-steer-layout\rework.py", line 199, in gated
+    if fails:raise OSError('fixture first receipt writer failed')
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: fixture first receipt writer failed
+[{"input": "bridge-missing-response", "returned": true, "active": false}, {"input": "cancel-after-marker", "exception": "CancelledError", "controls": 0}, {"input": "cancel-before-marker-commit", "exception": "CancelledError", "controls": 0}, {"input": "cancel-after-write", "exception": "CancelledError", "controls": 1, "lifecycleEntered": true}, {"input": "broadcast-failure", "controls": 1, "lifecycleEntered": true}, {"input": "settle-save-failure", "controls": 1, "lifecycleEntered": true}, {"input": "replacement-before-receipt", "controls": 1, "lifecycleEntered": true}, {"input": "item-replaced-before-receipt", "controls": 1, "lifecycleEntered": true}, {"input": "write-error-unknown", "controls": 1, "lifecycleEntered": true}, {"input": "restart-boundary", "controls": 1, "lifecycleEntered": true, "osBoundaryEntered": [{"workerId": "w-restart-boundary", "generation": 1, "status": "restarting"}]}, {"input": "kill-boundary", "controls": 1, "lifecycleEntered": true, "osBoundaryEntered": [{"workerId": "w-kill-boundary", "generation": 0, "status": "running"}]}, {"input": "terminal-delayed-boundary", "controls": 1, "lifecycleEntered": true, "osBoundaryEntered": [{"workerId": "w-terminal-delayed-boundary", "generation": 0, "status": "restarting"}]}, {"input": "missing-receipt-late", "controls": 1, "lifecycleEntered": true, "unknownReturn": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"}, {"input": "fifo-cancel-writer-commit", "acked": true}, {"input": "fifo-cancel-writer-failure", "acked": true}]

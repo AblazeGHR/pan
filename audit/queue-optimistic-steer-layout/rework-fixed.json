@@ -1,0 +1,2653 @@
+[
+  {
+    "input": "bridge-missing-response",
+    "returned": true,
+    "active": false,
+    "events": [
+      {
+        "type": "result",
+        "is_error": false,
+        "cancelled": false,
+        "turn_status": "completed",
+        "result": "",
+        "usage": null
+      }
+    ],
+    "sent": [
+      {
+        "id": 1,
+        "method": "turn/start"
+      },
+      {
+        "id": 2,
+        "method": "turn/steer"
+      }
+    ],
+    "afterLateAndNext": [
+      {
+        "type": "result",
+        "is_error": false,
+        "cancelled": false,
+        "turn_status": "completed",
+        "result": "",
+        "usage": null
+      },
+      {
+        "type": "pan.steer_receipt",
+        "requestId": "lost",
+        "ok": true
+      },
+      {
+        "type": "result",
+        "is_error": false,
+        "cancelled": false,
+        "turn_status": "completed",
+        "result": "",
+        "usage": null
+      }
+    ]
+  },
+  {
+    "input": "cancel-after-marker",
+    "exception": "CancelledError",
+    "controls": 0,
+    "queue": [
+      {
+        "id": "q-cancel-after-marker",
+        "type": "task",
+        "text": "full cancel-after-marker",
+        "source": "agent",
+        "revision": 1,
+        "deliveryState": "queued",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "queueItemId": "q-cancel-after-marker"
+      }
+    ],
+    "history": [],
+    "disk": {
+      "id": "ses_4b82bfb37bd9d968",
+      "name": "cancel-after-marker",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [],
+      "history_epoch": "5c04c20e36114117bae073d1db5c2ff0",
+      "history_revision": 0,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:38.604870",
+      "updated_at": "2026-10-07T20:45:38.613140",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [
+        {
+          "id": "q-cancel-after-marker",
+          "type": "task",
+          "text": "full cancel-after-marker",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-after-marker"
+        }
+      ],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-cancel-after-marker": {
+          "id": "q-cancel-after-marker",
+          "type": "task",
+          "text": "full cancel-after-marker",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-after-marker"
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 0,
+        "last_user_preview": "",
+        "last_assistant_preview": "",
+        "last_display_preview": "",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "",
+        "history_total": 0,
+        "updated_at": ""
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "cancel-before-marker-commit",
+    "exception": "CancelledError",
+    "controls": 0,
+    "queue": [
+      {
+        "id": "q-cancel-before-marker-commit",
+        "type": "task",
+        "text": "full cancel-before-marker-commit",
+        "source": "agent",
+        "revision": 1,
+        "deliveryState": "queued",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "queueItemId": "q-cancel-before-marker-commit"
+      }
+    ],
+    "history": [],
+    "disk": {
+      "id": "ses_e71201e8abeb1875",
+      "name": "cancel-before-marker-commit",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [],
+      "history_epoch": "18a5c313fe2442cdbdc85d790d1ff1cd",
+      "history_revision": 0,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:38.686222",
+      "updated_at": "2026-10-07T20:45:38.692486",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [
+        {
+          "id": "q-cancel-before-marker-commit",
+          "type": "task",
+          "text": "full cancel-before-marker-commit",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-before-marker-commit"
+        }
+      ],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-cancel-before-marker-commit": {
+          "id": "q-cancel-before-marker-commit",
+          "type": "task",
+          "text": "full cancel-before-marker-commit",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-before-marker-commit"
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 0,
+        "last_user_preview": "",
+        "last_assistant_preview": "",
+        "last_display_preview": "",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "",
+        "history_total": 0,
+        "updated_at": ""
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": false,
+        "cancelled": false,
+        "error": "OSError"
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "cancel-after-write",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-cancel-after-write",
+          "type": "task",
+          "text": "full cancel-after-write",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-after-write",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "57e61bdbacf84345a9b3cf9d59a1a133",
+          "queueSteerWorkerId": "w-cancel-after-write",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "exception": "CancelledError",
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full cancel-after-write",
+        "queueItemIds": [
+          "q-cancel-after-write"
+        ],
+        "delivered_keys": [
+          "task:q-cancel-after-write"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-cancel-after-write",
+            "type": "task",
+            "text": "full cancel-after-write",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-cancel-after-write"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:051b66cfdfc04112a4bc13b69ace2954",
+        "ts": "2026-10-07T20:45:38.809831"
+      }
+    ],
+    "disk": {
+      "id": "ses_632bc416248cc77a",
+      "name": "cancel-after-write",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full cancel-after-write",
+          "queueItemIds": [
+            "q-cancel-after-write"
+          ],
+          "delivered_keys": [
+            "task:q-cancel-after-write"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-cancel-after-write",
+              "type": "task",
+              "text": "full cancel-after-write",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-cancel-after-write"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:051b66cfdfc04112a4bc13b69ace2954",
+          "ts": "2026-10-07T20:45:38.809831"
+        }
+      ],
+      "history_epoch": "67023661eecc4e60ad39d6e1e0a934c0",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:38.763170",
+      "updated_at": "2026-10-07T20:45:38.810203",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-cancel-after-write": {
+          "id": "q-cancel-after-write",
+          "type": "task",
+          "text": "full cancel-after-write",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-cancel-after-write",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377138.8098457,
+          "deliveredAt": 1791377138.8098457
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full cancel-after-write",
+        "last_assistant_preview": "",
+        "last_display_preview": "full cancel-after-write",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:38.809842"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "broadcast-failure",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-broadcast-failure",
+          "type": "task",
+          "text": "full broadcast-failure",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-broadcast-failure",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "2d1c9d9fa08e437195c77e89a69d18e3",
+          "queueSteerWorkerId": "w-broadcast-failure",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full broadcast-failure",
+        "queueItemIds": [
+          "q-broadcast-failure"
+        ],
+        "delivered_keys": [
+          "task:q-broadcast-failure"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-broadcast-failure",
+            "type": "task",
+            "text": "full broadcast-failure",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-broadcast-failure"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:06bc5b3c7f0c493798d92889ebe8455f",
+        "ts": "2026-10-07T20:45:38.920201"
+      }
+    ],
+    "disk": {
+      "id": "ses_8eed491a4da9b156",
+      "name": "broadcast-failure",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full broadcast-failure",
+          "queueItemIds": [
+            "q-broadcast-failure"
+          ],
+          "delivered_keys": [
+            "task:q-broadcast-failure"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-broadcast-failure",
+              "type": "task",
+              "text": "full broadcast-failure",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-broadcast-failure"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:06bc5b3c7f0c493798d92889ebe8455f",
+          "ts": "2026-10-07T20:45:38.920201"
+        }
+      ],
+      "history_epoch": "5f4360ebeb10461aaf0d031c50c2deea",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:38.873088",
+      "updated_at": "2026-10-07T20:45:38.920663",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-broadcast-failure": {
+          "id": "q-broadcast-failure",
+          "type": "task",
+          "text": "full broadcast-failure",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-broadcast-failure",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377138.9202194,
+          "deliveredAt": 1791377138.9202194
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full broadcast-failure",
+        "last_assistant_preview": "",
+        "last_display_preview": "full broadcast-failure",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:38.920215"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "settle-save-failure",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-settle-save-failure",
+          "type": "task",
+          "text": "full settle-save-failure",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-settle-save-failure",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "434922e0ab53497882e22ddfbbbda323",
+          "queueSteerWorkerId": "w-settle-save-failure",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full settle-save-failure",
+        "queueItemIds": [
+          "q-settle-save-failure"
+        ],
+        "delivered_keys": [
+          "task:q-settle-save-failure"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-settle-save-failure",
+            "type": "task",
+            "text": "full settle-save-failure",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-settle-save-failure"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:b684bb829bae4ea38812eee1d5f488bc",
+        "ts": "2026-10-07T20:45:39.043673"
+      }
+    ],
+    "disk": {
+      "id": "ses_47aa7eb759d5019d",
+      "name": "settle-save-failure",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full settle-save-failure",
+          "queueItemIds": [
+            "q-settle-save-failure"
+          ],
+          "delivered_keys": [
+            "task:q-settle-save-failure"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-settle-save-failure",
+              "type": "task",
+              "text": "full settle-save-failure",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-settle-save-failure"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:b684bb829bae4ea38812eee1d5f488bc",
+          "ts": "2026-10-07T20:45:39.043673"
+        }
+      ],
+      "history_epoch": "f8cf77c07ad54809b2c25563e58633ed",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:38.998037",
+      "updated_at": "2026-10-07T20:45:39.044191",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-settle-save-failure": {
+          "id": "q-settle-save-failure",
+          "type": "task",
+          "text": "full settle-save-failure",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-settle-save-failure",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.0436902,
+          "deliveredAt": 1791377139.0436902
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full settle-save-failure",
+        "last_assistant_preview": "",
+        "last_display_preview": "full settle-save-failure",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:39.043687"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": false,
+        "cancelled": false,
+        "error": "OSError"
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "replacement-before-receipt",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-replacement-before-receipt",
+          "type": "task",
+          "text": "full replacement-before-receipt",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-replacement-before-receipt",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "294cc4c289fc4344a646818514083bea",
+          "queueSteerWorkerId": "w-replacement-before-receipt",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "replacementGeneration": 1,
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full replacement-before-receipt",
+        "queueItemIds": [
+          "q-replacement-before-receipt"
+        ],
+        "delivered_keys": [
+          "task:q-replacement-before-receipt"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-replacement-before-receipt",
+            "type": "task",
+            "text": "full replacement-before-receipt",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-replacement-before-receipt"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:ee580b0bc63e49d185c41c4a8b369c06",
+        "ts": "2026-10-07T20:45:39.167934"
+      }
+    ],
+    "disk": {
+      "id": "ses_2b2e47b831fb7700",
+      "name": "replacement-before-receipt",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full replacement-before-receipt",
+          "queueItemIds": [
+            "q-replacement-before-receipt"
+          ],
+          "delivered_keys": [
+            "task:q-replacement-before-receipt"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-replacement-before-receipt",
+              "type": "task",
+              "text": "full replacement-before-receipt",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-replacement-before-receipt"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:ee580b0bc63e49d185c41c4a8b369c06",
+          "ts": "2026-10-07T20:45:39.167934"
+        }
+      ],
+      "history_epoch": "f219af50d0174b749f2db1dd6b99ac5d",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.121323",
+      "updated_at": "2026-10-07T20:45:39.168266",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-replacement-before-receipt": {
+          "id": "q-replacement-before-receipt",
+          "type": "task",
+          "text": "full replacement-before-receipt",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-replacement-before-receipt",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.1679568,
+          "deliveredAt": 1791377139.1679568
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full replacement-before-receipt",
+        "last_assistant_preview": "",
+        "last_display_preview": "full replacement-before-receipt",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:39.167954"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": false,
+      "generation": 1,
+      "status": "idle"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "item-replaced-before-receipt",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-item-replaced-before-receipt",
+          "type": "task",
+          "text": "full item-replaced-before-receipt",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-item-replaced-before-receipt",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "199377e328c24f9596ddbbc28bf8a9de",
+          "queueSteerWorkerId": "w-item-replaced-before-receipt",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "return": null,
+    "controls": 1,
+    "queue": [
+      {
+        "id": "q-item-replaced-before-receipt",
+        "type": "task",
+        "text": "new identity body",
+        "revision": 2,
+        "source": "user",
+        "deliveryState": "queued"
+      }
+    ],
+    "history": [],
+    "disk": {
+      "id": "ses_8d564f541c7d6e3b",
+      "name": "item-replaced-before-receipt",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [],
+      "history_epoch": "3e8332922e484b85b294baeacdefb3cb",
+      "history_revision": 0,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.230698",
+      "updated_at": "2026-10-07T20:45:39.276967",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [
+        {
+          "id": "q-item-replaced-before-receipt",
+          "type": "task",
+          "text": "new identity body",
+          "revision": 2,
+          "source": "user",
+          "deliveryState": "queued"
+        }
+      ],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-item-replaced-before-receipt": {
+          "id": "q-item-replaced-before-receipt",
+          "type": "task",
+          "text": "full item-replaced-before-receipt",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-item-replaced-before-receipt",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "199377e328c24f9596ddbbc28bf8a9de",
+          "queueSteerWorkerId": "w-item-replaced-before-receipt",
+          "queueSteerGeneration": 0
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 1,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 0,
+        "last_user_preview": "",
+        "last_assistant_preview": "",
+        "last_display_preview": "",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "",
+        "history_total": 0,
+        "updated_at": ""
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "write-error-unknown",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-write-error-unknown",
+          "type": "task",
+          "text": "full write-error-unknown",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-write-error-unknown",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "f7716c37cfb1453bbe97b853e147d07f",
+          "queueSteerWorkerId": "w-write-error-unknown",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full write-error-unknown",
+        "queueItemIds": [
+          "q-write-error-unknown"
+        ],
+        "delivered_keys": [
+          "task:q-write-error-unknown"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-write-error-unknown",
+            "type": "task",
+            "text": "full write-error-unknown",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-write-error-unknown"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:f5256901436143f8a1d4df31f95559e7",
+        "ts": "2026-10-07T20:45:39.386695"
+      }
+    ],
+    "disk": {
+      "id": "ses_af771c75300e82ed",
+      "name": "write-error-unknown",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full write-error-unknown",
+          "queueItemIds": [
+            "q-write-error-unknown"
+          ],
+          "delivered_keys": [
+            "task:q-write-error-unknown"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-write-error-unknown",
+              "type": "task",
+              "text": "full write-error-unknown",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-write-error-unknown"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:f5256901436143f8a1d4df31f95559e7",
+          "ts": "2026-10-07T20:45:39.386695"
+        }
+      ],
+      "history_epoch": "3ceaa33245824da08ad077f5c9c4562f",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.340033",
+      "updated_at": "2026-10-07T20:45:39.387014",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-write-error-unknown": {
+          "id": "q-write-error-unknown",
+          "type": "task",
+          "text": "full write-error-unknown",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-write-error-unknown",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.3867066,
+          "deliveredAt": 1791377139.3867066
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full write-error-unknown",
+        "last_assistant_preview": "",
+        "last_display_preview": "full write-error-unknown",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:39.386704"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "restart-boundary",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-restart-boundary",
+          "type": "task",
+          "text": "full restart-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-restart-boundary",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "d2948a53f09c46c29176b4da26a0b26d",
+          "queueSteerWorkerId": "w-restart-boundary",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "controlBoundaryReturn": "fixture OS boundary reached",
+    "osBoundaryEntered": [
+      {
+        "workerId": "w-restart-boundary",
+        "generation": 1,
+        "status": "restarting"
+      }
+    ],
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full restart-boundary",
+        "queueItemIds": [
+          "q-restart-boundary"
+        ],
+        "delivered_keys": [
+          "task:q-restart-boundary"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-restart-boundary",
+            "type": "task",
+            "text": "full restart-boundary",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-restart-boundary"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:b5b631f80b57487caf4e03a292cee29f",
+        "ts": "2026-10-07T20:45:39.495874"
+      }
+    ],
+    "disk": {
+      "id": "ses_0ac2c6a492f1f9da",
+      "name": "restart-boundary",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full restart-boundary",
+          "queueItemIds": [
+            "q-restart-boundary"
+          ],
+          "delivered_keys": [
+            "task:q-restart-boundary"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-restart-boundary",
+              "type": "task",
+              "text": "full restart-boundary",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-restart-boundary"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:b5b631f80b57487caf4e03a292cee29f",
+          "ts": "2026-10-07T20:45:39.495874"
+        }
+      ],
+      "history_epoch": "29f0c3856eae451bbb5aac564886f0cf",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.449481",
+      "updated_at": "2026-10-07T20:45:39.496294",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-restart-boundary": {
+          "id": "q-restart-boundary",
+          "type": "task",
+          "text": "full restart-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-restart-boundary",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.495887,
+          "deliveredAt": 1791377139.495887
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full restart-boundary",
+        "last_assistant_preview": "",
+        "last_display_preview": "full restart-boundary",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:39.495884"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 1,
+      "status": "restarting"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "kill-boundary",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-kill-boundary",
+          "type": "task",
+          "text": "full kill-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-kill-boundary",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "f520a62b86c64281966bf58f1a78a4bb",
+          "queueSteerWorkerId": "w-kill-boundary",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "controlBoundaryReturn": "fixture OS boundary reached",
+    "osBoundaryEntered": [
+      {
+        "workerId": "w-kill-boundary",
+        "generation": 0,
+        "status": "running"
+      }
+    ],
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full kill-boundary",
+        "queueItemIds": [
+          "q-kill-boundary"
+        ],
+        "delivered_keys": [
+          "task:q-kill-boundary"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-kill-boundary",
+            "type": "task",
+            "text": "full kill-boundary",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-kill-boundary"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:b40b3335244c4dd78d9ee4d958fb2f28",
+        "ts": "2026-10-07T20:45:39.604759"
+      }
+    ],
+    "disk": {
+      "id": "ses_e6b01cb09840a4cc",
+      "name": "kill-boundary",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full kill-boundary",
+          "queueItemIds": [
+            "q-kill-boundary"
+          ],
+          "delivered_keys": [
+            "task:q-kill-boundary"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-kill-boundary",
+              "type": "task",
+              "text": "full kill-boundary",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-kill-boundary"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:b40b3335244c4dd78d9ee4d958fb2f28",
+          "ts": "2026-10-07T20:45:39.604759"
+        }
+      ],
+      "history_epoch": "4654afe5e43843ceb4e9551d212db81b",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.559195",
+      "updated_at": "2026-10-07T20:45:39.605118",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-kill-boundary": {
+          "id": "q-kill-boundary",
+          "type": "task",
+          "text": "full kill-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-kill-boundary",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.604771,
+          "deliveredAt": 1791377139.604771
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full kill-boundary",
+        "last_assistant_preview": "",
+        "last_display_preview": "full kill-boundary",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:45:39.604768"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "terminal-delayed-boundary",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-terminal-delayed-boundary",
+          "type": "task",
+          "text": "full terminal-delayed-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-terminal-delayed-boundary",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "e3c2ef1e74224a178bd417da80e25988",
+          "queueSteerWorkerId": "w-terminal-delayed-boundary",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "delayedRestart": {
+      "sessionId": "ses_5957a6ae2e93d06c",
+      "workerId": "w-terminal-delayed-boundary",
+      "generation": 0,
+      "action": "restart",
+      "status": "failed",
+      "error": "fixture OS boundary reached",
+      "revision": 3
+    },
+    "osBoundaryEntered": [
+      {
+        "workerId": "w-terminal-delayed-boundary",
+        "generation": 0,
+        "status": "restarting"
+      }
+    ],
+    "return": null,
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "assistant",
+        "content": "normal terminal",
+        "messageId": "pan:33198beffbba4801bdfd3eb3f21d7196",
+        "ts": "2026-10-07T20:45:39.714046"
+      },
+      {
+        "role": "user",
+        "content": "full terminal-delayed-boundary",
+        "queueItemIds": [
+          "q-terminal-delayed-boundary"
+        ],
+        "delivered_keys": [
+          "task:q-terminal-delayed-boundary"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-terminal-delayed-boundary",
+            "type": "task",
+            "text": "full terminal-delayed-boundary",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-terminal-delayed-boundary"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:542a13c7a29f45d08642e689eb8676da",
+        "ts": "2026-10-07T20:45:39.760499"
+      }
+    ],
+    "disk": {
+      "id": "ses_5957a6ae2e93d06c",
+      "name": "terminal-delayed-boundary",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "normal terminal",
+          "messageId": "pan:33198beffbba4801bdfd3eb3f21d7196",
+          "ts": "2026-10-07T20:45:39.714046"
+        },
+        {
+          "role": "user",
+          "content": "full terminal-delayed-boundary",
+          "queueItemIds": [
+            "q-terminal-delayed-boundary"
+          ],
+          "delivered_keys": [
+            "task:q-terminal-delayed-boundary"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-terminal-delayed-boundary",
+              "type": "task",
+              "text": "full terminal-delayed-boundary",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-terminal-delayed-boundary"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:542a13c7a29f45d08642e689eb8676da",
+          "ts": "2026-10-07T20:45:39.760499"
+        }
+      ],
+      "history_epoch": "0f5f2353316940f49738b81931634648",
+      "history_revision": 2,
+      "last_result": {
+        "status": "done",
+        "result": "normal terminal",
+        "cli_session_id": null,
+        "timestamp": "2026-10-07T20:45:39.714029",
+        "taskSeq": null,
+        "executionSeq": null,
+        "taskId": null,
+        "taskIdempotent": false,
+        "workerId": "w-terminal-delayed-boundary",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "worker:w-terminal-delayed-boundary:generation:0:5c5cbeb5bd6f4eeebd9d777012f05728",
+        "historyEpoch": "0f5f2353316940f49738b81931634648",
+        "historyRevision": 1
+      },
+      "result_cursor": 1,
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "worker:w-terminal-delayed-boundary:generation:0:5c5cbeb5bd6f4eeebd9d777012f05728",
+          "status": "done",
+          "result": "normal terminal",
+          "taskSeq": null,
+          "executionSeq": null,
+          "taskId": null,
+          "taskIdempotent": false,
+          "workerId": "w-terminal-delayed-boundary",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-10-07T20:45:39.714021",
+          "historyEpoch": "0f5f2353316940f49738b81931634648",
+          "historyRevision": 1
+        }
+      ],
+      "last_legal_worker_state": "idle",
+      "created_at": "2026-10-07T20:45:39.667805",
+      "updated_at": "2026-10-07T20:45:39.761008",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-terminal-delayed-boundary": {
+          "id": "q-terminal-delayed-boundary",
+          "type": "task",
+          "text": "full terminal-delayed-boundary",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-terminal-delayed-boundary",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377139.760512,
+          "deliveredAt": 1791377139.760512
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 3,
+        "last_user_preview": "full terminal-delayed-boundary",
+        "last_assistant_preview": "normal terminal",
+        "last_display_preview": "full terminal-delayed-boundary",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 2,
+        "updated_at": "2026-10-07T20:45:39.760509"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "error"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "missing-receipt-late",
+    "lifecycleEntered": true,
+    "beforeReceipt": {
+      "history": [],
+      "queue": [
+        {
+          "id": "q-missing-receipt-late",
+          "type": "task",
+          "text": "full missing-receipt-late",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-missing-receipt-late",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "334ec53063834a45ab6657e1c85c1123",
+          "queueSteerWorkerId": "w-missing-receipt-late",
+          "queueSteerGeneration": 0
+        }
+      ]
+    },
+    "unknownReturn": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry",
+    "unknownDisk": {
+      "id": "ses_0cd988bd2e9333e4",
+      "name": "missing-receipt-late",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [],
+      "history_epoch": "73cc23a26c9f415ba1c7cb7d3f4e98bd",
+      "history_revision": 0,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.838395",
+      "updated_at": "2026-10-07T20:46:09.859862",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [
+        {
+          "id": "q-missing-receipt-late",
+          "type": "task",
+          "text": "full missing-receipt-late",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-missing-receipt-late",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "334ec53063834a45ab6657e1c85c1123",
+          "queueSteerWorkerId": "w-missing-receipt-late",
+          "queueSteerGeneration": 0,
+          "lastSteerError": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
+        }
+      ],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-missing-receipt-late": {
+          "id": "q-missing-receipt-late",
+          "type": "task",
+          "text": "full missing-receipt-late",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "queued",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-missing-receipt-late",
+          "queueSteerPending": true,
+          "queueSteerRequestId": "334ec53063834a45ab6657e1c85c1123",
+          "queueSteerWorkerId": "w-missing-receipt-late",
+          "queueSteerGeneration": 0,
+          "lastSteerError": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 2,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 0,
+        "last_user_preview": "",
+        "last_assistant_preview": "",
+        "last_display_preview": "",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "",
+        "history_total": 0,
+        "updated_at": ""
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "return": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry",
+    "controls": 1,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "full missing-receipt-late",
+        "queueItemIds": [
+          "q-missing-receipt-late"
+        ],
+        "delivered_keys": [
+          "task:q-missing-receipt-late"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q-missing-receipt-late",
+            "type": "task",
+            "text": "full missing-receipt-late",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "queued",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "queueItemId": "q-missing-receipt-late",
+            "lastSteerError": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "messageId": "pan:a18342fd1cda4d7d9407f3dd60895f5f",
+        "ts": "2026-10-07T20:46:09.863056"
+      }
+    ],
+    "disk": {
+      "id": "ses_0cd988bd2e9333e4",
+      "name": "missing-receipt-late",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "full missing-receipt-late",
+          "queueItemIds": [
+            "q-missing-receipt-late"
+          ],
+          "delivered_keys": [
+            "task:q-missing-receipt-late"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "q-missing-receipt-late",
+              "type": "task",
+              "text": "full missing-receipt-late",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "queued",
+              "sourceSessionId": "ses_1234567890abcdef",
+              "queueItemId": "q-missing-receipt-late",
+              "lastSteerError": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
+            }
+          ],
+          "source": "agent",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "messageId": "pan:a18342fd1cda4d7d9407f3dd60895f5f",
+          "ts": "2026-10-07T20:46:09.863056"
+        }
+      ],
+      "history_epoch": "73cc23a26c9f415ba1c7cb7d3f4e98bd",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:45:39.838395",
+      "updated_at": "2026-10-07T20:46:09.867571",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "q-missing-receipt-late": {
+          "id": "q-missing-receipt-late",
+          "type": "task",
+          "text": "full missing-receipt-late",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "sourceSessionId": "ses_1234567890abcdef",
+          "queueItemId": "q-missing-receipt-late",
+          "lastSteerError": "Steer outcome unknown: provider receipt missing; item retained, no automatic retry",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377169.863065,
+          "deliveredAt": 1791377169.863065
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 3,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "full missing-receipt-late",
+        "last_assistant_preview": "",
+        "last_display_preview": "full missing-receipt-late",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:46:09.863062"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    },
+    "finalWorker": {
+      "registeredOriginal": true,
+      "generation": 0,
+      "status": "running"
+    },
+    "writerOutcomes": [
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      },
+      {
+        "succeeded": true,
+        "cancelled": false,
+        "error": null
+      }
+    ]
+  },
+  {
+    "input": "fifo-cancel-writer-commit",
+    "acked": true,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "accepted FIFO",
+        "queueItemIds": [
+          "fifo"
+        ],
+        "delivered_keys": [
+          "task:fifo"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "fifo",
+            "type": "task",
+            "text": "accepted FIFO",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "writing",
+            "queueItemId": "fifo"
+          }
+        ],
+        "source": "agent",
+        "messageId": "pan:cb8f9e851b464b95b0b4ffeb0931285f",
+        "ts": "2026-10-07T20:46:09.946187"
+      }
+    ],
+    "disk": {
+      "id": "ses_400d78f4f44079f7",
+      "name": "fifo-cancel",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "accepted FIFO",
+          "queueItemIds": [
+            "fifo"
+          ],
+          "delivered_keys": [
+            "task:fifo"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "fifo",
+              "type": "task",
+              "text": "accepted FIFO",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "writing",
+              "queueItemId": "fifo"
+            }
+          ],
+          "source": "agent",
+          "messageId": "pan:cb8f9e851b464b95b0b4ffeb0931285f",
+          "ts": "2026-10-07T20:46:09.946187"
+        }
+      ],
+      "history_epoch": "aaf932590a8f47ac82085cc95d6ce9b0",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:46:09.936931",
+      "updated_at": "2026-10-07T20:46:09.952081",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "fifo": {
+          "id": "fifo",
+          "type": "task",
+          "text": "accepted FIFO",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "queueItemId": "fifo",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377169.9461997,
+          "deliveredAt": 1791377169.9461997
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 1,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "accepted FIFO",
+        "last_assistant_preview": "",
+        "last_display_preview": "accepted FIFO",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:46:09.946194"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    }
+  },
+  {
+    "input": "fifo-cancel-writer-failure",
+    "acked": true,
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "accepted FIFO",
+        "queueItemIds": [
+          "fifo"
+        ],
+        "delivered_keys": [
+          "task:fifo"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "fifo",
+            "type": "task",
+            "text": "accepted FIFO",
+            "source": "agent",
+            "revision": 1,
+            "deliveryState": "writing",
+            "queueItemId": "fifo"
+          }
+        ],
+        "source": "agent",
+        "messageId": "pan:40d3df109d034e25ab6da59e45cf7438",
+        "ts": "2026-10-07T20:46:09.964170"
+      }
+    ],
+    "disk": {
+      "id": "ses_1c00b196a092c43b",
+      "name": "fifo-cancel",
+      "adapter": "codex",
+      "model": null,
+      "permission_mode": null,
+      "pan_access": {
+        "restrict_to_managed": false,
+        "can_claim_unmanaged": false,
+        "auto_claim_created": false
+      },
+      "adapter_config": {},
+      "character_id": null,
+      "session_template": null,
+      "original_prompt": null,
+      "handoff_prompt": null,
+      "game_id": null,
+      "raw_usage": null,
+      "total_usage": null,
+      "usage_enrichment_pending": [],
+      "workdir": "",
+      "history": [
+        {
+          "role": "user",
+          "content": "accepted FIFO",
+          "queueItemIds": [
+            "fifo"
+          ],
+          "delivered_keys": [
+            "task:fifo"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "id": "fifo",
+              "type": "task",
+              "text": "accepted FIFO",
+              "source": "agent",
+              "revision": 1,
+              "deliveryState": "writing",
+              "queueItemId": "fifo"
+            }
+          ],
+          "source": "agent",
+          "messageId": "pan:40d3df109d034e25ab6da59e45cf7438",
+          "ts": "2026-10-07T20:46:09.964170"
+        }
+      ],
+      "history_epoch": "3e78d3dec3604a7693f88a64ee69e532",
+      "history_revision": 1,
+      "last_result": null,
+      "result_cursor": 0,
+      "terminal_results": [],
+      "last_legal_worker_state": null,
+      "created_at": "2026-10-07T20:46:09.954307",
+      "updated_at": "2026-10-07T20:46:09.969344",
+      "order": null,
+      "workspace_ids": [],
+      "managed": [],
+      "managed_by": null,
+      "readonly_session": false,
+      "queue_pending": [],
+      "queue_paused": false,
+      "agent_reports_paused": false,
+      "queue_item_locks_version": 1,
+      "queue_edit_locks": {},
+      "queue_delivery_ledger": {
+        "fifo": {
+          "id": "fifo",
+          "type": "task",
+          "text": "accepted FIFO",
+          "source": "agent",
+          "revision": 1,
+          "deliveryState": "sent_to_cli",
+          "queueItemId": "fifo",
+          "dispatchState": "sent_to_cli",
+          "receiptAt": 1791377169.9641826,
+          "deliveredAt": 1791377169.9641826
+        }
+      },
+      "queue_idempotency_index": {
+        "version": 1,
+        "taskId": {},
+        "clientMessageId": {}
+      },
+      "queue_revision": 1,
+      "task_seq": 0,
+      "unread_done_count": 0,
+      "unread_done_generation": 0,
+      "unread_done_read_generation": 0,
+      "active_task_id": null,
+      "accepted_input_ids": [],
+      "summary_projection": {
+        "revision": 1,
+        "last_user_preview": "accepted FIFO",
+        "last_assistant_preview": "",
+        "last_display_preview": "accepted FIFO",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "user",
+        "history_total": 1,
+        "updated_at": "2026-10-07T20:46:09.964178"
+      },
+      "report_subscriptions": [],
+      "qq_report_targets": [],
+      "qq_report_outbox": {},
+      "qq_subscriptions": [],
+      "wechat_subscriptions": [],
+      "notification_settings": {
+        "browser": false,
+        "system": false
+      }
+    }
+  }
+]

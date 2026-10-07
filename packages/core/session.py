@@ -2532,14 +2532,18 @@ async def _persist_async_outcome(
     return outcome
 
 
-async def save_async(s: Session, *, force_full: bool = False):
+async def save_async(s: Session, *, force_full: bool = False, outcome: DurableOutcome | None = None):
     """Async save for high-frequency worker calls, ordered per Session.
 
     The executor task is shielded so cancelling the caller cannot abandon a
     ticket in the per-Session queue or leave a filesystem writer holding the
     state.  The caller still receives ``CancelledError`` after that durable
     operation has retired.
+    An optional outcome exposes the actual ticket verdict even when caller
+    cancellation propagates after the writer retires.
     """
+    if outcome is not None:
+        return await _persist_async_outcome(s.id, lambda: _save_body(s, force_full=force_full), outcome)
     return await _persist_async(s.id, lambda: _save_body(s, force_full=force_full))
 
 
