@@ -316,6 +316,7 @@ function preserveNewerQueue(current: Session, incoming: Session): Session {
     ...incoming,
     queuePendingCount: current.queuePendingCount,
     queueAllLocked: current.queueAllLocked,
+    queuePaused: current.queuePaused,
     queueRevision: currentRevision,
   };
 }

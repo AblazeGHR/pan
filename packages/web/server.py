@@ -2060,6 +2060,7 @@ def _session_to_api(
         "queuePendingCount": queue_pending_count,
         "queueAllLocked": queue_all_locked,
         "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
         **({"history": _api_history(
             s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
         )} if include_history else {}),
@@ -2343,6 +2344,7 @@ def _session_summary(
         "queuePendingCount": queue_pending_count,
         "queueAllLocked": queue_all_locked,
         "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
     }
 
 
@@ -7372,6 +7374,7 @@ def _queue_snapshot_locked(s) -> dict:
         "items": _session_queue_items(s),
         "queueRevision": getattr(s, "queue_revision", 0),
         "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
     }
 
 
@@ -7541,6 +7544,39 @@ def _queue_error(code: str, message: str, s=None) -> dict:
 async def api_session_queue_order_route(session_id: str, data: dict):
     """Route the static order path before the dynamic item-id path below."""
     return await api_session_queue_order(session_id, data)
+
+
+@app.patch("/api/sessions/{session_id}/queue/paused")
+async def api_session_queue_paused(session_id: str, data: dict):
+    """Pause this Session's entire queue without changing any item locks.
+
+    queue_lock also surrounds CLI write/drain and one-shot process creation.
+    Success therefore linearizes after every handoff already in that section
+    and before every not-yet-started handoff, including reserved rows.
+    """
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    paused = data.get("paused")
+    if not isinstance(paused, bool):
+        return {"ok": False, "error": "paused must be a boolean"}
+    async with worker.queue_lock(session_id):
+        old_paused = bool(getattr(s, "queue_paused", False))
+        old_revision = s.queue_revision
+        if paused != old_paused:
+            s.queue_paused = paused
+            s.queue_revision += 1
+            try:
+                await worker._save_receipt(s)
+            except Exception as exc:
+                s.queue_paused = old_paused
+                s.queue_revision = old_revision
+                return {"ok": False, "error": f"Could not save queue pause state: {exc}"}
+        snapshot = _queue_snapshot_locked(s)
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    if not paused:
+        await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
 
 
 @app.patch("/api/sessions/{session_id}/queue/reports-paused")

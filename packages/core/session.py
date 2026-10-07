@@ -1317,6 +1317,7 @@ class Session:
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
     # Pause durable agent completion/error/zombie reports while allowing other
     # queue sources to keep their normal delivery order.
+    queue_paused: bool = False
     agent_reports_paused: bool = False
     queue_item_locks_version: int = 1
     # Expiring browser edit leases keep a queued item at the same durable
@@ -1416,6 +1417,7 @@ class Session:
                  qq_subscriptions=None,
                  wechat_subscriptions=None, notification_settings=None, *,
                  queue_edit_locks: dict[str, dict] | None = None,
+                 queue_paused: bool = False,
                  agent_reports_paused: bool = False,
                  queue_item_locks_version: int = 1,
                  original_prompt: str | None | object = _PROMPT_UNSET,
@@ -1492,6 +1494,7 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.queue_paused = bool(queue_paused)
         self.agent_reports_paused = bool(agent_reports_paused)
         self.queue_item_locks_version = 1
         self.queue_edit_locks = {
@@ -1794,6 +1797,7 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "queue_paused": self.queue_paused,
             "agent_reports_paused": self.agent_reports_paused,
             "queue_item_locks_version": self.queue_item_locks_version,
             "queue_edit_locks": self.queue_edit_locks,

@@ -121,6 +121,8 @@ export interface Session {
   queueAllLocked?: boolean;
   /** Durable queue revision matching the queue events/snapshot. */
   queueRevision?: number;
+  /** Independent durable pause for this Session's entire queue. */
+  queuePaused?: boolean;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
@@ -419,6 +421,7 @@ export interface StreamEvent {
   sessionId?: string;
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */
   generation?: number;
@@ -1298,6 +1301,7 @@ export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
   error?: string | { code?: string; message?: string };
   ok?: boolean;
 }
