@@ -23,7 +23,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "cb958bf8383d44e3a05cc9730429ce14"
+        "requestId": "7ff648d68f4847a5a94d6077b7bcca3d"
       }
     ],
     "queue": [],
@@ -88,19 +88,19 @@
             "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
           }
         ],
-        "messageId": "pan:1a414b6e9a0045c79b8d6d4dda2e4515",
-        "ts": "2026-10-07T20:22:07.180318"
+        "messageId": "pan:d06e7fe4bfc9466fbfeb55e567c0749b",
+        "ts": "2026-10-07T20:25:42.126511"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_cf50c3bc9cac0713",
+        "sessionId": "ses_7d05abb538033c5b",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_cf50c3bc9cac0713",
+        "sessionId": "ses_7d05abb538033c5b",
         "queueItemIds": [
           "q_success"
         ],
@@ -146,8 +146,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.1803284,
-                "deliveredAt": 1791375727.1803284
+                "receiptAt": 1791375942.1265216,
+                "deliveredAt": 1791375942.1265216
               }
             ],
             "source": "agent",
@@ -169,14 +169,14 @@
                 "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
               }
             ],
-            "messageId": "pan:1a414b6e9a0045c79b8d6d4dda2e4515",
-            "ts": "2026-10-07T20:22:07.180318"
+            "messageId": "pan:d06e7fe4bfc9466fbfeb55e567c0749b",
+            "ts": "2026-10-07T20:25:42.126511"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_cf50c3bc9cac0713",
+        "sessionId": "ses_7d05abb538033c5b",
         "queueRevision": 2
       }
     ],
@@ -211,8 +211,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.1803284,
-      "deliveredAt": 1791375727.1803284
+      "receiptAt": 1791375942.1265216,
+      "deliveredAt": 1791375942.1265216
     }
   },
   {
@@ -260,7 +260,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "d7457a9c8e574ab3b55da5eb1077c130"
+        "requestId": "284117bac131403fa3ee31d46c4da39b"
       }
     ],
     "queue": [
@@ -299,12 +299,12 @@
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_4a2e996dfce53e5e",
+        "sessionId": "ses_681e6491d927ec4d",
         "queueRevision": 1
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_4a2e996dfce53e5e",
+        "sessionId": "ses_681e6491d927ec4d",
         "queueRevision": 2
       }
     ],
@@ -1095,6 +1095,319 @@
     }
   },
   {
+    "input": "running-pending-restart",
+    "response": {
+      "ok": true,
+      "items": [],
+      "queueRevision": 2,
+      "agentReportsPaused": false,
+      "queuePaused": false
+    },
+    "repeat": null,
+    "controls": [
+      {
+        "type": "steer",
+        "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+        "requestId": "8f6fba807432498ba1f00c17c2df73d5"
+      }
+    ],
+    "queue": [],
+    "history": [
+      {
+        "role": "user",
+        "content": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+        "queueItemIds": [
+          "q_running-pending-restart"
+        ],
+        "delivered_keys": [
+          "task:q_running-pending-restart"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "id": "q_running-pending-restart",
+            "queueItemId": "q_running-pending-restart",
+            "type": "task",
+            "kind": "task",
+            "schemaVersion": 1,
+            "revision": 3,
+            "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+            "source": "agent",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "taskId": "T-identity",
+            "taskIdSource": "active",
+            "clientMessageId": "client-running-pending-restart",
+            "eventId": "event-running-pending-restart",
+            "channel": "pan",
+            "envelope": {
+              "from": "MA",
+              "report": {
+                "event": "stable"
+              }
+            },
+            "deliveryState": "queued",
+            "parts": [
+              {
+                "type": "text",
+                "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+              }
+            ]
+          }
+        ],
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-identity",
+        "taskIdSource": "active",
+        "clientMessageId": "client-running-pending-restart",
+        "eventId": "event-running-pending-restart",
+        "channel": "pan",
+        "envelope": {
+          "from": "MA",
+          "report": {
+            "event": "stable"
+          }
+        },
+        "parts": [
+          {
+            "type": "text",
+            "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+          }
+        ],
+        "messageId": "pan:13f72801144b426781676d09ddecd5c5",
+        "ts": "2026-10-07T20:25:42.169446"
+      }
+    ],
+    "events": [
+      {
+        "type": "queue.snapshot",
+        "sessionId": "ses_09d2b4c8516886aa",
+        "queueRevision": 1
+      },
+      {
+        "type": "queue.item_delivered",
+        "sessionId": "ses_09d2b4c8516886aa",
+        "queueItemIds": [
+          "q_running-pending-restart"
+        ],
+        "queueRevision": 2,
+        "messages": [
+          {
+            "role": "user",
+            "content": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+            "queueItemIds": [
+              "q_running-pending-restart"
+            ],
+            "delivered_keys": [
+              "task:q_running-pending-restart"
+            ],
+            "kind": "task",
+            "queueEnvelopes": [
+              {
+                "id": "q_running-pending-restart",
+                "queueItemId": "q_running-pending-restart",
+                "type": "task",
+                "kind": "task",
+                "schemaVersion": 1,
+                "revision": 3,
+                "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+                "source": "agent",
+                "sourceSessionId": "ses_1234567890abcdef",
+                "taskId": "T-identity",
+                "taskIdSource": "active",
+                "clientMessageId": "client-running-pending-restart",
+                "eventId": "event-running-pending-restart",
+                "channel": "pan",
+                "envelope": {
+                  "from": "MA",
+                  "report": {
+                    "event": "stable"
+                  }
+                },
+                "deliveryState": "sent_to_cli",
+                "parts": [
+                  {
+                    "type": "text",
+                    "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+                  }
+                ],
+                "dispatchState": "sent_to_cli",
+                "receiptAt": 1791375942.1694565,
+                "deliveredAt": 1791375942.1694565
+              }
+            ],
+            "source": "agent",
+            "sourceSessionId": "ses_1234567890abcdef",
+            "taskId": "T-identity",
+            "taskIdSource": "active",
+            "clientMessageId": "client-running-pending-restart",
+            "eventId": "event-running-pending-restart",
+            "channel": "pan",
+            "envelope": {
+              "from": "MA",
+              "report": {
+                "event": "stable"
+              }
+            },
+            "parts": [
+              {
+                "type": "text",
+                "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+              }
+            ],
+            "messageId": "pan:13f72801144b426781676d09ddecd5c5",
+            "ts": "2026-10-07T20:25:42.169446"
+          }
+        ]
+      },
+      {
+        "type": "queue.snapshot",
+        "sessionId": "ses_09d2b4c8516886aa",
+        "queueRevision": 2
+      }
+    ],
+    "during": {},
+    "persistedQueue": null,
+    "original": {
+      "id": "q_running-pending-restart",
+      "queueItemId": "q_running-pending-restart",
+      "type": "task",
+      "kind": "task",
+      "schemaVersion": 1,
+      "revision": 3,
+      "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+      "source": "agent",
+      "sourceSessionId": "ses_1234567890abcdef",
+      "taskId": "T-identity",
+      "taskIdSource": "active",
+      "clientMessageId": "client-running-pending-restart",
+      "eventId": "event-running-pending-restart",
+      "channel": "pan",
+      "envelope": {
+        "from": "MA",
+        "report": {
+          "event": "stable"
+        }
+      },
+      "deliveryState": "sent_to_cli",
+      "parts": [
+        {
+          "type": "text",
+          "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+        }
+      ],
+      "dispatchState": "sent_to_cli",
+      "receiptAt": 1791375942.1694565,
+      "deliveredAt": 1791375942.1694565
+    }
+  },
+  {
+    "input": "idle-pending-restart",
+    "response": {
+      "ok": false,
+      "error": {
+        "code": "queue_steer_failed",
+        "message": "Queue Steer requires an existing running Worker; idle restart has priority"
+      },
+      "items": [
+        {
+          "id": "q_idle-pending-restart",
+          "queueItemId": "q_idle-pending-restart",
+          "kind": "task",
+          "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+          "parts": [
+            {
+              "type": "text",
+              "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+            }
+          ],
+          "createdAt": 0,
+          "source": "agent",
+          "meta": {
+            "seq": null,
+            "taskId": "T-identity",
+            "revision": 3,
+            "dispatchState": "queued",
+            "locked": false,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": false,
+            "steerError": null,
+            "sourceSessionId": "ses_1234567890abcdef"
+          }
+        }
+      ],
+      "queueRevision": 0,
+      "agentReportsPaused": false,
+      "queuePaused": false
+    },
+    "repeat": null,
+    "controls": [],
+    "queue": [
+      {
+        "id": "q_idle-pending-restart",
+        "queueItemId": "q_idle-pending-restart",
+        "type": "task",
+        "kind": "task",
+        "schemaVersion": 1,
+        "revision": 3,
+        "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+        "source": "agent",
+        "sourceSessionId": "ses_1234567890abcdef",
+        "taskId": "T-identity",
+        "taskIdSource": "active",
+        "clientMessageId": "client-idle-pending-restart",
+        "eventId": "event-idle-pending-restart",
+        "channel": "pan",
+        "envelope": {
+          "from": "MA",
+          "report": {
+            "event": "stable"
+          }
+        },
+        "deliveryState": "queued",
+        "parts": [
+          {
+            "type": "text",
+            "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+          }
+        ]
+      }
+    ],
+    "history": [],
+    "events": [],
+    "during": {},
+    "persistedQueue": null,
+    "original": {
+      "id": "q_idle-pending-restart",
+      "queueItemId": "q_idle-pending-restart",
+      "type": "task",
+      "kind": "task",
+      "schemaVersion": 1,
+      "revision": 3,
+      "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
+      "source": "agent",
+      "sourceSessionId": "ses_1234567890abcdef",
+      "taskId": "T-identity",
+      "taskIdSource": "active",
+      "clientMessageId": "client-idle-pending-restart",
+      "eventId": "event-idle-pending-restart",
+      "channel": "pan",
+      "envelope": {
+        "from": "MA",
+        "report": {
+          "event": "stable"
+        }
+      },
+      "deliveryState": "queued",
+      "parts": [
+        {
+          "type": "text",
+          "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
+        }
+      ]
+    }
+  },
+  {
     "input": "unsupported",
     "response": {
       "ok": false,
@@ -1215,7 +1528,7 @@
       {
         "type": "steer",
         "text": "@@@@by agent : ses_1234567890abcdef | unknown\nstatus: null\ntype: report\nresult:\n{'full': '报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告'}\nsessionId: null\ntaskId: T-identity\nworkerId: null",
-        "requestId": "61c5b4b84c1341bb88f8c6cf1bdf5620"
+        "requestId": "0b3f4328e82f48d0a2a3a6e9ebb98a3e"
       }
     ],
     "queue": [],
@@ -1273,19 +1586,19 @@
           }
         },
         "parts": [],
-        "messageId": "pan:347cbde46ce24757a089e8aaf95590d0",
-        "ts": "2026-10-07T20:22:07.232077"
+        "messageId": "pan:6044f8799c064ad099ae1b15c5ef9cdd",
+        "ts": "2026-10-07T20:25:42.182646"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_2e512ff53834b5dd",
+        "sessionId": "ses_065fee1231592101",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_2e512ff53834b5dd",
+        "sessionId": "ses_065fee1231592101",
         "queueItemIds": [
           "q_report"
         ],
@@ -1329,8 +1642,8 @@
                   "full": "报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告"
                 },
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.2320888,
-                "deliveredAt": 1791375727.2320888
+                "receiptAt": 1791375942.1826549,
+                "deliveredAt": 1791375942.1826549
               }
             ],
             "source": "report",
@@ -1347,14 +1660,14 @@
               }
             },
             "parts": [],
-            "messageId": "pan:347cbde46ce24757a089e8aaf95590d0",
-            "ts": "2026-10-07T20:22:07.232077"
+            "messageId": "pan:6044f8799c064ad099ae1b15c5ef9cdd",
+            "ts": "2026-10-07T20:25:42.182646"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_2e512ff53834b5dd",
+        "sessionId": "ses_065fee1231592101",
         "queueRevision": 2
       }
     ],
@@ -1387,8 +1700,8 @@
         "full": "报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告报告"
       },
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.2320888,
-      "deliveredAt": 1791375727.2320888
+      "receiptAt": 1791375942.1826549,
+      "deliveredAt": 1791375942.1826549
     }
   },
   {
@@ -1405,7 +1718,7 @@
       {
         "type": "steer",
         "text": "////by pan system\nstatus: null\nnoticeKind: background_job_terminal\njobId: null\ntargetSessionId: null\ntargetSessionIds: []\neventId: event-system\nresult:\nsystem",
-        "requestId": "9f1f71261f024693a84c671b3132b5b5"
+        "requestId": "4d06f46ba4144b76b94ea53cc0595a27"
       }
     ],
     "queue": [],
@@ -1463,19 +1776,19 @@
         },
         "noticeKind": "background_job_terminal",
         "parts": [],
-        "messageId": "pan:0bb4b72d959d4d6da6337884244a3a25",
-        "ts": "2026-10-07T20:22:07.239988"
+        "messageId": "pan:a2435111c14f4342a738e774e03f60be",
+        "ts": "2026-10-07T20:25:42.190156"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_336d763e30460aab",
+        "sessionId": "ses_fefd61ecd2470750",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_336d763e30460aab",
+        "sessionId": "ses_fefd61ecd2470750",
         "queueItemIds": [
           "q_system"
         ],
@@ -1518,8 +1831,8 @@
                 "noticeKind": "background_job_terminal",
                 "result": "system",
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.2399964,
-                "deliveredAt": 1791375727.2399964
+                "receiptAt": 1791375942.1901636,
+                "deliveredAt": 1791375942.1901636
               }
             ],
             "source": "automation",
@@ -1537,14 +1850,14 @@
             },
             "noticeKind": "background_job_terminal",
             "parts": [],
-            "messageId": "pan:0bb4b72d959d4d6da6337884244a3a25",
-            "ts": "2026-10-07T20:22:07.239988"
+            "messageId": "pan:a2435111c14f4342a738e774e03f60be",
+            "ts": "2026-10-07T20:25:42.190156"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_336d763e30460aab",
+        "sessionId": "ses_fefd61ecd2470750",
         "queueRevision": 2
       }
     ],
@@ -1576,8 +1889,8 @@
       "noticeKind": "background_job_terminal",
       "result": "system",
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.2399964,
-      "deliveredAt": 1791375727.2399964
+      "receiptAt": 1791375942.1901636,
+      "deliveredAt": 1791375942.1901636
     }
   },
   {
@@ -1594,7 +1907,7 @@
       {
         "type": "steer",
         "text": "@@@@by qq : group:1 | fixture\ntargetType: null\ntargetId: null\nnickname: fixture\nmessage:\noriginal body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文\ntime: null",
-        "requestId": "58fbe1f14ee044a1a24edeaa5d9bb9b1"
+        "requestId": "b51ff5b0a6914a0eb4bf94c664a2fe46"
       }
     ],
     "queue": [],
@@ -1651,19 +1964,19 @@
           }
         },
         "parts": [],
-        "messageId": "pan:d29262238974474db977aec9f032cdb4",
-        "ts": "2026-10-07T20:22:07.247463"
+        "messageId": "pan:756ce1ee27e6448a95a28ed76d88f26e",
+        "ts": "2026-10-07T20:25:42.197207"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_8f19dff4cfa98978",
+        "sessionId": "ses_0aebf3e08858511c",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_8f19dff4cfa98978",
+        "sessionId": "ses_0aebf3e08858511c",
         "queueItemIds": [
           "q_channel"
         ],
@@ -1706,8 +2019,8 @@
                 "channelTarget": "group:1",
                 "nickname": "fixture",
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.2474716,
-                "deliveredAt": 1791375727.2474716
+                "receiptAt": 1791375942.197215,
+                "deliveredAt": 1791375942.197215
               }
             ],
             "source": "qq",
@@ -1724,14 +2037,14 @@
               }
             },
             "parts": [],
-            "messageId": "pan:d29262238974474db977aec9f032cdb4",
-            "ts": "2026-10-07T20:22:07.247463"
+            "messageId": "pan:756ce1ee27e6448a95a28ed76d88f26e",
+            "ts": "2026-10-07T20:25:42.197207"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_8f19dff4cfa98978",
+        "sessionId": "ses_0aebf3e08858511c",
         "queueRevision": 2
       }
     ],
@@ -1763,8 +2076,8 @@
       "channelTarget": "group:1",
       "nickname": "fixture",
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.2474716,
-      "deliveredAt": 1791375727.2474716
+      "receiptAt": 1791375942.197215,
+      "deliveredAt": 1791375942.197215
     }
   },
   {
@@ -1888,7 +2201,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文@\"D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\experiments\\attachment.txt\"",
-        "requestId": "39b7dd303f384d9a86bff5f33bc32b55"
+        "requestId": "641ca35edd304e6ba0216cf20ecc000e"
       }
     ],
     "queue": [],
@@ -1964,19 +2277,19 @@
             "__serverPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\experiments\\attachment.txt"
           }
         ],
-        "messageId": "pan:058e3ec0aefb47ecacf7b72b7f7183c8",
-        "ts": "2026-10-07T20:22:07.260771"
+        "messageId": "pan:03de274795d64adb99f0216c0117dbde",
+        "ts": "2026-10-07T20:25:42.208813"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_5d22a282653e207c",
+        "sessionId": "ses_c72c807f8b890197",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_5d22a282653e207c",
+        "sessionId": "ses_c72c807f8b890197",
         "queueItemIds": [
           "q_attachment"
         ],
@@ -2027,8 +2340,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.2607799,
-                "deliveredAt": 1791375727.2607799
+                "receiptAt": 1791375942.208821,
+                "deliveredAt": 1791375942.208821
               }
             ],
             "source": "agent",
@@ -2055,14 +2368,14 @@
                 "displayName": "attachment.txt"
               }
             ],
-            "messageId": "pan:058e3ec0aefb47ecacf7b72b7f7183c8",
-            "ts": "2026-10-07T20:22:07.260771"
+            "messageId": "pan:03de274795d64adb99f0216c0117dbde",
+            "ts": "2026-10-07T20:25:42.208813"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_5d22a282653e207c",
+        "sessionId": "ses_c72c807f8b890197",
         "queueRevision": 2
       }
     ],
@@ -2103,8 +2416,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.2607799,
-      "deliveredAt": 1791375727.2607799
+      "receiptAt": 1791375942.208821,
+      "deliveredAt": 1791375942.208821
     }
   },
   {
@@ -2464,7 +2777,7 @@
       {
         "type": "steer",
         "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文",
-        "requestId": "faae283f5084420c8ba6dd4b9cf71233"
+        "requestId": "bd3d219789aa43e6a1cf925c60ef7a68"
       }
     ],
     "queue": [],
@@ -2529,19 +2842,19 @@
             "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
           }
         ],
-        "messageId": "pan:522083b0bd384475b52d7a23a82599e6",
-        "ts": "2026-10-07T20:22:07.304544"
+        "messageId": "pan:56aaaacc18204048b276337f392adac2",
+        "ts": "2026-10-07T20:25:42.242934"
       }
     ],
     "events": [
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_14a582dee20a01c9",
+        "sessionId": "ses_c2305d086ae53ff9",
         "queueRevision": 1
       },
       {
         "type": "queue.item_delivered",
-        "sessionId": "ses_14a582dee20a01c9",
+        "sessionId": "ses_c2305d086ae53ff9",
         "queueItemIds": [
           "q_pending"
         ],
@@ -2587,8 +2900,8 @@
                   }
                 ],
                 "dispatchState": "sent_to_cli",
-                "receiptAt": 1791375727.3045561,
-                "deliveredAt": 1791375727.3045561
+                "receiptAt": 1791375942.242946,
+                "deliveredAt": 1791375942.242946
               }
             ],
             "source": "agent",
@@ -2610,14 +2923,14 @@
                 "text": "original body 长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文长正文"
               }
             ],
-            "messageId": "pan:522083b0bd384475b52d7a23a82599e6",
-            "ts": "2026-10-07T20:22:07.304544"
+            "messageId": "pan:56aaaacc18204048b276337f392adac2",
+            "ts": "2026-10-07T20:25:42.242934"
           }
         ]
       },
       {
         "type": "queue.snapshot",
-        "sessionId": "ses_14a582dee20a01c9",
+        "sessionId": "ses_c2305d086ae53ff9",
         "queueRevision": 2
       }
     ],
@@ -2759,8 +3072,8 @@
         }
       ],
       "dispatchState": "sent_to_cli",
-      "receiptAt": 1791375727.3045561,
-      "deliveredAt": 1791375727.3045561
+      "receiptAt": 1791375942.242946,
+      "deliveredAt": 1791375942.242946
     }
   }
 ]

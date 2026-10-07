@@ -11,9 +11,9 @@ from packages.core import background_jobs as jobs
 area = Path(__file__).resolve().parent
 registry = area / "runtime/jobs"
 os.environ["PAN_BACKGROUND_JOBS_DIR"] = str(registry)
-ids = ["job_e83990d56acaed0553628f39", "job_5a767c1cb2ba0329f1eaee66",
+ids = ["job_e83990d56acaed0553628f39", "job_15fcb0347980e3a93a6dd91b",
        "job_e0f8be294a8bc1b96ad35c09", "job_5190b8c0037f05b8143d5c7e",
-       "job_653a31ee640021647a4ce3a5"]
+       "job_683be56a4e3ad7550e02bf4f"]
 facts = [jobs.get(identity, registry_root=registry) for identity in ids]
 for fact in facts:
     if fact.get("status") != "completed" or fact.get("exitCode") != 0:

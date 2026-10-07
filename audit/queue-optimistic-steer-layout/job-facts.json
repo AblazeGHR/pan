@@ -35,8 +35,8 @@
     "paused": false
   },
   {
-    "jobId": "job_5a767c1cb2ba0329f1eaee66",
-    "targetSessionId": "ses_28432c486b85fba4",
+    "jobId": "job_15fcb0347980e3a93a6dd91b",
+    "targetSessionId": "ses_35e3f1a63f6c6c1a",
     "argv": [
       "D:/project/Pan-main/.venv/Scripts/python.exe",
       "audit/queue-optimistic-steer-layout/backend.py"
@@ -48,23 +48,23 @@
       "type": "agent"
     },
     "targetStruct": {
-      "sessionId": "ses_28432c486b85fba4"
+      "sessionId": "ses_35e3f1a63f6c6c1a"
     },
-    "name": "job-28",
+    "name": "job-32",
     "description": "",
     "commandSummary": "D:/project/Pan-main/.venv/Scripts/python.exe audit/queue-optimistic-steer-layout/backend.py",
     "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
     "label": null,
     "status": "completed",
-    "createdAt": 1791375726.3030796,
-    "updatedAt": 1791375727.3667638,
-    "pid": 34620,
-    "processCreatedAt": 1791375726.5838768,
-    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_5a767c1cb2ba0329f1eaee66.log",
+    "createdAt": 1791375940.7637737,
+    "updatedAt": 1791375942.3013678,
+    "pid": 16088,
+    "processCreatedAt": 1791375941.4409366,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_15fcb0347980e3a93a6dd91b.log",
     "notificationState": "pending",
-    "terminalEventId": "job_5a767c1cb2ba0329f1eaee66:terminal",
-    "runnerPid": 16804,
-    "runnerProcessCreatedAt": 1791375726.311788,
+    "terminalEventId": "job_15fcb0347980e3a93a6dd91b:terminal",
+    "runnerPid": 40912,
+    "runnerProcessCreatedAt": 1791375940.7730808,
     "exitCode": 0,
     "paused": false
   },
@@ -138,8 +138,8 @@
     "paused": false
   },
   {
-    "jobId": "job_653a31ee640021647a4ce3a5",
-    "targetSessionId": "ses_18112971bc4b5189",
+    "jobId": "job_683be56a4e3ad7550e02bf4f",
+    "targetSessionId": "ses_ad351aaec5bdb596",
     "argv": [
       "pwsh",
       "-NoProfile",
@@ -153,23 +153,23 @@
       "type": "agent"
     },
     "targetStruct": {
-      "sessionId": "ses_18112971bc4b5189"
+      "sessionId": "ses_ad351aaec5bdb596"
     },
-    "name": "job-30",
+    "name": "job-31",
     "description": "",
     "commandSummary": "pwsh -NoProfile -File …",
     "cwd": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007",
     "label": null,
     "status": "completed",
-    "createdAt": 1791375726.7009685,
-    "updatedAt": 1791375745.2522285,
-    "pid": 5888,
-    "processCreatedAt": 1791375727.039708,
-    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_653a31ee640021647a4ce3a5.log",
+    "createdAt": 1791375904.4812775,
+    "updatedAt": 1791375923.6406097,
+    "pid": 31052,
+    "processCreatedAt": 1791375905.2440684,
+    "logPath": "D:\\project\\pan-worktrees\\queue-optimistic-steer-layout-20261007\\audit\\queue-optimistic-steer-layout\\runtime\\jobs\\logs\\job_683be56a4e3ad7550e02bf4f.log",
     "notificationState": "pending",
-    "terminalEventId": "job_653a31ee640021647a4ce3a5:terminal",
-    "runnerPid": 10456,
-    "runnerProcessCreatedAt": 1791375726.7128217,
+    "terminalEventId": "job_683be56a4e3ad7550e02bf4f:terminal",
+    "runnerPid": 39176,
+    "runnerProcessCreatedAt": 1791375904.4902685,
     "exitCode": 0,
     "paused": false
   }

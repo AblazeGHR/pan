@@ -90,6 +90,8 @@ async def main():
            ("lease",lambda s,i,w:worker.acquire_queue_edit_lock(s,i["id"],"other"),{}),
            ("readonly",lambda s,i,w:setattr(s,"readonly_session",True),{}),
            ("idle",lambda s,i,w:setattr(w,"status","idle"),{}),
+           ("running-pending-restart",lambda s,i,w:setattr(w,"pending_restart",True),{}),
+           ("idle-pending-restart",lambda s,i,w:(setattr(w,"pending_restart",True),setattr(w,"status","idle")),{}),
            ("unsupported",lambda s,i,w:setattr(w,"adapter",CbcAdapter()),{}),
            ("report",lambda s,i,w:i.update(type="report",source="report",parts=[],result={"full":"报告"*150}),{}),
            ("system",lambda s,i,w:i.update(type="notice",source="automation",parts=[],noticeKind="background_job_terminal",result="system"),{}),
