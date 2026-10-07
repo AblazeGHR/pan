@@ -37,6 +37,7 @@ from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResp
 from fastapi.staticfiles import StaticFiles
 
 from packages.web.static_assets import ReactStaticFiles
+from packages.web.network_json import NetworkJSONResponse
 from packages.remote.tailscale_runtime import Controller as TailscaleController
 
 import httpx
@@ -1993,10 +1994,18 @@ async def log_requests(request: Request, call_next):
 
 @app.middleware("http")
 async def no_cache_api(request: Request, call_next):
-    """Prevent browser/CDN from caching API responses."""
+    """Keep APIs uncached except the explicitly revalidated private list."""
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        conditional_list = (
+            request.url.path == "/api/sessions"
+            and request.method == "GET"
+            and response.status_code in (200, 304)
+            and "etag" in response.headers
+            and response.headers.get("cache-control") == "private, no-cache"
+        )
+        if not conditional_list:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
 
@@ -5153,7 +5162,7 @@ async def api_cancel_reminder(session_id: str, reminder_id: str):
         return {"ok": False, "error": {"code": "reminder_not_found", "message": "Reminder not found or already delivered"}}
     return {"ok": True, "reminder": item}
 
-@app.get("/api/sessions")
+@app.get("/api/sessions", response_class=NetworkJSONResponse)
 async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     """List all sessions (includes worker status if active).
 

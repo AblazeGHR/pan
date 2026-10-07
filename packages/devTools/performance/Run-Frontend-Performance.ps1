@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('OlderPages', 'Runtime', 'Draft', 'Navigation', 'Scrollbar', 'ColdShell')]
+    [ValidateSet('OlderPages', 'Runtime', 'Draft', 'Navigation', 'Scrollbar', 'ColdShell', 'NetworkList')]
     [string]$Scenario = 'OlderPages',
     [string]$Dist,
     [string]$PythonExecutable,
@@ -19,6 +19,7 @@ $scripts = @{
     Navigation = 'navigation-first-click.e2e.mjs'
     Scrollbar = 'navigation-first-click.e2e.mjs'
     ColdShell = 'cold-shell.e2e.mjs'
+    NetworkList = 'network-list.e2e.mjs'
 }
 if ($Baseline -and $Scenario -notin @('OlderPages', 'ColdShell')) { throw '-Baseline applies only to OlderPages and ColdShell.' }
 if ($Dist -and $Scenario -notin @('OlderPages', 'Runtime', 'ColdShell')) { throw '-Dist applies only to OlderPages, Runtime and ColdShell.' }
@@ -27,7 +28,7 @@ if ($Scenario -ne 'Draft' -and !(Test-Path -LiteralPath (Join-Path $distRoot 'in
     throw "Build the selected checkout first; missing $distRoot/index.html"
 }
 New-Item -ItemType Directory -Path $artifactRoot | Out-Null
-$envNames = @('PAN_OLDER_DIST', 'PAN_OLDER_SAMPLES', 'PAN_OLDER_BASELINE', 'PAN_BENCH_DIST', 'PAN_NAV_CHECKOUT', 'PAN_E2E_PYTHON', 'PAN_NAV_SCROLLBAR', 'PAN_COLD_DIST', 'PAN_COLD_SAMPLES', 'PAN_COLD_CHECK')
+$envNames = @('PAN_OLDER_DIST', 'PAN_OLDER_SAMPLES', 'PAN_OLDER_BASELINE', 'PAN_BENCH_DIST', 'PAN_NAV_CHECKOUT', 'PAN_E2E_PYTHON', 'PAN_NAV_SCROLLBAR', 'PAN_COLD_DIST', 'PAN_COLD_SAMPLES', 'PAN_COLD_CHECK', 'PAN_NETWORK_SAMPLES')
 $savedEnvironment = @{}
 foreach ($name in $envNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 Push-Location $webRoot
@@ -37,11 +38,15 @@ try {
     $env:PAN_COLD_DIST = $distRoot
     $env:PAN_COLD_SAMPLES = [string]$Samples
     $env:PAN_COLD_CHECK = if ($Baseline) { '0' } else { '1' }
+    if ($Scenario -eq 'NetworkList') {
+        if ($Samples -gt 10) { throw 'NetworkList supports at most 10 samples.' }
+        $env:PAN_NETWORK_SAMPLES = [string]$Samples
+    }
     $env:PAN_OLDER_SAMPLES = [string]$Samples
     $env:PAN_OLDER_BASELINE = if ($Baseline) { '1' } else { '0' }
     $env:PAN_NAV_CHECKOUT = $repoRoot
     $env:PAN_NAV_SCROLLBAR = if ($Scenario -eq 'Scrollbar') { '1' } else { '0' }
-    if ($Scenario -in @('Navigation', 'Scrollbar')) {
+    if ($Scenario -in @('Navigation', 'Scrollbar', 'NetworkList')) {
         $localPython = Join-Path $repoRoot '.venv/Scripts/python.exe'
         $env:PAN_E2E_PYTHON = if ($PythonExecutable) {
             (Get-Command $PythonExecutable -ErrorAction Stop).Source

@@ -12,6 +12,7 @@
 ./packages/devTools/performance/Run-Frontend-Performance.ps1 -Scenario Draft
 ./packages/devTools/performance/Run-Frontend-Performance.ps1 -Scenario Navigation
 ./packages/devTools/performance/Run-Frontend-Performance.ps1 -Scenario Scrollbar
+./packages/devTools/performance/Run-Frontend-Performance.ps1 -Scenario NetworkList -Samples 3 -PythonExecutable 'D:/project/Pan/.venv/Scripts/python.exe'
 ```
 
 需要目标 checkout 的 Node、前端依赖和 Playwright Chromium。`Draft` 使用真实 store 源码、虚拟时钟和模拟 transport，不需要浏览器或构建。其名称沿用原脚本，不能将此场景视为真实 HTTP/浏览器端到端验证。
@@ -22,6 +23,7 @@
 - `Runtime`：流式更新、块内滚动、历史合并、缓存切换和受控冷加载；临时 Vite preview 使用 5184，端口被占用时失败，不终止已有进程。
 - `Navigation` / `Scrollbar`：首次定位和滚动条行为；启动自己的 Python E2E 服务（8797），使用临时 runtime 和合成消息。端口被占用时失败；结束时按 checkout/端口身份清理自身服务。需要 Pan Python 依赖，可传 `-PythonExecutable <python.exe路径>`，默认使用当前仓库 `.venv` 或 PATH 上的 Python。
 - `Draft`：草稿保存的请求量、限频、失败/竞态和本地处理开销。
+- `NetworkList`：在自己的 5190 服务中生成 200 个合成 Session，使用真实 API、WebSocket 和生产前端。串行对比未优化响应与优化响应，覆盖本地刷新、80 ms / 1 Mbps 网络刷新、全新浏览器上下文冷加载。输出列表可见时间、每次摘要请求的起始时间、传输时间及压缩前后字节数。需要 Pan Python 依赖；不启动真实 CLI。`-Samples` 支持 1–10。
 
 比较另一份构建时，`OlderPages` 和 `Runtime` 支持 `-Dist <dist目录>`。对尚未实现预取的旧版本运行旧页场景时加 `-Baseline`，仅适用于 `OlderPages`：
 
