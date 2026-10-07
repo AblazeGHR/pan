@@ -1368,6 +1368,17 @@ export async function setSessionMsgBridge(
 
 // ── QQ postbox (subscribe inbox reminders) ──
 
+export async function setQqReport(sessionId: string, target: string, enabled: boolean): Promise<{ qqReportTargets: string[] }> {
+  const data = await request<{ ok?: boolean; qqReportTargets?: string[]; error?: { message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/qq-report`,
+    { method: 'PUT', body: JSON.stringify({ target, enabled, expectedEnabled: !enabled }) },
+  );
+  if (data.ok !== true || !Array.isArray(data.qqReportTargets)) {
+    throw new Error(data.error?.message || 'QQ report update failed');
+  }
+  return { qqReportTargets: data.qqReportTargets };
+}
+
 export async function qqSubscribe(
   sessionId: string,
   targetType: 'user' | 'group',

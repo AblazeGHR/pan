@@ -49,7 +49,7 @@ function quickActionState(session: Session, key: QuickActionKey): boolean {
 function quickActionDisabled(session: Session, key: QuickActionKey): boolean {
   if (key === 'readonly') return !session.managedBy || typeof session.readonlySession !== 'boolean';
   if (key === 'stopReport') return !session.managedBy || typeof session.reportsToManager !== 'boolean';
-  if (key === 'notification') return typeof session.msgBridgeEnabled !== 'boolean';
+  if (key === 'notification') return session.readonlySession === true || typeof session.msgBridgeEnabled !== 'boolean';
   return false;
 }
 
@@ -65,7 +65,7 @@ function quickActionDescription(session: Session, key: QuickActionKey, isOn: boo
   }
   if (key === 'notification') {
     return isOn
-      ? 'QQ, system, or browser msgBridge is on; click to turn all three off'
+      ? 'QQ subscribe/report, system, or browser msgBridge is on; click to turn all three off'
       : 'msgBridge is off; click to turn on system notifications only';
   }
   if (key === 'readonly') return isOn ? 'Readonly on; click to allow manager actions' : 'Readonly off; click to block manager actions';

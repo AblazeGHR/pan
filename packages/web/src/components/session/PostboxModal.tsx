@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -7,6 +7,7 @@ import {
   fetchQqContacts,
   qqSubscribe,
   qqUnsubscribe,
+  setQqReport,
   fetchSession,
   patchSession,
 } from '@/services/api';
@@ -68,10 +69,15 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   // Full session fetched on open — the list is summary=1 driven and does not
   // carry `qqSubscriptions`.
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const contextRef = useRef({ open, sessionId, generation: 0 });
+  contextRef.current.open = open;
+  contextRef.current.sessionId = sessionId;
   const [tab, setTab] = useState<'qq' | 'system' | 'browser'>('qq');
 
   // Fetch bot channels + contacts (merged per-bot) + session detail on open
   useEffect(() => {
+    const context = contextRef.current;
+    const generation = ++context.generation;
     if (!open) return;
     setQuery('');
     setShowAll(false);
@@ -135,40 +141,47 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
 
     if (sessionId) {
       fetchSession(sessionId)
-        .then((full) => setDetailSession(full))
-        .catch(() => setDetailSession(null));
+        .then((full) => { if (!cancelled) setDetailSession(full); })
+        .catch(() => { if (!cancelled) setDetailSession(null); });
     }
     return () => {
       cancelled = true;
+      if (context.generation === generation) context.generation++;
     };
   }, [open, sessionId]);
 
   const sessionIdValue = session?.id ?? sessionId ?? null;
 
-  const subscriptions = detailSession?.qqSubscriptions ?? [];
+  const subscriptions = useMemo(() => detailSession?.qqSubscriptions ?? [], [detailSession]);
+  const reportTargets = useMemo(() => detailSession?.qqReportTargets ?? [], [detailSession]);
+  const readonly = detailSession?.readonlySession === true;
+  const canEdit = detailSession?.id === sessionIdValue && !readonly;
+  const isCurrent = (id: string, generation: number) => contextRef.current.open && contextRef.current.sessionId === id && contextRef.current.generation === generation;
 
   // A row is subscribed if the bot-scoped exact key exists, or the legacy
   // bot-agnostic key exists (delivers reminders from ANY bot).
-  const isSubscribed = (item: BotContact): boolean => {
+  const isSubscribed = useCallback((item: BotContact): boolean => {
     const base = contactKey(item.contact);
     return (
       subscriptions.includes(botKey(base, item.botUin)) ||
       subscriptions.includes(base)
     );
-  };
+  }, [subscriptions]);
 
   // 仅保留可订阅的条目：peerUin 非空非 "0"、chatType 为私聊(1)/群(2)。
   // 后端已清洗（合并 recent + friend/group 列表），此处双保险避免 Unknown/q号0
   // 条目进入搜索与展示。
-  const validItems = useMemo(
+  const validItems = useMemo<BotContact[]>(
     () =>
-      items.filter(
-        (it) =>
-          it.contact.peerUin &&
-          it.contact.peerUin !== '0' &&
-          (it.contact.chatType === 1 || it.contact.chatType === 2),
-      ),
-    [items],
+      Array.from(new Map([
+        ...items.filter((it) => it.contact.peerUin && it.contact.peerUin !== '0' && (it.contact.chatType === 1 || it.contact.chatType === 2)),
+        ...reportTargets.filter((target) => !items.some((it) => botKey(contactKey(it.contact), it.botUin) === target)).map((target) => {
+          const [base, botUin = ''] = target.split('@');
+          const [kind, peerUin = ''] = (base ?? '').split(':');
+          return { contact: { peerUin, peerName: `${peerUin} (saved report target)`, chatType: kind === 'group' ? 2 : 1 }, botUin, botName: '' };
+        }),
+      ].map((it) => [botKey(contactKey(it.contact), it.botUin), it])).values()),
+    [items, reportTargets],
   );
 
   const filtered = useMemo(() => {
@@ -185,13 +198,15 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   const visible = useMemo(() => {
     const sorted = filtered
       .slice()
-      .sort((a, b) => Number(isSubscribed(b)) - Number(isSubscribed(a)));
+      .sort((a, b) => Number(isSubscribed(b) || reportTargets.includes(botKey(contactKey(b.contact), b.botUin))) - Number(isSubscribed(a) || reportTargets.includes(botKey(contactKey(a.contact), a.botUin))));
     return showAll ? sorted : sorted.slice(0, SHOW_LIMIT);
-  }, [filtered, showAll, subscriptions]);
+  }, [filtered, showAll, isSubscribed, reportTargets]);
   const subscribedCount = validItems.filter(isSubscribed).length;
 
   const toggle = async (item: BotContact, checked: boolean) => {
-    if (!sessionIdValue || busyKey) return;
+    if (!sessionIdValue || busyKey || !canEdit) return;
+    const operationSessionId = sessionIdValue;
+    const generation = contextRef.current.generation;
     const c = item.contact;
     const targetType: 'user' | 'group' = c.chatType === 2 ? 'group' : 'user';
     const base = contactKey(c);
@@ -200,6 +215,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     try {
       if (checked) {
         await qqSubscribe(sessionIdValue, targetType, c.peerUin, item.botUin || undefined);
+        if (!isCurrent(operationSessionId, generation)) return;
         showToast(`Subscribed to "${c.peerName}"`);
       } else {
         // Remove the bot-scoped exact key first; if only the legacy
@@ -208,13 +224,14 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
           ? item.botUin || undefined
           : undefined;
         await qqUnsubscribe(sessionIdValue, targetType, c.peerUin, removeBot);
+        if (!isCurrent(operationSessionId, generation)) return;
         showToast(`Unsubscribed from "${c.peerName}"`);
       }
       // Optimistic local update: subscriptions derive from detailSession
       // (fetched once on open) — without this the checkbox/button would stay
       // stale until the modal is reopened.
       setDetailSession((d) => {
-        if (!d) return d;
+        if (!d || d.id !== operationSessionId) return d;
         const subs = new Set(d.qqSubscriptions ?? []);
         if (checked) subs.add(exactKey);
         else if (subscriptions.includes(exactKey)) subs.delete(exactKey);
@@ -223,12 +240,48 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
       });
       await loadSessions();
     } catch (e) {
+      if (!isCurrent(operationSessionId, generation)) return;
       showToast(
         e instanceof Error ? e.message : 'Postbox update failed',
         'error',
       );
     } finally {
-      setBusyKey(null);
+      if (isCurrent(operationSessionId, generation)) setBusyKey(null);
+    }
+  };
+
+  const toggleReport = async (item: BotContact) => {
+    if (!sessionIdValue || busyKey || !canEdit) return;
+    const id = sessionIdValue;
+    const generation = contextRef.current.generation;
+    const target = botKey(contactKey(item.contact), item.botUin);
+    setBusyKey(target);
+    try {
+      const next = await setQqReport(id, target, !reportTargets.includes(target));
+      if (!isCurrent(id, generation)) return;
+      setDetailSession((d) => d?.id === id ? { ...d, qqReportTargets: next.qqReportTargets } : d);
+      await loadSessions();
+    } catch (error) {
+      if (isCurrent(id, generation)) showToast(error instanceof Error ? error.message : 'Report update failed', 'error');
+    } finally {
+      if (isCurrent(id, generation)) setBusyKey(null);
+    }
+  };
+
+  const toggleNotification = async (channel: 'browser' | 'system', value: boolean) => {
+    if (!sessionIdValue || !canEdit || busyKey) return;
+    const id = sessionIdValue;
+    const generation = contextRef.current.generation;
+    setBusyKey(channel);
+    try {
+      const next = await patchSession(id, { notificationSettings: { [channel]: value } });
+      if (!isCurrent(id, generation)) return;
+      setDetailSession(next);
+      await loadSessions();
+    } catch (error) {
+      if (isCurrent(id, generation)) showToast(error instanceof Error ? error.message : 'Notification update failed', 'error');
+    } finally {
+      if (isCurrent(id, generation)) setBusyKey(null);
     }
   };
 
@@ -255,7 +308,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
               <div className="space-y-3 text-sm">
                 <p className="text-xs text-text-secondary">Pan sends completion notifications from the backend. System delivery is best-effort and reports unsupported platforms.</p>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={detailSession?.notificationSettings?.system ?? false}
-                  onChange={async (e) => { if (!sessionIdValue) return; const value = e.target.checked; const next = await patchSession(sessionIdValue, { notificationSettings: { system: value } }); setDetailSession(next); await loadSessions(); }} /> Completion notifications</label>
+                  disabled={!canEdit || busyKey !== null} onChange={(e) => { void toggleNotification('system', e.target.checked); }} /> Completion notifications</label>
               </div>
             )}
             {tab === 'browser' && (
@@ -266,13 +319,13 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                   Request browser permission
                 </button>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={detailSession?.notificationSettings?.browser ?? false}
-                  onChange={async (e) => { if (!sessionIdValue) return; const value = e.target.checked; const next = await patchSession(sessionIdValue, { notificationSettings: { browser: value } }); setDetailSession(next); await loadSessions(); }} /> Completion notifications</label>
+                  disabled={!canEdit || busyKey !== null} onChange={(e) => { void toggleNotification('browser', e.target.checked); }} /> Completion notifications</label>
                 <div className="text-[11px] text-text-tertiary">Current permission: {'Notification' in window ? Notification.permission : 'unsupported'}</div>
               </div>
             )}
             {tab === 'qq' && <>
             <div className="text-xs text-text-secondary">
-              Subscribe this session to QQ conversation inbox updates.
+              Subscribe to inbox updates; Report sends this session’s final task response on done or error.
               {bots.length > 1 &&
                 ` Merging ${bots.length} bot accounts — each contact is tagged with its bot and subscribable independently.`}
             </div>
@@ -298,7 +351,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
               </div>
             )}
 
-            {!loading && !loadError && validItems.length > 0 && (
+            {!loading && validItems.length > 0 && (
               <>
                 {/* Search */}
                 <div className="relative">
@@ -320,7 +373,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
 
                 <div className="flex items-center justify-between text-[11px] text-text-tertiary">
                   <span>
-                    {subscribedCount} subscribed &middot; {filtered.length}{' '}
+                    {subscribedCount} subscribed &middot; {reportTargets.length} report &middot; {filtered.length}{' '}
                     contacts
                     {bots.length > 1 && ` &middot; ${bots.length} accounts`}
                   </span>
@@ -376,11 +429,19 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                         <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
                           {c.chatType === 2 ? 'group' : 'user'}
                         </span>
+                        <button type="button" disabled={busyKey !== null || !canEdit}
+                          aria-pressed={reportTargets.includes(exactKey)}
+                          onClick={() => { void toggleReport(it); }}
+                          title="Send the final task response on done or error; click to toggle"
+                          className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium ${reportTargets.includes(exactKey) ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary'}`}>
+                          {reportTargets.includes(exactKey) && <Check size={12} />}
+                          Report
+                        </button>
                         {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
                         <button
                           type="button"
                           onClick={() => toggle(it, !subscribed)}
-                          disabled={busyKey !== null}
+                          disabled={busyKey !== null || !canEdit}
                           title={
                             subscribed
                               ? 'Click to unsubscribe from inbox updates'

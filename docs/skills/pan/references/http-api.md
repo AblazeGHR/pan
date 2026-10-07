@@ -62,6 +62,8 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`agent_send_force`（MCP，别名 worker_send_force）内部走此端点 |
 | `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入正在运行的 Codex 原生回合，并在写入成功后落盘到 Pan history |
 | `POST` | `/api/worker/{worker_id}/control` | `{"control": {"type": "terminal_input", "process_id": "...", "text": "..."}}` | 向运行中的 Codex 发送终端输入；`terminal_terminate` 可终止对应进程。也支持审批、用户输入、权限和 elicitation 控制 |
+| `PUT` | `/api/sessions/{id}/qq-report` | `{"target":"user:123@456", "enabled":true, "expectedEnabled":false}` | 独立 QQ 完成报告对象；支持 user/group、可选 @bot，返回 qqReportTargets/msgBridgeEnabled。readonly/CAS 拒绝，存盘后才成功；done 发本任务最后 assistant 正文，error 发与 TA→MA 相同的本次 result，一次发送无重试 |
+| `PUT` | `/api/sessions/{id}/msg-bridge` | `{"enabled":false, "expectedEnabled":true}` | 灭钟清空 QQ subscribe/report 与 system/browser；亮钟仅开 system。任一 QQ subscribe/report 或 system/browser 开启时 summary.msgBridgeEnabled=true；WeChat/TA→MA 关系独立 |
 | `POST` | `/api/qq/subscribe` | `{"sessionId": "...", "target_type": "user"/"group", "target_id": "..."}` | Pan session 订阅某 QQ 会话 inbox 提醒（`@@@@by qq` 推送到 queue_pending）；等价 MCP 工具 `session_qq_subscribe`（pan server） |
 | `POST` | `/api/qq/unsubscribe` | 同上 | 退订（等价 `session_qq_unsubscribe`） |
 

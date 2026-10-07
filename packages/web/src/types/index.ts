@@ -151,6 +151,7 @@ export interface Session {
   reportsToManager?: boolean | null;
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
   qqSubscriptions?: string[];
+  qqReportTargets?: string[];
   notificationSettings?: { browser: boolean; system: boolean };
   /** QQ, system, or browser msgBridge is enabled for this Session. */
   msgBridgeEnabled?: boolean;
@@ -628,6 +629,7 @@ export interface ApiSessionMsgBridgeResponse {
   sessionId?: string;
   msgBridgeEnabled?: boolean;
   qqSubscriptions?: string[];
+  qqReportTargets?: string[];
   notificationSettings?: { browser: boolean; system: boolean };
   error?: ApiErrorInfo;
 }
@@ -665,6 +667,7 @@ export interface ApiQqSubscribeResponse {
   qqTarget?: string;
   subscribed?: boolean;
   qqSubscriptions?: string[];
+  qqReportTargets?: string[];
   error?: string;
 }
 

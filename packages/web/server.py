@@ -224,6 +224,8 @@ async def lifespan(app: FastAPI):
 
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
+    from packages.core import qq_reports
+    qq_reports.start(_send_scheduled_qq, sessions)
     worker.start_global_watchdog()
     background_jobs.register_scheduled_tasks(qq_send=_send_scheduled_qq)
     background_jobs.start_recovery_loop()
@@ -284,6 +286,7 @@ async def lifespan(app: FastAPI):
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
     # spawn 中途导致 Windows Proactor 循环无法退出。
     await worker.drain_recoveries()
+    await qq_reports.stop()
     await worker.shutdown_all()
     # Release cached MemoryManagers + loaded embedding models (#20).
     try:
@@ -2003,7 +2006,7 @@ def _reports_to_manager(s: sess.Session, manager_by_id: dict | None = None) -> b
 
 def _msg_bridge_enabled(s: sess.Session) -> bool:
     settings = notifications.normalize_notification_settings(s.notification_settings)
-    return bool(s.qq_subscriptions or settings["system"] or settings["browser"])
+    return bool(s.qq_subscriptions or s.qq_report_targets or settings["system"] or settings["browser"])
 
 def _session_to_api(
     s: sess.Session,
@@ -2086,6 +2089,7 @@ def _session_to_api(
         "agentLevel": sess.agent_level(s.id, load_history=False),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
+        "qqReportTargets": sorted(s.qq_report_targets),
         "wechatSubscriptions": sorted(s.wechat_subscriptions),
         "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
         "msgBridgeEnabled": _msg_bridge_enabled(s),
@@ -10673,6 +10677,7 @@ async def api_qq_unsubscribe(data: dict):
 @app.put("/api/sessions/{session_id}/msg-bridge")
 async def api_set_session_msg_bridge(session_id: str, data: dict):
     """Set the card's QQ/system/browser notification group in one save."""
+    from packages.core import qq_reports
     enabled = data.get("enabled")
     expected_enabled = data.get("expectedEnabled")
     if not isinstance(enabled, bool) or not isinstance(expected_enabled, bool):
@@ -10686,15 +10691,70 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
         return {"ok": False, "error": {"code": "state_changed",
                 "message": "The msgBridge setting changed; refresh and retry"}}
     # Enabling selects only system notifications. Disabling clears the whole
-    # QQ/system/browser group; WeChat and queued reports are independent.
-    target.qq_subscriptions.clear()
-    target.notification_settings = {"browser": False, "system": enabled}
-    await sess.save_async(target)
+    # QQ subscribe/report/system/browser group; WeChat and MA reports are independent.
+    async with worker.queue_lock(session_id):
+        if sess.get(session_id, load_history=False) is not target:
+            return {"ok": False, "error": {"code": "session_not_found", "message": "Session changed or was removed"}}
+        if target.readonly_session:
+            return {"ok": False, "error": {"code": "readonly_session", "message": "Readonly Session cannot be edited"}}
+        if _msg_bridge_enabled(target) != expected_enabled:
+            return {"ok": False, "error": {"code": "state_changed", "message": "The msgBridge setting changed; refresh and retry"}}
+        old_subscriptions = set(target.qq_subscriptions)
+        old_targets = set(target.qq_report_targets)
+        old_outbox = {key: dict(value) for key, value in target.qq_report_outbox.items()}
+        old_settings = dict(target.notification_settings)
+        target.qq_subscriptions.clear()
+        target.qq_report_targets.clear()
+        qq_reports.cancel_pending(target)
+        target.notification_settings = {"browser": False, "system": enabled}
+        try:
+            await sess.save_async(target)
+        except BaseException:
+            target.qq_subscriptions = old_subscriptions
+            target.qq_report_targets = old_targets
+            target.qq_report_outbox = old_outbox
+            target.notification_settings = old_settings
+            raise
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id,
             "msgBridgeEnabled": _msg_bridge_enabled(target),
-            "qqSubscriptions": [],
+            "qqSubscriptions": [], "qqReportTargets": [],
             "notificationSettings": notifications.normalize_notification_settings(target.notification_settings)}
+
+
+@app.put("/api/sessions/{session_id}/qq-report")
+async def api_qq_report(session_id: str, data: dict):
+    """Toggle independent task reports for one bot/contact identity."""
+    from packages.core import qq_reports
+    target = data.get("target")
+    enabled = data.get("enabled")
+    expected = data.get("expectedEnabled")
+    if (not isinstance(target, str) or qq_reports.parse_target(target) is None
+            or not isinstance(enabled, bool) or not isinstance(expected, bool)):
+        return {"ok": False, "error": {"code": "missing_params", "message": "Valid target, enabled and expectedEnabled are required"}}
+    async with worker.queue_lock(session_id):
+        s = sess.get(session_id, load_history=False)
+        if s is None:
+            return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+        if s.readonly_session:
+            return {"ok": False, "error": {"code": "readonly_session", "message": "Readonly Session cannot be edited"}}
+        if (target in s.qq_report_targets) != expected:
+            return {"ok": False, "error": {"code": "state_changed", "message": "Report setting changed; refresh and retry"}}
+        old = set(s.qq_report_targets)
+        old_outbox = {key: dict(value) for key, value in s.qq_report_outbox.items()}
+        if enabled:
+            s.qq_report_targets.add(target)
+        else:
+            s.qq_report_targets.discard(target)
+            qq_reports.cancel_pending(s, target)
+        try:
+            await sess.save_async(s)
+        except BaseException:
+            s.qq_report_targets = old
+            s.qq_report_outbox = old_outbox
+            raise
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "sessionId": session_id, "qqReportTargets": sorted(s.qq_report_targets), "msgBridgeEnabled": _msg_bridge_enabled(s)}
 
 
 @app.post("/api/qq/notify")

@@ -1355,6 +1355,8 @@ class Session:
     # safely retransmit the same clientMessageId without starting the task twice.
     accepted_input_ids: list[str] = field(default_factory=list)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
+    qq_report_targets: set[str] = field(default_factory=set)  # Independent bot/contact completion recipients
+    qq_report_outbox: dict = field(default_factory=dict)  # One persisted send attempt per terminal/recipient
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
     wechat_subscriptions: set[str] = field(default_factory=set)  # 微信会话（WeChat conversations）this session subscribes to ("user:<wxid>")
     notification_settings: dict = field(default_factory=dict)  # Pan completion notifications
@@ -1414,7 +1416,7 @@ class Session:
                  accepted_input_ids: list[str] | None = None,
                  summary_projection: dict | None = None,
                  report_subscriptions=None,
-                 qq_subscriptions=None,
+                 qq_subscriptions=None, qq_report_targets=None, qq_report_outbox=None,
                  wechat_subscriptions=None, notification_settings=None, *,
                  queue_edit_locks: dict[str, dict] | None = None,
                  queue_paused: bool = False,
@@ -1607,6 +1609,16 @@ class Session:
         self._history_loaded = True
         self._summary_worker_state = None
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
+        self.qq_report_targets = {
+            key for key in qq_report_targets if isinstance(key, str)
+        } if isinstance(qq_report_targets, (set, list, tuple)) else set()
+        self.qq_report_outbox = {
+            key: copy.deepcopy(value)
+            for key, value in qq_report_outbox.items()
+            if (isinstance(key, str) and isinstance(value, dict)
+                and isinstance(value.get("target"), str)
+                and isinstance(value.get("text"), str))
+        } if isinstance(qq_report_outbox, dict) else {}
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.wechat_subscriptions = (
             wechat_subscriptions if wechat_subscriptions is not None else set()
@@ -1812,6 +1824,8 @@ class Session:
             "accepted_input_ids": self.accepted_input_ids,
             "summary_projection": dict(self.summary_projection),
             "report_subscriptions": sorted(self.report_subscriptions),
+            "qq_report_targets": sorted(self.qq_report_targets),
+            "qq_report_outbox": self.qq_report_outbox,
             "qq_subscriptions": sorted(self.qq_subscriptions),
             "wechat_subscriptions": sorted(self.wechat_subscriptions),
             "notification_settings": normalize_notification_settings(self.notification_settings),

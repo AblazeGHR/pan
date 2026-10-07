@@ -262,6 +262,7 @@ class Worker:
     # A provider can repeat a terminal event during reconnect/replay.  This
     # runtime guard prevents a second result/report for the same active turn;
     # the durable usage job below provides the restart-side idempotency cursor.
+    _current_task_last_assistant_text: str | None = None
     _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
     _current_serialized: bytes | None = None
@@ -1098,8 +1099,9 @@ async def _persist_terminal_state(
     w: Worker, s, status: str, result_text: str | None,
 ) -> dict | None:
     """Persist the minimum terminal fact set before any completion broadcast."""
-    async with unread_done_lock(w.session_id):
-        return await _persist_terminal_state_locked(w, s, status, result_text)
+    async with queue_lock(w.session_id):
+        async with unread_done_lock(w.session_id):
+            return await _persist_terminal_state_locked(w, s, status, result_text)
 
 
 async def _persist_terminal_state_locked(
@@ -1179,6 +1181,20 @@ async def _persist_terminal_state_locked(
         ) + 1
     except (TypeError, ValueError):
         result_cursor = max(0, int(getattr(s, "result_cursor", 0) or 0)) + 1
+    old_terminal_state = {
+        "result_cursor": s.result_cursor,
+        "unread_done_generation": s.unread_done_generation,
+        "unread_done_read_generation": s.unread_done_read_generation,
+        "unread_done_count": s.unread_done_count,
+        "active_task_id": s.active_task_id,
+        "last_legal_worker_state": s.last_legal_worker_state,
+        "usage_enrichment_pending": list(s.usage_enrichment_pending),
+    }
+    old_runtime_state = {
+        "_current_queue_item": w._current_queue_item,
+        "_current_report_items": list(w._current_report_items),
+        "_current_task_assistant_ids": set(w._current_task_assistant_ids),
+    }
     s.result_cursor = result_cursor
     terminal_record = {
         "resultCursor": result_cursor,
@@ -1236,7 +1252,18 @@ async def _persist_terminal_state_locked(
             and last.get("messageId") in w._current_task_assistant_ids
         )
         if not already_appended_this_turn:
-            _sess.append_history(s, {"role": "assistant", "content": result_text})
+            entry = {"role": "assistant", "content": result_text}
+            _sess.append_history(s, entry)
+            # Keep this append associated with the turn if the base commit
+            # fails and its terminal event is retried.
+            old_runtime_state["_current_task_assistant_ids"].add(entry["messageId"])
+    from packages.core import qq_reports
+    old_qq_outbox = dict(s.qq_report_outbox)
+    if (status in {"done", "error"} and task_seq is not None
+            and not w._current_report_items):
+        body = result_text if status == "error" else (w._current_task_last_assistant_text or result_text)
+        if body:
+            qq_reports.prepare(s, terminal_key, body)
     w._current_task_assistant_ids.clear()
 
     # The result must cover the canonical history revision after the final
@@ -1270,7 +1297,20 @@ async def _persist_terminal_state_locked(
     await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
     # This is the base commit.  If it fails, the exception prevents both
     # worker.result and idle broadcasts, as required by the terminal contract.
-    await _flush_history_now(w)
+    try:
+        await _flush_history_now(w)
+    except BaseException:
+        # A failed first commit must remain retryable, never look like a
+        # durable duplicate or cause a QQ send from an uncommitted outbox.
+        s.last_result = prior_result
+        s.terminal_results = prior_terminals
+        for key, value in old_terminal_state.items():
+            setattr(s, key, value)
+        for key, value in old_runtime_state.items():
+            setattr(w, key, value)
+        s.qq_report_outbox = old_qq_outbox
+        w.status = status
+        raise
     w.status = status
     w._terminal_handled = True
     return {
@@ -1291,6 +1331,8 @@ async def _persist_terminal_state_locked(
 
 async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
     """Publish result then idle, without waiting for usage enrichment."""
+    from packages.core import qq_reports
+    qq_reports.kick(w.session_id)
     completion_notification = _notifications.dispatch_completion_nonblocking(
         s, terminal["status"], terminal["result"],
     )
@@ -1817,6 +1859,8 @@ async def _read_stdout(w: Worker):
                     if (b.get("role") == "assistant"
                             and _sess.is_pan_message_id(b.get("messageId"))):
                         w._current_task_assistant_ids.add(b["messageId"])
+                        if isinstance(b.get("content"), str) and b["content"].strip():
+                            w._current_task_last_assistant_text = b["content"]
                 # A1 防抖：append 只标记 dirty，由防抖任务批量落盘（不逐块全量 save）
                 _mark_history_dirty(w)
 
@@ -5053,6 +5097,8 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         # boundary so already-buffered post-terminal frames cannot be assigned
         # to this queue item's taskSeq.
         async def write_input():
+            w._current_task_last_assistant_text = None
+            w._current_task_assistant_ids.clear()
             w._terminal_handled = False
             written = w.process.stdin.write(w._current_serialized)
             if written is not None and written != len(w._current_serialized):
@@ -5179,6 +5225,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
 
     详见 docs/design/adapter-p1-oneshot.md §4。
     """
+    w._current_task_last_assistant_text = None
+    w._current_task_assistant_ids.clear()
     w._terminal_handled = False
     standalone_items = []
     if on_handoff is None:
@@ -5441,6 +5489,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         if (block.get("role") == "assistant"
                 and _sess.is_pan_message_id(block.get("messageId"))):
             w._current_task_assistant_ids.add(block["messageId"])
+            if isinstance(block.get("content"), str) and block["content"].strip():
+                w._current_task_last_assistant_text = block["content"]
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
     if result_event is not None and adapter.is_result_error(result_event):
