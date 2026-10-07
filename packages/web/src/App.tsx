@@ -12,6 +12,7 @@ import { isMockMode } from './demo/mockBackend';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
+import { useDetailStore } from './stores/detailStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Outlet, useNavigate } from 'react-router-dom';
 
@@ -22,6 +23,7 @@ const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
 ));
 
 export function Layout() {
+  const detailOpen = useDetailStore((s) => s.detailTarget !== null);
   // The dashboard connection is route-independent. Keeping this singleton
   // consumer above <Outlet> lets editor/manage continue receiving Session,
   // worker, queue and reconnect events while ChatView is unmounted.
@@ -244,7 +246,7 @@ export function Layout() {
       <StartupRecoveryPrompt />
       {isMockMode() && <DemoBadge />}
       <Suspense fallback={<aside className="w-0 overflow-hidden border-l-0" />}>
-        <DetailPanel />
+        {detailOpen ? <DetailPanel /> : <aside className="w-0 overflow-hidden border-l-0" />}
       </Suspense>
       <CommandPalette />
       <EditorConfirmationModal />

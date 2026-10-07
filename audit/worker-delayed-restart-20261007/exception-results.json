@@ -1,0 +1,100 @@
+{
+  "passed": 11,
+  "scenarios": [
+    {
+      "case": "terminal-fail",
+      "intent": "failed",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "terminal-cancel-fail",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "terminal-cancel-commit",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-requeue",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-requeue-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-save",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-save-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-legal",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-legal-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-broadcast",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-broadcast-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    }
+  ],
+  "existing_priority_scenarios_rechecked": [
+    "running request/settings merge/1000 duplicate requests: one pending intent, no interruption",
+    "temporary idle during terminal publication or queue cleanup: deferred until valid boundary",
+    "actual FIFO task handoff + gated result/report + idle retirement: old writes task 1 only; new writes task 2 once; locked task 3 remains"
+  ],
+  "limitations": [
+    "final filesystem writer injected; no OS disk fault",
+    "provider lifecycle body injected; no native restart",
+    "no HTTP/WS/browser/service or test suite execution"
+  ]
+}

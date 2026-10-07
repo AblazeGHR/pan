@@ -1,0 +1,3 @@
+../../Pan-main/packages/web/src/views/TerminalPanel.tsx(2,26): error TS2307: Cannot find module '@xterm/xterm' or its corresponding type declarations.
+../../Pan-main/packages/web/src/views/TerminalPanel.tsx(3,26): error TS2307: Cannot find module '@xterm/addon-fit' or its corresponding type declarations.
+../../Pan-main/packages/web/src/views/TerminalPanel.tsx(86,47): error TS7006: Parameter 'text' implicitly has an 'any' type.

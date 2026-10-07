@@ -243,6 +243,8 @@ class Worker:
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
     takeover_job: object | None = None  # Windows Codex descendants, including orphans
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
+    _queue_unit_active: bool = False  # includes terminal publication and queue cleanup
+    _terminal_finishing: bool = False
     # ── 活性探测（watchdog 用）──
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
     _task_started_at: float = 0.0  # time.monotonic；stream 任务开始处理（status→running）时记录，watchdog 据此判定「任务运行时长」超时
@@ -292,6 +294,8 @@ class Worker:
 
 
 workers: dict[str, Worker] = {}
+_delayed_restarts: dict[str, dict] = {}
+_delayed_restart_revision = 0
 # Fast session -> current runtime lookup.  Keep the worker-id registry as the
 # compatibility/source-of-truth container; this index only avoids scanning it
 # for the hot session control/status paths.
@@ -315,6 +319,7 @@ def _next_worker_generation(session_id: str) -> int:
 
 
 def _bump_worker_generation(w: Worker) -> None:
+    _cancel_pending_restart(w)
     w.generation += 1
     _worker_generations[w.session_id] = max(
         _worker_generations.get(w.session_id, -1), w.generation,
@@ -1101,9 +1106,18 @@ async def _persist_terminal_state(
     w: Worker, s, status: str, result_text: str | None,
 ) -> dict | None:
     """Persist the minimum terminal fact set before any completion broadcast."""
-    async with queue_lock(w.session_id):
-        async with unread_done_lock(w.session_id):
-            return await _persist_terminal_state_locked(w, s, status, result_text)
+    if not w._terminal_handled:
+        w._terminal_finishing = True
+    try:
+        async with queue_lock(w.session_id):
+            async with unread_done_lock(w.session_id):
+                return await _persist_terminal_state_locked(w, s, status, result_text)
+    except BaseException as exc:
+        # Persistence owns its rollback/committed-outcome decision. Never turn
+        # an aborted terminal chain into an idle restart or hide its exception.
+        w._terminal_finishing = False
+        _abort_delayed_restart(w, "terminal persistence", exc)
+        raise
 
 
 async def _persist_terminal_state_locked(
@@ -1640,6 +1654,7 @@ def _signal_task_done(w: Worker) -> None:
     与 _consumer_stream 的 ev.wait() 配对：result 处理完成（或进程 EOF）时调用，
     让 consumer 知道当前任务已结束、可以推进下一个排队任务。
     """
+    w._terminal_finishing = False
     ev = getattr(w, "_task_done", None)
     if ev is not None:
         ev.set()
@@ -1841,6 +1856,10 @@ async def _read_stdout(w: Worker):
         event = adapter.parse_event(line_str)
         if event is None:
             continue
+        if w.status == "restarting":
+            # Retirement is published only after the turn's result/report and
+            # queue cleanup. Buffered old frames must not reopen that boundary.
+            continue
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
@@ -2015,6 +2034,7 @@ async def _read_stdout(w: Worker):
         await _flush_history_now(w)
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
+    _cancel_pending_restart(w)
     workers.pop(w.worker_id, None)
     _unregister_worker(w)
     if abnormal:
@@ -2279,6 +2299,8 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
     if not _process_alive(w):
         return False
     async with queue_lock(s.id):
+        if w.status == "restarting" or (w.pending_restart and w.status in {"idle", "queued"}):
+            return False
         current_unit = _select_queue_unit(s)
         if (current_unit is None
                 or len(current_unit) != len(items)
@@ -2331,19 +2353,19 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
 
 
 async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
-                              history_added: bool = False) -> None:
+                              history_added: bool = False, *, immediate: bool = False) -> None:
     async with queue_lock(s.id):
-        await _requeue_queue_unit_locked(w, s, items, reason, history_added)
+        await _requeue_queue_unit_locked(w, s, items, reason, history_added, immediate=immediate)
 
 
 async def _requeue_queue_unit_locked(w: Worker, s, items: list[dict], reason: str,
-                              history_added: bool = False) -> None:
+                              history_added: bool = False, *, immediate: bool = False) -> None:
     """Put an unfinished hand-off back, with bounded retry backoff."""
     requeued = False
     for item in items:
         if _delivery_state(item) == _DELIVERY_SENT:
             continue
-        _queue_item_backoff(item, reason)
+        _queue_item_backoff(item, reason, immediate=immediate)
         _remember_queue_item(s, item, _DELIVERY_QUEUED)
         requeued = True
         if item.get("type") == "task":
@@ -2368,6 +2390,11 @@ async def _requeue_queue_unit_locked(w: Worker, s, items: list[dict], reason: st
             "[Worker %s] failed to persist queue requeue for session=%s: %s",
             w.worker_id, s.id, exc,
         )
+        if w.pending_restart:
+            # Do not retire a runtime on an uncommitted requeue. Preserve the
+            # legacy retry behavior when no delayed restart was requested.
+            _abort_delayed_restart(w, "queue requeue persistence", exc)
+            raise
     _schedule_queue_retry(s.id)
 
 
@@ -2495,6 +2522,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
     w._current_report_items = list(items) if kind == "report" else []
     w._current_handoff_acked = False
     history_added = False
+    w._queue_unit_active = True
     try:
         projected_text = (
             project_message_parts(items[0].get("parts"), history_text)
@@ -2531,7 +2559,8 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         if not w._current_handoff_acked:
             try:
                 await asyncio.shield(_requeue_queue_unit(
-                    w, s, items, "worker cancelled before CLI hand-off", history_added))
+                    w, s, items, "worker cancelled before CLI hand-off", history_added,
+                    immediate=w.pending_restart and w.status == "restarting"))
             except Exception as exc:
                 _log.warning("[Worker %s] cancellation requeue failed: %s", w.worker_id, exc)
         raise
@@ -2542,30 +2571,41 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         if w._current_handoff_acked:
             raise
     finally:
-        if not w._current_handoff_acked and any(
-                _delivery_state(item) in {_DELIVERY_RESERVED, _DELIVERY_WRITING,
-                                           _DELIVERY_IN_FLIGHT}
-                for item in items):
-            await _requeue_queue_unit(
-                w, s, items, "CLI returned before hand-off confirmation", history_added)
-        if w._current_queue_item is items[0] if kind == "task" else False:
-            w._current_queue_item = None
-        if kind == "report":
-            w._current_report_items = []
-        if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
-            w._current_task_id = None
-            w._current_task_idempotent = False
-        if not w._current_handoff_acked and getattr(s, "queue_paused", False):
-            w.status = "idle"
-            await _record_legal_worker_state(w, "idle", "queue/paused")
-            await _bcast({"type": "worker.status", "workerId": w.worker_id,
-                          "sessionId": s.id, "generation": w.generation, "status": "idle"})
+        try:
+            if not w._current_handoff_acked and any(
+                    _delivery_state(item) in {_DELIVERY_RESERVED, _DELIVERY_WRITING,
+                                               _DELIVERY_IN_FLIGHT}
+                    for item in items):
+                await _requeue_queue_unit(
+                    w, s, items, "CLI returned before hand-off confirmation", history_added,
+                    immediate=w.pending_restart and w.status in {"idle", "queued", "restarting"})
+            if w._current_queue_item is items[0] if kind == "task" else False:
+                w._current_queue_item = None
+            if kind == "report":
+                w._current_report_items = []
+            if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
+                w._current_task_id = None
+                w._current_task_idempotent = False
+            if w.status != "restarting" and not w._current_handoff_acked and (getattr(s, "queue_paused", False)
+                                                or w.pending_restart):
+                w.status = "idle"
+                await _record_legal_worker_state(w, "idle", "queue/restart-pending" if w.pending_restart else "queue/paused")
+                await _bcast({"type": "worker.status", "workerId": w.worker_id,
+                              "sessionId": s.id, "generation": w.generation, "status": "idle"})
+        except BaseException as exc:
+            _abort_delayed_restart(w, "queue unit cleanup", exc)
+            raise
+        finally:
+            # Clear even if requeue persistence, legal-state save or broadcast
+            # aborts. Failed cleanup is NOT a safe idle boundary.
+            w._queue_unit_active = False
+        _maybe_restart_pending(w)
         _wake_after_queue_unit(w, s)
 
 
 def _wake_after_queue_unit(w: Worker, s) -> None:
     """Re-arm one generic wakeup without making signals the queue."""
-    if s is None:
+    if s is None or w.status == "restarting":
         return
     if _has_sendable_queued_items(s):
         if w.pending_signal is not None:
@@ -2588,6 +2628,9 @@ async def _consumer(w: Worker):
             continue
         s = _session(w)
         if s is None:
+            continue
+        _maybe_restart_pending(w)
+        if w.status == "restarting":
             continue
         unit = _select_queue_unit(s)
         if unit is None:
@@ -5036,6 +5079,8 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
     have not entered it remain retractable and are requeued by the caller.
     """
     async with queue_lock(s.id):
+        if w.status == "restarting":
+            raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
         if getattr(s, "queue_paused", False):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
         result = await operation()
@@ -5046,6 +5091,8 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
 
 async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=None):
     """Stream mode: write to the adapter's long-running stdin."""
+    if w.status == "restarting" or (w.pending_restart and w.status in {"idle", "queued"}):
+        return
     standalone_items = []
     if on_handoff is None:
         if w._current_queue_item is not None:
@@ -5221,6 +5268,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
 
     详见 docs/design/adapter-p1-oneshot.md §4。
     """
+    if w.status == "restarting" or (w.pending_restart and w.status in {"idle", "queued"}):
+        return
     w._current_task_last_assistant_text = None
     w._current_task_assistant_ids.clear()
     w._terminal_handled = False
@@ -5617,6 +5666,7 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     recovery_pending = session_id in _recovery_required
+    _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
         if _shutdown_started:
@@ -5838,11 +5888,17 @@ async def _create_worker(session_id: str) -> Worker | str:
     if s.system_prompt and not s.cli_session_id:
         if mode == "oneshot":
             _log.info("[Worker %s] oneshot mode: system_prompt 由 oneshot_args 逐任务注入", worker_id)
-        elif not spawn_injected:
+        elif not spawn_injected and not any(
+                isinstance(item, dict) and item.get("type") == "task"
+                and item.get("source") == "system_prompt"
+                and item.get("text") == s.system_prompt
+                for item in s.queue_pending):
             _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
             await send_task(worker_id, s.system_prompt, source="system_prompt")
-        else:
+        elif spawn_injected:
             _log.info("[Worker %s] stream mode: system_prompt injected via --system-prompt", worker_id)
+        else:
+            _log.info("[Worker %s] recovering queued system_prompt without reinjection", worker_id)
 
     return w
 
@@ -5958,6 +6014,7 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     if w.status == "held":
         return "Worker already in takeover mode"
 
+    _cancel_pending_restart(w)
     _cancel_claude_permission_requests(worker_id, "Claude worker entered takeover mode")
 
     current = asyncio.current_task()
@@ -5984,6 +6041,7 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
 async def _kill_worker_unlocked(
     worker_id: str, *, recover: bool = False,
     report_abnormal: bool = False,
+    preserve_restart_intent: bool = False,
 ) -> str | None:
     """Kill the Worker process. Does NOT touch the Session.
 
@@ -5996,6 +6054,8 @@ async def _kill_worker_unlocked(
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    if not preserve_restart_intent:
+        _cancel_pending_restart(w)
 
     if w.takeover_job is not None:
         try:
@@ -6072,6 +6132,7 @@ async def kill_worker(worker_id: str, *, recover: bool = False,
     if not w:
         return "Worker not found"
     generation = w.generation
+    _cancel_session_restart(w.session_id)
     lock = await _session_spawn_lock(w.session_id)
     async with lock:
         current = workers.get(worker_id)
@@ -6088,6 +6149,7 @@ async def kill_session_worker(session_id: str, *,
     """Kill the live worker for a session, if present."""
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
+    _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
         w = find_alive_worker_by_session(session_id)
@@ -6105,6 +6167,7 @@ async def takeover_worker(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
     generation = w.generation
+    _cancel_session_restart(w.session_id)
     lock = await _session_spawn_lock(w.session_id)
     async with lock:
         current = workers.get(worker_id)
@@ -6117,6 +6180,7 @@ async def takeover_session_worker(session_id: str) -> Worker | str | None:
     """Put the live worker for a session into takeover mode, if present."""
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
+    _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
         w = find_alive_worker_by_session(session_id)
@@ -6135,6 +6199,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
     w = workers.get(worker_id)
     if not w:
         return
+    _cancel_pending_restart(w)
     try:
         if not w:
             return
@@ -6179,33 +6244,170 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
 
 
 def _maybe_restart_pending(w: Worker) -> None:
-    """Worker 回到 idle 时若标记了 pending_restart，异步 respawn 让配置变更生效。
+    """Linearize idle retirement BEFORE scheduling or waking the next FIFO unit.
 
-    在 worker 置 idle 的各路径调用；仅 pending_restart 时触发，其他情况为无操作。
+    A temporary idle during terminal persistence/publication is not an idle
+    boundary. A handed-off queue unit must finish its report/finally cleanup.
+    Preparation before running is cancellable: lifecycle stop awaits its
+    reservation unwind, rather than waiting for memory/network preparation.
+    No lock or await is needed for this event-loop-local decision.
     """
-    if w.pending_restart and w.process is not None:
+    if (not w.pending_restart or w.status not in {"idle", "queued"}
+            or (w._queue_unit_active and w._current_handoff_acked)
+            or w._terminal_finishing or workers.get(w.worker_id) is not w):
+        return
+    intent = _delayed_restarts.get(w.session_id)
+    if (intent is None or intent["status"] != "pending"
+            or intent["workerId"] != w.worker_id
+            or intent["generation"] != w.generation):
+        return
+    # The old consumer can no longer reserve or hand off another queue item.
+    w.status = "restarting"
+    _set_restart_intent(intent, "restarting")
+    asyncio.create_task(_respawn_worker(w, intent))
+
+
+def delayed_restart_state(session_id: str) -> dict | None:
+    intent = _delayed_restarts.get(session_id)
+    return dict(intent) if intent else None
+
+
+def _set_restart_intent(intent: dict, status: str, error: str | None = None) -> None:
+    global _delayed_restart_revision
+    _delayed_restart_revision += 1
+    intent.update(status=status, error=error, revision=_delayed_restart_revision)
+    # Snapshot now: a later transition must not mutate an already queued event.
+    asyncio.create_task(_bcast({"type": "worker.delayed_restart",
+                               "sessionId": intent["sessionId"],
+                               "delayedRestart": dict(intent)}))
+
+
+def _abort_delayed_restart(w: Worker, boundary: str, exc: BaseException) -> None:
+    """Expose an unsafe completion boundary without scheduling a replacement.
+
+    The original exception remains the caller's responsibility. Clearing the
+    intent projection lets an immediate Restart recover this runtime; terminal
+    persistence retains its existing rollback/dedup semantics.
+    """
+    intent = _delayed_restarts.get(w.session_id)
+    if (intent and intent["workerId"] == w.worker_id
+            and intent["generation"] == w.generation
+            and intent["status"] in {"pending", "restarting"}):
         w.pending_restart = False
-        _log.info("[Worker %s] 配置变更：idle 后 respawn", w.worker_id)
-        asyncio.create_task(_respawn_worker(w))
+        w.status = "error"
+        cancelled = isinstance(exc, asyncio.CancelledError)
+        _set_restart_intent(intent, "cancelled" if cancelled else "failed",
+                            f"{boundary}: {type(exc).__name__}: {exc}; use Restart to recover")
 
 
-async def _respawn_worker(w: Worker) -> None:
-    """kill 当前进程 + 重新 spawn（resume 上下文），用于进程相关配置变更后生效。"""
-    sid, wid = w.session_id, w.worker_id
-    generation = w.generation
+def _cancel_pending_restart(w: Worker) -> None:
+    """Immediate lifecycle operations supersede this generation's intent."""
+    w.pending_restart = False
+    intent = _delayed_restarts.get(w.session_id)
+    if (intent and intent["workerId"] == w.worker_id
+            and intent["generation"] == w.generation
+            and intent["status"] in {"pending", "restarting"}):
+        _set_restart_intent(intent, "cancelled")
+
+
+def _cancel_session_restart(session_id: str) -> None:
+    """An immediate user lifecycle request wins even while spawn lock is held."""
+    intent = _delayed_restarts.get(session_id)
+    if intent and intent["status"] in {"pending", "restarting"}:
+        w = find_worker_by_session(session_id)
+        if w is not None:
+            w.pending_restart = False
+        _set_restart_intent(intent, "cancelled")
+
+
+def request_delayed_restart(session_id: str) -> dict | str:
+    """Merge settings/user intent; absent runtime follows Restart's start policy.
+
+    Acceptance and generation capture are synchronous. Lifecycle I/O reuses
+    the existing per-session spawn lock; no global/queue lock waits for exit.
+    Intent is runtime-only and never migrates to a different Worker generation.
+    """
+    if _shutdown_started:
+        return "Pan main service is shutting down"
+    if _get_session_shallow(session_id) is None:
+        return f"Session {session_id} not found"
+    prior = _delayed_restarts.get(session_id)
+    if prior and prior["status"] in {"pending", "restarting"}:
+        owner = workers.get(prior["workerId"])
+        if prior["status"] == "restarting" or (
+                owner is not None and owner.generation == prior["generation"]):
+            return dict(prior)
+        _set_restart_intent(prior, "cancelled", "Worker generation was replaced")
+    tracked = find_worker_by_session(session_id)
+    if tracked is not None and tracked.status == "held":
+        return "Worker is held (takeover mode); use Restart after finishing takeover"
+    w = find_alive_worker_by_session(session_id)
+    if w is not None and w.status not in {"idle", "running", "queued", "done", "error", "cancelled"}:
+        return f"Worker is {w.status}; delayed restart requires an idle or active task runtime"
+    if (w is not None and w.status in {"done", "error", "cancelled"}
+            and not w._terminal_finishing and not w._queue_unit_active):
+        return f"Worker is {w.status}; use Restart to recover the runtime"
+    intent = {"sessionId": session_id, "workerId": w.worker_id if w else None,
+              "generation": w.generation if w else None,
+              "action": "restart" if w else "start"}
+    _delayed_restarts[session_id] = intent
+    _set_restart_intent(intent, "pending" if w else "restarting")
+    if w:
+        w.pending_restart = True
+        _maybe_restart_pending(w)
+    else:
+        asyncio.create_task(_respawn_worker(None, intent))
+    return dict(intent)
+
+
+async def _respawn_worker(w: Worker | None, intent: dict) -> None:
+    """Reuse settings respawn; fence the captured generation under its lock."""
+    sid = intent["sessionId"]
     lock = await _session_spawn_lock(sid)
     try:
         async with lock:
-            if workers.get(wid) is not w or w.generation != generation:
+            if _delayed_restarts.get(sid) is not intent or intent["status"] != "restarting":
                 return
-            await _kill_worker_unlocked(wid)
+            if _shutdown_started:
+                _set_restart_intent(intent, "cancelled", "Pan main service is shutting down")
+                return
+            if w is not None:
+                if workers.get(w.worker_id) is not w or w.generation != intent["generation"]:
+                    _set_restart_intent(intent, "cancelled", "Worker generation was replaced")
+                    return
+                error = await _kill_worker_unlocked(w.worker_id, preserve_restart_intent=True)
+                if error:
+                    raise RuntimeError(error)
+                if not _runtime_stopped(w):
+                    # The existing kill path has already removed its registry
+                    # entry. Retain the fenced runtime so recovery cannot open
+                    # a second native writer while the old process still lives.
+                    workers[w.worker_id] = w
+                    w._consume_task = None  # fenced live runtime, no queue writer
+                    _register_worker(w)
+                    raise RuntimeError("Old Worker runtime did not stop; replacement was not started")
+            if intent["status"] != "restarting":
+                return
             result = await _create_worker(sid)
-        if isinstance(result, Worker):
-            _log.info("[Worker %s] respawn 完成 -> %s", wid, result.worker_id)
-        else:
-            _log.warning("[Worker %s] respawn 失败: %s", wid, result)
-    except Exception as e:
-        _log.error("[Worker %s] respawn 异常: %s", wid, e)
+            if isinstance(result, str):
+                raise RuntimeError(result)
+            if intent["status"] != "restarting":
+                return
+            intent["replacementWorkerId"] = result.worker_id
+            intent["replacementGeneration"] = result.generation
+            _set_restart_intent(intent, "completed")
+    except asyncio.CancelledError:
+        if intent["status"] == "restarting":
+            _set_restart_intent(intent, "cancelled", "Restart coordinator cancelled")
+        raise
+    except Exception as exc:
+        if w is not None:
+            w.pending_restart = False
+            if workers.get(w.worker_id) is w:
+                w.status = "error"
+        if intent["status"] == "restarting":
+            _set_restart_intent(intent, "failed", str(exc))
+        _log.exception("[Session %s] delayed restart failed", sid)
 
 
 async def _spawn_process(session_id: str,
@@ -6248,6 +6450,8 @@ async def _restart_tasks(w: Worker):
     w._claimed_queue_index = None
     w._current_report_items = []
     w._current_handoff_acked = False
+    w._queue_unit_active = False
+    w._terminal_finishing = False
     w._task_started_at = 0.0
     w.last_activity = time.monotonic()
     if w.process is not None:
@@ -6272,6 +6476,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    _cancel_pending_restart(w)
 
     # Stop the takeover owner before changing generation/state or spawning.
     # A failed stop leaves a held worker retryable and cannot create a writer.
@@ -6366,6 +6571,7 @@ async def restart_worker(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
     generation = w.generation
+    _cancel_session_restart(w.session_id)
     lock = await _session_spawn_lock(w.session_id)
     async with lock:
         current = workers.get(worker_id)
@@ -6379,6 +6585,7 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    _cancel_pending_restart(w)
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was respawned")
 
@@ -6449,6 +6656,7 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     if not w:
         return "Worker not found"
     generation = w.generation
+    _cancel_session_restart(w.session_id)
     lock = await _session_spawn_lock(w.session_id)
     async with lock:
         current = workers.get(worker_id)

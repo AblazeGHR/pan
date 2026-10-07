@@ -1,0 +1,28 @@
+{
+  "passed_scenarios": [
+    "running request/settings merge/1000 duplicate requests: one pending intent, no interruption",
+    "temporary idle during terminal publication or queue cleanup: deferred until valid boundary",
+    "actual FIFO task handoff + gated result/report + idle retirement: old writes task 1 only; new writes task 2 once; locked task 3 remains",
+    "already idle + paused queue: immediate restart, pause and FIFO retained",
+    "queued but not handed off: retire before old consumer can take next item",
+    "request during reserved receipt save: retract old reservation, zero timer backoff, new handoff once and one history receipt",
+    "slow memory preparation before running: cancelled safely without waiting; FIFO item immediately handed off once by replacement",
+    "report/notice FIFO uses the same fenced consumer; new Worker takes report once",
+    "actual create recovery: unhanded fallback system prompt is retained and handed off once, not reinjected",
+    "one-shot idle (no resident process): coordinator still executes",
+    "absent worker: start semantics, duplicate accepted request creates once",
+    "generation replaced before lock acquisition: old intent cannot kill new generation",
+    "immediate kill/restart/force supersession: cancelled intent never restarts next idle",
+    "immediate lifecycle request while old process exits: cancels replacement before spawn",
+    "spawn failure: observable failed state survives old Worker removal; explicit retry succeeds",
+    "old runtime refuses exit: retained fenced registry; no replacement writer or unsafe automatic retry",
+    "held takeover: delayed request rejects; no replacement writer"
+  ],
+  "running_guard_mean_ns": 39.174,
+  "duplicate_request_mean_ns": 225.43,
+  "limitations": [
+    "provider/process/disk/report boundaries replaced in memory",
+    "no live service/browser/native CLI",
+    "not a test suite"
+  ]
+}

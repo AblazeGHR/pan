@@ -805,6 +805,25 @@ try {
   const perfStart = Date.now();
   await send('long-stream');
   await poll(state, s => s.rows.some(m => m.content.includes('answer:long-stream')), 'long stream live');
+  // Record actual wheel/scroll geometry so a follow failure can be separated
+  // from a transient virtual-height change without weakening the assertion.
+  await scroller.evaluate(el => {
+    const trace = [];
+    const record = (kind, event) => trace.push({ kind, at: performance.now(), top: el.scrollTop,
+      height: el.scrollHeight, client: el.clientHeight,
+      innerWindow: event?.target instanceof window.Element && !!event.target.closest('[data-testid="non-body-group-window"]') });
+    const wheel = event => record('wheel', event);
+    const scroll = () => record('scroll');
+    record('before');
+    el.addEventListener('wheel', wheel);
+    el.addEventListener('scroll', scroll);
+    window.__stopLongScrollTrace = () => {
+      record('after');
+      el.removeEventListener('wheel', wheel);
+      el.removeEventListener('scroll', scroll);
+      return trace;
+    };
+  });
   // Target the outer transcript rather than an inner tool/thinking window.
   await scroller.hover({ position: { x: 120, y: 80 } });
   await page.mouse.wheel(0, -700);
@@ -812,7 +831,9 @@ try {
   const away = await scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
   assert.ok(away > 100, 'wheel opts out of follow');
   await sleep(450);
-  assert.ok(await scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight) > 100, 'stream does not pull reader down');
+  evidence.longScroll = await page.evaluate(() => window.__stopLongScrollTrace());
+  assert.ok(await scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight) > 100,
+    `stream does not pull reader down: ${JSON.stringify(evidence.longScroll)}`);
   await page.getByTitle('Scroll to bottom').click();
   await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'return to bottom');
   await poll(() => api(`/api/sessions/${ids['E2E-LONG']}`), s => s.lastResult?.result?.includes('answer:long-stream'), 'long stream final');

@@ -8210,10 +8210,11 @@ async def api_update_session(session_id: str, data: dict):
     if any(k in data for k in _PROCESS_AFFECTING_FIELDS):
         w = worker.find_alive_worker_by_session(session_id)
         if w:
-            if w.status == "idle" and w.process is not None:
-                asyncio.create_task(worker._respawn_worker(w))
+            restart_intent = worker.request_delayed_restart(session_id)
+            if isinstance(restart_intent, str):
+                result["restartError"] = restart_intent
             else:
-                w.pending_restart = True
+                result["delayedRestart"] = restart_intent
             require_restart = True
     if require_restart:
         result["requireRestart"] = True
@@ -11759,6 +11760,18 @@ async def api_adapter_sessions_import(adapter: str, data: dict):
 
 
 # ── Worker actions ──
+
+@app.get("/api/sessions/{session_id}/worker/delayed-restart")
+async def api_delayed_restart_state(session_id: str):
+    if not _summary_session_get(session_id):
+        return {"error": f"Session {session_id} not found"}
+    return {"delayedRestart": worker.delayed_restart_state(session_id)}
+
+
+@app.post("/api/sessions/{session_id}/worker/delayed-restart")
+async def api_delayed_restart(session_id: str):
+    result = worker.request_delayed_restart(session_id)
+    return {"error": result} if isinstance(result, str) else {"delayedRestart": result}
 
 @app.post("/api/worker/{worker_id}/restart")
 async def api_restart(worker_id: str):

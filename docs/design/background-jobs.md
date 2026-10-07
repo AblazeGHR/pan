@@ -106,6 +106,37 @@ keeps the original terminal event identity intact for the original Job. The
 retry inherits `creatorSessionId`, while its terminal notice is routed only to
 its `targetSessionId`.
 
+## Agent usage policy (guidance, not mechanism)
+
+The following is agent-facing usage guidance for `agent_background_*` OS-process
+Jobs only — the ones that execute OS commands with terminal notices on an
+independent Runner. It does not apply to Session-message/broadcast Jobs
+(`agent_message_job_*`), Scheduler tasks, or ordinary `agent_assign`/`agent_send`
+dispatch, and it changes no runtime mechanism. The read/cancel/retry tools stay
+available; this policy only defines when and how to use them.
+
+- Selection threshold: process Jobs exist to carry long work without polling.
+  Use them for commands expected to run **longer than about 3 minutes**. The
+  3-minute figure is a general selection threshold, not a runtime timeout and
+  not a hard ban on short tasks or extra API validation.
+- No polling after start: after starting a Job with completion notification,
+  agents must not poll for progress — no looping `agent_background_get`/
+  `agent_background_list`, no log reading/tailing, no sleep/watch/PID checks to
+  keep waiting. Once startup success, the notification target, and necessary
+  state records are confirmed, and no other independent work remains, the agent
+  ends its turn and goes idle; the terminal notice wakes it to read results and
+  logs for acceptance.
+- Real-time observation is a reason not to use a process Job: choose a
+  foreground/interactive execution style when progress must be watched live.
+  Do not combine a background Job with polling.
+- Retained uses: verifying results after the terminal notice, and one-off
+  diagnostics/cancellation/error recovery explicitly requested by the user
+  (`agent_background_get`/`cancel`/`retry`). These do not license routine
+  progress polling.
+- Unavailable notifications are fixed, not worked around: if the terminal
+  notice path is unavailable, fix notification delivery or use a non-background
+  execution style; do not add a polling fallback on top of a background Job.
+
 ## Terminal notice envelope
 
 Process Job terminal states (`completed`, `failed`, `cancelled`, including an

@@ -397,6 +397,7 @@ export interface TerminalInteraction {
 
 export interface StreamEvent {
   type: string;
+  delayedRestart?: DelayedRestartState;
   /** Legacy/source cursor; new clients prefer sourceCursorStart/End. */
   eventEpoch?: string;
   eventSeq?: number;
@@ -1182,6 +1183,23 @@ export interface ApiOpencodeSessionsResponse {
 }
 
 // ── Worker types ──
+
+export interface DelayedRestartState {
+  sessionId: string;
+  workerId: string | null;
+  generation: number | null;
+  revision: number;
+  action: 'start' | 'restart';
+  status: 'pending' | 'restarting' | 'completed' | 'failed' | 'cancelled';
+  error: string | null;
+  replacementWorkerId?: string;
+  replacementGeneration?: number;
+}
+
+export interface ApiDelayedRestartResponse {
+  delayedRestart: DelayedRestartState | null;
+  error?: string;
+}
 
 export interface WorkerItem {
   workerId: string;

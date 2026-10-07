@@ -16,6 +16,7 @@ import {
   Code,
   Copy,
   RotateCw,
+  Clock,
   Ban,
   Download,
   X,
@@ -125,6 +126,9 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
       takeover: s.takeover,
     })));
   const { isMobile } = useMediaQuery();
+  const delayedRestartState = useWorkerStore((s) =>
+    currentSession?.id ? s.delayedRestarts[currentSession.id] : undefined,
+  );
 
   useEffect(() => {
     const sessionId = currentSession?.id;
@@ -294,6 +298,22 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               title="Restart worker"
             >
               <RotateCw size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
+              disabled={delayedRestartState?.status === 'pending'
+                || delayedRestartState?.status === 'restarting'}
+              onClick={() => useWorkerStore.getState().delayedRestart(currentSession.id)
+                .then(() => showToast('Worker will restart after the current task completes'))
+                .catch((e: Error) => showToast(e.message, 'error'))}
+              title={delayedRestartState?.status === 'pending' ? 'Delayed restart pending: waiting for task completion'
+                : delayedRestartState?.status === 'restarting' ? 'Restarting worker'
+                : delayedRestartState?.status === 'failed' ? `Delayed restart failed: ${delayedRestartState.error}`
+                : 'Delayed restart: after task completion, before queued work'}
+            >
+              <Clock size={14} />
             </Button>
             <Button
               variant="ghost"

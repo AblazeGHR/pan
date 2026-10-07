@@ -8,6 +8,7 @@ import type {
   ApiSessionHistoryResponse,
   ApiHistorySearchResponse,
   ApiGenericResponse,
+  ApiDelayedRestartResponse,
   AdapterConfig,
   ApiConfigResponse,
   ApiDataCatalogResponse,
@@ -1483,6 +1484,16 @@ export async function killSessionWorker(sessionId: string): Promise<ApiGenericRe
   );
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+/** Accept an idle-boundary restart, or read its current observable state. */
+export async function requestDelayedRestart(sessionId: string, method: 'GET' | 'POST' = 'POST') {
+  const data = await request<ApiDelayedRestartResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/delayed-restart`,
+    { method },
+  );
+  if (data.error) throw new Error(data.error);
+  return data.delayedRestart;
 }
 
 /** Restart the live worker for a session, or start one when it has gone away. */

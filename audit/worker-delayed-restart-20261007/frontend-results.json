@@ -1,0 +1,42 @@
+[
+  {
+    "argv": [
+      "node",
+      "node_modules/eslint/bin/eslint.js",
+      "src/components/chat/SettingsPopover.tsx",
+      "src/components/layout/TopBar.tsx",
+      "src/hooks/useWebSocket.ts",
+      "src/services/api.ts",
+      "src/stores/workerStore.ts",
+      "src/types/index.ts"
+    ],
+    "exit_code": 0,
+    "seconds": 1.42
+  },
+  {
+    "argv": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "-b"
+    ],
+    "exit_code": 0,
+    "seconds": 10.14
+  },
+  {
+    "argv": [
+      "node",
+      "node_modules/vite/bin/vite.js",
+      "build"
+    ],
+    "exit_code": 0,
+    "seconds": 8.2
+  },
+  {
+    "argv": [
+      "node",
+      "e2e/verify-precompressed-assets.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 0.11
+  }
+]
