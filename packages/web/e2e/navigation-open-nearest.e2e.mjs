@@ -83,7 +83,7 @@ try {
   await api.request.put(`${base}/api/settings/ui`, { data: { showMessageNavigationRail: true, mergeConsecutiveNonBodyBlocks: false,
     showTaskAgent: true, showMetaAgent: true, keepScrollOnSessionSwitch: true, historyPageSize: 200 } });
   await api.close();
-  for (const [session, count, fraction] of (mode === 'faults' ? [] : [[dense, 10000, 0.5], [large, 6000, 0.5], [large, 6000, 0], [large, 6000, 1], [small, 200, 0.5], [small, 200, 0], [small, 200, 1]])) {
+  for (const [session, count, fraction, coldWindow = false] of (mode === 'faults' ? [] : [[dense, 10000, 0.5], [large, 6000, 0.5], [large, 6000, 0], [large, 6000, 1], [small, 200, 0.5], [small, 200, 0], [small, 200, 1], ...(mode === 'baseline' ? [] : [[large, 6000, 1, true]])])) {
     const context = await browser.newContext({ viewport: { width: 1120, height: 900 } });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     const page = await context.newPage();
@@ -98,7 +98,7 @@ try {
     if (count === 10000) await page.evaluate(() => { window.__navCandidateStep = 1; });
     await page.locator('[data-session-card-id]').filter({ hasText: session.name }).first().click();
     await page.waitForFunction(() => window.__panSessionStore.getState().currentMessages.length > 0 && !window.__panSessionStore.getState().historyLoading);
-    await page.evaluate(async count => {
+    if (!coldWindow) await page.evaluate(async count => {
       const s = window.__panSessionStore.getState();
       await s.ensureMessageLoaded(count - 1, count);
     }, count);
@@ -133,10 +133,10 @@ try {
     const firstMs = selected ? performance.now() - started : null;
     if (mode !== 'baseline') await delay(350);
     const after = await snapshot(page);
-    const scenario = { name: session.name, count, fraction, before, after, firstMs, requests: requests.length, bytes, selectedCorrect: after.selected === before.expected, bodyDelta: after.scrollTop - before.scrollTop };
+    const scenario = { name: session.name, count, fraction, coldWindow, loadedRows: await page.evaluate(() => window.__panSessionStore.getState().sessionTranscripts[window.__panSessionStore.getState().currentSessionId].window.rows.size), before, after, firstMs, requests: requests.length, bytes, selectedCorrect: after.selected === before.expected, bodyDelta: after.scrollTop - before.scrollTop };
     report.scenarios.push(scenario);
     await fs.writeFile(path.join(output, "evidence.json"), JSON.stringify(report, null, 2));
-    await page.screenshot({ path: path.join(output, `${count}-${fraction}-open.png`) });
+    await page.screenshot({ path: path.join(output, `${count}-${fraction}${coldWindow ? "-cold" : ""}-open.png`) });
     if (mode !== 'baseline') {
       assert.ok(selected, JSON.stringify(scenario)); assert.ok(Math.abs(scenario.bodyDelta) <= 1, 'opening must not move body');
       assert.ok(Number(await page.locator('.message-navigation-rail').getAttribute('data-rendered-targets')) <= 200, 'bounded marker DOM');
@@ -154,7 +154,7 @@ try {
       assert.equal(scenario.cachedRequests, 0);
       assert.ok(scenario.cachedMs < 250, 'cached expansion budget 250ms');
     }
-    await context.tracing.stop({ path: path.join(output, `${count}-${fraction}-trace.zip`) });
+    await context.tracing.stop({ path: path.join(output, `${count}-${fraction}${coldWindow ? "-cold" : ""}-trace.zip`) });
     await context.close();
   }
 
@@ -178,8 +178,8 @@ try {
       await scroller.evaluate(el => { el.scrollTop = 0; }); await delay(300);
       const before = await snapshot(page);
       assert.ok(before.start >= 550 && before.start < 570, `fixture must have incomplete nearby coverage: ${JSON.stringify(before)}`);
-      let responseBytes = 0;
-      page.on('response', async response => { if (response.url().includes('/history?') && new URL(response.url()).searchParams.get('limit') === '200') { try { responseBytes += (await response.body()).length; } catch { /* Aborted generations have no complete response body. */ } } });
+      let responseBytes = 0; const responseReads = [];
+      page.on('response', response => { if (response.url().includes('/history?') && new URL(response.url()).searchParams.get('limit') === '200') responseReads.push((async () => { try { responseBytes += (await response.body()).length; } catch { /* Aborted generations have no complete response body. */ } })()); });
       let calls = 0, active = 0, maxActive = 0, fail = ['retry', 'retry-click', 'close'].includes(test);
       const requests = [];
       await page.route(`**/api/sessions/${fault.id}/history?*`, async route => {
@@ -294,7 +294,7 @@ try {
         assert.ok(dockBounds.x >= 0 && dockBounds.x + dockBounds.width <= 391);
       }
       result.availableMs = performance.now() - faultStarted;
-      result.after = await snapshot(page); result.calls = calls; result.bytes = responseBytes; result.maxActive = maxActive;
+      result.after = await snapshot(page); await Promise.allSettled(responseReads); result.calls = calls; result.bytes = responseBytes; result.maxActive = maxActive;
       report.scenarios.push(result);
       await page.screenshot({ path: path.join(output, `${test}.png`) });
       await context.tracing.stop({ path: path.join(output, `${test}-trace.zip`) });
