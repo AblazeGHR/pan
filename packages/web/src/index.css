@@ -1175,7 +1175,8 @@ body {
 }
 
 .message-navigation-marker:hover,
-.message-navigation-marker.is-jumped {
+.message-navigation-marker.is-jumped,
+.message-navigation-marker.is-viewport-target {
   transform: scale(1.08);
 }
 
@@ -1203,7 +1204,8 @@ body {
   border-color: var(--color-border-default);
 }
 
-.message-navigation-marker-system.is-jumped {
+.message-navigation-marker-system.is-jumped,
+.message-navigation-marker-system.is-viewport-target {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-text-tertiary) 35%, transparent);
 }
 
@@ -1214,16 +1216,20 @@ body {
   border-color: color-mix(in srgb, var(--color-warning) 48%, var(--color-border-default));
 }
 
-.message-navigation-marker-user.is-jumped {
+.message-navigation-marker-user.is-jumped,
+.message-navigation-marker-user.is-viewport-target {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-.message-navigation-marker-worker.is-jumped {
+.message-navigation-marker-worker.is-jumped,
+.message-navigation-marker-worker.is-viewport-target {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 35%, transparent);
 }
 
 .message-navigation-marker-ma-assign.is-jumped,
-.message-navigation-marker-ma-msg.is-jumped {
+.message-navigation-marker-ma-assign.is-viewport-target,
+.message-navigation-marker-ma-msg.is-jumped,
+.message-navigation-marker-ma-msg.is-viewport-target {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-warning) 35%, transparent);
 }
 

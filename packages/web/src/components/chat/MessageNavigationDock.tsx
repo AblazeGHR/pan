@@ -224,6 +224,7 @@ export function MessageNavigationDock({
           <div className="chat-tools-sidebar__navigation">
             <MessageNavigationRail
               chatRef={chatRef}
+              expanded={expanded}
               isMobile={isMobile}
               mobileExpanded={mobileExpanded}
             />
