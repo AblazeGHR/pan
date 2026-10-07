@@ -1075,6 +1075,23 @@ export function InputRow() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isMobile, mobileFullscreen]);
 
+  // Fullscreen queue editing follows the visible viewport when a mobile
+  // keyboard opens. Keep the ordinary composer/fullscreen behavior intact.
+  const [queueEditViewport, setQueueEditViewport] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!isMobile || !mobileFullscreen || !queueEditActive) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => setQueueEditViewport({ height: viewport.height, top: viewport.offsetTop });
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+    };
+  }, [isMobile, mobileFullscreen, queueEditActive]);
+
   const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (isMobile) return;
     event.preventDefault();
@@ -1846,7 +1863,12 @@ export function InputRow() {
           ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]'
           : ''
       }`}
-      style={!isMobile ? { height: `${composerHeight}px` } : undefined}
+      style={!isMobile ? { height: `${composerHeight}px` }
+        : queueEditActive && mobileFullscreen && queueEditViewport
+          ? { height: `${queueEditViewport.height}px`, top: `${queueEditViewport.top}px`, bottom: 'auto' }
+          : queueEditActive && !mobileFullscreen
+            ? { height: 'min(300px, 60dvh)' }
+            : undefined}
     >
       {!isMobile && (
         <div
@@ -1863,7 +1885,7 @@ export function InputRow() {
       <div
         data-testid="send-queue-anchor"
         className={
-          isMobile && mobileFullscreen ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
+          isMobile && mobileFullscreen && !queueEditActive ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
         }
       >
         <SendQueuePanel />
@@ -1872,84 +1894,106 @@ export function InputRow() {
       {queueEdit && (
         <div
           data-testid="queue-composer-edit"
-          className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto border-t border-border-default bg-bg-primary px-3 pt-3 ${
-            isMobile && mobileFullscreen ? 'pb-[max(12px,var(--safe-bottom))]' : 'pb-3'
+          className={`flex min-h-0 flex-1 flex-col gap-2 overflow-hidden border-t border-border-default bg-bg-primary px-3 pt-3 ${
+            isMobile ? 'pb-[max(12px,var(--safe-bottom))]' : 'pb-3'
           }`}
         >
-          <p className="shrink-0 text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
-          {queueEdit.acquiring && <p className="shrink-0 text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
-          {queueEdit.saving && <p className="shrink-0 text-xs text-text-secondary">正在保存…</p>}
-          {queueEdit.bodyFormat === 'json' && <p className="shrink-0 text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
-          {queueEdit.bodyFormat === 'parts' && <p className="shrink-0 text-xs text-text-secondary">此消息含附件；正文为 JSON 模板，仅修改 text 片段；已有附件保持原样，可追加新附件。</p>}
-          {queueEdit.error && <p role="alert" className="shrink-0 text-xs text-danger">{queueEdit.error}</p>}
-          {(queueEditAttachmentsSupported || queueEditAttachments.length > 0) && (
-            <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-testid="queue-edit-attachments">
-              {(queueEdit.originalAttachments ?? []).map((attachment) => (
-                <span
-                  key={attachment.attachmentId}
-                  title={`已有附件（保存时保持原样）：${attachment.displayName}`}
-                  className="inline-flex max-w-[220px] items-center gap-1 rounded border border-border-muted bg-bg-tertiary/60 px-1.5 py-0.5 text-[11px] text-text-secondary"
-                >
-                  <Paperclip size={11} className="shrink-0" />
-                  <span className="truncate">{attachment.displayName}</span>
-                </span>
-              ))}
-              {queueEditAttachments.map((attachment) => (
-                <span
-                  key={attachment.occurrenceId}
-                  data-testid="queue-edit-attachment-chip"
-                  title={attachment.error || attachment.displayName}
-                  className="inline-flex max-w-[240px] items-center gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-primary"
-                >
-                  <Paperclip size={11} className="shrink-0" />
-                  <span className="truncate">{attachment.displayName}</span>
-                  {attachment.status === 'uploading' && (
-                    <span className="shrink-0 text-text-secondary">
-                      {attachment.totalBytes ? ` ${Math.round((attachment.loadedBytes ?? 0) / attachment.totalBytes * 100)}%` : ' 上传中'}
-                    </span>
-                  )}
-                  {attachment.status === 'registering' && <span className="shrink-0 text-text-secondary"> 注册中</span>}
-                  {attachment.status === 'error' && <span className="shrink-0 text-danger"> 失败</span>}
-                  {attachment.status === 'error' && (attachment.file || attachment.path) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {isMobile && (
+              <button
+                type="button"
+                data-testid="queue-edit-fullscreen"
+                aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                onClick={() => setMobileFullscreen((current) => !current)}
+                className="mr-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+              >
+                {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-1">
+              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
+                onClick={handleQueueEditCancel} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
+              <button type="button" aria-label="保存队列编辑" title={queueEditAttachmentsPending ? '等待附件上传/注册完成' : '确认保存'} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || queueEditAttachmentsPending || currentSession?.readonlySession}
+                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
+            </div>
+          </div>
+          <div className="min-h-0 shrink overflow-y-auto max-h-[35%] space-y-2" data-testid="queue-edit-details">
+            <p className="shrink-0 text-xs text-text-secondary">正在修改队列消息；原草稿与附件已保留。切换 Session 后可继续编辑。</p>
+            {queueEdit.acquiring && <p className="shrink-0 text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
+            {queueEdit.saving && <p className="shrink-0 text-xs text-text-secondary">正在保存…</p>}
+            {queueEdit.bodyFormat === 'json' && <p className="shrink-0 text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
+            {queueEdit.bodyFormat === 'parts' && <p className="shrink-0 text-xs text-text-secondary">此消息含附件；正文为 JSON 模板，仅修改 text 片段；已有附件保持原样，可追加新附件。</p>}
+            {queueEdit.error && <p role="alert" className="shrink-0 text-xs text-danger">{queueEdit.error}</p>}
+            {(queueEditAttachmentsSupported || queueEditAttachments.length > 0) && (
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-testid="queue-edit-attachments">
+                {(queueEdit.originalAttachments ?? []).map((attachment) => (
+                  <span
+                    key={attachment.attachmentId}
+                    title={`已有附件（保存时保持原样）：${attachment.displayName}`}
+                    className="inline-flex max-w-[220px] items-center gap-1 rounded border border-border-muted bg-bg-tertiary/60 px-1.5 py-0.5 text-[11px] text-text-secondary"
+                  >
+                    <Paperclip size={11} className="shrink-0" />
+                    <span className="truncate">{attachment.displayName}</span>
+                  </span>
+                ))}
+                {queueEditAttachments.map((attachment) => (
+                  <span
+                    key={attachment.occurrenceId}
+                    data-testid="queue-edit-attachment-chip"
+                    title={attachment.error || attachment.displayName}
+                    className="inline-flex max-w-[240px] items-center gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-primary"
+                  >
+                    <Paperclip size={11} className="shrink-0" />
+                    <span className="truncate">{attachment.displayName}</span>
+                    {attachment.status === 'uploading' && (
+                      <span className="shrink-0 text-text-secondary">
+                        {attachment.totalBytes ? ` ${Math.round((attachment.loadedBytes ?? 0) / attachment.totalBytes * 100)}%` : ' 上传中'}
+                      </span>
+                    )}
+                    {attachment.status === 'registering' && <span className="shrink-0 text-text-secondary"> 注册中</span>}
+                    {attachment.status === 'error' && <span className="shrink-0 text-danger"> 失败</span>}
+                    {attachment.status === 'error' && (attachment.file || attachment.path) && (
+                      <button
+                        type="button"
+                        className="shrink-0 text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={queueEdit.saving || queueEdit.releasing}
+                        onClick={() => retryQueueEditAttachment(currentSessionId || undefined, attachment)}
+                      >
+                        重试
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className="shrink-0 text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`移除附件 ${attachment.displayName}`}
+                      className="shrink-0 text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={queueEdit.saving || queueEdit.releasing}
-                      onClick={() => retryQueueEditAttachment(currentSessionId || undefined, attachment)}
+                      onClick={() => removeQueueEditAttachment(currentSessionId || undefined, attachment.occurrenceId)}
                     >
-                      重试
+                      <X size={11} />
                     </button>
-                  )}
+                  </span>
+                ))}
+                {queueEditAttachmentsSupported && (
                   <button
                     type="button"
-                    aria-label={`移除附件 ${attachment.displayName}`}
-                    className="shrink-0 text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid="queue-edit-attachment-button"
+                    aria-label="为队列消息添加附件"
+                    title="添加附件（保存时追加到消息末尾）"
                     disabled={queueEdit.saving || queueEdit.releasing}
-                    onClick={() => removeQueueEditAttachment(currentSessionId || undefined, attachment.occurrenceId)}
+                    onClick={() => {
+                      attachmentTargetRef.current = 'queue-edit';
+                      setAttachmentMenuOpen((open) => !open);
+                    }}
+                    className="inline-flex items-center gap-1 rounded border border-border-default px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <X size={11} />
+                    <Paperclip size={11} /> 添加附件
                   </button>
-                </span>
-              ))}
-              {queueEditAttachmentsSupported && (
-                <button
-                  type="button"
-                  data-testid="queue-edit-attachment-button"
-                  aria-label="为队列消息添加附件"
-                  title="添加附件（保存时追加到消息末尾）"
-                  disabled={queueEdit.saving || queueEdit.releasing}
-                  onClick={() => {
-                    attachmentTargetRef.current = 'queue-edit';
-                    setAttachmentMenuOpen((open) => !open);
-                  }}
-                  className="inline-flex items-center gap-1 rounded border border-border-default px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Paperclip size={11} /> 添加附件
-                </button>
-              )}
-            </div>
-          )}
-          <div className="flex min-h-24 min-w-0 flex-1 gap-2">
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 gap-2">
             {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
                 绝不把面板里的截断预览当作编辑正文。saving/releasing 时编辑器
                 真禁用（contentEditable=false + 键盘守卫），DOM 冻结，保存失败
@@ -1972,26 +2016,6 @@ export function InputRow() {
                 onKeyDown={handleQueueComposerKeyDown}
               />
             )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {isMobile && (
-              <button
-                type="button"
-                data-testid="queue-edit-fullscreen"
-                aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
-                title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
-                onClick={() => setMobileFullscreen((current) => !current)}
-                className="mr-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
-              >
-                {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
-              </button>
-            )}
-            <div className="ml-auto flex items-center gap-1">
-              <button type="button" aria-label="取消队列编辑" title="取消" disabled={queueEdit.saving || queueEdit.releasing}
-                onClick={handleQueueEditCancel} className="rounded border border-border-default px-3 py-2 disabled:opacity-50">X</button>
-              <button type="button" aria-label="保存队列编辑" title={queueEditAttachmentsPending ? '等待附件上传/注册完成' : '确认保存'} disabled={queueEdit.acquiring || queueEdit.saving || queueEdit.releasing || !!queueEdit.error || queueEditAttachmentsPending || currentSession?.readonlySession}
-                onClick={saveQueueEdit} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50">√</button>
-            </div>
           </div>
         </div>
       )}
