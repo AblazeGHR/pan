@@ -2131,6 +2131,8 @@ async def _legacy_consumer_reference(w: Worker):
 
 def _select_queue_unit(s) -> list[dict] | None:
     """Select the first unlocked queued unit in durable FIFO order."""
+    if getattr(s, "queue_paused", False):
+        return None
     pending = list(s.queue_pending or [])
     for index, item in enumerate(pending):
         kind = _queue_item_kind(item)
@@ -2286,6 +2288,12 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
 
 
 async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
+                              history_added: bool = False) -> None:
+    async with queue_lock(s.id):
+        await _requeue_queue_unit_locked(w, s, items, reason, history_added)
+
+
+async def _requeue_queue_unit_locked(w: Worker, s, items: list[dict], reason: str,
                               history_added: bool = False) -> None:
     """Put an unfinished hand-off back, with bounded retry backoff."""
     requeued = False
@@ -2476,11 +2484,10 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         if supports_callback:
             await consumer(w, text, source, s, on_handoff=on_handoff)
         else:
-            # Compatibility for test doubles and old embedders that wrapped
-            # the four-argument helper.  Production stream/one-shot helpers
-            # above always expose the precise callback boundary.
-            await on_handoff()
-            await consumer(w, text, source, s)
+            # A four-argument replacement cannot expose its actual handoff.
+            # Fail closed and requeue instead of marking a receipt before an
+            # unguarded write. Both production consumers support this callback.
+            raise RuntimeError("Queue consumer must support the handoff callback")
     except asyncio.CancelledError:
         if not w._current_handoff_acked:
             try:
@@ -2509,6 +2516,11 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
             w._current_task_id = None
             w._current_task_idempotent = False
+        if not w._current_handoff_acked and getattr(s, "queue_paused", False):
+            w.status = "idle"
+            await _record_legal_worker_state(w, "idle", "queue/paused")
+            await _bcast({"type": "worker.status", "workerId": w.worker_id,
+                          "sessionId": s.id, "generation": w.generation, "status": "idle"})
         _wake_after_queue_unit(w, s)
 
 
@@ -2954,9 +2966,14 @@ def _only_locked_queue_items(s) -> bool:
     )
 
 
+def _queue_recovery_blocked(s) -> bool:
+    """A Session pause and locked-only backlog independently block recovery."""
+    return bool(getattr(s, "queue_paused", False)) or _only_locked_queue_items(s)
+
+
 def _has_sendable_queued_items(s) -> bool:
     """Whether an immediate queue wake has an unlocked queued item."""
-    if s is None:
+    if s is None or getattr(s, "queue_paused", False):
         return False
     return any(
         isinstance(item, dict)
@@ -3551,7 +3568,7 @@ def _prepare_receipt_persistence(s) -> bool:
 
 def _has_dispatchable_items(s) -> bool:
     """Whether a session has work that automatic recovery may actually send."""
-    if s is None:
+    if s is None or getattr(s, "queue_paused", False):
         return False
     if any(
         isinstance(item, dict)
@@ -3821,9 +3838,11 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
 
 def _worker_has_pending_work(w: Worker) -> bool:
     """idle watchdog 回收前检查是否还有待消费信号或持久队列项。"""
+    s = _session(w)
+    if s is not None and getattr(s, "queue_paused", False):
+        return False
     if w.pending_signal is not None and not w.pending_signal.empty():
         return True
-    s = _session(w)
     return _has_dispatchable_items(s)
 
 
@@ -4199,6 +4218,11 @@ async def _consume_pending_reports(w: Worker, s):
 
 
 async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
+    async with queue_lock(w.session_id):
+        return await _claim_pending_task_locked(w, task_id)
+
+
+async def _claim_pending_task_locked(w: Worker, task_id: str | None) -> dict | None:
     """Compatibility claim that reserves, but does not remove, a task row."""
     s = _session(w)
     if s is None or not _process_alive(w):
@@ -4306,6 +4330,8 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     """
     if _shutdown_started:
         return
+    if getattr(_get_session_shallow(session_id), "queue_paused", False):
+        return
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
@@ -4316,7 +4342,7 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
             _schedule_queue_retry(session_id)
     elif not mw or mw.status not in {"held", "restarting"}:
         session = _get_session_shallow(session_id)
-        if _only_locked_queue_items(session):
+        if _queue_recovery_blocked(session):
             return
         if auto_spawn and (session is None or not session.queue_pending):
             # Legacy callers use auto_spawn to materialize an idle worker even
@@ -4715,7 +4741,7 @@ async def _recover_session(session_id: str, *, force: bool = False) -> None:
     if not s:
         _recovery_required.discard(session_id)
         return
-    if _only_locked_queue_items(s):
+    if _queue_recovery_blocked(s):
         # A forced recovery requested by an abnormal exit still must not
         # launch a provider solely to wait on a locked queue backlog.
         _recovery_required.discard(session_id)
@@ -4748,6 +4774,9 @@ def _schedule_session_recovery(
         # The service is winding down; a fresh recovery spawn would race the
         # loop teardown (see _shutdown_started).  The durable queue keeps the
         # work; the next start recovers it.
+        return None
+    if getattr(_get_session_shallow(session_id), "queue_paused", False):
+        _recovery_required.discard(session_id)
         return None
     if force:
         _recovery_required.add(session_id)
@@ -4815,7 +4844,7 @@ async def drain_recoveries(timeout: float = 10.0) -> int:
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     """Wake a session once its earliest persisted retry becomes due."""
     session = _get_session_shallow(session_id)
-    if session is None or not any(
+    if session is None or getattr(session, "queue_paused", False) or not any(
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
         and _delivery_state(item) == _DELIVERY_QUEUED
@@ -4839,7 +4868,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     async def _wait_and_wake() -> None:
         while True:
             s = _get_session_shallow(session_id)
-            if s is None:
+            if s is None or getattr(s, "queue_paused", False):
                 return
             future_times = [
                 item.get("nextAttemptAt") for item in (s.queue_pending or [])
@@ -4951,6 +4980,25 @@ async def _global_watchdog_tick():
             )
 
 
+class _QueuePausedBeforeHandoff(Exception):
+    pass
+
+
+async def _queue_handoff(w: Worker, s, operation, on_handoff):
+    """Serialize pause with write/drain or spawn and receipt, not execution.
+
+    Pause waits for a handoff already holding this lock. Reserved rows that
+    have not entered it remain retractable and are requeued by the caller.
+    """
+    async with queue_lock(s.id):
+        if getattr(s, "queue_paused", False):
+            raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
+        result = await operation()
+        if on_handoff is not None:
+            await on_handoff()
+        return result
+
+
 async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=None):
     """Stream mode: write to the adapter's long-running stdin."""
     standalone_items = []
@@ -4999,13 +5047,13 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         # broadcasts yield control. Clear it only at the provider hand-off
         # boundary so already-buffered post-terminal frames cannot be assigned
         # to this queue item's taskSeq.
-        w._terminal_handled = False
-        written = w.process.stdin.write(w._current_serialized)
-        if written is not None and written != len(w._current_serialized):
-            raise OSError("short stdin write")
-        await w.process.stdin.drain()
-        if on_handoff is not None:
-            await on_handoff()
+        async def write_input():
+            w._terminal_handled = False
+            written = w.process.stdin.write(w._current_serialized)
+            if written is not None and written != len(w._current_serialized):
+                raise OSError("short stdin write")
+            await w.process.stdin.drain()
+        await _queue_handoff(w, s, write_input, on_handoff)
     except asyncio.CancelledError:
         if standalone_items and not w._current_handoff_acked:
             await asyncio.shield(_requeue_queue_unit(
@@ -5174,12 +5222,29 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     )
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            cwd=s.workdir or None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
+        async def spawn_input():
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                cwd=s.workdir or None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            w._mcp_proc = proc
+            return proc
+        proc = await _queue_handoff(w, s, spawn_input, on_handoff)
+    except asyncio.CancelledError:
+        if standalone_items and not w._current_handoff_acked:
+            await asyncio.shield(_requeue_queue_unit(
+                w, s, standalone_items, "worker cancelled before CLI hand-off"))
+        raise
+    except _QueuePausedBeforeHandoff:
+        if standalone_items:
+            await _requeue_queue_unit(w, s, standalone_items, "Session queue paused")
+        else:
+            raise
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "queue/paused")
+        return
     except Exception as e:
         _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
         if standalone_items:
@@ -5193,23 +5258,6 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
 
     # Track in-flight process so kill_worker can terminate it (see #3).
     w._mcp_proc = proc
-
-    # For one-shot adapters, process creation with the complete argv is the
-    # hand-off boundary.  The prompt remains in the adapter's existing argv
-    # protocol; one-shot does not switch to stdin.
-    try:
-        if on_handoff is not None:
-            await on_handoff()
-    except asyncio.CancelledError:
-        if standalone_items and not w._current_handoff_acked:
-            await asyncio.shield(_requeue_queue_unit(
-                w, s, standalone_items, "worker cancelled before CLI hand-off"))
-        raise
-    except Exception:
-        if standalone_items and not w._current_handoff_acked:
-            await _requeue_queue_unit(
-                w, s, standalone_items, "one-shot hand-off commit failed")
-        raise
 
     # Save provider/session metadata only; queue removal was committed by the
     # callback above and does not wait for provider business output.
@@ -5439,7 +5487,7 @@ def _recover_pending_signals(w: Worker, s) -> bool:
     pending = s.queue_pending
     if not pending:
         return migrated
-    if any(isinstance(item, dict) and _queue_item_kind(item) is not None
+    if not getattr(s, "queue_paused", False) and any(isinstance(item, dict) and _queue_item_kind(item) is not None
            and _delivery_state(item) == _DELIVERY_QUEUED
            and not _queue_item_locked(item)
            for item in pending):
@@ -7037,6 +7085,19 @@ async def assign(session_id: str, text: str, source: str = "agent",
             "taskId": task_id, "ts": time.monotonic(),
         }
 
+    if getattr(target, "queue_paused", False):
+        async with queue_lock(session_id):
+            item, error = await _persist_task_item(
+                target, text, source_type, None, task_id, None, source_sid,
+                activate_task=True)
+        if error:
+            if task_id is not None:
+                _task_status.pop(task_id, None)
+            return {"status": "error", "result": error}
+        await _wake_worker(session_id, auto_spawn=False)
+        return {"status": "queued", "workerId": None, "sessionId": session_id,
+                "taskId": task_id, "queuePaused": bool(getattr(target, "queue_paused", False))}
+
     try:
         w, err = await _ensure_worker(session_id)
     except asyncio.CancelledError:
@@ -7131,7 +7192,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     )
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
-    if not alive:
+    if not alive or getattr(target, "queue_paused", False):
         s = _get_session_shallow(session_id)
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}

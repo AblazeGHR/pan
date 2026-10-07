@@ -702,11 +702,13 @@ export async function branchSession(id: string, name: string): Promise<Session> 
 export type SessionQueueItems = AgentQueueItem[] & {
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
 };
 
 function attachQueueSnapshot(items: AgentQueueItem[], data: ApiSessionQueueResponse): SessionQueueItems {
   Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
   Object.defineProperty(items, 'agentReportsPaused', { value: data.agentReportsPaused, enumerable: false });
+  Object.defineProperty(items, 'queuePaused', { value: data.queuePaused, enumerable: false });
   return items as SessionQueueItems;
 }
 
@@ -717,6 +719,17 @@ function queueResponseError(error: ApiSessionQueueResponse['error'], fallback: s
 export async function fetchSessionQueue(sessionId: string): Promise<SessionQueueItems> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue`);
   if (data.error) throw new Error(queueResponseError(data.error, 'Could not load queue'));
+  return attachQueueSnapshot(data.items || [], data);
+}
+
+export async function setSessionQueuePaused(sessionId: string, paused: boolean): Promise<SessionQueueItems> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/paused`,
+    { method: 'PATCH', body: JSON.stringify({ paused }) },
+  );
+  if (data.ok === false || data.error) {
+    throw new Error(queueResponseError(data.error, 'Could not update queue pause state'));
+  }
   return attachQueueSnapshot(data.items || [], data);
 }
 
@@ -774,6 +787,7 @@ export async function enqueueSessionMessage(
   items?: AgentQueueItem[];
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
   duplicate?: boolean;
 }> {
   const data = await request<{
@@ -782,6 +796,7 @@ export async function enqueueSessionMessage(
     items?: AgentQueueItem[];
     queueRevision?: number;
     agentReportsPaused?: boolean;
+  queuePaused?: boolean;
     duplicate?: boolean;
     error?: { message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue`, {
@@ -797,6 +812,7 @@ export async function enqueueSessionMessage(
     items: data.items,
     queueRevision: data.queueRevision,
     agentReportsPaused: data.agentReportsPaused,
+    queuePaused: data.queuePaused,
     duplicate: data.duplicate,
   };
 }

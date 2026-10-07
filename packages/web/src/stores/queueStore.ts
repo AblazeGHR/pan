@@ -8,6 +8,7 @@ import {
   releaseSessionQueueItemEdit,
   reorderSessionQueue,
   setSessionAgentReportsPaused,
+  setSessionQueuePaused,
   setSessionQueueItemLocked,
   setSessionQueueItemsLocked,
   updateSessionQueueItem,
@@ -36,6 +37,9 @@ interface QueueStore {
   agentQueues: Record<string, AgentQueueItem[]>;
   agentQueueLoadSeq: Record<string, number>;
   queueRevisions: Record<string, number>;
+  queuePaused: Record<string, boolean>;
+  queuePauseLoaded: Record<string, boolean>;
+  queuePauseUpdating: Record<string, boolean>;
   agentReportsPaused: Record<string, boolean>;
   agentReportsPauseLoaded: Record<string, boolean>;
   agentReportsPauseUpdating: Record<string, boolean>;
@@ -56,7 +60,9 @@ interface QueueStore {
     items?: AgentQueueItem[];
     messages?: import('@/types').Message[];
     agentReportsPaused?: boolean;
+    queuePaused?: boolean;
   }) => void;
+  setQueuePaused: (sessionId: string, paused: boolean) => Promise<void>;
   setAgentReportsPaused: (sessionId: string, paused: boolean) => Promise<void>;
   setQueueItemLocked: (sessionId: string, itemId: string, locked: boolean) => Promise<void>;
   setQueueItemsLocked: (sessionId: string, locked: boolean) => Promise<void>;
@@ -181,6 +187,7 @@ function setSnapshot(
   revision?: number,
   allowEqualRevisionRepair = false,
   reportsPaused?: boolean,
+  queuePaused?: boolean,
 ): boolean {
   let accepted = false;
   set((state) => {
@@ -194,7 +201,10 @@ function setSnapshot(
       // the caller proved this response is a fresh authoritative observation
       // of exactly the revision the projection already holds (the full-GET
       // repair path), in which case it fixes an incomplete/stale projection.
-      if (!allowEqualRevisionRepair) return state;
+      if (!allowEqualRevisionRepair) return queuePaused === undefined ? state : {
+        queuePaused: { ...state.queuePaused, [sessionId]: queuePaused },
+        queuePauseLoaded: { ...state.queuePauseLoaded, [sessionId]: true },
+      };
     }
     const tombstones = state.queueTombstones[sessionId] ?? new Set<string>();
     const delivered = state.queueDeliveredIds[sessionId] ?? new Set<string>();
@@ -212,6 +222,10 @@ function setSnapshot(
         ? {}
         : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
       ...(editMissing ? { edits: { ...state.edits, [sessionId]: { ...edit, error: '条目已出队或删除，无法保存；请复制正文或取消编辑。' } } } : {}),
+      ...(queuePaused === undefined ? {} : {
+        queuePaused: { ...state.queuePaused, [sessionId]: queuePaused },
+        queuePauseLoaded: { ...state.queuePauseLoaded, [sessionId]: true },
+      }),
       ...(reportsPaused === undefined ? {} : {
         agentReportsPaused: { ...state.agentReportsPaused, [sessionId]: reportsPaused },
         agentReportsPauseLoaded: { ...state.agentReportsPauseLoaded, [sessionId]: true },
@@ -344,6 +358,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
   agentQueues: {},
   agentQueueLoadSeq: {},
   queueRevisions: {},
+  queuePaused: {},
+  queuePauseLoaded: {},
+  queuePauseUpdating: {},
   agentReportsPaused: {},
   agentReportsPauseLoaded: {},
   agentReportsPauseUpdating: {},
@@ -385,7 +402,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           && items.queueRevision === currentRevision
           && currentRevision === revisionAtRequest;
         const accepted = setSnapshot(set, sessionId, items, items.queueRevision,
-          freshObservation, items.agentReportsPaused);
+          freshObservation, items.agentReportsPaused, items.queuePaused);
         if (!accepted && items.agentReportsPaused !== undefined
             && canApplyAgentReportsPause(
               accepted,
@@ -401,6 +418,22 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     await request;
   },
 
+  setQueuePaused: async (sessionId, paused) => {
+    if (get().queuePauseUpdating[sessionId]) return;
+    set((state) => ({ queuePauseUpdating: { ...state.queuePauseUpdating, [sessionId]: true } }));
+    try {
+      const items = await setSessionQueuePaused(sessionId, paused);
+      setSnapshot(set, sessionId, items, items.queueRevision, true, items.agentReportsPaused, items.queuePaused);
+    } catch (error) {
+      useUIStore.getState().showToast(
+        `队列暂停状态更新失败：${error instanceof Error ? error.message : String(error)}`, 'error',
+      );
+      await get().loadAgentQueue(sessionId);
+    } finally {
+      set((state) => ({ queuePauseUpdating: { ...state.queuePauseUpdating, [sessionId]: false } }));
+    }
+  },
+
   setAgentReportsPaused: async (sessionId, paused) => {
     set((state) => ({
       agentReportsPauseUpdating: {
@@ -411,7 +444,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     try {
       const items = await setSessionAgentReportsPaused(sessionId, paused);
       const accepted = setSnapshot(set, sessionId, items, items.queueRevision,
-        true, items.agentReportsPaused);
+        true, items.agentReportsPaused, items.queuePaused);
       if (!accepted && items.agentReportsPaused !== undefined
           && canApplyAgentReportsPause(
             accepted,
@@ -442,7 +475,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     set((state) => ({ queueLockUpdating: { ...state.queueLockUpdating, [sessionId]: true } }));
     try {
       const items = await setSessionQueueItemLocked(sessionId, itemId, locked);
-      setSnapshot(set, sessionId, items, items.queueRevision, true, items.agentReportsPaused);
+      setSnapshot(set, sessionId, items, items.queueRevision, true, items.agentReportsPaused, items.queuePaused);
     } catch (error) {
       useUIStore.getState().showToast(
         `队列锁定失败：${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -456,7 +489,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     set((state) => ({ queueLockUpdating: { ...state.queueLockUpdating, [sessionId]: true } }));
     try {
       const items = await setSessionQueueItemsLocked(sessionId, locked);
-      setSnapshot(set, sessionId, items, items.queueRevision, true, items.agentReportsPaused);
+      setSnapshot(set, sessionId, items, items.queueRevision, true, items.agentReportsPaused, items.queuePaused);
     } catch (error) {
       useUIStore.getState().showToast(
         `队列批量锁定失败：${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -479,11 +512,17 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       currentRevision !== undefined &&
       event.queueRevision < currentRevision
     ) return;
+    if (event.queuePaused !== undefined && event.queueRevision !== undefined) {
+      set((state) => ({
+        queuePaused: { ...state.queuePaused, [sid]: event.queuePaused! },
+        queuePauseLoaded: { ...state.queuePauseLoaded, [sid]: true },
+      }));
+    }
     const missedRevision = event.queueRevision !== undefined
       && (currentRevision === undefined || event.queueRevision > currentRevision + 1);
     if (event.type === 'queue.snapshot' && Array.isArray(event.items)) {
       const accepted = setSnapshot(set, sid, event.items, event.queueRevision,
-        true, event.agentReportsPaused);
+        true, event.agentReportsPaused, event.queuePaused);
       if (!accepted && event.agentReportsPaused !== undefined
           && canApplyAgentReportsPause(false, event.queueRevision, get().queueRevisions[sid])) {
         setAgentReportsPauseState(set, sid, event.agentReportsPaused);
@@ -620,7 +659,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         ? current
         : [...current, result.item]);
       const accepted = setSnapshot(set, sid, next, result.queueRevision,
-        Array.isArray(result.items), result.agentReportsPaused);
+        Array.isArray(result.items), result.agentReportsPaused, result.queuePaused);
       if (!accepted && result.agentReportsPaused !== undefined
           && canApplyAgentReportsPause(
             accepted,
@@ -955,6 +994,12 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const queueTombstones = { ...state.queueTombstones };
       const queueDeliveredIds = { ...state.queueDeliveredIds };
       const queueRevisions = { ...state.queueRevisions };
+      const queuePaused = { ...state.queuePaused };
+      const queuePauseLoaded = { ...state.queuePauseLoaded };
+      const queuePauseUpdating = { ...state.queuePauseUpdating };
+      delete queuePaused[sessionId];
+      delete queuePauseLoaded[sessionId];
+      delete queuePauseUpdating[sessionId];
       const agentReportsPaused = { ...state.agentReportsPaused };
       const agentReportsPauseLoaded = { ...state.agentReportsPauseLoaded };
       const agentReportsPauseUpdating = { ...state.agentReportsPauseUpdating };
@@ -970,6 +1015,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       delete lockedComposerModes[sessionId];
       return {
         queues, edits, agentQueues, queueTombstones, queueDeliveredIds, queueRevisions,
+        queuePaused, queuePauseLoaded, queuePauseUpdating,
         agentReportsPaused, agentReportsPauseLoaded, agentReportsPauseUpdating,
         queueLockUpdating, lockedComposerModes,
       };
@@ -1022,7 +1068,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         next.map((item) => item.id),
         get().queueRevisions[sid],
       );
-      setSnapshot(set, sid, items, items.queueRevision);
+      setSnapshot(set, sid, items, items.queueRevision, false, items.agentReportsPaused, items.queuePaused);
     } catch {
       await get().loadAgentQueue(sid);
     }

@@ -83,6 +83,10 @@ export function SendQueuePanel() {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const readonlySession = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.readonlySession === true);
   const open = useQueueStore((state) => state.panelOpen);
+  const queuePaused = useQueueStore((state) => sessionId ? state.queuePaused[sessionId] ?? false : false);
+  const queuePauseLoaded = useQueueStore((state) => sessionId ? state.queuePauseLoaded[sessionId] ?? false : false);
+  const queuePauseUpdating = useQueueStore((state) => sessionId ? state.queuePauseUpdating[sessionId] ?? false : false);
+  const setQueuePaused = useQueueStore((state) => state.setQueuePaused);
   const reportsPaused = useQueueStore((state) => sessionId ? state.agentReportsPaused[sessionId] ?? false : false);
   const reportPauseLoaded = useQueueStore((state) => sessionId ? state.agentReportsPauseLoaded[sessionId] ?? false : false);
   const reportPauseUpdating = useQueueStore((state) => sessionId ? state.agentReportsPauseUpdating[sessionId] ?? false : false);
@@ -168,6 +172,18 @@ export function SendQueuePanel() {
             >
               {reportsPaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
               {reportsPaused ? 'Resume reports' : 'Pause reports'}
+            </button>
+            <button type="button"
+              className={`${REPORT_PAUSE_BUTTON} ${queuePaused
+                ? 'border-danger bg-danger/10 text-danger hover:bg-danger/15'
+                : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+              aria-label={queuePaused ? 'Resume everything' : 'Pause everything'}
+              aria-pressed={queuePaused}
+              title="暂停或恢复当前 Session 的全部队列；已交接任务继续执行"
+              disabled={!sessionId || !queuePauseLoaded || queuePauseUpdating}
+              onClick={() => { if (sessionId) void setQueuePaused(sessionId, !queuePaused); }}>
+              {queuePaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
+              {queuePaused ? 'Resume everything' : 'Pause everything'}
             </button>
             {items.some((item) => item.meta?.dispatchState === 'queued') && (
               <button onClick={clear} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-tertiary hover:bg-danger/10 hover:text-danger" title="清空仍在队列中的消息">

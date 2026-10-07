@@ -419,6 +419,7 @@ export interface StreamEvent {
   sessionId?: string;
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */
   generation?: number;
@@ -1298,6 +1299,7 @@ export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
   queueRevision?: number;
   agentReportsPaused?: boolean;
+  queuePaused?: boolean;
   error?: string | { code?: string; message?: string };
   ok?: boolean;
 }
