@@ -277,7 +277,12 @@ try {
       scenario.resourceTiming=resources;scenario.wireBytes=resources.reduce((sum,r)=>sum+r.encoded,0);
       await page.screenshot({path:path.join(runtime,`${test}.private.png`)});
       scenario.passed=true;
-      if(['epoch','append'].includes(test))await context.request.post(`${base}/__e2e/replace-history`,{data:{sessionId:copied.id,messages:privateSnapshot.history}});
+      if(['epoch','append'].includes(test)){
+        // Stop observing before fixture restoration broadcasts a new epoch.
+        // Cleanup traffic must not contaminate navigation request/byte counts.
+        await page.close();
+        await context.request.post(`${base}/__e2e/replace-history`,{data:{sessionId:copied.id,messages:privateSnapshot.history}});
+      }
     }finally{
       await context.tracing.stop({path:trace});await context.close();
       await fs.writeFile(path.join(output,'evidence.json'),JSON.stringify(report,null,2));
