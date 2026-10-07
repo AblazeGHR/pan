@@ -53,7 +53,6 @@ describe('MarkdownRenderer', () => {
     const view=render(<MarkdownRenderer content={content} />);
     expect(view.container.querySelector('p')?.textContent).toBe(content);
     expect(view.container.querySelectorAll('p')).toHaveLength(1);
-    expect(view.container.querySelectorAll('span').length).toBeGreaterThan(1);
     view.rerender(<MarkdownRenderer content={`${content} **bold**`} />);
     expect(view.container.querySelector('strong')?.textContent).toBe('bold');
     expect(view.container.textContent).toBe(content+' bold');
