@@ -7,13 +7,16 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
-import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus } from 'lucide-react';
+import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
 const BUTTON = 'rounded p-1 text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
 const PREVIEW_PRIMARY = 'inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 const PREVIEW_SECONDARY = 'inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-tertiary px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 const REPORT_PAUSE_BUTTON = 'inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50';
+/** Mobile grid action button: same tokens as REPORT_PAUSE_BUTTON but with a
+ *  larger touch target (~36px) and full-width centering inside the 2-col grid. */
+const MOBILE_ACTION_BUTTON = 'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-md border px-3 py-2 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50';
 
 function label(item: AgentQueueItem): string {
   if (item.source === 'user') return '用户';
@@ -107,6 +110,9 @@ export function SendQueuePanel() {
   const [preview, setPreview] = useState<AgentQueueItem | null>(null);
 
   const [confirmation, setConfirmation] = useState<{ sessionId: string; itemId: string } | null>(null);
+  // Mobile-only: collapsed toolbar of queue-wide actions. Defaults to collapsed
+  // and is re-collapsed on session switch so state never leaks across sessions.
+  const [actionsOpen, setActionsOpen] = useState(false);
   const requestEdit = async (item: AgentQueueItem) => {
     if (!sessionId || useQueueStore.getState().edits[sessionId]) return;
     const requestedSession = sessionId;
@@ -116,7 +122,7 @@ export function SendQueuePanel() {
       setConfirmation({ sessionId: requestedSession, itemId: item.id });
     } else startEdit(item.id);
   };
-  useEffect(() => { load(sessionId); setConfirmation(null); }, [load, sessionId]);
+  useEffect(() => { load(sessionId); setConfirmation(null); setActionsOpen(false); }, [load, sessionId]);
 
   const displayItems = useMemo(() => {
     if (!edit) return items;
@@ -128,11 +134,15 @@ export function SendQueuePanel() {
     return copy;
   }, [edit, items]);
 
+  const allLocked = items.length > 0 && items.every((item) => item.meta?.locked === true);
+  const hasQueued = items.some((item) => item.meta?.dispatchState === 'queued');
+
   return (
     <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
       <div className="overflow-hidden bg-bg-secondary">
         <div className="px-3 pt-2 pb-1">
-          <div className="flex flex-wrap items-center gap-2 pb-1.5">
+          {/* Desktop toolbar: unchanged single-row entry point (md and up). */}
+          <div className="hidden flex-wrap items-center gap-2 pb-1.5 md:flex">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
               <ClipboardList size={14} /> 服务端队列
               <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none">{displayItems.length}</span>
@@ -185,11 +195,101 @@ export function SendQueuePanel() {
               {queuePaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
               {queuePaused ? 'Resume everything' : 'Pause everything'}
             </button>
-            {items.some((item) => item.meta?.dispatchState === 'queued') && (
+            {hasQueued && (
               <button onClick={clear} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-tertiary hover:bg-danger/10 hover:text-danger" title="清空仍在队列中的消息">
                 <Trash2 size={12} /> 清空
               </button>
             )}
+          </div>
+          {/* Mobile toolbar: title/count left, single collapsible "队列操作" toggle
+              right. Expanded content is a two-column grid so long labels never
+              wrap into a ragged multi-row strip on 320–390px screens. */}
+          <div className="flex items-center gap-2 pb-1.5 md:hidden">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+              <ClipboardList size={14} /> 服务端队列
+              <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none">{displayItems.length}</span>
+            </span>
+            <div className="flex-1" />
+            {!actionsOpen && (lockedComposerMode || allLocked || queuePaused || reportsPaused) && (
+              <span className="flex shrink-0 items-center gap-1" role="img"
+                aria-label={[lockedComposerMode ? '锁定消息模式' : '', allLocked && !lockedComposerMode ? '全部已锁' : '', queuePaused ? '队列已暂停' : '', reportsPaused ? '报告已暂停' : ''].filter(Boolean).join('，')}>
+                {(lockedComposerMode || allLocked) && <Lock size={10} className="text-danger" aria-hidden="true" />}
+                {queuePaused && <Pause size={10} className="text-danger" aria-hidden="true" />}
+                {reportsPaused && <Pause size={10} className="text-accent" aria-hidden="true" />}
+              </span>
+            )}
+            <button type="button"
+              className={`${REPORT_PAUSE_BUTTON} shrink-0 border-border-default text-text-secondary hover:bg-bg-hover`}
+              aria-expanded={actionsOpen}
+              aria-controls="send-queue-actions"
+              onClick={() => setActionsOpen((value) => !value)}>
+              队列操作
+              <ChevronDown size={12} aria-hidden="true"
+                className={`transition-transform duration-150 motion-reduce:transition-none ${actionsOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+          <div
+            id="send-queue-actions"
+            className={`grid transition-[grid-template-rows] duration-150 ease-out motion-reduce:transition-none md:hidden ${actionsOpen ? 'visible grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'}`}
+          >
+            {/* visibility swap keeps collapsed buttons out of the a11y tree/tab order */}
+            <div className="overflow-hidden">
+              <div className="grid grid-cols-2 gap-1.5 pb-1.5">
+                <button type="button" className={`${MOBILE_ACTION_BUTTON} ${lockedComposerMode
+                  ? 'border-danger bg-danger/10 text-danger hover:bg-danger/15'
+                  : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+                  disabled={!sessionId} onClick={() => { if (sessionId) setLockedComposerMode(sessionId, !lockedComposerMode); }}
+                  aria-label={lockedComposerMode ? 'Cancel locked message mode' : 'New locked message'}
+                  aria-pressed={lockedComposerMode}>
+                  <Plus size={12} aria-hidden="true" /> {lockedComposerMode ? 'cancel locked msg' : 'new locked msg'}
+                </button>
+                <button type="button" className={`${MOBILE_ACTION_BUTTON} border-border-default text-text-secondary hover:bg-bg-hover`}
+                  disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
+                  onClick={() => { if (sessionId) void setItemsLocked(sessionId, true); }}
+                  aria-label="Lock all queued messages">
+                  <Lock size={12} aria-hidden="true" /> Lock all
+                </button>
+                <button type="button" className={`${MOBILE_ACTION_BUTTON} border-border-default text-text-secondary hover:bg-bg-hover`}
+                  disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
+                  onClick={() => { if (sessionId) void setItemsLocked(sessionId, false); }}
+                  aria-label="Unlock all queued messages">
+                  <Unlock size={12} aria-hidden="true" /> Unlock all
+                </button>
+                <button type="button"
+                  className={`${MOBILE_ACTION_BUTTON} ${reportsPaused
+                    ? 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/15'
+                    : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+                  aria-label={reportsPaused ? 'Resume reports' : 'Pause reports'}
+                  aria-pressed={reportsPaused}
+                  disabled={!sessionId || !reportPauseLoaded || reportPauseUpdating || lockUpdating}
+                  onClick={() => { if (sessionId) void setReportsPaused(sessionId, !reportsPaused); }}
+                >
+                  {reportsPaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
+                  {reportsPaused ? 'Resume reports' : 'Pause reports'}
+                </button>
+                <button type="button"
+                  className={`${MOBILE_ACTION_BUTTON} ${queuePaused
+                    ? 'border-danger bg-danger/10 text-danger hover:bg-danger/15'
+                    : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+                  aria-label={queuePaused ? 'Resume everything' : 'Pause everything'}
+                  aria-pressed={queuePaused}
+                  disabled={!sessionId || !queuePauseLoaded || queuePauseUpdating}
+                  onClick={() => { if (sessionId) void setQueuePaused(sessionId, !queuePaused); }}>
+                  {queuePaused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}
+                  {queuePaused ? 'Resume everything' : 'Pause everything'}
+                </button>
+                {hasQueued && (
+                  <>
+                    <div className="col-span-2 border-t border-border-muted" aria-hidden="true" />
+                    <button type="button" onClick={clear}
+                      className="col-span-2 -mt-0.5 inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-md border border-danger/40 px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      title="清空仍在队列中的消息">
+                      <Trash2 size={12} aria-hidden="true" /> 清空
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
           <div className="queue-list-scroll max-h-[45dvh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
             {displayItems.length === 0 ? (
