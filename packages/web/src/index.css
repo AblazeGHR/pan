@@ -1163,6 +1163,7 @@ body {
 }
 
 .message-navigation-marker {
+  --navigation-marker-highlight: var(--color-text-tertiary);
   display: inline-flex;
   width: 27px;
   height: 22px;
@@ -1187,12 +1188,14 @@ body {
 }
 
 .message-navigation-marker-user {
+  --navigation-marker-highlight: var(--color-accent);
   color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-secondary));
   border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border-default));
 }
 
 .message-navigation-marker-worker {
+  --navigation-marker-highlight: var(--color-success);
   color: var(--color-success);
   background: color-mix(in srgb, var(--color-success) 16%, var(--color-bg-secondary));
   border-color: color-mix(in srgb, var(--color-success) 48%, var(--color-border-default));
@@ -1211,6 +1214,7 @@ body {
 
 .message-navigation-marker-ma-assign,
 .message-navigation-marker-ma-msg {
+  --navigation-marker-highlight: var(--color-warning);
   color: var(--color-warning);
   background: color-mix(in srgb, var(--color-warning) 16%, var(--color-bg-secondary));
   border-color: color-mix(in srgb, var(--color-warning) 48%, var(--color-border-default));
@@ -1231,6 +1235,17 @@ body {
 .message-navigation-marker-ma-msg.is-jumped,
 .message-navigation-marker-ma-msg.is-viewport-target {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-warning) 35%, transparent);
+}
+
+.message-navigation-marker.is-viewport-target {
+  position: relative;
+  z-index: 1;
+  transform: scale(1.16);
+  color: var(--color-bg-primary);
+  background: color-mix(in srgb, var(--navigation-marker-highlight) 85%, var(--color-text-primary));
+  border-color: var(--navigation-marker-highlight);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--navigation-marker-highlight) 75%, transparent),
+    0 0 8px color-mix(in srgb, var(--navigation-marker-highlight) 45%, transparent);
 }
 
 .message-navigation-tooltip {
@@ -1355,6 +1370,7 @@ body {
   .message-navigation-rail { flex-basis: 52px; width: 52px; }
   .message-navigation-list { padding: 6px 3px; }
   .message-navigation-marker { width: 44px; min-height: 40px; }
+  .message-navigation-marker.is-viewport-target { transform: scale(1.04); }
   .message-navigation-tooltip { width: min(240px, 72vw); }
 }
 .history-search-word { background: #facc15; color: #171717; border-radius: 2px; }
