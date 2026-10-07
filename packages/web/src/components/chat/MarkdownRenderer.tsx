@@ -360,7 +360,17 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const search = useContext(SearchTextContext);
   const plugins = useMemo(() => search.query ? [...REHYPE_PLUGINS, searchTextPlugin(search.query, search.occurrence)] : REHYPE_PLUGINS, [search.query, search.occurrence]);
+  // A conservative plain paragraph has no Markdown, link, or attachment
+  // syntax. Keep its full text while avoiding per-character Markdown tokens
+  // and giant shaping runs. Search keeps the existing highlighting pipeline.
+  const plainChunks = useMemo(() => content.length >= 65536
+    && /^[A-Za-z0-9][A-Za-z0-9 -]*[A-Za-z0-9]$/.test(content)
+    ? Array.from({ length: Math.ceil(content.length / 2048) }, (_, i) => content.slice(i * 2048, (i + 1) * 2048))
+    : null, [content]);
   if (!content) return null;
+  if (plainChunks && !search.query && attachmentIds.length === 0) return (
+    <div className={`prose-kimi max-w-none break-words ${className}`}><p>{plainChunks.map((text, index) => <span key={index}>{text}</span>)}</p></div>
+  );
   const renderedContent = normalizeLegacyAttachmentLinks(content, sessionId ?? undefined);
   let attachmentIndex = 0;
 

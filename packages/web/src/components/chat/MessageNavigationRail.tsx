@@ -237,10 +237,11 @@ export function MessageNavigationRail({
         while(current()){
           const missing=context.knownTotal?context.index.nextMissing(pendingOpenRef.current===pending?pending.range??undefined:undefined):0;
           if(missing===null)break;
-          const before=context.knownTotal?Math.min(context.index.total,(Math.floor(missing/NAVIGATION_PAGE_SIZE)+1)*NAVIGATION_PAGE_SIZE):0;
+          const pageSize=pendingOpenRef.current===pending&&pending.range?NAVIGATION_PAGE_SIZE:500;
+          const before=context.knownTotal?Math.min(context.index.total,(Math.floor(missing/pageSize)+1)*pageSize):0;
           let page:Awaited<ReturnType<typeof fetchSessionNavigation>>|undefined;
           for(let attempt=0;attempt<3&&current();attempt++){
-            try{requests++;page=await fetchSessionNavigation(context.sessionId!,before,NAVIGATION_PAGE_SIZE,controller.signal);break;}
+            try{requests++;page=await fetchSessionNavigation(context.sessionId!,before,pageSize,controller.signal);break;}
             catch(error){
               if(!current())return;
               const code=error instanceof Error&&'status' in error?Number(error.status):0;
@@ -255,7 +256,7 @@ export function MessageNavigationRail({
           if(context.knownTotal&&page.total<context.index.total)throw new Error('Navigation history total regressed. Refresh the chat.');
           context.index.total=page.total;context.knownTotal=true;
           const end=before===0?page.total:before;
-          if(page.start!==Math.max(0,end-NAVIGATION_PAGE_SIZE)||page.history.length!==end-page.start)throw new Error('Navigation canonical coverage is incomplete.');
+          if(page.start!==Math.max(0,end-pageSize)||page.history.length!==end-page.start)throw new Error('Navigation canonical coverage is incomplete.');
           context.index.addPage(page.history,page.start);publish();locate();
           setIndexMetrics({requests,durationMs:performance.now()-startedAt});
           // Yield between compact batches; no fixed startup delay or polling.

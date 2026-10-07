@@ -17,7 +17,7 @@ commands = [['pnpm.cmd', 'build'], ['node', str(ROOT / 'packages/web/e2e/navigat
 if mode.startswith('continuous'):
     commands = [['pnpm.cmd','build'],['node',str(ROOT / 'packages/web/e2e/navigation-continuous.e2e.mjs'),mode,str(CHECKOUT),sys.argv[3]]]
 if mode == 'unit':
-    commands = [['pnpm.cmd', 'exec', 'vitest', 'run', 'src/components/chat/MessageNavigationRail.test.tsx', 'src/components/chat/navigationIndex.test.ts', 'src/components/chat/ChatMessages.test.tsx', 'src/components/chat/messageFilter.test.ts', 'src/views/ChatView.navigationRail.test.tsx', '--reporter=default', '--reporter=junit', f'--outputFile={EVIDENCE / 'junit.xml'}']]
+    commands = [['pnpm.cmd', 'exec', 'vitest', 'run', 'src/components/chat/MessageNavigationRail.test.tsx', 'src/components/chat/navigationIndex.test.ts', 'src/components/chat/ChatMessages.test.tsx', 'src/components/chat/messageFilter.test.ts', 'src/views/ChatView.navigationRail.test.tsx','src/components/chat/MarkdownRenderer.test.tsx','src/services/api.navigation.test.ts', '--reporter=default', '--reporter=junit', f'--outputFile={EVIDENCE / 'junit.xml'}']]
 if mode == 'projection':
     commands = [[r'D:/project/Pan-main/.venv/Scripts/python.exe','-m','pytest',str(ROOT / 'tests/test_navigation_projection.py'),'-q',f'--junitxml={EVIDENCE / 'junit.xml'}']]
 results = []

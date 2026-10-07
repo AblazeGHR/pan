@@ -19,6 +19,26 @@ def seed():
         fixture.session_store.replace_history(copied, snapshot['history'])
         fixture.session_store.save_full(copied)
     server = sys.modules['packages.web.server']
+    if os.environ.get('PAN_NAV_PROFILE') or os.environ.get('PAN_NAV_BENCH'):
+        import time, json
+        metrics = []
+        history_lookup = server._history_page_lookup
+        projection_lookup = server._navigation_page_lookup
+        def history(*args):
+            start=time.perf_counter()
+            result=history_lookup(*args)
+            metrics.append({'stage':'history','ms':(time.perf_counter()-start)*1000})
+            return result
+        def projection(*args):
+            start=time.perf_counter()
+            result=projection_lookup(*args)
+            metrics.append({'stage':'navigation-total','ms':(time.perf_counter()-start)*1000,'rows':len(result['history'])})
+            return result
+        @server.app.get('/__e2e/projection-profile')
+        async def projection_profile():
+            return metrics
+        server._history_page_lookup=history
+        server._navigation_page_lookup=projection
     from fastapi import Body
     @server.app.get('/__e2e/identity')
     async def identity():

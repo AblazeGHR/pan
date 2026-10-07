@@ -1,4 +1,4 @@
-import { beginForegroundRequest } from './foregroundActivity';
+import { beginForegroundRequest, foregroundActivity, subscribeForegroundActivity } from './foregroundActivity';
 import type {
   Session,
   SessionUsageView,
@@ -149,6 +149,20 @@ export interface ServerFileAttachmentResponse extends AttachmentRef {
   size: number;
 }
 
+/** Optional navigation work yields to real reads without a startup timer. */
+function waitForForeground(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  if (foregroundActivity().requests === 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => { unsubscribe(); signal?.removeEventListener('abort', abort); };
+    const abort = () => { cleanup(); reject(new DOMException('Aborted', 'AbortError')); };
+    const check = () => { if (foregroundActivity().requests === 0) { cleanup(); resolve(); } };
+    const unsubscribe = subscribeForegroundActivity(check);
+    signal?.addEventListener('abort', abort, { once: true });
+    check();
+  });
+}
+
 async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
   const finish = background ? () => {} : beginForegroundRequest();
   try { return await requestBody<T>(url, options, background); }
@@ -175,6 +189,7 @@ async function requestBody<T>(url: string, options?: RequestInit, background = f
   if (!background) {
     if (url.includes('/navigation?')) {
       const text = await res.text();
+      await waitForForeground(options?.signal ?? undefined);
       const started = performance.now();
       const value = JSON.parse(text) as T;
       performance.clearMeasures('message-navigation-decode');
@@ -430,7 +445,8 @@ export async function fetchSessionHistory(
 
 /** Compact navigation pages contain no full conversation bodies or attachments. */
 export async function fetchSessionNavigation(id: string, before = 0, limit = 500, signal?: AbortSignal): Promise<ApiSessionHistoryResponse> {
-  const data = await request<ApiSessionHistoryResponse>(`${BASE}/sessions/${id}/navigation?before=${before}&limit=${limit}`, { signal, priority: 'low' });
+  await waitForForeground(signal);
+  const data = await requestBody<ApiSessionHistoryResponse>(`${BASE}/sessions/${id}/navigation?before=${before}&limit=${limit}`, { signal, priority: 'low' });
   if (data.error) throw new Error(data.error);
   return data;
 }

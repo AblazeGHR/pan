@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Profiler } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { SearchTextContext } from './searchText';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
 import { useEditorStore } from '@/stores/editorStore';
@@ -47,6 +48,27 @@ beforeEach(() => {
 });
 
 describe('MarkdownRenderer', () => {
+  it('preserves the entire large plain paragraph, selection text, and subsequent rich Markdown', () => {
+    const content='large plain-body '+ 'x'.repeat(2_000_000);
+    const view=render(<MarkdownRenderer content={content} />);
+    expect(view.container.querySelector('p')?.textContent).toBe(content);
+    expect(view.container.querySelectorAll('p')).toHaveLength(1);
+    expect(view.container.querySelectorAll('span').length).toBeGreaterThan(1);
+    view.rerender(<MarkdownRenderer content={`${content} **bold**`} />);
+    expect(view.container.querySelector('strong')?.textContent).toBe('bold');
+    expect(view.container.textContent).toBe(content+' bold');
+  });
+
+  it('keeps search marks and attachment handling on the ordinary pipeline for a large plain paragraph', () => {
+    const content='search needle '+ 'x'.repeat(65536);
+    const view=render(<SearchTextContext.Provider value={{query:'needle',occurrence:0}}><MarkdownRenderer content={content} /></SearchTextContext.Provider>);
+    expect(view.container.querySelector('mark')?.textContent).toBe('needle');
+    expect(view.container.textContent).toBe(content);
+    view.rerender(<MarkdownRenderer content={content} attachmentIds={['attachment']} />);
+    expect(view.container.querySelectorAll('p > span')).toHaveLength(0);
+    expect(view.container.textContent).toBe(content);
+  });
+
   it('bounds giant highlighted code and copies the entire latest payload', async () => {
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320);
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);

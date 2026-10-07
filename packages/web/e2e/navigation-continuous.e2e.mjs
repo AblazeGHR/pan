@@ -101,7 +101,7 @@ try {
     report.projectionParityRows=covered;
   }
   await setup.close();
-  for(const test of (original||rejected?['middle']:['middle','top','tail','retry','automatic','takeover','epoch','append','mobile','session-switch'])){
+  for(const test of (process.env.PAN_NAV_ONLY?[process.env.PAN_NAV_ONLY]:process.env.PAN_NAV_BENCH?['middle','top','tail','append','append-reading']:original||rejected?['middle']:['middle','top','tail','retry','automatic','takeover','epoch','append','mobile','session-switch'])){
     const mobile=test==='mobile';
     const context=await browser.newContext({viewport:{width:mobile?390:1120,height:mobile?844:900},isMobile:mobile,hasTouch:mobile});
     const trace=path.join(runtime,`${test}-trace.private.zip`);
@@ -127,8 +127,8 @@ try {
       await scroller.hover();await page.mouse.wheel(0,-120);await delay(200);
       await scroller.evaluate((el,f)=>{el.scrollTop=(el.scrollHeight-el.clientHeight)*f;},test==='top'?0:test==='tail'?1:0.5);
       await delay(1000);
-      const before=await visibleRange(page);assert.ok(Number.isFinite(before.start));
-      if(!original&&test!=='tail')await page.evaluate(range=>{
+      const before=await visibleRange(page);scenario.canonicalBefore=await page.evaluate(()=>{const s=window.__panSessionStore.getState();return {rows:s.sessionTranscripts[s.currentSessionId].window.rows.size,messages:s.currentMessages.length};});assert.ok(Number.isFinite(before.start));
+      if(!original&&test!=='tail'&&test!=='append-reading')await page.evaluate(range=>{
         const state=window.__panSessionStore.getState(),transcript=state.sessionTranscripts[state.currentSessionId];
         // Fault/nearby fixture retains only the visible canonical neighbourhood;
         // rendered messages stay real and identities remain unchanged.
@@ -154,6 +154,8 @@ try {
         const frame=now=>{window.__navMetrics.frames.push(now-last);last=now;if(now-start<5000)requestAnimationFrame(frame);};requestAnimationFrame(frame);
       });
       const resourceStart=await page.evaluate(()=>performance.now());
+      const cpu=process.env.PAN_NAV_PROFILE?await context.newCDPSession(page):null;
+      if(cpu){await cpu.send('Profiler.enable');await cpu.send('Profiler.start');}
       const started=performance.now();
       const open=async()=>{if(mobile)await page.getByTestId('mobile-message-navigation-toggle').click();else await page.locator('.message-navigation-dock__handle').hover();};
       await open();
@@ -202,7 +204,7 @@ try {
           await poll(selected,s=>Number(s)===scenario.expected,10000);scenario.firstMs=performance.now()-started;
         }
         await poll(status,s=>s==='ready',20000);scenario.fullMs=performance.now()-started;
-        if(test==='append'){
+        if(['append','append-reading'].includes(test)){
           const appendStarted=performance.now();
           await context.request.post(`${base}/__e2e/append-history`,{data:{sessionId:copied.id,messages:[{role:'user',content:'isolated large-body append '+ 'x'.repeat(2_000_000)},{role:'system',content:'////by pan system: isolated append'}]}});
           const appendResponse=await context.request.get(`${base}/api/sessions/${copied.id}/history?before=${privateSnapshot.history.length+2}&limit=2`);
@@ -211,8 +213,9 @@ try {
           await page.evaluate(()=>window.__panSessionStore.getState().refreshCurrentSessionHistory());
           await poll(()=>rail.getAttribute('data-history-total'),s=>Number(s)===privateSnapshot.history.length+2);
           await poll(status,s=>s==='ready');scenario.appendMs=performance.now()-appendStarted;
-          scenario.appendVerified=true;
+          scenario.appendVerified=true;scenario.fullBodyLength=await page.evaluate(()=>Math.max(...window.__panSessionStore.getState().currentMessages.map(m=>m.content.length)));assert.ok(scenario.fullBodyLength>=2_000_000);if(test==='append'){const lengths=await page.locator('.chat-view-stage .prose-kimi p').evaluateAll(nodes=>nodes.map(n=>n.textContent.length));assert.ok(Math.max(...lengths)>=2_000_000,'full visible body cannot be truncated');}scenario.canonicalAfter=await page.evaluate(()=>{const s=window.__panSessionStore.getState();return {rows:s.sessionTranscripts[s.currentSessionId].window.rows.size,messages:s.currentMessages.length};});
         }
+        if(cpu){const {profile}=await cpu.send('Profiler.stop');await fs.writeFile(path.join(runtime,`${test}.private.cpuprofile`),JSON.stringify(profile));}
         scenario.indexedTargets=Number(await rail.getAttribute('data-indexed-targets'));
         if(!original)assert.equal(scenario.indexedTargets,testOracle.length,'full target count');
         assert.equal(await page.getByRole('button',{name:'Load earlier navigation'}).count(),0);
@@ -235,7 +238,7 @@ try {
         if(!original)for(const target of testOracle){const row=seen.get(target.offset);assert.equal(row.kind,target.kind);if(test!=='epoch')assert.equal(row.messageId,target.messageId);else assert.equal(row.messageId,`isolated-new-epoch-${target.offset}`);}
         assert.equal(calls,requestCount,'scroll cannot trigger pagination');scenario.visitedTargets=seen.size;
         scenario.bodyDelta=(await visibleRange(page)).scrollTop-before.scrollTop;
-        if(!['takeover','epoch','append'].includes(test))assert.ok(Math.abs(scenario.bodyDelta)<=1,'navigation cannot move chat body');
+        if(!['takeover','epoch','append','append-reading'].includes(test))assert.ok(Math.abs(scenario.bodyDelta)<=1,'navigation cannot move chat body');
         scenario.maxRendered=await page.locator('.message-navigation-marker').count();
         if(!original)assert.ok(scenario.maxRendered<=100);
         scenario.metrics=await page.evaluate(()=>({longTasks:window.__navMetrics.longTasks,maxFrame:Math.max(0,...window.__navMetrics.frames)}));
@@ -277,7 +280,7 @@ try {
       scenario.resourceTiming=resources;scenario.wireBytes=resources.reduce((sum,r)=>sum+r.encoded,0);
       await page.screenshot({path:path.join(runtime,`${test}.private.png`)});
       scenario.passed=true;
-      if(['epoch','append'].includes(test)){
+      if(['epoch','append','append-reading'].includes(test)){
         // Stop observing before fixture restoration broadcasts a new epoch.
         // Cleanup traffic must not contaminate navigation request/byte counts.
         await page.close();
@@ -288,7 +291,7 @@ try {
       await fs.writeFile(path.join(output,'evidence.json'),JSON.stringify(report,null,2));
     }
   }
-  if(!original&&!rejected)for(const density of ['dense','sparse']){
+  if(!original&&!rejected&&!process.env.PAN_NAV_ONLY)for(const density of ['dense','sparse']){
     const context=await browser.newContext({viewport:{width:1120,height:900}});
     await context.tracing.start({screenshots:true,snapshots:true,sources:true});
     const dense=sessions.find(session=>session.name===(density==='dense'?'Dense Navigation':'Sparse Navigation'));
@@ -307,11 +310,13 @@ try {
       const expected=nearest(targetIdentities,before).offset;
       await page.evaluate(()=>{window.__densePerf={tasks:[],frames:[]};new PerformanceObserver(list=>window.__densePerf.tasks.push(...list.getEntries().map(e=>e.duration))).observe({type:'longtask',buffered:false});let prev=performance.now();function tick(now){window.__densePerf.frames.push(now-prev);prev=now;requestAnimationFrame(tick);}requestAnimationFrame(tick);});
       let requests=0;page.on('request',request=>{if(request.url().includes('/navigation?'))requests++;});
+      const cpu=process.env.PAN_NAV_PROFILE?await context.newCDPSession(page):null;if(cpu){await cpu.send('Profiler.enable');await cpu.send('Profiler.start');}
       const started=performance.now();await page.locator('.message-navigation-dock__handle').hover();
       await poll(()=>page.locator('.is-viewport-target').getAttribute('data-canonical-offset').catch(()=>null),value=>Number(value)===expected);
       scenario.firstMs=performance.now()-started;
       await poll(()=>page.locator('.message-navigation-rail').getAttribute('data-index-status'),value=>value==='ready',30000);
       scenario.fullMs=performance.now()-started;scenario.requests=requests;
+      if(cpu){const {profile}=await cpu.send('Profiler.stop');await fs.writeFile(path.join(runtime,`${density}.private.cpuprofile`),JSON.stringify(profile));}
       assert.equal(Number(await page.locator('.message-navigation-rail').getAttribute('data-indexed-targets')),targetIdentities.length);
       const list=page.locator('.message-navigation-list'),visited=new Map();let maxRendered=0;
       for(let top=0,guard=0;;guard++){
@@ -327,6 +332,28 @@ try {
       assert.equal((await visibleRange(page)).scrollTop,before.scrollTop);scenario.passed=true;
     }finally{await context.tracing.stop({path:path.join(runtime,`${density}-trace.private.zip`)});await context.close();}
   }
+  if(!original&&!rejected&&!process.env.PAN_NAV_ONLY)for(const name of ['Private Navigation Snapshot','Dense Navigation'])for(const opened of [false,true]){
+    const context=await browser.newContext({viewport:{width:1120,height:900}}),page=await context.newPage();
+    const session=sessions.find(session=>session.name===name);
+    const scenario={test:'foreground-history',dataset:name==='Dense Navigation'?'dense':'real',opened};report.scenarios.push(scenario);
+    try{
+      await page.goto(`${base}/react/?panE2E=1`);await page.locator(`[data-session-card-id="${session.id}"]`).click();
+      await page.waitForFunction(()=>window.__panSessionStore.getState().currentMessages.length>0&&!window.__panSessionStore.getState().historyLoading);await delay(300);
+      let navRequests=0;
+      await page.route(`**/api/sessions/${session.id}/navigation?*`,async route=>{navRequests++;await delay(150);try{await route.continue();}catch{/* cancellation */}});
+      await page.route(`**/api/sessions/${session.id}/history?*`,async route=>{await delay(200);await route.continue();});
+      if(opened){await page.locator('.message-navigation-dock__handle').hover();await poll(()=>navRequests,n=>n>0);}
+      const beginning=navRequests;
+      scenario.bodyMs=await page.evaluate(async()=>{const start=performance.now();await window.__panSessionStore.getState().loadOlderMessages(1000,undefined,true);return performance.now()-start;});
+      scenario.newNavRequestsDuringBody=navRequests-beginning;
+      if(opened&&report.sha!=='87a09c6a8485ba0c50f6ffb845b95d3e3be6200e')assert.equal(scenario.newNavRequestsDuringBody,0,'navigation yields between batches until foreground history finishes');
+      const rows=await page.evaluate(()=>{const s=window.__panSessionStore.getState();return [...s.sessionTranscripts[s.currentSessionId].window.rows].map(([offset,m])=>({offset,id:m.messageId})).sort((a,b)=>a.offset-b.offset);});
+      assert.ok(rows.length>=1000);for(let i=1;i<rows.length;i++)assert.equal(rows[i].offset,rows[i-1].offset+1);
+      if(name!=='Dense Navigation')for(const row of rows)assert.equal(row.id,privateSnapshot.history[row.offset].messageId);
+      scenario.canonicalRows=rows.length;scenario.passed=true;
+    }finally{await context.close();}
+  }
+  if(process.env.PAN_NAV_PROFILE||process.env.PAN_NAV_BENCH)report.backend=await(await fetch(`${base}/__e2e/projection-profile`)).json();
   assert.deepEqual(report.errors,[]);assert.deepEqual(report.protectedRequests,[]);report.passed=true;
 } catch (error) { report.failure = error.stack; process.exitCode = 1; }
 finally {

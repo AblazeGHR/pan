@@ -702,7 +702,7 @@ describe('open nearest canonical regression', () => {
   it('loads a complete continuous index automatically without visible paging controls', async()=>{
     vi.useFakeTimers();seedRows(1600,1400,200);
     vi.stubGlobal('requestAnimationFrame',(callback:FrameRequestCallback)=>setTimeout(()=>callback(0),0));
-    mockedHistory.mockImplementation(async(_id,before=0)=>historyPage(Array.from({length:Math.min(200,before)},(_,i)=>({role:'user',content:`row ${before-200+i}`,messageId:`canonical-${before-200+i}`})),1600,before-200));
+    mockedHistory.mockImplementation(async(_id,before=0,limit=500)=>{const start=Math.max(0,before-limit);return historyPage(Array.from({length:before-start},(_,i)=>({role:start+i>=1400&&(start+i)%10!==0?'assistant':'user',content:`row ${start+i}`,messageId:`canonical-${start+i}`})),1600,start);});
     const view=render(<MessageNavigationRail chatRef={{current:{getViewportHistoryRange:()=>({start:1499,end:1501})} as never}}/>);
     await act(async()=>{await vi.runAllTimersAsync();});
     expect(view.container.querySelector('.message-navigation-rail')?.getAttribute('data-index-status')).toBe('ready');
