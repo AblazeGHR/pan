@@ -7,7 +7,7 @@ import { forwardRef, type ReactNode } from 'react';
 import ChatView from './ChatView';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
-import { fetchHistorySearch, fetchSessionHistory } from '@/services/api';
+import { fetchHistorySearch, fetchSessionNavigation } from '@/services/api';
 import type { Message } from '@/types';
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
@@ -15,7 +15,7 @@ const mockedGlobalHistorySearch = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/api')>()),
-  fetchSessionHistory: vi.fn(),
+  fetchSessionNavigation: vi.fn(),
   fetchHistorySearch: mockedGlobalHistorySearch,
 }));
 
@@ -47,7 +47,7 @@ vi.mock('@/hooks/useMediaQuery', () => ({
   useMediaQuery: () => ({ isMobile: viewport.isMobile }),
 }));
 
-const mockedHistory = vi.mocked(fetchSessionHistory);
+const mockedHistory = vi.mocked(fetchSessionNavigation);
 const mockedGlobalSearch = vi.mocked(fetchHistorySearch);
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
 const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.tsx'), 'utf8');
@@ -65,7 +65,7 @@ beforeEach(() => {
     total: 1,
     start: 0,
     hasMore: false,
-  } as Awaited<ReturnType<typeof fetchSessionHistory>>);
+  } as Awaited<ReturnType<typeof fetchSessionNavigation>>);
   useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useSessionStore.setState({
     currentSessionId: 'rail-view',

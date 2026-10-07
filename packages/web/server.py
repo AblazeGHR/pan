@@ -6273,6 +6273,62 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
     }
 
 
+def _navigation_preview(content: str) -> str:
+    """Bound the rail projection without truncating a transport header's body."""
+    text = content.lstrip()
+    system = re.match(r"^////by (?:pan system|system)(?=\s|:|$)", text)
+    if system:
+        text = text[system.end():]
+        text = re.sub(r"^[^\S\r\n]*:", "", text, count=1)
+    else:
+        text = re.sub(r"^(?:@@@@by agent|////by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)", "", text, count=1)
+    # Only scan enough non-whitespace characters for the 120 UTF-16-unit
+    # preview; never normalize an entire multi-megabyte body on the UI thread.
+    parts = []
+    length = 0
+    for match in re.finditer(r"\S+", text):
+        token = match.group(0)[:121]
+        parts.append(token)
+        length += len(token) + 1
+        if length > 121:
+            break
+    normalized = " ".join(parts)
+    units = normalized.encode("utf-16-le", errors="surrogatepass")
+    if len(units) <= 240:
+        return normalized
+    return units[:238].decode("utf-16-le", errors="replace").rstrip() + "…"
+
+
+def _navigation_page_lookup(session_id: str, before: int, limit: int):
+    page = _history_page_lookup(session_id, before, min(500, max(1, limit)), True)
+    if page is _NOT_FOUND:
+        return page
+    rows = []
+    for message in page["history"]:
+        content = message.get("content", "")
+        content = content if isinstance(content, str) else ""
+        row = {key: message[key] for key in ("role", "source", "taskIdSource", "messageId") if key in message}
+        # The shared frontend classifier only needs the leading marker. Keeping
+        # it here avoids a second implementation of User/Re/MA/Sys provenance.
+        row["content"] = content.lstrip()[:64]
+        row["navigationPreview"] = _navigation_preview(content)
+        rows.append(row)
+    return {**page, "history": _api_history(session_id, rows, start=page["start"], history_epoch=page.get("historyEpoch"))}
+
+
+@app.get("/api/sessions/{session_id}/navigation")
+async def api_session_navigation(session_id: str, before: int = 0, limit: int = 500):
+    """Read-only compact canonical projection, independent of body byte sizes.
+
+    Coverage is canonical start/total/epoch; every row, including non-targets,
+    is represented so the client can prove nearest and full completion.
+    """
+    page = await _store_read(_navigation_page_lookup, session_id, before, limit)
+    if page is _NOT_FOUND:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return page
+
+
 _HISTORY_SEARCH_CURSOR_TTL_SECONDS = 15 * 60
 _HISTORY_SEARCH_CURSOR_MAX_LENGTH = 2048
 _HISTORY_SEARCH_CURSOR_MAX_POSITION = 2_147_483_647

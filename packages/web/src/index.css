@@ -1485,3 +1485,5 @@ body {
 .message-navigation-status-error { cursor: pointer; }
 .message-navigation-status-error:focus-visible,
 .message-navigation-page:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.message-navigation-list { gap: 0; overflow-anchor: none; }

@@ -7,15 +7,15 @@ import { MessageNavigationDock } from './MessageNavigationDock';
 import { createPortal } from 'react-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
-import { fetchSessionHistory } from '@/services/api';
+import { fetchSessionNavigation } from '@/services/api';
 import type { Message } from '@/types';
 import * as messageOrdering from '@/stores/messageOrdering';
 
 vi.mock('@/services/api', () => ({
-  fetchSessionHistory: vi.fn(),
+  fetchSessionNavigation: vi.fn(),
 }));
 
-const mockedHistory = vi.mocked(fetchSessionHistory);
+const mockedHistory = vi.mocked(fetchSessionNavigation);
 
 const USER_MESSAGE: Message = { role: 'user', content: 'hello from the user' };
 const SCRUB_MESSAGES: Message[] = [
@@ -31,7 +31,7 @@ function historyPage(history: Message[], total = history.length, start = 0) {
     total,
     start,
     hasMore: start > 0,
-  } as Awaited<ReturnType<typeof fetchSessionHistory>>;
+  } as Awaited<ReturnType<typeof fetchSessionNavigation>>;
 }
 
 /** The rail indexes the whole history on mount, so every test needs a page. */
@@ -603,7 +603,7 @@ describe('open nearest canonical regression', () => {
     const ref = { current: { getViewportHistoryRange: snapshot, scrollToMessage } } as never;
     const view = render(<MessageNavigationRail chatRef={ref} expanded />);
     await act(async () => { await Promise.resolve(); });
-    expect(selected(view.container)).toBe('500'); expect(mockedHistory).not.toHaveBeenCalled(); expect(scrollToMessage).not.toHaveBeenCalled();
+    expect(selected(view.container)).toBe('500'); expect(scrollToMessage).not.toHaveBeenCalled();
     snapshot.mockReturnValue({ start: 533, end: 546 });
     view.rerender(<MessageNavigationRail chatRef={ref} expanded={false} />);
     view.rerender(<MessageNavigationRail chatRef={ref} expanded />);
@@ -677,7 +677,7 @@ describe('open nearest canonical regression', () => {
     expect(markers(view.container).some(m => m.title === 'OLD')).toBe(false);
   });
   it('same-epoch appends refresh fromEnd without another snapshot, request or rail scroll', async () => {
-    seedRows(1000, 400, 200);
+    seedRows(1000, 0, 1000);
     const snapshot = vi.fn().mockReturnValue({ start: 499, end: 501 });
     const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: snapshot } as never }} />);
     expect(selected(view.container)).toBe('500');
@@ -686,7 +686,7 @@ describe('open nearest canonical regression', () => {
     act(() => { useSessionStore.setState({ sessions: [{ id: 'nearest', historyTotal: 1001 } as never] }); });
     expect(snapshot).toHaveBeenCalledTimes(1); expect(list.scrollTop).toBe(123);
     expect(view.container.querySelector<HTMLElement>('.is-viewport-target')?.dataset.fromEnd).toBe('500');
-    expect(mockedHistory).not.toHaveBeenCalled();
+    expect(mockedHistory).toHaveBeenCalledTimes(1);
   });
   it('history epoch invalidation cannot reuse cached offsets or a late old page', async () => {
     seedRows(1000, 400, 1);
@@ -699,49 +699,15 @@ describe('open nearest canonical regression', () => {
     expect(markers(view.container).some(m => m.title === 'OLD-EPOCH')).toBe(false);
   });
 
-  it('caps automatic nearby reads for a huge no-candidate history and exposes explicit continuation', async () => {
-    vi.useFakeTimers(); seedRows(1_000_000, 500000, 0);
-    mockedHistory.mockImplementation(async (_id, before = 0) => historyPage(Array.from({ length: 200 }, () => ({ role: 'assistant', content: 'ordinary' })), 1_000_000, before - 200));
-    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 500000, end: 500002 }) } as never }} />);
-    await act(async () => { await vi.runAllTimersAsync(); });
-    expect(mockedHistory).toHaveBeenCalledTimes(6); expect(selected(view.container)).toBeUndefined();
-    expect(view.getByRole('button', { name: 'Load more nearby navigation' })).toBeDefined();
-    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-    expect(mockedHistory).toHaveBeenCalledTimes(6);
+  it('loads a complete continuous index automatically without visible paging controls', async()=>{
+    vi.useFakeTimers();seedRows(1600,1400,200);
+    vi.stubGlobal('requestAnimationFrame',(callback:FrameRequestCallback)=>setTimeout(()=>callback(0),0));
+    mockedHistory.mockImplementation(async(_id,before=0)=>historyPage(Array.from({length:Math.min(200,before)},(_,i)=>({role:'user',content:`row ${before-200+i}`,messageId:`canonical-${before-200+i}`})),1600,before-200));
+    const view=render(<MessageNavigationRail chatRef={{current:{getViewportHistoryRange:()=>({start:1499,end:1501})} as never}}/>);
+    await act(async()=>{await vi.runAllTimersAsync();});
+    expect(view.container.querySelector('.message-navigation-rail')?.getAttribute('data-index-status')).toBe('ready');
+    expect(view.container.querySelector('.message-navigation-rail')?.getAttribute('data-indexed-targets')).toBe('1420');
+    expect(view.queryByRole('button',{name:'Load earlier navigation'})).toBeNull();expect(view.queryByRole('button',{name:'Load more nearby navigation'})).toBeNull();
+    expect(markers(view.container).length).toBeLessThan(100);
   });
-
-  it('renders strictly adjacent dense pages, continues across eviction, and preserves append boundaries', async () => {
-    vi.useFakeTimers();
-    const rows = Array.from({ length: 200 }, (_, i): Message => ({ role: 'user', content: `dense ${i + 400}`, messageId: `canonical-${i + 400}` }));
-    rows.forEach((message, i) => messageOrdering.markDurableRow(message, i + 400));
-    useSessionStore.setState({ currentSessionId: 'nearest', sessions: [{ id: 'nearest', historyTotal: 3200 } as never], currentMessages: rows, sessionTranscripts: {} });
-    let total = 3200;
-    mockedHistory.mockImplementation(async (_id, before = 0) => historyPage(Array.from({ length: before - Math.max(0,before - 200) }, (_, i) => ({ role: 'user', content: `dense ${Math.max(0,before - 200)+i}`, messageId: `canonical-${Math.max(0,before - 200)+i}` })), total, Math.max(0,before - 200)));
-    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
-    const offsets = () => markers(view.container).map(marker => Number(marker.dataset.canonicalOffset));
-    expect(offsets()).toEqual(Array.from({ length: 200 }, (_, i) => 400 + i));
-    let last = 599;
-    while (last < total - 1) {
-      fireEvent.click(view.getByRole('button', { name: 'Load later navigation' }));
-      await act(async () => { await vi.runAllTimersAsync(); });
-      const next = offsets(); expect(next).toEqual(Array.from({ length: Math.min(200,total-last-1) }, (_,i) => last+1+i));
-      expect(markers(view.container).map(marker => marker.dataset.messageId)).toEqual(next.map(offset => `canonical-${offset}`));
-      last = next.at(-1)!;
-    }
-    expect(last).toBe(3199);
-    total += 3;
-    act(() => { useSessionStore.setState({ sessions: [{ id: 'nearest', historyTotal: total } as never] }); });
-    fireEvent.click(view.getByRole('button', { name: 'Load later navigation' }));
-    await act(async () => { await vi.runAllTimersAsync(); });
-    expect(offsets()).toEqual([3200,3201,3202]);
-    let first = 3200;
-    while (first > 0) {
-      fireEvent.click(view.getByRole('button', { name: 'Load earlier navigation' }));
-      await act(async () => { await vi.runAllTimersAsync(); });
-      const previous = offsets(); expect(previous).toEqual(Array.from({ length: Math.min(200,first) }, (_,i) => Math.max(0,first-200)+i));
-      first = previous[0]!;
-    }
-    expect(first).toBe(0);
-  }, 20000);
-
 });

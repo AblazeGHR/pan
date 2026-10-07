@@ -14,11 +14,11 @@ import { Loader2, UserRound } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { canonicalRowsWithOffsets } from '@/stores/messageOrdering';
-import { fetchSessionHistory } from '@/services/api';
+import { fetchSessionNavigation } from '@/services/api';
 import {
     type QuickJumpKind,
 } from './messageFilter';
-import { NavigationIndex, NavigationPager, NavigationSearch, NAVIGATION_AUTO_PAGES, NAVIGATION_CACHE_PAGES, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
+import { NavigationIndex, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
 import type { ChatMessagesHandle } from './ChatMessages';
 
 interface MessageNavigationRailProps {
@@ -28,7 +28,7 @@ interface MessageNavigationRailProps {
   mobileExpanded?: boolean;
 }
 
-type IndexStatus = 'idle' | 'loading' | 'ready' | 'partial' | 'error';
+type IndexStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 const USER_LABEL = '\u7528\u6237';
 const RAIL_LABEL = '\u5feb\u901f\u5b9a\u4f4d';
@@ -130,12 +130,7 @@ export function MessageNavigationRail({
   const contextRef = useRef(context);
   contextRef.current = context;
   const [indexView, setIndexView] = useState<{ context: typeof context; targets: NavigationTarget[] } | null>(null);
-  const [manualPage, setManualPage] = useState<{ context: typeof context; targets: NavigationTarget[] } | null>(null);
-  const targets = useMemo(() => {
-    const rows = indexView?.context === context ? indexView.targets : [];
-    const displayed = manualPage?.context === context ? manualPage.targets.map(target => ({ ...target, fromEnd: context.index.total - 1 - target.offset })) : [];
-    return [...new Map([...rows, ...displayed].map(target => [target.offset, target])).values()].sort((a, b) => a.offset - b.offset);
-  }, [indexView, context, manualPage]);
+  const targets = useMemo(() => indexView?.context === context ? indexView.targets : [], [indexView,context]);
   const [indexState, setIndexState] = useState<{ context: typeof context; status: IndexStatus; error: string | null } | null>(null);
   const indexStatus = indexState?.context === context ? indexState.status : 'idle';
   const indexError = indexState?.context === context ? indexState.error : null;
@@ -147,15 +142,15 @@ export function MessageNavigationRail({
   const pendingOpenRef = useRef<{ epoch: number; context: typeof context; range: NavigationRange | null } | null>(null);
   const observerCleanupRef = useRef<(() => void) | null>(null);
   const [viewportTarget, setViewportTarget] = useState<{ context: typeof context; epoch: number; offset: number } | null>(null);
-  const [displayOffset, setDisplayOffset] = useState(0);
   const [retryEpoch, setRetryEpoch] = useState(0);
-  const requestedRangeRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
-  const skipLocationRef = useRef(false);
-  const pagerRef = useRef<{ context: typeof context; pager: NavigationPager } | null>(null);
-  const searchRef = useRef<{ context: typeof context; search: NavigationSearch } | null>(null);
-  const [exhaustedEdge, setExhaustedEdge] = useState<{ context: typeof context; boundary: number; direction: -1 | 1; total: number } | null>(null);
+  const [listScroll, setListScroll] = useState(0);
+  const rowHeight = isMobile ? 45 : 27;
+  const previousListRef = useRef<{ context: typeof context; targets: NavigationTarget[] }>({context,targets:[]});
+  const targetsRef = useRef(targets); targetsRef.current = targets;
+  const continuingRef = useRef(false);
+  const pendingWantedRef = useRef(true);
   const locationRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
-
+  const appendRef = useRef({ context, total: loadedCanonicalTotal });
   const clearScrub = useCallback((suppressClick = false) => {
     const gesture = scrubGestureRef.current;
     if (gesture?.timer !== null && gesture?.timer !== undefined) window.clearTimeout(gesture.timer);
@@ -167,233 +162,156 @@ export function MessageNavigationRail({
   const cancelOpenLocation = useCallback(() => {
     pendingOpenRef.current = null;
     observerCleanupRef.current?.(); observerCleanupRef.current = null;
-    operationRef.current?.controller.abort(); operationRef.current = null;
-    setIndexState(value => value?.status === 'loading' ? { ...value, status: 'partial' } : value);
   }, []);
 
   useLayoutEffect(() => {
-    // Appends in the same history epoch update fromEnd, never reopen/reposition
-    // an already open rail. Absolute canonical offsets remain the identity.
-    if (loadedCanonicalTotal > context.index.total) {
-      context.index.total = loadedCanonicalTotal;
-      setIndexView(value => value?.context === context ? { context, targets: context.index.targets() } : value);
+    if (loadedCanonicalTotal > context.index.total) context.index.total = loadedCanonicalTotal;
+    const previous=appendRef.current;
+    appendRef.current={context,total:loadedCanonicalTotal};
+    if(previous.context===context&&loadedCanonicalTotal>previous.total) {
+      setIndexView(value=>value?.context===context?{context,targets:context.index.targets()}:value);
+      // Continue compact coverage for an append, preserving the open snapshot.
+      continuingRef.current=true;setRetryEpoch(value=>value+1);
     }
-  }, [loadedCanonicalTotal, context]);
+  },[loadedCanonicalTotal,context]);
+  useLayoutEffect(()=>{
+    clearScrub(false); setJumpError(null);setActiveOffset(null);setJumpingOffset(null);
+  },[context,clearScrub]);
 
   useLayoutEffect(() => {
-    clearScrub(false); setJumpError(null); setActiveOffset(null); setJumpingOffset(null);
-  }, [context, clearScrub]);
-
-  useLayoutEffect(() => {
-    const requestedRange = requestedRangeRef.current?.context === context ? requestedRangeRef.current.range : null;
+    const wanted=pendingWantedRef.current;
     cancelOpenLocation();
-    const epoch = ++openEpochRef.current;
-    if (!requestedRange) {
-      pagerRef.current = null; searchRef.current = null; setManualPage(null); setExhaustedEdge(null);
-    }
-    const pager = pagerRef.current?.context === context ? pagerRef.current.pager : null;
-    const allowLocation = !pager && !skipLocationRef.current; skipLocationRef.current = false;
-    setViewportTarget(null); setActiveOffset(null);
-    if (!expanded || !context.sessionId) return;
-    const pending = { epoch, context, range: null as NavigationRange | null };
-    pendingOpenRef.current = pending;
-    const controller = new AbortController();
-    const operation = { controller, context };
-    operationRef.current = operation;
-    const startedAt = performance.now();
-    let requests = 0;
-    const current = () => !controller.signal.aborted && contextRef.current === context
-      && operationRef.current === operation && useSessionStore.getState().currentSessionId === context.sessionId;
-    const publish = () => {
-      if (!current()) return;
-      const best = searchRef.current?.context === context ? searchRef.current.search.best : undefined;
-      const rows = context.index.targets();
-      if (best && !rows.some(target => target.offset === best.offset)) rows.push({ ...best, fromEnd: context.index.total - 1 - best.offset });
-      setIndexView({ context, targets: rows.sort((a, b) => a.offset - b.offset) });
+    const epoch=++openEpochRef.current;
+    operationRef.current?.controller.abort(); operationRef.current=null;
+    if(!expanded||!context.sessionId)return;
+    const controller=new AbortController();
+    const operation={controller,context};operationRef.current=operation;
+    const pending={epoch,context,range:null as NavigationRange|null};
+    pendingOpenRef.current=pending;
+    // Retrying/append continues the same snapshot. Actual reopen re-snapshots.
+    const retrying=continuingRef.current&&locationRef.current?.context===context;continuingRef.current=false;
+    pendingWantedRef.current=retrying?wanted:true;
+    if(!pendingWantedRef.current)pendingOpenRef.current=null;
+    const current=()=>!controller.signal.aborted&&contextRef.current===context
+      &&operationRef.current===operation&&useSessionStore.getState().currentSessionId===context.sessionId;
+    let requests=0;
+    const startedAt=performance.now();
+    const publish=()=>{if(current())setIndexView({context,targets:context.index.targets()});};
+    const locate=()=>{
+      if(pendingOpenRef.current!==pending||!pending.range||!current()||!context.index.proven(pending.range))return;
+      const best=nearestNavigationTarget(context.index.targets(),pending.range);
+      pendingOpenRef.current=null;pendingWantedRef.current=false;
+      if(best)setViewportTarget({context,epoch,offset:best.offset});
     };
-    const status = (value: IndexStatus, error: string | null = null) => {
-      if (current()) setIndexState({ context, status: value, error });
+    const acceptRange=(range:NavigationRange)=>{
+      if(!current()||pendingOpenRef.current!==pending||pending.range!==null)return;
+      if(!Number.isSafeInteger(range.start)||!Number.isSafeInteger(range.end)||range.start<0||range.end<range.start)return;
+      pending.range=range;locationRef.current={context,range};
+      observerCleanupRef.current?.();observerCleanupRef.current=null;
+      const state=useSessionStore.getState();
+      const transcript=state.sessionTranscripts[context.sessionId!];
+      const center=(range.start+range.end)/2;
+      const rows=[];
+      if(transcript){
+        for(let offset=Math.max(0,Math.floor(center-1000));offset<=Math.min(context.index.total-1,Math.ceil(center+1000));offset++){
+          const message=transcript.window.rows.get(offset);if(message)rows.push({offset,message});
+        }
+      }else rows.push(...canonicalRowsWithOffsets(state.currentMessages).filter(row=>Math.abs(row.offset-center)<=1000));
+      context.index.addRows(rows);publish();locate();
     };
-    const finishLocation = (range: NavigationRange) => {
-      if (pendingOpenRef.current !== pending || !current()) return;
-      const best = searchRef.current?.context === context ? searchRef.current.search.best : nearestNavigationTarget(context.index.targets(), range);
-      pendingOpenRef.current = null;
-      if (best && allowLocation) setViewportTarget({ context, epoch, offset: best.offset });
-    };
-    const pause = (ms: number) => new Promise<void>((resolve, reject) => {
-      const abort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
-      const timer = window.setTimeout(() => { controller.signal.removeEventListener('abort', abort); resolve(); }, ms);
-      controller.signal.addEventListener('abort', abort, { once: true });
+    setViewportTarget(value=>retrying&&value?.context===context?value:null);
+    const range=retrying?locationRef.current!.range:chatRef.current?.getViewportHistoryRange?.();
+    if(range)acceptRange(range);
+    else if(chatRef.current?.observeViewportHistoryRange)observerCleanupRef.current=chatRef.current.observeViewportHistoryRange(acceptRange);
+    const pause=(ms:number)=>new Promise<void>((resolve,reject)=>{
+      const abort=()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));};
+      const timer=window.setTimeout(()=>{controller.signal.removeEventListener('abort',abort);resolve();},ms);
+      controller.signal.addEventListener('abort',abort,{once:true});
     });
-    const load = async (range: NavigationRange) => {
-      if (!pager) setDisplayOffset((range.start + range.end) / 2);
-      // Only durable offsets may seed coverage. Keep a bounded neighbourhood,
-      // rather than projecting/rendering the whole loaded transcript.
-      const state = useSessionStore.getState();
-      const transcript = context.sessionId ? state.sessionTranscripts[context.sessionId] : undefined;
-      const center = (range.start + range.end) / 2;
-      const start = Math.max(0, Math.floor(center - NAVIGATION_PAGE_SIZE * 5));
-      const end = Math.min(context.index.total - 1, Math.ceil(center + NAVIGATION_PAGE_SIZE * 5));
-      if (transcript) {
-        // Random-access canonical window: bounded lookups, no transcript scan
-        // or sort, even when chat already has hundreds of thousands of rows.
-        const rows = [];
-        for (let offset = start; offset <= end; offset++) {
-          const message = transcript.window.rows.get(offset);
-          if (message) rows.push({ offset, message });
-        }
-        context.index.addRows(rows);
-      } else {
-        // Legacy/minimal callers have only durable row tags; runtime/local
-        // messages have no offset and cannot enter this fallback index.
-        context.index.addRows(canonicalRowsWithOffsets(state.currentMessages).filter(row => row.offset >= start && row.offset <= end));
+    const run=async()=>{
+      if(context.knownTotal&&context.index.complete()){
+        publish();locate();setIndexState({context,status:'ready',error:null});return;
       }
-      publish();
-      if (!pager && searchRef.current?.context !== context && (context.index.total > 0 || (context.knownTotal && context.index.total === 0)) && context.index.proven(range)) { finishLocation(range); status('ready'); return; }
-      const search = !pager ? (searchRef.current?.context === context ? searchRef.current.search : new NavigationSearch(range, context.index)) : null;
-      if (search) searchRef.current = { context, search };
-      const complete = () => {
-        if (!context.knownTotal && context.index.total === 0) return false;
-        if (pager) {
-          if (!pager.done(context.index)) return false;
-          return true;
-        }
-        if (search?.proven(context.index)) { publish(); finishLocation(range); status('ready'); return true; }
-        return false;
-      };
-      const finishPage = () => {
-        if (!pager || !current()) return;
-        if (pager.targets.length) setManualPage({ context, targets: pager.page(context.index) });
-        else if (pager.exhausted(context.index)) setExhaustedEdge({ context, boundary: pager.boundary, direction: pager.direction, total: context.index.total });
-        pagerRef.current = null; pendingOpenRef.current = null; status('ready');
-      };
-      status('loading');
-      try {
-        let pages = 0;
-        for (let work = 0; work < NAVIGATION_CACHE_PAGES + NAVIGATION_AUTO_PAGES + 1 && current(); work++) {
-          if (complete()) { finishPage(); return; }
-          const key = context.index.total === 0 ? 0 : pager ? pager.nextPage() : search!.nextPage(context.index);
-          if (key === null) break;
-          if (context.index.total > 0 && (pager ? pager.consume(context.index) : search!.consume(key, context.index))) continue;
-          if (pages >= NAVIGATION_AUTO_PAGES) break;
-          pages++;
-          const before = Math.min(context.index.total, (key + 1) * NAVIGATION_PAGE_SIZE);
-          let page: Awaited<ReturnType<typeof fetchSessionHistory>> | undefined;
-          // At most two transient retries per page, with one in-flight request.
-          for (let attempt = 0; attempt < 3 && current(); attempt++) {
-            try {
-              requests++;
-              page = await fetchSessionHistory(context.sessionId!, before, NAVIGATION_PAGE_SIZE, controller.signal, false, true);
-              break;
-            } catch (error) {
-              if (!current()) return;
-              const code = error instanceof Error && 'status' in error ? Number(error.status) : 0;
-              if (attempt === 2 || (error instanceof Error && error.message.includes('budget exceeded')) || (code >= 400 && code < 500 && code !== 408 && code !== 429)) throw error;
-              await pause(attempt === 0 ? 150 : 450);
+      setIndexState({context,status:'loading',error:null});
+      try{
+        while(current()){
+          const missing=context.knownTotal?context.index.nextMissing(pendingOpenRef.current===pending?pending.range??undefined:undefined):0;
+          if(missing===null)break;
+          const before=context.knownTotal?Math.min(context.index.total,(Math.floor(missing/NAVIGATION_PAGE_SIZE)+1)*NAVIGATION_PAGE_SIZE):0;
+          let page:Awaited<ReturnType<typeof fetchSessionNavigation>>|undefined;
+          for(let attempt=0;attempt<3&&current();attempt++){
+            try{requests++;page=await fetchSessionNavigation(context.sessionId!,before,NAVIGATION_PAGE_SIZE,controller.signal);break;}
+            catch(error){
+              if(!current())return;
+              const code=error instanceof Error&&'status' in error?Number(error.status):0;
+              if(attempt===2||(code>=400&&code<500&&code!==408&&code!==429))throw error;
+              await pause(attempt===0?150:450);
             }
           }
-          if (!current() || !page) return;
-          const pageEpoch = page.historyEpoch ?? null;
-          if (context.responseEpoch === undefined) context.responseEpoch = pageEpoch;
-          if (pageEpoch !== context.responseEpoch) throw new Error('History identity changed during nearby navigation loading.');
-          if (context.index.total === 0 && !context.knownTotal) { context.index.total = page.total; context.knownTotal = true; }
-          if (page.total > context.index.total && page.historyEpoch === context.historyEpoch) context.index.total = page.total;
-          if (page.total !== context.index.total || (context.historyEpoch !== null && page.historyEpoch !== context.historyEpoch)) {
-            throw new Error('History changed. Reopen navigation after the chat refreshes.');
-          }
-          const effectiveBefore = before === 0 ? page.total : before;
-          if (page.start !== Math.max(0, effectiveBefore - NAVIGATION_PAGE_SIZE) || page.history.length !== effectiveBefore - page.start) {
-            throw new Error('History page coverage is incomplete. Retry navigation.');
-          }
-          context.index.addPage(page.history, page.start); publish();
-          setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
-          if (pager) pager.consume(context.index); else search!.consume(key, context.index);
-          if (complete()) { finishPage(); return; }
+          if(!current()||!page)return;
+          const responseEpoch=page.historyEpoch??null;
+          if(context.responseEpoch===undefined)context.responseEpoch=responseEpoch;
+          if(responseEpoch!==context.responseEpoch)throw new Error('Navigation history identity changed. Refresh the chat before retrying.');
+          if(context.knownTotal&&page.total<context.index.total)throw new Error('Navigation history total regressed. Refresh the chat.');
+          context.index.total=page.total;context.knownTotal=true;
+          const end=before===0?page.total:before;
+          if(page.start!==Math.max(0,end-NAVIGATION_PAGE_SIZE)||page.history.length!==end-page.start)throw new Error('Navigation canonical coverage is incomplete.');
+          context.index.addPage(page.history,page.start);publish();locate();
+          setIndexMetrics({requests,durationMs:performance.now()-startedAt});
+          // Yield between compact batches; no fixed startup delay or polling.
+          if(!context.index.complete())await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
         }
-        if (current()) {
-          // A nonempty directional page is valid even when shorter than 200:
-          // every intervening canonical row was consumed. Empty sparse spans
-          // keep their cursor for explicit continuation rather than restarting.
-          if (pager && pager.targets.length) finishPage(); else status('partial');
+        if(current())setIndexState({context,status:'ready',error:null});
+      }catch(error){
+        if(current()){
+          const message=error instanceof Error?error.message:String(error);
+          console.warn('[message-navigation] compact index failed',{sessionId:context.sessionId,requests,error:message});
+          setIndexState({context,status:'error',error:message});
         }
-      } catch (error) {
-        if (current()) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn('[message-navigation] nearby history failed', { sessionId: context.sessionId, requests, error: message });
-          status('error', message);
-        }
-      } finally {
-        if (current()) setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
-      }
+      }finally{if(current())setIndexMetrics({requests,durationMs:performance.now()-startedAt});}
     };
-    const acceptRange = (range: NavigationRange) => {
-      if (!current() || pendingOpenRef.current !== pending || pending.range !== null) return;
-      if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start) return;
-      pending.range = range; locationRef.current = { context, range };
-      observerCleanupRef.current?.(); observerCleanupRef.current = null;
-      void load(range);
+    void run();
+    const input=(event:Event)=>{
+      if(event.target instanceof Element&&event.target.closest('[data-navigation-load]'))return;
+      // Reading cancels only the one-shot location. Complete indexing continues
+      // and preserves the user's list anchor, with no scroll-driven requests.
+      pendingWantedRef.current=false;cancelOpenLocation();
     };
-    const range = requestedRange ?? chatRef.current?.getViewportHistoryRange?.();
-    requestedRangeRef.current = null;
-    if (range) acceptRange(range);
-    else if (chatRef.current?.observeViewportHistoryRange) observerCleanupRef.current = chatRef.current.observeViewportHistoryRange(acceptRange);
-    else {
-      // An unavailable viewport may still expose a useful tail page. It never
-      // invents a viewport target; production ChatMessages supplies the observer.
-      pendingOpenRef.current = null;
-      void load({ start: Math.max(0, context.index.total - 1), end: Math.max(0, context.index.total - 1) });
-    }
-    // Scroll events themselves have no source attribution. Only user input
-    // takes ownership; programmatic restoration/measurement cannot cancel us.
-    const userInput = (event: Event) => {
-      // Keyboard retry and paging buttons explicitly continue the same snapshot.
-      if (event.target instanceof Element && event.target.closest('[data-navigation-load]')) return;
-      requestedRangeRef.current = null;
-      cancelOpenLocation();
+    for(const type of ['pointerdown','wheel','keydown','touchmove'])window.addEventListener(type,input,true);
+    return()=>{
+      cancelOpenLocation();controller.abort();
+      if(operationRef.current===operation)operationRef.current=null;
+      for(const type of ['pointerdown','wheel','keydown','touchmove'])window.removeEventListener(type,input,true);
     };
-    window.addEventListener('pointerdown', userInput, true);
-    window.addEventListener('wheel', userInput, true);
-    window.addEventListener('keydown', userInput, true);
-    window.addEventListener('touchmove', userInput, true);
-    return () => {
-      cancelOpenLocation();
-      window.removeEventListener('pointerdown', userInput, true);
-      window.removeEventListener('wheel', userInput, true);
-      window.removeEventListener('keydown', userInput, true);
-      window.removeEventListener('touchmove', userInput, true);
-    };
-  }, [expanded, context, chatRef, retryEpoch, cancelOpenLocation]);
+  },[expanded,context,chatRef,retryEpoch,cancelOpenLocation]);
 
-  useLayoutEffect(() => {
-    if (!viewportTarget || viewportTarget.context !== context || viewportTarget.epoch !== openEpochRef.current || !expanded) return;
-    const list = listRef.current;
-    const marker = list?.querySelector<HTMLElement>(`[data-canonical-offset="${viewportTarget.offset}"]`);
-    if (!list || !marker) return;
-    const bounds = list.getBoundingClientRect(), rectangle = marker.getBoundingClientRect();
-    list.scrollTop += rectangle.top + rectangle.height / 2 - bounds.top - bounds.height / 2;
-  }, [viewportTarget, context, expanded]);
-
-  const retryIndex = () => {
-    if (!expanded || (operationRef.current && indexStatus === 'loading')) return;
-    const pager = pagerRef.current?.context === context ? pagerRef.current.pager : null;
-    if (pager) { requestedRangeRef.current = { context, range: { start: Math.max(0, pager.cursor), end: Math.max(0, pager.cursor) } }; skipLocationRef.current = true; }
-    else if (locationRef.current?.context === context) requestedRangeRef.current = locationRef.current;
-    setRetryEpoch(value => value + 1);
-  };
-  const loadMore = (boundary: number, direction: -1 | 1) => {
-    if (indexStatus === 'loading') return;
-    if (manualPage?.context !== context) setManualPage({ context, targets: displayTargets });
-    const existing = pagerRef.current?.context === context ? pagerRef.current.pager : null;
-    const pager = existing?.direction === direction && existing.boundary === boundary ? existing : new NavigationPager(boundary, direction);
-    pagerRef.current = { context, pager };
-    requestedRangeRef.current = { context, range: { start: Math.max(0, pager.cursor), end: Math.max(0, pager.cursor) } }; skipLocationRef.current = true;
-    setRetryEpoch(value => value + 1);
+  useLayoutEffect(()=>{
+    const list=listRef.current;
+    const previous=previousListRef.current;
+    previousListRef.current={context,targets};
+    if(!list||previous.context!==context||previous.targets===targets||!previous.targets.length)return;
+    const ordinal=Math.min(previous.targets.length-1,Math.floor(Math.max(0,list.scrollTop-8)/rowHeight));
+    const anchor=previous.targets[ordinal];
+    const next=targets.findIndex(target=>target.offset===anchor?.offset);
+    if(next>=0){list.scrollTop+=(next-ordinal)*rowHeight;setListScroll(list.scrollTop);}
+  },[targets,context,rowHeight]);
+  useLayoutEffect(()=>{
+    if(!viewportTarget||viewportTarget.context!==context||viewportTarget.epoch!==openEpochRef.current||!expanded)return;
+    const list=listRef.current;
+    const ordinal=targetsRef.current.findIndex(target=>target.offset===viewportTarget.offset);
+    if(!list||ordinal<0)return;
+    list.scrollTop=Math.max(0,8+(ordinal+0.5)*rowHeight-list.clientHeight/2);setListScroll(list.scrollTop);
+    // targets changes preserve anchors above; they must never repeat location.
+  },[viewportTarget,context,expanded,rowHeight]);
+  const retryIndex=()=>{
+    if(!expanded||indexStatus==='loading')return;
+    continuingRef.current=true;setRetryEpoch(value=>value+1);
   };
 
   const jumpTo = async (target: NavigationTarget) => {
     if (!currentSessionId || jumpingOffset !== null) return;
     const contextAtClick = context;
-    cancelOpenLocation(); setViewportTarget(null); setJumpError(null); setJumpingOffset(target.offset);
+    pendingWantedRef.current=false;cancelOpenLocation(); setViewportTarget(null); setJumpError(null); setJumpingOffset(target.offset);
     const current = () => contextRef.current === contextAtClick
       && useSessionStore.getState().currentSessionId === contextAtClick.sessionId;
     try {
@@ -537,26 +455,9 @@ export function MessageNavigationRail({
     };
   }, [clearScrub, isMobile, mobileExpanded, updateScrubPreview]);
 
-  // A dense canonical window can contain thousands of markers. Keep the DOM
-  // to one 200-marker page; the edge controls can use cached/nearby pages.
-  const displayTargets = useMemo(() => {
-    if (manualPage?.context === context) return manualPage.targets.map(target => ({ ...target, fromEnd: context.index.total - 1 - target.offset }));
-    const nearest = nearestNavigationTarget(targets, { start: displayOffset, end: displayOffset });
-    if (!nearest) return [];
-    // Initial markers must belong to one contiguous known canonical segment.
-    // Cached targets on the other side of an unknown gap are not adjacent.
-    const coverage = context.index.contiguousRange(nearest.offset);
-    const contiguous = targets.filter(target => target.offset >= coverage.start && target.offset <= coverage.end);
-    let middle = contiguous.findIndex(target => target.offset >= displayOffset);
-    if (middle < 0) middle = contiguous.length - 1;
-    const start = Math.max(0, Math.min(contiguous.length - NAVIGATION_PAGE_SIZE, middle - NAVIGATION_PAGE_SIZE / 2));
-    return contiguous.slice(start, start + NAVIGATION_PAGE_SIZE);
-  }, [targets, displayOffset, context, manualPage]);
-  const firstTarget = displayTargets[0], lastTarget = displayTargets.at(-1);
-  const earlierBoundary = firstTarget?.offset ?? Math.max(0, Math.floor(displayOffset));
-  const laterBoundary = lastTarget?.offset ?? Math.min(indexTotal - 1, Math.ceil(displayOffset));
-  const exhausted = (direction: -1 | 1, boundary: number) => exhaustedEdge?.context === context
-    && exhaustedEdge.direction === direction && exhaustedEdge.boundary === boundary && exhaustedEdge.total === indexTotal;
+  const virtualStart=Math.max(0,Math.floor(Math.max(0,listScroll-8)/rowHeight)-12);
+  const virtualEnd=Math.min(targets.length,virtualStart+Math.max(60,Math.ceil((listRef.current?.clientHeight??700)/rowHeight)+24));
+  const displayTargets=targets.slice(virtualStart,virtualEnd);
   return (
     <aside
       className="message-navigation-rail"
@@ -591,18 +492,17 @@ export function MessageNavigationRail({
       <div
         ref={listRef}
         className="message-navigation-list"
+        onScroll={event=>setListScroll(event.currentTarget.scrollTop)}
         onPointerMove={moveScrub}
         onPointerUp={(event) => finishScrub(event, false)}
         onPointerCancel={(event) => finishScrub(event, true)}
         onLostPointerCapture={(event) => finishScrub(event, true)}
       >
-        {earlierBoundary > 0 && !exhausted(-1, earlierBoundary) && <button type="button" data-navigation-load
-          className="message-navigation-page" aria-label="Load earlier navigation" disabled={indexStatus === 'loading'}
-          onClick={() => loadMore(earlierBoundary, -1)}>↑</button>}
+        <div aria-hidden="true" style={{height:virtualStart*rowHeight,flex:'0 0 auto'}} />
         {displayTargets.map((target) => {
           const meta = KIND_META[target.kind];
           return (
-            <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.offset}`}>
+            <div className="message-navigation-marker-wrap" style={{height:rowHeight,display:'flex',alignItems:'center'}} key={`${target.kind}-${target.offset}`}>
               <button
                 type="button"
                 className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeOffset === target.offset ? ' is-jumped' : ''}${viewportTarget?.context === context && viewportTarget.offset === target.offset ? ' is-viewport-target' : ''}`}
@@ -628,17 +528,15 @@ export function MessageNavigationRail({
             </div>
           );
         })}
-        {laterBoundary < indexTotal - 1 && !exhausted(1, laterBoundary) && <button type="button" data-navigation-load
-          className="message-navigation-page" aria-label="Load later navigation" disabled={indexStatus === 'loading'}
-          onClick={() => loadMore(laterBoundary, 1)}>↓</button>}
+        <div aria-hidden="true" style={{height:(targets.length-virtualEnd)*rowHeight,flex:'0 0 auto'}} />
         {targets.length === 0 && <span className="message-navigation-empty">{'\u00b7'}</span>}
       </div>
 
-      {(indexStatus === 'loading' || indexStatus === 'error' || indexStatus === 'partial') && (
+      {(indexStatus === 'loading' || indexStatus === 'error') && (
         <button type="button" data-navigation-load disabled={indexStatus === 'loading'}
           className={`message-navigation-status${indexStatus === 'loading' ? '' : ' message-navigation-status-error'}`}
-          aria-label={indexStatus === 'loading' ? 'Loading message navigation' : indexStatus === 'error' ? 'Retry message navigation' : 'Load more nearby navigation'}
-          title={indexError ?? (indexStatus === 'loading' ? 'Loading nearby history' : 'Nearby history budget reached; load another bounded batch.')}
+          aria-label={indexStatus === 'loading' ? 'Loading message navigation' : 'Retry message navigation'}
+          title={indexError ?? 'Loading complete message navigation'}
           onClick={retryIndex}>
           {indexStatus === 'loading' ? <Loader2 size={11} className="animate-spin" /> : indexStatus === 'error' ? '!' : '…'}
         </button>

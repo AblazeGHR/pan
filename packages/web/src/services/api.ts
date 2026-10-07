@@ -172,7 +172,17 @@ async function requestBody<T>(url: string, options?: RequestInit, background = f
     const status = res.statusText ? `HTTP ${res.status}: ${res.statusText}` : `HTTP ${res.status}`;
     throw new ApiRequestError(res.status, detail ? `${status}: ${detail}` : status);
   }
-  if (!background) return res.json() as Promise<T>;
+  if (!background) {
+    if (url.includes('/navigation?')) {
+      const text = await res.text();
+      const started = performance.now();
+      const value = JSON.parse(text) as T;
+      performance.clearMeasures('message-navigation-decode');
+      performance.measure('message-navigation-decode', { start: started, end: performance.now() });
+      return value;
+    }
+    return res.json() as Promise<T>;
+  }
   // Bound speculative decode work, including decompressed responses. A
   // foreground request may abort this read before JSON.parse starts.
   const reader = res.body?.getReader();
@@ -414,6 +424,13 @@ export async function fetchSessionHistory(
     background ? { signal, priority: 'low' } : { signal },
     background,
   );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+/** Compact navigation pages contain no full conversation bodies or attachments. */
+export async function fetchSessionNavigation(id: string, before = 0, limit = 500, signal?: AbortSignal): Promise<ApiSessionHistoryResponse> {
+  const data = await request<ApiSessionHistoryResponse>(`${BASE}/sessions/${id}/navigation?before=${before}&limit=${limit}`, { signal, priority: 'low' });
   if (data.error) throw new Error(data.error);
   return data;
 }
