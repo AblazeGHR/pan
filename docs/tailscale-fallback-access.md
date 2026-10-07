@@ -34,7 +34,7 @@ tailscale serve --https=<拥有的入口端口> off
 
 ## 所有权、失败与时序
 
-- 同一 profile 的进程级非阻塞文件锁保持到 shutdown，防止第二 Pan 实例
+- 同一 profile 的进程级非阻塞文件锁保持到 shutdown 线程及已提交工作线程退休后，防止第二 Pan 实例
   清理第一个实例的记录。线程 RLock 串行化状态、保存、启动、关闭和退出。
 - 创建前读取 node status 和 Serve JSON。目标端口已有 TCP、Web、Funnel
   或 Foreground 入口即拒绝，包括目标相同的用户映射。其它端口与 Services
@@ -50,8 +50,15 @@ tailscale serve --https=<拥有的入口端口> off
 - 请求取消不取消工作线程。取消标志由持锁的开启流程在提交后检查，在同一锁内
   关闭该入口，再向调用方传播取消；不会释放锁后再去关闭后来请求的入口。
   已完成的操作是提交边界，随后到达的取消不回滚已完成的操作。
-- 退出先标记 closing，再串行关闭；拒绝后续开启/保存。正常关闭失败留记录并记日志。
-  启动总是先协调遗留记录，确认清理成功后才按 startupEnabled 决定是否重新创建。
+- 退出先标记 closing，再串行关闭；拒绝后续控制请求。正常关闭失败留记录并记日志。
+  启动有遗留记录时先协调，确认清理成功后才按 startupEnabled 决定是否重新创建。
+  默认关闭且无记录的启动、无记录的退出使用本地状态快速路径，零 CLI；设置页
+  显式 GET 才探测状态。默认开启和拥有记录的协调仍按实际 Serve 状态执行。
+- `operation()` 对每一次真实任务取消都继续 shield 同一个 executor Future，等实际
+  callable 返回后再传播 CancelledError；Future 注册在控制器的工作集合中。
+  shutdown 的同步方法只做清理，不释放 lease。异步 wrapper 在清理线程和已提交
+  工作线程均返回后才提交单独的 lease 释放步骤，释放步骤本身也抗重复取消。
+  该生产生命周期必须经 `operation(controller.shutdown)` 调用。
 
 **异常退出边界：** 原生 `--bg` 配置由 tailscaled 持续持有，Pan 被强杀后映射
 可能仍存在，直到 Pan 下次恢复或用户人工关闭。默认关闭保证下次成功恢复后
@@ -119,3 +126,43 @@ Cloudflare 服务，未重启真实服务。跨设备、真实 HTTPS 首次账�
 - [Serve CLI](https://tailscale.com/docs/reference/tailscale-cli/serve)：后台持久化、TCP/HTTPS 与定向 off。
 - [1.102.3 Serve schema](https://github.com/tailscale/tailscale/blob/v1.102.3/ipn/serve.go)：TCP/Web/Foreground/Funnel 与互斥类型。
 - [1.102.3 CLI 实现](https://github.com/tailscale/tailscale/blob/v1.102.3/cmd/tailscale/cli/serve_v2.go)：TCP 目标形状及 HTTPS handler。
+
+## MA 窄返工交付（2026-10-07）
+
+父提交 `ece1fd65d2ad2020d6d4239726ea437887bf4c75`，保持原分支增量提交，
+不 amend，不进行 FF。返工只涉及控制器、设置面板和此报告。
+直接实验脚本在 `C:/Users/14709/AppData/Local/Temp/pan-tailscale-rework-20261007/`，
+无新增/运行 suite；所有 CLI 均为注入替身，浏览器使用动态端口与临时 profile。
+
+1. **默认关闭、无 ownership 的零 CLI 生命周期。**
+   `parent_baseline.py` 从 Git 精确读取父提交控制器执行：每次替身 CLI 延迟 100 ms，
+   startup + shutdown 共 4 次 CLI，407.379 ms，重现回归。
+   `lifecycle_cancel.py` 在新实现注入“延迟 500 ms 后抛错”和“直接抛错”的 run：
+   startup + shutdown 均 0 次调用，分别 2.599 ms / 0.435 ms（环境测量值，非 SLA）。
+   同一实验确认默认开启仍实际调用替身；带遗留记录、默认关闭的恢复仍探测并定向
+   清理；清理后无记录的 shutdown 不增加 CLI 调用。
+
+2. **首次 transport 失败后的可达重试与禁重入。**
+   `retry_browser.py` 用真实 Chromium + 本次 production build，动态端口 55870，
+   profile `pan-tailscale-retry-profile-watuxwls`。首个 GET 被 route.abort('failed')
+   中止，表单未加载，但“重试加载状态”可见且可点击。第二个 GET 门控暂停时按钮
+   disabled，额外 button.click + 合成 click 未产生第三请求。解除门控后 GET 成功，
+   端口表单恢复、错误清除、“刷新状态”可用：总 GET=2，CLI=0。
+   `retry-recovered.png` 已查看。初次加载与后续动作共用 inFlight ref，防止状态渲染前重入。
+
+3. **重复取消下的实际线程退休与 lease 时序。**
+   `lifecycle_cancel.py` 的 Gated 控制器在真实 control 返回、mutex 已释放之后门控
+   开启线程；shutdown 也在真实同步清理完成、mutex 释放后门控其线程返回。
+   对开启 operation task 以及 shutdown operation task **各调用两次 task.cancel()**，
+   均观察 cancelling()==2 且任务仍 pending。此时相同 profile 的竞争控制器 acquire
+   被拒绝。先解除 shutdown 门控，确认它的线程退休而开启线程仍活着：shutdown task
+   仍 pending，lease 仍持有，竞争控制器仍被拒绝。再解除开启线程门控，两个 Future
+   实际返回后才执行 release（释放 hook 断言两个退休 Event 均 set），随后向两个调用方
+   传播 CancelledError。映射及 ownership 已清除，lease=None，竞争控制器此后才能 acquire。
+   profile `pan-tailscale-rework-profile-724lx9ks`；输出的释放次序为
+   `both workers retired before lease release`，全部断言通过。
+
+返工验证：Python py_compile、tsc -b、TailscaleSettings scoped ESLint、production
+build 与 58 个压缩资源验证通过，diffcheck 通过；提交使用正常 hook。
+未重新执行原生终端/跨设备/真实 HTTPS，原交付的这些证据与待验证边界不因窄返工升级。
+未操作真实 Serve、8767/8768、main/practical refs、真实数据或服务；未 push。

@@ -8,6 +8,7 @@ the next recovery; normal exit removes it. External CLI changes are never adopte
 from __future__ import annotations
 
 import asyncio
+import functools
 import ipaddress
 import json
 import os
@@ -76,6 +77,7 @@ class Controller:
         self.error = ""
         self.origins: frozenset[str] = frozenset()
         self.lease = None
+        self._workers = set()
 
     def acquire(self):
         """Only one Pan process may recover/mutate this profile's journal."""
@@ -198,7 +200,7 @@ class Controller:
             self._stop()
             raise
 
-    def status(self):
+    def status(self, *, probe=True):
         with self.lock:
             try:
                 config = self.settings()
@@ -207,6 +209,8 @@ class Controller:
                 self.error = str(exc)
             result = {"config": config, "running": False, "url": "", "error": self.error,
                       "target": f"http://127.0.0.1:{self.target_port}", "pendingCleanup": self.path.exists()}
+            if not probe:
+                return result
             try:
                 node, serve, ip, dns = self.inspect()
                 record = self.record()
@@ -226,11 +230,11 @@ class Controller:
                 result["error"] = str(exc)
             return result
 
-    def control(self, action, config=None, *, cancel=None):
+    def control(self, action, config=None, *, cancel=None, probe=True):
         with self.lock:
             self.error = ""
             try:
-                if self.closing and action != "stop":
+                if self.closing:
                     raise RuntimeError("Pan 正在退出")
                 self.acquire()
                 if action == "save":
@@ -251,18 +255,22 @@ class Controller:
                         raise RuntimeError("开启请求已取消，入口已关闭")
                 else:
                     raise ValueError("Unknown action")
-                result = self.status()
+                result = self.status(probe=probe)
                 return {"ok": action != "start" or result["running"], **result}
             except Exception as exc:
                 self.error = str(exc)
-                return {"ok": False, **self.status(), "error": self.error}
+                return {"ok": False, **self.status(probe=probe), "error": self.error}
 
     def startup(self):
         with self.lock:
-            # Always reconcile previous temporary opening before reading default.
-            result = self.control("stop")
             try:
-                if result["ok"] and self.settings()["startupEnabled"]:
+                config = self.settings()
+                if not self.path.exists() and not config["startupEnabled"]:
+                    return {"ok": True, **self.status(probe=False)}
+                # Recovery still probes owned state; lifecycle never performs an
+                # extra settings-page status probe after cleanup.
+                result = self.control("stop", probe=False)
+                if result["ok"] and config["startupEnabled"]:
                     return self.control("start")
             except Exception as exc:
                 self.error = str(exc)
@@ -270,26 +278,67 @@ class Controller:
             return result
 
     def shutdown(self):
+        """Synchronous cleanup; operation() releases lease AFTER this worker retires."""
         with self.lock:
             self.closing = True
+            if not self.path.exists():
+                self.origins = frozenset()
+                return {"ok": True, **self.status(probe=False)}
             try:
-                return self.control("stop")
-            finally:
-                if self.lease:
-                    self.lease.close()
-                    self.lease = None
+                self.acquire()
+                self._stop()
+                return {"ok": True, **self.status(probe=False)}
+            except Exception as exc:
+                self.error = str(exc)
+                return {"ok": False, **self.status(probe=False), "error": self.error}
+
+    def _release_lease(self):
+        with self.lock:
+            if self.lease:
+                self.lease.close()
+                self.lease = None
 
     async def operation(self, method, *args):
-        # Disconnect/cancellation cannot strand a mutating worker. Shutdown shares
-        # the same lock and waits for it, then closes. Cancellation is re-raised.
+        # Keep a shielded executor Future, not a separately cancellable Task.
+        # Every cancellation is deferred until the worker has returned. Shutdown
+        # lease release is a SECOND worker, submitted only after cleanup retires.
         cancel = threading.Event()
+        cancelled = False
+        loop = asyncio.get_running_loop()
         if method == self.control and args and args[0] == "start":
-            task = asyncio.create_task(asyncio.to_thread(method, *args, cancel=cancel))
+            work = functools.partial(method, *args, cancel=cancel)
         else:
-            task = asyncio.create_task(asyncio.to_thread(method, *args))
+            work = functools.partial(method, *args)
+        future = loop.run_in_executor(None, work)
+        self._workers.add(future)
+
+        async def retire(pending):
+            nonlocal cancelled
+            while True:
+                try:
+                    return await asyncio.shield(pending)
+                except asyncio.CancelledError:
+                    cancel.set()
+                    cancelled = True
+                    if pending.done():
+                        return pending.result()  # Also consume a callable's own cancellation.
+
         try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
-            cancel.set()
-            await asyncio.shield(task)
-            raise
+            try:
+                return await retire(future)
+            finally:
+                self._workers.discard(future)
+                if method == self.shutdown:
+                    # A worker may have released the control mutex but still be
+                    # retiring its callable. Do not release its process lease
+                    # until every already-submitted worker has actually returned.
+                    # Closing admission prevents later controls acquiring it.
+                    for pending in tuple(self._workers):
+                        try:
+                            await retire(pending)
+                        except Exception:
+                            pass  # Consume failed workers; retirement still proved.
+                    await retire(loop.run_in_executor(None, self._release_lease))
+        finally:
+            if cancelled:
+                raise asyncio.CancelledError

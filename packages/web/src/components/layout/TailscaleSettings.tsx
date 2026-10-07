@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { beginForegroundRequest } from '@/services/foregroundActivity';
 
@@ -22,14 +22,19 @@ export function TailscaleSettings() {
   const [status, setStatus] = useState<Status | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
+    inFlight.current = true; setBusy(true);
     call().then(value => { if (active) { setStatus(value); setConfig(value.config); } })
-      .catch(reason => { if (active) setError(String(reason)); });
+      .catch(reason => { if (active) setError(String(reason)); })
+      .finally(() => { if (active) { inFlight.current = false; setBusy(false); } });
     return () => { active = false; };
   }, []);
   async function action(name: 'save' | 'start' | 'stop' | 'refresh') {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError('');
     try {
       const value = await call(name === 'refresh' ? 'GET' : name === 'save' ? 'PUT' : 'POST',
@@ -37,12 +42,15 @@ export function TailscaleSettings() {
       setStatus(value);
       if (name === 'save' || !config) setConfig(value.config);
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   }
   const changed = !!config && !!status && JSON.stringify(config) !== JSON.stringify(status.config);
   return <section className="space-y-3">
     <h3 className="text-xs font-semibold">Tailscale 备用访问</h3>
     <p className="text-xs text-text-secondary">Cloudflare 隧道不可用时，同一 tailnet 的设备可访问 Pan。自动绑定 Tailscale 地址，Pan 继续监听回环；不开放 Funnel 公网。</p>
+    <Button size="sm" disabled={busy} onClick={() => void action('refresh')}>
+      {busy ? '处理中…' : status ? '刷新状态' : '重试加载状态'}
+    </Button>
     {config && status && <>
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy}
         checked={config.startupEnabled} onChange={event => setConfig({ ...config, startupEnabled: event.target.checked })} />
@@ -65,7 +73,6 @@ export function TailscaleSettings() {
         <span className="text-xs">当前：{busy ? '处理中…' : status.running ? '已开启' : status.pendingCleanup ? '待协调' : '已关闭'} · Tailscale {status.online ? '在线' : '未就绪'}</span>
         <Button size="sm" disabled={busy || changed} onClick={() => void action('start')}>{status.running ? '应用已保存入口' : '开启当前访问'}</Button>
         <Button size="sm" disabled={busy} onClick={() => void action('stop')}>关闭当前访问</Button>
-        <Button size="sm" disabled={busy} onClick={() => void action('refresh')}>刷新状态</Button>
       </div>
       {changed && <p className="text-xs text-text-secondary">请先保存配置，再开启或应用入口；关闭始终可用。</p>}
       {status.url && <div className="flex flex-wrap items-center gap-2">
