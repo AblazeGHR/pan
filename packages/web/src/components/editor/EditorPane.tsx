@@ -1,11 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { useEditorStore, languageFromPath } from '@/stores/editorStore';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { EditorTabs } from './EditorTabs';
 import { EditorFileTopBar } from './EditorFileTopBar';
 import { EditorImagePreview } from './EditorImagePreview';
-import { CodeEditor } from './CodeEditor';
-import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Eye, Pencil, Columns2 } from 'lucide-react';
+
+const CodeEditor = lazy(() => import('./CodeEditor').then((module) => ({ default: module.CodeEditor })));
+const MarkdownRenderer = lazy(() => import('@/components/chat/MarkdownRenderer').then((module) => ({ default: module.MarkdownRenderer })));
 
 export function EditorPane() {
   const currentSession = useCurrentSession();
@@ -74,6 +76,7 @@ export function EditorPane() {
         imageDownloadHref={imagePreview?.downloadHref}
       />}
 
+      <Suspense fallback={<div className="flex-1 p-4 text-sm text-text-tertiary">Loading...</div>}>
       {activePath && imagePreview ? (
         <EditorImagePreview src={imagePreview.src} alt={imagePreview.displayName} />
       ) : !activePath ? (
@@ -100,6 +103,7 @@ export function EditorPane() {
       ) : (
         <CodeEditor path={activePath} content={content} />
       )}
+      </Suspense>
     </div>
   );
 }

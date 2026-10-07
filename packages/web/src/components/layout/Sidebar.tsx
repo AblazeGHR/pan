@@ -14,7 +14,6 @@ import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
 import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
-import { EditorDirectoryRoots } from '@/components/editor/EditorDirectoryRoots';
 import { SidebarResizer } from './SidebarResizer';
 import { ViewEntryGroups } from './ViewEntryGroups';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +26,7 @@ const ImportModal = lazy(() => import('@/components/session/ImportModal').then((
 const ManageModal = lazy(() => import('@/components/session/ManageModal').then((module) => ({ default: module.ManageModal })));
 const PostboxModal = lazy(() => import('@/components/session/PostboxModal').then((module) => ({ default: module.PostboxModal })));
 const SessionDetailsModal = lazy(() => import('@/components/session/SessionDetailsModal').then((module) => ({ default: module.SessionDetailsModal })));
+const EditorDirectoryRoots = lazy(() => import('@/components/editor/EditorDirectoryRoots').then((module) => ({ default: module.EditorDirectoryRoots })));
 import {
   PanelLeftClose,
   PanelLeft,
@@ -829,7 +829,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           </div>
 
           {/* Directory roots: CWD + workspace dirs + temp dirs, each collapsible */}
-          <EditorDirectoryRoots />
+          <Suspense fallback={null}><EditorDirectoryRoots /></Suspense>
         </>
       )}
 

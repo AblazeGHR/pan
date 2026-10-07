@@ -8,7 +8,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 
 vi.mock('./CodeEditor', () => ({
-  CodeEditor: () => null,
+  CodeEditor: () => <div data-testid="code-editor" />,
 }));
 
 vi.mock('@/services/api', () => ({
@@ -69,6 +69,24 @@ afterEach(() => {
 });
 
 describe('EditorPane editor action wiring', () => {
+  it('loads Markdown preview on demand and retains preview/edit/split mode switching', async () => {
+    useEditorStore.setState({
+      openPaths: ['README.md'], activePath: 'README.md',
+      contents: { 'README.md': '# Preview content' },
+    });
+    render(<MemoryRouter><EditorPane /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Preview content' })).toBeTruthy();
+    expect(screen.queryByTestId('code-editor')).toBeNull();
+    fireEvent.click(screen.getByTitle('Edit'));
+    expect(await screen.findByTestId('code-editor')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Preview content' })).toBeNull();
+    fireEvent.click(screen.getByTitle('Split'));
+    expect(await screen.findByRole('heading', { name: 'Preview content' })).toBeTruthy();
+    expect(screen.getByTestId('code-editor')).toBeTruthy();
+    fireEvent.click(screen.getByTitle('Preview'));
+    expect(screen.queryByTestId('code-editor')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Preview content' })).toBeTruthy();
+  });
   it('keeps relative operation paths while displaying and copying the workdir path', async () => {
     render(
       <MemoryRouter initialEntries={['/editor']}>

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
+import { SessionItem } from './SessionItem';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -152,21 +153,21 @@ describe('SessionMenu workspace entry removal', () => {
   });
 });
 
-describe('SessionMenu pin action', () => {
-  it('offers Pin, closes the menu, and reports the successful server update', async () => {
+describe('Session card pin action (moved out of the menu)', () => {
+  it('offers Pin and sends the successful update without selecting the card', async () => {
     const original = useSessionStore.getState().setSessionPinned;
     const action = vi.fn(async () => {});
     const onClose = vi.fn();
-    useSessionStore.setState({ setSessionPinned: action });
+    useSessionStore.setState({ setSessionPinned: action, sessions: [session], multiSelectMode: false });
     useUIStore.setState({ toastQueue: [] });
     try {
-      render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Pin' }));
+      render(<SessionItem session={session} isActive={false} onSelect={onClose} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Pin: off\./ }));
       await act(async () => { await Promise.resolve(); });
 
-      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onClose).not.toHaveBeenCalled();
       expect(action).toHaveBeenCalledWith(session.id, true);
-      expect(useUIStore.getState().toastQueue.some((toast) => toast.message.includes('Pinned'))).toBe(true);
+      expect(screen.getByRole('button', { name: /^Pin: off\./ }).hasAttribute('disabled')).toBe(false);
     } finally {
       useSessionStore.setState({ setSessionPinned: original });
     }
@@ -174,22 +175,26 @@ describe('SessionMenu pin action', () => {
 
   it('offers Unpin and shows an error when the pin update fails', async () => {
     const original = useSessionStore.getState().setSessionPinned;
+    const originalLoad = useSessionStore.getState().loadSessions;
+    const refresh = vi.fn(async () => {});
     const action = vi.fn(async () => { throw new Error('server refused pin update'); });
     const onClose = vi.fn();
-    useSessionStore.setState({ setSessionPinned: action });
+    useSessionStore.setState({ setSessionPinned: action, loadSessions: refresh, sessions: [{ ...session, pinned: true }], multiSelectMode: false });
     useUIStore.setState({ toastQueue: [] });
     try {
-      render(<SessionMenu session={{ ...session, pinned: true }} position={{ x: 10, y: 10 }} onClose={onClose} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
+      render(<SessionItem session={{ ...session, pinned: true }} isActive={false} onSelect={onClose} />);
+      fireEvent.click(screen.getByRole('button', { name: /^Pin: on\./ }));
       await act(async () => { await Promise.resolve(); });
 
-      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onClose).not.toHaveBeenCalled();
       expect(action).toHaveBeenCalledWith(session.id, false);
+      expect(refresh).toHaveBeenCalledWith({ throwOnError: true });
+      expect(screen.getByRole('button', { name: /^Pin: on\./ }).hasAttribute('disabled')).toBe(false);
       expect(useUIStore.getState().toastQueue.some(
         (toast) => toast.type === 'error' && toast.message === 'server refused pin update',
       )).toBe(true);
     } finally {
-      useSessionStore.setState({ setSessionPinned: original });
+      useSessionStore.setState({ setSessionPinned: original, loadSessions: originalLoad });
     }
   });
 });
