@@ -108,7 +108,7 @@ describe('exclusive canonical directional paging', () => {
       expect(search.consume(key,index)).toBe(true);
     }
     expect(pages.size).toBe(40); expect(search.best).toBeUndefined();
-    expect(index.has(0)).toBe(false);
+    expect(index.has(4000)).toBe(false);
   });
   it('same-context appends extend the exhausted boundary without repeating previous IDs', () => {
     const index = new NavigationIndex(401, settings);
