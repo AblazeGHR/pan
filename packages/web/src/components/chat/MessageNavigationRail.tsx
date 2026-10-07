@@ -125,7 +125,7 @@ export function MessageNavigationRail({
     const total = state.sessions.find(session => session.id === currentSessionId)?.historyTotal;
     return { sessionId: currentSessionId, historyEpoch: currentHistoryEpoch, settings,
       responseEpoch: (currentHistoryEpoch ?? undefined) as string | null | undefined,
-      knownTotal: total !== undefined && total !== null, index: new NavigationIndex(total ?? state.historyLoadEnd, settings) };
+      knownTotal: total !== undefined && total !== null, completedTotal: 0, index: new NavigationIndex(total ?? state.historyLoadEnd, settings) };
   }, [currentSessionId, currentHistoryEpoch, settings]);
   const contextRef = useRef(context);
   contextRef.current = context;
@@ -230,6 +230,7 @@ export function MessageNavigationRail({
     });
     const run=async()=>{
       if(context.knownTotal&&context.index.complete()){
+        context.completedTotal=context.index.total;
         publish();locate();setIndexState({context,status:'ready',error:null});return;
       }
       setIndexState({context,status:'loading',error:null});
@@ -237,8 +238,12 @@ export function MessageNavigationRail({
         while(current()){
           const missing=context.knownTotal?context.index.nextMissing(pendingOpenRef.current===pending?pending.range??undefined:undefined):0;
           if(missing===null)break;
-          const pageSize=pendingOpenRef.current===pending&&pending.range?NAVIGATION_PAGE_SIZE:500;
-          const before=context.knownTotal?Math.min(context.index.total,(Math.floor(missing/pageSize)+1)*pageSize):0;
+          // A completed canonical prefix needs only its new tail on append.
+          // Keep the frontier context-bound; never infer coverage from targets.
+          const appended=context.completedTotal>0&&missing>=context.completedTotal;
+          const pageSize=appended?Math.min(500,missing+1-context.completedTotal)
+            :pendingOpenRef.current===pending&&pending.range?NAVIGATION_PAGE_SIZE:500;
+          const before=appended?missing+1:context.knownTotal?Math.min(context.index.total,(Math.floor(missing/pageSize)+1)*pageSize):0;
           let page:Awaited<ReturnType<typeof fetchSessionNavigation>>|undefined;
           for(let attempt=0;attempt<3&&current();attempt++){
             try{requests++;page=await fetchSessionNavigation(context.sessionId!,before,pageSize,controller.signal);break;}
@@ -262,7 +267,10 @@ export function MessageNavigationRail({
           // Yield between compact batches; no fixed startup delay or polling.
           if(!context.index.complete())await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
         }
-        if(current())setIndexState({context,status:'ready',error:null});
+        if(current()){
+          context.completedTotal=context.index.total;
+          setIndexState({context,status:'ready',error:null});
+        }
       }catch(error){
         if(current()){
           const message=error instanceof Error?error.message:String(error);

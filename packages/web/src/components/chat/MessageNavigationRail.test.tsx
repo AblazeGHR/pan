@@ -687,6 +687,7 @@ describe('open nearest canonical regression', () => {
     expect(snapshot).toHaveBeenCalledTimes(1); expect(list.scrollTop).toBe(123);
     expect(view.container.querySelector<HTMLElement>('.is-viewport-target')?.dataset.fromEnd).toBe('500');
     expect(mockedHistory).toHaveBeenCalledTimes(1);
+    expect(mockedHistory.mock.calls[0]?.slice(1,3)).toEqual([1001,1]);
   });
   it('history epoch invalidation cannot reuse cached offsets or a late old page', async () => {
     seedRows(1000, 400, 1);
