@@ -41,7 +41,8 @@ function seedSession(sessionId: string) {
     currentMessages: [USER_MESSAGE],
     historyLoadEnd: 0,
     hasMoreMessages: false,
-    sessions: [],
+    sessions: [{ id: sessionId, historyTotal: sessionId.startsWith('rail-scrub') ? 4 : 1 } as never],
+    sessionTranscripts: {},
   });
 }
 
@@ -310,6 +311,7 @@ describe('mobile message navigation scrub', () => {
     vi.useFakeTimers();
     mockedHistory.mockResolvedValue(historyPage(SCRUB_MESSAGES));
     seedSession('rail-scrub');
+    useSessionStore.setState({ sessions: [{ id: 'rail-scrub', historyTotal: 4 } as never] });
   });
 
   async function renderOpenMobileRail() {
@@ -572,16 +574,140 @@ describe('rail mounting cost', () => {
     expect(markers(container)).toHaveLength(1);
   });
 
-  it('indexes the full history when it is mounted', async () => {
+  it('loads a bounded tail page without a reliable viewport', async () => {
     const { container } = render(<MessageNavigationRail chatRef={{ current: null }} />);
     await act(async () => {
       await Promise.resolve();
     });
 
-    // Mounting the rail is what triggers the full-history index — the cost the
-    // `Show message navigation rail` switch removes by not mounting it at all.
+    // Without a viewport handle, show a bounded useful page without highlighting.
     expect(mockedHistory).toHaveBeenCalled();
     expect(mockedHistory.mock.calls[0]![0]).toBe('rail-1');
     expect(container.querySelector('.message-navigation-rail')).not.toBeNull();
   });
+});
+
+
+describe('open nearest canonical regression', () => {
+  const seedRows = (total: number, start: number, count: number, id = 'nearest') => {
+    const rows = Array.from({ length: count }, (_, i): Message => ({ role: (start + i) % 10 === 0 ? 'user' : 'assistant', content: `row ${start + i}`, messageId: `canonical-${start + i}` }));
+    rows.forEach((m, i) => messageOrdering.markDurableRow(m, start + i));
+    useSessionStore.setState({ currentSessionId: id, sessions: [{ id, historyTotal: total } as never], currentMessages: rows, sessionTranscripts: {} });
+    return rows;
+  };
+  const selected = (container: HTMLElement) => container.querySelector<HTMLElement>('.is-viewport-target')?.dataset.canonicalOffset;
+  it('locates from the loaded canonical window without history requests or body jumps; every reopen resnapshots', async () => {
+    seedRows(1000, 400, 200);
+    const snapshot = vi.fn().mockReturnValue({ start: 493, end: 506 });
+    const scrollToMessage = vi.fn();
+    const ref = { current: { getViewportHistoryRange: snapshot, scrollToMessage } } as never;
+    const view = render(<MessageNavigationRail chatRef={ref} expanded />);
+    await act(async () => { await Promise.resolve(); });
+    expect(selected(view.container)).toBe('500'); expect(mockedHistory).not.toHaveBeenCalled(); expect(scrollToMessage).not.toHaveBeenCalled();
+    snapshot.mockReturnValue({ start: 533, end: 546 });
+    view.rerender(<MessageNavigationRail chatRef={ref} expanded={false} />);
+    view.rerender(<MessageNavigationRail chatRef={ref} expanded />);
+    expect(selected(view.container)).toBe('540'); expect(snapshot).toHaveBeenCalledTimes(2);
+  });
+  it('does not count local Task completed as a canonical navigation row', async () => {
+    const rows = seedRows(1000, 490, 20);
+    const terminal: Message = { role: 'user', content: '[DONE] Task completed' };
+    messageOrdering.markLocalMarker(terminal);
+    useSessionStore.setState({ currentMessages: [...rows, terminal] });
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
+    expect(selected(view.container)).toBe('500');
+    expect(markers(view.container).some(m => m.title.includes('Task completed'))).toBe(false);
+  });
+  it('converges from an initially unavailable viewport via a notification, once only', async () => {
+    seedRows(1000, 400, 200);
+    let notify: ((range: { start: number; end: number }) => void) | undefined;
+    const unsubscribe = vi.fn();
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => null,
+      observeViewportHistoryRange: (callback: typeof notify) => { notify = callback; return unsubscribe; } } as never }} />);
+    expect(selected(view.container)).toBeUndefined();
+    act(() => { notify?.({ start: 490, end: 510 }); });
+    expect(selected(view.container)).toBe('500'); expect(unsubscribe).toHaveBeenCalledTimes(1);
+    act(() => { notify?.({ start: 530, end: 550 }); });
+    expect(selected(view.container)).toBe('500');
+  });
+  it('programmatic scroll does not cancel pending pagination; genuine wheel does', async () => {
+    seedRows(1000, 400, 1);
+    let resolve!: (value: ReturnType<typeof historyPage>) => void;
+    mockedHistory.mockImplementation(() => new Promise(r => { resolve = r; }));
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
+    fireEvent.scroll(window);
+    await act(async () => { resolve(historyPage(Array.from({ length: 200 }, (_, i) => ({ role: i === 100 ? 'user' : 'assistant', content: `fetched ${i}` })), 1000, 400)); });
+    expect(selected(view.container)).toBe('500');
+    view.unmount(); seedRows(1000, 400, 1);
+    const second = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
+    fireEvent.wheel(window);
+    await act(async () => { resolve(historyPage(Array.from({ length: 200 }, () => ({ role: 'user', content: 'late' })), 1000, 400)); });
+    expect(selected(second.container)).toBeUndefined();
+  });
+  it('bounds transient retry, retains local targets, and keyboard retry recovers single-flight', async () => {
+    vi.useFakeTimers(); seedRows(1000, 400, 1);
+    mockedHistory.mockRejectedValue(new Error('transient network'));
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } as never }} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(mockedHistory).toHaveBeenCalledTimes(3); expect(markers(view.container)).toHaveLength(1);
+    const retry = view.getByRole('button', { name: 'Retry message navigation' });
+    expect(view.getByRole('status').textContent).toContain('transient network');
+    mockedHistory.mockResolvedValue(historyPage(Array.from({ length: 200 }, (_, i) => ({ role: i === 100 ? 'user' : 'assistant', content: `recovered ${i}` })), 1000, 400));
+    await act(async () => { fireEvent.click(retry); fireEvent.click(retry); });
+    expect(mockedHistory).toHaveBeenCalledTimes(4); expect(selected(view.container)).toBe('500');
+    expect(view.queryByRole('button', { name: 'Retry message navigation' })).toBeNull();
+  });
+  it('aborts retries on close and rejects late responses after Session or filter changes', async () => {
+    vi.useFakeTimers(); seedRows(1000, 400, 1);
+    mockedHistory.mockRejectedValue(new Error('transient'));
+    const ref = { current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } } as never;
+    const view = render(<MessageNavigationRail chatRef={ref} />);
+    await act(async () => { await Promise.resolve(); });
+    view.rerender(<MessageNavigationRail chatRef={ref} expanded={false} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(mockedHistory).toHaveBeenCalledTimes(1);
+    let resolve!: (value: ReturnType<typeof historyPage>) => void;
+    mockedHistory.mockImplementation(() => new Promise(r => { resolve = r; }));
+    view.rerender(<MessageNavigationRail chatRef={ref} />);
+    const oldResolve = resolve;
+    act(() => { seedRows(1000, 400, 200, 'new-session'); });
+    await act(async () => { oldResolve(historyPage(Array.from({ length: 200 }, () => ({ role: 'user', content: 'OLD' })), 1000, 400)); });
+    expect(markers(view.container).some(m => m.title === 'OLD')).toBe(false);
+    act(() => { useAppSettingsStore.setState({ showQQ: false }); });
+    expect(markers(view.container).some(m => m.title === 'OLD')).toBe(false);
+  });
+  it('same-epoch appends refresh fromEnd without another snapshot, request or rail scroll', async () => {
+    seedRows(1000, 400, 200);
+    const snapshot = vi.fn().mockReturnValue({ start: 499, end: 501 });
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: snapshot } as never }} />);
+    expect(selected(view.container)).toBe('500');
+    const list = view.container.querySelector<HTMLElement>('.message-navigation-list')!;
+    list.scrollTop = 123;
+    act(() => { useSessionStore.setState({ sessions: [{ id: 'nearest', historyTotal: 1001 } as never] }); });
+    expect(snapshot).toHaveBeenCalledTimes(1); expect(list.scrollTop).toBe(123);
+    expect(view.container.querySelector<HTMLElement>('.is-viewport-target')?.dataset.fromEnd).toBe('500');
+    expect(mockedHistory).not.toHaveBeenCalled();
+  });
+  it('history epoch invalidation cannot reuse cached offsets or a late old page', async () => {
+    seedRows(1000, 400, 1);
+    let oldResolve!: (value: ReturnType<typeof historyPage>) => void;
+    mockedHistory.mockImplementationOnce(() => new Promise(resolve => { oldResolve = resolve; }));
+    const ref = { current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }) } } as never;
+    const view = render(<MessageNavigationRail chatRef={ref} />);
+    act(() => { useSessionStore.setState({ sessionTranscripts: { nearest: { window: { epoch: 'new', rows: new Map() } } as never } }); });
+    await act(async () => { oldResolve({ ...historyPage(Array.from({ length: 200 }, () => ({ role: 'user', content: 'OLD-EPOCH' })), 1000, 400), historyEpoch: 'old' }); });
+    expect(markers(view.container).some(m => m.title === 'OLD-EPOCH')).toBe(false);
+  });
+
+  it('caps automatic nearby reads for a huge no-candidate history and exposes explicit continuation', async () => {
+    vi.useFakeTimers(); seedRows(1_000_000, 500000, 0);
+    mockedHistory.mockImplementation(async (_id, before = 0) => historyPage(Array.from({ length: 200 }, () => ({ role: 'assistant', content: 'ordinary' })), 1_000_000, before - 200));
+    const view = render(<MessageNavigationRail chatRef={{ current: { getViewportHistoryRange: () => ({ start: 500000, end: 500002 }) } as never }} />);
+    await act(async () => { await vi.runAllTimersAsync(); });
+    expect(mockedHistory).toHaveBeenCalledTimes(6); expect(selected(view.container)).toBeUndefined();
+    expect(view.getByRole('button', { name: 'Load more nearby navigation' })).toBeDefined();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(mockedHistory).toHaveBeenCalledTimes(6);
+  });
+
 });

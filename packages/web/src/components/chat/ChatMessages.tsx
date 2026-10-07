@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 import { RewindConfirmModal } from './RewindConfirmModal';
+import { durableOffsetOf } from '@/stores/messageOrdering';
 import { filterVisibleMessages } from './messageFilter';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
@@ -132,6 +133,8 @@ function findRenderedRowByMessageIdentity(
 export interface ChatMessagesHandle {
   /** Snapshot visible canonical indices without scrolling, fetching or scheduling work. */
   getViewportHistoryRange?: () => { start: number; end: number } | null;
+  /** Event-driven convergence for an opening made before visible rows mount. */
+  observeViewportHistoryRange?: (listener: (range: { start: number; end: number }) => void) => () => void;
   /** Scroll to a currently loaded message and briefly highlight its row. */
   scrollToMessage: (message: import('@/types').Message, historyIndex?: number) => boolean;
 }
@@ -711,29 +714,61 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     if (!element || !transcript || state.currentSessionId !== currentSessionId) return null;
     const viewport = element.getBoundingClientRect();
     if (viewport.height <= 0 || viewport.width <= 0) return null;
-    const identities = new Set<string>();
+    let start = Infinity, end = -1;
+    let runtimeVisible = false;
     for (const row of element.querySelectorAll<HTMLElement>('[data-scroll-anchor-key][data-index]')) {
       const rectangle = row.getBoundingClientRect();
       if (rectangle.bottom <= viewport.top || rectangle.top >= viewport.bottom) continue;
       const item = groupedRef.current[Number(row.dataset.index)];
-      if (!item) continue;
-      const messages = 'type' in item ? item.items : [item as Message];
-      for (const message of messages) identities.add(getMessageIdentity(message));
+      if (!item || row.dataset.scrollAnchorKey !== measuredRowKey(currentSessionId, item, Number(row.dataset.index))) continue;
+      const canonicalOffset = (message: Message) => {
+        const offset = durableOffsetOf(message);
+        const owner = offset === undefined ? undefined : transcript.window.rows.get(offset);
+        return offset !== undefined && owner && getMessageIdentity(owner) === getMessageIdentity(message) ? offset : undefined;
+      };
+      if ('type' in item) {
+        // Group order is canonical order. Its endpoints define the semantic
+        // interval even while folded; never inspect every child in a huge
+        // disclosure. Unproven endpoints degrade to no reliable group range.
+        const first = item.items.slice(0, 32).map(canonicalOffset).find(offset => offset !== undefined);
+        const last = item.items.slice(-32).reverse().map(canonicalOffset).find(offset => offset !== undefined);
+        if (first !== undefined && last !== undefined && first <= last) {
+          start = Math.min(start, first); end = Math.max(end, last);
+        }
+      } else {
+        const message = item as Message;
+        const offset = canonicalOffset(message);
+        if (offset !== undefined) { start = Math.min(start, offset); end = Math.max(end, offset); }
+        else if (transcript.runtime.includes(message)) runtimeVisible = true;
+      }
     }
-    let start = Infinity, end = -1;
-    for (const [index, message] of transcript.window.rows) {
-      if (!identities.has(getMessageIdentity(message))) continue;
-      start = Math.min(start, index);
-      end = Math.max(end, index);
-    }
-    // Live-only rows follow the canonical window. Anchor to that known boundary,
-    // rather than inventing durable indices for runtime/display-only messages.
-    if (end < 0 && transcript.runtime.some((message) => identities.has(getMessageIdentity(message)))) {
-      return { start: transcript.anchorOffset, end: transcript.anchorOffset };
-    }
+    if (end < 0 && runtimeVisible) return { start: transcript.anchorOffset, end: transcript.anchorOffset };
     return end >= 0 ? { start, end } : null;
   }, [currentSessionId]);
-  useImperativeHandle(ref, () => ({ scrollToMessage, getViewportHistoryRange }), [scrollToMessage, getViewportHistoryRange]);
+  const observeViewportHistoryRange = useCallback((listener: (range: { start: number; end: number }) => void) => {
+    const element = parentRef.current;
+    if (!element) return () => {};
+    let frame: number | null = null;
+    const notify = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        const range = getViewportHistoryRange();
+        if (range) listener(range);
+      });
+    };
+    const mutation = new MutationObserver(notify);
+    const resize = new ResizeObserver(notify);
+    mutation.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-scroll-anchor-key', 'style'] });
+    resize.observe(element);
+    notify();
+    return () => {
+      mutation.disconnect(); resize.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [getViewportHistoryRange]);
+  useImperativeHandle(ref, () => ({ scrollToMessage, getViewportHistoryRange, observeViewportHistoryRange }),
+    [scrollToMessage, getViewportHistoryRange, observeViewportHistoryRange]);
 
   const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
     const state = userScrollStateRef.current;

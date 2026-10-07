@@ -9,6 +9,7 @@ import { formatMessageTs, groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
+import { markDurableRow } from '@/stores/messageOrdering';
 
 // ── Mock @tanstack/react-virtual ──
 // The real virtualizer needs real layout / ResizeObserver, which jsdom does not
@@ -2600,5 +2601,28 @@ describe('scroll snapshot write retry', () => {
       restoreGeometry();
       vi.useRealTimers();
     }
+  });
+});
+
+
+describe('canonical viewport range for folded groups', () => {
+  it('uses durable folded-group endpoints and rejects another Session identity', () => {
+    const restore = installRowGeometry();
+    try {
+      const messages: Message[] = Array.from({ length: 100 }, (_, i) => ({ role: 'thinking', content: `thought ${i}`, messageId: `fold-epoch-${1000 + i}` }));
+      messages.forEach((message, i) => markDurableRow(message, 1000 + i));
+      useSessionStore.setState({ currentSessionId: 'fold', currentMessages: messages,
+        sessionTranscripts: { fold: { window: { rows: new Map(messages.map((message, i) => [1000 + i, message])), start: 1000, end: 1100, total: 1100, epoch: 'fold-epoch', revision: 1 }, runtime: [], anchorOffset: 1100, serverEpoch: null } } });
+      m.setTotalSize(100); m.setVirtualItems(rowWindow([0]));
+      const ref = createRef<ChatMessagesHandle>();
+      const { container } = render(<ChatMessages ref={ref} />);
+      const scroller = container.querySelector('.overflow-auto') as HTMLElement;
+      scroller.scrollTop = 0;
+      expect(ref.current?.getViewportHistoryRange?.()).toEqual({ start: 1000, end: 1099 });
+      expect(container.querySelector('[aria-expanded="true"]')).toBeNull();
+      // Simulate a store switch before React commits the new DOM.
+      useSessionStore.setState({ currentSessionId: 'other' });
+      expect(ref.current?.getViewportHistoryRange?.()).toBeNull();
+    } finally { restore(); }
   });
 });

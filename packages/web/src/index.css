@@ -1369,9 +1369,11 @@ body {
   z-index: 8;
 }
 .chat-tools-sidebar { transition: width .16s ease, flex-basis .16s ease; }
-.chat-tools-sidebar:has(.message-navigation-dock.is-open):not(.is-mobile) { flex-basis: 70px; width: 70px; }
+/* Expansion overlays the chat instead of changing its width. Reflow would
+   change canonical row heights and force body scroll compensation on open. */
+.chat-tools-sidebar:has(.message-navigation-dock.is-open):not(.is-mobile) { flex-basis: 18px; width: 18px; }
 .chat-tools-sidebar.is-mobile { flex-basis: 0; width: 0; }
-.chat-tools-sidebar.is-mobile:has(.message-navigation-dock.is-open) { flex-basis: 52px; width: 52px; }
+.chat-tools-sidebar.is-mobile:has(.message-navigation-dock.is-open) { flex-basis: 0; width: 0; }
 .chat-tools-sidebar > .message-navigation-dock { right: 0; }
 .chat-tools-sidebar__search {
   display: flex;
@@ -1473,3 +1475,12 @@ body {
   color: var(--color-text-primary);
   font: inherit;
 }
+
+.message-navigation-page {
+  min-height: 24px;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+.message-navigation-status-error { cursor: pointer; }
+.message-navigation-status-error:focus-visible,
+.message-navigation-page:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }

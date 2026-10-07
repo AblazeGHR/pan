@@ -16,11 +16,9 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { canonicalRowsWithOffsets } from '@/stores/messageOrdering';
 import { fetchSessionHistory } from '@/services/api';
 import {
-  getQuickJumpIndexItems,
-  getQuickJumpIndexItemsByOffset,
-  type QuickJumpIndexItem,
-  type QuickJumpKind,
+    type QuickJumpKind,
 } from './messageFilter';
+import { NavigationIndex, NAVIGATION_AUTO_PAGES, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
 import type { ChatMessagesHandle } from './ChatMessages';
 
 interface MessageNavigationRailProps {
@@ -30,12 +28,11 @@ interface MessageNavigationRailProps {
   mobileExpanded?: boolean;
 }
 
-type IndexStatus = 'idle' | 'loading' | 'ready' | 'error';
+type IndexStatus = 'idle' | 'loading' | 'ready' | 'partial' | 'error';
 
 const USER_LABEL = '\u7528\u6237';
 const RAIL_LABEL = '\u5feb\u901f\u5b9a\u4f4d';
 const PREVIEW_FALLBACK = '\u65e0\u9884\u89c8\u5185\u5bb9';
-const INDEX_PAGE_SIZE = 200;
 const LONG_PRESS_MS = 450;
 const PRE_LONG_PRESS_MOVE_PX = 10;
 
@@ -97,7 +94,6 @@ export function MessageNavigationRail({
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentHistoryEpoch = useSessionStore((s) => s.currentSessionId
     ? s.sessionTranscripts[s.currentSessionId]?.window.epoch ?? null : null);
-  const currentMessages = useSessionStore((s) => s.currentMessages);
   const historyLoadEnd = useSessionStore((s) => s.historyLoadEnd);
   const currentHistoryTotal = useSessionStore((s) => {
     const session = s.sessions.find((item) => item.id === s.currentSessionId);
@@ -111,13 +107,11 @@ export function MessageNavigationRail({
     () => ({ showMetaAgent, showTaskAgent, showQQ }),
     [showMetaAgent, showTaskAgent, showQQ],
   );
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const [activeFromEnd, setActiveFromEnd] = useState<number | null>(null);
-  const [jumpingFromEnd, setJumpingFromEnd] = useState<number | null>(null);
+  const [activeOffset, setActiveOffset] = useState<number | null>(null);
+  const [jumpingOffset, setJumpingOffset] = useState<number | null>(null);
   const [jumpError, setJumpError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<{
-    target: QuickJumpIndexItem;
+    target: NavigationTarget;
     top: number;
     left: number;
     mode: PreviewMode;
@@ -125,284 +119,257 @@ export function MessageNavigationRail({
   const listRef = useRef<HTMLDivElement>(null);
   const scrubGestureRef = useRef<ScrubGesture | null>(null);
   const suppressNextClickRef = useRef(false);
-  const [fullIndex, setFullIndex] = useState<QuickJumpIndexItem[]>([]);
-  const indexOwnerRef = useRef<{ sessionId: string; settings: typeof settings; historyEpoch: string | null } | null>(null);
-  const [indexStatus, setIndexStatus] = useState<IndexStatus>('idle');
-  const [indexTotal, setIndexTotal] = useState(0);
+  const loadedCanonicalTotal = currentHistoryTotal ?? historyLoadEnd;
+  const context = useMemo(() => {
+    const state = useSessionStore.getState();
+    const total = state.sessions.find(session => session.id === currentSessionId)?.historyTotal;
+    return { sessionId: currentSessionId, historyEpoch: currentHistoryEpoch, settings,
+      responseEpoch: (currentHistoryEpoch ?? undefined) as string | null | undefined,
+      knownTotal: total !== undefined && total !== null, index: new NavigationIndex(total ?? state.historyLoadEnd, settings) };
+  }, [currentSessionId, currentHistoryEpoch, settings]);
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const [indexView, setIndexView] = useState<{ context: typeof context; targets: NavigationTarget[] } | null>(null);
+  const targets = useMemo(() => indexView?.context === context ? indexView.targets : [], [indexView, context]);
+  const [indexState, setIndexState] = useState<{ context: typeof context; status: IndexStatus; error: string | null } | null>(null);
+  const indexStatus = indexState?.context === context ? indexState.status : 'idle';
+  const indexError = indexState?.context === context ? indexState.error : null;
   const [indexMetrics, setIndexMetrics] = useState({ requests: 0, durationMs: 0 });
-
-  // The completed index already owns every target. Preserve the previous
-  // fast path: live renders must not scan/sort the entire loaded transcript.
-  // During indexing, only proven canonical offsets may define fallback rows;
-  // rendered array positions can include local markers and runtime rows.
-  const canonicalRows = useMemo(
-    () => indexStatus === 'ready' ? [] : canonicalRowsWithOffsets(currentMessages),
-    [currentMessages, indexStatus],
-  );
-  const loadedCanonicalTotal = useMemo(() => {
-    if (currentHistoryTotal !== null) return currentHistoryTotal;
-    const last = canonicalRows[canonicalRows.length - 1];
-    return last ? last.offset + 1 : historyLoadEnd;
-  }, [canonicalRows, currentHistoryTotal, historyLoadEnd]);
+  const indexTotal = context.index.total;
+  const targetsByFromEnd = useMemo(() => new Map(targets.map(target => [target.fromEnd, target])), [targets]);
+  const openEpochRef = useRef(0);
+  const operationRef = useRef<{ controller: AbortController; context: typeof context } | null>(null);
+  const pendingOpenRef = useRef<{ epoch: number; context: typeof context; range: NavigationRange | null } | null>(null);
+  const observerCleanupRef = useRef<(() => void) | null>(null);
+  const [viewportTarget, setViewportTarget] = useState<{ context: typeof context; epoch: number; offset: number } | null>(null);
+  const [displayOffset, setDisplayOffset] = useState(0);
+  const [retryEpoch, setRetryEpoch] = useState(0);
+  const requestedRangeRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
+  const skipLocationRef = useRef(false);
+  const locationRef = useRef<{ context: typeof context; range: NavigationRange } | null>(null);
 
   const clearScrub = useCallback((suppressClick = false) => {
     const gesture = scrubGestureRef.current;
-    if (gesture?.timer !== null && gesture?.timer !== undefined) {
-      window.clearTimeout(gesture.timer);
-    }
+    if (gesture?.timer !== null && gesture?.timer !== undefined) window.clearTimeout(gesture.timer);
     scrubGestureRef.current = null;
-    if (suppressClick && gesture && (gesture.active || gesture.moved)) {
-      suppressNextClickRef.current = true;
-    }
+    if (suppressClick && gesture && (gesture.active || gesture.moved)) suppressNextClickRef.current = true;
     setHovered(null);
   }, []);
 
-  useEffect(() => {
-    indexOwnerRef.current = null;
-    clearScrub(false);
-    setHovered(null);
-    setJumpError(null);
-    setActiveFromEnd(null);
-    // The jump lock is single-flight per session: a jump that started in the
-    // previous session must not keep every marker disabled here. `jumpTo`'s
-    // finally deliberately does not touch state after a session switch, so
-    // this reset is the only thing that releases the lock.
-    setJumpingFromEnd(null);
-    setFullIndex([]);
-    setIndexTotal(0);
-    setIndexMetrics({ requests: 0, durationMs: 0 });
-    if (!currentSessionId) {
-      setIndexStatus('idle');
-      return;
-    }
-
-    const controller = new AbortController();
-    let disposed = false;
-    const startedAt = performance.now();
-    setIndexStatus('loading');
-
-    void (async () => {
-      let before = 0;
-      let requests = 0;
-      let indexed: QuickJumpIndexItem[] = [];
-      let historyTotal = 0;
-      let historyEpoch: string | null = null;
-      try {
-        do {
-          const page = await fetchSessionHistory(
-            currentSessionId,
-            before,
-            INDEX_PAGE_SIZE,
-            controller.signal,
-          );
-          if (disposed || useSessionStore.getState().currentSessionId !== currentSessionId) return;
-          const pageEpoch = page.historyEpoch ?? null;
-          if (requests > 0 && (page.total !== historyTotal || pageEpoch !== historyEpoch)) {
-            throw new Error('History identity changed during navigation indexing.');
-          }
-          requests += 1;
-          historyTotal = page.total;
-          historyEpoch = pageEpoch;
-          const pageItems = getQuickJumpIndexItems(
-            page.history || [],
-            page.total,
-            page.start,
-            settings,
-          );
-          indexed = [...pageItems, ...indexed];
-          setFullIndex(indexed);
-          setIndexTotal(page.total);
-          setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
-          before = page.start;
-        } while (before > 0);
-        if (disposed) return;
-        const durationMs = performance.now() - startedAt;
-        indexOwnerRef.current = { sessionId: currentSessionId, settings, historyEpoch };
-        setIndexStatus('ready');
-        setIndexMetrics({ requests, durationMs });
-        console.info('[message-navigation] full index ready', {
-          sessionId: currentSessionId,
-          total: historyTotal,
-          targets: indexed.length,
-          requests,
-          durationMs: Math.round(durationMs),
-        });
-      } catch (error) {
-        if (disposed || controller.signal.aborted) return;
-        console.warn('[message-navigation] full index failed; using loaded window', error);
-        indexOwnerRef.current = { sessionId: currentSessionId, settings, historyEpoch };
-        setIndexStatus('error');
-        setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      controller.abort();
-      clearScrub(true);
-    };
-  }, [clearScrub, currentSessionId, settings]);
-
-  const loadedWindowTargets = useMemo(
-    () => fullIndex.length > 0 && indexStatus !== 'error'
-      // The full index already wins below. Scanning every loaded message on
-      // each delta here used to rebuild a projection that was never rendered.
-      ? fullIndex
-      : getQuickJumpIndexItemsByOffset(canonicalRows, loadedCanonicalTotal, settings),
-    [canonicalRows, loadedCanonicalTotal, settings, fullIndex, indexStatus],
-  );
-
-  // One merged column: every navigable kind in the session's original message
-  // order (the stable fromEnd identity), never re-sorted by kind or timestamp.
-  const targets = fullIndex.length > 0 && indexStatus !== 'error'
-    ? fullIndex
-    : loadedWindowTargets;
-  const targetsByFromEnd = useMemo(
-    () => new Map(targets.map((target) => [target.fromEnd, target])),
-    [targets],
-  );
-
-  // Each expansion owns one synchronous snapshot. Existing pagination may
-  // finish it, but reading or interacting cancels it without another snapshot.
-  const openEpochRef = useRef(0);
-  const pendingOpenRef = useRef<{
-    epoch: number;
-    sessionId: string;
-    historyEpoch: string | null;
-    range: { start: number; end: number };
-    settings: typeof settings;
-  } | null>(null);
-  const [viewportTarget, setViewportTarget] = useState<{ sessionId: string; offset: number; historyEpoch: string | null; settings: typeof settings } | null>(null);
-  const cancelOpenLocation = useCallback(() => { pendingOpenRef.current = null; }, []);
+  const cancelOpenLocation = useCallback(() => {
+    pendingOpenRef.current = null;
+    observerCleanupRef.current?.(); observerCleanupRef.current = null;
+    operationRef.current?.controller.abort(); operationRef.current = null;
+    setIndexState(value => value?.status === 'loading' ? { ...value, status: 'partial' } : value);
+  }, []);
 
   useLayoutEffect(() => {
-    const epoch = ++openEpochRef.current;
-    pendingOpenRef.current = null;
-    setViewportTarget(null);
-    setActiveFromEnd(null);
-    if (!expanded || !currentSessionId) return;
-    const state = useSessionStore.getState();
-    if (state.currentSessionId !== currentSessionId) return;
-    const range = chatRef.current?.getViewportHistoryRange?.();
-    if (!range || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)
-        || range.start < 0 || range.end < range.start) return;
-    pendingOpenRef.current = {
-      epoch, sessionId: currentSessionId,
-      historyEpoch: state.sessionTranscripts[currentSessionId]?.window.epoch ?? null,
-      range, settings: settingsRef.current,
-    };
-    // Capture reading gestures anywhere, including the chat. Pointer-enter that
-    // opened the desktop dock is deliberately not an interaction cancellation.
-    const cancel = () => cancelOpenLocation();
-    window.addEventListener('pointerdown', cancel, true);
-    window.addEventListener('wheel', cancel, true);
-    window.addEventListener('keydown', cancel, true);
-    window.addEventListener('touchmove', cancel, true);
-    window.addEventListener('scroll', cancel, true);
-    return () => {
-      pendingOpenRef.current = null;
-      window.removeEventListener('pointerdown', cancel, true);
-      window.removeEventListener('wheel', cancel, true);
-      window.removeEventListener('keydown', cancel, true);
-      window.removeEventListener('touchmove', cancel, true);
-      window.removeEventListener('scroll', cancel, true);
-    };
-  }, [expanded, currentSessionId, chatRef, cancelOpenLocation]);
+    // Appends in the same history epoch update fromEnd, never reopen/reposition
+    // an already open rail. Absolute canonical offsets remain the identity.
+    if (loadedCanonicalTotal > context.index.total) {
+      context.index.total = loadedCanonicalTotal;
+      setIndexView(value => value?.context === context ? { context, targets: context.index.targets() } : value);
+    }
+  }, [loadedCanonicalTotal, context]);
 
   useLayoutEffect(() => {
-    const pending = pendingOpenRef.current;
-    if (!pending || !expanded || pending.epoch !== openEpochRef.current) return;
-    const state = useSessionStore.getState();
-    if (pending.settings !== settings || state.currentSessionId !== pending.sessionId
-        || (state.sessionTranscripts[pending.sessionId]?.window.epoch ?? null) !== pending.historyEpoch) {
-      pendingOpenRef.current = null;
-      return;
-    }
-    // Partial newest-first pages cannot prove the global nearest candidate.
-    // Wait for the existing scan; an error degrades to proven loaded offsets.
-    if (indexStatus === 'idle' || indexStatus === 'loading'
-        || indexOwnerRef.current?.sessionId !== pending.sessionId
-        || indexOwnerRef.current.settings !== settings) return;
-    pendingOpenRef.current = null;
-    if (indexStatus === 'ready' && pending.historyEpoch !== null
-        && indexOwnerRef.current.historyEpoch !== pending.historyEpoch) return;
-    const total = indexStatus === 'ready' ? indexTotal : loadedCanonicalTotal;
-    const { start, end } = pending.range;
-    const center = (start + end) / 2;
-    const distance = (offset: number) => Math.max(start - offset, offset - end, 0);
-    let best: QuickJumpIndexItem | undefined;
-    let bestOffset = -1;
-    for (const target of targets) {
-      const offset = total - 1 - target.fromEnd;
-      if (!Number.isSafeInteger(offset) || offset < 0) continue;
-      if (!best || distance(offset) < distance(bestOffset)
-          || (distance(offset) === distance(bestOffset)
-            && (Math.abs(offset - center) < Math.abs(bestOffset - center)
-              || (Math.abs(offset - center) === Math.abs(bestOffset - center) && offset > bestOffset)))) {
-        best = target;
-        bestOffset = offset;
-      }
-    }
-    if (!best) return;
-    const list = listRef.current;
-    const marker = list?.querySelector<HTMLElement>(`[data-from-end="${best.fromEnd}"]`);
-    if (!list || !marker) return;
-    setViewportTarget({ sessionId: pending.sessionId, offset: bestOffset,
-      historyEpoch: pending.historyEpoch, settings: pending.settings });
-    // Scroll only the rail, never scrollIntoView (which can scroll ancestors).
-    const bounds = list.getBoundingClientRect();
-    const rectangle = marker.getBoundingClientRect();
-    list.scrollTop += rectangle.top + rectangle.height / 2 - bounds.top - bounds.height / 2;
-  }, [expanded, currentSessionId, indexStatus, indexTotal, loadedCanonicalTotal, targets, settings, currentHistoryEpoch]);
+    clearScrub(false); setJumpError(null); setActiveOffset(null); setJumpingOffset(null);
+  }, [context, clearScrub]);
 
-  const jumpTo = async (target: QuickJumpIndexItem) => {
-    if (!currentSessionId || jumpingFromEnd !== null) return;
-    const sessionAtClick = currentSessionId;
+  useLayoutEffect(() => {
+    const requestedRange = requestedRangeRef.current?.context === context ? requestedRangeRef.current.range : null;
     cancelOpenLocation();
-    setViewportTarget(null);
-    setJumpError(null);
-    setJumpingFromEnd(target.fromEnd);
-    try {
-      const total = indexTotal || loadedCanonicalTotal;
-      const message = await ensureMessageLoaded(target.fromEnd, total);
-      if (!message || useSessionStore.getState().currentSessionId !== sessionAtClick) {
-        if (useSessionStore.getState().currentSessionId === sessionAtClick) {
-          setJumpError('Unable to load this message.');
+    const epoch = ++openEpochRef.current;
+    const allowLocation = !skipLocationRef.current; skipLocationRef.current = false;
+    setViewportTarget(null); setActiveOffset(null);
+    if (!expanded || !context.sessionId) return;
+    const pending = { epoch, context, range: null as NavigationRange | null };
+    pendingOpenRef.current = pending;
+    const controller = new AbortController();
+    const operation = { controller, context };
+    operationRef.current = operation;
+    const startedAt = performance.now();
+    let requests = 0;
+    const current = () => !controller.signal.aborted && contextRef.current === context
+      && operationRef.current === operation && useSessionStore.getState().currentSessionId === context.sessionId;
+    const publish = () => { if (current()) setIndexView({ context, targets: context.index.targets() }); };
+    const status = (value: IndexStatus, error: string | null = null) => {
+      if (current()) setIndexState({ context, status: value, error });
+    };
+    const finishLocation = (range: NavigationRange) => {
+      if (pendingOpenRef.current !== pending || !current()) return;
+      const best = nearestNavigationTarget(context.index.targets(), range);
+      pendingOpenRef.current = null;
+      if (best && allowLocation) setViewportTarget({ context, epoch, offset: best.offset });
+    };
+    const pause = (ms: number) => new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+      const timer = window.setTimeout(() => { controller.signal.removeEventListener('abort', abort); resolve(); }, ms);
+      controller.signal.addEventListener('abort', abort, { once: true });
+    });
+    const load = async (range: NavigationRange) => {
+      setDisplayOffset((range.start + range.end) / 2);
+      // Only durable offsets may seed coverage. Keep a bounded neighbourhood,
+      // rather than projecting/rendering the whole loaded transcript.
+      const state = useSessionStore.getState();
+      const transcript = context.sessionId ? state.sessionTranscripts[context.sessionId] : undefined;
+      const center = (range.start + range.end) / 2;
+      const start = Math.max(0, Math.floor(center - NAVIGATION_PAGE_SIZE * 5));
+      const end = Math.min(context.index.total - 1, Math.ceil(center + NAVIGATION_PAGE_SIZE * 5));
+      if (transcript) {
+        // Random-access canonical window: bounded lookups, no transcript scan
+        // or sort, even when chat already has hundreds of thousands of rows.
+        const rows = [];
+        for (let offset = start; offset <= end; offset++) {
+          const message = transcript.window.rows.get(offset);
+          if (message) rows.push({ offset, message });
         }
-        return;
+        context.index.addRows(rows);
+      } else {
+        // Legacy/minimal callers have only durable row tags; runtime/local
+        // messages have no offset and cannot enter this fallback index.
+        context.index.addRows(canonicalRowsWithOffsets(state.currentMessages).filter(row => row.offset >= start && row.offset <= end));
       }
-      await nextPaint();
-      if (useSessionStore.getState().currentSessionId !== sessionAtClick) return;
-      const historyIndex = total - 1 - target.fromEnd;
-      let didJump = chatRef.current?.scrollToMessage(message, historyIndex) ?? false;
-      if (!didJump) {
-        await nextPaint();
-        if (useSessionStore.getState().currentSessionId !== sessionAtClick) return;
-        didJump = chatRef.current?.scrollToMessage(message, historyIndex) ?? false;
+      publish();
+      if ((context.index.total > 0 || (context.knownTotal && context.index.total === 0)) && context.index.proven(range)) { finishLocation(range); status('ready'); return; }
+      status('loading');
+      try {
+        for (let pageCount = 0; pageCount < NAVIGATION_AUTO_PAGES && current(); pageCount++) {
+          const key = context.index.total === 0 ? 0 : context.index.nextPage(range);
+          if (key === null) break;
+          const before = Math.min(context.index.total, (key + 1) * NAVIGATION_PAGE_SIZE);
+          let page: Awaited<ReturnType<typeof fetchSessionHistory>> | undefined;
+          // At most two transient retries per page, with one in-flight request.
+          for (let attempt = 0; attempt < 3 && current(); attempt++) {
+            try {
+              requests++;
+              page = await fetchSessionHistory(context.sessionId!, before, NAVIGATION_PAGE_SIZE, controller.signal, false, true);
+              break;
+            } catch (error) {
+              if (!current()) return;
+              const code = error instanceof Error && 'status' in error ? Number(error.status) : 0;
+              if (attempt === 2 || (error instanceof Error && error.message.includes('budget exceeded')) || (code >= 400 && code < 500 && code !== 408 && code !== 429)) throw error;
+              await pause(attempt === 0 ? 150 : 450);
+            }
+          }
+          if (!current() || !page) return;
+          const pageEpoch = page.historyEpoch ?? null;
+          if (context.responseEpoch === undefined) context.responseEpoch = pageEpoch;
+          if (pageEpoch !== context.responseEpoch) throw new Error('History identity changed during nearby navigation loading.');
+          if (context.index.total === 0 && !context.knownTotal) context.index.total = page.total;
+          if (page.total > context.index.total && page.historyEpoch === context.historyEpoch) context.index.total = page.total;
+          if (page.total !== context.index.total || (context.historyEpoch !== null && page.historyEpoch !== context.historyEpoch)) {
+            throw new Error('History changed. Reopen navigation after the chat refreshes.');
+          }
+          const effectiveBefore = before === 0 ? page.total : before;
+          if (page.start !== Math.max(0, effectiveBefore - NAVIGATION_PAGE_SIZE) || page.history.length !== effectiveBefore - page.start) {
+            throw new Error('History page coverage is incomplete. Retry navigation.');
+          }
+          context.index.addPage(page.history, page.start); publish();
+          setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
+          if (context.index.proven(range)) { finishLocation(range); status('ready'); return; }
+        }
+        if (current()) status('partial');
+      } catch (error) {
+        if (current()) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn('[message-navigation] nearby history failed', { sessionId: context.sessionId, requests, error: message });
+          status('error', message);
+        }
+      } finally {
+        if (current()) setIndexMetrics({ requests, durationMs: performance.now() - startedAt });
       }
-      if (!didJump) {
-        setJumpError('Message loaded, but its rendered row could not be located.');
-        return;
-      }
-      setActiveFromEnd(target.fromEnd);
-      const epochAtJump = openEpochRef.current;
-      window.setTimeout(() => {
-        if (useSessionStore.getState().currentSessionId === sessionAtClick
-            && openEpochRef.current === epochAtJump) setActiveFromEnd(null);
-      }, 1200);
-    } finally {
-      if (useSessionStore.getState().currentSessionId === sessionAtClick) {
-        setJumpingFromEnd(null);
-      }
+    };
+    const acceptRange = (range: NavigationRange) => {
+      if (!current() || pendingOpenRef.current !== pending || pending.range !== null) return;
+      if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start) return;
+      pending.range = range; locationRef.current = { context, range };
+      observerCleanupRef.current?.(); observerCleanupRef.current = null;
+      void load(range);
+    };
+    const range = requestedRange ?? chatRef.current?.getViewportHistoryRange?.();
+    requestedRangeRef.current = null;
+    if (range) acceptRange(range);
+    else if (chatRef.current?.observeViewportHistoryRange) observerCleanupRef.current = chatRef.current.observeViewportHistoryRange(acceptRange);
+    else {
+      // An unavailable viewport may still expose a useful tail page. It never
+      // invents a viewport target; production ChatMessages supplies the observer.
+      pendingOpenRef.current = null;
+      void load({ start: Math.max(0, context.index.total - 1), end: Math.max(0, context.index.total - 1) });
     }
+    // Scroll events themselves have no source attribution. Only user input
+    // takes ownership; programmatic restoration/measurement cannot cancel us.
+    const userInput = (event: Event) => {
+      // Keyboard retry and paging buttons explicitly continue the same snapshot.
+      if (event.target instanceof Element && event.target.closest('[data-navigation-load]')) return;
+      requestedRangeRef.current = null;
+      cancelOpenLocation();
+    };
+    window.addEventListener('pointerdown', userInput, true);
+    window.addEventListener('wheel', userInput, true);
+    window.addEventListener('keydown', userInput, true);
+    window.addEventListener('touchmove', userInput, true);
+    return () => {
+      cancelOpenLocation();
+      window.removeEventListener('pointerdown', userInput, true);
+      window.removeEventListener('wheel', userInput, true);
+      window.removeEventListener('keydown', userInput, true);
+      window.removeEventListener('touchmove', userInput, true);
+    };
+  }, [expanded, context, chatRef, retryEpoch, cancelOpenLocation]);
+
+  useLayoutEffect(() => {
+    if (!viewportTarget || viewportTarget.context !== context || viewportTarget.epoch !== openEpochRef.current || !expanded) return;
+    const list = listRef.current;
+    const marker = list?.querySelector<HTMLElement>(`[data-canonical-offset="${viewportTarget.offset}"]`);
+    if (!list || !marker) return;
+    const bounds = list.getBoundingClientRect(), rectangle = marker.getBoundingClientRect();
+    list.scrollTop += rectangle.top + rectangle.height / 2 - bounds.top - bounds.height / 2;
+  }, [viewportTarget, context, expanded]);
+
+  const retryIndex = () => {
+    if (!expanded || (operationRef.current && indexStatus === 'loading')) return;
+    if (locationRef.current?.context === context) requestedRangeRef.current = locationRef.current;
+    setRetryEpoch(value => value + 1);
+  };
+  const loadMore = (offset: number) => {
+    if (indexStatus === 'loading') return;
+    requestedRangeRef.current = { context, range: { start: offset, end: offset } }; skipLocationRef.current = true;
+    setRetryEpoch(value => value + 1);
   };
 
-  const setMarkerPreview = useCallback((element: HTMLElement, target: QuickJumpIndexItem, mode: PreviewMode) => {
+  const jumpTo = async (target: NavigationTarget) => {
+    if (!currentSessionId || jumpingOffset !== null) return;
+    const contextAtClick = context;
+    cancelOpenLocation(); setViewportTarget(null); setJumpError(null); setJumpingOffset(target.offset);
+    const current = () => contextRef.current === contextAtClick
+      && useSessionStore.getState().currentSessionId === contextAtClick.sessionId;
+    try {
+      const message = await ensureMessageLoaded(context.index.total - 1 - target.offset, context.index.total);
+      if (!current()) return;
+      if (!message || (target.messageId && message.messageId !== target.messageId)) {
+        setJumpError('Unable to load this canonical message.'); return;
+      }
+      await nextPaint();
+      if (!current()) return;
+      let didJump = chatRef.current?.scrollToMessage(message, target.offset) ?? false;
+      if (!didJump) {
+        await nextPaint(); if (!current()) return;
+        didJump = chatRef.current?.scrollToMessage(message, target.offset) ?? false;
+      }
+      if (!didJump) { setJumpError('Message loaded, but its rendered row could not be located.'); return; }
+      setActiveOffset(target.offset);
+      const epochAtJump = openEpochRef.current;
+      window.setTimeout(() => { if (current() && epochAtJump === openEpochRef.current) setActiveOffset(null); }, 1200);
+    } finally { if (current()) setJumpingOffset(null); }
+  };
+
+  const setMarkerPreview = useCallback((element: HTMLElement, target: NavigationTarget, mode: PreviewMode) => {
     const marker = element.getBoundingClientRect();
     setHovered({ target, top: marker.top + marker.height / 2, left: marker.left - 9, mode });
   }, []);
 
-  const showPreview = (event: MouseEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
+  const showPreview = (event: MouseEvent<HTMLButtonElement>, target: NavigationTarget) => {
     setMarkerPreview(event.currentTarget, target, 'hover');
   };
 
@@ -436,7 +403,7 @@ export function MessageNavigationRail({
     setMarkerPreview(marker, target, 'scrub');
   }, [clearScrub, setMarkerPreview, targetsByFromEnd]);
 
-  const beginScrub = (event: ReactPointerEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
+  const beginScrub = (event: ReactPointerEvent<HTMLButtonElement>, target: NavigationTarget) => {
     if (
       !isMobile || !mobileExpanded ||
       (event.pointerType && event.pointerType !== 'touch')
@@ -485,7 +452,7 @@ export function MessageNavigationRail({
     clearScrub(!cancelled && (gesture.active || gesture.moved));
   };
 
-  const handleMarkerClick = (event: MouseEvent<HTMLButtonElement>, target: QuickJumpIndexItem) => {
+  const handleMarkerClick = (event: MouseEvent<HTMLButtonElement>, target: NavigationTarget) => {
     if (suppressNextClickRef.current && event.detail !== 0) {
       suppressNextClickRef.current = false;
       event.preventDefault();
@@ -518,12 +485,23 @@ export function MessageNavigationRail({
     };
   }, [clearScrub, isMobile, mobileExpanded, updateScrubPreview]);
 
+  // A dense canonical window can contain thousands of markers. Keep the DOM
+  // to one 200-marker page; the edge controls can use cached/nearby pages.
+  const displayTargets = useMemo(() => {
+    let middle = targets.findIndex(target => target.offset >= displayOffset);
+    if (middle < 0) middle = targets.length - 1;
+    const start = Math.max(0, Math.min(targets.length - NAVIGATION_PAGE_SIZE, middle - NAVIGATION_PAGE_SIZE / 2));
+    return targets.slice(start, start + NAVIGATION_PAGE_SIZE);
+  }, [targets, displayOffset]);
+  const firstTarget = displayTargets[0], lastTarget = displayTargets.at(-1);
   return (
     <aside
       className="message-navigation-rail"
       aria-label={RAIL_LABEL}
       data-index-status={indexStatus}
+      data-location-status={viewportTarget?.context === context ? 'located' : pendingOpenRef.current ? 'pending' : 'inactive'}
       data-indexed-targets={targets.length}
+      data-rendered-targets={displayTargets.length}
       data-history-total={indexTotal || loadedCanonicalTotal}
       data-index-requests={indexMetrics.requests}
       data-index-duration-ms={Math.round(indexMetrics.durationMs)}
@@ -550,19 +528,21 @@ export function MessageNavigationRail({
       <div
         ref={listRef}
         className="message-navigation-list"
-        onScroll={cancelOpenLocation}
         onPointerMove={moveScrub}
         onPointerUp={(event) => finishScrub(event, false)}
         onPointerCancel={(event) => finishScrub(event, true)}
         onLostPointerCapture={(event) => finishScrub(event, true)}
       >
-        {targets.map((target) => {
+        {firstTarget && firstTarget.offset > 0 && <button type="button" data-navigation-load
+          className="message-navigation-page" aria-label="Load earlier navigation" disabled={indexStatus === 'loading'}
+          onClick={() => loadMore(Math.max(0, firstTarget.offset - NAVIGATION_PAGE_SIZE))}>↑</button>}
+        {displayTargets.map((target) => {
           const meta = KIND_META[target.kind];
           return (
-            <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.fromEnd}`}>
+            <div className="message-navigation-marker-wrap" key={`${target.kind}-${target.offset}`}>
               <button
                 type="button"
-                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeFromEnd === target.fromEnd ? ' is-jumped' : ''}${viewportTarget?.sessionId === currentSessionId && viewportTarget.historyEpoch === currentHistoryEpoch && viewportTarget.settings === settings && viewportTarget.offset === (indexStatus === 'ready' ? indexTotal : loadedCanonicalTotal) - 1 - target.fromEnd ? ' is-viewport-target' : ''}`}
+                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeOffset === target.offset ? ' is-jumped' : ''}${viewportTarget?.context === context && viewportTarget.offset === target.offset ? ' is-viewport-target' : ''}`}
                 onClick={(event) => handleMarkerClick(event, target)}
                 onPointerDown={(event) => beginScrub(event, target)}
                 onMouseEnter={(event) => showPreview(event, target)}
@@ -572,30 +552,34 @@ export function MessageNavigationRail({
                 aria-label={`${meta.label}: ${target.preview || PREVIEW_FALLBACK}`}
                 title={target.preview || PREVIEW_FALLBACK}
                 data-from-end={target.fromEnd}
+                data-canonical-offset={target.offset}
+                aria-current={viewportTarget?.context === context && viewportTarget.offset === target.offset ? 'location' : undefined}
                 data-kind={target.kind}
-                disabled={jumpingFromEnd !== null}
+                disabled={jumpingOffset !== null}
               >
-                {jumpingFromEnd === target.fromEnd
+                {jumpingOffset === target.offset
                   ? <Loader2 size={13} className="animate-spin" />
                   : <MarkerGlyph kind={target.kind} />}
               </button>
             </div>
           );
         })}
+        {lastTarget && lastTarget.offset < indexTotal - 1 && <button type="button" data-navigation-load
+          className="message-navigation-page" aria-label="Load later navigation" disabled={indexStatus === 'loading'}
+          onClick={() => loadMore(Math.min(indexTotal - 1, lastTarget.offset + NAVIGATION_PAGE_SIZE))}>↓</button>}
         {targets.length === 0 && <span className="message-navigation-empty">{'\u00b7'}</span>}
       </div>
 
-      {indexStatus === 'loading' && (
-        <div className="message-navigation-status" title={`Indexing full history (${indexMetrics.requests} requests)`}>
-          <Loader2 size={11} className="animate-spin" />
-          <span className="sr-only">Indexing full history</span>
-        </div>
+      {(indexStatus === 'loading' || indexStatus === 'error' || indexStatus === 'partial') && (
+        <button type="button" data-navigation-load disabled={indexStatus === 'loading'}
+          className={`message-navigation-status${indexStatus === 'loading' ? '' : ' message-navigation-status-error'}`}
+          aria-label={indexStatus === 'loading' ? 'Loading message navigation' : indexStatus === 'error' ? 'Retry message navigation' : 'Load more nearby navigation'}
+          title={indexError ?? (indexStatus === 'loading' ? 'Loading nearby history' : 'Nearby history budget reached; load another bounded batch.')}
+          onClick={retryIndex}>
+          {indexStatus === 'loading' ? <Loader2 size={11} className="animate-spin" /> : indexStatus === 'error' ? '!' : '…'}
+        </button>
       )}
-      {indexStatus === 'error' && (
-        <div className="message-navigation-status message-navigation-status-error" title="Full-history index failed; showing only loaded messages.">
-          !
-        </div>
-      )}
+      {indexError && <span className="sr-only" role="status">{indexError}</span>}
       {jumpError && <div className="message-navigation-jump-error" role="status">{jumpError}</div>}
     </aside>
   );
