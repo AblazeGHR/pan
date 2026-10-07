@@ -1106,9 +1106,16 @@ async def _persist_terminal_state(
     """Persist the minimum terminal fact set before any completion broadcast."""
     if not w._terminal_handled:
         w._terminal_finishing = True
-    async with queue_lock(w.session_id):
-        async with unread_done_lock(w.session_id):
-            return await _persist_terminal_state_locked(w, s, status, result_text)
+    try:
+        async with queue_lock(w.session_id):
+            async with unread_done_lock(w.session_id):
+                return await _persist_terminal_state_locked(w, s, status, result_text)
+    except BaseException as exc:
+        # Persistence owns its rollback/committed-outcome decision. Never turn
+        # an aborted terminal chain into an idle restart or hide its exception.
+        w._terminal_finishing = False
+        _abort_delayed_restart(w, "terminal persistence", exc)
+        raise
 
 
 async def _persist_terminal_state_locked(
@@ -2417,6 +2424,11 @@ async def _requeue_queue_unit_locked(w: Worker, s, items: list[dict], reason: st
             "[Worker %s] failed to persist queue requeue for session=%s: %s",
             w.worker_id, s.id, exc,
         )
+        if w.pending_restart:
+            # Do not retire a runtime on an uncommitted requeue. Preserve the
+            # legacy retry behavior when no delayed restart was requested.
+            _abort_delayed_restart(w, "queue requeue persistence", exc)
+            raise
     _schedule_queue_retry(s.id)
 
 
@@ -2597,27 +2609,34 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         if w._current_handoff_acked:
             raise
     finally:
-        if not w._current_handoff_acked and any(
-                _delivery_state(item) in {_DELIVERY_RESERVED, _DELIVERY_WRITING,
-                                           _DELIVERY_IN_FLIGHT}
-                for item in items):
-            await _requeue_queue_unit(
-                w, s, items, "CLI returned before hand-off confirmation", history_added,
-                immediate=w.pending_restart and w.status in {"idle", "queued", "restarting"})
-        if w._current_queue_item is items[0] if kind == "task" else False:
-            w._current_queue_item = None
-        if kind == "report":
-            w._current_report_items = []
-        if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
-            w._current_task_id = None
-            w._current_task_idempotent = False
-        if w.status != "restarting" and not w._current_handoff_acked and (getattr(s, "queue_paused", False)
-                                            or w.pending_restart):
-            w.status = "idle"
-            await _record_legal_worker_state(w, "idle", "queue/restart-pending" if w.pending_restart else "queue/paused")
-            await _bcast({"type": "worker.status", "workerId": w.worker_id,
-                          "sessionId": s.id, "generation": w.generation, "status": "idle"})
-        w._queue_unit_active = False
+        try:
+            if not w._current_handoff_acked and any(
+                    _delivery_state(item) in {_DELIVERY_RESERVED, _DELIVERY_WRITING,
+                                               _DELIVERY_IN_FLIGHT}
+                    for item in items):
+                await _requeue_queue_unit(
+                    w, s, items, "CLI returned before hand-off confirmation", history_added,
+                    immediate=w.pending_restart and w.status in {"idle", "queued", "restarting"})
+            if w._current_queue_item is items[0] if kind == "task" else False:
+                w._current_queue_item = None
+            if kind == "report":
+                w._current_report_items = []
+            if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
+                w._current_task_id = None
+                w._current_task_idempotent = False
+            if w.status != "restarting" and not w._current_handoff_acked and (getattr(s, "queue_paused", False)
+                                                or w.pending_restart):
+                w.status = "idle"
+                await _record_legal_worker_state(w, "idle", "queue/restart-pending" if w.pending_restart else "queue/paused")
+                await _bcast({"type": "worker.status", "workerId": w.worker_id,
+                              "sessionId": s.id, "generation": w.generation, "status": "idle"})
+        except BaseException as exc:
+            _abort_delayed_restart(w, "queue unit cleanup", exc)
+            raise
+        finally:
+            # Clear even if requeue persistence, legal-state save or broadcast
+            # aborts. Failed cleanup is NOT a safe idle boundary.
+            w._queue_unit_active = False
         _maybe_restart_pending(w)
         _wake_after_queue_unit(w, s)
 
@@ -6298,6 +6317,24 @@ def _set_restart_intent(intent: dict, status: str, error: str | None = None) -> 
     asyncio.create_task(_bcast({"type": "worker.delayed_restart",
                                "sessionId": intent["sessionId"],
                                "delayedRestart": dict(intent)}))
+
+
+def _abort_delayed_restart(w: Worker, boundary: str, exc: BaseException) -> None:
+    """Expose an unsafe completion boundary without scheduling a replacement.
+
+    The original exception remains the caller's responsibility. Clearing the
+    intent projection lets an immediate Restart recover this runtime; terminal
+    persistence retains its existing rollback/dedup semantics.
+    """
+    intent = _delayed_restarts.get(w.session_id)
+    if (intent and intent["workerId"] == w.worker_id
+            and intent["generation"] == w.generation
+            and intent["status"] in {"pending", "restarting"}):
+        w.pending_restart = False
+        w.status = "error"
+        cancelled = isinstance(exc, asyncio.CancelledError)
+        _set_restart_intent(intent, "cancelled" if cancelled else "failed",
+                            f"{boundary}: {type(exc).__name__}: {exc}; use Restart to recover")
 
 
 def _cancel_pending_restart(w: Worker) -> None:

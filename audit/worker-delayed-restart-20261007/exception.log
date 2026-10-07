@@ -1,0 +1,122 @@
+OSError exception in shielded future
+future: <Future finished exception=OSError('injected terminal save failure')>
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\worker-delayed-restart-20261007\packages\core\session.py", line 139, in run
+    value = operation()
+  File "D:\project\pan-worktrees\worker-delayed-restart-20261007\packages\core\session.py", line 2497, in <lambda>
+    ticket, lambda: context.run(
+                    ~~~~~~~~~~~^
+        _run_persistence_ticket, state, ticket, enqueued_at, operation,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "D:\project\pan-worktrees\worker-delayed-restart-20261007\packages\core\session.py", line 2297, in _run_persistence_ticket
+    return operation()
+  File "D:\project\pan-worktrees\worker-delayed-restart-20261007\packages\core\worker.py", line 1816, in commit
+    _sess._save_body(s)
+    ~~~~~~~~~~~~~~~~^^^
+  File "D:\project\pan-worktrees\worker-delayed-restart-20261007\audit\worker-delayed-restart-20261007\exception_experiment.py", line 95, in body
+    raise error
+OSError: injected terminal save failure
+[Worker old] duplicate terminal event ignored generation=1
+[Worker old] failed to persist queue requeue for session=exception-queue-save: injected save
+{
+  "passed": 11,
+  "scenarios": [
+    {
+      "case": "terminal-fail",
+      "intent": "failed",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "terminal-cancel-fail",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "terminal-cancel-commit",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "terminal_retry_or_dedup": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-requeue",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-requeue-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-save",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-save-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-legal",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-legal-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-broadcast",
+      "intent": "failed",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    },
+    {
+      "case": "queue-broadcast-cancel",
+      "intent": "cancelled",
+      "exception_propagated": true,
+      "queue_row_retained_and_requeued": true,
+      "guards_cleared": true,
+      "immediate_restart_wrapper_recoverable": true
+    }
+  ],
+  "existing_priority_scenarios_rechecked": [
+    "running request/settings merge/1000 duplicate requests: one pending intent, no interruption",
+    "temporary idle during terminal publication or queue cleanup: deferred until valid boundary",
+    "actual FIFO task handoff + gated result/report + idle retirement: old writes task 1 only; new writes task 2 once; locked task 3 remains"
+  ],
+  "limitations": [
+    "final filesystem writer injected; no OS disk fault",
+    "provider lifecycle body injected; no native restart",
+    "no HTTP/WS/browser/service or test suite execution"
+  ]
+}
