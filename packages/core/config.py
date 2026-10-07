@@ -216,6 +216,7 @@ DEFAULT_CONFIG: dict = {
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,
+            "completionBridge": {"system": True, "browser": False, "qqReport": False, "qqSubscribe": False, "qqTargets": []},
         },
     },
 }

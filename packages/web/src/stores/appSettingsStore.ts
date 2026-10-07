@@ -3,6 +3,29 @@ import type { GroupMode } from '@/stores/uiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
+export interface CompletionBridgeDefaults {
+  system: boolean;
+  browser: boolean;
+  qqReport: boolean;
+  qqSubscribe: boolean;
+  qqTargets: string[];
+}
+
+export const DEFAULT_COMPLETION_BRIDGE: CompletionBridgeDefaults = {
+  system: true, browser: false, qqReport: false, qqSubscribe: false, qqTargets: [],
+};
+
+export function sanitizeCompletionBridge(value: unknown): CompletionBridgeDefaults {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    system: typeof raw.system === 'boolean' ? raw.system : true,
+    browser: raw.browser === true,
+    qqReport: raw.qqReport === true,
+    qqSubscribe: raw.qqSubscribe === true,
+    qqTargets: Array.isArray(raw.qqTargets) ? [...new Set(raw.qqTargets.filter((v): v is string => typeof v === 'string' && /^(user|group):[1-9][0-9]*(@[1-9][0-9]*)?$/.test(v)))] : [],
+  };
+}
+
 export interface AppSettings {
   /**
    * Chat message presentation. TUI is the default; `bubble` is the opt-in
@@ -45,6 +68,7 @@ export interface AppSettings {
   notifications: {
     /** Show structured Codex warning events through a Toast. */
     codexWarningToast: boolean;
+    completionBridge?: CompletionBridgeDefaults;
     confirmCrossWorkspaceManagement: boolean;
     confirmAgentSystemQueueEdit: boolean;
   };
@@ -65,6 +89,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showHistorySearch: false,
   notifications: {
     codexWarningToast: true,
+    completionBridge: DEFAULT_COMPLETION_BRIDGE,
     confirmCrossWorkspaceManagement: true,
     confirmAgentSystemQueueEdit: true,
   },
@@ -136,6 +161,7 @@ export function sanitizeSettings(
         ? parsed.showHistorySearch
         : DEFAULT_SETTINGS.showHistorySearch,
     notifications: {
+      completionBridge: sanitizeCompletionBridge(notifications.completionBridge),
       confirmAgentSystemQueueEdit: typeof notifications.confirmAgentSystemQueueEdit === 'boolean' ? notifications.confirmAgentSystemQueueEdit : true,
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -165,6 +191,7 @@ interface AppSettingsStore extends AppSettings {
   setShowMessageNavigationRail: (v: boolean) => void;
   setShowHistorySearch: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
+  saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -188,11 +215,8 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
 
   const persist = (patch: AppSettingsPatch) => {
     dirty = true;
-    // The settings API merges top-level keys, replacing the notifications object.
-    // Send all current notification preferences so changing one preserves the rest.
-    const payload = patch.notifications
-      ? { ...patch, notifications: { ...get().notifications, ...patch.notifications } }
-      : patch;
+    // Backend merges individual notification fields, preserving defaults.
+    const payload = patch;
     void updateUiSettings(payload).catch(() => {
       // Best-effort writeback: a backend failure is non-fatal, the in-memory
       // value stays for the current session and is retried next change.
@@ -301,6 +325,16 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setShowHistorySearch: (v) => {
       set({ showHistorySearch: v });
       persist({ showHistorySearch: v });
+    },
+
+    saveCompletionBridge: async (value) => {
+      if ((value.qqReport || value.qqSubscribe) && value.qqTargets.length === 0) {
+        throw new Error('Select at least one QQ contact before enabling QQ Report or Subscribe by default.');
+      }
+      dirty = true;
+      const response = await updateUiSettings({ notifications: { completionBridge: value } });
+      const next = sanitizeSettings(response).notifications.completionBridge;
+      set((state) => ({ notifications: { ...state.notifications, completionBridge: next } }));
     },
 
     setCodexWarningToast: (v) => {

@@ -175,3 +175,30 @@ def dispatch_reminder(title: object, body: object) -> dict:
     except Exception as exc:
         system = {"ok": False, "code": "system_notification_failed", "message": str(exc)}
     return {"title": normalized, "body": text, "system": system}
+
+
+def completion_bridge_defaults(value: object, *, strict: bool = False) -> dict:
+    """Legacy bell behavior is system-only; explicit false/[] stay explicit."""
+    import re
+    raw = value if isinstance(value, dict) else {}
+    if strict and not isinstance(value, dict):
+        raise ValueError("Completion defaults must be an object")
+    defaults = {"system": True, "browser": False, "qqReport": False, "qqSubscribe": False}
+    result = {}
+    for key, fallback in defaults.items():
+        val = raw.get(key, fallback)
+        if strict and not isinstance(val, bool):
+            raise ValueError(f"{key} must be boolean")
+        result[key] = val if isinstance(val, bool) else fallback
+    targets = raw.get("qqTargets", [])
+    if not isinstance(targets, list):
+        if strict:
+            raise ValueError("QQ contacts must be an array")
+        targets = []
+    valid = [key for key in targets if isinstance(key, str) and re.fullmatch(r"(user|group):[1-9][0-9]*(?:@[1-9][0-9]*)?", key)]
+    if strict and len(valid) != len(targets):
+        raise ValueError("Invalid QQ contact identity")
+    result["qqTargets"] = sorted(set(valid))
+    if strict and (result["qqReport"] or result["qqSubscribe"]) and not result["qqTargets"]:
+        raise ValueError("Select at least one QQ contact before enabling QQ Report or Subscribe by default")
+    return result

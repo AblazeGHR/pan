@@ -1351,7 +1351,7 @@ export async function setReportsToManager(
   return data as ApiSessionReportToManagerResponse & { ok: true; reportsToManager: boolean };
 }
 
-/** Atomically clear QQ/system/browser, or enable system notifications only. */
+/** Atomically clear all bridge connections, or activate saved completion defaults. */
 export async function setSessionMsgBridge(
   sessionId: string,
   enabled: boolean,

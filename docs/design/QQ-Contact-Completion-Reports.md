@@ -37,8 +37,8 @@ after strict acceptance, including practical build. No push or service restart.
   expose the scalar `msgBridgeEnabled`, without per-card detail requests.
 - Bell: `_msg_bridge_enabled` is the union of QQ subscribe/report and
   system/browser settings. Existing `/msg-bridge` off clears all these
-  connections in one save, with rollback on failure. On enables only system
-  notifications. WeChat and TA-to-MA subscriptions retain their existing scope.
+  connections in one save, with rollback on failure. On activates the configured
+  completion defaults (legacy configurations remain system-only). WeChat and TA-to-MA subscriptions retain their existing scope.
 - Completion: stream `_read_stdout`, oneshot `_consumer_oneshot`, and
   pre-execution `_finish_task_error` converge on `_persist_terminal_state`.
   The original runtime, last-result and bounded terminal-window duplicate
@@ -109,3 +109,42 @@ unverified layers at TA delivery. Protected ports 8767/8768 are not operated;
 the baseline 8768 listener identity was PID 38428 (created 2026-10-07 17:39:55),
 with no 8767 listener. Durable Job infrastructure alone uses the already
 authorized Pan orchestration connection.
+
+
+## Additional Notification defaults (same feature branch)
+
+AppSettings → Notification has a completion-defaults panel supporting System,
+Browser, QQ Report and QQ Subscribe together. QQ modes share the chosen default
+bot/contact list. The panel loads existing bot/contact APIs only when a QQ mode
+is selected, retains saved unavailable contacts for removal, and displays an
+inline validation message while disabling Save if no QQ contact is selected.
+The save is awaited: failed persistence is shown inline and does not update the
+saved store value. No new localStorage source is introduced.
+
+`config.json.ui.notifications.completionBridge` stores `system`, `browser`,
+`qqReport`, `qqSubscribe`, and deduplicated `qqTargets`. GET/PUT `/api/settings/ui`
+remains the configuration API. Notification fields now merge independently so
+warning preference edits do not erase completion defaults. Backend validation
+rejects empty QQ contact lists and malformed identities with HTTP 422. Missing
+legacy defaults preserve system-only bell activation; explicit false and empty
+lists are preserved.
+
+Only off-to-on `/msg-bridge` applies the defaults. Before mutating a Session it
+validates selected bots and contacts via existing QQ read APIs. An unavailable
+bot, removed contact, empty mode selection or failed persistence rejects the
+activation with no partial system/browser/QQ enablement. Contact availability
+inherits the plugin's existing recent-contact caching and is a point-in-time
+check, not a delivery guarantee. Default edits never enumerate or rewrite live
+Session connections. Off retains the clear-all semantics and cancels pending
+reports. Attempts to reapply defaults to an already lit bell are rejected.
+
+Additional offline evidence: `evidence/defaults_probe.py` uses a temporary config
+file and Session store, mocked bot/contact reads, and actual ASGI routing; it
+checks validation, persistence/reload, notification-field merging, simultaneous
+modes, active-connection preservation, subsequent off-to-on defaults, unavailable
+bots/contacts, config/Session save failures and empty modes. The standalone
+`evidence/defaults_panel_probe.cjs` renders the actual panel in jsdom with mocked
+store/API and checks inline validation, Save disabled without contacts, multi-mode
+save and visible save failure. Neither probe invokes a test runner or sends QQ.
+Durable Job `job_fcec2b334e585129b7588271` completed TypeScript/build/assets/full
+lint with exit 0; full lint had 0 errors and the same 18 unrelated warnings.

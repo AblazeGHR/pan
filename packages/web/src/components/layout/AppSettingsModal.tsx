@@ -38,6 +38,7 @@ import type {
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 import { DataSettingsPanel } from './DataSettingsPanel';
+import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
 
 interface AppSettingsModalProps {
@@ -1409,6 +1410,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </>
           ) : activeTab === 'notifications' ? (
             <section>
+              <CompletionBridgeDefaultsPanel />
               <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                 CLI adapter warnings
               </h3>

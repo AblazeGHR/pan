@@ -66,7 +66,7 @@ function quickActionDescription(session: Session, key: QuickActionKey, isOn: boo
   if (key === 'notification') {
     return isOn
       ? 'QQ subscribe/report, system, or browser msgBridge is on; click to turn all three off'
-      : 'msgBridge is off; click to turn on system notifications only';
+      : 'msgBridge is off; click to enable the defaults in AppSettings → Notification';
   }
   if (key === 'readonly') return isOn ? 'Readonly on; click to allow manager actions' : 'Readonly off; click to block manager actions';
   return isOn ? 'Pinned; click to unpin' : 'Not pinned; click to pin';

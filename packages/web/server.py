@@ -9649,6 +9649,18 @@ async def api_put_settings_ui(data: dict):
     merged ui object.
     """
     ui = dict(load_config().get("ui") or {})
+    if "notifications" in data:
+        if not isinstance(data["notifications"], dict):
+            raise HTTPException(status_code=422, detail="notifications must be an object")
+        updated_notifications = dict(ui.get("notifications") or {})
+        updated_notifications.update(data["notifications"])
+        if "completionBridge" in data["notifications"]:
+            try:
+                updated_notifications["completionBridge"] = notifications.completion_bridge_defaults(
+                    data["notifications"]["completionBridge"], strict=True)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        data = {**data, "notifications": updated_notifications}
     ui.update(data)
     raw = read_config_file()
     raw["ui"] = ui
@@ -10674,15 +10686,48 @@ async def api_qq_unsubscribe(data: dict):
     return await _channel_unsubscribe("qq", data)
 
 
+async def _validated_completion_defaults() -> dict:
+    """Validate selected QQ routes on the off-to-on user action only."""
+    ui = load_config().get("ui") or {}
+    raw = (ui.get("notifications") or {}).get("completionBridge", {})
+    defaults = notifications.completion_bridge_defaults(raw, strict=True)
+    if not any(defaults[key] for key in ("system", "browser", "qqReport", "qqSubscribe")):
+        raise ValueError("Select at least one default completion notification in AppSettings → Notification")
+    if not (defaults["qqReport"] or defaults["qqSubscribe"]):
+        return defaults
+    channels = await _qq_plugin_get("/api/qq/channels")
+    if channels.get("ok") is False or not isinstance(channels.get("channels"), list):
+        raise ValueError("QQ bots are unavailable; update Notification defaults or reconnect the bot")
+    available = {str(row.get("bot_uin") or ""): row.get("connected") is True
+                 for row in channels["channels"] if isinstance(row, dict)}
+    contacts_by_bot = {}
+    for target in defaults["qqTargets"]:
+        base, _, bot = target.partition("@")
+        if (bot and not available.get(bot)) or (not bot and not any(available.values())):
+            raise ValueError(f"QQ bot for {target} is unavailable; update Notification contacts")
+        if bot not in contacts_by_bot:
+            response = await _qq_plugin_get("/api/qq/recent_contacts", {"bot_uin": bot} if bot else None)
+            if response.get("ok") is False or not isinstance(response.get("contacts"), list):
+                raise ValueError("QQ contacts are unavailable; update Notification contacts or retry")
+            contacts_by_bot[bot] = {
+                f"{'group' if row.get('chatType') == 2 else 'user'}:{row.get('peerUin')}"
+                for row in response["contacts"] if isinstance(row, dict) and row.get("chatType") in (1, 2)
+            }
+        if base not in contacts_by_bot[bot]:
+            raise ValueError(f"QQ contact {target} is no longer available; update Notification contacts")
+    return defaults
+
+
 @app.put("/api/sessions/{session_id}/msg-bridge")
 async def api_set_session_msg_bridge(session_id: str, data: dict):
     """Set the card's QQ/system/browser notification group in one save."""
     from packages.core import qq_reports
     enabled = data.get("enabled")
     expected_enabled = data.get("expectedEnabled")
-    if not isinstance(enabled, bool) or not isinstance(expected_enabled, bool):
+    if (not isinstance(enabled, bool) or not isinstance(expected_enabled, bool)
+            or enabled == expected_enabled):
         return {"ok": False, "error": {"code": "missing_params",
-                "message": "enabled and expectedEnabled(boolean) are required"}}
+                "message": "enabled and expectedEnabled must be opposite boolean values"}}
     target = sess.get(session_id)
     if not target:
         return {"ok": False, "error": {"code": "session_not_found",
@@ -10690,8 +10735,15 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
     if _msg_bridge_enabled(target) != expected_enabled:
         return {"ok": False, "error": {"code": "state_changed",
                 "message": "The msgBridge setting changed; refresh and retry"}}
-    # Enabling selects only system notifications. Disabling clears the whole
-    # QQ subscribe/report/system/browser group; WeChat and MA reports are independent.
+    defaults = None
+    if enabled:
+        try:
+            defaults = await _validated_completion_defaults()
+        except ValueError as exc:
+            return {"ok": False, "error": {"code": "invalid_completion_defaults", "message": str(exc)},
+                    "msgBridgeEnabled": _msg_bridge_enabled(target)}
+    # Default editing never changes Sessions. Apply only on off-to-on;
+    # disabling still clears the entire existing notification group.
     async with worker.queue_lock(session_id):
         if sess.get(session_id, load_history=False) is not target:
             return {"ok": False, "error": {"code": "session_not_found", "message": "Session changed or was removed"}}
@@ -10706,7 +10758,15 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
         target.qq_subscriptions.clear()
         target.qq_report_targets.clear()
         qq_reports.cancel_pending(target)
-        target.notification_settings = {"browser": False, "system": enabled}
+        target.notification_settings = {
+            "browser": bool(defaults and defaults["browser"]),
+            "system": bool(defaults and defaults["system"]),
+        }
+        if defaults:
+            if defaults["qqReport"]:
+                target.qq_report_targets.update(defaults["qqTargets"])
+            if defaults["qqSubscribe"]:
+                target.qq_subscriptions.update(defaults["qqTargets"])
         try:
             await sess.save_async(target)
         except BaseException:
@@ -10718,7 +10778,8 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id,
             "msgBridgeEnabled": _msg_bridge_enabled(target),
-            "qqSubscriptions": [], "qqReportTargets": [],
+            "qqSubscriptions": sorted(target.qq_subscriptions),
+            "qqReportTargets": sorted(target.qq_report_targets),
             "notificationSettings": notifications.normalize_notification_settings(target.notification_settings)}
 
 
