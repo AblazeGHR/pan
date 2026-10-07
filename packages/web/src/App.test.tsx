@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from './App';
 import { useSessionStore } from './stores/sessionStore';
 import { useUIStore } from './stores/uiStore';
 import { useWorkspaceStore } from './stores/workspaceStore';
+import { useDetailStore } from './stores/detailStore';
 
 vi.mock('./hooks/useWebSocket', () => ({ useWebSocket: vi.fn() }));
 
@@ -17,6 +18,7 @@ afterEach(() => {
 describe('responsive WorkspaceRail placement', () => {
   beforeEach(() => {
     localStorage.clear();
+    useDetailStore.getState().closeDetail();
     useSessionStore.setState({
       sessions: [
         { id: 'inside', name: 'Inside workspace', adapter: 'codex', workspaceIds: ['ws-alpha'], alwaysThinkingEnabled: false, effort: '', history: [] },
@@ -133,5 +135,17 @@ describe('responsive WorkspaceRail placement', () => {
     expect(desktopRail?.style.width).toBe('0px');
     fireEvent.click(desktopHandle);
     await waitFor(() => expect(desktopRail?.style.width).toBe('172px'));
+  });
+
+  it('opens a deferred detail panel, closes it, and reopens with fresh content', async () => {
+    stubViewport(false);
+    renderLayout();
+    act(() => useDetailStore.getState().openDetail({ type: 'tool', content: 'first tool result' }));
+    expect((await screen.findAllByText('first tool result')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTitle('Close detail panel'));
+    expect(screen.queryByText('first tool result')).toBeNull();
+    act(() => useDetailStore.getState().openDetail({ type: 'thinking', content: '**second thought**' }));
+    expect(await screen.findByText('second thought')).toBeTruthy();
+    expect(screen.queryByText('first tool result')).toBeNull();
   });
 });

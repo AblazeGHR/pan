@@ -80,7 +80,8 @@ describe('Sidebar Session search controls', () => {
     expect(localStorage.getItem('pan:groupBy')).toBe('manager');
   });
 
-  it('renders the CWD root as a collapsible section labelled CWD', () => {
+  it('renders the CWD root as a collapsible section labelled CWD', async () => {
+    vi.useRealTimers();
     useEditorStore.setState({
       sessionId: 's1',
       workdir: 'D:\\project',
@@ -98,7 +99,7 @@ describe('Sidebar Session search controls', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('CWD')).toBeTruthy();
+    expect(await screen.findByText('CWD')).toBeTruthy();
     expect(screen.getByText('D:/project')).toBeTruthy();
     const cwdHeader = screen.getByTestId('editor-root-header');
     expect(cwdHeader.querySelector('svg.lucide-chevron-down')).not.toBeNull();

@@ -1684,6 +1684,10 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
     agent_send。后台命令本身仍必须遵守权限、审批、安全和结果验证规则，不能
     通过 agent_notify 绕过审批或 managed 隔离。
 
+    与 agent_background_start 的分工：需要完成通知的长命令优先用
+    agent_background_start（独立 Runner 自带终态通知，启动后不轮询、idle 等
+    通知）；agent_notify 只做手动事后回报，不执行命令、不提供完成通知链路。
+
     仅限投递给自己或自己 managed 的 session，越权目标返回 permission_denied。
 
     Args:
@@ -1773,6 +1777,13 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
     ``targetSessionId`` is the only Session that receives the terminal Job
     notice.  A Job may therefore be created by Agent A for Agent B without
     copying the notice back to A.
+
+    使用政策：这类带终态通知的持久后台 Job 一般用于预计**超过 3 分钟**的
+    OS 命令（3 分钟是一般选择门槛，不是运行 timeout，也不硬性禁止短任务）。
+    启动后**不要轮询**：确认启动成功、通知目标和必要状态记录后，若没有其它
+    可独立推进的任务，立刻结束回合进入 idle，等终态通知唤醒再读取结果/日志
+    验收；不要循环 background_get/list、读日志/tail、sleep/watch/PID 等待。
+    需要实时观察进度就不要选后台 Job，改用前台/交互执行方式。
 
     完整编排流程见 /pan skill。
     """
@@ -1931,6 +1942,10 @@ def agent_background_get(job_id: str) -> dict:
     its managed Sessions. This reads Runner state; it does not read or consume
     the target Session's queue_pending.
 
+    用途是终态通知后的结果核验，以及用户明确要求的一次性诊断/取消/异常修复；
+    不要循环调用本工具（或 background_list）等待运行进度——启动后台 Job 后
+    应结束回合进入 idle，等终态通知唤醒再验收。
+
     完整编排流程见 /pan skill。
     """
     job = _api("GET", f"/api/background-jobs/{quote(job_id, safe='')}")
@@ -1945,6 +1960,8 @@ def agent_background_list(target_session_id: str | None = None) -> dict:
 
     An explicit target must be the current or a managed Session. Returned Jobs
     are Registry facts and may remain visible after the target Session is gone.
+    供盘点/诊断使用；不要循环调用等待某个 Job 的运行进度（见 background_start
+    使用政策）。
 
     完整编排流程见 /pan skill。
     """

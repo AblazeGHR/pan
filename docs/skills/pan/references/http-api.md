@@ -69,6 +69,8 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/qq/subscribe` | `{"sessionId": "...", "target_type": "user"/"group", "target_id": "..."}` | Pan session 订阅某 QQ 会话 inbox 提醒（`@@@@by qq` 推送到 queue_pending）；等价 MCP 工具 `session_qq_subscribe`（pan server） |
 | `POST` | `/api/qq/unsubscribe` | 同上 | 退订（等价 `session_qq_unsubscribe`） |
 
+> **OS 进程后台 Job 使用政策**（仅 `agent_background_*` 对应的 OS 命令 Job；不适用 Session 消息/群发 Job、Scheduler 与普通派发）：一般预计**超过 3 分钟**的命令才用（一般门槛，非运行 timeout、非硬性禁止短任务）；启动后**不轮询**——不循环 GET `/api/background-jobs*`、不 tail 日志、不 sleep/watch/PID 等待，确认启动成功后结束回合进入 idle，等终态通知（`noticeKind=background_job_terminal`）唤醒再验收；需要实时观察进度请改前台执行。GET/cancel/retry 保留用于终态后核验与用户明确要求的一次性诊断。详见 SKILL.md §5「持久后台 Job、通知与报告订阅」。
+
 ### 查询
 
 | 方法 | URL | 参数 | 返回 |
