@@ -1372,6 +1372,7 @@ body {
 /* Expansion overlays the chat instead of changing its width. Reflow would
    change canonical row heights and force body scroll compensation on open. */
 .chat-tools-sidebar:has(.message-navigation-dock.is-open):not(.is-mobile) { flex-basis: 18px; width: 18px; }
+.chat-tools-sidebar:has(.message-navigation-dock.is-open) { z-index: 20; }
 .chat-tools-sidebar.is-mobile { flex-basis: 0; width: 0; }
 .chat-tools-sidebar.is-mobile:has(.message-navigation-dock.is-open) { flex-basis: 0; width: 0; }
 .chat-tools-sidebar > .message-navigation-dock { right: 0; }
