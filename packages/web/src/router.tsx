@@ -2,8 +2,9 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from './App';
 import ChatRoute from './views/ChatRoute';
+import { deferredView } from './views/deferredView';
 
-const EditorView = lazy(() => import('./views/EditorView'));
+const EditorView = deferredView(() => import('./views/EditorView'));
 
 const ManageView = lazy(() => import('./views/ManageView'));
 const JobsView = lazy(() => import('./views/JobsView'));
@@ -28,7 +29,7 @@ export const router = createBrowserRouter(
         },
         {
           path: 'editor',
-          element: deferredRoute(<EditorView />),
+          element: <EditorView />,
         },
         {
           path: 'manage/:sessionId',
