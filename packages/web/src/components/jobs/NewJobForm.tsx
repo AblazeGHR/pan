@@ -1,5 +1,7 @@
+import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
+import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Plus, Search } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
@@ -250,11 +252,7 @@ export function NewJobForm({
     [sessions],
   );
   const filteredQqContacts = useMemo(() => {
-    const query = qqSearch.trim().toLowerCase();
-    if (!query) return qqContacts;
-    return qqContacts.filter(({ contact }) =>
-      (contact.peerName || '').toLowerCase().includes(query)
-      || contact.peerUin.includes(query));
+    return qqContacts.filter(({ contact }) => matchesQqContact(qqSearch, contact.peerName, contact.peerUin));
   }, [qqContacts, qqSearch]);
   const selectedQqContact = qqTarget
     ? qqContacts.find((item) => item.contact.peerUin === qqTarget.targetId
@@ -614,16 +612,7 @@ export function NewJobForm({
   const qqTargetPicker = (
     <div className="flex flex-col gap-1.5">
       <span className="text-[11px] text-text-tertiary">QQ contact *</span>
-      <label className="relative block">
-        <Search size={13} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
-        <input
-          aria-label="Search QQ contacts"
-          value={qqSearch}
-          onChange={(event) => setQqSearch(event.target.value)}
-          placeholder="Search recent, friends, and groups"
-          className={inputClass + ' pl-7'}
-        />
-      </label>
+      <QqContactSearch value={qqSearch} onChange={setQqSearch} />
       {qqTarget && (
         <div className="rounded border border-accent/40 bg-accent/5 px-2.5 py-2 text-[11px] text-text-secondary">
           Selected: <span className="font-medium text-text-primary">
@@ -665,7 +654,7 @@ export function NewJobForm({
                 : 'text-text-primary hover:bg-bg-hover'}`}
             >
               <span className="min-w-0 flex-1 truncate">
-                {item.contact.peerName || item.contact.peerUin}
+                <QqContactName name={item.contact.peerName} number={item.contact.peerUin} />
                 <span className="ml-1 text-[10px] text-text-tertiary">{item.contact.peerUin}</span>
               </span>
               <span className="shrink-0 rounded border border-border-default bg-bg-primary px-1 py-px text-[10px] text-text-secondary">

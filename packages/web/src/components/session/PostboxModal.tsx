@@ -1,3 +1,5 @@
+import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
+import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -12,7 +14,7 @@ import {
   patchSession,
 } from '@/services/api';
 import type { QqChannelInfo, QqContact, Session } from '@/types';
-import { Search, Bell, Check } from 'lucide-react';
+import { Bell, Check } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
 
@@ -185,13 +187,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return validItems;
-    return validItems.filter(
-      (it) =>
-        (it.contact.peerName || '').toLowerCase().includes(q) ||
-        it.contact.peerUin.includes(q),
-    );
+    return validItems.filter((it) => matchesQqContact(query, it.contact.peerName, it.contact.peerUin));
   }, [validItems, query]);
 
   // 已订阅的置顶（保持其余相对顺序），然后截断到 SHOW_LIMIT。
@@ -354,22 +350,10 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
             {!loading && validItems.length > 0 && (
               <>
                 {/* Search */}
-                <div className="relative">
-                  <Search
-                    size={12}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
-                  />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setShowAll(false);
-                    }}
-                    placeholder="Search by name or QQ number..."
-                    className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
-                  />
-                </div>
+                <QqContactSearch value={query} onChange={(value) => {
+                  setQuery(value);
+                  setShowAll(false);
+                }} />
 
                 <div className="flex items-center justify-between text-[11px] text-text-tertiary">
                   <span>
@@ -404,7 +388,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                       >
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-text-primary truncate">
-                            {c.peerName || 'Unknown'}
+                            <QqContactName name={c.peerName} number={c.peerUin} />
                           </div>
                           <div className="text-[11px] text-text-tertiary truncate flex items-center gap-1">
                             <span>{c.peerUin}</span>

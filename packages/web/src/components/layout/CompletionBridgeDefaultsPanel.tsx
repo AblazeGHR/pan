@@ -1,3 +1,5 @@
+import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
+import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchQqChannels, fetchQqContacts } from '@/services/api';
 import { sanitizeCompletionBridge, useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -9,6 +11,7 @@ export function CompletionBridgeDefaultsPanel() {
   const saved = useAppSettingsStore((s) => s.notifications.completionBridge);
   const save = useAppSettingsStore((s) => s.saveCompletionBridge);
   const [draft, setDraft] = useState(() => sanitizeCompletionBridge(saved));
+  const [query, setQuery] = useState('');
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -69,6 +72,9 @@ export function CompletionBridgeDefaultsPanel() {
     return [...rows.values()];
   }, [contacts, draft.qqTargets]);
 
+  const filtered = options.filter((row) => matchesQqContact(query, row.name, row.target));
+  const selected = options.filter((row) => draft.qqTargets.includes(row.target));
+
   const invalid = needsContacts && draft.qqTargets.length === 0;
   const update = (patch: Partial<CompletionBridgeDefaults>) => {
     edited.current = true;
@@ -108,12 +114,22 @@ export function CompletionBridgeDefaultsPanel() {
       <p className="text-[11px] text-text-tertiary">Browser delivery also requires browser notification permission. QQ Report sends task results; QQ Subscribe receives inbox reminders.</p>
       {needsContacts && <div className="space-y-2">
         <div className="text-xs text-text-primary">Default QQ contacts · {draft.qqTargets.length} selected</div>
-        {loading && <p className="text-xs text-text-secondary">Loading contacts…</p>}
+        {loading && <p role="status" className="text-xs text-text-secondary">Loading contacts…</p>}
         {contactError && <p className="text-xs text-danger" role="status">{contactError}</p>}
-        <div className="max-h-48 overflow-y-auto space-y-2">
-          {options.map((row) => <label key={row.target} className="flex items-start gap-2 text-xs">
-            <input type="checkbox" disabled={busy} checked={draft.qqTargets.includes(row.target)} onChange={(e) => update({ qqTargets: e.target.checked ? [...draft.qqTargets, row.target] : draft.qqTargets.filter((target) => target !== row.target) })} />
-            <span>{row.name}<span className="block text-[10px] text-text-tertiary">{row.target}</span></span>
+        <QqContactSearch value={query} onChange={setQuery} disabled={busy} />
+        {selected.length > 0 && <div className="flex flex-wrap gap-1" aria-label="Selected QQ contacts">
+          {selected.map((row) => <button key={row.target} type="button" disabled={busy}
+            aria-label={`Remove ${row.name} (${row.target})`}
+            onClick={() => update({ qqTargets: draft.qqTargets.filter((target) => target !== row.target) })}
+            className="max-w-full rounded border border-border-default px-2 py-1 text-left text-[11px] break-words disabled:opacity-50">
+            {row.name} · {row.target} ×
+          </button>)}
+        </div>}
+        <div className="max-h-48 overflow-y-auto space-y-1">
+          {filtered.length === 0 && !loading && <p role="status" className="py-2 text-xs text-text-tertiary">{query.trim() ? 'No contacts match this search.' : 'No QQ contacts available.'}</p>}
+          {filtered.map((row) => <label key={row.target} className="flex min-w-0 items-start gap-2 rounded py-1 text-xs">
+            <input type="checkbox" className="mt-0.5 shrink-0" disabled={busy} checked={draft.qqTargets.includes(row.target)} onChange={(e) => update({ qqTargets: e.target.checked ? [...draft.qqTargets, row.target] : draft.qqTargets.filter((target) => target !== row.target) })} />
+            <span className="min-w-0"><QqContactName name={row.name} number={row.target} /><span className="block break-all text-[10px] text-text-tertiary">{row.target}</span></span>
           </label>)}
         </div>
         {invalid && <p id="completion-defaults-error" role="alert" className="text-xs text-danger">Select at least one QQ contact before saving QQ Report or Subscribe as a default.</p>}
