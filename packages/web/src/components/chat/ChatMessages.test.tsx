@@ -1329,6 +1329,97 @@ describe('ChatMessages scroll positioning', () => {
     expect(loadOlderMessages).toHaveBeenCalledOnce();
   });
 
+  it('loads from an upward wheel at the top without needing another scroll event', () => {
+    vi.useFakeTimers();
+    const loadOlderMessages = vi.fn(async () => {});
+    useSessionStore.setState({ currentSessionId: 'wheel-at-top', currentMessages: msgs(4),
+      hasMoreMessages: true, historyLoading: false, loadOlderMessages });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    scrollEl.scrollTop = 0;
+    for (let index = 0; index < 20; index += 1) fireEvent.wheel(scrollEl, { deltaY: -700 });
+    act(() => vi.advanceTimersByTime(150));
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+  });
+
+  it.each([[false, -700], [true, -700], [false, 700], [true, 700]] as const)(
+    'serializes pending input with cached=%s and direction=%s', async (cached, deltaY) => {
+    vi.useFakeTimers();
+    const originalPrefetchCheck = useSessionStore.getState().hasPrefetchedOlderMessages;
+    try {
+      let release!: () => void;
+      const loadOlderMessages = vi.fn(() => {
+        useSessionStore.setState({ historyLoading: true });
+        return new Promise<void>(resolve => { release = () => {
+          useSessionStore.setState({ historyLoading: false,
+            currentMessages: [...msgs(2, 'older'), ...useSessionStore.getState().currentMessages] }); resolve();
+        }; });
+      });
+      useSessionStore.setState({ currentSessionId: 'pending-wheel', currentMessages: msgs(4),
+        hasMoreMessages: true, historyLoading: false, loadOlderMessages,
+        hasPrefetchedOlderMessages: () => cached });
+      m.setTotalSize(2000);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 0);
+      act(() => vi.advanceTimersByTime(150));
+      expect(loadOlderMessages).toHaveBeenCalledOnce();
+      fireEvent.wheel(scrollEl, { deltaY });
+      act(() => vi.advanceTimersByTime(50));
+      expect(loadOlderMessages).toHaveBeenCalledOnce();
+      await act(async () => { release(); await Promise.resolve(); });
+      act(() => vi.advanceTimersByTime(150));
+      expect(loadOlderMessages).toHaveBeenCalledTimes(deltaY < 0 ? 2 : 1);
+    } finally {
+      useSessionStore.setState({ hasPrefetchedOlderMessages: originalPrefetchCheck });
+    }
+  });
+
+  it('does not postpone an upward request indefinitely across streaming renders', () => {
+    vi.useFakeTimers();
+    // Unlike the default zero-delay rAF shim, browser frames can still be
+    // settling when the next stream row arrives and renews layout suppression.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) =>
+      window.setTimeout(() => cb(Date.now()), 16));
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
+    const loadOlderMessages = vi.fn(async () => {});
+    useSessionStore.setState({ currentSessionId: 'streaming-top', currentMessages: msgs(4),
+      hasMoreMessages: true, historyLoading: false, loadOlderMessages });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    scrollEl.scrollTop = 0;
+    fireEvent.wheel(scrollEl, { deltaY: -700 });
+    for (let index = 0; index < 5; index += 1) {
+      act(() => vi.advanceTimersByTime(30));
+      act(() => useSessionStore.setState({ currentMessages: msgs(5 + index) }));
+    }
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+  });
+
+  it('releases an obsolete page request after reselecting the same Session', async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const loadOlderMessages = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+    useSessionStore.setState({ currentSessionId: 'reselected-page', currentMessages: msgs(4),
+      hasMoreMessages: true, historyLoading: false, loadOlderMessages,
+      _selectionSeq: { 'reselected-page': 1 } });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    userScroll(scrollEl, 0);
+    act(() => vi.advanceTimersByTime(150));
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    act(() => useSessionStore.setState({ _selectionSeq: { 'reselected-page': 2 } }));
+    await act(async () => { release(); await Promise.resolve(); });
+    fireEvent.wheel(scrollEl, { deltaY: -700 });
+    act(() => vi.advanceTimersByTime(150));
+    expect(loadOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
   it('lets a new upward gesture cancel the prior page anchor and load another page', async () => {
     vi.useFakeTimers();
     let page = 0;

@@ -796,6 +796,27 @@ try {
   // Fully load 5000 canonical rows using the same wheel/pagination UI as a user.
   await select('E2E-LONG');
   await page.evaluate(() => window.__stopTranscriptTrace?.());
+  await scroller.hover({ position: { x: 120, y: 80 } });
+  // In this disposable fixture only, disable pagination while genuine wheel
+  // input establishes a stationary top and its reading anchor. Programmatic
+  // jumps alone deliberately retain the previous reading/follow anchor.
+  await page.evaluate(() => window.__panSessionStore.setState({ hasMoreMessages: false }));
+  await page.mouse.wheel(0, -1000000);
+  await poll(() => scroller.evaluate(el => el.scrollTop), top => top === 0,
+    'genuine wheel establishes stationary top');
+  await sleep(500);
+  await page.evaluate(() => window.__panSessionStore.setState({ hasMoreMessages: true }));
+  const clampedBefore = (await state()).start;
+  await sleep(180);
+  assert.equal(await scroller.evaluate(el => el.scrollTop), 0, 'stationary top is established');
+  assert.equal((await state()).start, clampedBefore,
+    'restoring page availability alone does not fetch a history page');
+  const clampedStarted = Date.now();
+  await page.mouse.wheel(0, -700);
+  await poll(state, s => s.start < clampedBefore,
+    'upward wheel at the clamped top loads history without moving down first', 5000);
+  evidence.stages.push({ label: 'clamped-top upward wheel loads older history',
+    before: clampedBefore, after: (await state()).start, elapsedMs: Date.now() - clampedStarted });
   for (let i = 0; i < 110 && (await state()).start > 0; i++) {
     const before = (await state()).start;
     await scroller.hover();

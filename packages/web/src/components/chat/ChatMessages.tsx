@@ -591,6 +591,9 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const sessionAnchorRestoreRafRef = useRef<number | null>(null);
   const sessionBottomRafRef = useRef<number | null>(null);
   const paginationRequestInFlightRef = useRef(false);
+  const paginationRequestSequenceRef = useRef(0);
+  const paginationConsumedInputRef = useRef(0);
+  const paginationCheckDueRef = useRef<number | null>(null);
   const historyLoadingRef = useRef(historyLoading);
   historyLoadingRef.current = historyLoading;
 
@@ -656,6 +659,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   }, [clearProgrammaticSuppression]);
 
   const clearUserScrollActivity = useCallback(() => {
+    paginationCheckDueRef.current = null;
     pendingOlderScrollRef.current = false;
     const state = userScrollStateRef.current;
     if (state.timer !== null) clearTimeout(state.timer);
@@ -783,6 +787,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       if (current.generation === generation) {
         current.timer = null;
         current.active = false;
+        paginationCheckDueRef.current = null;
       }
     }, delay);
   }, []);
@@ -835,7 +840,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       // the viewport back to the bottom and erase the reader's movement.
       shouldFollowBottomRef.current = false;
       upwardPaginationArmedRef.current = true;
-    } else if (direction === 'newer') upwardPaginationArmedRef.current = false;
+    } else if (direction === 'newer') {
+      upwardPaginationArmedRef.current = false;
+      paginationCheckDueRef.current = null;
+    }
     const state = userScrollStateRef.current;
     state.generation += 1;
     state.active = true;
@@ -1303,9 +1311,9 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       historyLoadingRef.current ||
       paginationRequestInFlightRef.current ||
       sessionSwitchWaitingForSettingsRef.current ||
-      (requireUpwardGesture && !upwardPaginationArmedRef.current)
+      (requireUpwardGesture && (!upwardPaginationArmedRef.current ||
+        userScrollStateRef.current.generation <= paginationConsumedInputRef.current))
     ) {
-      upwardPaginationArmedRef.current = false;
       return;
     }
 
@@ -1343,17 +1351,33 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     }
 
     upwardPaginationArmedRef.current = false;
+    const inputGeneration = userScrollStateRef.current.generation;
+    paginationConsumedInputRef.current = inputGeneration;
+    paginationCheckDueRef.current = null;
+    const sid = useSessionStore.getState().currentSessionId;
+    const selection = sid ? useSessionStore.getState()._selectionSeq[sid] : undefined;
+    const stillSelected = () => useSessionStore.getState().currentSessionId === sid &&
+      (!sid || useSessionStore.getState()._selectionSeq[sid] === selection);
     paginationRequestInFlightRef.current = true;
+    const requestSequence = ++paginationRequestSequenceRef.current;
     void loadOlderMessages().then(
       () => {
+        if (paginationRequestSequenceRef.current !== requestSequence) return;
         paginationRequestInFlightRef.current = false;
-        upwardPaginationArmedRef.current = false;
-        markProgrammaticChange();
+        if (!stillSelected()) return;
+        // A wheel received while this page was pending belongs to the next
+        // request. Do not consume it or suppress its actual scroll on completion.
+        if (userScrollStateRef.current.generation === inputGeneration) {
+          upwardPaginationArmedRef.current = false;
+          markProgrammaticChange();
+        }
         restorePaginationAnchor();
         schedulePaginationRestore();
       },
       () => {
+        if (paginationRequestSequenceRef.current !== requestSequence) return;
         paginationRequestInFlightRef.current = false;
+        if (!stillSelected()) return;
         paginationAnchorRef.current = null;
       },
     );
@@ -1371,6 +1395,26 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     if (!el) return;
     lastScrollTopRef.current = el.scrollTop;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const checkPagination = () => {
+      timer = null;
+      paginationCheckDueRef.current = null;
+      if (el.scrollTop > 200 || !hasMoreMessages || historyLoading ||
+          !userScrollStateRef.current.active || !upwardPaginationArmedRef.current ||
+          userScrollStateRef.current.generation <= paginationConsumedInputRef.current) return;
+      // An unconsumed explicit gesture proves this is user demand. Layout
+      // suppression still classifies scroll events, but must not block this
+      // request: streaming can keep renewing that suppression indefinitely.
+      loadOlderFromViewport(true);
+    };
+    const schedulePaginationCheck = () => {
+      if (timer) return;
+      const delay = useSessionStore.getState().hasPrefetchedOlderMessages() ? 16 : 150;
+      const now = Date.now();
+      // Effect cleanup replaces the callback, not this demand's deadline.
+      // Streaming row updates must not keep restarting the entire wait.
+      paginationCheckDueRef.current = Math.min(paginationCheckDueRef.current ?? Infinity, now + delay);
+      timer = setTimeout(checkPagination, Math.max(0, paginationCheckDueRef.current - now));
+    };
 
     const markUserScrollKey = (event: KeyboardEvent) => {
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
@@ -1430,20 +1474,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       setIsNearBottom(nearBottom);
       captureScrollMetrics(userDrivenScroll);
 
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = null;
-        if (
-          el.scrollTop <= 200 &&
-          hasMoreMessages &&
-          !historyLoading &&
-          userScrollStateRef.current.active &&
-          upwardPaginationArmedRef.current &&
-          programmaticSuppressionRef.current === null
-        ) {
-          loadOlderFromViewport(true);
-        }
-      }, useSessionStore.getState().hasPrefetchedOlderMessages() ? 16 : 150);
+      schedulePaginationCheck();
     };
 
     const handleScrollEnd = () => {
@@ -1458,17 +1489,25 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
 
     const handleWheel = (event: WheelEvent) => {
       markUserScrollInput(event);
+      const innerWindow = event.target instanceof Element &&
+        event.target.closest('[data-testid="non-body-group-window"]');
       if (
         event.deltaY < 0 &&
-        el.scrollTop <= 0 &&
-        el.scrollHeight <= el.clientHeight + 1 &&
+        el.scrollTop <= 200 &&
         hasMoreMessages &&
-        !useSessionStore.getState().historyLoading &&
-        !(event.target instanceof Element && event.target.closest('[data-testid="non-body-group-window"]'))
+        !innerWindow
       ) {
-        void loadOlderMessages();
+        // At the top, further wheel input need not produce a scroll event.
+        // Keep the same bounded scheduler for both moving and clamped input.
+        if (el.scrollHeight <= el.clientHeight + 1) loadOlderFromViewport(true);
+        else schedulePaginationCheck();
       }
     };
+    // Loading/measurement rerenders replace these listeners and their timer.
+    // Re-arm only an unconsumed explicit gesture, never a prepend's scroll.
+    if (el.scrollTop <= 200 && userScrollStateRef.current.active &&
+        upwardPaginationArmedRef.current &&
+        userScrollStateRef.current.generation > paginationConsumedInputRef.current) schedulePaginationCheck();
     el.addEventListener('wheel', handleWheel, { passive: true });
     el.addEventListener('touchstart', markUserScrollInput, { passive: true });
     el.addEventListener('touchmove', markUserScrollInput, { passive: true });
@@ -1546,6 +1585,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       clearProgrammaticSuppression();
       paginationAnchorRef.current = null;
       paginationRequestInFlightRef.current = false;
+      paginationRequestSequenceRef.current += 1;
       if (paginationRestoreRafRef.current !== null) {
         cancelAnimationFrame(paginationRestoreRafRef.current);
         paginationRestoreRafRef.current = null;
