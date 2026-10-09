@@ -1,0 +1,72 @@
+{
+  "taskName": "PanIndependentAcceptance_6743baad988f",
+  "scenarios": [
+    {
+      "mode": "graceful",
+      "jobId": "job_e18053ba016e4b1ff9832e30",
+      "exitCode": 0,
+      "commandSurvived": true,
+      "durableNotices": 1,
+      "outboxAcked": true,
+      "serviceOutsidePanJob": true
+    },
+    {
+      "mode": "job-tree-kill",
+      "jobId": "job_c85d9314213d4b4613d2da4e",
+      "exitCode": 0,
+      "commandSurvived": true,
+      "durableNotices": 1,
+      "outboxAcked": true,
+      "serviceOutsidePanJob": true
+    }
+  ],
+  "panIdentities": [
+    {
+      "pid": 16952,
+      "filetime": "134360364328862002"
+    },
+    {
+      "pid": 26588,
+      "filetime": "134360364392102275"
+    },
+    {
+      "pid": 35544,
+      "filetime": "134360364401021713"
+    },
+    {
+      "pid": 37104,
+      "filetime": "134360364460009639"
+    }
+  ],
+  "scheduler": {
+    "user": "ablaze",
+    "state": "Running",
+    "action": "D:\\project\\Pan\\.venv\\Scripts\\pythonw.exe",
+    "logon": "Interactive"
+  },
+  "serviceIdentity": {
+    "pid": 35584,
+    "filetime": "134360364307205510",
+    "parentChain": [
+      {
+        "pid": 35092,
+        "name": "pythonw.exe"
+      },
+      {
+        "pid": 2476,
+        "name": "svchost.exe"
+      },
+      {
+        "pid": 2016,
+        "name": "services.exe"
+      },
+      {
+        "pid": 1884,
+        "name": "wininit.exe"
+      }
+    ]
+  },
+  "passed": true,
+  "serviceExited": true,
+  "taskRemoved": true
+}

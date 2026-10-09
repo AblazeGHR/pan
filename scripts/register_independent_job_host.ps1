@@ -14,6 +14,15 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $pythonPath = (Resolve-Path -LiteralPath $Python).Path
+# Interactive user tasks must not create an external console window. Use the
+# same environment's windowless interpreter, never a different Python install.
+if ([System.IO.Path]::GetFileName($pythonPath) -ieq 'python.exe') {
+    $windowlessPath = Join-Path ([System.IO.Path]::GetDirectoryName($pythonPath)) 'pythonw.exe'
+    if (-not (Test-Path -LiteralPath $windowlessPath -PathType Leaf)) {
+        throw 'The selected Python environment requires a sibling pythonw.exe for the user host'
+    }
+    $pythonPath = (Resolve-Path -LiteralPath $windowlessPath).Path
+}
 if (-not [System.IO.Path]::IsPathFullyQualified($DataRoot)) {
     throw 'DataRoot must be an explicit absolute path'
 }

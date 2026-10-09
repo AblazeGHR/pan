@@ -1,0 +1,47 @@
+{
+  "taskName": "PanIndependentAcceptance_59c5a6315891",
+  "scenarios": [
+    {
+      "mode": "graceful",
+      "jobId": "job_4c1f88420cc2827c178f10ad",
+      "exitCode": 0,
+      "commandSurvived": true,
+      "durableNotices": 1,
+      "outboxAcked": true
+    },
+    {
+      "mode": "job-tree-kill",
+      "jobId": "job_c7b112e30e1cd7ac7fb4591b",
+      "exitCode": 0,
+      "commandSurvived": true,
+      "durableNotices": 1,
+      "outboxAcked": true
+    }
+  ],
+  "panIdentities": [
+    {
+      "pid": 35280,
+      "filetime": "134360361303046755"
+    },
+    {
+      "pid": 35284,
+      "filetime": "134360361367635101"
+    },
+    {
+      "pid": 23120,
+      "filetime": "134360361381373396"
+    },
+    {
+      "pid": 36128,
+      "filetime": "134360361445716017"
+    }
+  ],
+  "scheduler": {
+    "action": "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+    "logon": "Interactive",
+    "user": "ablaze",
+    "state": "Running"
+  },
+  "passed": true,
+  "taskRemoved": true
+}
