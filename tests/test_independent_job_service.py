@@ -16,6 +16,38 @@ from packages.jobs.independent_service import Handler, JobStore
 from packages.jobs.independent_client import IndependentJobClient
 
 
+def test_owned_job_exit_accounting_settles_without_assuming_empty(monkeypatch):
+    from packages.jobs import independent_runner as runner
+
+    class Guard:
+        calls = 0
+        def active_processes(self):
+            self.calls += 1
+            return 1 if self.calls < 3 else 0
+        def member_pids(self):
+            return []
+
+    guard = Guard()
+    assert runner._owned_job_empty(guard, timeout=.1) is True
+    assert guard.calls == 3
+
+
+@pytest.mark.parametrize("active,members", [(1, [123]), (0, [123]), (None, []), (0, None)])
+def test_owned_job_empty_requires_both_proofs(active, members):
+    from packages.jobs import independent_runner as runner
+    class Guard:
+        def active_processes(self): return active
+        def member_pids(self): return members
+    assert runner._owned_job_empty(Guard(), timeout=.02) is False
+
+
+def test_owned_job_query_failure_does_not_confirm_empty():
+    from packages.jobs import independent_runner as runner
+    class Guard:
+        def active_processes(self): raise OSError("query failed")
+    assert runner._owned_job_empty(Guard()) is False
+
+
 def _service(root):
     store = JobStore(str(root))
     store.recover()

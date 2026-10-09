@@ -65,6 +65,25 @@ class _PROCESS_INFORMATION(ctypes.Structure):
                 ("dwProcessId", wintypes.DWORD), ("dwThreadId", wintypes.DWORD)]
 
 
+def _owned_job_empty(guard, timeout=.5):
+    """Allow kernel accounting to settle after root exit, never infer empty.
+
+    Both independent queries must prove empty; surviving descendants or failed
+    queries stay unconfirmed. This does not terminate anything.
+    """
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        try:
+            if guard.active_processes() == 0 and guard.member_pids() == []:
+                return True
+        except Exception:
+            return False
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(.01, remaining))
+
+
 def _run_windows_task(root, job_id, claim, payload, env, log_path):
     """Create suspended, assign and prove a kill-on-close Job, then resume once."""
     import msvcrt
@@ -144,9 +163,7 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
                     return "cancelled", exit_code, pid, str(creation)
                 time.sleep(.05)
             exit_code = informational_exit_code(process_handle)
-            active = guard.active_processes()
-            members = guard.member_pids()
-            if active != 0 or members:
+            if not _owned_job_empty(guard):
                 # Direct command ended but owned descendants remain; close-on-close will contain them.
                 return "UNKNOWN", exit_code, pid, str(creation)
             return ("completed" if exit_code == 0 else "failed"), exit_code, pid, str(creation)
