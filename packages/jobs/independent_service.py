@@ -112,6 +112,11 @@ class JobStore:
                 db.execute("ALTER TABLE jobs ADD COLUMN runner_claim TEXT")
 
     def create(self, request: dict):
+        from packages.jobs.window import validate_hide_window
+        try:
+            hide_window = validate_hide_window(request.get("hideWindow", True))
+        except ValueError as exc:
+            raise ServiceError(400, str(exc)) from exc
         argv = request.get("argv")
         cwd = request.get("cwd")
         target = request.get("targetSessionId")
@@ -138,7 +143,7 @@ class JobStore:
             raise ServiceError(400, "idempotencyKey must be a non-empty string up to 256 chars")
         payload = {"argv": argv, "cwd": str(Path(cwd).resolve()), "targetSessionId": target,
                    "creatorSessionId": creator, "label": label, "name": name,
-                   "description": description}
+                   "description": description, "hideWindow": hide_window}
         payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
         now, job_id = time.time(), "job_" + secrets.token_hex(12)
@@ -146,10 +151,12 @@ class JobStore:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if idem:
-                row = db.execute("SELECT id,payload_hash FROM jobs WHERE idempotency_key=?", (idem,)).fetchone()
+                row = db.execute("SELECT id,payload_hash,payload FROM jobs WHERE idempotency_key=?", (idem,)).fetchone()
                 if row:
                     db.execute("COMMIT")
-                    if row["payload_hash"] != payload_hash:
+                    previous = json.loads(row["payload"])
+                    previous.setdefault("hideWindow", True)
+                    if row["payload_hash"] != payload_hash and previous != payload:
                         raise ServiceError(409, "idempotencyKey already used with a different payload")
                     return self.get(row["id"])
             db.execute("INSERT INTO jobs(id,payload,status,created,updated,log_path,idempotency_key,payload_hash) VALUES(?,?,?,?,?,?,?,?)",
@@ -194,6 +201,7 @@ class JobStore:
         p = json.loads(row["payload"])
         return {"jobId": row["id"], "kind": "background-process", "executionOwner": "independent-job-service", "status": row["status"],
                 "argv": p["argv"], "cwd": p["cwd"], "label": p["label"],
+                "hideWindow": p.get("hideWindow", True),
                 "name": p.get("name"), "description": p.get("description"),
                 "targetSessionId": p["targetSessionId"], "creatorSessionId": p["creatorSessionId"],
                 "createdAt": row["created"], "updatedAt": row["updated"],
@@ -218,7 +226,7 @@ class JobStore:
             raise ServiceError(409, "UNKNOWN job ownership is unresolved; retry refused")
         if original["status"] not in ("failed", "cancelled"):
             raise ServiceError(409, "only failed or cancelled jobs may be retried")
-        req = {k: original.get(k) for k in ("argv", "cwd", "targetSessionId", "creatorSessionId", "label", "name", "description")}
+        req = {k: original.get(k) for k in ("argv", "cwd", "targetSessionId", "creatorSessionId", "label", "name", "description", "hideWindow")}
         return self.create(req)
 
     def events(self):

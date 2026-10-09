@@ -267,7 +267,8 @@ def test_retry_inherits_creator_and_target(monkeypatch, tmp_path):
     })
     calls = []
 
-    def fake_start(target, argv, cwd, *, label=None, creator_session_id=None):
+    def fake_start(target, argv, cwd, *, label=None, creator_session_id=None, hide_window=True):
+        assert hide_window is True
         calls.append((target, argv, cwd, label, creator_session_id))
         retry = {"jobId": "job_retry", "targetSessionId": target,
                  "creatorSessionId": creator_session_id, "status": "running"}

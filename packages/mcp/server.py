@@ -1770,13 +1770,18 @@ def reminder_cancel(reminder_id: str, session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def agent_background_start(argv: list[str], cwd: str, target_session_id: str | None = None,
-                           label: str | None = None) -> dict:
+                           label: str | None = None, hide_window: bool = True) -> dict:
     """Start a durable background process; target defaults to this Agent Session.
 
     ``creatorSessionId`` is recorded from the calling Agent Session, while
     ``targetSessionId`` is the only Session that receives the terminal Job
     notice.  A Job may therefore be created by Agent A for Agent B without
     copying the notice back to A.
+
+    Windows commands hide their initial window by default. Set
+    ``hide_window=False`` for an explicitly visible command console. This does
+    not give the caller an interactive stdin or suppress windows created by
+    the command itself.
 
     使用政策：这类带终态通知的持久后台 Job 一般用于预计**超过 3 分钟**的
     OS 命令（3 分钟是一般选择门槛，不是运行 timeout，也不硬性禁止短任务）。
@@ -1797,6 +1802,7 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
         return denied
     body = {
         "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label,
+        "hideWindow": hide_window,
     }
     if creator:
         body["creatorSessionId"] = creator

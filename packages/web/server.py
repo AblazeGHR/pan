@@ -9245,6 +9245,7 @@ async def api_background_job_start(data: dict):
     try:
         return background_jobs.start(
             target, argv, cwd, label=data.get("label"),
+            hide_window=data.get("hideWindow", True),
             creator_session_id=data.get("creatorSessionId"),
         )
     except ValueError as exc:

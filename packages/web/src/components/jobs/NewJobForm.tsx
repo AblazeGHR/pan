@@ -171,6 +171,7 @@ export function NewJobForm({
   const shellArgs = initialAction?.api === 'shell' ? initialAction.args : null;
   const [shellCommand, setShellCommand] = useState(shellArgs?.command ?? initialJob?.shellCommand ?? '');
   const [cwd, setCwd] = useState(shellArgs?.cwd ?? initialJob?.cwd ?? '');
+  const [hideWindow, setHideWindow] = useState(shellArgs?.hideWindow ?? initialJob?.hideWindow ?? true);
   const [executable, setExecutable] = useState(initialJob?.argv?.[0] ?? '');
   const [argumentsList, setArgumentsList] = useState<string[]>(
     initialJob?.argv?.slice(1) ?? [],
@@ -321,7 +322,7 @@ export function NewJobForm({
           ...common,
           kind,
           target: { sessionId: targetSessionId.trim() || null },
-          action: { api: 'shell', args: { command: shellCommand, cwd: cwd.trim() } },
+          action: { api: 'shell', args: { command: shellCommand, cwd: cwd.trim(), hideWindow } },
           schedule: entries.map(buildScheduleSpec),
           misfirePolicy,
           maxRuns: max,
@@ -466,6 +467,7 @@ export function NewJobForm({
         kind,
         target: { sessionId: sid },
         argv: [executable, ...argumentsList],
+        hideWindow,
         cwd: cwd.trim(),
         label: label.trim() || undefined,
       };
@@ -508,7 +510,7 @@ export function NewJobForm({
         };
       } else {
         patch.action = actionApi === 'shell'
-          ? { api: 'shell', args: { command: shellCommand, cwd: cwd.trim() } }
+          ? { api: 'shell', args: { command: shellCommand, cwd: cwd.trim(), hideWindow } }
           : { api: actionApi };
       }
       if (actionApi === 'resume_legal_running') {
@@ -1172,6 +1174,12 @@ export function NewJobForm({
         </div>
       )}
 
+      {((kind === 'background-process' && !editing) || (kind === 'scheduled-task' && actionApi === 'shell')) && (
+        <label className="flex items-center gap-2 text-xs text-text-secondary">
+          <input type="checkbox" checked={hideWindow} onChange={(event) => setHideWindow(event.target.checked)} />
+          Hide command window (Windows)
+        </label>
+      )}
       {formError && <span className="text-[11px] text-danger">{formError}</span>}
       <div className="flex items-center gap-2">
         <Button

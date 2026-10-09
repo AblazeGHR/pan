@@ -281,16 +281,19 @@ def _normalize_scheduled_action(action: object):
     args = action.get("args")
     if not isinstance(args, dict):
         return None, "shell action requires an args object"
-    error = error or _unknown_fields(args, {"command", "cwd"}, "shell action args")
+    error = error or _unknown_fields(args, {"command", "cwd", "hideWindow"}, "shell action args")
     if error:
         return None, error
     try:
         command, cwd = background_jobs.validate_shell_action(
             args.get("command"), args.get("cwd"))
+        from packages.jobs.window import validate_hide_window
+        validate_hide_window(args.get("hideWindow", True))
     except ValueError as exc:
         return None, str(exc)
     return {"api": "shell", "args": {
-        "command": command, "cwd": str(cwd)}}, None
+        "command": command, "cwd": str(cwd),
+        **({"hideWindow": args["hideWindow"]} if "hideWindow" in args else {})}}, None
 
 
 def _unknown_fields(value: dict, allowed: set[str], scope: str) -> str | None:
@@ -523,14 +526,17 @@ async def create_job(data: dict):
             if not isinstance(args, dict):
                 return _err("invalid_argument", "shell action requires an args object")
             action_error = action_error or _unknown_fields(
-                args, {"command", "cwd"}, "shell action args")
+                args, {"command", "cwd", "hideWindow"}, "shell action args")
             try:
                 command, cwd = background_jobs.validate_shell_action(
                     args.get("command"), args.get("cwd"))
+                from packages.jobs.window import validate_hide_window
+                validate_hide_window(args.get("hideWindow", True))
             except ValueError as exc:
                 return _err("invalid_argument", str(exc))
             action = {"api": "shell", "args": {
-                "command": command, "cwd": str(cwd)}}
+                "command": command, "cwd": str(cwd),
+                **({"hideWindow": args["hideWindow"]} if "hideWindow" in args else {})}}
             required_target = False
             scheduled_text = ""
             if "text" in data:
@@ -596,7 +602,7 @@ async def create_job(data: dict):
         view = background_jobs.job_public_view(job) if job else None
     elif kind == background_jobs.BACKGROUND_PROCESS_KIND:
         unknown = _unknown_fields(
-            data, {"kind", "name", "description", "label", "target", "argv", "cwd"},
+            data, {"kind", "name", "description", "label", "target", "argv", "cwd", "hideWindow"},
             kind)
         if unknown:
             return _err("invalid_argument", unknown)
@@ -612,6 +618,7 @@ async def create_job(data: dict):
             job = background_jobs.start(
                 sid, data.get("argv"), data.get("cwd"),
                 label=data.get("label"),
+                hide_window=data.get("hideWindow", True),
                 name=data.get("name"),
                 description=data.get("description"),
                 creator_session_id=None,

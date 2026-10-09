@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 from packages.core import background_jobs as jobs
+from packages.jobs.window import command_window_options
 
 
 def main() -> int:
@@ -17,16 +18,19 @@ def main() -> int:
         return 0
     try:
         with open(job["logPath"], "ab", buffering=0) as log:
+            options = command_window_options(job.get("hideWindow", True))
             shell_command = job.get("shellCommand")
             if isinstance(shell_command, str):
                 proc = subprocess.Popen(
                     shell_command, cwd=job["cwd"], shell=True,
                     stdout=log, stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL, **options,
                 )
             else:
                 proc = subprocess.Popen(
                     job["argv"], cwd=job["cwd"], stdout=log,
                     stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL, **options,
                 )
             jobs.runner_update(args.job_id, status="running", pid=proc.pid, processCreatedAt=jobs._process_create_time(proc.pid))
             return_code = proc.wait()

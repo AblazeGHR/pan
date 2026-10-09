@@ -757,11 +757,14 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
 
 
 def start(target_session_id: str, argv: list[str], cwd: str, *,
+          hide_window: bool = True,
           label: str | None = None,
           name: str | None = None,
           description: str | None = None,
           creator_session_id: str | None = None,
           registry_root: str | Path | None = None) -> dict:
+    from packages.jobs.window import validate_hide_window
+    validate_hide_window(hide_window)
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
     creator_sid, creator_error = _worker._normalize_source_session_id(creator_session_id)
@@ -773,6 +776,7 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
         remote = pan_bridge.request("start", {
             "targetSessionId": target_session_id, "creatorSessionId": creator_sid,
             "argv": argv, "cwd": str(cwd_path), "label": label,
+            "hideWindow": hide_window,
             "name": name, "description": description,
         })
         if remote is not None:
@@ -782,6 +786,7 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     log_path = _root(registry_root) / "logs" / f"{job_id}.log"
     job = {
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
+        "hideWindow": hide_window,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
         "creatorSessionId": creator_sid,
         "sourceStruct": normalize_source({"type": "agent",
@@ -830,6 +835,8 @@ def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
         if not isinstance(action, dict) or action.get("api") != "shell" or not isinstance(args, dict):
             raise ValueError("scheduled parent Job no longer has a shell action")
         command, cwd_path = validate_shell_action(args.get("command"), args.get("cwd"))
+        from packages.jobs.window import validate_hide_window
+        hide_window = validate_hide_window(args.get("hideWindow", True))
         target = parent.get("targetSessionId")
         if target is not None and (not isinstance(target, str) or not _sessions.get(target)):
             raise ValueError("notification target session does not exist")
@@ -847,6 +854,7 @@ def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
             "kind": BACKGROUND_PROCESS_KIND,
             "operation": "run",
             "shellCommand": command,
+            "hideWindow": hide_window,
             "argv": [],
             "cwd": str(cwd_path),
             "scheduledParentJobId": parent_id,
@@ -2921,6 +2929,7 @@ def retry(job_id: str) -> dict:
         raise ValueError("job is not retryable")
     new_job = start(
         old["targetSessionId"], old["argv"], old["cwd"], label=old.get("label"),
+        hide_window=old.get("hideWindow", True),
         creator_session_id=old.get("creatorSessionId"),
     )
     new_job["retryOf"] = job_id

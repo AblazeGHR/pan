@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from ctypes import wintypes
+from packages.jobs.window import windows_creation_flags
 
 
 def _connect(root):
@@ -116,6 +117,8 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
         startup = _STARTUPINFOW()
         startup.cb = ctypes.sizeof(startup)
         startup.dwFlags = 0x00000100  # STARTF_USESTDHANDLES
+        startup.dwFlags |= 0x00000001  # STARTF_USESHOWWINDOW
+        startup.wShowWindow = 0 if payload.get("hideWindow", True) else 1
         startup.hStdInput = std_handles[0]
         startup.hStdOutput = std_handles[1]
         startup.hStdError = std_handles[1]
@@ -123,7 +126,7 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
         env_block = "\0".join(f"{key}={value}" for key, value in sorted(env.items(), key=lambda pair: pair[0].upper())) + "\0\0"
         env_buffer = ctypes.create_unicode_buffer(env_block)
         created = kernel.CreateProcessW(None, command, None, None, True,
-            0x00000004 | 0x00000200 | 0x08000000 | 0x00000400,
+            0x00000004 | 0x00000200 | windows_creation_flags(payload.get("hideWindow", True)) | 0x00000400,
             ctypes.cast(env_buffer, ctypes.c_void_p), payload["cwd"],
             ctypes.byref(startup), ctypes.byref(process_info))
         if not created:

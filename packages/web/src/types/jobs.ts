@@ -109,7 +109,7 @@ export type ScheduledTaskAction =
       botUin?: string;
     };
   }
-  | { api: 'shell'; args: { command: string; cwd: string } };
+  | { api: 'shell'; args: { command: string; cwd: string; hideWindow?: boolean } };
 
 /** epoch 秒（新记录）或本地朴素 ISO（兼容旧读路径）。 */
 export type JobTimestamp = number | string;
@@ -130,6 +130,7 @@ export interface Job {
   label?: string | null;
   commandSummary?: string;
   shellCommand?: string;
+  hideWindow?: boolean;
   enabled?: boolean;
   paused: boolean;
   /** Legacy Job kinds may expose one schedule object or omit/null this field. */
@@ -230,6 +231,7 @@ export interface SessionBroadcastCreateInput {
 }
 
 export interface BackgroundProcessCreateInput {
+  hideWindow?: boolean;
   kind: 'background-process';
   name?: string;
   description?: string;

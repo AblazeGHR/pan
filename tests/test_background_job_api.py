@@ -40,7 +40,7 @@ def test_http_start_forwards_creator_and_target_separately(monkeypatch):
     assert result["targetSessionId"] == "ses_b"
     assert result["creatorSessionId"] == "ses_a"
     assert calls == [(('ses_b', ['python'], 'C:\\Pan'),
-                      {"label": None, "creator_session_id": "ses_a"})]
+                      {"label": None, "creator_session_id": "ses_a", "hide_window": True})]
 
 
 def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
