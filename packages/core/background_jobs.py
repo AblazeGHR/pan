@@ -259,9 +259,14 @@ def _update(job_id: str, changes: dict[str, Any], *, replace: dict | None = None
 
 def get(job_id: str, registry_root: str | Path | None = None) -> dict | None:
     try:
-        return _normalize_job(_load_path(_job_path(job_id, registry_root)))
+        local = _normalize_job(_load_path(_job_path(job_id, registry_root)))
     except ValueError:
         return None
+    if local is not None or registry_root is not None:
+        return local
+    from packages.jobs import pan_bridge
+    remote = pan_bridge.request("get", job_id)
+    return pan_bridge.public_job(remote) if remote is not None else None
 
 
 # ── name / description 规范（所有 kind 统一；2026-09-25 用户拍板）──
@@ -311,7 +316,19 @@ def default_job_name(registry_root: str | Path | None = None) -> str:
 def list_jobs(registry_root: str | Path | None = None) -> list[dict]:
     root = _root(registry_root) / "jobs"
     jobs = [_normalize_job(_load_path(p)) for p in root.glob("job_*.json")]
-    return sorted((j for j in jobs if j), key=_job_creation_sort_key, reverse=True)
+    jobs = [j for j in jobs if j]
+    if registry_root is None:
+        from packages.jobs import pan_bridge
+        remote = pan_bridge.request("list")
+        if remote is not None:
+            if not isinstance(remote, dict) or not isinstance(remote.get("jobs"), list):
+                raise pan_bridge.JobServiceUnavailable("invalid independent Job service response")
+            local_ids = {job["jobId"] for job in jobs}
+            for item in remote["jobs"]:
+                job = pan_bridge.public_job(item)
+                if job["jobId"] not in local_ids:
+                    jobs.append(job)
+    return sorted(jobs, key=_job_creation_sort_key, reverse=True)
 
 
 def _job_creation_sort_key(job: dict) -> tuple[float, str]:
@@ -751,6 +768,15 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     if creator_error:
         raise ValueError(creator_error)
     argv, cwd_path = _validate_command(argv, cwd)
+    if registry_root is None:
+        from packages.jobs import pan_bridge
+        remote = pan_bridge.request("start", {
+            "targetSessionId": target_session_id, "creatorSessionId": creator_sid,
+            "argv": argv, "cwd": str(cwd_path), "label": label,
+            "name": name, "description": description,
+        })
+        if remote is not None:
+            return pan_bridge.public_job(remote)
     job_id = "job_" + secrets.token_hex(12)
     now = time.time()
     log_path = _root(registry_root) / "logs" / f"{job_id}.log"
@@ -2837,6 +2863,9 @@ def cancel(job_id: str) -> dict:
     job = get(job_id)
     if not job:
         raise ValueError("job not found")
+    if job.get("executionOwner") == "independent-job-service":
+        from packages.jobs import pan_bridge
+        return pan_bridge.public_job(pan_bridge.request("cancel", job_id))
     if job.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
         return cancel_message(job_id)
     if job.get("status") in {"completed", "failed", "cancelled"}:
@@ -2879,6 +2908,9 @@ def retry(job_id: str) -> dict:
     old = get(job_id)
     if not old:
         raise ValueError("job not found")
+    if old.get("executionOwner") == "independent-job-service":
+        from packages.jobs import pan_bridge
+        return pan_bridge.public_job(pan_bridge.request("retry", job_id))
     if old.get("scheduledParentJobId"):
         raise ValueError("scheduled shell runs are managed by the parent Job and cannot be retried")
     if old.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
@@ -2913,6 +2945,8 @@ def get_active_service_job(root: str, port: int,
     """Return the persisted in-flight lifecycle Job for one checkout/port."""
     root_value = str(Path(root).expanduser().resolve())
     for job in list_jobs(registry_root):
+        if job.get("executionOwner") == "independent-job-service":
+            continue
         if (job.get("kind") == SERVICE_LIFECYCLE_KIND
                 and str(Path(str(job.get("root", ""))).expanduser().resolve()) == root_value
                 and int(job.get("port", -1)) == int(port)
@@ -3059,6 +3093,8 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
     """
     changed = 0
     for job in list_jobs(registry_root):
+        if job.get("executionOwner") == "independent-job-service":
+            continue
         if job.get("kind") in {
             SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND,
             SCHEDULED_TASK_KIND}:
@@ -3092,6 +3128,12 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
 
 
 async def recover_notifications() -> int:
+    from packages.jobs import pan_bridge
+    try:
+        independent_delivered = await pan_bridge.recover_events(_worker.enqueue_notice)
+    except pan_bridge.JobServiceUnavailable:
+        # An independent-service outage must not starve legacy/scheduled jobs.
+        independent_delivered = 0
     roots = {_root()}
     scheduled_root = _scheduled_task_root()
     if scheduled_root is not None:
@@ -3103,7 +3145,7 @@ async def recover_notifications() -> int:
         await run_due_scheduled_tasks()
     except Exception:
         pass  # scheduler pass 不得饿死 message job / 终态通知恢复
-    delivered = 0
+    delivered = independent_delivered
     for root in roots:
         reconcile_running(root)
         for job in list_jobs(root):

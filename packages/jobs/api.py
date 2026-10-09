@@ -34,6 +34,7 @@ from packages.core import config as _config
 from packages.jobs.actions import normalize_scheduled_qq_action
 from packages.jobs import cron as _job_cron
 from packages.jobs import templates as _job_templates
+from packages.jobs import pan_bridge
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -81,7 +82,8 @@ def _find_job(job_id: str) -> dict | None:
     for candidate in background_jobs.list_jobs(registry_root=_job_root()):
         if candidate.get("taskId") == job_id:
             return candidate
-    return None
+    remote = pan_bridge.request("get", job_id)
+    return pan_bridge.public_job(remote) if remote is not None else None
 
 
 def _emit(event: dict) -> None:
@@ -123,6 +125,15 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
     jobs = [background_jobs.job_public_view(j)
             for j in background_jobs.list_jobs(registry_root=_job_root())
             if not j.get("scheduledParentJobId")]
+    remote = pan_bridge.request("list")
+    if remote is not None:
+        if not isinstance(remote, dict) or not isinstance(remote.get("jobs"), list):
+            raise pan_bridge.JobServiceUnavailable("invalid independent Job service response")
+        local_ids = {job["jobId"] for job in jobs}
+        for item in remote["jobs"]:
+            job = pan_bridge.public_job(item)
+            if job["jobId"] not in local_ids:
+                jobs.append(background_jobs.job_public_view(job))
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:
@@ -604,7 +615,7 @@ async def create_job(data: dict):
                 name=data.get("name"),
                 description=data.get("description"),
                 creator_session_id=None,
-                registry_root=root,
+                registry_root=None if pan_bridge.configured_client() is not None else root,
             )
         except ValueError as exc:
             return _err("invalid_argument", str(exc))
@@ -782,6 +793,8 @@ async def patch_job(job_id: str, data: dict):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
+    if job.get("executionOwner") == "independent-job-service":
+        return _err("unsupported_operation", "independent Job metadata editing is not available in this phase")
 
     kind = job.get("kind")
     editable_fields = {
@@ -1024,6 +1037,8 @@ async def delete_job(job_id: str):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
+    if job.get("executionOwner") == "independent-job-service":
+        return _err("unsupported_operation", "independent Job record deletion is not available in this phase")
     try:
         if job.get("kind") == background_jobs.SCHEDULED_TASK_KIND:
             from packages.scheduler import store as scheduler_store
