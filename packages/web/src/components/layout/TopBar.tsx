@@ -10,6 +10,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { fetchSessionUsage } from '@/services/api';
 import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 import type { CodexQuotaProjection } from '@/types';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
 import {
   MessageSquare,
   Monitor,
@@ -20,6 +21,7 @@ import {
   Ban,
   Download,
   X,
+  TerminalSquare,
 } from 'lucide-react';
 
 /**
@@ -106,6 +108,21 @@ function cachedQuotaLabel(quota: unknown): string | undefined {
 export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
+  const nativeState = useNativeControlStore((s) => currentSession?.id ? s.sessions[currentSession.id] : undefined);
+  const nativeSwitching = useNativeControlStore((s) => currentSession?.id ? s.switching[currentSession.id] : false);
+  const nativeActive = nativeState?.mode === 'native' || nativeState?.mode === 'switching';
+  useEffect(() => {
+    if (!currentSession?.nativeControl) return;
+    const id = currentSession.id;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try { await useNativeControlStore.getState().refresh(id); } catch { /* keep last acknowledged ownership */ }
+      if (!stopped) timer = setTimeout(() => void refresh(), 1000);
+    };
+    void refresh();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [currentSession?.id, currentSession?.nativeControl]);
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
   // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
   // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
@@ -126,6 +143,14 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
       takeover: s.takeover,
     })));
   const { isMobile } = useMediaQuery();
+  const chooseView = async (value: 'tui' | 'bubble' | 'raw') => {
+    try {
+      if (currentSession?.nativeControl && nativeActive) {
+        await useNativeControlStore.getState().switchMode(currentSession.id, 'pan');
+      }
+      setChatViewStyle(value);
+    } catch { showToast('Control switch was not confirmed', 'error'); }
+  };
   const delayedRestartState = useWorkerStore((s) =>
     currentSession?.id ? s.delayedRestarts[currentSession.id] : undefined,
   );
@@ -213,7 +238,9 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           {isMobile ? (
             <button
               type="button"
-              onClick={() => setChatViewStyle(nextView.value)}
+              onClick={() => void chooseView(nextView.value)}
+              disabled={nativeSwitching}
+              aria-pressed={!nativeActive}
               aria-label={nextView.label}
               title={`Chat view: ${currentView.short} — click to switch to ${nextView.short}`}
               className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
@@ -230,12 +257,13 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setChatViewStyle(value)}
+                  onClick={() => void chooseView(value)}
+                  disabled={nativeSwitching}
                   aria-label={label}
-                  aria-pressed={chatViewStyle === value}
+                  aria-pressed={!nativeActive && chatViewStyle === value}
                   title={label}
                   className={`rounded p-0.5 transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0 ${
-                    chatViewStyle === value
+                    !nativeActive && chatViewStyle === value
                       ? 'bg-bg-primary text-text-primary'
                       : 'text-text-tertiary hover:text-text-primary'
                   }`}
@@ -245,6 +273,13 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               ))}
             </div>
           )}
+          {currentSession.nativeControl && <button type="button"
+            className={`ml-1 border-l border-border-default pl-2 flex items-center gap-1 text-xs ${nativeActive ? 'text-accent' : 'text-text-secondary'}`}
+            aria-label="Terminal TUI" aria-pressed={nativeActive} disabled={nativeSwitching}
+            onClick={() => void useNativeControlStore.getState().switchMode(currentSession.id, 'native')
+              .catch(() => showToast('Native terminal startup or switch was not confirmed', 'error'))}>
+            <TerminalSquare size={16} /> Terminal TUI
+          </button>}
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
@@ -284,7 +319,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             {cachedQuotaText}
           </span>
         )}
-        {hasWorker && effectiveWorkerId && (
+        {!nativeActive && hasWorker && effectiveWorkerId && (
           <>
             <Button
               variant="ghost"
@@ -361,7 +396,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             </Button>
           </>
         )}
-        {!hasWorker && (
+        {!nativeActive && !hasWorker && (
           <Button
             variant="primary"
             size="sm"

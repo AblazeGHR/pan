@@ -9,6 +9,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { fetchHistorySearch, fetchSessionNavigation } from '@/services/api';
 import type { Message } from '@/types';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 const mockedGlobalHistorySearch = vi.hoisted(() => vi.fn());
@@ -37,6 +38,8 @@ vi.mock('@/components/chat/ChatMessages', () => ({
   )),
 }));
 vi.mock('@/components/chat/InputRow', () => ({ InputRow: () => <div data-testid="input-row" /> }));
+vi.mock('@/components/chat/NativeTerminal', () => ({ NativeTerminal: () => <div data-testid="native-terminal" /> }));
+vi.mock('@/components/chat/NativeQueue', () => ({ NativeQueue: () => <div data-testid="native-queue" /> }));
 vi.mock('@/components/chat/ApprovalBanner', () => ({ ApprovalBanner: () => null }));
 vi.mock('@/components/chat/UserInputBanner', () => ({ UserInputBanner: () => null }));
 vi.mock('@/components/chat/ElicitationBanner', () => ({ ElicitationBanner: () => null }));
@@ -54,6 +57,7 @@ const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.t
 const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\r\n/g, '\n');
 
 beforeEach(() => {
+  useNativeControlStore.setState({ sessions: {}, switching: {} });
   viewport.isMobile = false;
   mockedHistory.mockReset();
   mockedGlobalSearch.mockReset();
@@ -79,6 +83,22 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+it('native and uncertain handoffs show only terminal and bottom queue, not history or input', async () => {
+  useNativeControlStore.setState({ sessions: { 'rail-view': { workerId: 'w', mode: 'native', generation: 1, error: null } } });
+  const { queryByTestId, getByTestId } = render(<ChatView />);
+  await waitFor(() => expect(getByTestId('native-terminal')).toBeTruthy());
+  expect(getByTestId('native-queue')).toBeTruthy();
+  expect(queryByTestId('chat-messages')).toBeNull();
+  expect(queryByTestId('input-row')).toBeNull();
+  expect(queryByTestId('chat-tools-sidebar')).toBeNull();
+  act(() => useNativeControlStore.setState({ sessions: { 'rail-view': { workerId: 'w', mode: 'switching', generation: 1, error: null } } }));
+  expect(queryByTestId('input-row')).toBeNull();
+  act(() => useNativeControlStore.setState({ sessions: { 'rail-view': { workerId: 'w', mode: 'pan', generation: 2, error: null } } }));
+  expect(getByTestId('chat-messages')).toBeTruthy();
+  expect(getByTestId('input-row')).toBeTruthy();
+  expect(queryByTestId('native-terminal')).toBeNull();
 });
 
 describe('ChatView: message navigation rail switch', () => {

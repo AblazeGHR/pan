@@ -404,7 +404,8 @@ def test_consumer_drains_reports_as_one_message(monkeypatch):
     worker.workers["worker-mgr"] = w
     received = []
 
-    async def fake_stream(ww, text, source, s):
+    async def fake_stream(ww, text, source, s, *, on_handoff):
+        assert await on_handoff()
         received.append((text, source))
         worker._ack_current_reports(ww, s)
 
@@ -443,7 +444,8 @@ def test_execution_order_includes_reports_without_changing_queue_identity(monkey
     worker.workers[w.worker_id] = w
     observed = []
 
-    async def consume(ww, text, source, session):
+    async def consume(ww, text, source, session, *, on_handoff):
+        assert await on_handoff()
         observed.append((source, ww._execution_seq, ww._current_seq))
         worker._ack_current_task(ww, session)
         worker._ack_current_reports(ww, session)
@@ -475,7 +477,8 @@ def test_consumer_report_signal_no_pending_is_noop(monkeypatch):
     worker.workers["worker-mgr"] = w
     received = []
 
-    async def fake_stream(ww, text, source, s):
+    async def fake_stream(ww, text, source, s, *, on_handoff):
+        assert await on_handoff()
         received.append((text, source))
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
@@ -504,7 +507,8 @@ def test_consumer_non_report_single(monkeypatch):
     worker.workers["worker-mgr"] = w
     received = []
 
-    async def fake_stream(ww, text, source, s):
+    async def fake_stream(ww, text, source, s, *, on_handoff):
+        assert await on_handoff()
         received.append((text, source))
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)

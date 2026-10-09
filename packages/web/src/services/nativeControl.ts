@@ -1,0 +1,18 @@
+export interface NativeControlState {
+  workerId: string | null;
+  mode: 'pan' | 'native' | 'switching';
+  generation: number;
+  error: string | null;
+}
+export interface NativeOutput extends NativeControlState { cursor: string; gap: boolean; data: string }
+
+export async function nativeRequest<T>(sessionId: string, path = '', body?: object, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/native-control${path}`, {
+    method: body ? 'POST' : 'GET', signal,
+    ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) throw new Error(`Native terminal request failed (${response.status})`);
+  const envelope = await response.json() as { ok: boolean; result: T };
+  if (!envelope.ok) throw new Error('Native terminal request rejected');
+  return envelope.result;
+}

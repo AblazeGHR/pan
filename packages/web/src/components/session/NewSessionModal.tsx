@@ -45,6 +45,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
   const [model, setModel] = useState('');
   const [permissionMode, setPermissionMode] = useState('');
+  const [nativeControl, setNativeControl] = useState(false);
   const [effort, setEffort] = useState('');
   const [modelContextWindow, setModelContextWindow] = useState('');
   const [modelAutoCompactTokenLimit, setModelAutoCompactTokenLimit] = useState('');
@@ -113,6 +114,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setActiveTab('basic');
       setModel('');
       setPermissionMode('');
+      setNativeControl(false);
       setEffort('');
       setModelContextWindow('');
       setModelAutoCompactTokenLimit('');
@@ -277,6 +279,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   ) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
     const createSettings = {
+      ...(adapter === 'codex' ? { nativeControl } : {}),
       outputMode: outputMode || undefined,
       workspaceIds,
       ...(includeAdvancedSettings ? {
@@ -565,6 +568,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           </select>
         </label>
 
+        {adapter === 'codex' && (
+          <label className="flex items-center gap-2 text-sm text-text-secondary">
+            <input type="checkbox" checked={nativeControl} onChange={(event) => setNativeControl(event.target.checked)} />
+            Enable native Terminal TUI control (same persistent agent)
+          </label>
+        )}
         {cliStatusError && (
           <p className="-mt-2 text-[11px] leading-snug text-danger">
             Unable to check adapter availability: {cliStatusError}. Check the Pan backend connection and try again.

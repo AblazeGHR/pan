@@ -1,0 +1,1316 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\codex-native-control-integration-20261010
+........................................................................ [  2%]
+...........................F............................................ [  4%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+..s..................F.................................................. [ 17%]
+........................................................................ [ 19%]
+..................................s..................................... [ 22%]
+........................................................................ [ 24%]
+sss..................................................................... [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+..FF.................................................................... [ 41%]
+........................................................................ [ 44%]
+.........................s.............................................. [ 46%]
+........................................................................ [ 49%]
+.FF..................................................................... [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+..................FFF....F.............................................F [ 61%]
+........................F............................................... [ 63%]
+.....F.....F.....................................s...................... [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+................................................F....................... [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 93%]
+....................................................FFF................. [ 95%]
+........................................................................ [ 98%]
+.......................................................                  [100%]
+================================== FAILURES ===================================
+__________ test_result_flushes_debounced_blocks_through_read_stdout ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29D449A20>
+
+    def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
+        """集成：assistant 块防抖 + result 强制 flush → 全程恰好 1 次落盘。"""
+        _cleanup()
+        s, w = _make_worker()
+        saved = []
+    
+        async def fake_save(sess):
+            saved.append(len(sess.history))
+    
+        monkeypatch.setattr(_sess, "save_async", fake_save)
+        w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
+    
+        asyncio.run(worker._read_stdout(w))
+    
+        assert _no_ts(s.history) == [{"role": "assistant", "content": "hi"}], s.history
+        # 落盘的 assistant 正文必须带 Pan 身份（防抖 + result flush 不影响身份分配）。
+        (assistant_id,) = _message_ids(s.history)
+        assert _sess.is_pan_message_id(assistant_id), (
+            f"streamed assistant history must carry a Pan messageId, got {assistant_id!r}"
+        )
+        assert s.last_result["status"] == "done"
+>       assert saved == [1], f"expected exactly 1 save (result flush), got {saved}"
+E       AssertionError: expected exactly 1 save (result flush), got []
+E       assert [] == [1]
+E         
+E         Right contains one more item: 1
+E         Use -v to get more diff
+
+tests\test_backend_perf_opt.py:196: AssertionError
+_______________ test_pairing_follows_new_attempt_after_respawn ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29D18C360>
+
+    def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
+        """respawn 后重投任务的 seq/taskId 配对来自新 item，不被旧代污染。
+    
+        worker1 消费任务 A（seq=1）后死亡；worker2 respawn 后消费任务 B（seq=7）。
+        断言 worker2 的配对上下文 = B 的 seq/taskId（若误迁旧代状态会得到 A 的值）。
+        """
+        _cleanup()
+        monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+        s = _setup_session("ses_test")
+    
+        # 旧代：任务 A（seq=1）被 worker1 消费
+        w1 = _make_worker("ses_test", worker_id="worker-1")
+        s.queue_pending = [_make_task(1, seq=1), _make_task(2, seq=7)]
+    
+        pairs = []
+    
+        async def fake_stream(ww, text, source, sess):
+            pairs.append((ww._current_seq, ww._current_task_id))
+            worker._ack_current_task(ww, sess)
+    
+        monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
+    
+        async def scenario1():
+            await w1.pending_signal.put({"type": "task_signal", "id": "task1"})
+            await w1.pending_signal.put(None)
+            await worker._consumer(w1)
+    
+        asyncio.run(scenario1())
+>       assert pairs[-1] == (1, "tid1")
+               ^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_execution_state_ownership.py:149: IndexError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.worker:worker.py:2664 [Worker worker-1] queue unit execution failed: Queue consumer must support the handoff callback
+_____ test_terminal_persistence_assigns_durable_cursor_before_publication _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29F4078C0>
+
+    def test_terminal_persistence_assigns_durable_cursor_before_publication(monkeypatch):
+        sid = "ses_t0627_terminal"
+        s = session.Session(id=sid, name="t0627-terminal")
+        session._cache[sid] = s
+        w = worker.Worker(
+            worker_id="worker-t0627",
+            session_id=sid,
+            adapter=CbcAdapter(),
+            status="running",
+            process=SimpleNamespace(returncode=None),
+            pending_signal=asyncio.Queue(),
+            _task_done=asyncio.Event(),
+        )
+        worker.workers[w.worker_id] = w
+        monkeypatch.setattr(worker, "_flush_history_now", _noop_flush)
+        try:
+            w._current_seq = 1
+            w._current_task_id = "task-one"
+            w._current_task_idempotent = True
+>           first = _run(worker._persist_terminal_state(w, s, "done", "one"))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_resync.py:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_resync.py:25: in _run
+    return asyncio.run(coro)
+           ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:1125: in _persist_terminal_state
+    return await _persist_terminal_state_locked(w, s, status, result_text)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+w = Worker(worker_id='worker-t0627', session_id='ses_t0627_terminal', adapter=<packages.core.adapters.cbc.adapter.CbcAdapt...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False)
+s = Session(id='ses_t0627_terminal', name='t0627-terminal', adapter='cbc', model=None, permission_mode=None, pan_access={'...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+status = 'done', result_text = 'one'
+
+    async def _persist_terminal_state_locked(
+        w: Worker, s, status: str, result_text: str | None,
+    ) -> dict | None:
+        if w._terminal_handled:
+            _log.warning(
+                "[Worker %s] duplicate terminal event ignored generation=%s",
+                w.worker_id, w.generation,
+            )
+            return None
+    
+        task_seq = w._current_seq
+        task_id = w._current_task_id
+        task_idempotent = w._current_task_idempotent
+        source_session_id = w._current_source_session_id
+        terminal_key = _terminal_enrichment_key(
+            task_id, task_seq, w.worker_id, w.generation,
+            task_idempotent=task_idempotent,
+        )
+        result_text = result_text if result_text is not None else ""
+        w.status = status
+        if s is None:
+            # There is no durable Session to protect.  Callers must not publish a
+            # terminal result that cannot be reconciled through session_get.
+            raise RuntimeError(
+                f"Session {w.session_id} disappeared before terminal persistence"
+            )
+        prior_result = s.last_result if isinstance(s.last_result, dict) else None
+        if (prior_result and prior_result.get("terminalKey") == terminal_key
+                and prior_result.get("status") == status):
+            # A replacement Worker can observe the provider's already-completed
+            # turn again.  The durable terminal key suppresses a second result
+            # broadcast when the in-memory guard was lost with the old Worker.
+            _log.warning(
+                "[Worker %s] durable duplicate terminal ignored key=%s",
+                w.worker_id, terminal_key,
+            )
+            w.status = "idle"
+            w._terminal_handled = True
+            # A duplicate terminal is still a terminal for the current consumer
+            # generation.  Without waking _consumer_stream, a durable duplicate
+            # can strand the serial queue until the watchdog removes the worker.
+            _signal_task_done(w)
+            w.last_activity = time.monotonic()
+            return None
+    
+        # ``last_result`` is deliberately only the latest compatibility view.  A
+        # reconnect may cross several terminal turns, so keep a small durable
+        # ordered window as the source for cursor replay.  Check the window before
+        # allocating a new cursor as well; a replacement Worker may lose the
+        # in-memory terminal guard after a crash.
+        prior_terminals = [
+            item for item in (getattr(s, "terminal_results", None) or [])
+            if isinstance(item, dict)
+        ]
+        if any(
+            item.get("terminalKey") == terminal_key
+            and item.get("status") == status
+            for item in prior_terminals
+        ):
+            _log.warning(
+                "[Worker %s] durable terminal replay duplicate ignored key=%s",
+                w.worker_id, terminal_key,
+            )
+            w.status = "idle"
+            w._terminal_handled = True
+            _signal_task_done(w)
+            w.last_activity = time.monotonic()
+            return None
+    
+        try:
+            result_cursor = max(
+                int(getattr(s, "result_cursor", 0) or 0),
+                max((int(item.get("resultCursor", 0) or 0)
+                     for item in prior_terminals), default=0),
+            ) + 1
+        except (TypeError, ValueError):
+            result_cursor = max(0, int(getattr(s, "result_cursor", 0) or 0)) + 1
+        old_terminal_state = {
+            "result_cursor": s.result_cursor,
+            "unread_done_generation": s.unread_done_generation,
+            "unread_done_read_generation": s.unread_done_read_generation,
+            "unread_done_count": s.unread_done_count,
+            "active_task_id": s.active_task_id,
+            "last_legal_worker_state": s.last_legal_worker_state,
+            "usage_enrichment_pending": list(s.usage_enrichment_pending),
+        }
+        old_runtime_state = {
+            "_current_queue_item": w._current_queue_item,
+            "_current_report_items": list(w._current_report_items),
+            "_current_task_assistant_ids": set(w._current_task_assistant_ids),
+        }
+        s.result_cursor = result_cursor
+        terminal_record = {
+            "resultCursor": result_cursor,
+            "terminalKey": terminal_key,
+            "status": status,
+            "result": result_text,
+            "taskSeq": task_seq,
+            "executionSeq": w._execution_seq or None,
+            "taskId": task_id,
+            "taskIdempotent": task_idempotent,
+            "workerId": w.worker_id,
+            "generation": w.generation,
+            "sourceSessionId": source_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "historyEpoch": getattr(s, "history_epoch", None),
+            "historyRevision": getattr(s, "history_revision", 0),
+        }
+        s.terminal_results = (
+            prior_terminals + [terminal_record]
+        )[-_sess.RESULT_REPLAY_MAX_ENTRIES:]
+    
+        s.last_result = {
+            "status": status,
+            "result": result_text,
+            "cli_session_id": s.cli_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "taskSeq": task_seq,
+            "executionSeq": w._execution_seq or None,
+            "taskId": task_id,
+            "taskIdempotent": task_idempotent,
+            "workerId": w.worker_id,
+            "generation": w.generation,
+            "resultCursor": result_cursor,
+            "sourceSessionId": source_session_id,
+            "terminalKey": terminal_key,
+        }
+        # 未读 done 游标：只在此唯一终态入口（既有三重去重之后）累加 generation，
+        # 每次真实 done 终态 +1，随本次 base commit 落盘。error/cancelled 不计；
+        # report 批次在此刻仍持有 _current_report_items（下方 _ack_current_reports
+        # 才清空）且 task_seq 为 None，不计入 manager 自己的 done——子 report 到达
+        # 不再计一次。count 仅由 generation - read 物化，不是 ack 边界。
+        if (status == "done" and task_seq is not None
+                and not w._current_report_items):
+            generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0)) + 1
+            read_generation = max(0, int(
+                getattr(s, "unread_done_read_generation", 0) or 0))
+            s.unread_done_generation = generation
+            s.unread_done_read_generation = min(read_generation, generation)
+            s.unread_done_count = generation - s.unread_done_read_generation
+        if status == "done" and isinstance(result_text, str) and result_text.strip():
+            last = s.history[-1] if s.history else None
+            already_appended_this_turn = (
+                last and last.get("role") == "assistant"
+                and last.get("content") == result_text
+                and last.get("messageId") in w._current_task_assistant_ids
+            )
+            if not already_appended_this_turn:
+                entry = {"role": "assistant", "content": result_text}
+                _sess.append_history(s, entry)
+                # Keep this append associated with the turn if the base commit
+                # fails and its terminal event is retried.
+                old_runtime_state["_current_task_assistant_ids"].add(entry["messageId"])
+        from packages.core import qq_reports
+        old_qq_outbox = dict(s.qq_report_outbox)
+        if (status in {"done", "error"} and task_seq is not None
+                and not w._current_report_items):
+            body = result_text if status == "error" else (w._current_task_last_assistant_text or result_text)
+            if body:
+                qq_reports.prepare(s, terminal_key, body)
+        w._current_task_assistant_ids.clear()
+    
+        # The result must cover the canonical history revision after the final
+        # append, not the revision that happened to exist when the replay record
+        # was allocated above. Persist this coverage in the same base commit as
+        # last_result/terminal_results before publishing result or idle.
+        history_epoch = getattr(s, "history_epoch", None)
+        history_revision = getattr(s, "history_revision", 0)
+        terminal_record["historyEpoch"] = history_epoch
+        terminal_record["historyRevision"] = history_revision
+        s.last_result["historyEpoch"] = history_epoch
+        s.last_result["historyRevision"] = history_revision
+    
+        # Queue rows crossed the existing provider hand-off boundary earlier; this
+        # only clears runtime routing references and never changes FIFO state.
+        _ack_current_task(w, s)
+        _ack_current_reports(w, s)
+        _clear_active_task_if_current(s, task_id)
+        enrichment_key = _queue_usage_enrichment(
+            s, w.adapter, task_id=task_id, task_seq=task_seq,
+            worker_id=w.worker_id, generation=w.generation,
+            task_idempotent=task_idempotent,
+        )
+        if enrichment_key:
+            s.last_result["usageEnrichmentKey"] = enrichment_key
+    
+        # Keep the persisted legal state aligned with the existing lifecycle
+        # ledger, but save only after history/result/job preparation is complete.
+        await _record_legal_worker_state(w, status, "task/complete", persist=False)
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
+        # This is the base commit.  If it fails, the exception prevents both
+        # worker.result and idle broadcasts, as required by the terminal contract.
+        outcome = _sess.DurableOutcome()
+        rolled_back = False
+        def rollback_terminal():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
+            s.last_result = prior_result
+            s.terminal_results = prior_terminals
+            for key, value in old_terminal_state.items():
+                setattr(s, key, value)
+            for key, value in old_runtime_state.items():
+                setattr(w, key, value)
+            s.qq_report_outbox = old_qq_outbox
+            w.status = status
+        try:
+>           await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: _noop_flush() got an unexpected keyword argument 'outcome'
+
+packages\core\worker.py:1343: TypeError
+_______________ test_pre_handoff_error_keeps_result_idle_order ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29F4070E0>
+
+    def test_pre_handoff_error_keeps_result_idle_order(monkeypatch):
+        sid = "ses_t0627_error_order"
+        s = session.Session(id=sid, name="t0627-error-order")
+        session._cache[sid] = s
+        w = worker.Worker(
+            worker_id="worker-t0627-error",
+            session_id=sid,
+            adapter=CbcAdapter(),
+            status="running",
+            process=SimpleNamespace(returncode=1),
+            pending_signal=asyncio.Queue(),
+            _task_done=asyncio.Event(),
+        )
+        worker.workers[w.worker_id] = w
+        events = []
+    
+        async def capture_broadcast(event):
+            events.append(event)
+    
+        async def ignore_report(*_args, **_kwargs):
+            return None
+    
+        monkeypatch.setattr(worker, "_bcast", capture_broadcast)
+        monkeypatch.setattr(worker, "_enqueue_report", ignore_report)
+        monkeypatch.setattr(worker, "_flush_history_now", _noop_flush)
+        try:
+            w._current_seq = 1
+            w._current_task_id = "task-pre-handoff"
+            w._current_task_idempotent = True
+>           _run(worker._finish_task_error(w, s, "dead before handoff"))
+
+tests\test_replay_resync.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_resync.py:25: in _run
+    return asyncio.run(coro)
+           ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:1731: in _finish_task_error
+    terminal = await _persist_terminal_state(w, s, "error", result)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:1125: in _persist_terminal_state
+    return await _persist_terminal_state_locked(w, s, status, result_text)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+w = Worker(worker_id='worker-t0627-error', session_id='ses_t0627_error_order', adapter=<packages.core.adapters.cbc.adapter...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False)
+s = Session(id='ses_t0627_error_order', name='t0627-error-order', adapter='cbc', model=None, permission_mode=None, pan_acc...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+status = 'error', result_text = 'dead before handoff'
+
+    async def _persist_terminal_state_locked(
+        w: Worker, s, status: str, result_text: str | None,
+    ) -> dict | None:
+        if w._terminal_handled:
+            _log.warning(
+                "[Worker %s] duplicate terminal event ignored generation=%s",
+                w.worker_id, w.generation,
+            )
+            return None
+    
+        task_seq = w._current_seq
+        task_id = w._current_task_id
+        task_idempotent = w._current_task_idempotent
+        source_session_id = w._current_source_session_id
+        terminal_key = _terminal_enrichment_key(
+            task_id, task_seq, w.worker_id, w.generation,
+            task_idempotent=task_idempotent,
+        )
+        result_text = result_text if result_text is not None else ""
+        w.status = status
+        if s is None:
+            # There is no durable Session to protect.  Callers must not publish a
+            # terminal result that cannot be reconciled through session_get.
+            raise RuntimeError(
+                f"Session {w.session_id} disappeared before terminal persistence"
+            )
+        prior_result = s.last_result if isinstance(s.last_result, dict) else None
+        if (prior_result and prior_result.get("terminalKey") == terminal_key
+                and prior_result.get("status") == status):
+            # A replacement Worker can observe the provider's already-completed
+            # turn again.  The durable terminal key suppresses a second result
+            # broadcast when the in-memory guard was lost with the old Worker.
+            _log.warning(
+                "[Worker %s] durable duplicate terminal ignored key=%s",
+                w.worker_id, terminal_key,
+            )
+            w.status = "idle"
+            w._terminal_handled = True
+            # A duplicate terminal is still a terminal for the current consumer
+            # generation.  Without waking _consumer_stream, a durable duplicate
+            # can strand the serial queue until the watchdog removes the worker.
+            _signal_task_done(w)
+            w.last_activity = time.monotonic()
+            return None
+    
+        # ``last_result`` is deliberately only the latest compatibility view.  A
+        # reconnect may cross several terminal turns, so keep a small durable
+        # ordered window as the source for cursor replay.  Check the window before
+        # allocating a new cursor as well; a replacement Worker may lose the
+        # in-memory terminal guard after a crash.
+        prior_terminals = [
+            item for item in (getattr(s, "terminal_results", None) or [])
+            if isinstance(item, dict)
+        ]
+        if any(
+            item.get("terminalKey") == terminal_key
+            and item.get("status") == status
+            for item in prior_terminals
+        ):
+            _log.warning(
+                "[Worker %s] durable terminal replay duplicate ignored key=%s",
+                w.worker_id, terminal_key,
+            )
+            w.status = "idle"
+            w._terminal_handled = True
+            _signal_task_done(w)
+            w.last_activity = time.monotonic()
+            return None
+    
+        try:
+            result_cursor = max(
+                int(getattr(s, "result_cursor", 0) or 0),
+                max((int(item.get("resultCursor", 0) or 0)
+                     for item in prior_terminals), default=0),
+            ) + 1
+        except (TypeError, ValueError):
+            result_cursor = max(0, int(getattr(s, "result_cursor", 0) or 0)) + 1
+        old_terminal_state = {
+            "result_cursor": s.result_cursor,
+            "unread_done_generation": s.unread_done_generation,
+            "unread_done_read_generation": s.unread_done_read_generation,
+            "unread_done_count": s.unread_done_count,
+            "active_task_id": s.active_task_id,
+            "last_legal_worker_state": s.last_legal_worker_state,
+            "usage_enrichment_pending": list(s.usage_enrichment_pending),
+        }
+        old_runtime_state = {
+            "_current_queue_item": w._current_queue_item,
+            "_current_report_items": list(w._current_report_items),
+            "_current_task_assistant_ids": set(w._current_task_assistant_ids),
+        }
+        s.result_cursor = result_cursor
+        terminal_record = {
+            "resultCursor": result_cursor,
+            "terminalKey": terminal_key,
+            "status": status,
+            "result": result_text,
+            "taskSeq": task_seq,
+            "executionSeq": w._execution_seq or None,
+            "taskId": task_id,
+            "taskIdempotent": task_idempotent,
+            "workerId": w.worker_id,
+            "generation": w.generation,
+            "sourceSessionId": source_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "historyEpoch": getattr(s, "history_epoch", None),
+            "historyRevision": getattr(s, "history_revision", 0),
+        }
+        s.terminal_results = (
+            prior_terminals + [terminal_record]
+        )[-_sess.RESULT_REPLAY_MAX_ENTRIES:]
+    
+        s.last_result = {
+            "status": status,
+            "result": result_text,
+            "cli_session_id": s.cli_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "taskSeq": task_seq,
+            "executionSeq": w._execution_seq or None,
+            "taskId": task_id,
+            "taskIdempotent": task_idempotent,
+            "workerId": w.worker_id,
+            "generation": w.generation,
+            "resultCursor": result_cursor,
+            "sourceSessionId": source_session_id,
+            "terminalKey": terminal_key,
+        }
+        # 未读 done 游标：只在此唯一终态入口（既有三重去重之后）累加 generation，
+        # 每次真实 done 终态 +1，随本次 base commit 落盘。error/cancelled 不计；
+        # report 批次在此刻仍持有 _current_report_items（下方 _ack_current_reports
+        # 才清空）且 task_seq 为 None，不计入 manager 自己的 done——子 report 到达
+        # 不再计一次。count 仅由 generation - read 物化，不是 ack 边界。
+        if (status == "done" and task_seq is not None
+                and not w._current_report_items):
+            generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0)) + 1
+            read_generation = max(0, int(
+                getattr(s, "unread_done_read_generation", 0) or 0))
+            s.unread_done_generation = generation
+            s.unread_done_read_generation = min(read_generation, generation)
+            s.unread_done_count = generation - s.unread_done_read_generation
+        if status == "done" and isinstance(result_text, str) and result_text.strip():
+            last = s.history[-1] if s.history else None
+            already_appended_this_turn = (
+                last and last.get("role") == "assistant"
+                and last.get("content") == result_text
+                and last.get("messageId") in w._current_task_assistant_ids
+            )
+            if not already_appended_this_turn:
+                entry = {"role": "assistant", "content": result_text}
+                _sess.append_history(s, entry)
+                # Keep this append associated with the turn if the base commit
+                # fails and its terminal event is retried.
+                old_runtime_state["_current_task_assistant_ids"].add(entry["messageId"])
+        from packages.core import qq_reports
+        old_qq_outbox = dict(s.qq_report_outbox)
+        if (status in {"done", "error"} and task_seq is not None
+                and not w._current_report_items):
+            body = result_text if status == "error" else (w._current_task_last_assistant_text or result_text)
+            if body:
+                qq_reports.prepare(s, terminal_key, body)
+        w._current_task_assistant_ids.clear()
+    
+        # The result must cover the canonical history revision after the final
+        # append, not the revision that happened to exist when the replay record
+        # was allocated above. Persist this coverage in the same base commit as
+        # last_result/terminal_results before publishing result or idle.
+        history_epoch = getattr(s, "history_epoch", None)
+        history_revision = getattr(s, "history_revision", 0)
+        terminal_record["historyEpoch"] = history_epoch
+        terminal_record["historyRevision"] = history_revision
+        s.last_result["historyEpoch"] = history_epoch
+        s.last_result["historyRevision"] = history_revision
+    
+        # Queue rows crossed the existing provider hand-off boundary earlier; this
+        # only clears runtime routing references and never changes FIFO state.
+        _ack_current_task(w, s)
+        _ack_current_reports(w, s)
+        _clear_active_task_if_current(s, task_id)
+        enrichment_key = _queue_usage_enrichment(
+            s, w.adapter, task_id=task_id, task_seq=task_seq,
+            worker_id=w.worker_id, generation=w.generation,
+            task_idempotent=task_idempotent,
+        )
+        if enrichment_key:
+            s.last_result["usageEnrichmentKey"] = enrichment_key
+    
+        # Keep the persisted legal state aligned with the existing lifecycle
+        # ledger, but save only after history/result/job preparation is complete.
+        await _record_legal_worker_state(w, status, "task/complete", persist=False)
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
+        # This is the base commit.  If it fails, the exception prevents both
+        # worker.result and idle broadcasts, as required by the terminal contract.
+        outcome = _sess.DurableOutcome()
+        rolled_back = False
+        def rollback_terminal():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
+            s.last_result = prior_result
+            s.terminal_results = prior_terminals
+            for key, value in old_terminal_state.items():
+                setattr(s, key, value)
+            for key, value in old_runtime_state.items():
+                setattr(w, key, value)
+            s.qq_report_outbox = old_qq_outbox
+            w.status = status
+        try:
+>           await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: _noop_flush() got an unexpected keyword argument 'outcome'
+
+packages\core\worker.py:1343: TypeError
+__ test_codex_context_restore_deletes_keys_and_marks_idle_worker_for_respawn __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29F22FD90>
+
+    def test_codex_context_restore_deletes_keys_and_marks_idle_worker_for_respawn(monkeypatch):
+        _cleanup()
+        _patch_caps(monkeypatch)
+        s = _make("ses-context-idle", "context-idle", adapter="codex",
+                  model="gpt-5.1-codex",
+                  adapter_config={"model_context_window": 64000,
+                                  "model_auto_compact_token_limit": 60800})
+        live = type("Live", (), {"worker_id": "worker-context-idle", "status": "idle", "process": object(),
+                                  "pending_restart": False})()
+        monkeypatch.setattr(srv.worker, "find_alive_worker_by_session", lambda _: live)
+        created = []
+    
+        def fake_create_task(coro):
+            created.append(coro)
+            coro.close()
+            return object()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", fake_create_task)
+        with patch.object(srv, "broadcast", new=AsyncMock()):
+>           result = asyncio.run(srv.api_update_session("ses-context-idle", {
+                "modelContextWindow": None,
+                "modelAutoCompactTokenLimit": None,
+            }))
+
+tests\test_session_adapter_validation.py:285: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\web\server.py:8238: in api_update_session
+    restart_intent = worker.request_delayed_restart(session_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session_id = 'ses-context-idle'
+
+    def request_delayed_restart(session_id: str) -> dict | str:
+        """Merge settings/user intent; absent runtime follows Restart's start policy.
+    
+        Acceptance and generation capture are synchronous. Lifecycle I/O reuses
+        the existing per-session spawn lock; no global/queue lock waits for exit.
+        Intent is runtime-only and never migrates to a different Worker generation.
+        """
+        if _shutdown_started:
+            return "Pan main service is shutting down"
+        if _get_session_shallow(session_id) is None:
+            return f"Session {session_id} not found"
+        prior = _delayed_restarts.get(session_id)
+        if prior and prior["status"] in {"pending", "restarting"}:
+            owner = workers.get(prior["workerId"])
+            if prior["status"] == "restarting" or (
+                    owner is not None and owner.generation == prior["generation"]):
+                return dict(prior)
+            _set_restart_intent(prior, "cancelled", "Worker generation was replaced")
+        tracked = find_worker_by_session(session_id)
+        if tracked is not None and tracked.status == "held":
+            return "Worker is held (takeover mode); use Restart after finishing takeover"
+        w = find_alive_worker_by_session(session_id)
+        if w is not None and w.status not in {"idle", "running", "queued", "done", "error", "cancelled"}:
+            return f"Worker is {w.status}; delayed restart requires an idle or active task runtime"
+        if (w is not None and w.status in {"done", "error", "cancelled"}
+                and not w._terminal_finishing and not w._queue_unit_active):
+            return f"Worker is {w.status}; use Restart to recover the runtime"
+        intent = {"sessionId": session_id, "workerId": w.worker_id if w else None,
+>                 "generation": w.generation if w else None,
+                                ^^^^^^^^^^^^
+                  "action": "restart" if w else "start"}
+E       AttributeError: 'Live' object has no attribute 'generation'
+
+packages\core\worker.py:6484: AttributeError
+_______ test_codex_context_update_marks_running_worker_pending_restart ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29F1C0670>
+
+    def test_codex_context_update_marks_running_worker_pending_restart(monkeypatch):
+        _cleanup()
+        _patch_caps(monkeypatch)
+        s = _make("ses-context-running", "context-running", adapter="codex",
+                  model="gpt-5.1-codex")
+        live = type("Live", (), {"worker_id": "worker-context-running", "status": "running", "process": object(),
+                                  "pending_restart": False})()
+        monkeypatch.setattr(srv.worker, "find_alive_worker_by_session", lambda _: live)
+        with patch.object(srv, "broadcast", new=AsyncMock()):
+>           result = asyncio.run(srv.api_update_session("ses-context-running", {
+                "modelContextWindow": 64000,
+                "modelAutoCompactTokenLimit": 60800,
+            }))
+
+tests\test_session_adapter_validation.py:312: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\web\server.py:8238: in api_update_session
+    restart_intent = worker.request_delayed_restart(session_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session_id = 'ses-context-running'
+
+    def request_delayed_restart(session_id: str) -> dict | str:
+        """Merge settings/user intent; absent runtime follows Restart's start policy.
+    
+        Acceptance and generation capture are synchronous. Lifecycle I/O reuses
+        the existing per-session spawn lock; no global/queue lock waits for exit.
+        Intent is runtime-only and never migrates to a different Worker generation.
+        """
+        if _shutdown_started:
+            return "Pan main service is shutting down"
+        if _get_session_shallow(session_id) is None:
+            return f"Session {session_id} not found"
+        prior = _delayed_restarts.get(session_id)
+        if prior and prior["status"] in {"pending", "restarting"}:
+            owner = workers.get(prior["workerId"])
+            if prior["status"] == "restarting" or (
+                    owner is not None and owner.generation == prior["generation"]):
+                return dict(prior)
+            _set_restart_intent(prior, "cancelled", "Worker generation was replaced")
+        tracked = find_worker_by_session(session_id)
+        if tracked is not None and tracked.status == "held":
+            return "Worker is held (takeover mode); use Restart after finishing takeover"
+        w = find_alive_worker_by_session(session_id)
+        if w is not None and w.status not in {"idle", "running", "queued", "done", "error", "cancelled"}:
+            return f"Worker is {w.status}; delayed restart requires an idle or active task runtime"
+        if (w is not None and w.status in {"done", "error", "cancelled"}
+                and not w._terminal_finishing and not w._queue_unit_active):
+            return f"Worker is {w.status}; use Restart to recover the runtime"
+        intent = {"sessionId": session_id, "workerId": w.worker_id if w else None,
+>                 "generation": w.generation if w else None,
+                                ^^^^^^^^^^^^
+                  "action": "restart" if w else "start"}
+E       AttributeError: 'Live' object has no attribute 'generation'
+
+packages\core\worker.py:6484: AttributeError
+_________ test_load_config_falls_back_to_ui_defaults_when_key_absent __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2052/test_load_config_falls_back_to0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A29F345FD0>
+
+    def test_load_config_falls_back_to_ui_defaults_when_key_absent(tmp_path, monkeypatch):
+        p = _use_temp_config(tmp_path, monkeypatch)
+        _write(p, {"port": 9999})  # old config without "ui"
+        cfg = config.load_config()
+>       assert cfg["ui"] == _UI_DEFAULTS
+E       AssertionError: assert {'defaultGrou...t': True, ...} == {'defaultGrou...t': True, ...}
+E         
+E         Omitting 6 identical items, use -vv to show
+E         Differing items:
+E         {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}}} != {'notifications': {'codexWarningToast': True}}
+E         Use -v to get more diff
+
+tests\test_settings_ui.py:61: AssertionError
+________ test_load_config_falls_back_to_ui_defaults_when_file_missing _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2052/test_load_config_falls_back_to1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A8241E10>
+
+    def test_load_config_falls_back_to_ui_defaults_when_file_missing(tmp_path, monkeypatch):
+        _use_temp_config(tmp_path, monkeypatch)
+        cfg = config.load_config()
+>       assert cfg["ui"] == _UI_DEFAULTS
+E       AssertionError: assert {'defaultGrou...t': True, ...} == {'defaultGrou...t': True, ...}
+E         
+E         Omitting 6 identical items, use -vv to show
+E         Differing items:
+E         {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}}} != {'notifications': {'codexWarningToast': True}}
+E         Use -v to get more diff
+
+tests\test_settings_ui.py:68: AssertionError
+______________________ test_get_ui_defaults_when_absent _______________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2052/test_get_ui_defaults_when_abse0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A82427B0>
+
+    def test_get_ui_defaults_when_absent(tmp_path, monkeypatch):
+        _use_temp_config(tmp_path, monkeypatch)
+        r = asyncio.run(srv.api_get_settings_ui())
+>       assert r == _UI_DEFAULTS
+E       AssertionError: assert {'defaultGrou...t': True, ...} == {'defaultGrou...t': True, ...}
+E         
+E         Omitting 6 identical items, use -vv to show
+E         Differing items:
+E         {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}}} != {'notifications': {'codexWarningToast': True}}
+E         Use -v to get more diff
+
+tests\test_settings_ui.py:76: AssertionError
+________________________ test_put_ui_full_replacement _________________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2052/test_put_ui_full_replacement0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A8242BA0>
+
+    def test_put_ui_full_replacement(tmp_path, monkeypatch):
+        p = _use_temp_config(tmp_path, monkeypatch)
+        _write(
+            p,
+            {
+                "ui": {
+                    "defaultGroupBy": "workdir",
+                    "showMetaAgent": False,
+                    "showTaskAgent": False,
+                    "showQQ": False,
+                }
+            },
+        )
+        full = dict(_UI_DEFAULTS)
+        r = asyncio.run(srv.api_put_settings_ui(full))
+>       assert r == full
+E       AssertionError: assert {'defaultGrou...t': True, ...} == {'defaultGrou...t': True, ...}
+E         
+E         Omitting 6 identical items, use -vv to show
+E         Differing items:
+E         {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}}} != {'notifications': {'codexWarningToast': True}}
+E         Use -v to get more diff
+
+tests\test_settings_ui.py:153: AssertionError
+______________ test_task_history_receipt_retains_source_metadata ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A8241780>
+
+    def test_task_history_receipt_retains_source_metadata(monkeypatch):
+        source = _session("source")
+        target = _session("target")
+        target.queue_pending = [_task_envelope(
+            "task-1", "record me", source="agent", sourceSessionId=source.id)]
+        w = _worker(target.id)
+    
+        async def fake_stream(_worker, _text, _source, _session):
+            return None
+    
+        monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
+        monkeypatch.setattr(worker, "_maybe_inject_memory",
+                            AsyncMock(side_effect=lambda _s, text: text))
+    
+        async def run_consumer():
+            task = asyncio.create_task(worker._consumer(w))
+            await w.pending_signal.put({"type": "task_signal", "id": "task-1"})
+            await w.pending_signal.put(None)
+            await asyncio.wait_for(task, timeout=1)
+    
+        asyncio.run(run_consumer())
+    
+>       assert target.queue_pending == []
+E       AssertionError: assert [{'type': 'ta...task-1', ...}] == []
+E         
+E         Left contains one more item: {'type': 'task', 'kind': 'task', 'id': 'task-1', 'queueItemId': 'task-1', ...}
+E         Use -v to get more diff
+
+tests\test_source_metadata.py:385: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.worker:worker.py:2664 [Worker worker-1] queue unit execution failed: Queue consumer must support the handoff callback
+______ test_gate_host_must_match_allowed_authority_and_forwarded_ignored ______
+
+    def test_gate_host_must_match_allowed_authority_and_forwarded_ignored():
+        """Host 必须与允许 origin 的 authority 匹配；X-Forwarded-* 不得扩信任。"""
+    
+        async def scenario() -> None:
+            service = FakeService()
+            runtime = make_runtime(service)
+            app = await start_app(runtime)
+            await wait_ready(runtime)
+            # Origin 合法但 Host 不同 authority
+            async with make_client(app, authority="evil.local:8768", origin=ORIGIN) as client:
+                response = await client.get("/api/terminals")
+                assert response.status_code == 403
+                assert response.json()["error"]["code"] == "forbidden-host"
+            # 伪造转发头不扩信任（Host 仍是 evil）
+            async with make_client(
+                app, authority="evil.local:8768", origin=ORIGIN,
+                headers={"x-forwarded-host": AUTHORITY, "x-forwarded-for": "127.0.0.1"},
+            ) as client:
+                response = await client.get("/api/terminals")
+                assert response.status_code == 403
+                assert response.json()["error"]["code"] == "forbidden-host"
+            # Host 缺失 → 403（直接驱动 gate：httpx 总会补 Host）
+            with pytest.raises(terminal_api.GateRejected) as excinfo:
+                runtime.check_gate(_FakeRequest({"origin": ORIGIN}))
+            assert excinfo.value.code == "forbidden-host"
+            assert service.names() == []
+    
+>       asyncio.run(scenario())
+
+tests\test_terminal_api.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_terminal_api.py:377: in scenario
+    runtime.check_gate(_FakeRequest({"origin": ORIGIN}))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.web.terminal_api.TerminalRuntime object at 0x000001A2A7654140>
+request = <test_terminal_api._FakeRequest object at 0x000001A29F8B9160>
+
+    def check_gate(self, request: Request) -> None:
+        """入口 + 就绪检查；拒绝时尚未调用 service（零副作用）。"""
+        if not self.allowlist.config_valid:
+            raise GateRejected(403, "forbidden-origin")
+>       origins = self.request_origins(request.app)
+                                       ^^^^^^^^^^^
+E       AttributeError: '_FakeRequest' object has no attribute 'app'
+
+packages\web\terminal_api.py:487: AttributeError
+__ test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A75E1A20>
+
+    def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(monkeypatch):
+        _reset()
+        s, w = _stream_setup()
+        w._execution_seq = 2  # Report turns have an execution cursor even without taskSeq.
+        saves = []
+        events = []
+        timeline = []
+        enrich_started = []
+    
+        async def save(value):
+            saves.append((value.last_result is not None, len(value.history)))
+            timeline.append(("save", value.last_result is not None))
+    
+        async def broadcast(value):
+            events.append(value)
+            timeline.append(("broadcast", value.get("type"), value.get("status")))
+    
+        def slow_enrich(_session):
+            enrich_started.append(time.monotonic())
+            time.sleep(0.15)
+            return None
+    
+        monkeypatch.setattr(_sess, "save_async", save)
+        monkeypatch.setattr(w.adapter, "enrich_after_result", slow_enrich)
+        worker.set_broadcaster(broadcast)
+        w.process = _Process([
+            _line({"type": "system", "subtype": "init", "session_id": "cli-t041"}),
+            _line({"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "answer"},
+            ]}}),
+            _line({"type": "result", "result": "answer", "is_error": False}),
+        ])
+    
+        async def scenario():
+            started = time.monotonic()
+            await worker._read_stdout(w)
+            elapsed = time.monotonic() - started
+            result_index = next(i for i, e in enumerate(events)
+                                if e.get("type") == "worker.result")
+            idle_index = next(i for i, e in enumerate(events)
+                              if e.get("type") == "worker.status"
+                              and e.get("status") == "idle")
+            assert result_index < idle_index
+            assert events[result_index]['executionSeq'] == 2
+            assert events[idle_index]['executionSeq'] == 2
+            assert s.last_result['executionSeq'] == 2
+            assert s.terminal_results[-1]['executionSeq'] == 2
+            assert any(has_result for has_result, _ in saves)
+            saved_terminal_index = next(
+                i for i, item in enumerate(timeline)
+                if item == ("save", True)
+            )
+            result_timeline_index = next(
+                i for i, item in enumerate(timeline)
+                if item[0:2] == ("broadcast", "worker.result")
+            )
+            assert saved_terminal_index < result_timeline_index
+            assert elapsed < 0.12, f"terminal path waited for enrich: {elapsed:.3f}s"
+            # Let the scheduled task finish so this test also proves the call was
+            # moved to a thread and remains eventual rather than being dropped.
+            await worker._run_usage_enrichment(s.id)
+            assert enrich_started
+    
+        try:
+>           asyncio.run(scenario())
+
+tests\test_terminal_broadcast.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+        started = time.monotonic()
+        await worker._read_stdout(w)
+        elapsed = time.monotonic() - started
+        result_index = next(i for i, e in enumerate(events)
+                            if e.get("type") == "worker.result")
+        idle_index = next(i for i, e in enumerate(events)
+                          if e.get("type") == "worker.status"
+                          and e.get("status") == "idle")
+        assert result_index < idle_index
+        assert events[result_index]['executionSeq'] == 2
+        assert events[idle_index]['executionSeq'] == 2
+        assert s.last_result['executionSeq'] == 2
+        assert s.terminal_results[-1]['executionSeq'] == 2
+>       assert any(has_result for has_result, _ in saves)
+E       assert False
+E        +  where False = any(<generator object test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich.<locals>.scenario.<locals>.<genexpr> at 0x000001A2A27DDB60>)
+
+tests\test_terminal_broadcast.py:110: AssertionError
+_____________ test_base_terminal_save_failure_sends_no_completion _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A2866F90>
+
+    def test_base_terminal_save_failure_sends_no_completion(monkeypatch):
+        _reset()
+        s, w = _stream_setup("ses_t041_save_fail")
+        events = []
+    
+        async def fail_save(_session):
+            raise OSError("disk unavailable")
+    
+        async def broadcast(value):
+            events.append(value)
+    
+        monkeypatch.setattr(_sess, "save_async", fail_save)
+        worker.set_broadcaster(broadcast)
+    
+        async def scenario():
+            with pytest.raises(OSError):
+                await worker._persist_terminal_state(w, s, "done", "answer")
+    
+        try:
+>           asyncio.run(scenario())
+
+tests\test_terminal_broadcast.py:399: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+>       with pytest.raises(OSError):
+             ^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OSError
+
+tests\test_terminal_broadcast.py:395: Failed
+_________ test_detach_semantics_same_pty_reconnect_and_shell_variable _________
+
+spawn_runner = <function spawn_runner.<locals>._spawn at 0x000001A2A837C930>
+
+    def test_detach_semantics_same_pty_reconnect_and_shell_variable(spawn_runner):
+        """能力注入下 detach：同 PTY/PID/FILETIME、shell 变量保存、新 controller 重连。"""
+        handle = spawn_runner(mode="capable")
+        owner = _client(handle, client_id="pan-owner-detach")
+        owner.heartbeat()
+        handle.note_shell(owner.describe())
+        shell_pid, shell_filetime = handle.shell_pid, handle.shell_filetime
+        mark = f"MARK_{os.urandom(3).hex()}"
+        owner.input(f"set PAN_DETACH_{mark}=7749\r".encode("ascii"))
+>       owner.input(f"echo %PAN_DETACH_{mark}%\r".encode("ascii"))
+
+tests\test_terminal_runner.py:901: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\terminal\runner_client.py:306: in input
+    payload = self._call(ipc.OP_INPUT, payload_in, timeout_ms=timeout_ms)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.core.terminal.runner_client.RunnerClient object at 0x000001A2A837CD60>
+op = 'input', payload = {'data_b64': 'ZWNobyAlUEFOX0RFVEFDSF9NQVJLX2ZjNzliOCUN'}
+timeout_ms = None, io_slack = 1.0
+
+    def _call(
+        self,
+        op: str,
+        payload: Mapping[str, Any],
+        *,
+        timeout_ms: int | None = None,
+        io_slack: float = 1.0,
+    ) -> dict[str, Any]:
+        session = self._require_attached()
+        timeout = int(timeout_ms if timeout_ms is not None else self._request_timeout_ms)
+        frame = session.call(op, payload, timeout_ms=timeout, io_slack=io_slack)
+        if frame.get("type") == ipc.MessageType.ERROR.value:
+>           raise RunnerClientError(f"runner rejected request: {frame.get('error')}")
+E           packages.core.terminal.runner_client.RunnerClientError: runner rejected request: handler-error
+
+packages\core\terminal\runner_client.py:231: RunnerClientError
+_____________ test_steer_worker_persists_only_after_control_write _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A2779940>
+
+    def test_steer_worker_persists_only_after_control_write(monkeypatch):
+        worker.workers.clear()
+        _sess._cache.clear()
+        session = _sess.Session(id="ses_steer", name="steer", adapter="codex")
+        _sess._cache[session.id] = session
+        live = worker.Worker(
+            worker_id="worker-steer",
+            session_id=session.id,
+            adapter=CodexAdapter(),
+            process=MagicMock(),
+        )
+        live.process.returncode = None
+        live.process.stdin = MagicMock()
+        worker.workers[live.worker_id] = live
+    
+        async def fake_control(worker_id, control):
+            assert worker_id == live.worker_id
+            assert control == {"type": "steer", "text": "focus here"}
+            return None
+    
+        monkeypatch.setattr(worker, "send_control_message", fake_control)
+        monkeypatch.setattr(_sess, "save_async", AsyncMock())
+    
+>       assert asyncio.run(worker.steer_worker(live.worker_id, " focus here ")) is None
+E       AssertionError: assert 'Steer requires a running Worker' is None
+E        +  where 'Steer requires a running Worker' = <function run at 0x000001A29631C460>(<coroutine object steer_worker at 0x000001A29FF4F9A0>)
+E        +    where <function run at 0x000001A29631C460> = asyncio.run
+E        +    and   <coroutine object steer_worker at 0x000001A29FF4F9A0> = <function steer_worker at 0x000001A297E69220>('worker-steer', ' focus here ')
+E        +      where <function steer_worker at 0x000001A297E69220> = worker.steer_worker
+E        +      and   'worker-steer' = Worker(worker_id='worker-steer', session_id='ses_steer', adapter=<packages.core.adapters.codex.adapter.CodexAdapter ob...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False).worker_id
+
+tests\test_worker_branch.py:63: AssertionError
+___________ test_programmatic_steer_is_blocked_by_queue_edit_lease ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A26E1E80>
+
+    def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
+        worker.workers.clear()
+        worker._queue_locks.clear()
+        _sess._cache.clear()
+        session = _sess.Session(id="ses_steer_edit", name="steer edit", adapter="codex")
+        _sess._cache[session.id] = session
+        item = {
+            "id": "q-being-edited",
+            "queueItemId": "q-being-edited",
+            "kind": "task",
+            "type": "task",
+            "source": "user",
+            "text": "old text",
+            "deliveryState": "queued",
+            "revision": 1,
+        }
+        session.queue_pending.append(item)
+        worker.acquire_queue_edit_lock(session, item["id"], "active-edit")
+    
+        stdin = MagicMock()
+        stdin.drain = AsyncMock()
+        process = MagicMock()
+        process.returncode = None
+        process.stdin = stdin
+        live = worker.Worker(
+            worker_id="worker-steer-edit",
+            session_id=session.id,
+            adapter=CodexAdapter(),
+            process=process,
+        )
+        worker.workers[live.worker_id] = live
+        monkeypatch.setattr(_sess, "save_async", AsyncMock())
+    
+        blocked = asyncio.run(worker.steer_worker(live.worker_id, "edited message"))
+    
+>       assert blocked == "Cannot Steer while a queued message is being edited"
+E       AssertionError: assert 'Steer requir...unning Worker' == 'Cannot Steer... being edited'
+E         
+E         - Cannot Steer while a queued message is being edited
+E         + Steer requires a running Worker
+
+tests\test_worker_branch.py:199: AssertionError
+________ test_steer_worker_retries_one_transient_history_save_failure _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A2A26E0830>
+
+    def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
+        worker.workers.clear()
+        _sess._cache.clear()
+        session = _sess.Session(id="ses_steer_retry", name="steer-retry", adapter="codex")
+        _sess._cache[session.id] = session
+        live = worker.Worker(
+            worker_id="worker-steer-retry",
+            session_id=session.id,
+            adapter=CodexAdapter(),
+            process=MagicMock(),
+        )
+        worker.workers[live.worker_id] = live
+    
+        control = AsyncMock(return_value=None)
+        monkeypatch.setattr(worker, "send_control_message", control)
+        save = AsyncMock(side_effect=[OSError("temporary save failure"), None])
+        monkeypatch.setattr(_sess, "save_async", save)
+    
+>       assert asyncio.run(worker.steer_worker(live.worker_id, "retry this")) is None
+E       AssertionError: assert 'Steer requires a running Worker' is None
+E        +  where 'Steer requires a running Worker' = <function run at 0x000001A29631C460>(<coroutine object steer_worker at 0x000001A29FF4F780>)
+E        +    where <function run at 0x000001A29631C460> = asyncio.run
+E        +    and   <coroutine object steer_worker at 0x000001A29FF4F780> = <function steer_worker at 0x000001A297E69220>('worker-steer-retry', 'retry this')
+E        +      where <function steer_worker at 0x000001A297E69220> = worker.steer_worker
+E        +      and   'worker-steer-retry' = Worker(worker_id='worker-steer-retry', session_id='ses_steer_retry', adapter=<packages.core.adapters.codex.adapter.Cod...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False).worker_id
+
+tests\test_worker_branch.py:236: AssertionError
+============================== warnings summary ===============================
+..\..\Pan\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+..\..\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_terminal_windows_backend.py::test_ctrl_c_input_channel_and_survival
+  tests\test_terminal_windows_backend.py:232: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_ctrl_c_input_channel_and_survival(tmp_path, record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_backend_perf_opt.py::test_result_flushes_debounced_blocks_through_read_stdout
+FAILED tests/test_execution_state_ownership.py::test_pairing_follows_new_attempt_after_respawn
+FAILED tests/test_replay_resync.py::test_terminal_persistence_assigns_durable_cursor_before_publication
+FAILED tests/test_replay_resync.py::test_pre_handoff_error_keeps_result_idle_order
+FAILED tests/test_session_adapter_validation.py::test_codex_context_restore_deletes_keys_and_marks_idle_worker_for_respawn
+FAILED tests/test_session_adapter_validation.py::test_codex_context_update_marks_running_worker_pending_restart
+FAILED tests/test_settings_ui.py::test_load_config_falls_back_to_ui_defaults_when_key_absent
+FAILED tests/test_settings_ui.py::test_load_config_falls_back_to_ui_defaults_when_file_missing
+FAILED tests/test_settings_ui.py::test_get_ui_defaults_when_absent - Assertio...
+FAILED tests/test_settings_ui.py::test_put_ui_full_replacement - AssertionErr...
+FAILED tests/test_source_metadata.py::test_task_history_receipt_retains_source_metadata
+FAILED tests/test_terminal_api.py::test_gate_host_must_match_allowed_authority_and_forwarded_ignored
+FAILED tests/test_terminal_broadcast.py::test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich
+FAILED tests/test_terminal_broadcast.py::test_base_terminal_save_failure_sends_no_completion
+FAILED tests/test_terminal_runner.py::test_detach_semantics_same_pty_reconnect_and_shell_variable
+FAILED tests/test_worker_branch.py::test_steer_worker_persists_only_after_control_write
+FAILED tests/test_worker_branch.py::test_programmatic_steer_is_blocked_by_queue_edit_lease
+FAILED tests/test_worker_branch.py::test_steer_worker_retries_one_transient_history_save_failure
+18 failed, 2910 passed, 7 skipped, 4 warnings in 1103.61s (0:18:23)

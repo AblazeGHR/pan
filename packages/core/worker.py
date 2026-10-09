@@ -222,6 +222,11 @@ class Worker:
     # Switching/unknown ownership blocks only new handoffs and Pan controls.
     native_control_mode: str = "pan"
     native_control_generation: int = 0
+    native_output: bytearray = field(default_factory=bytearray)
+    native_output_total: int = 0
+    native_control_error: str | None = None
+    native_kernel_ready: bool = False
+    _native_external_turn_active: bool = False
     _native_mode_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
     _native_mode_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # Latest native Codex token usage notification for reconnecting dashboards.
@@ -1874,8 +1879,68 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
-        if event.get("type") == "pan.control_mode":
+        if event.get("type") in {"pan.control_mode", "pan.native_write"}:
+            if event.get("type") == "pan.native_write":
+                receipt = w._native_mode_receipts.get(event.get("requestId"))
+                if receipt is not None and not receipt.done():
+                    receipt.set_result(event)
+                continue
             _update_pending_interactions(w, event)
+            continue
+        if event.get("type") == "pan.native_output":
+            import base64
+            try:
+                chunk = base64.b64decode(event.get("data", ""), validate=True)
+            except (ValueError, TypeError):
+                continue
+            if len(chunk) > 65536:
+                continue
+            w.native_output.extend(chunk)
+            w.native_output_total += len(chunk)
+            if len(w.native_output) > 4 * 1024 * 1024:
+                del w.native_output[:len(w.native_output) - 4 * 1024 * 1024]
+            continue
+        if event.get("type") == "pan.native_error":
+            w.native_control_error = "Native terminal operation failed"
+            continue
+        if event.get("type") == "pan.native_turn_started":
+            # This is not the preceding Pan queue item. Allocate a fresh durable
+            # sequence without inventing an agent_assign identity or consuming
+            # any queued task/report.
+            async with queue_lock(w.session_id):
+                s = _session(w)
+                if s is not None and not w._queue_unit_active:
+                    s.task_seq += 1
+                    w._current_seq = s.task_seq
+                    w._current_task_id = None
+                    w._current_task_idempotent = False
+                    w._current_source_session_id = None
+                    w._execution_seq += 1
+                    w._terminal_handled = False
+                    w._native_external_turn_active = True
+                    w._task_started_at = time.monotonic()
+                    w._current_queue_item = None
+                    w._current_report_items.clear()
+                    w._current_serialized = None
+                    w._claimed_queue_index = None
+                    w._current_task_assistant_ids.clear()
+                    w._current_task_last_assistant_text = ""
+                    w.status = "running"
+                    await _sess.save_async(s)
+                    await _record_legal_worker_state(w, "running", "native/turn-started")
+            continue
+        if event.get("type") == "pan.native_busy":
+            w._native_external_turn_active = event.get("busy") is True
+            if not w._native_external_turn_active and w.native_control_mode == "pan" and w.pending_signal is not None:
+                w.pending_signal.put_nowait({"type": "queue_signal"})
+            continue
+        if event.get("type") == "pan.native_user":
+            s = _session(w)
+            text = event.get("text")
+            if s is not None and w._native_external_turn_active and isinstance(text, str) and text:
+                _sess.append_history(s, {"role": "user", "content": text, "source": "native-tui"})
+                _mark_history_dirty(w)
+                await _bcast({"type": "session.updated", "sessionId": w.session_id})
             continue
         if event.get("type") == "pan.steer_receipt":
             receipt = w._steer_receipts.get(event.get("requestId"))
@@ -1914,6 +1979,7 @@ async def _read_stdout(w: Worker):
         # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
         # spawn 即就绪，所以这里只提取元数据，不做状态转换（worker 初始即 idle）。
         if adapter.is_init_event(event):
+            w.native_kernel_ready = True
             s = _session(w)
             if s:
                 sid = adapter.extract_session_id(event)
@@ -1979,7 +2045,11 @@ async def _read_stdout(w: Worker):
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
             await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                                   terminal["taskId"], w.worker_id)
+            was_native = w._native_external_turn_active
+            w._native_external_turn_active = False
             _finish_terminal_bookkeeping(w, terminal)
+            if was_native and w.native_control_mode == "pan" and w.pending_signal is not None:
+                w.pending_signal.put_nowait({"type": "queue_signal"})
             continue
 
         # replay 期间不广播 stream 事件
@@ -3078,11 +3148,16 @@ def _queue_recovery_blocked(s) -> bool:
     return bool(getattr(s, "queue_paused", False)) or _native_handoff_blocked(s) or _only_locked_queue_items(s)
 
 
+native_starting_sessions: set[str] = set()
+
+
 def _native_handoff_blocked(s) -> bool:
     if s is None:
         return False
+    if s.id in native_starting_sessions:
+        return True
     w = find_worker_by_session(s.id)
-    return w is not None and w.native_control_mode != "pan"
+    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active)
 
 
 def _has_sendable_queued_items(s) -> bool:
@@ -4813,6 +4888,10 @@ async def _watchdog(w: Worker):
             continue
 
         # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
+        if w.native_control_mode != "pan" or w._native_external_turn_active:
+            # User-owned native turns and their resident kernel are not abandoned
+            # Pan tasks. Browser detach/control handoff never reclaims them.
+            continue
         if w.status == "running":
             # 任务运行时长 = 当前时间 - 任务开始处理时刻（_consumer_stream 进入 running 时记录）。
             # 不用 last_activity（无输出时长）：长思考/大文件读取会长时间无 stdout 输出，
@@ -6852,10 +6931,9 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
-async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 2.0) -> dict:
+async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 15.0) -> dict:
     """Internal handoff seam; no process lifecycle or durable queue mutation.
 
-    Not exposed as a UI/API until a resident TUI and its protocol fence exist.
     A lost acknowledgement retains the handoff gate; retry can reconcile the
     kernel's authoritative generation. Never guess ownership after timeout.
     """
@@ -6892,6 +6970,8 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 2
             return {"ok": False, "error": "Invalid control receipt"}
         w.native_control_mode = receipt["mode"]
         w.native_control_generation = generation
+        if receipt.get("native_busy") is True:
+            w._native_external_turn_active = True
         if w.native_control_mode == "pan" and w.pending_signal is not None:
             w.pending_signal.put_nowait({"type": "queue_signal"})
         return receipt
@@ -6900,6 +6980,36 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 2
     finally:
         w._native_mode_receipts.pop(request_id, None)
         w._native_mode_lock.release()
+
+
+async def write_native_control(worker_id: str, control: dict, *, timeout: float = 2.0) -> dict:
+    """Private native input/resize seam; receipt is emitted after the PTY write."""
+    w = workers.get(worker_id)
+    if w is None or w.native_control_mode != "native" or w.adapter.name != "codex":
+        return {"ok": False, "error": "Native control is not active"}
+    if type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation:
+        return {"ok": False, "error": "Stale control generation"}
+    if control.get("type") not in {"native_input", "native_resize"}:
+        return {"ok": False, "error": "Unsupported native operation"}
+    if len(w._native_mode_receipts) >= 32:
+        return {"ok": False, "error": "Native input busy"}
+    request_id = uuid.uuid4().hex
+    future = asyncio.get_running_loop().create_future()
+    w._native_mode_receipts[request_id] = future
+    async def send():
+        async with queue_lock(w.session_id):
+            if (w.native_control_mode != "native" or w.process is None
+                    or w.process.returncode is not None or w.process.stdin is None):
+                raise RuntimeError("Native worker is unavailable")
+            w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")
+            await w.process.stdin.drain()
+        return await asyncio.shield(future)
+    try:
+        return await asyncio.wait_for(send(), timeout)
+    except (asyncio.TimeoutError, OSError, RuntimeError):
+        return {"ok": False, "error": "Native operation unconfirmed"}
+    finally:
+        w._native_mode_receipts.pop(request_id, None)
 
 
 async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:

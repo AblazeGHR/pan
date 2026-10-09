@@ -87,6 +87,7 @@ export interface PanAccess {
 }
 
 export interface Session {
+  nativeControl?: boolean;
   id: string;
   name: string;
   adapter?: string;
@@ -1352,6 +1353,7 @@ export interface SyncedSettings {
 }
 
 export interface SettingsBody {
+  nativeControl?: boolean;
   model?: string;
   permissionMode?: string;
   alwaysThinkingEnabled?: boolean;

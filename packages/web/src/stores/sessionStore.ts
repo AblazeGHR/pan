@@ -182,6 +182,7 @@ interface SessionStore {
     adapter?: string,
     sessionTemplate?: string,
     settings?: {
+      nativeControl?: boolean;
       model?: string;
       permissionMode?: string;
       alwaysThinkingEnabled?: boolean;

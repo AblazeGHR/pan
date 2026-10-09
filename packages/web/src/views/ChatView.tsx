@@ -12,6 +12,10 @@ import { ElicitationBanner } from '@/components/chat/ElicitationBanner';
 import { TerminalInteractionBanner } from '@/components/chat/TerminalInteractionBanner';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { NativeQueue } from '@/components/chat/NativeQueue';
+
+const NativeTerminal = lazy(() => import('@/components/chat/NativeTerminal').then((module) => ({ default: module.NativeTerminal })));
 
 const SessionHistorySearch = lazy(() =>
   import('@/components/chat/SessionHistorySearch').then((module) => ({
@@ -26,6 +30,8 @@ const GlobalHistorySearch = lazy(() =>
 );
 
 export default function ChatView() {
+  const sessionId = useSessionStore((s) => s.currentSessionId);
+  const native = useNativeControlStore((s) => sessionId ? s.sessions[sessionId] : undefined);
   const chatRef = useRef<ChatMessagesHandle>(null);
   const chatStageRef = useRef<HTMLDivElement>(null);
   const [popupContainer, setPopupContainer] = useState<HTMLDivElement | null>(null);
@@ -115,7 +121,11 @@ export default function ChatView() {
   ) : undefined;
 
   return (
-    <ChatLayout topBarRightAction={topBarRightAction}>
+    <ChatLayout topBarRightAction={native && native.mode !== 'pan' ? undefined : topBarRightAction}>
+      {sessionId && native && native.mode !== 'pan' ? <div className="flex flex-col h-full min-h-0">
+        <Suspense fallback={null}><NativeTerminal sessionId={sessionId} state={native} /></Suspense>
+        <NativeQueue key={sessionId} sessionId={sessionId} />
+      </div> :
       <div className="flex flex-col h-full min-h-0">
         <ApprovalBanner />
         <UserInputBanner />
@@ -169,7 +179,7 @@ export default function ChatView() {
         </div>
         <RewindStatusBar />
         <InputRow />
-      </div>
+      </div>}
     </ChatLayout>
   );
 }

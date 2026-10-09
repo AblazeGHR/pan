@@ -1,86 +1,74 @@
 # Codex 同内核控制切换
 
-## 分叉与验收目标
+## 范围与使用
 
-- 独立集成树：`D:/project/pan-worktrees/codex-native-control-integration-20261010`。
-- 分支：`integrate/codex-native-control-20261010`；分叉点 main `4b166bd3`。
-- 不改原 Terminal 集成树，不自动合入 main/practical，不重启实用服务。
-- 切换只改变交互控制方。同一执行内核、同一 thread、当前任务继续运行。
-- 原生 TUI 首先在 Pan 内展示；不以停止 Worker 后 resume 历史替代切换。
+独立集成树 `D:/project/pan-worktrees/codex-native-control-integration-20261010`，
+分支 `integrate/codex-native-control-20261010`，从 main `4b166bd3` 分叉。
+用户授权最终验收后只合入 main，不合 practical、不 push、不重启实用服务。
 
-## 路线
+Windows 上 New Session 选择 Codex 后，可显式勾选同内核 Terminal TUI。
+既有 Session 缺省不开启；其它 adapter 不提供此能力。
+点击 View 旁独立的 **Terminal TUI**，请求实际控制权转移；点击任一 Pan View
+交还控制权。切换不重启、不 resume 新内核、不 interrupt 当前 turn。
 
-Codex app-server 使用独立、私有的 WebSocket 连接。原生 TUI 常驻连接
-这个内核，切回 Pan 不退出 TUI、不关闭连接、不发 interrupt。
-官方 WebSocket/remote 能力仍属实验能力，必须进行实际 CLI 兼容验证。
-来源：https://learn.chatgpt.com/docs/app-server
+## 实现与所有权
 
-默认 stdio adapter 保持原状。内部 `adapter_config.native_control=true`
-严格真 bool 才启用新的连接层；当前没有前端开关，不属于部署就绪能力。
-loopback 端点使用随机 capability，启动参数仅含 SHA256。端点与 capability
-不写入 Pan 事件、历史或浏览器。端口预选存在 bind 竞态，认证失败即拒绝，
-不重试连接到未知 listener；建立后的连接丢失不自动新建/resume 内核。
+- 默认 Codex stdio 路线不变；只有 `adapter_config.native_control is True` 使用
+  私有认证 WebSocket app-server。浏览器不接触内核端点或 capability。
+- app-server 与常驻真实 `codex --remote` TUI 分别在自持 ConPTY Job 中启动，
+  suspend → assign → 成员/身份证明 → resume；失败保守处理，收尾核验整树。
+- TUI 初次 attach 获取同一已加载 thread 的权威 `thread/read`，不重新恢复内核。
+  全新且确认无 turn 的 thread 可投影 schema 正确的空历史页；恢复/未知 thread
+  不据此伪造空历史。TUI 与 Pan 都订阅同一执行流。
+- `ControlOwner` 的模式/generation 检查与真实写入同锁；所有 TUI 变更经代理，
+  只允许当前 thread 的交互面。旧世代输入/审批拒绝，待审批切换后重新发出。
+- 私有 capability 使用随机值，内核 argv 仅摘要，TUI 仅通过专用环境变量读取。
+  端点选择存在 bind 竞态，认证失败即拒绝，不接管未知 listener；连接丢失不
+  自动重建内核。CLI WebSocket/remote 是实验接口，升级 Codex 必须复验。
 
-## 已实现的第一批基础
+## Worker、队列与结果
 
-- `NativeTransport`：认证 WebSocket、Unicode JSON、错误脱敏、关闭。
-- `ControlOwner`：模式和 generation，检查与实际写入在同一临界区；迟到写拒绝。
-- wrapper 接受独立 `control_mode` 消息，执行中也能响应，不需要结束当前 turn。
-- Worker 的模式独立于 status/held 和 Session.queue_paused。
-- 切换命令与实际队列 handoff 共用 queue_lock；确认丢失则保持 switching 门禁。
-- durable queue 内容不删、不重排；回 Pan 唤醒 consumer，用户已有手动暂停不解除。
-- Pan 控制消息在 native/switching 模式被拒绝；结果读取任务不取消。
-- 模式回执在 post-terminal 过滤之前消费，idle 也能确认切换。
+模式独立于 Worker status/held 与 Session.queue_paused。切换、原生输入和实际
+队列投递共享准入门；启动 TUI 前就建立 fence，原生 turn 请求发出前置 busy。
+确认丢失保持 switching，不能仅靠前端切换样式放行。
 
-## 验证
+队列内容不删、不重排。TUI 模式自动 handoff 被后端挡住；回 Pan 后只有原生
+turn 已完成且原有手动暂停允许时才恢复。原生 turn 使用新的任务序号，清除上一
+Pan 队列项/任务的来源关联，正常持久化 user/assistant、lastResult 和订阅报告。
+native/uncertain/原生在途状态不因 Pan 空闲 watchdog 回收内核。
 
-实际解释器 `D:/project/Pan/.venv/Scripts/python.exe`，经
-`scripts/run_tests_isolated.py` 清理继承 PAN 环境。
+## 界面与浏览器生命周期
 
-八文件组合：`test_delivery_semantics`、`test_codex_worker_integration`、
-`test_session_worker_controls`、`test_codex_takeover`、`test_codex_control_owner`、
-`test_codex_native_transport`、`test_codex_adapter`、`test_codex_native_kernel_real`。
-结果：120 passed / 0 skipped，3.45s。没有修改旧断言。
+Terminal TUI 与现有历史 TUI View 是不同入口。native/switching 时三个 Pan View
+均无选中态，合法全局 `chatViewStyle` 保持；真实 Pan ack 后才显示目标 View。
+主区域隐藏历史、输入栏、banners、搜索/导航/rewind，仅嵌入真实终端并保留底部
+durable queue。队列始终展开但不改变 Pan 保存的面板偏好；复用编辑租约、暂停、
+锁定、增删排序，native 不提供 Steer 绕过控制门。
 
-真实 CLI 用例：私有 CODEX_HOME，合成凭据，本机 blackhole provider；
-wrapper 与全部子进程在自有 ConPTY Job 中。确认 thread 启动和 active 状态，
-四次 pan/native 模式回执，wrapper 同一 retained identity 且无 result；最后
-自有 Job terminate_tree、wait_dead、close 收敛。不调用真实模型或用户 Session。
-这不证明完整 TUI 接线、自然任务完成或业务报告投递。
+HTTP 输入/resize 有 Worker identity 与 generation fence。UTF-8 粘贴按 code point
+分块，输入序列不重排。输出以绝对 cursor 从 4 MiB 回放环读取，缺口明确警告
+显示可能不完整，不宣称屏幕权威恢复。浏览器刷新/切换 Session 仅 dispose 显示
+连接，不关闭 TUI/kernel，不发送 control mode 或 stop。
 
-开发中真实测试夹具更正：ConPTY 键盘 Enter 使用 CR，而不是 LF；初次 LF
-输入没有触发 wrapper.readline，等待 active 超时，已改为实际 Enter 语义。
+## 验证分层
 
-## 后续必须完成
+Python 经 `scripts/run_tests_isolated.py` 清除继承 PAN 环境，所有真实用例使用
+私有临时 CODEX_HOME、合成凭据、loopback 合成 Responses provider，不调用真实
+模型/用户 Session。两条真实 CLI 链分别覆盖 Pan 启动与实际 TUI 键盘启动：
+执行中多次切换，thread、内核 PID/raw FILETIME、TUI PID 不变，释放合成响应后
+任务自然完成。其它回归覆盖审批、队列准入、历史/结果/报告来源、HTTP 与旧配置。
 
-1. 常驻原生 TUI 的私有代理与同 thread 绑定；所有写入、审批回复经过控制门。
-   当前 transport capability 不允许直接交给浏览器或公开 RPC。
-2. TUI 发起 turn 时，wrapper idle 仍持续消费事件；Worker 明确登记外部发起的
-   turn，正确处理开始/完成、历史、汇报、忙闲，不错误归到某个 Pan 队列项。
-3. 模式切换中的待审批请求转移与迟到回复拒绝，不双审批、不因换模式超时误拒。
-4. Pan 内嵌终端视图、输入/resize 世代门、断连只释放控制不退出 TUI。
-5. 真实 TUI 往返时当前 turn 身份持续不变；任务自然完成、队列恢复、报告接收
-   与发送、浏览器刷新、退出清理的组合验证。
-6. app-server/TUI 整树生命周期和异常收尾需要在真实 Worker 布局重新确认。
+Chromium 用真实 ChatView/TopBar/xterm/queue 组件和拦截的 API fixture 验证界面：
+原生输入发出、无 View 选中、历史/composer 隐藏、底部队列可见、刷新不改控制、
+回 Pan composer 恢复。**这不是浏览器到真实 provider 的合并端到端证据。**
+最终长回归日志/退出码/源码锚定保存于 `audit/codex-native-control/20261010/`。
 
-当前第一批只建立内部接线基础，不声称完整控制切换完成，不批准 main/practical 部署。
+## 兼容与限制
 
-## 用户冻结的界面要求（后续接线依据）
+不迁移旧 Session、不改变旧 adapter 缺省连接或已有队列身份/断言。新字段缺省
+false，服务端只接受 Codex 的真 bool opt-in。main 合并不代表 practical 已部署。
 
-- New Session 的 Codex 专用设置选择是否启用同内核 TUI 能力；不是每次切换
-  都新建 Session。其它 adapter 暂不提供该模式，既有 Session 缺省保持原行为。
-- 真正的切换入口在 TopBar 的 View 选择旁，名称为 Terminal TUI，使用独立
-  图标/分隔样式，不能与现有模拟 TUI 历史样式混淆。
-- native 模式下三个 Pan View 均无选中态。保留此前保存的全局 view 偏好，
-  不把全局 chatViewStyle 改成非法 null；选中态由当前 Session 的控制模式覆盖。
-- 主区域完整显示原生终端，隐藏 Pan 历史、输入栏、历史搜索/导航以及交互
-  banners，只保留底部队列。不另添加运行状态/停止工具条。
-- 选择任一 Pan View 请求交回 Pan 控制权；收到真实确认后再显示该 View。
-  同一个 Session、内核、turn 和 TUI 连接均保留。切换失败/超时不能仅在前端
-  假装完成；显示错误并保留不可写状态。
-- 底部队列复用原组件，可继续编辑、暂停/续队列及接收消息。native 期间
-  自动投递仍由后端挡住。UI 隐藏历史不取消历史记录和结果/汇报接收。
-- 打开其它 Session 或刷新浏览器仅重建显示连接，不能停止常驻 TUI。
-
-实际入口和视图尚未实现；先完成受控 TUI 通道和外部 turn 生命周期，再接 UI，
-避免出现只能改选中态却无法交回真实控制权的按钮。
+真实验证限 Windows / 本机 Codex 0.161.0。未验证真实付费模型、浏览器+真实
+provider 完整链、跨用户/主机、POSIX、长稳、跨内核重启恢复。调用方等待预算
+不是 OS 硬 SLA。通用 Terminal Ctrl-C 与 durable detach 的既有产品门不因本功能
+改变；本功能是常驻原生 TUI 控制切换，不是向任意 shell 的 OS 中断保证。

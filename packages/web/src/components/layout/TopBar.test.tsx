@@ -8,6 +8,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import * as api from '@/services/api';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
 
 function mockMatchMedia() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -32,6 +33,7 @@ beforeEach(() => {
     }],
   });
   useUIStore.setState({ toastQueue: [] });
+  useNativeControlStore.setState({ sessions: {}, switching: {} });
   useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useWorkerStore.setState({
     currentWorker: {
@@ -52,6 +54,26 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('native entry is distinct and clears all View selections without changing the saved preference', async () => {
+    const sid = 'session-123456789';
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: true })) }));
+    const refresh = vi.spyOn(useNativeControlStore.getState(), 'refresh').mockResolvedValue();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockImplementation(async (id, mode) => {
+      useNativeControlStore.setState({ sessions: { [id]: { workerId: 'worker-123', mode, generation: 1, error: null } } });
+    });
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Terminal TUI' }).getAttribute('aria-pressed')).toBe('true'));
+    for (const name of ['Switch to TUI view', 'Switch to Bubble view', 'Switch to Raw view']) {
+      expect(screen.getByRole('button', { name }).getAttribute('aria-pressed')).toBe('false');
+    }
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('tui');
+    expect(screen.queryByTitle('Kill worker')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Bubble view' }));
+    await waitFor(() => expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble'));
+    expect(switchMode.mock.calls).toEqual([[sid, 'native'], [sid, 'pan']]);
+    expect(refresh).toHaveBeenCalledWith(sid);
+  });
   it('keeps the mobile top bar single-line and exposes the full truncated session title', () => {
     const longTitle = 'A very long session name with an unbreakable identifier abcdefghijklmnopqrstuvwxyz0123456789';
     useSessionStore.setState({

@@ -85,10 +85,13 @@ function QueueMessagePreview({ item, canEdit, onEdit, onClose }: {
   );
 }
 
-export function SendQueuePanel() {
+export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean }) {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const readonlySession = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.readonlySession === true);
-  const open = useQueueStore((state) => state.panelOpen);
+  const panelOpen = useQueueStore((state) => state.panelOpen);
+  // Native mode has no composer toggle; keep the durable queue accessible
+  // without changing the user's saved Pan layout preference.
+  const open = nativeMode || panelOpen;
   const queuePaused = useQueueStore((state) => sessionId ? state.queuePaused[sessionId] ?? false : false);
   const queuePauseLoaded = useQueueStore((state) => sessionId ? state.queuePauseLoaded[sessionId] ?? false : false);
   const queuePauseUpdating = useQueueStore((state) => sessionId ? state.queuePauseUpdating[sessionId] ?? false : false);
@@ -111,7 +114,7 @@ export function SendQueuePanel() {
   const move = useQueueStore((state) => state.moveQueueItem);
   const clear = useQueueStore((state) => state.clear);
   const selectedAdapter = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.adapter);
-  const supportsSteer = useAdapterStore((state) => state.adapters.some((adapter) => adapter.name === selectedAdapter && adapter.supportsSteer === true));
+  const supportsSteer = useAdapterStore((state) => !nativeMode && state.adapters.some((adapter) => adapter.name === selectedAdapter && adapter.supportsSteer === true));
   const runtimeWorker = useWorkerStore((state) => sessionId ? state.workers[sessionId] : undefined);
   const [steering, setSteering] = useState<Set<string>>(new Set());
   const requestSteer = async (item: AgentQueueItem) => {

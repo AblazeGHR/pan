@@ -34,6 +34,13 @@ class NativeTransport:
                 "--ws-token-sha256", hashlib.sha256(
                     self._capability.encode("ascii")).hexdigest()]
 
+    def peer(self, poll: Callable[[], int | None]) -> "NativeTransport":
+        peer = object.__new__(NativeTransport)
+        peer.url, peer._capability = self.url, self._capability
+        peer._connection = peer._context = None
+        peer.connect(poll)
+        return peer
+
     def connect(self, poll: Callable[[], int | None], timeout: float = 10.0) -> None:
         from websockets.sync.client import connect
 

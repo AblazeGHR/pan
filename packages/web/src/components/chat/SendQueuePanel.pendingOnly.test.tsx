@@ -70,6 +70,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('SendQueuePanel pending-only view', () => {
+  it('keeps the native queue open without changing the saved Pan preference', async () => {
+    useQueueStore.setState({ panelOpen: false });
+    const { container, rerender } = render(<SendQueuePanel nativeMode />);
+    await waitFor(() => expect(screen.getByText('仍待发送')).toBeTruthy());
+    expect(container.firstElementChild?.className).toContain('grid-rows-[1fr]');
+    expect(useQueueStore.getState().panelOpen).toBe(false);
+    rerender(<SendQueuePanel />);
+    expect(container.firstElementChild?.className).toContain('grid-rows-[0fr]');
+  });
+
   it('does not render delivery-ledger terminal or uncertain states', async () => {
     render(<SendQueuePanel />);
 

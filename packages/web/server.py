@@ -2056,6 +2056,7 @@ def _session_to_api(
         "name": s.name,
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
+        "nativeControl": ac.get("native_control") is True,
         "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
@@ -2316,6 +2317,7 @@ def _session_summary(
         "name": s.name,
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
+        "nativeControl": ac.get("native_control") is True,
         "workerStatus": worker_status,
         "workerId": worker_id,
         "workerGeneration": worker_generation,
@@ -2863,6 +2865,11 @@ def _build_session_params(
         if len(requested_workspace_ids) > 1:
             raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
+    if "nativeControl" in data:
+        if type(data["nativeControl"]) is not bool or adapter_name != "codex":
+            raise ValueError("nativeControl requires a Codex Session and a boolean")
+        if data["nativeControl"]:
+            params["adapter_config"]["native_control"] = True
     # These are deliberately added only when explicitly supplied.  In
     # particular, do not synthesize a model/default value into Session JSON.
     for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
@@ -9369,6 +9376,8 @@ from packages.web import terminal_tools_api  # noqa: E402
 app.include_router(terminal_api.router)
 app.include_router(terminal_ws.router)
 app.include_router(terminal_tools_api.router)
+from packages.web import native_control_api  # noqa: E402
+app.include_router(native_control_api.router)
 
 
 @app.get("/api/adapter/config")

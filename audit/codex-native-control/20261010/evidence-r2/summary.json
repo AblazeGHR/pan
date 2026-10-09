@@ -1,0 +1,72 @@
+{
+  "source_hash_convention": "sha256 LF-normalized worktree bytes",
+  "source_anchors": {
+    "docs/design/CODEX_NATIVE_CONTROL_20261010.md": "a2cc22da9a4fffe902417bf368fc6254b12f82a5612a6c6fd21e7ef43817f689",
+    "packages/core/adapters/codex/adapter.py": "59be3b7fee796e73258c9b9580e3b3f34441b49251310d828fc26b178bbf9843",
+    "packages/core/adapters/codex/app_server_wrapper.py": "b8071958f9be70a04fa9cf35de12ba76659c3535fa9ddbb209fa4bac9cfc3cb9",
+    "packages/core/adapters/codex/control_owner.py": "6c4c69603b91ea92fdc87f63fb9c4183c021aed7628f1ad2d2912a60558930a8",
+    "packages/core/adapters/codex/native_transport.py": "22add0c9f8e7d5e8408562d9afc29c40654b260af7307eee34adffa86421b479",
+    "packages/core/adapters/codex/owned_kernel.py": "ace7f044d63ac7895a4d805d12b5dae131bd25cee642eb1448fda41bba21bb18",
+    "packages/core/adapters/codex/resident_tui.py": "0ccbce0ff36025bfa547e5ea3c31e03f097533210d544a5d26a162ff44f55043",
+    "packages/core/worker.py": "d1d9a6a6546dc068fc9a0669be94bf46fc2c525786a0c8e8844ff3d63c8ff61b",
+    "packages/web/e2e/native-control.e2e.mjs": "c43f95d71013255f133262e8d331b8e3e66549b856ba48760e8b8a9a280f06db",
+    "packages/web/native_control_api.py": "bcacfda02dec5995a30beb81bb65a9162143e9543ab9315c489151afd7f00947",
+    "packages/web/server.py": "fa129f734ad70a8446a2ee841db0b17bc81f4d3337618dc8a4b25c8cd975e591",
+    "packages/web/src/components/chat/NativeQueue.tsx": "14862db4d90e8f72b0a8091c7451a561faae5be84281324995d6a896cb0f4348",
+    "packages/web/src/components/chat/NativeTerminal.tsx": "6df9044ccf14701d5f77bd7e99acea2e9d2905888eba635c5d5003304a3a09e1",
+    "packages/web/src/components/chat/SendQueuePanel.pendingOnly.test.tsx": "7d015c7d21eabb466baae0993aa450afdc325375ab512d5770156a49bfe62ab6",
+    "packages/web/src/components/chat/SendQueuePanel.tsx": "753d3381ce0119d82ec8021fa8d854425c7674407edbf6e9df31d6459512bc1c",
+    "packages/web/src/components/layout/TopBar.test.tsx": "b413fd0261d70f27a0a822ba176824bba0db5e78c15d37aedcdcb5bd00774c9c",
+    "packages/web/src/components/layout/TopBar.tsx": "084eaa1ec3886b2b224e539ef1360eabb4c29ee73fe6eed4a0f09c3b28a83336",
+    "packages/web/src/components/session/NewSessionModal.tsx": "25a2dbaab054516de5c730aa7c596b47e10e9cec2d90116a6937cc3adbf67fce",
+    "packages/web/src/native-control-harness.html": "c71d2a84f164b90fa0acb8f4c26a69b2bff22f3ff252a703f967a763650ab530",
+    "packages/web/src/native-control-harness.tsx": "a6ec4f1d469421a0d7f3c3c2f156ac3dcaa6f6c0c395dbac344896a46933dd88",
+    "packages/web/src/services/nativeControl.ts": "60ccdeac5ad1e9e14d2461b2d125fde06076616df6afd4964fddb6c844f8e180",
+    "packages/web/src/stores/nativeControlStore.test.ts": "cf9b55234fb0e0e168196c72f5d1209e17eb9c734849535b50db196daf9e1da9",
+    "packages/web/src/stores/nativeControlStore.ts": "457a1b1bcbb1613f4a86a7e96500f0b2afc6699c5aa62bd587502560dab0d81c",
+    "packages/web/src/stores/sessionStore.ts": "b6edf3ddec78cbffe5be449ed217c3a563b22390eeab217d09218387a69fcafb",
+    "packages/web/src/types/index.ts": "81de768c73cca691057f4a290072e47dfc4f40ea7befc61d2398e02430f9c971",
+    "packages/web/src/views/ChatView.navigationRail.test.tsx": "b40c970534c654b6d6159f363ff1ee0ef2a70ec1ee7553fee4a3ead8a1da1ec4",
+    "packages/web/src/views/ChatView.tsx": "626ee970b2c20318772af56d39f8409100ad343edefc5ec3ceb6de325c7e3744",
+    "tests/test_codex_control_owner.py": "41b4ae342df72182f49cf18ffbc3cefcdf4810e5621cee36776c658aa06780d8",
+    "tests/test_codex_native_completion.py": "c9208f9bad42892f3aefa40ae43495ef699e94ecef4bf9b4f05d10ec8571148d",
+    "tests/test_codex_native_kernel_real.py": "ff5b6393c226a694295937e70208cd7294df2110ba033a1fdd35a81404c5d407",
+    "tests/test_codex_native_transport.py": "4889ad66bf52c68bb19e5f46198ecdf59a9c17ed55b56c27c35d5c16e0c25a94",
+    "tests/test_native_control_api.py": "89c9cf1b638c345ca479f62e634dc9429a4b616e81bd42ece1ee56286305b431",
+    "tests/test_report_subscription.py": "7b9acaabcda945b67ed627fe605658ab7e6803740d409e5e2e01f5952893cced"
+  },
+  "source_unchanged": true,
+  "results": [
+    {
+      "label": "python-full",
+      "returncode": 1,
+      "seconds": 1104.484,
+      "log": "python-full.txt"
+    },
+    {
+      "label": "frontend-lint",
+      "returncode": 0,
+      "seconds": 5.478,
+      "log": "frontend-lint.txt"
+    },
+    {
+      "label": "frontend-vitest",
+      "returncode": 0,
+      "seconds": 73.024,
+      "log": "frontend-vitest.txt"
+    },
+    {
+      "label": "frontend-build",
+      "returncode": 0,
+      "seconds": 11.744,
+      "log": "frontend-build.txt"
+    },
+    {
+      "label": "browser-native",
+      "returncode": 0,
+      "seconds": 4.177,
+      "log": "browser-native.txt"
+    }
+  ],
+  "passed": false
+}
