@@ -48,6 +48,10 @@ _UI_DEFAULTS = {
     "showQQ": True,
     "notifications": {
         "codexWarningToast": True,
+        "completionBridge": {
+            "system": True, "browser": False, "qqReport": False,
+            "qqSubscribe": False, "qqTargets": [],
+        },
     },
 }
 

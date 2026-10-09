@@ -65,6 +65,7 @@ class _FakeRequest:
     def __init__(self, headers: dict[str, str], method: str = "GET") -> None:
         self.headers = dict(headers)
         self.method = method
+        self.app = FastAPI()
 
 
 class _Gate:

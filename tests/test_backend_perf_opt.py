@@ -178,10 +178,13 @@ def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
     s, w = _make_worker()
     saved = []
 
-    async def fake_save(sess):
-        saved.append(len(sess.history))
+    original_save = _sess._save_body
 
-    monkeypatch.setattr(_sess, "save_async", fake_save)
+    def fake_save(sess):
+        saved.append(len(sess.history))
+        return original_save(sess)
+
+    monkeypatch.setattr(_sess, "_save_body", fake_save)
     w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
 
     asyncio.run(worker._read_stdout(w))

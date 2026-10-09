@@ -182,7 +182,20 @@ terminal_id, secret_file = sys.argv[1], sys.argv[2]
 mode = os.environ.get("PAN_TERMINAL_RUNNER_TEST_MODE", "normal")
 kwargs = {}
 
-if mode == "capable":
+if mode in {"capable", "capable-tail"}:
+    if mode == "capable-tail":
+        # Hold only Thread teardown after the real write published _done.
+        # Real ConPTY/IPC work and identity checks remain unchanged.
+        original_thread_run = threading.Thread.run
+        def delayed_teardown(thread):
+            original_thread_run(thread)
+            if thread.name == "runner-tracked-call":
+                deadline = time.monotonic() + 30
+                while os.path.exists(os.environ["PAN_TERMINAL_RUNNER_GATE_FILE"]):
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("test teardown gate was not released")
+                    time.sleep(0.01)
+        threading.Thread.run = delayed_teardown
     kwargs["durability_probe"] = lambda: DurabilityCapability(True, False, "test-injected-capable")
 elif mode == "fail-once-probe":
     state = {"calls": 0}
@@ -891,14 +904,29 @@ def test_detach_refused_when_ambient_job_constrains_durability(spawn_runner):
 
 def test_detach_semantics_same_pty_reconnect_and_shell_variable(spawn_runner):
     """能力注入下 detach：同 PTY/PID/FILETIME、shell 变量保存、新 controller 重连。"""
-    handle = spawn_runner(mode="capable")
+    _assert_detach_semantics(spawn_runner(mode="capable"))
+
+
+def test_detach_completed_write_before_thread_teardown(spawn_runner, tmp_path):
+    gate = tmp_path / "completed-write-tail"
+    gate.touch()
+    try:
+        handle = spawn_runner(mode="capable-tail", env_extra={
+            "PAN_TERMINAL_RUNNER_GATE_FILE": str(gate),
+        })
+        _assert_detach_semantics(handle)
+    finally:
+        gate.unlink(missing_ok=True)
+
+
+def _assert_detach_semantics(handle):
     owner = _client(handle, client_id="pan-owner-detach")
     owner.heartbeat()
     handle.note_shell(owner.describe())
     shell_pid, shell_filetime = handle.shell_pid, handle.shell_filetime
     mark = f"MARK_{os.urandom(3).hex()}"
-    owner.input(f"set PAN_DETACH_{mark}=7749\r".encode("ascii"))
-    owner.input(f"echo %PAN_DETACH_{mark}%\r".encode("ascii"))
+    assert owner.input(f"set PAN_DETACH_{mark}=7749\r".encode("ascii"))["status"] == "done"
+    assert owner.input(f"echo %PAN_DETACH_{mark}%\r".encode("ascii"))["status"] == "done"
     text, _ = _read_until(owner, "7749")
     assert b"7749" in text
 
@@ -916,7 +944,7 @@ def test_detach_semantics_same_pty_reconnect_and_shell_variable(spawn_runner):
     assert described["detached"] is True
     assert int(described["pid"]) == shell_pid
     assert int(described["process_created_at_filetime"]) == shell_filetime
-    controller.input(f"echo %PAN_DETACH_{mark}%\r".encode("ascii"))
+    assert controller.input(f"echo %PAN_DETACH_{mark}%\r".encode("ascii"))["status"] == "done"
     text2, _ = _read_until(controller, "7749")
     assert b"7749" in text2, "shell 变量必须在 detach + 重连后仍存在"
     assert controller.close()["status"] == "exited"

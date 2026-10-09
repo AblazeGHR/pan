@@ -1,6 +1,7 @@
 """Regression tests for provider-backed Worker branching."""
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -44,6 +45,7 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     _sess._cache[session.id] = session
     live = worker.Worker(
         worker_id="worker-steer",
+        status="running",
         session_id=session.id,
         adapter=CodexAdapter(),
         process=MagicMock(),
@@ -54,14 +56,19 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
 
     async def fake_control(worker_id, control):
         assert worker_id == live.worker_id
-        assert control == {"type": "steer", "text": "focus here"}
+        assert {k: v for k, v in control.items() if k != "requestId"} == {
+            "type": "steer", "text": "focus here",
+        }
+        assert session.history == []
+        assert control["requestId"] in live._steer_receipts
+        live._steer_receipts[control["requestId"]].set_result(None)
         return None
 
     monkeypatch.setattr(worker, "send_control_message", fake_control)
     monkeypatch.setattr(_sess, "save_async", AsyncMock())
 
     assert asyncio.run(worker.steer_worker(live.worker_id, " focus here ")) is None
-    assert _no_ts(session.history) == [{"role": "user", "content": "focus here"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "focus here", "source": "user"}]
     # steer 写入的是可搜索正文，append_history 必须给它分配 Pan 身份。
     (steer_id,) = _message_ids(session.history)
     assert _sess.is_pan_message_id(steer_id), (
@@ -187,6 +194,7 @@ def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
     process.stdin = stdin
     live = worker.Worker(
         worker_id="worker-steer-edit",
+        status="running",
         session_id=session.id,
         adapter=CodexAdapter(),
         process=process,
@@ -200,10 +208,17 @@ def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
     stdin.write.assert_not_called()
     assert session.history == []
 
+    async def acknowledge_drain():
+        control = json.loads(stdin.write.call_args.args[0])
+        assert control["type"] == "steer" and control["text"] == "after cancel"
+        assert session.history == []
+        live._steer_receipts[control["requestId"]].set_result(None)
+
+    stdin.drain.side_effect = acknowledge_drain
     worker.release_queue_edit_lock(session, item["id"], "active-edit")
     assert asyncio.run(worker.steer_worker(live.worker_id, "after cancel")) is None
     stdin.write.assert_called_once()
-    assert _no_ts(session.history) == [{"role": "user", "content": "after cancel"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "after cancel", "source": "user"}]
     # 解除编辑锁后 steer 写入的正文同样必须带 Pan 身份。
     (steer_id,) = _message_ids(session.history)
     assert _sess.is_pan_message_id(steer_id), (
@@ -222,23 +237,33 @@ def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
     _sess._cache[session.id] = session
     live = worker.Worker(
         worker_id="worker-steer-retry",
+        status="running",
         session_id=session.id,
         adapter=CodexAdapter(),
         process=MagicMock(),
     )
     worker.workers[live.worker_id] = live
 
-    control = AsyncMock(return_value=None)
+    live.process.returncode = None
+
+    async def acknowledge_control(worker_id, body):
+        assert worker_id == live.worker_id
+        assert session.history == []
+        live._steer_receipts[body["requestId"]].set_result(None)
+
+    control = AsyncMock(side_effect=acknowledge_control)
     monkeypatch.setattr(worker, "send_control_message", control)
     save = AsyncMock(side_effect=[OSError("temporary save failure"), None])
     monkeypatch.setattr(_sess, "save_async", save)
 
     assert asyncio.run(worker.steer_worker(live.worker_id, "retry this")) is None
-    control.assert_awaited_once_with(
-        live.worker_id, {"type": "steer", "text": "retry this"},
-    )
+    control.assert_awaited_once()
+    assert control.await_args.args[0] == live.worker_id
+    body = control.await_args.args[1]
+    assert body == {"type": "steer", "text": "retry this", "requestId": body["requestId"]}
+    assert isinstance(body["requestId"], str) and body["requestId"]
     assert save.await_count == 2
-    assert _no_ts(session.history) == [{"role": "user", "content": "retry this"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "retry this", "source": "user"}]
     # 落盘重试不得重复追加正文，身份也只应分配一次。
     (steer_id,) = _message_ids(session.history)
     assert _sess.is_pan_message_id(steer_id), (

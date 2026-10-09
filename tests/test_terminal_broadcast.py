@@ -69,9 +69,12 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
     timeline = []
     enrich_started = []
 
-    async def save(value):
+    original_save = _sess._save_body
+
+    def save(value, **kwargs):
         saves.append((value.last_result is not None, len(value.history)))
         timeline.append(("save", value.last_result is not None))
+        return original_save(value, **kwargs)
 
     async def broadcast(value):
         events.append(value)
@@ -82,7 +85,7 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
         time.sleep(0.15)
         return None
 
-    monkeypatch.setattr(_sess, "save_async", save)
+    monkeypatch.setattr(_sess, "_save_body", save)
     monkeypatch.setattr(w.adapter, "enrich_after_result", slow_enrich)
     worker.set_broadcaster(broadcast)
     w.process = _Process([
@@ -382,13 +385,13 @@ def test_base_terminal_save_failure_sends_no_completion(monkeypatch):
     s, w = _stream_setup("ses_t041_save_fail")
     events = []
 
-    async def fail_save(_session):
+    def fail_save(_session):
         raise OSError("disk unavailable")
 
     async def broadcast(value):
         events.append(value)
 
-    monkeypatch.setattr(_sess, "save_async", fail_save)
+    monkeypatch.setattr(_sess, "_save_body", fail_save)
     worker.set_broadcaster(broadcast)
 
     async def scenario():

@@ -91,7 +91,8 @@ def test_respawn_resets_execution_state(monkeypatch):
     s.queue_pending = [_make_task(1)]
     received = []
 
-    async def fake_stream(ww, text, source, sess):
+    async def fake_stream(ww, text, source, sess, *, on_handoff):
+        await on_handoff()
         received.append(text)
         worker._ack_current_task(ww, sess)
 
@@ -134,7 +135,8 @@ def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
 
     pairs = []
 
-    async def fake_stream(ww, text, source, sess):
+    async def fake_stream(ww, text, source, sess, *, on_handoff):
+        await on_handoff()
         pairs.append((ww._current_seq, ww._current_task_id))
         worker._ack_current_task(ww, sess)
 

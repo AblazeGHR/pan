@@ -1,6 +1,7 @@
 """T-062.7 bounded result-cursor and authoritative resync tests."""
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import packages.core.session as session
@@ -128,7 +129,6 @@ def test_terminal_persistence_assigns_durable_cursor_before_publication(monkeypa
         _task_done=asyncio.Event(),
     )
     worker.workers[w.worker_id] = w
-    monkeypatch.setattr(worker, "_flush_history_now", _noop_flush)
     try:
         w._current_seq = 1
         w._current_task_id = "task-one"
@@ -136,6 +136,7 @@ def test_terminal_persistence_assigns_durable_cursor_before_publication(monkeypa
         first = _run(worker._persist_terminal_state(w, s, "done", "one"))
         assert first["resultCursor"] == 1
         assert s.last_result["resultCursor"] == 1
+        assert json.loads(session._path(sid).read_text(encoding="utf8"))["result_cursor"] == 1
         assert s.terminal_results[0]["terminalKey"] == first["terminalKey"]
 
         w._terminal_handled = False
@@ -172,7 +173,6 @@ def test_pre_handoff_error_keeps_result_idle_order(monkeypatch):
 
     monkeypatch.setattr(worker, "_bcast", capture_broadcast)
     monkeypatch.setattr(worker, "_enqueue_report", ignore_report)
-    monkeypatch.setattr(worker, "_flush_history_now", _noop_flush)
     try:
         w._current_seq = 1
         w._current_task_id = "task-pre-handoff"
@@ -187,7 +187,3 @@ def test_pre_handoff_error_keeps_result_idle_order(monkeypatch):
         assert s.last_result["result"] == "dead before handoff"
     finally:
         _cleanup(sid=sid)
-
-
-async def _noop_flush(_worker):
-    return None

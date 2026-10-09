@@ -367,8 +367,8 @@ def test_task_history_receipt_retains_source_metadata(monkeypatch):
         "task-1", "record me", source="agent", sourceSessionId=source.id)]
     w = _worker(target.id)
 
-    async def fake_stream(_worker, _text, _source, _session):
-        return None
+    async def fake_stream(_worker, _text, _source, _session, *, on_handoff):
+        await on_handoff()
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
     monkeypatch.setattr(worker, "_maybe_inject_memory",

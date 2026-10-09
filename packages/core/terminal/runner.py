@@ -1860,17 +1860,19 @@ class TerminalRunner:
                 refusal = "closing"
             else:
                 worker = self._write_worker
-                if worker is not None and worker.in_flight:
+                if worker is not None and (not worker.started or worker.in_flight):
                     # 同一时刻只有一个在途 write：不排队、不重复启动同一阻塞调用。
                     worker = None
                     refusal = "busy"
                 else:
-                    if worker is None:
-                        worker = _TrackedCall(self._write_call(data))
-                        self._write_worker = worker
-                    else:
-                        # 上一轮已结束：绑定新数据开始新一轮（仍不重叠）。
-                        worker.reset(self._write_call(data))
+                    # Each accepted input owns its result and completion event.
+                    # _done may be published before the old Thread exits; reset()
+                    # would reject that tail as handler-error. Replacing the call
+                    # also prevents another request from resetting a result that
+                    # its original caller has not consumed yet. An unstarted call
+                    # above is already reserved, so concurrent inputs stay busy.
+                    worker = _TrackedCall(self._write_call(data))
+                    self._write_worker = worker
                     self._last_input_status = "in-flight"
                     refusal = None
         if worker is None:
