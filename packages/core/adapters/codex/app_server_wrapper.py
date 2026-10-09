@@ -207,11 +207,18 @@ def _item_event(item: dict[str, Any]) -> dict[str, Any] | None:
 
 class AppServer:
     def __init__(self, node: str, codex_js: str, cwd: str,
-                 extra_options: list[str]) -> None:
+                 extra_options: list[str], *, native_control: bool = False) -> None:
         self.node = node
         self.codex_js = codex_js
         self.cwd = cwd
         self.extra_options = extra_options
+        self.native_control = native_control
+        self._native_transport = None
+        if __package__:
+            from .control_owner import ControlOwner
+        else:
+            from control_owner import ControlOwner
+        self.control_owner = ControlOwner()
         self.config = _parse_extra_options(extra_options)
         self.process: subprocess.Popen[bytes] | None = None
         self.incoming: Queue[dict[str, Any] | None] = Queue()
@@ -228,6 +235,17 @@ class AppServer:
         self._steer_requests_lock = threading.Lock()
 
     def _send(self, message: dict[str, Any]) -> None:
+        if self._native_transport is not None:
+            def write():
+                with self._write_lock:
+                    self._native_transport.send(message)
+            # Read-only observation continues in native mode. Unknown RPCs
+            # and replies are writes: fail closed rather than guessing.
+            if message.get("method") in {"thread/read", "thread/list", "account/read", "model/list"}:
+                write()
+            else:
+                self.control_owner.write("pan", write)
+            return
         if not self.process or self.process.stdin is None:
             raise RuntimeError("app-server is not running")
         # Node's stdio reader on Windows can inherit the active console/code
@@ -246,18 +264,31 @@ class AppServer:
         return request_id
 
     def start(self) -> None:
+        transport_args = ["--stdio"]
+        if self.native_control:
+            if __package__:
+                from .native_transport import NativeTransport
+            else:
+                from native_transport import NativeTransport
+
+            self._native_transport = NativeTransport()
+            transport_args = self._native_transport.server_args()
         command = [self.node, self.codex_js, *_server_options(self.extra_options),
-                   "app-server", "--stdio"]
+                   "app-server", *transport_args]
         self.process = subprocess.Popen(
             command,
             cwd=self.cwd or None,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdin=subprocess.DEVNULL if self.native_control else subprocess.PIPE,
+            stdout=subprocess.DEVNULL if self.native_control else subprocess.PIPE,
             stderr=subprocess.PIPE,
             close_fds=True,
         )
-        threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._pump_stderr, daemon=True).start()
+        if self._native_transport is not None:
+            self._native_transport.connect(self.process.poll)
+            threading.Thread(target=self._read_native, daemon=True).start()
+        else:
+            threading.Thread(target=self._read_stdout, daemon=True).start()
 
         initialize_id = self._request("initialize", {
             "clientInfo": {"name": "pan", "version": "0.1.0"},
@@ -321,6 +352,17 @@ class AppServer:
                     continue
                 if isinstance(value, dict) and not self._emit_steer_receipt(value):
                     self.incoming.put(value)
+        finally:
+            self.incoming.put(None)
+
+    def _read_native(self) -> None:
+        try:
+            for message in self._native_transport.messages():
+                if not self._emit_steer_receipt(message):
+                    self.incoming.put(message)
+        except Exception:
+            # Never leak header/token or raw transport errors into history.
+            _write_stderr("[codex app-server] native transport disconnected\n")
         finally:
             self.incoming.put(None)
 
@@ -861,6 +903,8 @@ class AppServer:
         self._send({"id": request_id, "result": result})
 
     def _safe_decline_expired(self, state: dict[str, Any]) -> None:
+        if self.native_control and self.control_owner.snapshot()["mode"] != "pan":
+            return
         pending = state.get("pending_requests") or {}
         now = time.monotonic()
         for key, request in list(pending.items()):
@@ -1116,6 +1160,11 @@ class AppServer:
                        "result": result, "usage": self.last_usage})
 
     def close(self) -> None:
+        if self._native_transport is not None:
+            try:
+                self._native_transport.close()
+            except Exception:
+                _write_stderr("[codex app-server] native transport close failed\n")
         process = self.process
         if process is None:
             return
@@ -1140,7 +1189,8 @@ class AppServer:
 
 def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
                     control_queue: Queue[dict[str, Any] | None],
-                    turn_active: threading.Event | None = None) -> None:
+                    turn_active: threading.Event | None = None,
+                    mode_handler=None) -> None:
     stream = getattr(sys.stdin, "buffer", sys.stdin)
     while True:
         line = stream.readline()
@@ -1152,6 +1202,10 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
         except json.JSONDecodeError:
             continue
         if not isinstance(message, dict):
+            continue
+        if message.get("type") == "control_mode":
+            if mode_handler is not None:
+                mode_handler(message)
             continue
         if message.get("type") in (
                 "interrupt", "steer", "approval_response", "user_input_response",
@@ -1172,6 +1226,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--codex-path", required=True)
     parser.add_argument("--node-path", default="node")
     parser.add_argument("--thread-id", default=None)
+    parser.add_argument("--native-control", action="store_true")
     parser.add_argument("--codex-extra-args", default="[]")
     parser.add_argument("--system-prompt", default=None)
     parser.add_argument("--system-prompt-file", default=None)
@@ -1188,15 +1243,27 @@ def main(argv: list[str] | None = None) -> int:
         system_prompt = _read_system_prompt_file(args.system_prompt_file)
 
     app = AppServer(args.node_path, args.codex_path,
-                    os.environ.get("PAN_CODEX_CWD") or os.getcwd(), extra)
+                    os.environ.get("PAN_CODEX_CWD") or os.getcwd(), extra,
+                    native_control=args.native_control)
     app.initial_thread_id = args.thread_id
     if system_prompt and not args.thread_id:
         app.config["developer_instructions"] = system_prompt
     pan_queue: Queue[dict[str, Any] | None] = Queue()
     control_queue: Queue[dict[str, Any] | None] = Queue()
     app.control_queue = control_queue
+    def mode_handler(message):
+        receipt = {"type": "pan.control_mode", "requestId": message.get("requestId"), "ok": False}
+        try:
+            if not app.native_control or not app.thread_id:
+                raise RuntimeError("Native control transport is not ready")
+            receipt.update(app.control_owner.switch(message.get("mode"), message.get("generation")))
+            receipt["ok"] = True
+        except RuntimeError:
+            receipt.update(app.control_owner.snapshot())
+            receipt["error"] = "Control mode rejected"
+        _write_stdout(receipt)
     reader = threading.Thread(target=_read_pan_stdin,
-                              args=(pan_queue, control_queue, app._turn_active), daemon=True)
+                              args=(pan_queue, control_queue, app._turn_active, mode_handler), daemon=True)
     reader.start()
     try:
         app.start()

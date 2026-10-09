@@ -218,6 +218,12 @@ class Worker:
     # Last native Codex thread status for reconnecting dashboards.  Like the
     # interaction cache, this is only valid while this worker process lives.
     native_status: dict | None = None
+    # Separate from status/held and the user's durable queue_paused setting.
+    # Switching/unknown ownership blocks only new handoffs and Pan controls.
+    native_control_mode: str = "pan"
+    native_control_generation: int = 0
+    _native_mode_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
+    _native_mode_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # Latest native Codex token usage notification for reconnecting dashboards.
     # The provider remains the source of truth for persisted/session totals;
     # this is only the live thread/turn snapshot from app-server.
@@ -1496,6 +1502,11 @@ def _update_pending_interactions(w: Worker, event: dict) -> dict | None:
     there is no safe request to replay into a newly spawned process.
     """
     event_type = event.get("type")
+    if event_type == "pan.control_mode":
+        future = w._native_mode_receipts.get(event.get("requestId"))
+        if future is not None and not future.done():
+            future.set_result(dict(event))
+        return None
     if event_type == "codex.thread_status":
         native_status = event.get("native_status")
         w.native_status = dict(native_status) if isinstance(native_status, dict) else None
@@ -1863,6 +1874,9 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
+        if event.get("type") == "pan.control_mode":
+            _update_pending_interactions(w, event)
+            continue
         if event.get("type") == "pan.steer_receipt":
             receipt = w._steer_receipts.get(event.get("requestId"))
             if receipt is not None and not receipt.done():
@@ -2236,7 +2250,7 @@ async def _legacy_consumer_reference(w: Worker):
 
 def _select_queue_unit(s) -> list[dict] | None:
     """Select the first unlocked queued unit in durable FIFO order."""
-    if getattr(s, "queue_paused", False):
+    if getattr(s, "queue_paused", False) or _native_handoff_blocked(s):
         return None
     pending = list(s.queue_pending or [])
     for index, item in enumerate(pending):
@@ -3061,12 +3075,19 @@ def _only_locked_queue_items(s) -> bool:
 
 def _queue_recovery_blocked(s) -> bool:
     """A Session pause and locked-only backlog independently block recovery."""
-    return bool(getattr(s, "queue_paused", False)) or _only_locked_queue_items(s)
+    return bool(getattr(s, "queue_paused", False)) or _native_handoff_blocked(s) or _only_locked_queue_items(s)
+
+
+def _native_handoff_blocked(s) -> bool:
+    if s is None:
+        return False
+    w = find_worker_by_session(s.id)
+    return w is not None and w.native_control_mode != "pan"
 
 
 def _has_sendable_queued_items(s) -> bool:
     """Whether an immediate queue wake has an unlocked queued item."""
-    if s is None or getattr(s, "queue_paused", False):
+    if s is None or getattr(s, "queue_paused", False) or _native_handoff_blocked(s):
         return False
     return any(
         isinstance(item, dict)
@@ -5114,6 +5135,8 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
             raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
         if getattr(s, "queue_paused", False):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
+        if w.native_control_mode != "pan":
+            raise _QueuePausedBeforeHandoff("Native control owns CLI hand-off")
         result = await operation()
         if on_handoff is not None:
             await on_handoff()
@@ -6829,10 +6852,62 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
+async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 2.0) -> dict:
+    """Internal handoff seam; no process lifecycle or durable queue mutation.
+
+    Not exposed as a UI/API until a resident TUI and its protocol fence exist.
+    A lost acknowledgement retains the handoff gate; retry can reconcile the
+    kernel's authoritative generation. Never guess ownership after timeout.
+    """
+    w = workers.get(worker_id)
+    if w is None or w.adapter.name != "codex" or mode not in {"pan", "native"}:
+        return {"ok": False, "error": "Unsupported native control"}
+    s = _session(w)
+    if s is None or s.adapter_config.get("native_control") is not True:
+        return {"ok": False, "error": "Native control is not enabled"}
+    deadline = time.monotonic() + max(0.0, timeout)
+    try:
+        await asyncio.wait_for(w._native_mode_lock.acquire(), max(0.0, deadline - time.monotonic()))
+    except asyncio.TimeoutError:
+        return {"ok": False, "error": "Control switch busy"}
+    request_id = uuid.uuid4().hex
+    future = asyncio.get_running_loop().create_future()
+    try:
+        async def handoff():
+            if w.process is None or w.process.returncode is not None or w.process.stdin is None:
+                raise RuntimeError("Worker process is not running")
+            w.native_control_mode = "switching"
+            w._native_mode_receipts[request_id] = future
+            wire = w.adapter.encode_control_message({"type": "control_mode", "mode": mode,
+                "generation": w.native_control_generation, "requestId": request_id}) + b"\n"
+            w.process.stdin.write(wire)
+            await w.process.stdin.drain()
+        async def locked_handoff():
+            async with queue_lock(w.session_id):
+                await handoff()
+        await asyncio.wait_for(locked_handoff(), max(0.0, deadline - time.monotonic()))
+        receipt = await asyncio.wait_for(asyncio.shield(future), max(0.0, deadline - time.monotonic()))
+        generation = receipt.get("generation")
+        if receipt.get("mode") not in {"pan", "native"} or type(generation) is not int or generation < 0:
+            return {"ok": False, "error": "Invalid control receipt"}
+        w.native_control_mode = receipt["mode"]
+        w.native_control_generation = generation
+        if w.native_control_mode == "pan" and w.pending_signal is not None:
+            w.pending_signal.put_nowait({"type": "queue_signal"})
+        return receipt
+    except (asyncio.TimeoutError, OSError, RuntimeError):
+        return {"ok": False, "error": "Control ownership unconfirmed"}
+    finally:
+        w._native_mode_receipts.pop(request_id, None)
+        w._native_mode_lock.release()
+
+
 async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    if w.native_control_mode != "pan":
+        return "Pan controls are suspended during native control"
     if isinstance(control, dict) and control.get("type") == "steer":
         if w.status != "running":
             return "Steer requires a running Worker"

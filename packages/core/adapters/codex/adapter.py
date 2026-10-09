@@ -301,6 +301,10 @@ class CodexAdapter:
     def build_spawn_args(self, s: Session,
                          extra_args: list[str] | None = None) -> list[str]:
         args = self.base_args()
+        # Private opt-in until lifecycle/control/UI integration is accepted.
+        # This changes only transport, never starts a second execution thread.
+        if s.adapter_config.get("native_control") is True:
+            args.append("--native-control")
         # 所有 codex 级 option flag（model / permission / effort / mcp）汇总成一份
         # JSON 列表，经 wrapper 的 --codex-extra-args 透传给每次 codex exec 调用。
         codex_opts: list[str] = []
