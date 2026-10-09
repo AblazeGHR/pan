@@ -39,3 +39,16 @@ and queued work stays fenced while native/uncertain/external-turn ownership appl
 No practical merge, production restart, push, provider account use or 8768 listener
 was performed. Job default-window policy is a separate verified commit, to be combined
 before the main merge. Existing main untracked user artifacts remain untouched.
+
+## Combined candidate (`17ad3b8f`)
+
+After combining Job window policy with native control: **177 Python tests passed**
+(26.33 seconds); **39 frontend tests passed** across 9 files; TypeScript/Vite build
+and 62 precompressed asset checks passed. Chromium fixture returned `passed:true`
+and `page_errors:[]`. Source/test/document diff whitespace checks passed; raw historical
+pytest logs/XML retain their original output whitespace rather than being rewritten.
+The full frontend run preceding the Job addition had **1376 passed** across 127 files.
+
+These focused checks do not erase the 17 main baseline failures or the one intermittent
+full-run detach observation above. Main-only merge is the authorized deployment boundary;
+no practical build/restart is implied by this delivery.
