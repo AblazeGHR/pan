@@ -11,6 +11,9 @@ import sys
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
+
+import pytest
 
 # Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -92,37 +95,63 @@ def test_timeout_kills_running_worker():
     _cleanup()
 
 
-def test_active_running_worker_not_killed():
-    """running worker that just started (task_started_at=now) → not killed.
+def test_active_running_worker_not_killed(monkeypatch):
+    """Below task timeout, stale stdout does not kill an active running Worker.
 
-    长思考/大文件读取场景：任务运行时长尚未超 task_timeout，即使无 stdout 输出
-    也不应被杀（区别于旧的「无输出时长」判定）。
+    Keep the original 100ms threshold, but control task elapsed time separately
+    from event-loop/OS scheduling. A slow CI tick must not silently turn this
+    below-threshold scenario into an expired task.
     """
     _cleanup()
     killed = []
+    clock = {"now": 0.0, "reads": 0}
+
+    def monotonic():
+        clock["reads"] += 1
+        return clock["now"]
 
     async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
-    worker._WATCHDOG_TICK_SEC = 0.01
-    worker._WORKER_TASK_TIMEOUT_SEC = 0.1
-    worker._WORKER_IDLE_SEC = 999
-    w = _setup_worker(_setup_session().id, status="running")  # task_started_at=now
-
-    orig_kill = worker.kill_worker
-    worker.kill_worker = fake_kill
+    monkeypatch.setattr(worker, "time", SimpleNamespace(monotonic=monotonic))
+    monkeypatch.setattr(worker, "_WATCHDOG_TICK_SEC", .01)
+    monkeypatch.setattr(worker, "_WORKER_TASK_TIMEOUT_SEC", .1)
+    monkeypatch.setattr(worker, "_WORKER_TIMEOUT_SEC", .1)
+    monkeypatch.setattr(worker, "_WORKER_IDLE_SEC", 999)
+    monkeypatch.setattr(worker, "kill_worker", fake_kill)
+    w = _setup_worker(_setup_session().id, status="running",
+                      task_started_at=clock["now"], last_activity=-1000.0)
+    clock["now"] = .05
     try:
         asyncio.run(_run_watchdog(w))
+        assert clock["reads"] >= 2, "watchdog must evaluate task age"
+        assert killed == [], f"active running worker wrongly killed: {killed}"
     finally:
-        worker.kill_worker = orig_kill
-        worker._WATCHDOG_TICK_SEC = 30.0
-        worker._WORKER_TIMEOUT_SEC = 300.0
-        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
-        worker._WORKER_IDLE_SEC = 300.0
+        _cleanup()
 
-    assert killed == [], f"active running worker wrongly killed: {killed}"
+
+@pytest.mark.parametrize("elapsed,expected_kill", [(.099, False), (.1, False), (.101, True)])
+def test_running_watchdog_original_task_timeout_boundary(monkeypatch, elapsed, expected_kill):
     _cleanup()
+    killed = []
+
+    async def fake_kill(worker_id, *, recover=False):
+        killed.append((worker_id, recover))
+
+    monkeypatch.setattr(worker, "time", SimpleNamespace(monotonic=lambda: elapsed))
+    monkeypatch.setattr(worker, "_WATCHDOG_TICK_SEC", .01)
+    monkeypatch.setattr(worker, "_WORKER_TASK_TIMEOUT_SEC", .1)
+    monkeypatch.setattr(worker, "_WORKER_TIMEOUT_SEC", .1)
+    monkeypatch.setattr(worker, "_WORKER_IDLE_SEC", 999)
+    monkeypatch.setattr(worker, "kill_worker", fake_kill)
+    w = _setup_worker(_setup_session().id, status="running",
+                      task_started_at=0.0, last_activity=-1000.0)
+    try:
+        asyncio.run(_run_watchdog(w))
+        assert killed == ([(w.worker_id, True)] if expected_kill else [])
+    finally:
+        _cleanup()
 
 
 def test_queued_worker_timeout_killed():
