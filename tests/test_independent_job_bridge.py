@@ -234,3 +234,71 @@ def test_duplicate_runner_claim_launches_command_only_once(monkeypatch, tmp_path
     assert marker.read_text() == "once"
     assert store.get(job["jobId"])["status"] == "completed"
     assert len(store.events()["events"]) == 1
+
+
+@pytest.mark.parametrize("headers,status", [
+    ({"Origin": "http://untrusted.example", "Content-Type": "application/json"}, 403),
+    ({"Host": "untrusted.example", "Content-Type": "application/json"}, 403),
+    ({"Content-Type": "text/plain"}, 415),
+])
+def test_rejected_post_consumes_framed_body_without_parsing_or_creating(headers, status):
+    import io
+    from packages.jobs.independent_service import Handler
+
+    class Connection:
+        timeout = None
+        changes = []
+        def gettimeout(self):
+            return self.timeout
+        def settimeout(self, value):
+            self.timeout = value
+            self.changes.append(value)
+
+    class Server:
+        server_port = 12345
+        @property
+        def store(self):
+            raise AssertionError("rejected request must never access JobStore")
+
+    handler = Handler.__new__(Handler)
+    handler.server = Server()
+    handler.headers = {"Host": "127.0.0.1:12345", "Content-Length": "2", **headers}
+    handler.connection = Connection()
+    handler.rfile = io.BytesIO(b"{}")
+    handler.path = "/jobs"
+    responses = []
+    handler._json = lambda code, value: responses.append((code, value, handler.rfile.tell()))
+    handler._body = lambda: pytest.fail("reject before JSON parsing")
+    handler._run("POST")
+    assert len(responses) == 1
+    assert responses[0][0] == status
+    assert responses[0][2] == 2
+    assert handler.connection.timeout is None
+
+
+@pytest.mark.parametrize("length", [None, "invalid", "-1", "0", "65537"])
+def test_rejected_body_drain_refuses_unbounded_or_invalid_framing(length):
+    from packages.jobs.independent_service import Handler
+    handler = Handler.__new__(Handler)
+    handler.headers = {} if length is None else {"Content-Length": length}
+    # No socket or reader: these lengths must be rejected without any I/O.
+    handler._discard_rejected_body()
+
+
+def test_rejected_body_drain_total_budget_and_timeout_propagation(monkeypatch):
+    from types import SimpleNamespace
+    from packages.jobs import independent_service as service
+
+    ticks = iter([0, .2, .6, 1.1])
+    monkeypatch.setattr(service, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+    changes = []
+    reads = []
+    handler = service.Handler.__new__(service.Handler)
+    handler.headers = {"Content-Length": "10"}
+    handler.connection = SimpleNamespace(gettimeout=lambda: 7,
+                                         settimeout=changes.append)
+    handler.rfile = SimpleNamespace(read1=lambda count: reads.append(count) or b"x")
+    with pytest.raises(TimeoutError, match="drain timed out"):
+        handler._discard_rejected_body()
+    assert reads == [10, 9]
+    assert changes == [.8, .4, 7]

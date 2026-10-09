@@ -402,7 +402,9 @@ class PtyRuntime:
         if call is None:
             self._backend_close_call = call = _BoundedCall(close)
         elif call.finished and not call.succeeded:
-            call.reset(close)
+            # Completion is published before Thread teardown. Keep the failed
+            # attempt immutable and give this serialized retry its own event.
+            self._backend_close_call = call = _BoundedCall(close)
         finished, _result, error = call.run(timeout)
         if not finished:
             return "timeout"
@@ -748,7 +750,9 @@ class PtyRuntime:
                 self._terminate_call = call = _BoundedCall(do_terminate)
             elif call.finished and not call.succeeded:
                 # 上一次尝试已失败：允许新一轮（仍不重叠）；未完成则直接复用。
-                call.reset(do_terminate)
+                # The prior work is finished even if its Thread is still in
+                # teardown; reset would incorrectly reject this cleanup retry.
+                self._terminate_call = call = _BoundedCall(do_terminate)
             finished, _result, error = call.run(terminate_timeout)
             if not finished:
                 report.terminate_result = TerminateOutcome.TIMED_OUT

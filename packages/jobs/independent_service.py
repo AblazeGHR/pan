@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 MAX_BODY = 64 * 1024
+REJECT_BODY_DRAIN_SECONDS = 1.0
 JOB_ID_RE = re.compile(r"^job_[0-9a-f]{24}$")
 
 
@@ -290,6 +291,32 @@ class Handler(BaseHTTPRequestHandler):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status); self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+    def _discard_rejected_body(self):
+        # Closing a Windows socket with an unread POST body can reset the
+        # connection before the client receives our 403/415 response. Consume
+        # only bounded, explicitly framed bytes; never parse JSON or touch the
+        # store on this rejection path. Slow/incomplete bodies stay bounded.
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return
+        if not 0 < length <= MAX_BODY:
+            return
+        previous_timeout = self.connection.gettimeout()
+        deadline = time.monotonic() + REJECT_BODY_DRAIN_SECONDS
+        try:
+            while length:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("rejected request body drain timed out")
+                self.connection.settimeout(remaining)
+                chunk = self.rfile.read1(length)
+                if not chunk:
+                    break
+                length -= len(chunk)
+        finally:
+            self.connection.settimeout(previous_timeout)
+
     def _body(self):
         try: length = int(self.headers.get("Content-Length", "-1"))
         except ValueError: raise ServiceError(400, "invalid Content-Length")
@@ -321,7 +348,10 @@ class Handler(BaseHTTPRequestHandler):
                     if parts[2] == "cancel": return self._json(200, self.store.request_cancel(parts[1]))
                     if parts[2] == "retry": return self._json(201, self.store.retry(parts[1]))
             raise ServiceError(404, "route not found")
-        except ServiceError as e: self._json(e.status, {"error": e.message})
+        except ServiceError as e:
+            if method == "POST" and e.status in {403, 415}:
+                self._discard_rejected_body()
+            self._json(e.status, {"error": e.message})
         except Exception: self._json(500, {"error": "internal service error"})
     def do_GET(self): self._run("GET")
     def do_POST(self): self._run("POST")

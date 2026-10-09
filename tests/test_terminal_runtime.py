@@ -981,3 +981,58 @@ def test_blocked_guard_remaining_is_bounded_and_retry_reuses_worker():
     third = runtime.close(interrupt=False, tree_timeout=0.5, reader_grace=0.3)
     assert third.state_after is RuntimeState.EXITED
     assert third.ok
+
+
+@pytest.mark.parametrize("phase", ["terminate", "backend-close"])
+def test_cleanup_retry_after_completion_before_thread_teardown(monkeypatch, phase):
+    release = threading.Event()
+    completed = threading.Event()
+    tails = []
+    original_run = threading.Thread.run
+
+    def delayed_teardown(thread):
+        original_run(thread)
+        if thread.name == "pty-bounded-call":
+            tails.append(thread)
+            completed.set()
+            assert release.wait(5)
+
+    monkeypatch.setattr(threading.Thread, "run", delayed_teardown)
+    backend = ScriptedBackend([], block_forever=True, fail_terminate=phase == "terminate")
+    original_close = backend.close
+    close_calls = []
+
+    def close_once_failure():
+        close_calls.append("close")
+        if len(close_calls) == 1:
+            raise OSError("first close failed")
+        original_close()
+
+    if phase == "backend-close":
+        monkeypatch.setattr(backend, "close", close_once_failure)
+    runtime = PtyRuntime(TID, backend)
+    runtime.start(rows=10, cols=40)
+    try:
+        first = runtime.close(interrupt=False, terminate_timeout=.5, reader_grace=.01)
+        assert first.state_after is RuntimeState.CLEANUP_FAILED
+        assert first.owner_retained
+        assert completed.wait(2)
+        call = runtime._terminate_call if phase == "terminate" else runtime._backend_close_call
+        assert call.finished and not call.succeeded
+        assert call._worker.is_alive()
+        backend.fail_terminate = False
+        second = runtime.close(interrupt=False, terminate_timeout=1, reader_grace=.3)
+        assert second.state_after is RuntimeState.EXITED
+        assert second.ok
+        assert backend.closed
+        new_call = runtime._terminate_call if phase == "terminate" else runtime._backend_close_call
+        assert new_call is not call
+        assert len(backend.terminate_calls) == (2 if phase == "terminate" else 1)
+        if phase == "backend-close":
+            assert close_calls == ["close", "close"]
+    finally:
+        release.set()
+        backend.release_blocked_read()
+        assert runtime.wait_eof(2)
+        for thread in tails:
+            thread.join(2)
