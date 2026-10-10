@@ -8,6 +8,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { fetchSession } from '@/services/api';
 import type { AdapterConfig, Session } from '@/types';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
 
 vi.mock('@/services/api', async () => {
   const actual = await vi.importActual<typeof import('@/services/api')>('@/services/api');
@@ -79,6 +80,18 @@ function setup(session = makeSession(), config = codexConfig) {
 describe('Codex context settings in SettingsPopover', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useNativeControlStore.setState({ sessions: {}, switching: {} });
+  });
+
+  it('offers Session downgrade in Worker Settings and uses delayed configuration, not immediate restart', async () => {
+    const session = { ...makeSession(), nativeControl: true };
+    const configure = vi.spyOn(useNativeControlStore.getState(), 'configureSession').mockResolvedValue({ enabled: true, pendingEnabled: false });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    setup(session);
+    fireEvent.click(await screen.findByRole('button', { name: 'Downgrade Session to standard Pan control' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(configure).toHaveBeenCalledWith(session.id, false);
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {

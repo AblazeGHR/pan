@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -111,18 +111,26 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const nativeState = useNativeControlStore((s) => currentSession?.id ? s.sessions[currentSession.id] : undefined);
   const nativeSwitching = useNativeControlStore((s) => currentSession?.id ? s.switching[currentSession.id] : false);
   const nativeActive = nativeState?.mode === 'native' || nativeState?.mode === 'switching';
+  const enterAfterUpgrade = useRef<string | null>(null);
   useEffect(() => {
-    if (!currentSession?.nativeControl) return;
+    if (currentSession?.adapter !== 'codex') return;
     const id = currentSession.id;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
-      try { await useNativeControlStore.getState().refresh(id); } catch { /* keep last acknowledged ownership */ }
+      try {
+        await useNativeControlStore.getState().refresh(id);
+        const state = useNativeControlStore.getState().sessions[id];
+        if (!stopped && enterAfterUpgrade.current === id && state?.enabled === true && typeof state.pendingEnabled !== 'boolean') {
+          enterAfterUpgrade.current = null;
+          await useNativeControlStore.getState().switchMode(id, 'native');
+        }
+      } catch { /* keep last acknowledged ownership; manual retry stays available */ }
       if (!stopped) timer = setTimeout(() => void refresh(), 1000);
     };
     void refresh();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [currentSession?.id, currentSession?.nativeControl]);
+  }, [currentSession?.id, currentSession?.adapter]);
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
   // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
   // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
@@ -130,7 +138,23 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const { showToast } =
     useUIStore(useShallow((s) => ({
       showToast: s.showToast,
-    })));
+      })));
+  const enterNative = async () => {
+    if (!currentSession) return;
+    const id = currentSession.id;
+    try {
+      if (!currentSession.nativeControl) {
+        if (!window.confirm('Upgrade this Codex Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.')) return;
+        const config = await useNativeControlStore.getState().configureSession(id, true);
+        if (typeof config.pendingEnabled === 'boolean') {
+          enterAfterUpgrade.current = id;
+          showToast('Session upgrade scheduled: waiting for the current task to finish', 'info');
+          return;
+        }
+      }
+      await useNativeControlStore.getState().switchMode(id, 'native');
+    } catch { showToast('Session upgrade or native control switch was not confirmed', 'error'); }
+  };
   const { chatViewStyle, setChatViewStyle } = useAppSettingsStore(useShallow((s) => ({
     chatViewStyle: s.chatViewStyle,
     setChatViewStyle: s.setChatViewStyle,
@@ -273,12 +297,11 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               ))}
             </div>
           )}
-          {currentSession.nativeControl && <button type="button"
+          {currentSession.adapter === 'codex' && <button type="button"
             className={`ml-1 border-l border-border-default pl-2 flex items-center gap-1 text-xs ${nativeActive ? 'text-accent' : 'text-text-secondary'}`}
-            aria-label="Terminal TUI" aria-pressed={nativeActive} disabled={nativeSwitching}
-            onClick={() => void useNativeControlStore.getState().switchMode(currentSession.id, 'native')
-              .catch(() => showToast('Native terminal startup or switch was not confirmed', 'error'))}>
-            <TerminalSquare size={16} /> Terminal TUI
+            aria-label="Terminal TUI" aria-pressed={nativeActive} disabled={nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean'}
+            onClick={() => void enterNative()}>
+            <TerminalSquare size={16} /> Terminal TUI{typeof nativeState?.pendingEnabled === 'boolean' ? ' · pending idle' : ''}
           </button>}
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">

@@ -1,0 +1,30 @@
+{
+  "base": "1ad4fb1f",
+  "source_hash_convention": "sha256 LF-normalized worktree bytes",
+  "source_anchors": {
+    "docs/design/CODEX_NATIVE_CONTROL_20261010.md": "1bd1532f31731359d188a3907e893d9fe38962002cf4ecde07c0348a962ee556",
+    "packages/core/worker.py": "70d3e34b42094923d4eb8fb128c41c3693b461adf42877712f60c21557ea59eb",
+    "packages/web/.pan-validation-node-modules.junction": "32fededc6008a3d78d1476ccfbdfd6f5b1925b5c7a9694f3b6593c6018804ca0",
+    "packages/web/e2e/native-control.e2e.mjs": "55467e1c95495ec8d23ca36ed021c9465ebb7ccd52948cd9b9ce73a554b9bbeb",
+    "packages/web/native_control_api.py": "7c35567097436482aca81027bcf671069ce38eb3029be0bfc7eb3c1fdc78f830",
+    "packages/web/src/components/chat/SettingsPopover.context.test.tsx": "3b1c8a9faab18bb2813015b84c73e3b35f5cef496fd2999ba1369cb870994fde",
+    "packages/web/src/components/chat/SettingsPopover.tsx": "3987684cda1540cefaf61385d76d429a0a93c53b8ea9eae1b88d306a1975cc93",
+    "packages/web/src/components/layout/TopBar.test.tsx": "205df86a4fa066e4a8cedfe8faf9ad9d124c392cddaa22ddd7f7c35717ae4228",
+    "packages/web/src/components/layout/TopBar.tsx": "dc47fd331871aaee5ff2faa1d6bdd1517edd81fa6e94c8ddbfe1f70eb48af138",
+    "packages/web/src/native-control-harness.tsx": "841cb6a1ffc39cd17451482cbf9e6ff04786187908d0434b8b986fc9196acdbb",
+    "packages/web/src/services/nativeControl.ts": "0a481de58fd5690ddf6d7752aad538221593a9e165003c7cf09575fa838f3de2",
+    "packages/web/src/stores/nativeControlStore.test.ts": "c166bc632acc8c647d4fb295a55cb480aff7ed5bf05228aeba67c01d987be58d",
+    "packages/web/src/stores/nativeControlStore.ts": "bb2de61c4b51dc65d2acfdf977bb23231044d0cc94b7f1eea55d4adc05b42c4e",
+    "tests/test_codex_session_conversion.py": "90dd71e16e7d7f0d49518c66ca8216e92280a67b02f01be8cd4d8928105cd42c"
+  },
+  "source_unchanged": true,
+  "results": [
+    {
+      "label": "python-full",
+      "returncode": 0,
+      "seconds": 1133.85,
+      "log": "python-full.txt"
+    }
+  ],
+  "passed": true
+}

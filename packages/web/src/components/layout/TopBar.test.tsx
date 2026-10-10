@@ -54,6 +54,28 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('offers Terminal TUI for every Codex Session and cancellation never upgrades it', async () => {
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: false })) }));
+    vi.spyOn(useNativeControlStore.getState(), 'refresh').mockResolvedValue();
+    const configure = vi.spyOn(useNativeControlStore.getState(), 'configureSession').mockResolvedValue({ enabled: false, pendingEnabled: true });
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    expect(confirm).toHaveBeenCalled();
+    expect(configure).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(configure).toHaveBeenCalledWith('session-123456789', true));
+    expect(switchMode).not.toHaveBeenCalled();
+    expect(useUIStore.getState().toastQueue.some((toast) => toast.message.includes('waiting'))).toBe(true);
+    expect(screen.getByRole('button', { name: 'Switch to TUI view' }).getAttribute('aria-pressed')).toBe('true');
+  });
+  it('does not offer Terminal TUI for other adapters', () => {
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'cbc' })) }));
+    render(<TopBar />);
+    expect(screen.queryByRole('button', { name: 'Terminal TUI' })).toBeNull();
+  });
   it('native entry is distinct and clears all View selections without changing the saved preference', async () => {
     const sid = 'session-123456789';
     useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: true })) }));

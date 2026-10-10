@@ -11,7 +11,7 @@ import './index.css';
 // this does not connect to a running Pan instance or a provider.
 useSessionStore.setState({ currentSessionId: 'native-browser', sessions: [{
   id: 'native-browser', name: 'Native control browser fixture', adapter: 'codex',
-  nativeControl: true, alwaysThinkingEnabled: false, effort: '', history: [],
+  nativeControl: new URLSearchParams(window.location.search).get('standard') !== '1', alwaysThinkingEnabled: false, effort: '', history: [],
 }], currentMessages: [] });
 useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
 useQueueStore.setState({ panelOpen: false });

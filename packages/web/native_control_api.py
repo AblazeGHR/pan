@@ -12,14 +12,14 @@ from packages.web.terminal_api import _enter, read_json_object, fail, ok, BodyEr
 router = APIRouter(prefix="/api/sessions/{session_id}/native-control")
 
 
-def _target(request, session_id):
+def _target(request, session_id, *, require_enabled=True):
     _, rejected = _enter(request)
     if rejected is not None:
         return None, rejected
     s = session.get(session_id, load_history=False)
     if s is None:
         return None, fail(404, "session-not-found")
-    if s.readonly_session or s.adapter != "codex" or s.adapter_config.get("native_control") is not True:
+    if s.readonly_session or s.adapter != "codex" or (require_enabled and s.adapter_config.get("native_control") is not True):
         return None, fail(409, "native-control-unavailable")
     return s, None
 
@@ -33,10 +33,67 @@ def _status(w):
 
 @router.get("")
 async def status(request: Request, session_id: str):
-    _, rejected = _target(request, session_id)
+    s, rejected = _target(request, session_id, require_enabled=False)
     if rejected is not None:
         return rejected
-    return ok(_status(worker.find_alive_worker_by_session(session_id)))
+    return ok({**_status(worker.find_alive_worker_by_session(session_id)),
+               "enabled": s.adapter_config.get("native_control") is True,
+               "pendingEnabled": s.adapter_config.get("native_control_next"),
+               "delayedRestart": worker.delayed_restart_state(session_id)})
+
+
+@router.post("/configuration")
+async def configuration(request: Request, session_id: str):
+    """Session-level conversion; current task finishes before the transport changes."""
+    s, rejected = _target(request, session_id, require_enabled=False)
+    if rejected is not None:
+        return rejected
+    try:
+        body = await read_json_object(request, allow_empty=False)
+    except (ValueError, TypeError, BodyError):
+        return fail(422, "invalid-body")
+    if set(body) != {"enabled"} or type(body["enabled"]) is not bool:
+        return fail(422, "invalid-configuration")
+    desired = body["enabled"]
+    lock = await worker._session_spawn_lock(session_id)
+    async with lock:
+        if worker._shutdown_started:
+            return fail(409, "service-closing")
+        pending = s.adapter_config.get("native_control_next")
+        if type(pending) is bool:
+            if pending != desired:
+                return fail(409, "configuration-pending")
+            return ok({"enabled": s.adapter_config.get("native_control") is True,
+                       "pendingEnabled": pending, "delayedRestart": worker.delayed_restart_state(session_id)})
+        if (s.adapter_config.get("native_control") is True) == desired:
+            return ok({"enabled": desired, "pendingEnabled": None, "delayedRestart": None})
+        w = worker.find_alive_worker_by_session(session_id)
+        if w is not None and (w.status == "held" or w.status not in {"idle", "running", "queued"}):
+            return fail(409, "worker-not-convertible")
+        # Hand back input ownership, not task execution. A native active turn
+        # continues, and the idle coordinator explicitly waits for its completion.
+        if w is not None and w.native_control_mode != "pan":
+            receipt = await worker.switch_native_control(w.worker_id, "pan")
+            if receipt.get("ok") is not True:
+                return fail(409, "native-switch-unconfirmed")
+        s.adapter_config["native_control_next"] = desired
+        try:
+            await session.save_async(s)
+        except BaseException:
+            s.adapter_config.pop("native_control_next", None)
+            raise
+        if w is None:
+            await worker._apply_pending_native_configuration(s)
+            intent = None  # Config-only while offline; clicking TUI starts the kernel.
+        else:
+            intent = worker.request_delayed_restart(session_id)
+            if isinstance(intent, str):
+                s.adapter_config.pop("native_control_next", None)
+                await session.save_async(s)
+                return fail(409, "configuration-restart-refused")
+        await worker._bcast({"type": "session.updated", "sessionId": session_id})
+        return ok({"enabled": s.adapter_config.get("native_control") is True,
+                   "pendingEnabled": s.adapter_config.get("native_control_next"), "delayedRestart": intent})
 
 
 @router.post("/mode")
@@ -51,6 +108,11 @@ async def mode(request: Request, session_id: str):
     if set(body) != {"mode"} or not isinstance(body["mode"], str) or body["mode"] not in {"pan", "native"}:
         return fail(422, "invalid-mode")
     w = worker.find_alive_worker_by_session(session_id)
+    if s := session.get(session_id, load_history=False):
+        if type(s.adapter_config.get("native_control_next")) is bool:
+            return fail(409, "configuration-pending")
+    if isinstance(w, worker.Worker) and not w.native_control_enabled:
+        return fail(409, "native-worker-not-converted")
     if w is None:
         if body["mode"] == "pan":
             return ok(_status(None))

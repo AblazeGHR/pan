@@ -1,4 +1,4 @@
-/* global URL, fetch, process, console */
+/* global URL, fetch, process, console, document */
 import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -28,13 +28,18 @@ try {
   assert.ok(ready);
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  let mode = 'pan'; let generation = 0; const writes = []; const errors = []; const modes = [];
-  const state = () => ({ workerId: 'same-worker', mode, generation, error: null });
+  let mode = 'pan'; let generation = 0; let enabled = true; let pendingEnabled = null;
+  const writes = []; const errors = []; const modes = []; const configurations = [];
+  const state = () => ({ workerId: 'same-worker', mode, generation, error: null, enabled, pendingEnabled });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     let result = {};
     if (path.includes('/native-control')) {
+      if (path.endsWith('/configuration')) {
+        pendingEnabled = request.postDataJSON().enabled;
+        configurations.push(pendingEnabled);
+      }
       if (path.endsWith('/mode')) { mode = request.postDataJSON().mode; generation++; modes.push(mode); }
       if (path.endsWith('/write')) { writes.push(request.postDataJSON()); result = { ok: true }; }
       else if (path.endsWith('/output')) {
@@ -71,8 +76,26 @@ try {
   await page.getByTestId('native-terminal').waitFor({ state: 'detached' });
   await page.locator('[contenteditable="true"][data-placeholder]').waitFor({ state: 'visible' });
   assert.deepEqual(modes, ['native', 'pan']);
+  // Existing stdio Session upgrade: confirm, preserve Pan UI while pending,
+  // then enter TUI only after the server acknowledges idle conversion.
+  enabled = false;
+  await page.goto(`${url}?standard=1`);
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await tui.click();
+  assert.deepEqual(configurations, []);
+  page.once('dialog', (dialog) => dialog.accept());
+  await tui.click();
+  await page.waitForFunction(() => document.body.textContent.includes('Terminal TUI · pending idle'));
+  assert.deepEqual(configurations, [true]);
+  assert.equal(await page.getByTestId('native-terminal').count(), 0);
+  assert.deepEqual(modes, ['native', 'pan'], 'pending conversion must not switch or interrupt');
+  enabled = true; pendingEnabled = null; // Simulated real idle completion, not a UI timer assumption.
+  await page.getByTestId('native-terminal').waitFor({ state: 'visible' });
+  assert.deepEqual(modes, ['native', 'pan', 'native']);
+  await page.getByRole('button', { name: 'Switch to Bubble view' }).click();
+  await page.locator('[contenteditable="true"][data-placeholder]').waitFor({ state: 'visible' });
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, page_errors: errors }));
+  console.log(JSON.stringify({ passed: true, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, stdio_upgrade_waits_idle: true, page_errors: errors }));
 } finally {
   if (browser) await browser.close();
   server.kill();

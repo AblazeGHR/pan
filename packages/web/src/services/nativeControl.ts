@@ -3,7 +3,10 @@ export interface NativeControlState {
   mode: 'pan' | 'native' | 'switching';
   generation: number;
   error: string | null;
+  enabled?: boolean;
+  pendingEnabled?: boolean | null;
 }
+export interface NativeConfiguration { enabled: boolean; pendingEnabled: boolean | null }
 export interface NativeOutput extends NativeControlState { cursor: string; gap: boolean; data: string }
 
 export async function nativeRequest<T>(sessionId: string, path = '', body?: object, signal?: AbortSignal): Promise<T> {

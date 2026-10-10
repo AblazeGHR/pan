@@ -1,0 +1,17 @@
+{
+  "node": "tests/test_real_history_coldload_e2e.py::test_real_http_history_coldload_does_not_stall_dashboard_websocket",
+  "test_unchanged": true,
+  "test_sha256": "7557ea1786880b962297bb47a75bd6fb6e72b8dec60087b0b97423b160fb348b",
+  "results": [
+    {
+      "name": "candidate",
+      "returncode": 0,
+      "seconds": 12.94
+    },
+    {
+      "name": "baseline",
+      "returncode": 0,
+      "seconds": 14.034
+    }
+  ]
+}

@@ -65,6 +65,32 @@ Chromium 用真实 ChatView/TopBar/xterm/queue 组件和拦截的 API fixture �
 
 ## 兼容与限制
 
+### 现有 Codex Session 的升级与降级
+
+所有 Codex Session 均显示 View 旁的 Terminal TUI 入口。普通 stdio Session
+点击后先确认升级；Worker Settings 提供 Session 降级入口，不把配置绑定在临时
+Worker 上。`POST /api/sessions/{id}/native-control/configuration` 只接受
+`{"enabled": true|false}`，沿用 native-control 的来源门与 Codex/只读校验。
+
+活 Worker 采用 **delay**：持久化 `adapter_config.native_control_next`，暂不改变
+当前 `native_control`。当前任务继续执行，等原生在途 turn 完成、终态落盘和队列
+单元收尾后，在真正 idle 边界退休旧运行时，再原子应用配置并启动替代 Worker。
+期间阻止新的队列 handoff，不删队列、不重排、不清 thread/history；相同请求
+幂等，反向请求在已有转换待生效时返回 409。原生输入所有权可先还给 Pan，
+这不是中断当前 turn。旧运行时未确认停止则保 owner、保待生效配置，拒绝第二
+内核。启动新运行时仍可能失败；配置生效不冒充新内核已就绪。
+
+无活 Worker 时仅保存配置，不自动 spawn。升级固定 stream 连接；降级恢复标准
+Pan 控制并保留 stream 配置。服务重启后 pending intent 仍在，下次合法 spawn
+先应用；不依赖进程内 delayed-restart 投影。GET status 对普通 Codex Session
+也可读，包含 `enabled`、`pendingEnabled`、`delayedRestart`。前端等待服务器确认
+已生效才进入 TUI，刷新页面会失去自动进入意图，但不会丢失持久转换配置。
+
+转换会在 idle 重建 Worker，因此不是跨连接方式的同 PID 保证；同一 Session/
+Codex thread/历史/队列保持。已升级 Session 的 Pan↔原生输入控制切换仍沿用
+前述持续执行内核协议。后台 Python 全量与前端验证使用隔离数据根，浏览器升级
+门控仍为真实组件加拦截 API fixture，不声称浏览器到真实模型链已验收。
+
 不迁移旧 Session、不改变旧 adapter 缺省连接或已有队列身份/断言。新字段缺省
 false，服务端只接受 Codex 的真 bool opt-in。main 合并不代表 practical 已部署。
 

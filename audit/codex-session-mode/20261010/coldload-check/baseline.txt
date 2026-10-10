@@ -1,0 +1,3 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\Pan-main
+.                                                                        [100%]
+1 passed in 13.28s

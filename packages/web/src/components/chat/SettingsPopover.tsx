@@ -13,6 +13,7 @@ import { ModelSelect } from '@/components/ui/ModelSelect';
 import { fetchSession } from '@/services/api';
 import type { AdapterConfig, PermissionMode, Session } from '@/types';
 import { FreshnessStatus } from '@/components/session/FreshnessStatus';
+import { useNativeControlStore } from '@/stores/nativeControlStore';
 
 interface SettingsPopoverProps {
   open: boolean;
@@ -62,6 +63,8 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     session?.id ? s.delayedRestarts[session.id] : undefined,
   );
   const [delayedRequesting, setDelayedRequesting] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const nativeState = useNativeControlStore((state) => session?.id ? state.sessions[session.id] : undefined);
   useEffect(() => {
     if (open && session?.id) {
       useWorkerStore.getState().refreshDelayedRestart(session.id)
@@ -533,6 +536,26 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
       )}
 
       <div className="border-t border-border-muted" />
+
+      {session.adapter === 'codex' && session.nativeControl && (
+        <div>
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">Session control mode</h4>
+          <Button variant="secondary" size="sm" disabled={converting || typeof nativeState?.pendingEnabled === 'boolean'}
+            onClick={() => {
+              if (!window.confirm('Downgrade this Session to standard Pan control? The current task will finish first, then the Worker restarts at idle. The same thread, history and queue are retained.')) return;
+              setConverting(true);
+              useNativeControlStore.getState().configureSession(session.id, false)
+                .then((result) => showToast(result.pendingEnabled === false
+                  ? 'Session downgrade scheduled for the next idle boundary'
+                  : 'Session downgraded to standard Pan control', 'info'))
+                .catch((error: Error) => showToast(error.message, 'error'))
+                .finally(() => setConverting(false));
+            }}>
+            Downgrade Session to standard Pan control
+          </Button>
+          <p className="text-xs text-text-secondary mt-1">Session setting; does not interrupt the current task.</p>
+        </div>
+      )}
 
       {/* Worker actions */}
       <div>

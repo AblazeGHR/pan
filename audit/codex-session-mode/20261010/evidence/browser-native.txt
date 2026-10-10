@@ -1,0 +1,1 @@
+{"passed":true,"browser":"Chromium","real_components":true,"api":"intercepted fixture","native_input":true,"visible_queue":true,"refresh_keeps_control":true,"pan_composer_restored":true,"stdio_upgrade_waits_idle":true,"page_errors":[]}

@@ -1,0 +1,42 @@
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\chat\MessageBubble.tsx
+   16:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   41:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  189:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\chat\RewindConfirmModal.tsx
+  9:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\chat\SettingsPopover.tsx
+  114:6  warning  React Hook useLayoutEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  125:6  warning  React Hook useEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                                  react-hooks/exhaustive-deps
+  167:6  warning  React Hook useEffect has missing dependencies: 'session.modelAutoCompactTokenLimit' and 'session.modelContextWindow'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  213:5  warning  React Hook useCallback has an unnecessary dependency: 'effectiveWorkerId'. Either exclude it or remove the dependency array                                               react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\detail\DetailPanel.tsx
+  20:6  warning  React Hook useEffect has a missing dependency: 'detailTarget'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\editor\EditorFileTopBar.tsx
+  18:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\jobs\ScheduleListEditor.tsx
+  154:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  172:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  192:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  225:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\layout\StartupRecoveryPrompt.tsx
+  53:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\session\ImportModal.tsx
+  295:22  warning  The ref value 'codexRequest.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'codexRequest.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\components\ui\ModelSelect.tsx
+  67:6  warning  React Hook useLayoutEffect has a missing dependency: 'updateMenuPosition'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  78:6  warning  React Hook useEffect has a missing dependency: 'updateMenuPosition'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\codex-session-mode-20261010\packages\web\src\views\ChatRoute.tsx
+  7:16  warning  Fast refresh can't handle anonymous components. Add a name to your export  react-refresh/only-export-components
+
+✖ 19 problems (0 errors, 19 warnings)
+

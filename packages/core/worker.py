@@ -221,6 +221,7 @@ class Worker:
     # Separate from status/held and the user's durable queue_paused setting.
     # Switching/unknown ownership blocks only new handoffs and Pan controls.
     native_control_mode: str = "pan"
+    native_control_enabled: bool = False  # Latched at spawn, not the desired Session config.
     native_control_generation: int = 0
     native_output: bytearray = field(default_factory=bytearray)
     native_output_total: int = 0
@@ -1931,6 +1932,8 @@ async def _read_stdout(w: Worker):
             continue
         if event.get("type") == "pan.native_busy":
             w._native_external_turn_active = event.get("busy") is True
+            if not w._native_external_turn_active:
+                _maybe_restart_pending(w)
             if not w._native_external_turn_active and w.native_control_mode == "pan" and w.pending_signal is not None:
                 w.pending_signal.put_nowait({"type": "queue_signal"})
             continue
@@ -3145,7 +3148,13 @@ def _only_locked_queue_items(s) -> bool:
 
 def _queue_recovery_blocked(s) -> bool:
     """A Session pause and locked-only backlog independently block recovery."""
-    return bool(getattr(s, "queue_paused", False)) or _native_handoff_blocked(s) or _only_locked_queue_items(s)
+    native_blocked = _native_handoff_blocked(s)
+    if (s is not None and type(s.adapter_config.get("native_control_next")) is bool
+            and find_worker_by_session(s.id) is None and s.id not in native_starting_sessions):
+        # After Pan restarts there is no old owner to retire. Let normal durable
+        # queue recovery spawn once; _create_worker promotes the saved intent.
+        native_blocked = False
+    return bool(getattr(s, "queue_paused", False)) or native_blocked or _only_locked_queue_items(s)
 
 
 native_starting_sessions: set[str] = set()
@@ -3155,6 +3164,8 @@ def _native_handoff_blocked(s) -> bool:
     if s is None:
         return False
     if s.id in native_starting_sessions:
+        return True
+    if type(s.adapter_config.get("native_control_next")) is bool:
         return True
     w = find_worker_by_session(s.id)
     return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active)
@@ -5888,6 +5899,31 @@ def _spawn_system_prompt_args(
     return None
 
 
+async def _apply_pending_native_configuration(s) -> None:
+    """Commit a Session upgrade/downgrade only after the old runtime has stopped.
+
+    Pending intent survives a Pan restart. Preserve thread/history/queue and never
+    mutate the running adapter's transport configuration mid-turn.
+    """
+    desired = s.adapter_config.get("native_control_next")
+    if s.adapter != "codex" or type(desired) is not bool:
+        return
+    before = dict(s.adapter_config)
+    if desired:
+        s.adapter_config["native_control"] = True
+        s.adapter_config["output_mode"] = "stream"
+    else:
+        s.adapter_config.pop("native_control", None)
+    s.adapter_config.pop("native_control_next", None)
+    try:
+        await _sess.save_async(s)
+    except BaseException:
+        s.adapter_config.clear()
+        s.adapter_config.update(before)
+        raise
+    await _bcast({"type": "session.updated", "sessionId": s.id})
+
+
 async def _create_worker(session_id: str) -> Worker | str:
     """create_worker 的锁内实现（勿直接调用）。"""
     s = _sess.get(session_id)
@@ -5909,8 +5945,15 @@ async def _create_worker(session_id: str) -> Worker | str:
         # Deliberately do NOT clear cli_session_id: resuming the cbc JSONL is
         # the intended context-continuity mechanism, and clearing it here would
         # force a cold start on every restart (#11, resolved by design).
-        await _kill_worker_unlocked(old.worker_id)
+        stop_error = await _kill_worker_unlocked(old.worker_id)
+        if type(s.adapter_config.get("native_control_next")) is bool and (stop_error or not _runtime_stopped(old)):
+            workers[old.worker_id] = old
+            old._consume_task = None  # Retained owner, never a second queue writer.
+            old.status = "error"
+            _register_worker(old)
+            return "Old Worker runtime did not stop; Session conversion retained"
 
+    await _apply_pending_native_configuration(s)
     try:
         adapter = get_adapter(s.adapter)
     except KeyError:
@@ -5949,6 +5992,7 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
+               native_control_enabled=s.adapter == "codex" and s.adapter_config.get("native_control") is True,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
@@ -6386,6 +6430,7 @@ def _maybe_restart_pending(w: Worker) -> None:
     No lock or await is needed for this event-loop-local decision.
     """
     if (not w.pending_restart or w.status not in {"idle", "queued"}
+            or w._native_external_turn_active
             or (w._queue_unit_active and w._current_handoff_acked)
             or w._terminal_finishing or workers.get(w.worker_id) is not w):
         return

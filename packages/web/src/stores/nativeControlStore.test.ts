@@ -24,4 +24,11 @@ describe('native ownership receipts', () => {
     await store.getState().switchMode('s', 'native');
     expect(store.getState().sessions.s?.mode).toBe('native');
   });
+  it('an accepted upgrade remains Pan while waiting for idle, rather than claiming native control', async () => {
+    request.mockResolvedValueOnce({ enabled: false, pendingEnabled: true });
+    await store.getState().configureSession('s', true);
+    expect(request).toHaveBeenCalledWith('s', '/configuration', { enabled: true });
+    expect(store.getState().sessions.s).toMatchObject({ mode: 'pan', enabled: false, pendingEnabled: true });
+    expect(store.getState().switching.s).toBe(false);
+  });
 });
