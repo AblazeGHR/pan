@@ -3908,6 +3908,7 @@ async def replace_usage_totals_async(
     history: list[dict] | None = None,
     expected_history_revision: int | None = None,
     clear_last_result: bool = False,
+    validate_reimport: Callable[[bool], None] | None = None,
 ) -> DurableOutcome:
     """Caller holds usage_commit_lock; retire replacement and rollback together."""
     def commit() -> None:
@@ -3933,12 +3934,16 @@ async def replace_usage_totals_async(
         cursor_before = copy.deepcopy(s.adapter_config.get(cursor_key, missing)) if (
             cursor_key in s.adapter_config) else missing
         try:
+            if validate_reimport is not None:
+                validate_reimport(False)
             if history is not None:
                 replace_history(s, history)
                 if clear_last_result:
                     s.last_result = None
             replace_usage_totals(s, raw_usage, native_entries=native_entries)
             _save_body(s, force_full=force_full)
+            if validate_reimport is not None:
+                validate_reimport(True)
         except BaseException:
             for key, value in history_before.items():
                 setattr(s, key, value)

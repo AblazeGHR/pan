@@ -3,6 +3,7 @@ import asyncio
 import copy
 import json
 import threading
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -47,6 +48,7 @@ def private_rollout(tmp_path, monkeypatch, rows):
     monkeypatch.setattr(codex, "parse_history", lambda *_: codex._rollout_history(path, "private-thread"))
     monkeypatch.setattr(codex, "get_raw_usage", lambda *_: [])
     monkeypatch.setattr(codex, "session_exists", lambda *_: True)
+    monkeypatch.setattr(codex, "get_reimport_snapshot", lambda *_: hashlib.sha256(path.read_bytes()).hexdigest(), raising=False)
     monkeypatch.setattr(server, "_sessions_provider", lambda _: codex)
     monkeypatch.setattr(server, "broadcast", AsyncMock())
     return path

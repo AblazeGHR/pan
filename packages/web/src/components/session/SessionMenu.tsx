@@ -13,6 +13,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { Session } from '@/types';
+import { ReimportError } from '@/services/api';
+import { useReimportConfirmationStore } from '@/stores/reimportConfirmationStore';
 
 interface SessionMenuProps {
   session: Session;
@@ -98,7 +100,12 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
       await reimport(session.id, activeWorkspaceId);
       showToast('Session reimported');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Reimport failed', 'error');
+      if (e instanceof ReimportError && e.conflict) {
+        useReimportConfirmationStore.getState().open({ sessionId: session.id,
+          sessionName: session.name || session.id, workspaceId: activeWorkspaceId, conflict: e.conflict });
+      } else {
+        showToast(e instanceof Error ? e.message : 'Reimport failed', 'error');
+      }
     }
   };
 

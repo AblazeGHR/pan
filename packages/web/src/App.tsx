@@ -5,6 +5,7 @@ import { WorkspaceRail } from './components/layout/WorkspaceRail';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { EditorConfirmationModal } from './components/editor/EditorConfirmationModal';
+import { ReimportConfirmationModal } from './components/session/ReimportConfirmationModal';
 import { StartupRecoveryPrompt } from './components/layout/StartupRecoveryPrompt';
 import { CliStatusBanner } from './components/layout/CliStatusBanner';
 import { DemoBadge } from './demo/DemoBadge';
@@ -250,6 +251,7 @@ export function Layout() {
       </Suspense>
       <CommandPalette />
       <EditorConfirmationModal />
+      <ReimportConfirmationModal />
     </div>
   );
 }

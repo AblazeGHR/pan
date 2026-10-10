@@ -18,6 +18,7 @@ Why not ``codex session list`` / ``codex exec resume --last``？这些命令返�
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import sqlite3
@@ -701,6 +702,19 @@ def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
 def get_raw_usage(session_id: str, cwd: str | None = None) -> list[dict]:
     """SessionsProvider：提取 codex thread usage。"""
     return get_codex_raw_usage(session_id, cwd)
+
+
+def get_reimport_snapshot(session_id: str, cwd: str | None = None) -> str | None:
+    """Bind a confirmation to the complete read-only rollout, including non-body events."""
+    con = _connect_ro(_STATE_DB)
+    if con is None:
+        return None
+    try:
+        row = _thread_row(con, session_id)
+    finally:
+        con.close()
+    path = _rollout_full_path(row.get("rollout_path")) if row else None
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path else None
 
 
 def get_session_title(session_id: str, cwd: str | None = None) -> str:

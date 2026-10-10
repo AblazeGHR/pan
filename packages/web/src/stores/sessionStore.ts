@@ -201,7 +201,7 @@ interface SessionStore {
   batchRemoveSessions: () => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
   branch: (id: string, name: string) => Promise<void>;
-  reimport: (id: string, activeWorkspaceId?: string) => Promise<void>;
+  reimport: (id: string, activeWorkspaceId?: string, confirmationToken?: string) => Promise<void>;
   setInputDraft: (id: string, draft: string) => void;
   acceptServerEpoch: (epoch: string | null | undefined) => void;
   beginUnscopedReplay: (sessionIds: string[]) => void;
@@ -2718,16 +2718,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await get().loadSessions();
   },
 
-  reimport: async (id: string, activeWorkspaceId = useUIStore.getState().activeWorkspaceId) => {
+  reimport: async (id: string, activeWorkspaceId = useUIStore.getState().activeWorkspaceId, confirmationToken) => {
     const session = get().sessions.find((s) => s.id === id);
     if (!session?.cliSessionId) return;
 
-    const reimportedSession = await reimportSession(
-      id,
-      session.adapter || 'cbc',
-      session.cliSessionId,
-      session.workdir,
-    );
+    const args = [id, session.adapter || 'cbc', session.cliSessionId, session.workdir] as const;
+    const reimportedSession = confirmationToken
+      ? await reimportSession(...args, confirmationToken)
+      : await reimportSession(...args);
     const concreteWorkspaceId = activeWorkspaceId
       && activeWorkspaceId !== ALL_WORKSPACES
       && activeWorkspaceId !== UNGROUPED_WORKSPACES

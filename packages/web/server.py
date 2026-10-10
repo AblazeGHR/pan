@@ -11610,6 +11610,51 @@ def _sessions_provider(adapter: str):
         return None
 
 
+_REIMPORT_CONFIRMATION_KEY = os.urandom(32)
+
+
+def _reimport_digest(value) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _reimport_confirmation(existing, native_history, native_usage, native_snapshot=None) -> str:
+    snapshot = {"session": existing.id, "adapter": existing.adapter,
+                "cli": existing.cli_session_id, "cwd": existing.workdir,
+                "epoch": existing.history_epoch, "revision": existing.history_revision,
+                "history": existing.history, "readonly": existing.readonly_session,
+                "native": native_history, "usage": native_usage, "nativeSnapshot": native_snapshot}
+    return hmac.new(_REIMPORT_CONFIRMATION_KEY, _reimport_digest(snapshot).encode("ascii"),
+                    hashlib.sha256).hexdigest()
+
+
+def _reimport_conflict(existing, history, native_history, native_usage, native_snapshot=None, *, stale=False):
+    imported_ids = {row.get("messageId") for row in history
+                    if isinstance(row, dict) and sess.is_pan_message_id(row.get("messageId"))}
+    missing = [(index, row) for index, row in enumerate(existing.history)
+               if isinstance(row, dict) and row.get("queueEnvelopes")
+               and row.get("messageId") not in imported_ids]
+    if not missing:
+        return None
+    items = []
+    for index, row in missing[:20]:
+        native_id = row.get("nativeItemId")
+        same_id = native_id and any(r.get("nativeItemId") == native_id and r.get("role") == row.get("role")
+                                   for r in native_history)
+        same_body = any(sess._history_body_fingerprint(r) == sess._history_body_fingerprint(row)
+                        for r in native_history if isinstance(r, dict) and isinstance(r.get("content"), str))
+        reason = ("missing_identity" if not sess.is_pan_message_id(row.get("messageId")) else
+                  "changed_native_item" if same_id else
+                  "ambiguous_match" if same_body else "missing_or_changed")
+        items.append({"position": index + 1, "messageId": row.get("messageId"),
+                      "source": row.get("source") or row.get("kind") or "unknown",
+                      "reason": reason, "preview": " ".join(str(row.get("content") or "").split())[:160]})
+    return {"sessionId": existing.id, "historyRevision": existing.history_revision,
+            "count": len(missing), "items": items, "omittedCount": max(0, len(missing) - len(items)),
+            "confirmationToken": _reimport_confirmation(existing, native_history, native_usage, native_snapshot),
+            "stale": stale}
+
+
 async def _import_session(provider, adapter: str, data: dict) -> dict:
     # Take the gate BEFORE reading native usage: a read captured while an
     # enrichment save is in flight must not later overwrite its newer base.
@@ -11617,12 +11662,16 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                      if s.cli_session_id == data.get("session_id")
                      and s.adapter == adapter), None)
     if existing is None:
+        if data.get("force"):
+            return {"ok": False, "errorCode": "reimport_stale", "error": "Reimport confirmation no longer identifies an existing Session; check again"}
         return await _import_session_locked(provider, adapter, data)
+    if existing.readonly_session:
+        return {"ok": False, "errorCode": "readonly_session", "error": "Readonly Session cannot be reimported"}
     async with sess.usage_commit_lock(existing):
         try:
             return await _import_session_locked(provider, adapter, data)
         except sess.NativeReimportConflict as error:
-            return {"ok": False, "error": f"Native reimport failed: {error}"}
+            return {"ok": False, "errorCode": "reimport_stale", "error": f"Native reimport failed: {error}; check again before confirming"}
 
 
 async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
@@ -11651,8 +11700,12 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
                 cwd = resolved
 
     try:
+        snapshot_reader = getattr(provider, "get_reimport_snapshot", None)
+        native_snapshot = snapshot_reader(session_id, cwd) if snapshot_reader else None
         history = provider.parse_history(session_id, cwd)
         raw_usage_entries = provider.get_raw_usage(session_id, cwd)
+        if snapshot_reader and snapshot_reader(session_id, cwd) != native_snapshot:
+            return {"ok": False, "errorCode": "reimport_stale", "error": "Native history changed while checking reimport; check again"}
     except Exception as e:
         return {"error": f"Failed to parse session history: {e}"}
 
@@ -11694,17 +11747,41 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         # appends from a live Worker) remains the best available baseline.
         if not getattr(existing, "_history_loaded", True):
             existing = sess.get(existing.id) or existing
+        if existing.readonly_session:
+            return {"ok": False, "errorCode": "readonly_session", "error": "Readonly Session cannot be reimported"}
         expected_history_revision = existing.history_revision
+        native_history = history
+        confirmation = _reimport_confirmation(existing, native_history, raw_usage_entries, native_snapshot)
         history = sess.assign_pan_message_ids(
             history,
             previous_history=(existing.history
                               if getattr(existing, "_history_loaded", True) else []),
         )
-        imported_ids = {row.get("messageId") for row in history
-                        if isinstance(row, dict) and sess.is_pan_message_id(row.get("messageId"))}
-        if any(isinstance(row, dict) and row.get("queueEnvelopes")
-               and row.get("messageId") not in imported_ids for row in existing.history):
-            return {"ok": False, "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"}
+        force = data.get("force") is True
+        valid_confirmation = (force and data.get("panSessionId") == existing.id
+                              and isinstance(data.get("confirmationToken"), str)
+                              and hmac.compare_digest(data["confirmationToken"].encode("utf-8"), confirmation.encode("ascii")))
+        conflict = _reimport_conflict(existing, history, native_history, raw_usage_entries, native_snapshot,
+                                     stale=force and not valid_confirmation)
+        if force and not valid_confirmation:
+            return {"ok": False, "errorCode": "reimport_stale", "conflict": conflict,
+                    "error": "Reimport confirmation expired or does not match this Session; check and confirm again"}
+        if conflict and not valid_confirmation:
+            return {"ok": False, "errorCode": "reimport_origin_conflict", "conflict": conflict,
+                    "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"}
+        validate_reimport = None
+        if valid_confirmation:
+            native_digest = _reimport_digest([native_history, raw_usage_entries])
+            def validate_reimport(after_save):
+                if existing.readonly_session:
+                    raise sess.NativeReimportConflict("Session became readonly during native reimport")
+                if not after_save and _reimport_confirmation(existing, native_history, raw_usage_entries,
+                                                             native_snapshot) != confirmation:
+                    raise sess.NativeReimportConflict("Session changed while confirmed reimport was waiting")
+                current = [provider.parse_history(session_id, cwd), provider.get_raw_usage(session_id, cwd)]
+                if (_reimport_digest(current) != native_digest or
+                        (snapshot_reader and snapshot_reader(session_id, cwd) != native_snapshot)):
+                    raise sess.NativeReimportConflict("Native history changed during confirmed reimport")
     else:
         history = sess.assign_pan_message_ids(history)
 
@@ -11721,7 +11798,8 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
                 # 头部误判为已落盘而跳过）
                 await sess.replace_usage_totals_async(
                     existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
-                    history=history, expected_history_revision=expected_history_revision)
+                    history=history, expected_history_revision=expected_history_revision,
+                    validate_reimport=validate_reimport)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -11736,7 +11814,7 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         await sess.replace_usage_totals_async(
             existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
             history=history, expected_history_revision=expected_history_revision,
-            clear_last_result=True)
+            clear_last_result=True, validate_reimport=validate_reimport)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,

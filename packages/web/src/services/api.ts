@@ -1857,11 +1857,29 @@ export async function importCodexSession(sessionId: string, cwd: string, workspa
 
 // ── Reimport ──
 
+export interface ReimportConflict {
+  sessionId: string;
+  historyRevision: number;
+  count: number;
+  items: { position: number; messageId?: string; source: string; reason: string; preview: string }[];
+  omittedCount: number;
+  confirmationToken: string;
+  stale: boolean;
+}
+
+export class ReimportError extends Error {
+  constructor(message: string, public code?: string, public conflict?: ReimportConflict) {
+    super(message);
+    this.name = 'ReimportError';
+  }
+}
+
 export async function reimportSession(
-  _id: string,
+  id: string,
   adapter: string,
   cliSessionId: string,
   workdir?: string,
+  confirmationToken?: string,
 ): Promise<Session> {
   const url =
     adapter === 'kimi'
@@ -1871,13 +1889,14 @@ export async function reimportSession(
         : adapter === 'cbc'
           ? `${BASE}/cbc/sessions/import`
           : `${BASE}/adapters/${encodeURIComponent(adapter)}/sessions/import`;
-  const body: Record<string, string> = { session_id: cliSessionId };
+  const body: Record<string, string | boolean> = { session_id: cliSessionId };
   if (workdir) body.cwd = workdir;
-  const data = await request<ApiSessionResponse>(url, {
+  if (confirmationToken) Object.assign(body, { force: true, panSessionId: id, confirmationToken });
+  const data = await request<ApiSessionResponse & { errorCode?: string; conflict?: ReimportConflict }>(url, {
     method: 'POST',
     body: JSON.stringify(body),
   });
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new ReimportError(data.error, data.errorCode, data.conflict);
   return data;
 }
 

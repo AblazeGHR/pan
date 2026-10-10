@@ -117,6 +117,28 @@ describe('reimportSession adapter routes', () => {
   });
 });
 
+describe('reimport confirmation API', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('sends force only with the explicit Session-bound confirmation', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ id: 'ses-confirm' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    await reimportSession('ses-confirm', 'codex', 'native', 'C:/private', 'confirmed-snapshot');
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+      session_id: 'native', cwd: 'C:/private', force: true, panSessionId: 'ses-confirm',
+      confirmationToken: 'confirmed-snapshot',
+    });
+  });
+  it('retains the structured summary on a business error instead of losing it in a generic Error', async () => {
+    const conflict = { sessionId: 'ses-confirm', count: 1, confirmationToken: 'snapshot' };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({
+      error: 'origin mismatch', errorCode: 'reimport_origin_conflict', conflict,
+    }) })));
+    await expect(reimportSession('ses-confirm', 'codex', 'native')).rejects.toMatchObject({
+      name: 'ReimportError', code: 'reimport_origin_conflict', conflict,
+    });
+  });
+});
+
 describe('worker control business errors', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
