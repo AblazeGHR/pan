@@ -146,6 +146,14 @@ Codex 的 live 增量游标仍由 adapter 的 `codex_prev_usage` 负责；本查
 | `GET` | `/api/worker/{id}/takeover-command` | 生成终端接管命令 |
 | `POST` | `/api/qq/notify` / `GET /api/qq/contacts` | QQ 插件上报 inbox 更新 / 最近 QQ 联系人（QQ 通道内部使用） |
 
+### Reimport 来源冲突确认
+
+普通 `POST /api/adapters/{adapter}/sessions/import` 使用 `session_id`（native Session ID）及可选 `cwd`。无法无损匹配 Pan queue origins 时不写历史，返回 `errorCode: reimport_origin_conflict` 和 `conflict`：`sessionId`、`historyRevision`、`count`、`items`、`omittedCount`、`confirmationToken`、`stale`。每个 item 含从 1 开始的 Pan 历史 `position`、`messageId`、`source`、`reason`、`preview`；最多 20 项，每个预览最多 160 字符。原因包括缺失身份、原生同身份正文变化、歧义匹配、缺失或变化。
+
+前端复用确认 Modal 展示摘要。取消不发覆盖请求；用户明确确认后，原请求加 `force: true`、`panSessionId` 和此次 `confirmationToken`。覆盖以 native 顺序和内容为准，保留可证明匹配的 Pan 元数据；无法匹配的 Pan 消息及其 task/source/envelope/parts 信息可能丢失，弹窗明确提示。
+
+确认绑定 Session、当前 Pan 历史 revision/完整内容及 native 历史、usage 和可取得的 rollout 文件快照。过期返回 `reimport_stale`，须重新检查并再次确认；不可复用旧确认覆盖新消息。进程重启也会使 token 失效。`readonly_session`、并发变化、保存失败仍受原保护，force 只允许绕过来源匹配冲突；保存异常仍失败并回滚。MCP `session_import` 不会隐式强制覆盖。
+
 ## 核心编排端点请求体（直调 / 排查用）
 
 冷启动主链路端点（对应 SKILL.md §2.1 流程）：

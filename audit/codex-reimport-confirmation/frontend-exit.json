@@ -1,0 +1,9 @@
+{
+  "source_sha": "ccfb670bce7588bea94e01c677fb7469653b4d22",
+  "typecheck_exit_code": 0,
+  "vitest_exit_code": 0,
+  "vitest_passed": 55,
+  "browser_exit_code": 0,
+  "browser_command": "node e2e/reimport-confirmation.mjs",
+  "workdir": "packages/web"
+}

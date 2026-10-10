@@ -1,0 +1,1275 @@
+Isolated test child: inherited PAN_* removed; cwd=C:\Users\14709\AppData\Local\Temp\pan-force-reimport-baseline-gqdydvf4
+
+FFFFFFFFFFFFFFFFFFFFFFF                                                  [100%]
+
+================================== FAILURES ===================================
+
+____________ test_conflict_summary_cancel_then_confirm_and_reload _____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_conflict_summary_cancel_t0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859AF106E0>
+
+
+
+    def test_conflict_summary_cancel_then_confirm_and_reload(tmp_path, monkeypatch):
+
+        s, path, matched, missing = setup(tmp_path, monkeypatch)
+
+        before = disk(s)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:58:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_a5a0bc11784b02a1', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_old_confirmation_cannot_override_changes[append] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859AF40410>
+
+change = 'append'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_60bdef56b7a0b41e', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_old_confirmation_cannot_override_changes[native] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B0EFAD0>
+
+change = 'native'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_b596dc9b85938098', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+________ test_old_confirmation_cannot_override_changes[native_nonbody] ________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o2')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B0EE2A0>
+
+change = 'native_nonbody'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_956af2e8c95421c8', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+________ test_old_confirmation_cannot_override_changes[wrong_session] _________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o3')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1557F0>
+
+change = 'wrong_session'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_303a579aa3a0d8fd', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_old_confirmation_cannot_override_changes[forged] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o4')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1569C0>
+
+change = 'forged'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_1b9098a5e6e14292', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+___________ test_old_confirmation_cannot_override_changes[readonly] ___________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o5')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B14DBE0>
+
+change = 'readonly'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_2c544173de05e898', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_old_confirmation_cannot_override_changes[replay] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_old_confirmation_cannot_o6')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1570E0>
+
+change = 'replay'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "native_nonbody", "wrong_session", "forged", "readonly", "replay"])
+
+    def test_old_confirmation_cannot_override_changes(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:77:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_c4e513388e35ffa6', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+_______________ test_force_without_confirmation_is_not_a_bypass _______________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_force_without_confirmatio0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B156090>
+
+
+
+    def test_force_without_confirmation_is_not_a_bypass(tmp_path, monkeypatch):
+
+        s, _, _, _ = setup(tmp_path, monkeypatch)
+
+        before = disk(s)
+
+>       assert asyncio.run(send(force=True))[1]["errorCode"] == "reimport_stale"
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:109: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+_________________ test_readonly_normal_check_is_also_rejected _________________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_readonly_normal_check_is_0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000028599082510>
+
+
+
+    def test_readonly_normal_check_is_also_rejected(tmp_path, monkeypatch):
+
+        s, _, _, _ = setup(tmp_path, monkeypatch)
+
+        s.readonly_session = True
+
+>       assert asyncio.run(send())[1]["errorCode"] == "readonly_session"
+
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:116: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:48] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_confirmed_write_failure_restores_memory_and_disk ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_confirmed_write_failure_r0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000285990B0D10>
+
+
+
+    def test_confirmed_write_failure_restores_memory_and_disk(tmp_path, monkeypatch):
+
+        s, _, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:121:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_7fbbc829f42c5483', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+__________ test_ticket_revalidates_while_confirmation_waits[append] ___________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_ticket_revalidates_while_0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B0EE8D0>
+
+change = 'append'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "readonly", "unversioned"])
+
+    def test_ticket_revalidates_while_confirmation_waits(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:139:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_26d57c82b48a9cdf', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+__________ test_ticket_revalidates_while_confirmation_waits[native] ___________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_ticket_revalidates_while_1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B0EC140>
+
+change = 'native'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "readonly", "unversioned"])
+
+    def test_ticket_revalidates_while_confirmation_waits(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:139:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_8d2cede7695594d2', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+_________ test_ticket_revalidates_while_confirmation_waits[readonly] __________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_ticket_revalidates_while_2')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859AF13350>
+
+change = 'readonly'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "readonly", "unversioned"])
+
+    def test_ticket_revalidates_while_confirmation_waits(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:139:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_cbd17f646d2d563e', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+________ test_ticket_revalidates_while_confirmation_waits[unversioned] ________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_ticket_revalidates_while_3')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B14F740>
+
+change = 'unversioned'
+
+
+
+    @pytest.mark.parametrize("change", ["append", "native", "readonly", "unversioned"])
+
+    def test_ticket_revalidates_while_confirmation_waits(tmp_path, monkeypatch, change):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:139:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_a19f7dd84b9551cf', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_real_cancellation_observes_writer_outcome[False] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_real_cancellation_observe0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859AF10170>
+
+failure = False
+
+
+
+    @pytest.mark.parametrize("failure", [False, True])
+
+    def test_real_cancellation_observes_writer_outcome(tmp_path, monkeypatch, failure):
+
+        s, _, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:163:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_7cc1333befce26bc', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_real_cancellation_observes_writer_outcome[True] _____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_real_cancellation_observe1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B0EDE50>
+
+failure = True
+
+
+
+    @pytest.mark.parametrize("failure", [False, True])
+
+    def test_real_cancellation_observes_writer_outcome(tmp_path, monkeypatch, failure):
+
+        s, _, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:163:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_8e23a15c21c60b7b', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+__________________ test_native_change_during_save_rolls_back __________________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_native_change_during_save0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000028599082180>
+
+
+
+    def test_native_change_during_save_rolls_back(tmp_path, monkeypatch):
+
+        s, path, _, _ = setup(tmp_path, monkeypatch)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:190:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_d34bd4300d62e543', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+______________ test_summary_is_bounded_with_total_and_positions _______________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_summary_is_bounded_with_t0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000285990B07D0>
+
+
+
+    def test_summary_is_bounded_with_total_and_positions(tmp_path, monkeypatch):
+
+        s, _, _, missing = setup(tmp_path, monkeypatch)
+
+        for index in range(25):
+
+            row = {**copy.deepcopy(missing), "messageId": f"pan:{index + 100:032x}", "content": "long " * 100}
+
+            sess.append_history(s, row)
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:209:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_6ed55caf5b179ab9', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+__________ test_summary_explains_match_failure[changed_native_item] ___________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_summary_explains_match_fa0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1C0140>
+
+reason = 'changed_native_item'
+
+
+
+    @pytest.mark.parametrize("reason", ["changed_native_item", "ambiguous_match", "missing_identity"])
+
+    def test_summary_explains_match_failure(tmp_path, monkeypatch, reason):
+
+        s, path, _, missing = setup(tmp_path, monkeypatch)
+
+        if reason == "changed_native_item": s.history[1]["nativeItemId"] = "item-0"
+
+        if reason == "missing_identity": s.history[1].pop("messageId")
+
+        if reason == "ambiguous_match":
+
+            with path.open("a", encoding="utf-8") as f:
+
+                for index in range(2):
+
+                    f.write('\n' + json.dumps({"type": "response_item", "payload": {
+
+                        "type": "message", "role": "user", "id": f"duplicate-{index}",
+
+                        "content": [{"type": "input_text", "text": missing["content"]}]}}))
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:226:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_0a65c2882e0b0453', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_summary_explains_match_failure[ambiguous_match] _____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_summary_explains_match_fa1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1C35F0>
+
+reason = 'ambiguous_match'
+
+
+
+    @pytest.mark.parametrize("reason", ["changed_native_item", "ambiguous_match", "missing_identity"])
+
+    def test_summary_explains_match_failure(tmp_path, monkeypatch, reason):
+
+        s, path, _, missing = setup(tmp_path, monkeypatch)
+
+        if reason == "changed_native_item": s.history[1]["nativeItemId"] = "item-0"
+
+        if reason == "missing_identity": s.history[1].pop("messageId")
+
+        if reason == "ambiguous_match":
+
+            with path.open("a", encoding="utf-8") as f:
+
+                for index in range(2):
+
+                    f.write('\n' + json.dumps({"type": "response_item", "payload": {
+
+                        "type": "message", "role": "user", "id": f"duplicate-{index}",
+
+                        "content": [{"type": "input_text", "text": missing["content"]}]}}))
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:226:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_d619fa29a4c33a25', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_summary_explains_match_failure[missing_identity] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_summary_explains_match_fa2')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002859B1544A0>
+
+reason = 'missing_identity'
+
+
+
+    @pytest.mark.parametrize("reason", ["changed_native_item", "ambiguous_match", "missing_identity"])
+
+    def test_summary_explains_match_failure(tmp_path, monkeypatch, reason):
+
+        s, path, _, missing = setup(tmp_path, monkeypatch)
+
+        if reason == "changed_native_item": s.history[1]["nativeItemId"] = "item-0"
+
+        if reason == "missing_identity": s.history[1].pop("messageId")
+
+        if reason == "ambiguous_match":
+
+            with path.open("a", encoding="utf-8") as f:
+
+                for index in range(2):
+
+                    f.write('\n' + json.dumps({"type": "response_item", "payload": {
+
+                        "type": "message", "role": "user", "id": f"duplicate-{index}",
+
+                        "content": [{"type": "input_text", "text": missing["content"]}]}}))
+
+>       conflict = check(s)
+
+                   ^^^^^^^^
+
+
+
+tests\test_reimport_confirmation.py:226:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+s = Session(id='ses_a5e1dc3c47b60ff8', name='confirmation-private', adapter='codex', model=None, permission_mode=None, pan...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+
+
+    def check(s):
+
+        status, result = asyncio.run(send())
+
+        assert status == 200
+
+>       assert result["errorCode"] == "reimport_origin_conflict"
+
+               ^^^^^^^^^^^^^^^^^^^
+
+E       KeyError: 'errorCode'
+
+
+
+tests\test_reimport_confirmation.py:42: KeyError
+
+---------------------------- Captured stdout call -----------------------------
+
+[20:38:49] POST  /api/adapters/codex/sessions/import  → 200
+
+_______________ test_codex_snapshot_reads_private_rollout_bytes _______________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2209/test_codex_snapshot_reads_priv0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000285990B0680>
+
+
+
+    def test_codex_snapshot_reads_private_rollout_bytes(tmp_path, monkeypatch):
+
+        path = tmp_path / "native.jsonl"
+
+        path.write_text(json.dumps({"type": "session_meta", "payload": {"id": "private-thread"}}), encoding="utf-8")
+
+        db = tmp_path / "state.sqlite"
+
+        con = sqlite3.connect(db)
+
+        con.execute("create table threads(id text, rollout_path text)")
+
+        con.execute("insert into threads values (?, ?)", ("private-thread", str(path)))
+
+        con.commit()
+
+        con.close()
+
+        monkeypatch.setattr(codex, "_STATE_DB", db)
+
+>       before = codex.get_reimport_snapshot("private-thread")
+
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+E       AttributeError: module 'packages.core.adapters.codex.sessions' has no attribute 'get_reimport_snapshot'
+
+
+
+tests\test_reimport_confirmation.py:240: AttributeError
+
+=========================== short test summary info ===========================
+
+FAILED tests/test_reimport_confirmation.py::test_conflict_summary_cancel_then_confirm_and_reload
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[append]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[native]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[native_nonbody]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[wrong_session]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[forged]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[readonly]
+
+FAILED tests/test_reimport_confirmation.py::test_old_confirmation_cannot_override_changes[replay]
+
+FAILED tests/test_reimport_confirmation.py::test_force_without_confirmation_is_not_a_bypass
+
+FAILED tests/test_reimport_confirmation.py::test_readonly_normal_check_is_also_rejected
+
+FAILED tests/test_reimport_confirmation.py::test_confirmed_write_failure_restores_memory_and_disk
+
+FAILED tests/test_reimport_confirmation.py::test_ticket_revalidates_while_confirmation_waits[append]
+
+FAILED tests/test_reimport_confirmation.py::test_ticket_revalidates_while_confirmation_waits[native]
+
+FAILED tests/test_reimport_confirmation.py::test_ticket_revalidates_while_confirmation_waits[readonly]
+
+FAILED tests/test_reimport_confirmation.py::test_ticket_revalidates_while_confirmation_waits[unversioned]
+
+FAILED tests/test_reimport_confirmation.py::test_real_cancellation_observes_writer_outcome[False]
+
+FAILED tests/test_reimport_confirmation.py::test_real_cancellation_observes_writer_outcome[True]
+
+FAILED tests/test_reimport_confirmation.py::test_native_change_during_save_rolls_back
+
+FAILED tests/test_reimport_confirmation.py::test_summary_is_bounded_with_total_and_positions
+
+FAILED tests/test_reimport_confirmation.py::test_summary_explains_match_failure[changed_native_item]
+
+FAILED tests/test_reimport_confirmation.py::test_summary_explains_match_failure[ambiguous_match]
+
+FAILED tests/test_reimport_confirmation.py::test_summary_explains_match_failure[missing_identity]
+
+FAILED tests/test_reimport_confirmation.py::test_codex_snapshot_reads_private_rollout_bytes
+
+23 failed in 2.15s

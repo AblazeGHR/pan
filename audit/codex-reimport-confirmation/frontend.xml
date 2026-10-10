@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="55" failures="0" errors="0" time="2.913">
+    <testsuite name="services/api.test.ts" timestamp="2026-10-10T12:39:01.695Z" hostname="ablaze" tests="24" failures="0" errors="0" skipped="0" time="0.0188742">
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; aborts the real XHR and rejects when its signal is cancelled" time="0.0047882">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; keeps the stable server reference and reports completion progress" time="0.001576">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported cbc history-import route" time="0.0005766">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported kimi history-import route" time="0.0002066">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported opencode history-import route" time="0.0002067">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported codex history-import route" time="0.0002029">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported claude history-import route" time="0.0001523">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; sends force only with the explicit Session-bound confirmation" time="0.0002688">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; retains the structured summary on a business error instead of losing it in a generic Error" time="0.0003896">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; rejects HTTP 200 responses that carry a worker error body" time="0.0003966">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; queue mutations reject HTTP 200 responses that carry an error body" time="0.0012508">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; carries one edit token through queue lease, save, and release requests" time="0.0008462">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes the global query, bounds pages to 100, and forwards cancellation" time="0.001765">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 409 so search can show the correct recovery state" time="0.0004014">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 503 so search can show the correct recovery state" time="0.0002631">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes occurrence counting, empty roles, ordinal seek and stable-ID relocation" time="0.0014291">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="history page API for search jumps &gt; opts in only explicit jump requests to the larger page cap" time="0.0008695">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="canonical Jobs completed-retention API &gt; reads and writes the same Jobs API route with the rules payload" time="0.0006194">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends workspaceIds when creating a new Session" time="0.0003361">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends an empty workspaceIds array for all and ungrouped creation scopes" time="0.0001855">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in cbc import payloads" time="0.0002236">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in kimi import payloads" time="0.0001844">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in opencode import payloads" time="0.0001493">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in codex import payloads" time="0.0001776">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.race.test.ts" timestamp="2026-10-10T12:39:01.705Z" hostname="ablaze" tests="12" failures="0" errors="0" skipped="0" time="0.169764">
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; waits for startup settings before sending createSession workspaceIds" time="0.1532363">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; keeps the new session when loadSessions interleaves during creation" time="0.0017481">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; does not duplicate a session a concurrent loadSessions already returned" time="0.000585">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; uses the active Workspace by default for new-session entry points without explicit settings" time="0.0004395">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; keeps the create response Workspace when a concurrent list inserted the same Session" time="0.0011755">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; keeps the requested Workspace on the optimistic placeholder and created Session" time="0.000455">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; preserves membership when reimport starts in all scope" time="0.0005666">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; preserves membership when reimport starts in ungrouped scope" time="0.0003009">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; reimports a managed child in a concrete Workspace without changing inherited membership or manager" time="0.0007468">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; moves an existing Session to the concrete Workspace regardless of the new-session preference" time="0.0004349">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; keeps the Reimport-start Workspace if the active Workspace changes during history import" time="0.0004367">
+        </testcase>
+        <testcase classname="stores/sessionStore.race.test.ts" name="sessionStore createNewSession race &gt; reports membership persistence failure after preserving reimported history and prior membership" time="0.0085915">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/ReimportConfirmationModal.test.tsx" timestamp="2026-10-10T12:39:01.709Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.2287046">
+        <testcase classname="components/session/ReimportConfirmationModal.test.tsx" name="reimport confirmation interaction &gt; survives menu unmount, shows summary and cancels without a force request" time="0.0827744">
+        </testcase>
+        <testcase classname="components/session/ReimportConfirmationModal.test.tsx" name="reimport confirmation interaction &gt; confirms only the displayed token and preserves the Workspace captured at opening" time="0.0419044">
+        </testcase>
+        <testcase classname="components/session/ReimportConfirmationModal.test.tsx" name="reimport confirmation interaction &gt; requires a second click after a stale response updates the summary and token" time="0.0467047">
+        </testcase>
+        <testcase classname="components/session/ReimportConfirmationModal.test.tsx" name="reimport confirmation interaction &gt; invalidates the old confirmation on a ticket conflict and explicitly rechecks" time="0.0449102">
+        </testcase>
+        <testcase classname="components/session/ReimportConfirmationModal.test.tsx" name="reimport confirmation interaction &gt; keeps failure visible and prevents dismissal or duplicate requests while saving" time="0.0115869">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SessionMenu.test.tsx" timestamp="2026-10-10T12:39:01.711Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="0.217976">
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu details entry &gt; offers Details and closes the menu before opening the modal" time="0.0681077">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu details entry &gt; routes Rename to the in-app rename flow without using prompt" time="0.0126847">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu Reimport Workspace snapshot &gt; passes the Workspace active when Reimport starts, before closing the menu" time="0.0202236">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu workspace entry removal &gt; no longer renders Move to workspace or its dedicated submenu view" time="0.0261286">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu workspace entry removal &gt; issues no workspace request when the remaining actions run" time="0.0169172">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="Session card pin action (moved out of the menu) &gt; offers Pin and sends the successful update without selecting the card" time="0.0158618">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="Session card pin action (moved out of the menu) &gt; offers Unpin and shows an error when the pin update fails" time="0.0135702">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; does not dismiss from the click that opens the menu" time="0.0086908">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; does not close when clicking inside the portal menu" time="0.0060271">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; closes when clicking elsewhere inside the same session card" time="0.0053236">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; closes for a Sidebar click even when a React handler stops bubbling" time="0.005996">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; closes for a main-content click when its React handler stops bubbling" time="0.0057867">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; closes when clicking outside the session card" time="0.006162">
+        </testcase>
+        <testcase classname="components/session/SessionMenu.test.tsx" name="SessionMenu click-away dismissal &gt; keeps Escape dismissal available" time="0.0053064">
+        </testcase>
+    </testsuite>
+</testsuites>

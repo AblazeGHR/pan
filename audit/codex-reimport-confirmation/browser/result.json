@@ -1,0 +1,27 @@
+{
+  "browser": "153.0.8010.12",
+  "port": 65499,
+  "results": [
+    {
+      "scenario": "cancel",
+      "requests": 1,
+      "passed": true
+    },
+    {
+      "scenario": "confirm",
+      "requests": 2,
+      "passed": true
+    },
+    {
+      "scenario": "stale",
+      "requests": 3,
+      "passed": true
+    },
+    {
+      "scenario": "failure",
+      "requests": 2,
+      "passed": true
+    }
+  ],
+  "layer": "real Chromium components and store; mocked import HTTP"
+}

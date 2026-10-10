@@ -1,0 +1,29 @@
+{
+  "baseline_sha": "6f1047127e8e90d7de3704dba2ae884472ae1dd9",
+  "exit_code": 1,
+  "command": [
+    "python",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "E:/software/miniforge/python.exe",
+    "--with-requirements",
+    "minimal-requirements.txt",
+    "--with",
+    "pytest",
+    "--with",
+    "pytest-timeout",
+    "--",
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_reimport_confirmation.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=D:\\project\\pan-worktrees\\codex-reimport-origins-20261010\\audit\\codex-reimport-confirmation\\baseline.xml"
+  ]
+}

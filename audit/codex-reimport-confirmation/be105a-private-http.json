@@ -1,0 +1,17 @@
+{
+  "original_session": "ses_be105a81379e8cb1",
+  "old_history_rows": 4861,
+  "native_rows": 4843,
+  "summary_count": 1,
+  "summary_positions": [
+    4861
+  ],
+  "summary_reasons": [
+    "missing_or_changed"
+  ],
+  "cancel_preserves_private_files": true,
+  "confirm_http_status": 200,
+  "reloaded_rows": 4843,
+  "matched_origins_retained": 6,
+  "original_files_unchanged": true
+}
