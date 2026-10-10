@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+from packages.jobs.window import command_window_options
 import time
 from pathlib import Path
 from ...session import SESSION_DIR, Session
@@ -37,7 +38,8 @@ def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[st
     """
     try:
         cmd = (argv_prefix or ["cbc"]) + ["--help"]
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10,
+                           **command_window_options())
     except Exception:
         return []
     output = r.stdout or r.stderr or ""

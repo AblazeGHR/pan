@@ -15,6 +15,12 @@ def windows_creation_flags(hide_window=True):
 
 
 def command_window_options(hide_window=True):
+    """Options for one owned pipe/background child, not a descendant policy.
+
+    Do not combine these flags with DETACHED_PROCESS or CREATE_NEW_CONSOLE:
+    Windows ignores CREATE_NO_WINDOW in either combination. Detached runners
+    and ConPTY/interactive launches must keep their own creation semantics.
+    """
     validate_hide_window(hide_window)
     if os.name != "nt":
         return {}

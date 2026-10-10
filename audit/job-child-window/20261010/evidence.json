@@ -1,0 +1,150 @@
+{
+  "baseline": "1ad4fb1fada6ecdd8af7e9e747ee78ce5568ccfc",
+  "sourceBlobs": {
+    "docs/TESTING.md": "10f68dd446d9fa69e3272c054df50c7503b2e7ae",
+    "docs/design/background-jobs.md": "47e7b39902c6717e1ac422015a3a6594ee254366",
+    "docs/skills/pan/SKILL.md": "2bf77fdc9c0016eab591f4b30b77798c2f83fccb",
+    "main.py": "fc6966812448b98cd3bfc8976f29627bf76113f0",
+    "packages/core/adapters/cbc/adapter.py": "42de02ea238e8f4ccdd89ea61cfedf1c29dda119",
+    "packages/core/adapters/claude/adapter.py": "c0aa370a40f4361c6a31cd5e07b290e936bc0614",
+    "packages/core/adapters/codex/app_server_wrapper.py": "85a6350d3b7707d66936d4b93d24b754fea3091f",
+    "packages/core/adapters/codex/wrapper.py": "84fb0526a34c6a39fa3866054a02ff46a294b47b",
+    "packages/core/adapters/kimi/wrapper.py": "75ce1cfa6426923698bec9d004e243af038e33dd",
+    "packages/core/adapters/opencode/adapter.py": "889235caa9ad133e5cec2d328ddd7c24a6959aef",
+    "packages/core/adapters/opencode/wrapper.py": "b0e50bbdb8b999b02ac4adc82581c34c48cafffe",
+    "packages/core/launcher.py": "5ff70062c13c9f59a4d60373bcbe3909c683a6a8",
+    "packages/core/rewind/driver.py": "534bdfc2d3692410222578460a77f8ee6d89c180",
+    "packages/core/worker.py": "e995b201c24d5a42c6b700030bfd720b2d2c5d2a",
+    "packages/jobs/window.py": "54ddf0f2db80bb188332ccd883c74c941589e93a",
+    "packages/remote/tunnel.py": "b4dd4baed8160bb7509b50e931b839b04214398f",
+    "packages/web/server.py": "d2685892b850d402af97841f0e60466a3cc6ca25",
+    "scripts/run_tests_isolated.py": "df470144d8291867d474840c0089dd3db529ba43",
+    "tests/test_codex_takeover.py": "5349ee78e11a69a118aa899c93a725d860b94afe",
+    "tests/test_job_window_policy.py": "db4125a856ba1c2233c6ebb4e87de40f9cea3c63",
+    "tests/test_real_history_coldload_e2e.py": "f17f8bd5e13009a4163f43eec2414e488916df94",
+    "tests/test_real_queue_http_e2e.py": "842d932807624b3cab14584da270efc8c2bb20c8",
+    "tests/test_terminal_guard.py": "d60de480bc400a09fc1562d0014deeb209fd8977",
+    "tests/test_terminal_identity.py": "8d3c6820e53f3ae4624c3c69f44c1505f4231eb2",
+    "tests/test_terminal_registry.py": "45f977eeedfdba3fdc8747d174b7d783f6b33493",
+    "tests/test_test_isolation.py": "13da13c54cc24096689326669920c58568fd2efd",
+    "tests/test_wechat_spawn.py": "472d857ebb42b5f94d906dd02ab84ebfdbff3143",
+    "tests/helpers/window_tree_probe.py": "fd7012ad4f98c01cfb0f3d39f4be7e8fe3c1420e"
+  },
+  "runs": {
+    "coldload-recheck.xml": {
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "12.826"
+    },
+    "http-harness-final.xml": {
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "19.179"
+    },
+    "http-harness.xml": {
+      "tests": "3",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "19.421"
+    },
+    "targeted.xml": {
+      "tests": "279",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "3",
+      "time": "33.472"
+    },
+    "window-policy.xml": {
+      "tests": "28",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "3.862"
+    }
+  },
+  "httpCleanup": {
+    "portReleased": true,
+    "ownedProcessesGone": true,
+    "remainingListenerPids": []
+  },
+  "httpEvidencePath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2173\\test_real_http_history_coldloa0\\persistent-data-root\\be3-e2e-evidence.json",
+  "windowTrees": [
+    {
+      "hidden": true,
+      "launchPid": 38696,
+      "launchFiletime": "134360751560095594",
+      "tree": {
+        "pid": 24260,
+        "filetime": "134360751560297564",
+        "consoleHwnd": 0,
+        "visible": false,
+        "depth": 2,
+        "child": {
+          "pid": 36660,
+          "filetime": "134360751563278339",
+          "consoleHwnd": 0,
+          "visible": false,
+          "depth": 1,
+          "child": {
+            "pid": 35464,
+            "filetime": "134360751566199362",
+            "consoleHwnd": 0,
+            "visible": false,
+            "depth": 0
+          },
+          "childLaunch": {
+            "pid": 32948,
+            "filetime": "134360751566001008",
+            "exitCode": 0
+          }
+        },
+        "childLaunch": {
+          "pid": 12028,
+          "filetime": "134360751563079019",
+          "exitCode": 0
+        }
+      }
+    },
+    {
+      "hidden": false,
+      "launchPid": 10692,
+      "launchFiletime": "134360751569261024",
+      "tree": {
+        "pid": 19592,
+        "filetime": "134360751570399571",
+        "consoleHwnd": 2296542,
+        "visible": true,
+        "depth": 2,
+        "child": {
+          "pid": 5384,
+          "filetime": "134360751574360581",
+          "consoleHwnd": 1641146,
+          "visible": true,
+          "depth": 1,
+          "child": {
+            "pid": 39916,
+            "filetime": "134360751578640235",
+            "consoleHwnd": 1443502,
+            "visible": true,
+            "depth": 0
+          },
+          "childLaunch": {
+            "pid": 18364,
+            "filetime": "134360751577157415",
+            "exitCode": 0
+          }
+        },
+        "childLaunch": {
+          "pid": 10680,
+          "filetime": "134360751573120299",
+          "exitCode": 0
+        }
+      }
+    }
+  ]
+}

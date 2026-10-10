@@ -1,0 +1,131 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-child-window-policy-20261010
+......................WINDOW_TREE_EVIDENCE {"hidden": true, "launchPid": 38696, "launchFiletime": "134360751560095594", "tree": {"pid": 24260, "filetime": "134360751560297564", "consoleHwnd": 0, "visible": false, "depth": 2, "child": {"pid": 36660, "filetime": "134360751563278339", "consoleHwnd": 0, "visible": false, "depth": 1, "child": {"pid": 35464, "filetime": "134360751566199362", "consoleHwnd": 0, "visible": false, "depth": 0}, "childLaunch": {"pid": 32948, "filetime": "134360751566001008", "exitCode": 0}}, "childLaunch": {"pid": 12028, "filetime": "134360751563079019", "exitCode": 0}}}
+.WINDOW_TREE_EVIDENCE {"hidden": false, "launchPid": 10692, "launchFiletime": "134360751569261024", "tree": {"pid": 19592, "filetime": "134360751570399571", "consoleHwnd": 2296542, "visible": true, "depth": 2, "child": {"pid": 5384, "filetime": "134360751574360581", "consoleHwnd": 1641146, "visible": true, "depth": 1, "child": {"pid": 39916, "filetime": "134360751578640235", "consoleHwnd": 1443502, "visible": true, "depth": 0}, "childLaunch": {"pid": 18364, "filetime": "134360751577157415", "exitCode": 0}}, "childLaunch": {"pid": 10680, "filetime": "134360751573120299", "exitCode": 0}}}
+...............................................................[INFO] Pan Python source: test
+[OK] Pan Core API ready on 127.0.0.1:8767, PID=42
+.[INFO] Pan Python source: test
+[OK] Pan Core API ready on 127.0.0.1:8767, PID=52
+..........PASS: adapter metadata
+.PASS: configured default permission mode
+.PASS: shim resolution
+.PASS: build_spawn_args
+.PASS: build_spawn_args with resume
+....PASS: permission_mode_args
+.PASS: mcp_args stdio inline overrides
+.PASS: mcp_args url server
+.PASS: mcp_args without config
+.PASS: _c_override TOML escaping
+.PASS: encode_user_message
+.PASS: init event extracts thread_id
+.PASS: parse agent_message (snake + camel)
+.PASS: parse reasoning
+.PASS: parse plan and file_change
+.PASS: parse command_execution (snake + camel)
+.PASS: parse user_message block
+.PASS: result event
+.PASS: app-server canonical events
+.PASS: unknown native item fallback
+.PASS: app-server run_turn message loop
+.PASS: item-local cumulative text
+.PASS: live/canonical tool projection
+.PASS: app-server interrupted turn
+.PASS: transient reconnect notices do not fail completed turns
+.PASS: failed turn still reports error
+.PASS: app-server error normalization
+.PASS: app-server thread status normalization
+.PASS: app-server token usage normalization
+.PASS: app-server account notifications
+.PASS: app-server terminal interaction roundtrip
+.PASS: app-server new-style approvals
+.{"type":"codex.user_input","method":"currentTime/read","request_id":4,"params":{"threadId":"thread-1"}}
+PASS: app-server current-time response
+.PASS: app-server early turn controls
+.PASS: native interaction replay cache
+.PASS: native status replay cache
+.PASS: native usage replay cache
+.PASS: native rate-limit replay cache
+.PASS: native plan/diff replay cache
+.PASS: native runtime state reset
+.PASS: build_codex_args fresh
+.PASS: build_codex_args resume keeps -c + bypass, drops unsupported flags
+.PASS: _filter_resume_opts
+.PASS: _system_prompt_opts
+.PASS: system prompt file round trip
+.PASS: app-server system prompt file round trip
+.PASS: app-server option translation
+.PASS: app-server item translation
+.PASS: app-server approval roundtrip
+.PASS: app-server user input roundtrip
+.{"type":"approval.request","method":"item/permissions/requestApproval","request_id":0,"params":{"reason":"Need to inspect a shared directory","permissions":{"fileSystem":{"read":["C:/shared"]}}}}
+PASS: app-server permission roundtrip
+.PASS: app-server elicitation roundtrip
+.PASS: app-server request resolved
+.PASS: app-server file change stream
+.PASS: app-server MCP progress stream
+.PASS: app-server native item translation
+.PASS: _item_to_block mapping
+.PASS: _norm_path
+.PASS: _cwd_matches ancestor/descendant boundary
+.PASS: sessions provider e2e (fake ~/.codex)
+.PASS: _parse_models_from_catalog (dedupe + fallback + fault tolerance)
+.PASS: models_cache parser (visibility + dedupe + effort + fault tolerance)
+.PASS: per-model effort metadata
+.PASS: supported_models priority (whitelist > catalog > default)
+.PASS: supported_models priority (dynamic cache > catalog)
+.PASS: default_model skips stale config and follows native catalog
+.PASS: supported_models TTL cache (5min, expired -> re-pull)
+.PASS: adapter metadata
+.PASS: resolve .CMD shim �� compiled claude.exe
+.PASS: resolve .CMD shim �� node cli.js fallback
+.PASS: resolve returns None when no real entry exists
+.PASS: runtime argv avoids shim �� D:\node_npm\node_global\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+.PASS: oneshot_args basic (default permission, no extras)
+.PASS: oneshot_args with model + resume + effort (system_prompt skipped)
+.PASS: oneshot_args injects --system-prompt only for fresh session
+.PASS: oneshot_args places prompt before variadic --mcp-config
+..PASS: build_spawn_args (stream-mode defense builder)
+.PASS: stream envelope + steer/compact controls
+.PASS: permission prompt tool only follows pan MCP config
+.PASS: permission prompt probe accepts supported CLI version
+.PASS: parse_event / init event extraction
+.PASS: partial stream events normalize to renderer shape
+.PASS: parse_assistant_blocks (thinking/text/tool_use)
+.PASS: result event parsing + error flag
+.PASS: structured one-shot error extraction
+.PASS: result usage cache bridges extract_result_text �� enrich_after_result
+.PASS: native transcript model overrides gateway usage alias
+.PASS: takeover_command resumes existing session, no --system-prompt
+.PASS: takeover_command empty when no cli_session_id
+.PASS: session_exists (probe)
+.PASS: parse_history (probe)
+.PASS: get_raw_usage (probe) model=deepseek-ai/DeepSeek-V4-Flash
+.PASS: get_session_title (probe) == 'Pong'
+.PASS: write_custom_title + restore (probe)
+.PASS: fork_session (probe) + cleanup
+.PASS: list_sessions (probe) �� 1 session(s)
+.PASS: encode_user_message
+.PASS: adapter metadata
+.PASS: build_spawn_args
+.PASS: build_spawn_args with resume
+........PASS: encode_user_message
+.PASS: parse assistant event
+.PASS: parse tool call event
+.PASS: init event extracts session id
+.PASS: result event
+.sss..................PASS: oneshot enrich accumulates usage/credit and persists
+.PASS: oneshot enrich None tolerated
+.PASS: oneshot enrich exception tolerated
+.PASS: claude oneshot result usage cache bridges into raw_usage
+.PASS: usage enrichment rollback keeps accounting exactly-once
+.........................................
+============================== warnings summary ===============================
+tests/test_job_window_policy.py::test_mcp_and_http_forward_explicit_visible_option
+  D:\project\Pan\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_kimi_adapter.py:199: kimi test workdir absent (machine-local data)
+SKIPPED [1] tests\test_kimi_adapter.py:211: kimi test workdir absent (machine-local data)
+SKIPPED [1] tests\test_kimi_adapter.py:223: kimi test workdir absent (machine-local data)
+276 passed, 3 skipped, 1 warning in 33.51s

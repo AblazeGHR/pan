@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 from pathlib import Path
 
@@ -244,6 +245,7 @@ def test_cross_process_contention(tmp_path):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(REPO_ROOT),
+            **command_window_options(),
         )
         for tag in tags
     ]
@@ -304,6 +306,7 @@ def test_cross_process_update_no_lost_update(tmp_path):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(REPO_ROOT),
+            **command_window_options(),
         )
         for _ in range(4)
     ]

@@ -29,6 +29,11 @@ from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
 
+# These bridges also run by absolute filename from a Session workdir.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from packages.jobs.window import command_window_options
+
 
 _APPROVAL_TIMEOUT_SEC = 120.0
 _STDOUT_LOCK = threading.Lock()
@@ -312,6 +317,7 @@ class AppServer:
             stdout=subprocess.DEVNULL if self.native_control else subprocess.PIPE,
             stderr=subprocess.PIPE,
             close_fds=True,
+            **command_window_options(),
             )
         threading.Thread(target=self._pump_stderr, daemon=True).start()
         if self._native_transport is not None:

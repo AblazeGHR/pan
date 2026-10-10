@@ -25,6 +25,22 @@ Session。端口探测后仍有占用竞态；测试监听失败必须显式报�
 保护；需要某个应用设置的用例，应在局部夹具中使用 `monkeypatch.setenv`，目录
 必须来自该用例拥有的临时根。更窄的夹具可以覆盖默认位置，不能指向真实 data。
 
+## 后台测试子进程窗口
+
+普通后台 Python/Node/PowerShell 辅助进程使用无 Pan runtime 依赖的
+`packages.jobs.window.command_window_options()`，Windows 默认隐藏；显式传
+`False` 时创建可见控制台，非 Windows 返回空参数。隔离入口显式转发标准
+输入/输出/错误句柄，隐藏不能丢失测试日志或退出码。
+该 helper 只约束本次创建，不强制任意第三方后代。测试中每个我们拥有的
+后台启动边都应设置策略；不能机械替换 ConPTY、Job ownership、脱离宿主或
+takeover 的显式交互启动。`DETACHED_PROCESS` 与 `CREATE_NO_WINDOW` 不可混用
+来宣称隐藏（Windows 忽略后者）。
+
+`tests/test_job_window_policy.py` 的自有 Python 父→子→孙探针逐边应用策略，
+使用真实 `GetConsoleWindow` / `IsWindowVisible` 验证隐藏与可见反向控制。
+探针只读自己的控制台 HWND，不扫描或隐藏用户窗口；超时清理核验自有 retained
+handle 的 PID 和 raw FILETIME。静态 flags 与这些内核实测是不同证据层。
+
 测试子进程、真实服务 harness 和辅助 CLI 必须显式传递自己的临时根，并在
 启动前检查最终解析值。不要通过更换 `config.json` 这个载体来代替隔离；读到
 同一份实用配置同样危险。读取配置、写入数据和运行代码的位置必须分别核对。

@@ -11,6 +11,10 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from packages.jobs.window import command_window_options
 
 
 def test_environment(parent: dict[str, str], repo: Path) -> dict[str, str]:
@@ -36,7 +40,9 @@ def main() -> int:
         parser.error("repository test isolation fixture is missing")
     env = test_environment(dict(os.environ), repo)
     print("Isolated test child: inherited PAN_* removed; cwd=" + str(repo), flush=True)
-    return subprocess.run(command, cwd=repo, env=env).returncode
+    return subprocess.run(command, cwd=repo, env=env, stdin=sys.stdin,
+                          stdout=sys.stdout, stderr=sys.stderr,
+                          **command_window_options()).returncode
 
 
 if __name__ == "__main__":

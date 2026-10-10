@@ -21,6 +21,7 @@ import re
 import shutil
 import stat
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 import threading
 import time
@@ -10017,6 +10018,7 @@ async def api_codex_refresh_official_models():
             capture_output=True,
             timeout=30,
             cwd=str(_PROJECT_DIR),
+            **command_window_options(),
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="codex debug models timed out")

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 
 from packages.core import background_jobs as jobs
@@ -51,7 +52,8 @@ def test_direct_pytest_from_poisoned_parent_keeps_decoy_store_unchanged(tmp_path
                PAN_SCHEDULER_DIR=str(decoy), PAN_TERMINALS_DIR=str(decoy), PAN_PORT="8768")
     result = subprocess.run([sys.executable, "-m", "pytest", str(Path(__file__).resolve()),
                              "-o", "addopts=", "-q", "-k", "test_storage_probe"],
-                            cwd=REPO, env=env, capture_output=True, text=True, timeout=60)
+                            cwd=REPO, env=env, capture_output=True, text=True, timeout=60,
+                            **command_window_options())
     assert result.returncode == 0, result.stdout + result.stderr
     assert "1 passed" in result.stdout
     after = {str(p.relative_to(decoy)): p.read_bytes() for p in decoy.rglob("*") if p.is_file()}

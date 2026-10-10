@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from packages.jobs.window import command_window_options
 import re
 import shutil
 from datetime import datetime
@@ -72,6 +73,7 @@ class CloudflareTunnel:
                 *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **command_window_options(),
             )
         except FileNotFoundError:
             return f"cloudflared binary not found: {bin_path}"

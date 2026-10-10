@@ -6,7 +6,24 @@ Process Jobs never use a shell. Session-message Jobs never interpret their
 `text` as a command: they call the same `worker.send_session` path as
 `agent_send`.
 
-## Lifecycle
+## Windows command window boundary
+
+Process Job commands default to `hideWindow=true`, including old records without
+the field. Explicit `hideWindow=false` (MCP `hide_window=False`) creates a visible
+console. The runtime-independent `packages.jobs.window.command_window_options`
+helper is also used at owned background pipe/auxiliary launch sites: Worker
+streams and one-shot input, Python bridges spawning CLIs, bot Python processes,
+cloudflared, capability probes, and selected test harnesses.
+
+This is a policy for each controlled creation edge, not enforcement over
+arbitrary third-party descendants. A descendant can allocate/show its own
+console or GUI. Detached runners retain their independent lifecycle; Windows
+ignores `CREATE_NO_WINDOW` when combined with `DETACHED_PROCESS` or
+`CREATE_NEW_CONSOLE`. Native ConPTY and explicit takeover/user console launches
+retain their existing primitives and visibility. No window scanning, post-hoc
+hiding, global Python injection, or third-party setting changes are involved.
+
+## Lifecycle details
 
 `POST /api/background-jobs` writes a job record before starting an independent
 `python -m packages.core.background_runner` process. The record contains the

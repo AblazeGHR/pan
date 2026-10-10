@@ -13,6 +13,7 @@ import json
 import os
 import socket
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 import threading
 import time
@@ -164,6 +165,7 @@ class _PanRuntime:
             [sys.executable, str(SERVER_LAUNCHER), "--port", str(PORT),
              "--data-root", str(self.data_root)],
             cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT,
+            **command_window_options(),
         )
         self.pan_pids.append(self.process.pid)
         try:

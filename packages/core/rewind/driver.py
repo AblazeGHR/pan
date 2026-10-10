@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+from packages.jobs.window import command_window_options
 import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -105,6 +106,7 @@ def fork_session(cli_session_id: str, workdir: str | Path, *, timeout: float = 1
         proc = subprocess.run(
             argv, cwd=str(workdir), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout, check=False,
+            **command_window_options(),
         )
         result.exit_code = proc.returncode
         result.stdout = proc.stdout[-12000:]

@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 import time
 from pathlib import Path
@@ -564,6 +565,7 @@ def _parse_models_from_opencode() -> list[str]:
         r = subprocess.run(
             [_resolve_opencode_path(), "models"],
             capture_output=True, text=True, encoding="utf-8", timeout=15,
+            **command_window_options(),
         )
     except Exception:
         return []
