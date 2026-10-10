@@ -550,7 +550,23 @@ def _native_item_identity(message: dict) -> tuple[str, str] | None:
 def _history_body_fingerprint(message: dict) -> tuple[str, str]:
     # Exact role/content matching preserves text as provider data; order and
     # neighboring stable rows below decide which duplicate occurrence is safe.
-    return str(message.get("role") or ""), message["content"]
+    content = message["content"]
+    parts = message.get("parts")
+    if message.get("queueEnvelopes") and isinstance(parts, list) and parts:
+        # The durable UI body uses safe Markdown links; Codex receives the
+        # canonical path projection. Reconstruct only from retained parts,
+        # never from native text or an attachment name guessed from a link.
+        # Reimport is historical: files may have been deleted since delivery.
+        from .attachment_projection import project_message_parts
+        if all(isinstance(part, dict) and (
+            (part.get("type") == "text" and
+             isinstance(part.get("text", part.get("value")), str)) or
+            (part.get("type") == "attachment" and
+             isinstance(part.get("__serverPath"), str) and
+             Path(part["__serverPath"]).is_absolute())
+        ) for part in parts):
+            content = project_message_parts(parts, content, require_files=False)
+    return str(message.get("role") or ""), content
 
 
 def _remember_steer_client_identity(message: dict) -> None:
@@ -608,6 +624,12 @@ def assign_pan_message_ids(
         for key, old_indexes in old_keys.items():
             new_indexes = new_keys.get(key, [])
             if len(old_indexes) == len(new_indexes) == 1:
+                if (previous[old_indexes[0]].get("queueEnvelopes") and
+                        _history_body_fingerprint(previous[old_indexes[0]]) !=
+                        _history_body_fingerprint(rows[new_indexes[0]])):
+                    # A stable provider ID does not prove an edited origin's
+                    # body still exists. Keep the lossless refusal meaningful.
+                    continue
                 matches.append((old_indexes[0], new_indexes[0]))
         for old_index, new_index in matches:
             pairs.append((old_index, new_index))
@@ -3876,12 +3898,34 @@ def native_usage_cursor_config(adapter: str, native_entries: list[dict]) -> dict
     return {}
 
 
+class NativeReimportConflict(ValueError):
+    """The identity baseline changed before the reimport ticket could run."""
+
+
 async def replace_usage_totals_async(
     s: Session, raw_usage: dict | None, *, native_entries: list[dict],
     force_full: bool = False,
+    history: list[dict] | None = None,
+    expected_history_revision: int | None = None,
+    clear_last_result: bool = False,
 ) -> DurableOutcome:
     """Caller holds usage_commit_lock; retire replacement and rollback together."""
     def commit() -> None:
+        # Reimport must publish/save/rollback history in the same ticket as
+        # usage. A queued writer may start after a Worker appended new rows.
+        if (history is not None and expected_history_revision is not None and
+                s.history_revision != expected_history_revision):
+            raise NativeReimportConflict("Session history changed during native reimport; existing history retained")
+        history_before = {}
+        disk_before = {}
+        if history is not None:
+            for key in ("history", "history_epoch", "history_revision", "last_result",
+                        "summary_projection", "_history_loaded", "_summary_projection_complete",
+                        "_summary_history_index", "_hist_persisted", "_last_meta_sig", "updated_at"):
+                if hasattr(s, key):
+                    history_before[key] = getattr(s, key)
+            for path in (_path(s.id), _history_path(s.id)):
+                disk_before[path] = path.read_bytes() if path.exists() else None
         raw_before, total_before = s.raw_usage, s.total_usage
         cursor_key = {"codex": "codex_prev_usage", "opencode": "opencode_prev_usage",
                       "kimi": "kimi_last_usage_ts"}.get(s.adapter)
@@ -3889,9 +3933,15 @@ async def replace_usage_totals_async(
         cursor_before = copy.deepcopy(s.adapter_config.get(cursor_key, missing)) if (
             cursor_key in s.adapter_config) else missing
         try:
+            if history is not None:
+                replace_history(s, history)
+                if clear_last_result:
+                    s.last_result = None
             replace_usage_totals(s, raw_usage, native_entries=native_entries)
             _save_body(s, force_full=force_full)
         except BaseException:
+            for key, value in history_before.items():
+                setattr(s, key, value)
             s.raw_usage, s.total_usage = raw_before, total_before
             if cursor_key:
                 if cursor_before is missing:
@@ -3900,8 +3950,22 @@ async def replace_usage_totals_async(
                     s.adapter_config[cursor_key] = cursor_before
             # Invalidate any detached lookup even when the replacement failed.
             s._usage_revision = usage_revision(s) + 1
+            # _save_body writes JSONL before the metadata file. Restore both
+            # even if failure happened after one or both replacements landed.
+            for path, value in disk_before.items():
+                if value is None:
+                    path.unlink(missing_ok=True)
+                elif not path.exists() or path.read_bytes() != value:
+                    rollback = path.with_suffix(path.suffix + ".rollback")
+                    rollback.write_bytes(value)
+                    os.replace(rollback, path)
             raise
-    return await _persist_async_outcome(s.id, commit)
+    def locked_commit():
+        if history is None:
+            return commit()
+        with s._summary_lock:
+            return commit()
+    return await _persist_async_outcome(s.id, locked_commit)
 
 
 def usage_revision(s: Session) -> int:

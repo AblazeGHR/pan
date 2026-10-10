@@ -11619,7 +11619,10 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
     if existing is None:
         return await _import_session_locked(provider, adapter, data)
     async with sess.usage_commit_lock(existing):
-        return await _import_session_locked(provider, adapter, data)
+        try:
+            return await _import_session_locked(provider, adapter, data)
+        except sess.NativeReimportConflict as error:
+            return {"ok": False, "error": f"Native reimport failed: {error}"}
 
 
 async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
@@ -11691,12 +11694,14 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         # appends from a live Worker) remains the best available baseline.
         if not getattr(existing, "_history_loaded", True):
             existing = sess.get(existing.id) or existing
+        expected_history_revision = existing.history_revision
         history = sess.assign_pan_message_ids(
             history,
             previous_history=(existing.history
                               if getattr(existing, "_history_loaded", True) else []),
         )
-        imported_ids = {row.get("messageId") for row in history if isinstance(row, dict)}
+        imported_ids = {row.get("messageId") for row in history
+                        if isinstance(row, dict) and sess.is_pan_message_id(row.get("messageId"))}
         if any(isinstance(row, dict) and row.get("queueEnvelopes")
                and row.get("messageId") not in imported_ids for row in existing.history):
             return {"ok": False, "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"}
@@ -11712,11 +11717,11 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
             try:
-                sess.replace_history(existing, history)
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
                 # 头部误判为已落盘而跳过）
                 await sess.replace_usage_totals_async(
-                    existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
+                    existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
+                    history=history, expected_history_revision=expected_history_revision)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -11728,10 +11733,10 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         w = worker.find_worker_by_session(existing.id)
         if w:
             await worker.kill_worker(w.worker_id)
-        sess.replace_history(existing, history)
-        existing.last_result = None
         await sess.replace_usage_totals_async(
-            existing, raw_usage, native_entries=raw_usage_entries, force_full=True)
+            existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
+            history=history, expected_history_revision=expected_history_revision,
+            clear_last_result=True)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,

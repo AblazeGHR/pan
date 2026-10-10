@@ -30,10 +30,10 @@ def public_message_parts(parts: list[dict] | None) -> list[dict] | None:
     ]
 
 
-def _worker_attachment_text(path: str) -> str:
+def _worker_attachment_text(path: str, *, require_file: bool = True) -> str:
     """Return the legacy-compatible path token understood by text adapters."""
     canonical = Path(path).resolve()
-    if not canonical.is_file():
+    if require_file and not canonical.is_file():
         raise AttachmentProjectionError(f"attachment is stale: {canonical}")
     # Keep the legacy marker so existing text adapters can recognize an
     # attachment, while making the actual target the server-side path.  A
@@ -42,7 +42,8 @@ def _worker_attachment_text(path: str) -> str:
     return '@"' + str(canonical).replace('"', '\\"') + '"'
 
 
-def project_message_parts(parts: list[dict] | None, fallback_text: str) -> str:
+def project_message_parts(parts: list[dict] | None, fallback_text: str,
+                          *, require_files: bool = True) -> str:
     """Build provider text from canonical parts without using API hrefs.
 
     Parts produced by the current server carry ``__serverPath``.  A legacy
@@ -65,7 +66,7 @@ def project_message_parts(parts: list[dict] | None, fallback_text: str) -> str:
             continue
         path = part.get(SERVER_PATH_KEY)
         if isinstance(path, str) and path.strip():
-            projected.append(_worker_attachment_text(path))
+            projected.append(_worker_attachment_text(path, require_file=require_files))
         else:
             display_name = part.get("displayName")
             projected.append(
