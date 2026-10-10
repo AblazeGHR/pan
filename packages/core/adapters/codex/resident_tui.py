@@ -15,8 +15,10 @@ from websockets.sync.server import serve
 
 if __package__:
     from .control_owner import ControlRejected
+    from .native_transport import MAX_MESSAGE_BYTES
 else:
     from control_owner import ControlRejected
+    from native_transport import MAX_MESSAGE_BYTES
 
 READ_METHODS = frozenset({
     "initialize", "initialized", "account/read", "account/rateLimits/read", "model/list",
@@ -64,7 +66,7 @@ class ResidentTui:
                     or not secrets.compare_digest(request.headers.get("Authorization", ""), "Bearer " + self._capability)):
                 return Response(403, "Forbidden", Headers(), b"denied")
         self.server = serve(self._handle, "127.0.0.1", 0, process_request=gate,
-                            max_size=16 * 1024 * 1024, close_timeout=.5)
+                            max_size=MAX_MESSAGE_BYTES, close_timeout=.5)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         port = self.server.socket.getsockname()[1]
         url = f"ws://127.0.0.1:{port}"

@@ -15,6 +15,10 @@ import socket
 import time
 from typing import Any, Callable
 
+# Bounded compatibility path for old app-server versions and on-demand TUI
+# history. Normal Pan startup requests metadata-only resume instead.
+MAX_MESSAGE_BYTES = 64 * 1024 * 1024
+
 
 class NativeTransport:
     def __init__(self) -> None:
@@ -54,7 +58,7 @@ class NativeTransport:
             try:
                 context = connect(
                     self.url, proxy=None, open_timeout=min(0.5, remaining),
-                    close_timeout=0.5, max_size=16 * 1024 * 1024,
+                    close_timeout=0.5, max_size=MAX_MESSAGE_BYTES,
                     additional_headers={"Authorization": f"Bearer {self._capability}"},
                 )
                 connection = context.__enter__()

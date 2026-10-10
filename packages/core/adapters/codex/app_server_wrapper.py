@@ -219,6 +219,7 @@ class AppServer:
         self.extra_options = extra_options
         self.native_control = native_control
         self._native_transport = None
+        self._native_disconnect_reason = None
         self._resident_tui = None
         self._open_requests = {}
         self._reply_routes = {}
@@ -340,6 +341,10 @@ class AppServer:
             params.pop("threadSource", None)
             params.pop("developerInstructions", None)
             params["threadId"] = self._initial_thread_id
+            # Pan already persists display history. Resume the model context,
+            # not a second copy of every tool output; the resident TUI reads
+            # historical turns separately when it attaches.
+            params["excludeTurns"] = True
             response_id = self._request("thread/resume", params)
         else:
             response_id = self._request("thread/start", params)
@@ -402,8 +407,15 @@ class AppServer:
                     self._resident_tui.observe(message)
                 if not self._emit_steer_receipt(message):
                     self.incoming.put(message)
-        except Exception:
+        except Exception as exc:
             # Never leak header/token or raw transport errors into history.
+            sent = getattr(exc, "sent", None)
+            received = getattr(exc, "rcvd", None)
+            oversized = any(getattr(frame, "code", None) == 1009
+                            for frame in (sent, received))
+            self._native_disconnect_reason = (
+                "Codex native transport message exceeded the bounded receive limit"
+                if oversized else "Codex native transport disconnected")
             _write_stderr("[codex app-server] native transport disconnected\n")
         finally:
             self.incoming.put(None)
@@ -425,7 +437,10 @@ class AppServer:
         except Empty as exc:
             raise TimeoutError("timed out waiting for Codex app-server") from exc
         if message is None:
-            code = self.process.returncode if self.process else None
+            code = self.process.poll() if self.process else None
+            if self._native_transport is not None and code is None:
+                raise RuntimeError(self._native_disconnect_reason or
+                                   "Codex native transport disconnected while app-server is still running")
             raise RuntimeError(f"Codex app-server exited (returncode={code})")
         return message
 
@@ -464,9 +479,9 @@ class AppServer:
             return
         self.thread_started_emitted = True
         # This is an identity/ready notification, not a history transport.
-        # thread/resume includes all turns: forwarding it can exceed Worker's
-        # bounded stdout line and discard the init event as invalid JSON.
-        # Full resume state remains in _thread_resume_info for the native TUI.
+        # Old servers may still include turns despite metadata-only resume;
+        # never forward these over Worker's bounded stdout init channel.
+        # Keep live-resume metadata for TUI; history is read on demand there.
         _write_stdout({"type": "thread.started", "thread_id": self.thread_id})
 
     def _handle_server_message(self, message: dict[str, Any], state: dict[str, Any] | None) -> None:

@@ -1,0 +1,34 @@
+{
+  "codexVersion": "0.161.0",
+  "oldLimitBytes": 16777216,
+  "newLimitBytes": 67108864,
+  "historicalRead": {
+    "bytes": 28001059,
+    "turns": 189,
+    "oldCloseCode": 1009,
+    "oldKernelStillAlive": true,
+    "raisedLimitReadSucceeded": true
+  },
+  "metadataOnlyResume": {
+    "rpcResponseBytes": 2368,
+    "sameThread": true,
+    "turns": 0,
+    "error": null
+  },
+  "fixedWrapper": {
+    "startupSeconds": 6.328,
+    "resumeMetadataBytes": 2468,
+    "turns": 0,
+    "sameThread": true,
+    "kernelAlive": true,
+    "hasHistoricalContext": true,
+    "initEvents": 1,
+    "residentTuiReady": true,
+    "tuiAlive": true,
+    "sameKernelAliveAfterTui": true,
+    "ownedCleanupCompleted": true
+  },
+  "modelTurnsStarted": 0,
+  "productionRestarted": false,
+  "productionSessionChanged": false
+}
