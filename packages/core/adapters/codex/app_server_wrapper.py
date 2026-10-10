@@ -463,8 +463,11 @@ class AppServer:
         if self.thread_started_emitted:
             return
         self.thread_started_emitted = True
-        _write_stdout({"type": "thread.started", "thread_id": self.thread_id,
-                       "thread": thread})
+        # This is an identity/ready notification, not a history transport.
+        # thread/resume includes all turns: forwarding it can exceed Worker's
+        # bounded stdout line and discard the init event as invalid JSON.
+        # Full resume state remains in _thread_resume_info for the native TUI.
+        _write_stdout({"type": "thread.started", "thread_id": self.thread_id})
 
     def _handle_server_message(self, message: dict[str, Any], state: dict[str, Any] | None) -> None:
         method = message.get("method")
