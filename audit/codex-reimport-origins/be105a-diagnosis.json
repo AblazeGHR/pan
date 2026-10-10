@@ -1,0 +1,18 @@
+{
+  "session_id": "ses_be105a81379e8cb1",
+  "source_sha": "6f1047127e8e90d7de3704dba2ae884472ae1dd9",
+  "pan_history_rows": 4861,
+  "native_rows": 4843,
+  "queue_origins": 7,
+  "unmatched_origins": 1,
+  "missing_message_id": "pan:03f78bb615c84fd48af9a0145081d67b",
+  "missing_queue_item_id": "q_e19358a4e84447c19a4adec2457b4cb7",
+  "http_status": 200,
+  "response": {
+    "ok": false,
+    "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"
+  },
+  "private_disk_unchanged": true,
+  "private_disk_reload_equals_old_history": true,
+  "native_and_real_pan_files_unchanged": true
+}
