@@ -1,0 +1,727 @@
+Isolated test child: inherited PAN_* removed; cwd=C:\Users\14709\AppData\Local\Temp\pan-reimport-baseline-zjmz1t8d
+
+FFF....F....FFF.....FFF                                                  [100%]
+
+================================== FAILURES ===================================
+
+___________ test_projection_http_reload_and_idempotence[True-user] ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_projection_http_reload_an0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E5522C0>
+
+source = 'user', attachment = True
+
+
+
+    @pytest.mark.parametrize("source", ["user", "agent", "automation"])
+
+    @pytest.mark.parametrize("attachment", [True, False])
+
+    def test_projection_http_reload_and_idempotence(tmp_path, monkeypatch, source, attachment):
+
+        row = origin(tmp_path, source=source, attachment=attachment)
+
+        wire = project_message_parts(row["parts"], row["content"])
+
+        native = [{"role": "user", "content": wire}, {"role": "assistant", "content": "reply"},
+
+                  {"role": "user", "content": "native additional input"}]
+
+        path = private_rollout(tmp_path, monkeypatch, native)
+
+        before = path.read_bytes()
+
+        s = existing(row)
+
+        if attachment:
+
+            Path(row["parts"][1]["__serverPath"]).unlink()  # historical proof needs no live file
+
+        expected_ids = None
+
+        for _ in range(2):
+
+            result = asyncio.run(request())
+
+>           assert result.get("reimported") is True, result
+
+E           AssertionError: {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}
+
+E           assert None is True
+
+E            +  where None = <built-in method get of dict object at 0x000001398CDE09C0>('reimported')
+
+E            +    where <built-in method get of dict object at 0x000001398CDE09C0> = {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}.get
+
+
+
+tests\test_codex_reimport_origins.py:84: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:13] POST  /api/adapters/codex/sessions/import  → 200
+
+___________ test_projection_http_reload_and_idempotence[True-agent] ___________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_projection_http_reload_an1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E552190>
+
+source = 'agent', attachment = True
+
+
+
+    @pytest.mark.parametrize("source", ["user", "agent", "automation"])
+
+    @pytest.mark.parametrize("attachment", [True, False])
+
+    def test_projection_http_reload_and_idempotence(tmp_path, monkeypatch, source, attachment):
+
+        row = origin(tmp_path, source=source, attachment=attachment)
+
+        wire = project_message_parts(row["parts"], row["content"])
+
+        native = [{"role": "user", "content": wire}, {"role": "assistant", "content": "reply"},
+
+                  {"role": "user", "content": "native additional input"}]
+
+        path = private_rollout(tmp_path, monkeypatch, native)
+
+        before = path.read_bytes()
+
+        s = existing(row)
+
+        if attachment:
+
+            Path(row["parts"][1]["__serverPath"]).unlink()  # historical proof needs no live file
+
+        expected_ids = None
+
+        for _ in range(2):
+
+            result = asyncio.run(request())
+
+>           assert result.get("reimported") is True, result
+
+E           AssertionError: {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}
+
+E           assert None is True
+
+E            +  where None = <built-in method get of dict object at 0x000001398E914380>('reimported')
+
+E            +    where <built-in method get of dict object at 0x000001398E914380> = {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}.get
+
+
+
+tests\test_codex_reimport_origins.py:84: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:13] POST  /api/adapters/codex/sessions/import  → 200
+
+________ test_projection_http_reload_and_idempotence[True-automation] _________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_projection_http_reload_an2')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E545EB0>
+
+source = 'automation', attachment = True
+
+
+
+    @pytest.mark.parametrize("source", ["user", "agent", "automation"])
+
+    @pytest.mark.parametrize("attachment", [True, False])
+
+    def test_projection_http_reload_and_idempotence(tmp_path, monkeypatch, source, attachment):
+
+        row = origin(tmp_path, source=source, attachment=attachment)
+
+        wire = project_message_parts(row["parts"], row["content"])
+
+        native = [{"role": "user", "content": wire}, {"role": "assistant", "content": "reply"},
+
+                  {"role": "user", "content": "native additional input"}]
+
+        path = private_rollout(tmp_path, monkeypatch, native)
+
+        before = path.read_bytes()
+
+        s = existing(row)
+
+        if attachment:
+
+            Path(row["parts"][1]["__serverPath"]).unlink()  # historical proof needs no live file
+
+        expected_ids = None
+
+        for _ in range(2):
+
+            result = asyncio.run(request())
+
+>           assert result.get("reimported") is True, result
+
+E           AssertionError: {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}
+
+E           assert None is True
+
+E            +  where None = <built-in method get of dict object at 0x000001398E842A80>('reimported')
+
+E            +    where <built-in method get of dict object at 0x000001398E842A80> = {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}.get
+
+
+
+tests\test_codex_reimport_origins.py:84: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:13] POST  /api/adapters/codex/sessions/import  → 200
+
+_______________ test_unprovable_origin_retains_history[edited] ________________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_unprovable_origin_retains1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E8C48C0>
+
+case = 'edited'
+
+
+
+    @pytest.mark.parametrize("case", ["missing", "edited", "duplicate", "wrong-native-id", "legacy-no-path", "legacy-no-id"])
+
+    def test_unprovable_origin_retains_history(tmp_path, monkeypatch, case):
+
+        row = origin(tmp_path)
+
+        wire = project_message_parts(row["parts"], row["content"])
+
+        native = [{"role": "user", "content": wire}]
+
+        if case == "missing": native = [{"role": "assistant", "content": "reply"}]
+
+        if case == "edited":
+
+            row["nativeItemId"] = "item-0"
+
+            native[0]["content"] += " edited"
+
+        if case == "duplicate": native.append(dict(native[0]))
+
+        if case == "wrong-native-id": row["nativeItemId"] = "different-id"
+
+        if case == "legacy-no-path": row["parts"][1].pop("__serverPath")
+
+        if case == "legacy-no-id":
+
+            row.pop("messageId")
+
+            native.append({"role": "system", "content": "not a body"})
+
+        private_rollout(tmp_path, monkeypatch, native)
+
+        s = existing(row)
+
+        old = copy.deepcopy(s.history)
+
+        disk = sess._history_path(s.id).read_bytes()
+
+        result = asyncio.run(request())
+
+>       assert result.get("ok") is False
+
+E       AssertionError: assert None is False
+
+E        +  where None = <built-in method get of dict object at 0x000001398E64B3C0>('ok')
+
+E        +    where <built-in method get of dict object at 0x000001398E64B3C0> = {'id': 'ses_12044485605e9791', 'name': 'private', 'adapter': 'codex', 'cliSessionId': 'private-thread', ...}.get
+
+
+
+tests\test_codex_reimport_origins.py:119: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:14] POST  /api/adapters/codex/sessions/import  → 200
+
+____________ test_save_failure_restores_memory_and_both_disk_files ____________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_save_failure_restores_mem0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E8A9B50>
+
+
+
+    def test_save_failure_restores_memory_and_both_disk_files(tmp_path, monkeypatch):
+
+        row = origin(tmp_path, attachment=False)
+
+        private_rollout(tmp_path, monkeypatch, [{"role": "user", "content": row["content"]},
+
+                                              {"role": "assistant", "content": "new"}])
+
+        s = existing(row)
+
+        old = copy.deepcopy(s.history)
+
+        files = {p: p.read_bytes() for p in (sess._path(s.id), sess._history_path(s.id))}
+
+        real_save = sess._save_body
+
+        def fail_after_write(*args, **kwargs):
+
+            real_save(*args, **kwargs)
+
+            raise OSError("injected post-write failure")
+
+        monkeypatch.setattr(sess, "_save_body", fail_after_write)
+
+        assert asyncio.run(request(expected_status=500)) == "Internal Server Error"
+
+>       assert s.history == old
+
+E       AssertionError: assert [{'role': 'us...47a67ce9f97'}] == [{'role': 'us...xture'], ...}]
+
+E
+
+E         At index 0 diff: {'role': 'user', 'content': 'before\n', 'nativeItemId': 'item-0', 'source': 'user', 'kind': 'task', 'sourceSessionId': 'ses_sender', 'taskId': 'task-fixture', 'queueItemIds': ['queue-fixture'], 'delivered_keys': ['task:queue-fixture'], 'queueEnvelopes': [{'type': 'task', 'kind': 'task', 'id': 'queue-fixture', 'source': 'user', 'sourceSessionId': 'ses_sender', 'taskId': 'task-fixture', 'parts': [{'type': 'text', 'text': 'before\n'}], 'text': 'before\n', 'queueItemId': 'queue-fixture'}], 'parts': [{'type': 'text', 'text': 'before\n'}], 'messageId': 'pan:1...
+
+E
+
+E         ...Full output truncated (3 lines hidden), use '-vv' to show
+
+
+
+tests\test_codex_reimport_origins.py:138: AssertionError
+
+________________ test_queued_commit_refuses_concurrent_append _________________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_queued_commit_refuses_con0')
+
+
+
+    def test_queued_commit_refuses_concurrent_append(tmp_path):
+
+        row = origin(tmp_path, attachment=False)
+
+        s = existing(row)
+
+        revision = s.history_revision
+
+        entered, release = threading.Event(), threading.Event()
+
+        async def run():
+
+            blocker = asyncio.create_task(sess._persist_async(s.id, lambda: (entered.set(), release.wait(5))))
+
+            assert await asyncio.to_thread(entered.wait, 2)
+
+            replacement = asyncio.create_task(sess.replace_usage_totals_async(
+
+                s, None, native_entries=[], force_full=True, history=[row], expected_history_revision=revision))
+
+            await asyncio.sleep(0)
+
+            sess.append_history(s, {"role": "user", "content": "concurrent"})
+
+            release.set()
+
+            await blocker
+
+            with pytest.raises(ValueError, match="history changed"):
+
+                await replacement
+
+            await sess.save_async(s)
+
+>       asyncio.run(run())
+
+
+
+tests\test_codex_reimport_origins.py:162:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+..\..\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+
+    return runner.run(main)
+
+           ^^^^^^^^^^^^^^^^
+
+..\..\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+
+    return self._loop.run_until_complete(task)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\..\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+
+    return future.result()
+
+           ^^^^^^^^^^^^^^^
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+    async def run():
+
+        blocker = asyncio.create_task(sess._persist_async(s.id, lambda: (entered.set(), release.wait(5))))
+
+        assert await asyncio.to_thread(entered.wait, 2)
+
+>       replacement = asyncio.create_task(sess.replace_usage_totals_async(
+
+            s, None, native_entries=[], force_full=True, history=[row], expected_history_revision=revision))
+
+E       TypeError: replace_usage_totals_async() got an unexpected keyword argument 'history'
+
+
+
+tests\test_codex_reimport_origins.py:153: TypeError
+
+____ test_duplicate_projection_preserves_order_only_with_equal_occurrences ____
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_duplicate_projection_pres0')
+
+
+
+    def test_duplicate_projection_preserves_order_only_with_equal_occurrences(tmp_path):
+
+        row = origin(tmp_path)
+
+        second = copy.deepcopy(row)
+
+        second["messageId"] = "pan:" + "2" * 32
+
+        second["taskId"] = "task-second"
+
+        wire = project_message_parts(row["parts"], row["content"])
+
+        native = [{"role": "user", "content": wire}, {"role": "assistant", "content": "anchor"},
+
+                  {"role": "user", "content": wire}]
+
+        old = [row, {"role": "assistant", "content": "anchor"}, second]
+
+        result = sess.assign_pan_message_ids(native, previous_history=old)
+
+>       assert [result[i]["messageId"] for i in (0, 2)] == [row["messageId"], second["messageId"]]
+
+E       AssertionError: assert ['pan:419924b...ce4b3f726cf2'] == ['pan:1111111...222222222222']
+
+E
+
+E         At index 0 diff: 'pan:419924b1ff1a487e96bc68f787f33d5f' != 'pan:11111111111111111111111111111111'
+
+E         Use -v to get more diff
+
+
+
+tests\test_codex_reimport_origins.py:177: AssertionError
+
+_________ test_cancelled_waiter_does_not_rollback_successful_reimport _________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_cancelled_waiter_does_not0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398E86F150>
+
+
+
+    def test_cancelled_waiter_does_not_rollback_successful_reimport(tmp_path, monkeypatch):
+
+        row = origin(tmp_path, attachment=False)
+
+        s = existing(row)
+
+        native = [row, {"role": "assistant", "content": "durable new reply"}]
+
+        entered, release = threading.Event(), threading.Event()
+
+        real_save = sess._save_body
+
+        def blocked_save(*args, **kwargs):
+
+            entered.set()
+
+            assert release.wait(5)
+
+            real_save(*args, **kwargs)
+
+        monkeypatch.setattr(sess, "_save_body", blocked_save)
+
+        async def run():
+
+            task = asyncio.create_task(sess.replace_usage_totals_async(
+
+                s, None, native_entries=[], force_full=True, history=native,
+
+                expected_history_revision=s.history_revision))
+
+            assert await asyncio.to_thread(entered.wait, 2)
+
+            task.cancel()
+
+            release.set()
+
+            with pytest.raises(asyncio.CancelledError):
+
+                await task
+
+>       asyncio.run(run())
+
+
+
+tests\test_codex_reimport_origins.py:236:
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+..\..\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+
+    return runner.run(main)
+
+           ^^^^^^^^^^^^^^^^
+
+..\..\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+
+    return self._loop.run_until_complete(task)
+
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\..\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+
+    return future.result()
+
+           ^^^^^^^^^^^^^^^
+
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+
+
+    async def run():
+
+>       task = asyncio.create_task(sess.replace_usage_totals_async(
+
+            s, None, native_entries=[], force_full=True, history=native,
+
+            expected_history_revision=s.history_revision))
+
+E       TypeError: replace_usage_totals_async() got an unexpected keyword argument 'history'
+
+
+
+tests\test_codex_reimport_origins.py:228: TypeError
+
+_______________ test_handoff_receipt_attachment_reimport[fifo] ________________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_handoff_receipt_attachmen0')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398EA05A20>
+
+delivery = 'fifo'
+
+
+
+    @pytest.mark.parametrize("delivery", ["fifo", "steer"])
+
+    def test_handoff_receipt_attachment_reimport(tmp_path, monkeypatch, delivery):
+
+        template = origin(tmp_path, source="agent")
+
+        item = copy.deepcopy(template["queueEnvelopes"][0])
+
+        item["parts"] = copy.deepcopy(template["parts"])
+
+        item.update(deliveryState="writing", queueItemId=item["id"])
+
+        s = sess.create("receipt-private", adapter="codex", cli_session_id="private-thread")
+
+        s.queue_pending = [item]
+
+        w = SimpleNamespace(worker_id="fixture-worker", generation=1, _current_handoff_acked=False, _execution_seq=1)
+
+        monkeypatch.setattr(worker, "_queue_steer_bcast", AsyncMock())
+
+        monkeypatch.setattr(worker, "_bcast", AsyncMock())
+
+        async def handoff():
+
+            if delivery == "fifo":
+
+                assert await worker._commit_queue_handoff(w, s, [item])
+
+            else:
+
+                item.update(queueSteerPending=True, queueSteerRequestId="receipt",
+
+                            queueSteerWorkerId=w.worker_id, queueSteerGeneration=1)
+
+                await worker._settle_queue_steer(w, s, item, item["text"], None, "receipt", 1)
+
+        asyncio.run(handoff())
+
+        assert s.queue_pending == []
+
+        original = copy.deepcopy(s.history[0])
+
+        wire = project_message_parts(original["parts"], original["content"])
+
+        private_rollout(tmp_path, monkeypatch, [{"role": "user", "content": wire}])
+
+>       assert asyncio.run(request()).get("reimported") is True
+
+E       AssertionError: assert None is True
+
+E        +  where None = <built-in method get of dict object at 0x000001398EA31BC0>('reimported')
+
+E        +    where <built-in method get of dict object at 0x000001398EA31BC0> = {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}.get
+
+E        +      where {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'} = <function run at 0x000001398BA9E350>(<coroutine object request at 0x000001398E666AC0>)
+
+E        +        where <function run at 0x000001398BA9E350> = asyncio.run
+
+E        +        and   <coroutine object request at 0x000001398E666AC0> = request()
+
+
+
+tests\test_codex_reimport_origins.py:265: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:19] POST  /api/adapters/codex/sessions/import  → 200
+
+_______________ test_handoff_receipt_attachment_reimport[steer] _______________
+
+
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-2200/test_handoff_receipt_attachmen1')
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001398EA06350>
+
+delivery = 'steer'
+
+
+
+    @pytest.mark.parametrize("delivery", ["fifo", "steer"])
+
+    def test_handoff_receipt_attachment_reimport(tmp_path, monkeypatch, delivery):
+
+        template = origin(tmp_path, source="agent")
+
+        item = copy.deepcopy(template["queueEnvelopes"][0])
+
+        item["parts"] = copy.deepcopy(template["parts"])
+
+        item.update(deliveryState="writing", queueItemId=item["id"])
+
+        s = sess.create("receipt-private", adapter="codex", cli_session_id="private-thread")
+
+        s.queue_pending = [item]
+
+        w = SimpleNamespace(worker_id="fixture-worker", generation=1, _current_handoff_acked=False, _execution_seq=1)
+
+        monkeypatch.setattr(worker, "_queue_steer_bcast", AsyncMock())
+
+        monkeypatch.setattr(worker, "_bcast", AsyncMock())
+
+        async def handoff():
+
+            if delivery == "fifo":
+
+                assert await worker._commit_queue_handoff(w, s, [item])
+
+            else:
+
+                item.update(queueSteerPending=True, queueSteerRequestId="receipt",
+
+                            queueSteerWorkerId=w.worker_id, queueSteerGeneration=1)
+
+                await worker._settle_queue_steer(w, s, item, item["text"], None, "receipt", 1)
+
+        asyncio.run(handoff())
+
+        assert s.queue_pending == []
+
+        original = copy.deepcopy(s.history[0])
+
+        wire = project_message_parts(original["parts"], original["content"])
+
+        private_rollout(tmp_path, monkeypatch, [{"role": "user", "content": wire}])
+
+>       assert asyncio.run(request()).get("reimported") is True
+
+E       AssertionError: assert None is True
+
+E        +  where None = <built-in method get of dict object at 0x000001398E8C0100>('reimported')
+
+E        +    where <built-in method get of dict object at 0x000001398E8C0100> = {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'}.get
+
+E        +      where {'ok': False, 'error': 'Native reimport cannot match all Pan queue origins losslessly; existing history retained'} = <function run at 0x000001398BA9E350>(<coroutine object request at 0x000001398BF947C0>)
+
+E        +        where <function run at 0x000001398BA9E350> = asyncio.run
+
+E        +        and   <coroutine object request at 0x000001398BF947C0> = request()
+
+
+
+tests\test_codex_reimport_origins.py:265: AssertionError
+
+---------------------------- Captured stdout call -----------------------------
+
+[16:43:19] POST  /api/adapters/codex/sessions/import  → 200
+
+============================== warnings summary ===============================
+
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+=========================== short test summary info ===========================
+
+FAILED tests/test_codex_reimport_origins.py::test_projection_http_reload_and_idempotence[True-user]
+
+FAILED tests/test_codex_reimport_origins.py::test_projection_http_reload_and_idempotence[True-agent]
+
+FAILED tests/test_codex_reimport_origins.py::test_projection_http_reload_and_idempotence[True-automation]
+
+FAILED tests/test_codex_reimport_origins.py::test_unprovable_origin_retains_history[edited]
+
+FAILED tests/test_codex_reimport_origins.py::test_save_failure_restores_memory_and_both_disk_files
+
+FAILED tests/test_codex_reimport_origins.py::test_queued_commit_refuses_concurrent_append
+
+FAILED tests/test_codex_reimport_origins.py::test_duplicate_projection_preserves_order_only_with_equal_occurrences
+
+FAILED tests/test_codex_reimport_origins.py::test_cancelled_waiter_does_not_rollback_successful_reimport
+
+FAILED tests/test_codex_reimport_origins.py::test_handoff_receipt_attachment_reimport[fifo]
+
+FAILED tests/test_codex_reimport_origins.py::test_handoff_receipt_attachment_reimport[steer]
+
+10 failed, 13 passed, 1 warning in 6.76s

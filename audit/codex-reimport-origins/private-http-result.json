@@ -1,0 +1,10 @@
+{
+  "http_status": 200,
+  "reimported": true,
+  "old_rows": 37,
+  "native_rows": 38,
+  "reloaded_rows": 38,
+  "retained_origins": 2,
+  "private_rollout_unchanged": true,
+  "source_snapshot_only": true
+}

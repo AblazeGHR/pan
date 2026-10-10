@@ -1,0 +1,29 @@
+{
+  "exit_code": 0,
+  "source_sha": "ae36fe1d3a05d2722797e155179a6063cc7163d8",
+  "command": [
+    "python",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "python",
+    "-m",
+    "pytest",
+    "tests/test_codex_reimport_origins.py",
+    "tests/test_session_import.py",
+    "tests/test_history_delivery_identity.py",
+    "tests/test_attachment_parts_protocol.py",
+    "tests/test_unified_server_queue.py",
+    "tests/test_usage_enrichment_commit.py",
+    "tests/test_usage_enrichment_native.py",
+    "tests/test_codex_adapter.py",
+    "tests/test_session_incremental.py",
+    "tests/test_session_summary_projection.py",
+    "tests/test_delivery_semantics.py",
+    "tests/test_worker_branch.py",
+    "tests/test_steer_history_consistency.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=audit/codex-reimport-origins/final-related.xml"
+  ]
+}

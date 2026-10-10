@@ -1,0 +1,29 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\codex-reimport-origins-20261010
+
+........................................................................ [ 24%]
+
+........................................................................ [ 49%]
+
+........................................................................ [ 74%]
+
+........................................................................ [ 99%]
+
+..                                                                       [100%]
+
+============================== warnings summary ===============================
+
+C:\Users\14709\AppData\Local\uv\cache\archive-v0\smgICOnrccrr4QOAEqEz5\Lib\site-packages\pydantic_settings\sources\utils.py:47
+
+  C:\Users\14709\AppData\Local\uv\cache\archive-v0\smgICOnrccrr4QOAEqEz5\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+
+    warnings.warn(
+
+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+290 passed, 1 warning in 31.99s
+
+Downloading pydantic-core (2.1MiB)
+ Downloaded pydantic-core
+Installed 45 packages in 1.57s
