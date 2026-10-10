@@ -583,6 +583,7 @@ export async function fetchRewindJobStatus(
 }
 
 export interface CreateSessionSettings {
+  nativeControl?: boolean;
   model?: string;
   permissionMode?: string;
   alwaysThinkingEnabled?: boolean;
@@ -606,6 +607,8 @@ export async function createSession(
   const body: Record<string, unknown> = { name, adapter: adapter || 'cbc' };
   if (workdir) body.workdir = workdir;
   if (sessionTemplate) body.sessionTemplate = sessionTemplate;
+  if (typeof settings?.nativeControl === 'boolean')
+    body.nativeControl = settings.nativeControl;
   // Per-adapter settings (backend _create_session applies them). Sent only
   // when provided so the server-side adapter default still applies otherwise.
   if (settings?.model) body.model = settings.model;
