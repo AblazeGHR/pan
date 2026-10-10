@@ -345,6 +345,13 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 当前产品边界：argv 不经过 shell，`cwd` 可为任意已存在目录（相对路径按服务进程工作目录解析，Agent 应传绝对路径）；尚未提供命令白名单、结果文件契约或 Remote/Tunnel 认证。不要把后台 Job 当成绕过权限、审批、managed 隔离或远程安全边界的通道。
 
+Windows 窗口边界：旧 Job 缺 `hideWindow` 仍默认隐藏，显式 `hide_window=False`
+保留可见控制台。公共 helper 仅约束我们拥有的单次后台创建；Pan 的后台 Python
+bridge、管道 CLI 与辅助启动逐调用点设置策略，不保证任意第三方后代隐藏。
+`DETACHED_PROCESS` 混入 `CREATE_NO_WINDOW` 会使 Windows 忽略后者；独立 Runner、
+ConPTY 和 takeover/用户交互窗口保持专用启动与生命周期语义。真实窗口验收须看
+自有进程的 Windows API 证据，不能仅由 flags、配置或截图反推来源。
+
 **使用政策（仅适用于 `agent_background_*` 这类执行 OS 命令、带终态通知的持久后台 Job——独立 Runner；不适用于 `agent_message_job_*` 时间消息/定时群发 Job、Scheduler 定时任务，也不改变普通 `agent_assign`/`agent_send` 派发流程）**：
 
 1. **选择门槛**：这类后台 Job 为承载长时任务、避免轮询而设，一般**预计超过 3 分钟**的命令才用。3 分钟是一般选择门槛，不是运行 timeout，也不是硬性禁止短任务或新增 API 校验。

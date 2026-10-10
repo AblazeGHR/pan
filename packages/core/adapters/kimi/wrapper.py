@@ -22,6 +22,11 @@ import threading
 from pathlib import Path
 from queue import Queue
 
+# These bridges also run by absolute filename from a Session workdir.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from packages.jobs.window import command_window_options
+
 
 def _write_stdout_line(text: str) -> None:
     """以 UTF-8 写入 stdout 并换行，避免 Windows 管道默认编码问题。"""
@@ -207,6 +212,7 @@ def _main_loop(kimi_path: str, model: str | None,
                     stderr=subprocess.PIPE,
                     cwd=cwd or None,
                     env=env,
+                    **command_window_options(),
                 )
             except FileNotFoundError:
                 _write_stdout_line(json.dumps({

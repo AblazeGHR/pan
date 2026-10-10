@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import session as _sess
 from packages.core import worker
+from packages.jobs.window import command_window_options
 from packages.core.adapters import CbcAdapter
 from packages.core.adapters.codex import CodexAdapter
 
@@ -72,6 +73,7 @@ def test_kill_process_tree_waits_until_cli_process_exits(tmp_path):
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **command_window_options(),
         )
         w = worker.Worker(
             worker_id="worker-process-wait",

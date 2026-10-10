@@ -1,0 +1,11 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-child-window-policy-20261010
+......................WINDOW_TREE_EVIDENCE {"hidden": true, "launchPid": 34768, "launchFiletime": "134360750409840784", "tree": {"pid": 16764, "filetime": "134360750410028670", "consoleHwnd": 0, "visible": false, "depth": 2, "child": {"pid": 8180, "filetime": "134360750412970661", "consoleHwnd": 0, "visible": false, "depth": 1, "child": {"pid": 6000, "filetime": "134360750415993144", "consoleHwnd": 0, "visible": false, "depth": 0}, "childLaunch": {"pid": 30204, "filetime": "134360750415679281", "exitCode": 0}}, "childLaunch": {"pid": 10692, "filetime": "134360750412782621", "exitCode": 0}}}
+.WINDOW_TREE_EVIDENCE {"hidden": false, "launchPid": 23972, "launchFiletime": "134360750419124866", "tree": {"pid": 38692, "filetime": "134360750420294644", "consoleHwnd": 1772062, "visible": true, "depth": 2, "child": {"pid": 35828, "filetime": "134360750424075425", "consoleHwnd": 2426844, "visible": true, "depth": 1, "child": {"pid": 10860, "filetime": "134360750428303564", "consoleHwnd": 789178, "visible": true, "depth": 0}, "childLaunch": {"pid": 33760, "filetime": "134360750426859225", "exitCode": 0}}, "childLaunch": {"pid": 20672, "filetime": "134360750423051689", "exitCode": 0}}}
+.....
+============================== warnings summary ===============================
+tests/test_job_window_policy.py::test_mcp_and_http_forward_explicit_visible_option
+  D:\project\Pan\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+28 passed, 1 warning in 3.92s

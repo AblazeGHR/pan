@@ -15,6 +15,7 @@ All persistent data lives in Session (session.py) — 即 Agent 的持久身份�
 from __future__ import annotations
 
 import asyncio
+from packages.jobs.window import command_window_options
 import copy
 import hashlib
 import inspect
@@ -5474,6 +5475,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
                         cwd=s.workdir or None,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
+                        **command_window_options(),
                     )
                 except Exception as exc:
                     raise _OneShotSpawnFailed(str(exc)) from exc
@@ -6606,6 +6608,7 @@ async def _spawn_process(session_id: str,
             stdin=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
+            **command_window_options(),
         )
     except FileNotFoundError as e:
         return format_cli_spawn_error(adapter.name, e)

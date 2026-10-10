@@ -20,6 +20,7 @@ import json
 import os
 import socket
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 import threading
 import time
@@ -323,6 +324,7 @@ class _OutOfProcessHeartbeatProbe:
             text=True,
             encoding="utf-8",
             errors="replace",
+            **command_window_options(),
         )
         process = psutil.Process(self.process.pid)
         self.process_identity = {
@@ -534,6 +536,7 @@ class _PanRuntime:
             self.process = subprocess.Popen(
                 command, cwd=str(ROOT), env=env,
                 stdout=stdout, stderr=stderr,
+                **command_window_options(),
             )
         self.pan_pids.append(self.process.pid)
         self.process_identity = {
@@ -595,6 +598,14 @@ class _PanRuntime:
                     "commandLine": command_line,
                     "ownsIsolatedPort": listens_on_port,
                 }
+                if os.name == "nt":
+                    from packages.core.terminal import identity
+                    handle = identity.open_process_for_probe(process.pid)
+                    if handle:
+                        try:
+                            entry["rawFiletime"] = str(identity.read_creation_filetime(handle))
+                        finally:
+                            identity.kernel32().CloseHandle(handle)
                 snapshots[(process.pid, create_time)] = entry
                 if (str(SERVER_LAUNCHER) in command_line
                         or str(FAKE_CLI) in command_line):
@@ -714,6 +725,22 @@ class _PanRuntime:
         self._owned.clear()
         return_code = process.poll() if process is not None else None
         self.process = None
+        # A console host can outlive its Python client briefly. Wait only on
+        # identities captured from this fixture, without terminating the host.
+        # Preserve the subsequent all-owned-processes-gone assertion.
+        if os.name == "nt":
+            from ctypes import wintypes
+            from packages.core.terminal import identity
+            for entry in self.process_tree:
+                handle = identity.open_process_for_probe(entry["pid"])
+                if not handle:
+                    continue
+                try:
+                    actual = str(identity.read_creation_filetime(handle))
+                    if actual == entry.get("rawFiletime") and actual != "None":
+                        identity.kernel32().WaitForSingleObject(wintypes.HANDLE(handle), 2000)
+                finally:
+                    identity.kernel32().CloseHandle(wintypes.HANDLE(handle))
         owned_processes_gone = True
         for entry in self.process_tree:
             try:

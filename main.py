@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from packages.core import __version__
+from packages.jobs.window import command_window_options
 from packages.web.server import app
 
 _log = logging.getLogger("pan")
@@ -254,6 +255,8 @@ def _spawn_wechat_bot() -> None:
             [python, str(_WECHAT_BOT_PY)],
             cwd=str(_WECHAT_DIR),
             env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+            stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+            **command_window_options(),
         )
     except Exception as e:  # noqa: BLE001
         _log.error("[Pan] WeChat bot spawn failed: %s", e)
@@ -331,6 +334,8 @@ def _spawn_qq_bot() -> None:
             [python, str(_QQ_BOT_PY)],
             cwd=str(_QQ_DIR),
             env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+            stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+            **command_window_options(),
         )
     except Exception as e:  # noqa: BLE001
         _log.error("[Pan] QQ bot spawn failed: %s", e)

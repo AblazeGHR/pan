@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 
 from packages.core.terminal import identity
+from packages.jobs.window import command_window_options
 from packages.core.terminal.contracts import ProcessIdentity, ProcessStatus
 from packages.core.terminal.guard import GuardQueryError, JobObjectGuard
 from packages.core.terminal.spawn_win import spawn_conpty_suspended
@@ -60,9 +61,11 @@ def write_tree_child(tmp_path: Path, grandchild: str) -> str:
         tmp_path,
         "tree_child.py",
         "import json, os, subprocess, sys, time\n"
+        f"sys.path.insert(0, {REPO_ROOT!r})\n"
+        "from packages.jobs.window import command_window_options\n"
         f"GRANDCHILD = r'{grandchild}'\n"
         "report = sys.argv[1]\n"
-        "p = subprocess.Popen([sys.executable, GRANDCHILD])\n"
+        "p = subprocess.Popen([sys.executable, GRANDCHILD], **command_window_options())\n"
         "open(report, 'w').write(json.dumps({'child_pid': os.getpid(), 'grandchild_pid': p.pid}))\n"
         "time.sleep(300)\n",
     )
@@ -249,7 +252,8 @@ def test_holder_hard_kill_kills_tree(tmp_path):
     )
     holder_report = str(tmp_path / "holder_report.json")
     child_report = str(tmp_path / "holder_child_report.json")
-    holder = subprocess.Popen([PYTHON, holder_script, holder_report, child_report])
+    holder = subprocess.Popen([PYTHON, holder_script, holder_report, child_report],
+                              **command_window_options())
     try:
         report = wait_for_json(holder_report)
         holder_pid = report["holder_pid"]

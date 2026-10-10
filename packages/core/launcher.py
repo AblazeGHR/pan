@@ -21,6 +21,7 @@ import re
 import shutil
 import signal
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 import tempfile
 import time
@@ -233,6 +234,7 @@ def _python_works(argv: list[str], root: Path, timeout: float = 15.0) -> bool:
             [*argv, "-c", "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP"],
             cwd=str(root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL, timeout=timeout, check=False,
+            **command_window_options(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -612,7 +614,8 @@ def _taskkill_verified(record: dict[str, Any], root: Path, log_path: Path | None
         return False
     command = ["taskkill", "/PID", str(int(record["pid"])), "/T", "/F"]
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=10, check=False)
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=10, check=False,
+                                   **command_window_options())
     except (OSError, subprocess.TimeoutExpired) as exc:
         _write_log(log_path, f"fallback taskkill failed pid={record['pid']}: {exc}")
         return False

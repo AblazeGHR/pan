@@ -30,6 +30,7 @@ import os
 import re
 import shutil
 import subprocess
+from packages.jobs.window import command_window_options
 import sys
 from pathlib import Path
 from ...session import Session
@@ -152,6 +153,7 @@ class ClaudeAdapter:
                 encoding="utf-8",
                 errors="replace",
                 timeout=5,
+                **command_window_options(),
             )
             help_text = f"{result.stdout or ''}\n{result.stderr or ''}"
             supported = "--permission-prompt-tool" in help_text
@@ -163,6 +165,7 @@ class ClaudeAdapter:
                     encoding="utf-8",
                     errors="replace",
                     timeout=5,
+                    **command_window_options(),
                 )
                 version_text = f"{version.stdout or ''}\n{version.stderr or ''}"
                 match = re.search(r"(\d+)\.(\d+)\.(\d+)", version_text)

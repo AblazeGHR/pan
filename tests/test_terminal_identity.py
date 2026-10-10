@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 
 from packages.core.terminal import identity
+from packages.jobs.window import command_window_options
 from packages.core.terminal.contracts import (
     BackendUnavailableError,
     ProcessIdentity,
@@ -36,7 +37,7 @@ pytestmark = pytest.mark.skipif(not WINDOWS, reason="Windows kernel 原语")
 
 # --------------------------------------------------------------------------- helpers
 def spawn_child(code: str) -> subprocess.Popen:
-    return subprocess.Popen([PYTHON, "-c", code])
+    return subprocess.Popen([PYTHON, "-c", code], **command_window_options())
 
 
 def open_handle(pid: int, access: int | None = None) -> int:

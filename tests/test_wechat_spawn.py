@@ -28,10 +28,13 @@ class _FakePopen:
     """打桩的 subprocess.Popen：记录调用实参，wait 立即抛超时（模拟仍在跑）。"""
     calls = []
 
-    def __init__(self, args, cwd=None, env=None):
+    def __init__(self, args, cwd=None, env=None, stdin=None, stdout=None, stderr=None,
+                 creationflags=0, startupinfo=None):
         self.args = list(args)
         self.cwd = cwd
         self.env = env or {}
+        self.stdin, self.stdout, self.stderr = stdin, stdout, stderr
+        self.creationflags, self.startupinfo = creationflags, startupinfo
         self.pid = 77777
         _FakePopen.calls.append(self)
 
@@ -79,6 +82,11 @@ def test_enabled_spawns_with_project_python(iso):
     assert call.cwd == str(pan_main._WECHAT_DIR)
     # 子进程不继承父 sys.path → 显式注入 PYTHONPATH=项目根
     assert call.env.get("PYTHONPATH") == str(pan_main._PROJECT_ROOT)
+    assert call.stdin is sys.stdin
+    assert call.stdout is sys.stdout and call.stderr is sys.stderr
+    if sys.platform == "win32":
+        assert call.creationflags == subprocess.CREATE_NO_WINDOW
+        assert call.startupinfo.wShowWindow == 0
     # pid 文件已写（stop 脚本据此清理）
     assert pan_main._WECHAT_PID_FILE.exists()
 

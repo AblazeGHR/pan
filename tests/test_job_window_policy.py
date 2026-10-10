@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from unittest.mock import Mock
+from pathlib import Path
 
 import pytest
 
@@ -26,6 +27,14 @@ def test_flags_never_combine_new_console_with_no_window(hidden):
         assert options["creationflags"] == windows_creation_flags(hidden)
     else:
         assert options == {}
+
+
+def test_non_windows_options_have_no_windows_only_kwargs(monkeypatch):
+    from packages.jobs import window
+    monkeypatch.setattr(window, "os", Mock(name="posix"))
+    window.os.name = "posix"
+    assert window.command_window_options() == {}
+    assert window.command_window_options(False) == {}
 
 
 @pytest.mark.parametrize("shell", [False, True])
@@ -112,3 +121,64 @@ def test_real_windows_child_console_allocation(hidden):
                             **command_window_options(hidden))
     assert result.returncode == 0
     assert json.loads(result.stdout)["console"] is (not hidden)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows console/window APIs")
+@pytest.mark.parametrize("hidden", [True, False])
+def test_owned_python_tree_window_visibility(tmp_path, hidden):
+    from ctypes import wintypes
+    from packages.core.terminal.identity import read_creation_filetime, kernel32
+    script = Path(__file__).parent / "helpers" / "window_tree_probe.py"
+    process = subprocess.Popen([sys.executable, str(script.resolve()),
+                                "hidden" if hidden else "visible", "2"],
+                               cwd=tmp_path, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               **command_window_options(hidden))
+    handle = int(process._handle)
+    filetime = read_creation_filetime(handle)
+    assert filetime is not None
+    try:
+        output, error = process.communicate(timeout=30)
+        assert process.returncode == 0, error.decode("utf-8", "replace")
+        evidence = json.loads(output)
+        print("WINDOW_TREE_EVIDENCE " + json.dumps({"hidden": hidden,
+              "launchPid": process.pid, "launchFiletime": str(filetime), "tree": evidence}))
+        for depth in (2, 1, 0):
+            assert evidence["depth"] == depth
+            assert evidence["filetime"].isdigit()
+            assert bool(evidence["consoleHwnd"]) is (not hidden)
+            assert evidence["visible"] is (not hidden)
+            if depth:
+                assert evidence["childLaunch"]["exitCode"] == 0
+                evidence = evidence["child"]
+    finally:
+        if process.poll() is None:
+            kernel = kernel32()
+            assert kernel.GetProcessId(wintypes.HANDLE(handle)) == process.pid
+            assert read_creation_filetime(handle) == filetime
+            assert kernel.TerminateProcess(wintypes.HANDLE(handle), 1)
+            process.wait(timeout=5)
+
+
+@pytest.mark.parametrize("relative", ["codex/wrapper.py", "codex/app_server_wrapper.py",
+                                    "kimi/wrapper.py", "opencode/wrapper.py"])
+def test_bridge_filename_entrypoint_imports_policy_outside_repo(tmp_path, relative):
+    repo = Path(__file__).resolve().parents[1]
+    script = repo / "packages" / "core" / "adapters" / relative
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PYTHONPATH"}
+    result = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path,
+                            env=env, capture_output=True, timeout=10,
+                            **command_window_options())
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    assert b"usage:" in result.stdout
+
+
+def test_isolated_entrypoint_preserves_output_and_exit_code(tmp_path):
+    repo = Path(__file__).resolve().parents[1]
+    program = "import sys; print('owned stdout', flush=True); print('owned stderr', file=sys.stderr); sys.exit(7)"
+    result = subprocess.run([sys.executable, str(repo / "scripts/run_tests_isolated.py"),
+                             "--", sys.executable, "-c", program], cwd=tmp_path,
+                            capture_output=True, timeout=10, **command_window_options())
+    assert result.returncode == 7
+    assert b"owned stdout" in result.stdout
+    assert b"owned stderr" in result.stderr

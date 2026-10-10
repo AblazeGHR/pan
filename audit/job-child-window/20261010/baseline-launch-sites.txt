@@ -1,0 +1,320 @@
+Baseline read-only launch-site search at 1ad4fb1f. Includes diagnostic/frontend harnesses for classification, not authorization to edit them.
+1ad4fb1f:audit/codex-native-control-tests/20261010/validate.py:11:SHA=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+1ad4fb1f:audit/codex-native-control-tests/20261010/validate.py:12:tracked=subprocess.check_output(['git','ls-files','packages','tests'],cwd=ROOT,text=True).splitlines()
+1ad4fb1f:audit/codex-native-control-tests/20261010/validate.py:23:  p=subprocess.run(args,cwd=cwd,env=ENV,stdout=f,stderr=subprocess.STDOUT)
+1ad4fb1f:audit/codex-native-control-tests/20261010/validate.py:46:summary['head_after']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+1ad4fb1f:audit/codex-native-control/20261010/validate.py:25:    names = subprocess.check_output(["git", "diff", "--name-only", "4b166bd3", "--", "packages", "tests", "docs/design/CODEX_NATIVE_CONTROL_20261010.md"], cwd=ROOT).decode("utf-8").splitlines()
+1ad4fb1f:audit/codex-native-control/20261010/validate.py:26:    names += subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "--", "packages", "tests"], cwd=ROOT).decode("utf-8").splitlines()
+1ad4fb1f:audit/codex-native-control/20261010/validate.py:34:        result = subprocess.run(argv, cwd=cwd, env=ENV, stdout=log, stderr=subprocess.STDOUT,
+1ad4fb1f:audit/frontend-lint/20261006/run_isolated.py:37:    completed = subprocess.run(argv, cwd=WEB, env=ENV, check=False)
+1ad4fb1f:audit/pr6_terminal_probe.py:70:        f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]); "
+1ad4fb1f:audit/pr6_terminal_probe.py:73:    parent = subprocess.Popen(
+1ad4fb1f:audit/pr6_terminal_probe.py:152:        f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]); "
+1ad4fb1f:audit/queue-optimistic-steer-layout/rework.py:230:    source=subprocess.check_output(['git','show','c726d742:packages/core/adapters/codex/app_server_wrapper.py'],cwd=ROOT)
+1ad4fb1f:audit/rewind-ui-message-id/20261006/run_checks.py:20:        anchors[name] = subprocess.check_output(["git", "hash-object", name], cwd=ROOT, text=True).strip()
+1ad4fb1f:audit/rewind-ui-message-id/20261006/run_checks.py:31:            rc = subprocess.run(argv, cwd=cwd, stdout=log, stderr=subprocess.STDOUT).returncode
+1ad4fb1f:audit/terminal-deployment/20261006/finish_checks.py:20:        rc = subprocess.run(argv, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+1ad4fb1f:audit/terminal-deployment/20261006/finish_checks.py:31:    anchors = {name: subprocess.check_output(["git", "hash-object", name], cwd=ROOT,
+1ad4fb1f:audit/terminal-deployment/20261006/run_checks.py:15:    anchors = {name: subprocess.check_output(["git", "hash-object", name], cwd=ROOT, text=True).strip()
+1ad4fb1f:audit/terminal-deployment/20261006/run_checks.py:33:            rc = subprocess.run(argv, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
+1ad4fb1f:audit/terminal-deployment/20261006/runner_survival_probe.py:14:    child = subprocess.Popen([sys.executable, __file__, "runner"],
+1ad4fb1f:audit/terminal-deployment/20261006/runner_survival_probe.py:33:    p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+1ad4fb1f:audit/terminal-deployment/20261006/runner_survival_probe.py:53:            subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, check=True)
+1ad4fb1f:audit/terminal/cbc/probe_acp_http_variants.py:61:    proc = subprocess.Popen([NODE, str(CBC_ENTRY), "--serve", "--host", "127.0.0.1",
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:79:        cp = subprocess.run(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:108:    proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:258:              basis: str = "", popen: subprocess.Popen | None = None,
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:418:                   popen: subprocess.Popen | None = None,
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:778:    proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:983:    proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1034:    proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1441:    T6  timeout path                             -> subprocess.run(timeout=) ends
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1467:    spawned: list[subprocess.Popen] = []
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1470:        decoy = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1485:        short = subprocess.Popen(["cmd", "/c", "exit", "0"], cwd=str(ws))
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1494:        root_proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1501:        foreign = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1524:        # --- T6: timeout path (subprocess.run timeout uses the retained handle)
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1525:        t6_proc = subprocess.Popen(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1530:            subprocess.run(["ping", "-n", "60", "127.0.0.1"], cwd=str(ws),
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1537:            "note": "subprocess.run ended its own child through the retained Popen handle",
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1566:        leftover = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1581:        child = subprocess.run(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1594:        neg_root = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1633:        retained = subprocess.Popen(
+1ad4fb1f:audit/terminal/cbc/probe_cbc_feasibility.py:1668:        zombie = subprocess.Popen(
+1ad4fb1f:audit/terminal/codex/probe_cli_surface_diff.py:53:        p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+1ad4fb1f:audit/terminal/codex/probe_codex_remote_tui.py:185:        self.proc: subprocess.Popen | None = None
+1ad4fb1f:audit/terminal/codex/probe_codex_remote_tui.py:206:        self.proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/codex/probe_codex_remote_tui.py:492:    login = subprocess.run(
+1ad4fb1f:audit/terminal/codex/probe_codex_remote_tui.py:497:    status = subprocess.run(base + ["login", "status"], env=env, capture_output=True, timeout=120)
+1ad4fb1f:audit/terminal/codex/spawn/child_probe.py:62:        proc = subprocess.Popen([sys.executable, "-c", code], close_fds=True)
+1ad4fb1f:audit/terminal/codex/spawn/spawn_driver.py:257:    proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/implementation/backend/repro/probe_ctrl_c_candidates.py:189:        proc = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/backend/repro/probe_ctrl_c_candidates.py:245:        proc = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition-review/round2/gates/v4_scope_evidence.py:26:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition-review/round2/gates/v_common.py:166:        self.proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/implementation/composition-review/round2/scripts/rerun13.py:32:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition-review/round2/scripts/rerun13.py:74:        "git_head": subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:50:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:63:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:75:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:130:            subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:145:        payload["node_version"] = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:195:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/composition/collect_composition_evidence.py:212:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:48:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:61:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:73:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:136:        payload["node_version"] = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:145:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/composition/r2/collect_r2_evidence.py:199:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/emulator/cleanup_scan.py:25:    proc = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/emulator/evidence/r2/repro_p11_unbounded_close.py:48:    src = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/emulator/evidence/r2/repro_p11_unbounded_close.py:174:    original_popen = subprocess.Popen
+1ad4fb1f:audit/terminal/implementation/emulator/evidence/r2/repro_p11_unbounded_close.py:184:    emulator_subprocess.Popen = spy_popen
+1ad4fb1f:audit/terminal/implementation/emulator/evidence/r2/repro_p11_unbounded_close.py:229:        emulator_subprocess.Popen = original_popen
+1ad4fb1f:audit/terminal/implementation/emulator/evidence/r4/probe_feed_throughput.py:38:        out = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/emulator/pre_fix/emulator.baseline.py:347:        self._proc: subprocess.Popen[bytes] | None = None
+1ad4fb1f:audit/terminal/implementation/emulator/pre_fix/emulator.baseline.py:387:            self._proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/implementation/emulator/pre_fix/test_terminal_emulator.baseline.py:553:    proc = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/interrupt-ma/probe.py:83:                    helper = subprocess.run([python, "-c", HELPER, str(backend.pid), str(event)],
+1ad4fb1f:audit/terminal/implementation/ipc/collect_r2_evidence.py:46:    process = subprocess.run(argv, cwd=str(REPO_ROOT), capture_output=True, text=True)
+1ad4fb1f:audit/terminal/implementation/ipc/collect_r2_evidence.py:205:        result = subprocess.run(["git", *args], cwd=str(REPO_ROOT), capture_output=True, text=True)
+1ad4fb1f:audit/terminal/implementation/ipc/collect_r3_evidence.py:75:    process = subprocess.run(argv, cwd=str(REPO_ROOT), capture_output=True, text=True)
+1ad4fb1f:audit/terminal/implementation/ipc/collect_r4_evidence.py:53:    process = subprocess.run(argv, cwd=str(REPO_ROOT), capture_output=True, text=True)
+1ad4fb1f:audit/terminal/implementation/ipc/generate_evidence.py:44:    result = subprocess.run(["git", *args], cwd=str(REPO_ROOT), capture_output=True, text=True)
+1ad4fb1f:audit/terminal/implementation/ipc/generate_evidence.py:50:    process = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/collect_launcher_evidence.py:42:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/collect_launcher_evidence.py:125:            return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/collect_launcher_evidence.py:157:        "git_head": subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/collect_launcher_evidence.py:228:    uv_version = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r2/collect_r2_evidence.py:35:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r2/collect_r2_evidence.py:125:        "git_head": subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r2/collect_r2_evidence.py:162:    uv_version = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r3/collect_r3_evidence.py:39:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r3/collect_r3_evidence.py:89:        "git_head": subprocess.run(
+1ad4fb1f:audit/terminal/implementation/launcher/r3/collect_r3_evidence.py:127:    uv_version = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/collect_observability_evidence.py:49:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/collect_observability_evidence.py:62:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/collect_observability_evidence.py:74:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/collect_observability_evidence.py:95:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/collect_observability_evidence.py:149:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/runner-observability/r2/collect_r2_evidence.py:48:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r2/collect_r2_evidence.py:61:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r2/collect_r2_evidence.py:73:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r2/collect_r2_evidence.py:94:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r2/collect_r2_evidence.py:148:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/runner-observability/r3/collect_r3_evidence.py:51:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r3/collect_r3_evidence.py:64:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r3/collect_r3_evidence.py:76:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r3/collect_r3_evidence.py:97:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner-observability/r3/collect_r3_evidence.py:154:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/runner/collect_r2_evidence.py:61:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r2_evidence.py:78:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r2_evidence.py:90:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r3_evidence.py:51:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r3_evidence.py:64:    return subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r3_evidence.py:76:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r3_evidence.py:119:    ls = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_r3_evidence.py:179:    uv_version = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+1ad4fb1f:audit/terminal/implementation/runner/collect_runner_evidence.py:36:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_runner_evidence.py:50:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_runner_evidence.py:67:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/collect_runner_evidence.py:159:    completed = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/probes/probe_ambient_constraint.py:41:    normal = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/probes/probe_ambient_constraint.py:46:        child = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/probes/probe_dead_process_unknown.py:59:    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+1ad4fb1f:audit/terminal/implementation/runner/probes/probe_dead_process_unknown.py:79:    runner_proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/implementation/runner/r2/pre_fix_gates.py:41:    archive = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/runner/r3/pre_fix_gates.py:40:    archive = subprocess.run(
+1ad4fb1f:audit/terminal/implementation/service-hygiene/verify_source_anchoring.py:53:    return subprocess.run(
+1ad4fb1f:audit/terminal/lifecycle/driver.py:61:        self.supervisor: subprocess.Popen | None = None
+1ad4fb1f:audit/terminal/lifecycle/driver.py:111:                         extra_args: list[str] | None = None) -> subprocess.Popen:
+1ad4fb1f:audit/terminal/lifecycle/driver.py:113:        self.supervisor = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/driver.py:165:        completed = subprocess.run(
+1ad4fb1f:audit/terminal/lifecycle/driver.py:441:        tasklist = subprocess.run(
+1ad4fb1f:audit/terminal/lifecycle/handoff_role.py:42:    grandchild = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/job_handle_handoff.py:60:        self.proc = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:52:def spawn_sleeper(extra_flags: int = 0) -> subprocess.Popen:
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:53:    return subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:112:    p = subprocess.Popen([PYEXE, "-c", "import time;time.sleep(120)"],
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:122:    holder = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:185:p = subprocess.Popen([PYEXE, "-c", "import time;time.sleep(120)"], creationflags=4)
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:193:    holder = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/job_object_probe.py:251:    holder = subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/kill_identity_probe.py:45:def spawn_sleeper(code: str = "import time; time.sleep(120)") -> subprocess.Popen:
+1ad4fb1f:audit/terminal/lifecycle/kill_identity_probe.py:46:    return subprocess.Popen(
+1ad4fb1f:audit/terminal/lifecycle/kill_identity_probe.py:51:def cleanup_procs(procs: list[subprocess.Popen]) -> None:
+1ad4fb1f:audit/terminal/lifecycle/supervisor.py:57:        runner = subprocess.Popen(
+1ad4fb1f:audit/worker-delayed-restart-20261007/validate_combination.py:25:    completed = subprocess.run(command, cwd=root / 'packages/web')
+1ad4fb1f:audit/worker-delayed-restart-20261007/validate_frontend.py:36:        result = subprocess.run(['cmd', '/c', 'mklink', '/J', str(link), str(target)], capture_output=True)
+1ad4fb1f:audit/worker-delayed-restart-20261007/validate_frontend.py:63:    result = subprocess.run(command, cwd=web)
+1ad4fb1f:docs/archive/cbc-mcp-experiments/acp_probe.py:105:    proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:docs/archive/cbc-mcp-experiments/multiround_probe.py:35:    proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:docs/archive/cbc-mcp-experiments/streamjson_probe.py:32:    proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:main.py:48:_qq_proc: subprocess.Popen | None = None
+1ad4fb1f:main.py:49:_wechat_proc: subprocess.Popen | None = None
+1ad4fb1f:main.py:253:        _wechat_proc = subprocess.Popen(
+1ad4fb1f:main.py:330:        _qq_proc = subprocess.Popen(
+1ad4fb1f:packages/core/adapters/cbc/adapter.py:40:        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10)
+1ad4fb1f:packages/core/adapters/cbc/adapter.py:184:        Passing a `.CMD` straight into asyncio.create_subprocess_exec goes
+1ad4fb1f:packages/core/adapters/cbc/adapter.py:270:        # create_subprocess_exec cwd=s.workdir), which also fixes the JSONL
+1ad4fb1f:packages/core/adapters/claude/adapter.py:148:            result = subprocess.run(
+1ad4fb1f:packages/core/adapters/claude/adapter.py:159:                version = subprocess.run(
+1ad4fb1f:packages/core/adapters/codex/app_server_wrapper.py:228:        self.process: subprocess.Popen[bytes] | None = None
+1ad4fb1f:packages/core/adapters/codex/app_server_wrapper.py:308:            self.process = subprocess.Popen(
+1ad4fb1f:packages/core/adapters/codex/wrapper.py:234:                proc = subprocess.Popen(
+1ad4fb1f:packages/core/adapters/kimi/wrapper.py:204:                proc = subprocess.Popen(
+1ad4fb1f:packages/core/adapters/opencode/adapter.py:564:        r = subprocess.run(
+1ad4fb1f:packages/core/adapters/opencode/wrapper.py:162:                proc = subprocess.Popen(
+1ad4fb1f:packages/core/background_jobs.py:737:        proc = subprocess.Popen(_runner_command(job_id), **kwargs)
+1ad4fb1f:packages/core/background_runner.py:24:                proc = subprocess.Popen(
+1ad4fb1f:packages/core/background_runner.py:30:                proc = subprocess.Popen(
+1ad4fb1f:packages/core/launcher.py:232:        result = subprocess.run(
+1ad4fb1f:packages/core/launcher.py:296:    result = subprocess.run(
+1ad4fb1f:packages/core/launcher.py:615:        completed = subprocess.run(command, capture_output=True, text=True, timeout=10, check=False)
+1ad4fb1f:packages/core/launcher.py:765:        process = subprocess.Popen(
+1ad4fb1f:packages/core/launcher.py:854:            process = subprocess.Popen(
+1ad4fb1f:packages/core/notifications.py:73:        completed = subprocess.run(
+1ad4fb1f:packages/core/rewind/driver.py:105:        proc = subprocess.run(
+1ad4fb1f:packages/core/takeover_job.py:46:        proc = subprocess.Popen(args, creationflags=subprocess.CREATE_NEW_CONSOLE | 4, **kwargs)
+1ad4fb1f:packages/core/terminal/emulator.py:712:        self._proc: subprocess.Popen[bytes] | None = None
+1ad4fb1f:packages/core/terminal/emulator.py:768:            self._proc = subprocess.Popen(
+1ad4fb1f:packages/core/terminal/service.py:1194:                return subprocess.Popen(argv, **kwargs)
+1ad4fb1f:packages/core/terminal/service.py:1202:                return subprocess.Popen(argv, **kwargs)
+1ad4fb1f:packages/core/worker.py:346:# cancelling a task mid real create_subprocess_exec leaves the Windows
+1ad4fb1f:packages/core/worker.py:5030:    tasks that are mid real ``create_subprocess_exec`` can never observe
+1ad4fb1f:packages/core/worker.py:5461:                    proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:packages/core/worker.py:6558:        return await asyncio.create_subprocess_exec(
+1ad4fb1f:packages/devTools/Start-Pan-Debug-Chrome.ps1:40:Start-Process -FilePath $ChromePath -ArgumentList $browserArguments | Out-Null
+1ad4fb1f:packages/jobs/independent_runner.py:219:                task = subprocess.Popen(payload["argv"], **kwargs)
+1ad4fb1f:packages/jobs/independent_service.py:178:            subprocess.Popen(command, **kwargs)
+1ad4fb1f:packages/qq/gateway_plugins.py:25:_PROCESSES: dict[str, subprocess.Popen] = {}
+1ad4fb1f:packages/qq/gateway_plugins.py:136:            proc = subprocess.Popen(plugin["command"], cwd=str(cwd), env={**os.environ, **plugin.get("env", {})}, stdin=subprocess.DEVNULL,
+1ad4fb1f:packages/remote/mcp_runtime.py:95:        process = subprocess.Popen(argv, cwd=str(root), stdin=subprocess.DEVNULL,
+1ad4fb1f:packages/remote/tailscale_runtime.py:41:        proc = subprocess.run([binary, *args], capture_output=True, text=True,
+1ad4fb1f:packages/remote/tunnel.py:71:            self._proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:packages/web/e2e/historySearchServer.py:72:        source = subprocess.run(['gh', 'api', 'repos/Thelittlewinter233/pan/contents/packages/web/server.py?ref=bf811a7cc2f0271023b459729b7fb0079591ebaf',
+1ad4fb1f:packages/web/e2e/navigation-check.py:15:sha = subprocess.check_output(['git','rev-parse','HEAD'], cwd=CHECKOUT, text=True).strip()
+1ad4fb1f:packages/web/e2e/navigation-check.py:26:    run = subprocess.run(argv, cwd=WEB, env=env, check=False)
+1ad4fb1f:packages/web/e2e/navigation-profile.py:12:subprocess.run(['pnpm.cmd','build'],cwd=checkout/'packages/web',env=env,check=True)
+1ad4fb1f:packages/web/e2e/navigation-profile.py:15:    subprocess.run(['node',str(ROOT/'packages/web/e2e/navigation-continuous.e2e.mjs'),'continuous',str(checkout),sys.argv[2]],cwd=ROOT,env=env,check=True)
+1ad4fb1f:packages/web/e2e/run-bottom-follow.ps1:30:  $server = Start-Process -FilePath $python `
+1ad4fb1f:packages/web/e2e/run-keep-position-stability.ps1:35:  $server = Start-Process -FilePath $python `
+1ad4fb1f:packages/web/e2e/run-session-details.ps1:45:  $server = Start-Process -FilePath $python `
+1ad4fb1f:packages/web/e2e/run-session-details.ps1:85:  # (Start-Process wrapper), so stop whoever owns the port — but only after
+1ad4fb1f:packages/web/e2e/run.ps1:35:  $server = Start-Process -FilePath $python `
+1ad4fb1f:packages/web/server.py:762:def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
+1ad4fb1f:packages/web/server.py:771:def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
+1ad4fb1f:packages/web/server.py:803:        return subprocess.Popen(
+1ad4fb1f:packages/web/server.py:874:def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
+1ad4fb1f:packages/web/server.py:898:        return subprocess.Popen(
+1ad4fb1f:packages/web/server.py:3247:        proc = subprocess.Popen(
+1ad4fb1f:packages/web/server.py:3256:        proc = subprocess.Popen(["osascript", "-e", script], cwd=cwd)
+1ad4fb1f:packages/web/server.py:3260:            proc = subprocess.Popen(
+1ad4fb1f:packages/web/server.py:3266:            proc = subprocess.Popen(["xterm", "-e", cmd], cwd=cwd)
+1ad4fb1f:packages/web/server.py:10015:        completed = subprocess.run(
+1ad4fb1f:scripts/benchmark_history_search_content.py:78:        source = subprocess.run(['gh', 'api',
+1ad4fb1f:scripts/check_terminal_deployment.py:31:            proc = subprocess.run([node, "--input-type=module", "-e",
+1ad4fb1f:scripts/kimi-mcp-probe/01_user_level_mcp.py:63:        proc = subprocess.run(
+1ad4fb1f:scripts/kimi-mcp-probe/02_acp_mcp.py:46:    proc = subprocess.Popen(
+1ad4fb1f:scripts/kimi-mcp-probe/03_kimi_code_home.py:61:        proc = subprocess.run(
+1ad4fb1f:scripts/kimi-mcp-probe/04_project_level_contrast.py:56:        proc = subprocess.run(
+1ad4fb1f:scripts/kimi-mcp-probe/06_integration_wrapper.py:56:    proc = subprocess.Popen(
+1ad4fb1f:scripts/repro_mcp_override.py:53:    proc = await asyncio.create_subprocess_exec(
+1ad4fb1f:scripts/rewind_fork_semantics.py:75:        p = subprocess.run(argv, cwd=str(work), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, check=False)
+1ad4fb1f:scripts/rewind_fork_semantics.py:92:        p = subprocess.run(argv, cwd=str(work), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, check=False)
+1ad4fb1f:scripts/rewind_persist_probe.py:168:        create = subprocess.run(
+1ad4fb1f:scripts/rewind_pty_probe.py:405:        proc = subprocess.run(argv, cwd=str(work), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+1ad4fb1f:scripts/rewind_timing_probe.py:45:        p = subprocess.run(argv, cwd=str(work), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, check=False)
+1ad4fb1f:scripts/run_tests_isolated.py:39:    return subprocess.run(command, cwd=repo, env=env).returncode
+1ad4fb1f:scripts/verify_cbc_fork_session.py:43:        p = subprocess.run(argv, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+1ad4fb1f:scripts/verify_rewind_anchor_wrap.py:73:            create = subprocess.run(
+1ad4fb1f:scripts/verify_rewind_api.py:66:def stop_process_tree(proc: subprocess.Popen) -> None:
+1ad4fb1f:scripts/verify_rewind_api.py:143:    server_proc: subprocess.Popen | None = None
+1ad4fb1f:scripts/verify_rewind_api.py:151:        create = subprocess.run(
+1ad4fb1f:scripts/verify_rewind_api.py:178:        server_proc = subprocess.Popen(
+1ad4fb1f:scripts/verify_rewind_driver.py:63:        create = subprocess.run(
+1ad4fb1f:scripts/verify_rewind_hybrid.py:83:        create = subprocess.run(
+1ad4fb1f:scripts/verify_rewind_scope.py:52:    return subprocess.run(
+1ad4fb1f:tests/test_background_jobs.py:51:    assert jobs.subprocess.Popen.call_args.kwargs["stdin"] is jobs.subprocess.DEVNULL
+1ad4fb1f:tests/test_background_jobs.py:313:        return subprocess.run([sys.executable, "-c", code, "job_process_race", f"marker{i}"],
+1ad4fb1f:tests/test_codex_native_kernel_real.py:81:        backend = subprocess.Popen(argv, cwd=str(cwd), env=env, stdin=subprocess.PIPE,
+1ad4fb1f:tests/test_codex_takeover.py:67:        process = await asyncio.create_subprocess_exec(
+1ad4fb1f:tests/test_codex_takeover.py:129:        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+1ad4fb1f:tests/test_codex_takeover.py:226:    original = subprocess.Popen
+1ad4fb1f:tests/test_dependency_layers.py:55:    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=False)
+1ad4fb1f:tests/test_independent_job_deployment.py:58:    result = subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", script], env=env,
+1ad4fb1f:tests/test_independent_job_deployment.py:89:        installed = subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-File",
+1ad4fb1f:tests/test_independent_job_deployment.py:116:            current = subprocess.Popen([sys.executable,
+1ad4fb1f:tests/test_independent_job_service.py:157:        parent = "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c'," + repr(child) + "]); print('ready',flush=True); time.sleep(30)"
+1ad4fb1f:tests/test_independent_job_service.py:229:    service = subprocess.Popen(
+1ad4fb1f:tests/test_independent_job_service.py:247:        host = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
+1ad4fb1f:tests/test_independent_job_service.py:251:        killed = subprocess.run(["taskkill", "/PID", str(host.pid), "/T", "/F"],
+1ad4fb1f:tests/test_independent_job_service.py:261:            subprocess.run(["taskkill", "/PID", str(host.pid), "/T", "/F"], capture_output=True, timeout=8)
+1ad4fb1f:tests/test_job_window_policy.py:70:    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
+1ad4fb1f:tests/test_job_window_policy.py:86:    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
+1ad4fb1f:tests/test_job_window_policy.py:110:    result = subprocess.run([sys.executable, "-c", program], stdout=subprocess.PIPE,
+1ad4fb1f:tests/test_lifecycle_shortcuts.py:93:    return subprocess.run(
+1ad4fb1f:tests/test_queue_migration.py:68:    first = subprocess.run(command, check=True, capture_output=True, text=True)
+1ad4fb1f:tests/test_queue_migration.py:76:    second = subprocess.run(command, check=True, capture_output=True, text=True)
+1ad4fb1f:tests/test_queue_restart_hardening.py:41:    teardown（asyncio.run 收尾）取消正处在真实 create_subprocess_exec 中途的
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:80:    head = subprocess.run(
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:84:    status = subprocess.run(
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:305:        self.process: subprocess.Popen | None = None
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:317:        self.process = subprocess.Popen(
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:486:        self.process: subprocess.Popen | None = None
+1ad4fb1f:tests/test_real_history_coldload_e2e.py:534:            self.process = subprocess.Popen(
+1ad4fb1f:tests/test_real_queue_http_e2e.py:139:        self.process: subprocess.Popen | None = None
+1ad4fb1f:tests/test_real_queue_http_e2e.py:163:        self.process = subprocess.Popen(
+1ad4fb1f:tests/test_reaudit_frontend_reconcile_order.py:39:    result = subprocess.run(
+1ad4fb1f:tests/test_terminal_api.py:1069:    proc = subprocess.run(
+1ad4fb1f:tests/test_terminal_broadcast.py:160:    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", spawn)
+1ad4fb1f:tests/test_terminal_composition.py:562:        proc: subprocess.Popen,
+1ad4fb1f:tests/test_terminal_composition.py:744:        proc = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_durable_ma.py:164:    host = subprocess.Popen([getattr(sys, '_base_executable', sys.executable), str(script), str(tmp_path)],
+1ad4fb1f:tests/test_terminal_emulator.py:578:    proc = subprocess.run(
+1ad4fb1f:tests/test_terminal_emulator.py:838:    real_popen = emulator_module.subprocess.Popen
+1ad4fb1f:tests/test_terminal_emulator.py:953:    real_popen = emulator_module.subprocess.Popen
+1ad4fb1f:tests/test_terminal_emulator.py:1342:    real_popen = emulator_module.subprocess.Popen
+1ad4fb1f:tests/test_terminal_emulator.py:1349:    prev_popen = emulator_module.subprocess.Popen
+1ad4fb1f:tests/test_terminal_emulator.py:1350:    emulator_module.subprocess.Popen = spy_popen
+1ad4fb1f:tests/test_terminal_emulator.py:1355:        emulator_module.subprocess.Popen = prev_popen
+1ad4fb1f:tests/test_terminal_guard.py:65:        "p = subprocess.Popen([sys.executable, GRANDCHILD])\n"
+1ad4fb1f:tests/test_terminal_guard.py:252:    holder = subprocess.Popen([PYTHON, holder_script, holder_report, child_report])
+1ad4fb1f:tests/test_terminal_identity.py:38:def spawn_child(code: str) -> subprocess.Popen:
+1ad4fb1f:tests/test_terminal_identity.py:39:    return subprocess.Popen([PYTHON, "-c", code])
+1ad4fb1f:tests/test_terminal_launcher.py:741:        proc: subprocess.Popen,
+1ad4fb1f:tests/test_terminal_launcher.py:883:    proc = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_pan_lifecycle_ma.py:79:        self.process = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_registry.py:242:        subprocess.Popen(
+1ad4fb1f:tests/test_terminal_registry.py:295:        subprocess.Popen(
+1ad4fb1f:tests/test_terminal_runner.py:367:        proc: subprocess.Popen,
+1ad4fb1f:tests/test_terminal_runner.py:503:        proc = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_runner.py:1265:    completed = subprocess.run(
+1ad4fb1f:tests/test_terminal_runner.py:1300:        completed = subprocess.run(
+1ad4fb1f:tests/test_terminal_runner_identity_ma.py:118:    process = subprocess.Popen([str(python), '-c', 'import sys;sys.stdin.readline()'],
+1ad4fb1f:tests/test_terminal_runner_ipc.py:930:    def __init__(self, process: subprocess.Popen, report_path: Path, config_path: Path, name: str):
+1ad4fb1f:tests/test_terminal_runner_ipc.py:1075:        process = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_runner_ipc.py:1112:    process = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_runner_ipc.py:1133:def _cleanup_sleeper(process: subprocess.Popen, identity: ProcessIdentity) -> list[dict]:
+1ad4fb1f:tests/test_terminal_secret_store.py:147:    process = subprocess.run(
+1ad4fb1f:tests/test_terminal_secret_store.py:310:    process = subprocess.run(
+1ad4fb1f:tests/test_terminal_secret_store.py:322:        subprocess.run(["cmd", "/c", "rmdir", str(link)], capture_output=True)
+1ad4fb1f:tests/test_terminal_secret_store.py:501:    process = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_secret_store.py:557:    process = subprocess.Popen(
+1ad4fb1f:tests/test_terminal_service.py:394:    proc = subprocess.run(
+1ad4fb1f:tests/test_test_isolation.py:52:    result = subprocess.run([sys.executable, "-m", "pytest", str(Path(__file__).resolve()),
+1ad4fb1f:tests/test_unified_server_queue.py:553:    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", create)
+1ad4fb1f:tests/test_unified_server_queue.py:580:    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", fail)
+1ad4fb1f:tests/test_wechat_spawn.py:5:- enabled=True → 调 subprocess.Popen，断言 cwd / PYTHONPATH / 可执行文件
+1ad4fb1f:tests/test_wechat_spawn.py:28:    """打桩的 subprocess.Popen：记录调用实参，wait 立即抛超时（模拟仍在跑）。"""
+1ad4fb1f:tests/test_wechat_spawn.py:54:    # 只打桩 main 模块内的 subprocess.Popen（不动全局）
+1ad4fb1f:tests/test_worker_cli_session_binding.py:118:    with patch("asyncio.create_subprocess_exec",
+1ad4fb1f:tests/test_worker_cli_session_binding.py:140:    with patch("asyncio.create_subprocess_exec",
+1ad4fb1f:tests/test_worker_cli_session_binding.py:160:    with patch("asyncio.create_subprocess_exec",
+1ad4fb1f:tests/test_worker_cli_session_binding.py:181:    with patch("asyncio.create_subprocess_exec",
+1ad4fb1f:tests/test_worker_global_watchdog.py:544:    取消打在真实 create_subprocess_exec 中途时 waiter 永不完成 → 关闭挂死。
+1ad4fb1f:tests/test_worker_oneshot_usage.py:99:    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", fake_spawn)
+1ad4fb1f:tests/test_worker_watchdog.py:688:    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", fake_spawn)
