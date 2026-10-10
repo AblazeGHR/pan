@@ -37,3 +37,15 @@ passes. No live Session data was migrated, no protected service was restarted,
 and no real-provider/browser conversion was claimed. Loading new backend code
 requires a user-controlled Pan restart. The window-policy batch is independently
 accepted; combined integration receives an additional focused regression.
+
+## Combined integration
+
+Conversion commit `33d878f0` merged the accepted window-policy commit `b01396a8`
+without conflicts at `61ffb265`. The only merged change to conversion's worker
+module is the window helper import and kwargs at the two existing launch edges.
+On this combined source, six test files (conversion, native API, window policy,
+WeChat spawn, real native kernel and real HTTP coldload) passed: **63 passed**,
+zero skipped/failures/errors (`combined.xml`, 28.79 seconds). Chromium native
+control harness passed again, including stdio confirmation/delayed entry and
+visible queue. This is an incremental combined check, not a second combined
+full-suite run. Lint retains 19 existing warnings with zero errors.
