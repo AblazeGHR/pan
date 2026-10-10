@@ -110,7 +110,8 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const nativeState = useNativeControlStore((s) => currentSession?.id ? s.sessions[currentSession.id] : undefined);
   const nativeSwitching = useNativeControlStore((s) => currentSession?.id ? s.switching[currentSession.id] : false);
-  const nativeActive = nativeState?.mode === 'native' || nativeState?.mode === 'switching';
+  const terminalView = useNativeControlStore((s) => currentSession?.id ? s.terminalViews[currentSession.id] : undefined);
+  const nativeActive = terminalView ?? (nativeState?.mode === 'native' || nativeState?.mode === 'switching');
   const enterAfterUpgrade = useRef<string | null>(null);
   useEffect(() => {
     if (currentSession?.adapter !== 'codex') return;
@@ -153,7 +154,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
         }
       }
       await useNativeControlStore.getState().switchMode(id, 'native');
-    } catch { showToast('Session upgrade or native control switch was not confirmed', 'error'); }
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Session upgrade or native control switch was not confirmed', 'error'); }
   };
   const { chatViewStyle, setChatViewStyle } = useAppSettingsStore(useShallow((s) => ({
     chatViewStyle: s.chatViewStyle,
@@ -168,12 +169,14 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     })));
   const { isMobile } = useMediaQuery();
   const chooseView = async (value: 'tui' | 'bubble' | 'raw') => {
+    enterAfterUpgrade.current = null;
+    setChatViewStyle(value);
+    if (currentSession) useNativeControlStore.getState().showTerminal(currentSession.id, false);
     try {
-      if (currentSession?.nativeControl && nativeActive) {
+      if (currentSession && nativeState && nativeState.mode !== 'pan') {
         await useNativeControlStore.getState().switchMode(currentSession.id, 'pan');
       }
-      setChatViewStyle(value);
-    } catch { showToast('Control switch was not confirmed', 'error'); }
+    } catch { showToast('History view opened; control ownership is unconfirmed and input remains suspended', 'error'); }
   };
   const delayedRestartState = useWorkerStore((s) =>
     currentSession?.id ? s.delayedRestarts[currentSession.id] : undefined,
@@ -224,7 +227,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     currentWorker.sessionId === currentSession.id &&
     currentWorker.status !== 'offline'
       ? currentWorker.id
-      : null);
+      : null) || nativeState?.workerId;
   const hasWorker = Boolean(effectiveWorkerId);
 
   // Values for the collapsed mobile click-cycle control. Both lookups are total
@@ -263,7 +266,6 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             <button
               type="button"
               onClick={() => void chooseView(nextView.value)}
-              disabled={nativeSwitching}
               aria-pressed={!nativeActive}
               aria-label={nextView.label}
               title={`Chat view: ${currentView.short} — click to switch to ${nextView.short}`}
@@ -282,7 +284,6 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
                   key={value}
                   type="button"
                   onClick={() => void chooseView(value)}
-                  disabled={nativeSwitching}
                   aria-label={label}
                   aria-pressed={!nativeActive && chatViewStyle === value}
                   title={label}
@@ -342,7 +343,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             {cachedQuotaText}
           </span>
         )}
-        {!nativeActive && hasWorker && effectiveWorkerId && (
+        {hasWorker && effectiveWorkerId && (
           <>
             <Button
               variant="ghost"
@@ -392,6 +393,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
                 size="sm"
                 className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
                 onClick={() => {
+                  if (nativeActive && !confirm('Takeover stops the current Worker and opens an external PowerShell session. This is not a seamless TUI/Pan control switch. Continue?')) return;
                   takeover(currentSession.id)
                     .then(() =>
                       showToast('PowerShell opened for takeover'),
@@ -419,7 +421,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             </Button>
           </>
         )}
-        {!nativeActive && !hasWorker && (
+        {!hasWorker && (
           <Button
             variant="primary"
             size="sm"

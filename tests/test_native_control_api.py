@@ -45,6 +45,21 @@ def test_default_and_other_adapters_reject_without_spawning(target, monkeypatch)
     assert spawn.await_count == 0
 
 
+def test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate(target, monkeypatch):
+    app, s, w = target
+    s.adapter_config = {"native_control_next": True}
+    w.native_control_mode = "pan"
+    w.native_kernel_ready = False
+    switch = AsyncMock()
+    monkeypatch.setattr(worker, "switch_native_control", switch)
+    result = request(app, "POST", "/mode", json={"mode": "pan"})
+    assert result.status_code == 200
+    assert result.json()["result"]["mode"] == "pan"
+    assert s.adapter_config == {"native_control_next": True}
+    switch.assert_not_awaited()
+    assert request(app, "POST", "/mode", json={"mode": "native"}).status_code == 409
+
+
 @pytest.mark.parametrize("body", [{"mode": []}, {"mode": True}, {"mode": "native", "token": "fake"}])
 def test_invalid_modes_do_not_call_worker(target, monkeypatch, body):
     switch = AsyncMock()

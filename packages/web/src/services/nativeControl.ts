@@ -14,7 +14,14 @@ export async function nativeRequest<T>(sessionId: string, path = '', body?: obje
     method: body ? 'POST' : 'GET', signal,
     ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
   });
-  if (!response.ok) throw new Error(`Native terminal request failed (${response.status})`);
+  if (!response.ok) {
+    let code = '';
+    try {
+      const failure = await response.json() as { error?: { code?: unknown } };
+      if (typeof failure.error?.code === 'string' && /^[a-z-]{1,64}$/.test(failure.error.code)) code = failure.error.code;
+    } catch { /* malformed transport response: keep status only */ }
+    throw new Error(`Native terminal request failed (${response.status}${code ? `: ${code}` : ''})`);
+  }
   const envelope = await response.json() as { ok: boolean; result: T };
   if (!envelope.ok) throw new Error('Native terminal request rejected');
   return envelope.result;

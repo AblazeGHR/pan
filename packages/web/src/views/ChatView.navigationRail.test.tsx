@@ -57,7 +57,7 @@ const chatViewSource = readFileSync(resolve(process.cwd(), 'src/views/ChatView.t
 const chatStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\r\n/g, '\n');
 
 beforeEach(() => {
-  useNativeControlStore.setState({ sessions: {}, switching: {} });
+  useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
   viewport.isMobile = false;
   mockedHistory.mockReset();
   mockedGlobalSearch.mockReset();
@@ -99,6 +99,18 @@ it('native and uncertain handoffs show only terminal and bottom queue, not histo
   expect(getByTestId('chat-messages')).toBeTruthy();
   expect(getByTestId('input-row')).toBeTruthy();
   expect(queryByTestId('native-terminal')).toBeNull();
+});
+
+it('history remains accessible without admitting input while ownership is unconfirmed', async () => {
+  useNativeControlStore.setState({ sessions: { 'rail-view': { workerId: 'w', mode: 'switching', generation: 1, error: null } }, terminalViews: { 'rail-view': false } });
+  const { getByTestId, queryByTestId, getByRole } = render(<ChatView />);
+  await waitFor(() => expect(getByTestId('chat-messages')).toBeTruthy());
+  expect(queryByTestId('native-terminal')).toBeNull();
+  expect(queryByTestId('input-row')).toBeNull();
+  expect(getByTestId('native-queue')).toBeTruthy();
+  expect(getByRole('alert').textContent).toContain('input is suspended');
+  act(() => useNativeControlStore.setState({ sessions: { 'rail-view': { workerId: 'w', mode: 'pan', generation: 2, error: null } } }));
+  expect(getByTestId('input-row')).toBeTruthy();
 });
 
 describe('ChatView: message navigation rail switch', () => {
@@ -248,7 +260,7 @@ describe('ChatView: message navigation rail switch', () => {
     expect(searchStyles).toMatch(/\.global-history-search__results \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
     expect(searchStyles).not.toContain('100vw');
     expect(searchStyles).not.toContain('100vh');
-    expect(chatViewSource).toMatch(/className="chat-view-stage flex flex-1 min-h-0 min-w-0"[\s\S]*?<\/div>\s*<RewindStatusBar \/>\s*<InputRow \/>/);
+    expect(chatViewSource).toMatch(/className="chat-view-stage flex flex-1 min-h-0 min-w-0"[\s\S]*?<\/div>\s*<RewindStatusBar \/>\s*\{native && native.mode !== 'pan'[\s\S]*?: <InputRow \/>\}/);
     expect(chatStylesSource).toContain('right: 58px;\n    width: min(430px, calc(100% - 72px));');
     expect(chatStylesSource).toContain('right: 96px;\n    width: min(560px, calc(100% - 112px));');
   });

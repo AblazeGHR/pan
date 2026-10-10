@@ -30,6 +30,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   let mode = 'pan'; let generation = 0; let enabled = true; let pendingEnabled = null;
   const writes = []; const errors = []; const modes = []; const configurations = [];
+  let rejectSwitch = false;
   const state = () => ({ workerId: 'same-worker', mode, generation, error: null, enabled, pendingEnabled });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -40,7 +41,12 @@ try {
         pendingEnabled = request.postDataJSON().enabled;
         configurations.push(pendingEnabled);
       }
-      if (path.endsWith('/mode')) { mode = request.postDataJSON().mode; generation++; modes.push(mode); }
+      if (path.endsWith('/mode')) {
+        if (rejectSwitch) {
+          await route.fulfill({ status: 409, json: { ok: false, error: { code: 'native-switch-unconfirmed' } } }); return;
+        }
+        mode = request.postDataJSON().mode; generation++; modes.push(mode);
+      }
       if (path.endsWith('/write')) { writes.push(request.postDataJSON()); result = { ok: true }; }
       else if (path.endsWith('/output')) {
         const cursor = new URL(request.url()).searchParams.get('cursor');
@@ -57,6 +63,9 @@ try {
   catch (error) { throw new Error(`${error.message}; page errors: ${JSON.stringify(errors)}; body: ${await page.locator('body').innerText()}`); }
   await page.getByTestId('native-terminal').waitFor({ state: 'visible' });
   await page.getByText('Durable queue retained').waitFor({ state: 'visible' });
+  for (const title of ['Restart worker', 'Interrupt', 'Takeover', 'Kill worker', 'Delayed restart: after task completion, before queued work']) {
+    await page.getByTitle(title, { exact: true }).waitFor({ state: 'visible' });
+  }
   assert.equal(await tui.getAttribute('aria-pressed'), 'true');
   for (const name of ['Switch to TUI view', 'Switch to Bubble view', 'Switch to Raw view']) {
     assert.equal(await page.getByRole('button', { name }).getAttribute('aria-pressed'), 'false');
@@ -93,6 +102,19 @@ try {
   await page.getByTestId('native-terminal').waitFor({ state: 'visible' });
   assert.deepEqual(modes, ['native', 'pan', 'native']);
   await page.getByRole('button', { name: 'Switch to Bubble view' }).click();
+  await page.locator('[contenteditable="true"][data-placeholder]').waitFor({ state: 'visible' });
+  // Unknown ownership is a write gate, not a navigation trap. No production
+  // Session is mutated: this is the real UI against an intercepted fixture.
+  rejectSwitch = true; mode = 'switching';
+  await page.reload();
+  await page.getByTestId('native-terminal').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Switch to Raw view' }).click();
+  await page.getByTestId('native-terminal').waitFor({ state: 'detached' });
+  await page.getByRole('alert').filter({ hasText: 'input is suspended' }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('[contenteditable="true"][data-placeholder]').count(), 0);
+  await page.getByText('Durable queue retained').waitFor({ state: 'visible' });
+  await page.getByTitle('Kill worker', { exact: true }).waitFor({ state: 'visible' });
+  mode = 'pan'; rejectSwitch = false;
   await page.locator('[contenteditable="true"][data-placeholder]').waitFor({ state: 'visible' });
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ passed: true, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, stdio_upgrade_waits_idle: true, page_errors: errors }));

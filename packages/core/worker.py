@@ -230,6 +230,7 @@ class Worker:
     native_kernel_ready: bool = False
     _native_external_turn_active: bool = False
     _native_mode_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
+    _native_mode_request_id: str | None = None  # Latest issued handoff, including a timed-out one.
     _native_mode_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # Latest native Codex token usage notification for reconnecting dashboards.
     # The provider remains the source of truth for persisted/session totals;
@@ -1513,6 +1514,11 @@ def _update_pending_interactions(w: Worker, event: dict) -> dict | None:
         future = w._native_mode_receipts.get(event.get("requestId"))
         if future is not None and not future.done():
             future.set_result(dict(event))
+        elif w._native_mode_request_id is not None and event.get("requestId") == w._native_mode_request_id:
+            # Timeout/cancellation is not evidence the kernel rejected the
+            # handoff. Consume its late authoritative receipt, but never a
+            # superseded request's frame or an unsolicited ownership claim.
+            _apply_native_mode_receipt(w, event)
         return None
     if event_type == "codex.thread_status":
         native_status = event.get("native_status")
@@ -6979,6 +6985,22 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
+def _apply_native_mode_receipt(w: Worker, receipt: dict) -> bool:
+    generation = receipt.get("generation")
+    if (receipt.get("mode") not in {"pan", "native"}
+            or type(generation) is not int or generation < w.native_control_generation):
+        return False
+    w.native_control_mode = receipt["mode"]
+    w.native_control_generation = generation
+    w._native_mode_request_id = None
+    w.native_control_error = None if receipt.get("ok") is True else "Native control request rejected"
+    if receipt.get("native_busy") is True:
+        w._native_external_turn_active = True
+    if w.native_control_mode == "pan" and w.pending_signal is not None:
+        w.pending_signal.put_nowait({"type": "queue_signal"})
+    return True
+
+
 async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 15.0) -> dict:
     """Internal handoff seam; no process lifecycle or durable queue mutation.
 
@@ -7003,6 +7025,7 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
             if w.process is None or w.process.returncode is not None or w.process.stdin is None:
                 raise RuntimeError("Worker process is not running")
             w.native_control_mode = "switching"
+            w._native_mode_request_id = request_id
             w._native_mode_receipts[request_id] = future
             wire = w.adapter.encode_control_message({"type": "control_mode", "mode": mode,
                 "generation": w.native_control_generation, "requestId": request_id}) + b"\n"
@@ -7013,17 +7036,12 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
                 await handoff()
         await asyncio.wait_for(locked_handoff(), max(0.0, deadline - time.monotonic()))
         receipt = await asyncio.wait_for(asyncio.shield(future), max(0.0, deadline - time.monotonic()))
-        generation = receipt.get("generation")
-        if receipt.get("mode") not in {"pan", "native"} or type(generation) is not int or generation < 0:
+        if not _apply_native_mode_receipt(w, receipt):
             return {"ok": False, "error": "Invalid control receipt"}
-        w.native_control_mode = receipt["mode"]
-        w.native_control_generation = generation
-        if receipt.get("native_busy") is True:
-            w._native_external_turn_active = True
-        if w.native_control_mode == "pan" and w.pending_signal is not None:
-            w.pending_signal.put_nowait({"type": "queue_signal"})
         return receipt
     except (asyncio.TimeoutError, OSError, RuntimeError):
+        if w.native_control_mode == "switching":
+            w.native_control_error = "Control ownership unconfirmed"
         return {"ok": False, "error": "Control ownership unconfirmed"}
     finally:
         w._native_mode_receipts.pop(request_id, None)

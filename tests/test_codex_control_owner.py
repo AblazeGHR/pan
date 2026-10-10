@@ -173,6 +173,38 @@ async def test_user_queue_pause_survives_native_round_trip(monkeypatch):
 
 
 @run_async
+async def test_late_receipt_recovers_only_the_latest_issued_handoff(monkeypatch):
+    s, w = runtime(monkeypatch)
+    messages = []
+    class Stdin:
+        def write(self, raw):
+            messages.append(json.loads(raw))
+        async def drain(self):
+            pass
+    w.process = SimpleNamespace(stdin=Stdin(), returncode=None)
+    assert (await worker.switch_native_control(w.worker_id, 'native', timeout=.01))['ok'] is False
+    first = messages[-1]['requestId']
+    assert w.native_control_mode == 'switching'
+    worker._update_pending_interactions(w, {'type': 'pan.control_mode', 'requestId': first,
+        'ok': False, 'mode': 'pan', 'generation': 0})
+    assert w.native_control_mode == 'pan' and not worker._native_handoff_blocked(s)
+    assert w.native_control_error == 'Native control request rejected'
+    assert (await worker.switch_native_control(w.worker_id, 'native', timeout=.01))['ok'] is False
+    second = messages[-1]['requestId']
+    worker._update_pending_interactions(w, {'type': 'pan.control_mode', 'requestId': first,
+        'ok': True, 'mode': 'pan', 'generation': 1})
+    assert w.native_control_mode == 'switching'  # Superseded receipt cannot reopen input.
+    worker._update_pending_interactions(w, {'type': 'pan.control_mode', 'requestId': second,
+        'ok': True, 'mode': 'native', 'generation': 2})
+    assert w.native_control_mode == 'native' and w.native_control_generation == 2
+    assert w.native_control_error is None
+    worker._update_pending_interactions(w, {'type': 'pan.control_mode', 'requestId': second,
+        'ok': True, 'mode': 'pan', 'generation': 1})
+    assert w.native_control_mode == 'native' and w.native_control_generation == 2
+    assert s.queue_pending == [{'type': 'task', 'text': 'keep me', 'seq': 1}]
+
+
+@run_async
 async def test_cancelled_switch_releases_lock_but_not_uncertain_gate(monkeypatch):
     s, w = runtime(monkeypatch)
     sent = asyncio.Event()

@@ -98,7 +98,7 @@ async def configuration(request: Request, session_id: str):
 
 @router.post("/mode")
 async def mode(request: Request, session_id: str):
-    _, rejected = _target(request, session_id)
+    s, rejected = _target(request, session_id, require_enabled=False)
     if rejected is not None:
         return rejected
     try:
@@ -108,6 +108,12 @@ async def mode(request: Request, session_id: str):
     if set(body) != {"mode"} or not isinstance(body["mode"], str) or body["mode"] not in {"pan", "native"}:
         return fail(422, "invalid-mode")
     w = worker.find_alive_worker_by_session(session_id)
+    # Returning to a read-only chat view must remain possible during upgrade,
+    # startup failure or after death. Only acknowledge ownership we actually know.
+    if body["mode"] == "pan" and (w is None or w.native_control_mode == "pan"):
+        return ok(_status(w))
+    if s.adapter_config.get("native_control") is not True:
+        return fail(409, "native-control-unavailable")
     if s := session.get(session_id, load_history=False):
         if type(s.adapter_config.get("native_control_next")) is bool:
             return fail(409, "configuration-pending")

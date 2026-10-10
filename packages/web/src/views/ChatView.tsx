@@ -32,6 +32,8 @@ const GlobalHistorySearch = lazy(() =>
 export default function ChatView() {
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const native = useNativeControlStore((s) => sessionId ? s.sessions[sessionId] : undefined);
+  const terminalView = useNativeControlStore((s) => sessionId ? s.terminalViews[sessionId] : undefined);
+  const showTerminal = terminalView ?? (native != null && native.mode !== 'pan');
   const chatRef = useRef<ChatMessagesHandle>(null);
   const chatStageRef = useRef<HTMLDivElement>(null);
   const [popupContainer, setPopupContainer] = useState<HTMLDivElement | null>(null);
@@ -121,8 +123,8 @@ export default function ChatView() {
   ) : undefined;
 
   return (
-    <ChatLayout topBarRightAction={native && native.mode !== 'pan' ? undefined : topBarRightAction}>
-      {sessionId && native && native.mode !== 'pan' ? <div className="flex flex-col h-full min-h-0">
+    <ChatLayout topBarRightAction={showTerminal ? undefined : topBarRightAction}>
+      {sessionId && native && showTerminal ? <div className="flex flex-col h-full min-h-0">
         <Suspense fallback={null}><NativeTerminal sessionId={sessionId} state={native} /></Suspense>
         <NativeQueue key={sessionId} sessionId={sessionId} />
       </div> :
@@ -178,7 +180,10 @@ export default function ChatView() {
           )}
         </div>
         <RewindStatusBar />
-        <InputRow />
+        {native && native.mode !== 'pan' ? <div role="alert" className="px-3 py-2 text-xs text-danger">
+          Control ownership is unconfirmed or still native; chat input is suspended. Retry switching control or use Restart/Kill.
+          {sessionId && <NativeQueue key={sessionId} sessionId={sessionId} />}
+        </div> : <InputRow />}
       </div>}
     </ChatLayout>
   );

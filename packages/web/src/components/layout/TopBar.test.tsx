@@ -33,7 +33,7 @@ beforeEach(() => {
     }],
   });
   useUIStore.setState({ toastQueue: [] });
-  useNativeControlStore.setState({ sessions: {}, switching: {} });
+  useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
   useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useWorkerStore.setState({
     currentWorker: {
@@ -90,11 +90,45 @@ describe('TopBar compact worker presentation', () => {
       expect(screen.getByRole('button', { name }).getAttribute('aria-pressed')).toBe('false');
     }
     expect(useAppSettingsStore.getState().chatViewStyle).toBe('tui');
-    expect(screen.queryByTitle('Kill worker')).toBeNull();
+    for (const title of ['Kill worker', 'Restart worker', 'Interrupt', 'Takeover']) {
+      expect(screen.getByTitle(title)).toBeTruthy();
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Switch to Bubble view' }));
     await waitFor(() => expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble'));
     expect(switchMode.mock.calls).toEqual([[sid, 'native'], [sid, 'pan']]);
     expect(refresh).toHaveBeenCalledWith(sid);
+  });
+  it('an unconfirmed handoff cannot trap the selected history view', async () => {
+    const sid = 'session-123456789';
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: true })) }));
+    useNativeControlStore.setState({ sessions: { [sid]: { workerId: 'worker-123', mode: 'switching', generation: 1, error: 'lost' } } });
+    vi.spyOn(useNativeControlStore.getState(), 'refresh').mockResolvedValue();
+    vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockRejectedValue(new Error('offline'));
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Raw view' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Switch to Raw view' }).getAttribute('aria-pressed')).toBe('true'));
+    expect(useNativeControlStore.getState().sessions[sid]?.mode).toBe('switching');
+    expect(useNativeControlStore.getState().terminalViews[sid]).toBe(false);
+    expect(useAppSettingsStore.getState().chatViewStyle).toBe('raw');
+  });
+  it('native-mode topbar invokes the existing lifecycle actions', async () => {
+    const sid = 'session-123456789';
+    useNativeControlStore.setState({ sessions: { [sid]: { workerId: 'worker-123', mode: 'native', generation: 1, error: null } } });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<TopBar />);
+    for (const title of ['Restart worker', 'Interrupt', 'Takeover', 'Kill worker']) fireEvent.click(screen.getByTitle(title));
+    await waitFor(() => {
+      for (const action of ['restart', 'interrupt', 'takeover', 'killCurrent'] as const)
+        expect(useWorkerStore.getState()[action]).toHaveBeenCalledWith(sid);
+    });
+  });
+  it('keeps recovery actions when only the native status confirms the live worker', () => {
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, workerId: undefined, workerStatus: undefined })) }));
+    useWorkerStore.setState({ currentWorker: null });
+    useNativeControlStore.setState({ sessions: { 'session-123456789': { workerId: 'worker-123', mode: 'switching', generation: 0, error: null } } });
+    render(<TopBar />);
+    expect(screen.getByTitle('Kill worker')).toBeTruthy();
+    expect(screen.getByTitle('Restart worker')).toBeTruthy();
   });
   it('keeps the mobile top bar single-line and exposes the full truncated session title', () => {
     const longTitle = 'A very long session name with an unbreakable identifier abcdefghijklmnopqrstuvwxyz0123456789';

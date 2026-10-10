@@ -10,6 +10,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
   const currentState = useRef(state);
   currentState.current = state;
   const [error, setError] = useState('');
+  useEffect(() => { setError(''); }, [state.workerId, state.generation]);
   useEffect(() => {
     if (!host.current) return;
     const terminal = new Terminal({ cursorBlink: true, fontSize: 14, convertEol: false,
