@@ -1,4 +1,4 @@
-"""Negotiated compression for bounded JSON list responses.
+"""Negotiated compression for bounded JSON list and history responses.
 
 Do not install this as global middleware: streams, WebSockets and precompressed
 static assets must keep their existing response paths.
@@ -34,6 +34,7 @@ class NetworkJSONResponse(JSONResponse):
         self.headers.add_vary_header("Accept-Encoding")
         request_headers = Headers(scope=scope)
         if (scope.get("method") in ("GET", "HEAD") and self.status_code == 200
+                and scope.get("path") == "/api/sessions"
                 and QueryParams(scope.get("query_string", b"")).get("summary") == "1"):
             # Revalidate against the *current* serialized response, including
             # all worker/queue/pin/preview fields. No server snapshot is cached.

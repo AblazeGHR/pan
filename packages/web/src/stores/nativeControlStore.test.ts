@@ -1,12 +1,46 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nativeRequest, type NativeControlState } from '@/services/nativeControl';
 import { useNativeControlStore as store } from './nativeControlStore';
+import { useSessionStore } from './sessionStore';
 vi.mock('@/services/nativeControl', () => ({ nativeRequest: vi.fn() }));
 const request = vi.mocked(nativeRequest);
 const pan: NativeControlState = { workerId: 'w', mode: 'pan', generation: 0, error: null };
 const native: NativeControlState = { ...pan, mode: 'native', generation: 1 };
 beforeEach(() => { request.mockReset(); store.setState({ sessions: {}, switching: {}, terminalViews: {} }); });
 describe('native ownership receipts', () => {
+  it('does not publish unchanged poll receipts or replace loaded Session history', async () => {
+    const state = { ...pan, enabled: true };
+    store.setState({ sessions: { stable: state } });
+    const session = { id: 'stable', name: 'stable', nativeControl: true, history: [], alwaysThinkingEnabled: false, effort: '' };
+    useSessionStore.setState({ sessions: [session] });
+    const nativeChanged = vi.fn();
+    const sessionChanged = vi.fn();
+    const unsubscribeNative = store.subscribe(nativeChanged);
+    const unsubscribeSession = useSessionStore.subscribe(sessionChanged);
+    try {
+      request.mockImplementation(async () => ({ ...state }));
+      for (let index = 0; index < 60; index += 1) await store.getState().refresh('stable');
+      expect(nativeChanged).not.toHaveBeenCalled();
+      expect(sessionChanged).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().sessions[0]).toBe(session);
+      request.mockResolvedValueOnce({ ...state, pendingEnabled: false });
+      await store.getState().refresh('stable');
+      expect(nativeChanged).toHaveBeenCalledOnce();
+      request.mockResolvedValueOnce({ ...state, enabled: false });
+      await store.getState().refresh('stable');
+      expect(sessionChanged).toHaveBeenCalledOnce();
+      expect(useSessionStore.getState().sessions[0]?.nativeControl).toBe(false);
+    } finally { unsubscribeNative(); unsubscribeSession(); }
+  });
+  it('repairs a stale Session projection even when the native receipt is unchanged', async () => {
+    const state = { ...pan, enabled: true };
+    store.setState({ sessions: { projection: state } });
+    useSessionStore.setState({ sessions: [{ id: 'projection', name: 'projection', history: [], nativeControl: false, alwaysThinkingEnabled: false, effort: '' }] });
+    request.mockResolvedValueOnce({ ...state });
+    await store.getState().refresh('projection');
+    expect(store.getState().sessions.projection).toBe(state);
+    expect(useSessionStore.getState().sessions[0]?.nativeControl).toBe(true);
+  });
   it('never lets an older refresh overwrite a completed handoff', async () => {
     let release!: (value: NativeControlState) => void;
     request.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));

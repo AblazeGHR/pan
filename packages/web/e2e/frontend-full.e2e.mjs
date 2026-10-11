@@ -10,7 +10,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import process from 'node:process';
-import { setTimeout } from 'node:timers';
+import { setTimeout, clearTimeout } from 'node:timers';
 import { chromium } from '@playwright/test';
 
 const root = path.resolve(import.meta.dirname, '../../..');
@@ -21,10 +21,18 @@ const base = `http://127.0.0.1:${port}`;
 const evidence = { root, runtime, port, stages: [], processes: [], errors: [], requests: [], frames: [] };
 await fs.mkdir(runtime, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function bounded(work, timeout, label) {
+  let timer;
+  try {
+    return await Promise.race([work(), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Timed out: ${label}`)), timeout);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 async function poll(read, test, label, timeout = 15000) {
   let last;
   for (const end = Date.now() + timeout; Date.now() < end; await sleep(80)) {
-    last = await read();
+    last = await bounded(read, Math.max(1, end - Date.now()), label);
     if (test(last)) return last;
   }
   throw new Error(`${label}: ${JSON.stringify(last).slice(0, 2500)}`);
@@ -337,6 +345,7 @@ try {
   await context.route('**://fonts.googleapis.com/**', r => r.abort());
   await context.route('**://fonts.gstatic.com/**', r => r.abort());
   page = await context.newPage();
+  page.setDefaultTimeout(15000);
   await page.addInitScript(() => {
     window.__perf = { frames: [], longTasks: [] };
     let last = performance.now();
@@ -530,7 +539,7 @@ try {
   // contain exactly one assistant row for the turn, and it must converge to the
   // single canonical reply after completion.
   await select('E2E-A');
-  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  if (await page.getByTitle('Scroll to bottom').isVisible()) await page.getByTitle('Scroll to bottom').click();
   const backgroundLiveLabel = 'background-live-select';
   const backgroundLiveSamples = [];
   evidence.backgroundLiveSamples = backgroundLiveSamples;
@@ -699,18 +708,26 @@ try {
   await sleep(500);
   await pageLifecycle.send('Page.setWebLifecycleState', { state: 'active' });
   console.log('BACKGROUND activated');
-  await page.evaluate(() => {
+  // Bring the fixture tab forward before signaling visibility, matching an
+  // actual return to a browser tab.
+  await bounded(() => page.bringToFront(), 15000, 'background bringToFront');
+  console.log('BACKGROUND front');
+  await bounded(() => page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     document.dispatchEvent(new window.Event('visibilitychange'));
-  });
-  await page.bringToFront();
+  }), 15000, 'background visibilitychange');
+  console.log('BACKGROUND visibility restored');
   const resumedAt = Date.now();
   await poll(() => page.evaluate(() => document.visibilityState), s => s === 'visible', 'page resumes from browser background');
+  console.log('BACKGROUND visibility asserted');
   await poll(() => Promise.resolve(socketConnectionCount), count => count > socketsBeforeBackground, 'background resume opens a new websocket');
+  console.log('BACKGROUND socket asserted');
   await poll(state, s => s.rows.some(m => m.role === 'assistant' && m.content.includes('answer:background-resume')), 'background resume converges without reload', 12000);
+  console.log('BACKGROUND transcript asserted');
   faults.backgroundDeadSocket = null;
-  await backgroundPage.close();
+  await bounded(() => backgroundPage.close(), 10000, 'background fixture close');
+  console.log('BACKGROUND fixture closed');
   evidence.stages.push({
     label: 'background tab resume replaces half-open websocket without reload',
     resumedAt,
@@ -720,7 +737,7 @@ try {
 
   // The same invariant while follow-bottom is active. A growing delta must
   // move the viewport, never reorder or repaint the already-rendered tool row.
-  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  if (await page.getByTitle('Scroll to bottom').isVisible()) await page.getByTitle('Scroll to bottom').click();
   await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'visual-order pinned before stream');
   const pinnedVisualSnapshots = [];
   evidence.pinnedVisualSnapshots = pinnedVisualSnapshots;
@@ -737,7 +754,7 @@ try {
 
   // Stress the variable-height case with a real expandable multi-tool group,
   // then keep moving the reader while the answer delta grows underneath it.
-  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  if (await page.getByTitle('Scroll to bottom').isVisible()) await page.getByTitle('Scroll to bottom').click();
   await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'visual-order stress before stream');
   const stressVisualSnapshots = [];
   evidence.stressVisualSnapshots = stressVisualSnapshots;
@@ -1013,12 +1030,12 @@ try {
   evidence.pass = true;
 } catch (error) {
   evidence.failure = String(error.stack || error);
-  if (page) {
-    evidence.failedState = await state().catch(() => null);
-    evidence.transcriptTrace = await page.evaluate(() => window.__transcriptTrace).catch(() => null);
-    await page.screenshot({ path: path.join(runtime, 'failure.png') }).catch(() => {});
-  }
   console.error(error);
+  if (page) {
+    evidence.failedState = await bounded(state, 3000, 'failure state').catch(() => null);
+    evidence.transcriptTrace = await bounded(() => page.evaluate(() => window.__transcriptTrace), 3000, 'failure trace').catch(() => null);
+    await bounded(() => page.screenshot({ path: path.join(runtime, 'failure.png') }), 3000, 'failure screenshot').catch(() => {});
+  }
   process.exitCode = 1;
 } finally {
   if (browser) await browser.close();
