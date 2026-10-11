@@ -31,6 +31,8 @@ import {
   type RichTextComposerHandle,
 } from '@/components/chat/RichTextComposer';
 import {
+  ApiRequestError,
+  SubmissionRejectedError,
   fetchDirectories,
   registerServerFileAttachment,
   uploadSessionAttachment,
@@ -52,6 +54,7 @@ import {
   ChevronDown,
   ChevronUp,
   CornerUpRight,
+  Loader2,
   Expand,
   File as FileIcon,
   Minimize2,
@@ -136,6 +139,7 @@ function attachmentOccurrenceId(attachment: PendingAttachment): string {
 }
 
 interface SendSnapshot {
+  action: 'send' | 'steer';
   transactionId: string;
   clientMessageId: string;
   sessionId: string;
@@ -401,6 +405,8 @@ export function InputRow() {
   const attachmentEpochRef = useRef(0);
   const activeAttachmentSessionRef = useRef<string | null>(currentSessionId);
   const draftsBySessionRef = useRef(new Map<string, SessionComposerDraft>());
+  const [pendingActions, setPendingActions] = useState<Record<string, 'send' | 'steer'>>({});
+  const pendingAction = currentSessionId ? pendingActions[currentSessionId] : undefined;
   const sendSnapshotsRef = useRef(new Map<string, SendSnapshot>());
   const recoveryBySessionRef = useRef(new Map<string, SendSnapshot>());
   const pendingRecoveryValueRef = useRef<ComposerValue | null>(null);
@@ -1440,14 +1446,15 @@ export function InputRow() {
       const activeSessionId = useSessionStore.getState().currentSessionId;
       const oldDraft = useSessionStore.getState().inputDrafts[snapshot.sessionId] || '';
       if (activeSessionId !== snapshot.sessionId) {
-        const existing = oldDraft
+        const storedDraft = draftsBySessionRef.current.get(snapshot.sessionId);
+        const existing = (storedDraft?.value.text === oldDraft ? storedDraft.value : undefined) ?? (oldDraft
           ? {
               parts: [{ type: 'text' as const, value: oldDraft }],
               text: oldDraft,
               occurrenceIds: [],
               attachmentIds: [],
             }
-          : emptyComposerValue();
+          : emptyComposerValue());
         const value = appendComposerValues(existing, snapshot.value);
         useSessionStore.getState().setInputDraft(snapshot.sessionId, value.text);
         // Keep the attachment-bearing recovery alongside the Session draft.
@@ -1455,10 +1462,10 @@ export function InputRow() {
         // request settles, so restoring only the plain draft would lose
         // attachment occurrences.
         const restoredAttachments = [
-          ...(recoveryBySessionRef.current.get(snapshot.sessionId)?.attachments ?? []),
+          ...(draftsBySessionRef.current.get(snapshot.sessionId)?.attachments ?? []),
           ...snapshot.attachments,
         ];
-        recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+        recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value, attachments: restoredAttachments });
         // This Session is not mounted, so nothing else will reach the
         // persistence funnel for it.  Record the recovered text here or a
         // reload after a failed send loses exactly the message the user
@@ -1470,6 +1477,7 @@ export function InputRow() {
         return;
       }
 
+      const currentAttachments = attachmentsRef.current;
       const current = composerValueRef.current;
       const hasCurrentInput = !!current.text || current.occurrenceIds.length > 0;
       const value = hasCurrentInput
@@ -1486,7 +1494,7 @@ export function InputRow() {
       if (
         !value.occurrenceIds.length ||
         value.occurrenceIds.every((occurrenceId) =>
-          attachments.some((attachment) => attachmentOccurrenceId(attachment) === occurrenceId),
+          currentAttachments.some((attachment) => attachmentOccurrenceId(attachment) === occurrenceId),
         )
       ) {
         pendingRecoveryValueRef.current = null;
@@ -1496,7 +1504,7 @@ export function InputRow() {
       // Keep a retryable snapshot even when new input was merged into the
       // failed submission.  A later Session switch or remount must restore
       // both the merged text and every attachment occurrence.
-      recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+      recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value, attachments: [...currentAttachments, ...snapshot.attachments.filter((item) => !currentAttachments.some((current) => attachmentOccurrenceId(current) === attachmentOccurrenceId(item)))] });
       // Record the merged draft explicitly.  `updateAttachments` above ran
       // while composerValueRef still held the optimistically-cleared value, so
       // the funnel recorded that instead; waiting for the composer's onChange
@@ -1505,7 +1513,7 @@ export function InputRow() {
       recordDraft(
         snapshot.sessionId,
         toDraft(value, [
-          ...attachments.filter(
+          ...currentAttachments.filter(
             (attachment) => !snapshot.attachments.some(
               (sent) => attachmentOccurrenceId(sent) === attachmentOccurrenceId(attachment),
             ),
@@ -1514,11 +1522,11 @@ export function InputRow() {
         ]),
       );
     },
-    [attachments, setInputDraft, updateAttachments],
+    [setInputDraft, updateAttachments],
   );
 
   const handleSend = useCallback(
-    (_text: string) => {
+    (_text: string, action: 'send' | 'steer' = 'send') => {
       if (!currentSessionId) {
         showToast('Select a session first');
         return;
@@ -1527,6 +1535,7 @@ export function InputRow() {
         showToast('请先保存或取消队列消息编辑', 'error');
         return;
       }
+      if ([...sendSnapshotsRef.current.values()].some((pending) => pending.sessionId === currentSessionId)) return;
       const lockedSend = useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
       if (lockedSend && [...sendSnapshotsRef.current.values()].some(
         (pending) => pending.sessionId === currentSessionId && pending.locked,
@@ -1645,8 +1654,9 @@ export function InputRow() {
         recovery.attachments.map(attachmentOccurrenceId).join('\u0000') ===
           snapshotAttachments.map(attachmentOccurrenceId).join('\u0000');
       const snapshot: SendSnapshot = {
+        action,
         transactionId: attachmentId(),
-        clientMessageId: canReuseClientMessageId ? recovery!.clientMessageId : attachmentId(),
+        clientMessageId: canReuseClientMessageId && recovery?.action === action ? recovery.clientMessageId : `${action === 'steer' ? 'steer:' : ''}${attachmentId()}`,
         sessionId: currentSessionId,
         value,
         attachments: snapshotAttachments,
@@ -1655,6 +1665,7 @@ export function InputRow() {
         locked: lockedSend,
       };
       sendSnapshotsRef.current.set(snapshot.transactionId, snapshot);
+      setPendingActions((current) => ({ ...current, [snapshot.sessionId]: action }));
 
       // The user transaction is cleared synchronously.  All later async
       // work is tied to this snapshot and session, so new typing can never be
@@ -1671,6 +1682,7 @@ export function InputRow() {
       );
 
       void (async () => {
+        let submitted = false;
         try {
           const serverAttachments = snapshot.attachments.filter(
             (attachment) => !attachment.file && attachment.status === 'ready' && !!attachment.path,
@@ -1694,23 +1706,36 @@ export function InputRow() {
           if (useQueueStore.getState().edits[snapshot.sessionId]) {
             throw new Error('队列消息正在编辑');
           }
-          const ok = await enqueue(
-            snapshot.message,
-            snapshot.parts,
-            snapshot.sessionId,
-            snapshot.clientMessageId,
-            { locked: snapshot.locked },
-          );
-          if (!ok) throw new Error('消息尚未入队');
+          submitted = true;
+          if (action === 'steer') {
+            await steer(snapshot.sessionId, snapshot.message, snapshot.clientMessageId);
+            appendLocalMessage(snapshot.sessionId, { role: 'user', content: snapshot.message,
+              parts: snapshot.parts, messageId: snapshot.clientMessageId, ts: new Date().toISOString() });
+          } else {
+            const ok = await enqueue(snapshot.message, snapshot.parts, snapshot.sessionId,
+              snapshot.clientMessageId, { locked: snapshot.locked, propagateFailure: true });
+            if (!ok) throw new SubmissionRejectedError('消息尚未入队');
+          }
           sendSnapshotsRef.current.delete(snapshot.transactionId);
           recoveryBySessionRef.current.delete(snapshot.sessionId);
           if (snapshot.locked) {
             useQueueStore.getState().setLockedComposerMode(snapshot.sessionId, false);
           }
-        } catch {
+        } catch (error) {
           if (sendSnapshotsRef.current.get(snapshot.transactionId) !== snapshot) return;
+          const rejected = !submitted || error instanceof SubmissionRejectedError ||
+            (error instanceof ApiRequestError && error.status >= 400 && error.status < 500);
+          if (!rejected) {
+            showToast(`${action === 'steer' ? 'Steer' : 'Send'} 结果未确认，原事务保留，请勿重复发送`, 'error');
+            return;
+          }
           sendSnapshotsRef.current.delete(snapshot.transactionId);
           restoreSubmission(snapshot);
+          showToast(error instanceof Error ? error.message : '发送被拒绝，草稿已恢复', 'error');
+        } finally {
+          if (!sendSnapshotsRef.current.has(snapshot.transactionId)) {
+            setPendingActions((current) => { const next = { ...current }; delete next[snapshot.sessionId]; return next; });
+          }
         }
       })();
     },
@@ -1719,6 +1744,8 @@ export function InputRow() {
       showToast,
       setInputDraft,
       enqueue,
+      steer,
+      appendLocalMessage,
       attachments,
       updateAttachments,
       restoreSubmission,
@@ -1729,55 +1756,10 @@ export function InputRow() {
     ],
   );
 
-  const handleSteer = useCallback(
-    async (text: string) => {
-      const steerSessionId = currentSessionId;
-      if (!steerSessionId || !text.trim()) return;
-      if (useQueueStore.getState().edits[steerSessionId]) {
-        showToast('请先保存或取消队列消息编辑', 'error');
-        return;
-      }
-      const draftState = useSessionStore.getState();
-      const draftRevision = draftState.inputDraftRevisions[steerSessionId] ?? 0;
-      const draftText = draftState.inputDrafts[steerSessionId] ?? text;
-      const attachmentRevision = attachments.map(attachmentOccurrenceId).join('\u0000');
-      const messageId = `steer:${attachmentId()}`;
-      try {
-        await steer(steerSessionId, text, messageId);
-        // The request may outlive a Session switch.  Only the original
-        // composer may be cleared; the message projection is always written
-        // to the captured target Session, never whichever Session is current
-        // when the provider control resolves.
-        const latest = useSessionStore.getState();
-        const draftStillOwnsTransaction =
-          latest.inputDraftRevisions[steerSessionId] === draftRevision
-          && (latest.inputDrafts[steerSessionId] ?? draftText) === draftText
-          && attachments.map(attachmentOccurrenceId).join('\u0000') === attachmentRevision;
-        const stillSelected = latest.currentSessionId === steerSessionId;
-        if (draftStillOwnsTransaction) {
-          if (stillSelected) composerRef.current?.replaceText('');
-          setInputDraft(steerSessionId, '');
-          if (stillSelected) updateAttachments(() => []);
-          // The steered text is gone from this Session, so the durable draft
-          // must say so too — otherwise a reload restores a message the user
-          // already delivered.  Idempotent when the composer is mounted: the
-          // replaceText round-trip records the same tombstone.  Guarded by
-          // `draftStillOwnsTransaction`, so a steer that resolves after the
-          // user kept typing clears nothing.
-          recordDraft(steerSessionId, null);
-        }
-        // Optimistic append with a local ts; the server stamps the same
-        // moment into history (steer_worker appends + saves right after the
-        // control write).
-        appendLocalMessage(steerSessionId, { role: 'user', content: text, messageId, ts: new Date().toISOString() });
-      } catch (e) {
-        showToast((e as Error).message || 'Steer failed', 'error');
-      }
-    },
-    [currentSessionId, steer, setInputDraft, appendLocalMessage, showToast, attachments, updateAttachments],
-  );
+  const handleSteer = (text: string) => handleSend(text, 'steer');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend(composerValueRef.current.text);
@@ -2591,12 +2573,13 @@ export function InputRow() {
             <div className="flex flex-col gap-1 items-end">
               {canSteer && !lockedComposerMode && (
                 <button
-                  disabled={queueEditActive}
+                  disabled={attachmentsBlocked || queueEditActive || !!pendingAction}
+                  aria-busy={pendingAction === 'steer'}
                   onClick={() => handleSteer(composerValueRef.current.text)}
                   className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
                   title="Send an instruction to the running Codex turn"
                 >
-                  <CornerUpRight size={13} />
+                  {pendingAction === 'steer' ? <Loader2 size={13} className="animate-spin" /> : <CornerUpRight size={13} />}
                   Steer
                 </button>
               )}
@@ -2604,7 +2587,8 @@ export function InputRow() {
                 <button
                   type="button"
                   onClick={() => handleSend(composerValueRef.current.text)}
-                  disabled={attachmentsBlocked || queueEditActive}
+                  disabled={attachmentsBlocked || queueEditActive || !!pendingAction}
+                  aria-busy={pendingAction === 'send'}
                   title={queueEditActive
                     ? '请先保存或取消队列消息编辑'
                     : attachmentsBlocked
@@ -2614,6 +2598,7 @@ export function InputRow() {
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
+                  {pendingAction === 'send' && <Loader2 size={13} className="inline-block animate-spin mr-1" />}
                   {lockedComposerMode ? 'put in queue' : 'Send'}
                 </button>
               </div>

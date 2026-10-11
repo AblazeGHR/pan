@@ -113,6 +113,9 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** An explicit application rejection, distinct from an unconfirmed transport outcome. */
+export class SubmissionRejectedError extends Error {}
+
 export interface DirectoryEntry {
   name: string;
   path: string;
@@ -852,7 +855,8 @@ export async function enqueueSessionMessage(
   });
   if (!data.ok || !data.item) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
-    throw new Error(error || '消息尚未入队');
+    if (data.ok === false || data.error) throw new SubmissionRejectedError(error || '消息尚未入队');
+    throw new Error('消息入队回执不完整，结果未确认');
   }
   return {
     item: data.item,
@@ -1556,7 +1560,7 @@ export async function steerSessionWorker(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/steer`,
     { method: 'POST', body: JSON.stringify({ text, ...(messageId ? { messageId } : {}) }) },
   );
-  if (data.error) throw new Error(data.error);
+  if (data.error) throw new SubmissionRejectedError(data.error);
   return data;
 }
 
