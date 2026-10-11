@@ -407,6 +407,11 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
 
       {/* Codex context controls and (on mobile) the Terminal TUI entry stay
           behind a compact More disclosure. */}
+      {s.adapter === 'codex' && nativeState?.settingsUncertain && (
+        <p role="status" className="text-[11px] leading-4 text-warning">
+          Pan Session 设置可能与事实不符；成功重启 Worker 后重新确认。
+        </p>
+      )}
       {(showCodexContext || mobileTerminalEntry) && (
         <div className="border-t border-border-muted pt-2">
           <button

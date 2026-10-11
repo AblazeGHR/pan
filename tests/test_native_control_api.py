@@ -33,6 +33,59 @@ def request(app, method, path="", **kwargs):
     return asyncio.run(run())
 
 
+def test_passthrough_saved_offline_and_strict_codex_only(target, monkeypatch):
+    app, s, _ = target
+    monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda sid: None)
+    monkeypatch.setattr(session, 'save_async', AsyncMock())
+    monkeypatch.setattr(worker, '_bcast', AsyncMock())
+    monkeypatch.setattr(worker, '_shutdown_started', False)
+    assert request(app, 'GET').json()['result']['passthrough'] is False
+    for body in ({'enabled': 1}, {'enabled': 'true'}, {'enabled': True, 'token': 'x'}):
+        assert request(app, 'POST', '/passthrough', json=body).status_code == 422
+    s.adapter_config['native_settings_uncertain'] = True
+    result = request(app, 'POST', '/passthrough', json={'enabled': True})
+    assert result.status_code == 200 and result.json()['result']['passthrough'] is True
+    assert result.json()['result']['settingsUncertain'] is True  # Toggling is not restart.
+    s.adapter = 'cbc'
+    assert request(app, 'POST', '/passthrough', json={'enabled': False}).status_code == 409
+
+
+def test_passthrough_lost_receipt_is_pending_then_same_worker_retry(target, monkeypatch):
+    app, s, w = target
+    w.native_control_enabled = True
+    w.native_passthrough_enabled = False
+    monkeypatch.setattr(session, 'save_async', AsyncMock())
+    monkeypatch.setattr(worker, '_bcast', AsyncMock())
+    monkeypatch.setattr(worker, '_shutdown_started', False)
+    send = AsyncMock(return_value={'ok': False})
+    monkeypatch.setattr(worker, 'write_native_control', send)
+    assert request(app, 'POST', '/passthrough', json={'enabled': True}).status_code == 409
+    assert s.adapter_config['native_passthrough'] is True
+    assert request(app, 'GET').json()['result']['passthroughPending'] is True
+    async def acknowledge(worker_id, control):
+        assert worker_id == w.worker_id
+        w.native_passthrough_enabled = control['enabled']
+        return {'ok': True}
+    send.side_effect = acknowledge
+    result = request(app, 'POST', '/passthrough', json={'enabled': True})
+    assert result.status_code == 200 and result.json()['result']['passthroughPending'] is False
+    assert send.await_count == 2
+
+
+def test_passthrough_persistence_failure_never_sends_to_kernel(target, monkeypatch):
+    app, s, w = target
+    w.native_control_enabled = True
+    before = dict(s.adapter_config)
+    monkeypatch.setattr(session, 'save_async', AsyncMock(side_effect=OSError('disk')))
+    send = AsyncMock()
+    monkeypatch.setattr(worker, 'write_native_control', send)
+    monkeypatch.setattr(worker, '_shutdown_started', False)
+    with pytest.raises(OSError):
+        request(app, 'POST', '/passthrough', json={'enabled': True})
+    assert s.adapter_config == before
+    send.assert_not_awaited()
+
+
 def test_default_and_other_adapters_reject_without_spawning(target, monkeypatch):
     app, s, w = target
     spawn = AsyncMock()

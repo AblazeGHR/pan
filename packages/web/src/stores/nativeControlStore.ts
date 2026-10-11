@@ -10,6 +10,7 @@ interface NativeStore {
   refresh: (id: string) => Promise<void>;
   switchMode: (id: string, mode: 'pan' | 'native') => Promise<void>;
   configureSession: (id: string, enabled: boolean) => Promise<NativeConfiguration>;
+  configurePassthrough: (id: string, enabled: boolean) => Promise<void>;
 }
 const revisions: Record<string, number> = {};
 const viewRevisions: Record<string, number> = {};
@@ -45,6 +46,7 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
     try {
       const config = await nativeRequest<NativeConfiguration>(id, '/configuration', { enabled });
       set((current) => ({ sessions: { ...current.sessions, [id]: {
+        ...current.sessions[id],
         workerId: current.sessions[id]?.workerId ?? null, workerGeneration: current.sessions[id]?.workerGeneration,
         generation: current.sessions[id]?.generation ?? 0,
         mode: current.sessions[id]?.mode ?? 'pan', error: current.sessions[id]?.error ?? null, ...config,
@@ -55,23 +57,43 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
       set((current) => ({ switching: { ...current.switching, [id]: false } }));
     }
   },
+  configurePassthrough: async (id, enabled) => {
+    if (get().switching[id]) throw new Error('Control switch busy');
+    revisions[id] = (revisions[id] ?? 0) + 1;
+    set((current) => ({ switching: { ...current.switching, [id]: true } }));
+    try {
+      const state = await nativeRequest<NativeControlState>(id, '/passthrough', { enabled });
+      set((current) => ({ sessions: { ...current.sessions, [id]: { ...current.sessions[id], ...state } } }));
+    } catch (error) {
+      // Persisted intent may have reached the kernel despite a lost receipt.
+      try {
+        const state = await nativeRequest<NativeControlState>(id);
+        set((current) => ({ sessions: { ...current.sessions, [id]: state } }));
+      } catch { /* retain the last confirmed state; show the error */ }
+      throw error;
+    } finally {
+      set((current) => ({ switching: { ...current.switching, [id]: false } }));
+    }
+  },
   switchMode: async (id, mode) => {
     if (get().switching[id]) throw new Error('Control switch busy');
     revisions[id] = (revisions[id] ?? 0) + 1;
     const viewRevision = viewRevisions[id] ?? 0;
     set((current) => ({ switching: { ...current.switching, [id]: true },
       sessions: { ...current.sessions, [id]: { workerId: current.sessions[id]?.workerId ?? null,
+        ...current.sessions[id],
         workerGeneration: current.sessions[id]?.workerGeneration,
         generation: current.sessions[id]?.generation ?? 0, mode: 'switching', error: null } },
     }));
     try {
       const state = await nativeRequest<NativeControlState>(id, '/mode', { mode });
-      set((current) => ({ sessions: { ...current.sessions, [id]: state },
+      set((current) => ({ sessions: { ...current.sessions, [id]: { ...current.sessions[id], ...state } },
         terminalViews: viewRevision === (viewRevisions[id] ?? 0)
           ? { ...current.terminalViews, [id]: mode === 'native' } : current.terminalViews }));
     } catch (error) {
       // Ownership is unknown after a lost receipt, not automatically Pan.
       set((current) => ({ sessions: { ...current.sessions, [id]: {
+        ...current.sessions[id],
         workerId: current.sessions[id]?.workerId ?? null, mode: 'switching',
         workerGeneration: current.sessions[id]?.workerGeneration,
         generation: current.sessions[id]?.generation ?? 0,

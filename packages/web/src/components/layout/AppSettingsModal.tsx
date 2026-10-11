@@ -41,6 +41,8 @@ import type { GroupMode } from '@/stores/uiStore';
 import { DataSettingsPanel } from './DataSettingsPanel';
 import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
+import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
+import { useCurrentSession } from '@/stores/sessionStore';
 
 interface AppSettingsModalProps {
   open: boolean;
@@ -425,6 +427,7 @@ function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse[
  * `position: fixed` descendants and clamp the overlay to the sidebar width.
  */
 export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
+  const currentSession = useCurrentSession();
   const {
     defaultGroupBy,
     showGroupBy,
@@ -1338,6 +1341,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   hint="默认隐藏；Codex 子进程等待终端输入时显示输入框"
                   checked={showCodexTerminalInput}
                   onChange={setShowCodexTerminalInput}
+                />
+                <CodexNativePassthrough
+                  sessionId={currentSession?.adapter === 'codex' && !currentSession.readonlySession ? currentSession.id : null}
                 />
                 <div className="px-3 py-2">
                   <div className="text-xs text-text-primary">Model whitelist</div>

@@ -123,6 +123,12 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
             raise AssertionError(f"Expected native wrapper event missing; types={[e.get('type') for e in events]}; rejected={rejected_lines[-4:]!r}; stderr={stderr[-5:]}; screen={helper.strip_ansi(screen.decode(errors='replace'))[-4500:]}")
         init = wait_for(lambda e: e.get("type") == "thread.started")
         assert init["thread_id"]
+        # Live policy changes don't require a TUI, a turn, or a kernel restart.
+        for enabled in (True, False):
+            request_id = 'policy-' + str(enabled)
+            write((json.dumps({'type': 'native_passthrough', 'requestId': request_id, 'enabled': enabled}) + '\n').encode())
+            receipt = wait_for(lambda e: e.get('type') == 'pan.native_write' and e.get('requestId') == request_id)
+            assert receipt['ok'] is True and backend.poll() is None
         if native_start:
             write(b'{"type":"control_mode","requestId":"initial","mode":"native","generation":0}\r')
             first = wait_for(lambda e: e.get("type") == "pan.control_mode" and e.get("requestId") == "initial")

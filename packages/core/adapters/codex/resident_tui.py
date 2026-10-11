@@ -27,6 +27,11 @@ READ_METHODS = frozenset({
     "thread/items/list", "thread/turns/list", "thread/goal/get", "app/list",
 }) - {"config/mcpServer/reload"}  # Reload mutates running tools: not a read.
 
+THREAD_WRITES = frozenset({"turn/start", "turn/steer", "turn/interrupt", "thread/compact/start",
+                           "command/exec/write", "command/exec/terminate"})
+SETTING_OVERRIDES = frozenset({"model", "effort", "reasoningEffort", "serviceTier", "approvalPolicy",
+                               "sandboxPolicy", "sandbox", "cwd", "config"})
+
 
 class ResidentTui:
     def __init__(self, app, emit):
@@ -232,25 +237,27 @@ class ResidentTui:
                         params = message.get("params") or {}
                         if params.get("threadId", self.app.thread_id) != self.app.thread_id:
                             raise ControlRejected("Foreign thread")
-                        # Limit native writes to the interaction surface needed
-                        # for this thread, never config/auth/other-thread writes.
-                        if method not in {"turn/start", "turn/steer", "turn/interrupt", "thread/compact/start",
-                                          "command/exec/write", "command/exec/terminate"}:
-                            raise ControlRejected("Unsupported native mutation")
                         def mutate():
-                            if method == "turn/start":
-                                if self.app._turn_active.is_set() or self.app._native_turn_pending.is_set():
-                                    raise ControlRejected("Turn already executing")
-                                self.app._native_turn_pending.set()
-                                self._native_starts.add(message.get("id"))
-                                self.emit({"type": "pan.native_busy", "busy": True})
-                            try:
-                                self.peer.send(message)
-                            except Exception:
+                            # Disable acknowledgement fences all later sends.
+                            with self.app._native_policy_lock:
+                                if method not in THREAD_WRITES and not self.app.native_passthrough:
+                                    raise ControlRejected("Unsupported native mutation")
                                 if method == "turn/start":
-                                    # Delivery is ambiguous: keep the busy fence.
-                                    self.emit({"type": "pan.native_error", "error": "native-turn-unconfirmed"})
-                                raise
+                                    if self.app._turn_active.is_set() or self.app._native_turn_pending.is_set():
+                                        raise ControlRejected("Turn already executing")
+                                    self.app._native_turn_pending.set()
+                                    self._native_starts.add(message.get("id"))
+                                    self.emit({"type": "pan.native_busy", "busy": True})
+                                if method not in THREAD_WRITES or SETTING_OVERRIDES.intersection(params):
+                                    # Before send, even if delivery becomes ambiguous.
+                                    # Never persist method names/params/secrets here.
+                                    self.emit({"type": "pan.native_settings_uncertain"})
+                                try:
+                                    self.peer.send(message)
+                                except Exception:
+                                    if method == "turn/start":
+                                        self.emit({"type": "pan.native_error", "error": "native-turn-unconfirmed"})
+                                    raise
                         self.app.control_owner.write("native", mutate)
                 except ControlRejected:
                     if "id" in message and method is not None:

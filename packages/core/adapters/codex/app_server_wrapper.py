@@ -212,12 +212,15 @@ def _item_event(item: dict[str, Any]) -> dict[str, Any] | None:
 
 class AppServer:
     def __init__(self, node: str, codex_js: str, cwd: str,
-                 extra_options: list[str], *, native_control: bool = False) -> None:
+                 extra_options: list[str], *, native_control: bool = False,
+                 native_passthrough: bool = False) -> None:
         self.node = node
         self.codex_js = codex_js
         self.cwd = cwd
         self.extra_options = extra_options
         self.native_control = native_control
+        self.native_passthrough = native_passthrough is True
+        self._native_policy_lock = threading.RLock()
         self._native_transport = None
         self._native_disconnect_reason = None
         self._resident_tui = None
@@ -1296,7 +1299,7 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             if mode_handler is not None:
                 mode_handler(message)
             continue
-        if message.get("type") in {"native_input", "native_resize"}:
+        if message.get("type") in {"native_input", "native_resize", "native_passthrough"}:
             if native_handler is not None:
                 native_handler(message)
             continue
@@ -1320,6 +1323,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--node-path", default="node")
     parser.add_argument("--thread-id", default=None)
     parser.add_argument("--native-control", action="store_true")
+    parser.add_argument("--native-passthrough", action="store_true")
     parser.add_argument("--codex-extra-args", default="[]")
     parser.add_argument("--system-prompt", default=None)
     parser.add_argument("--system-prompt-file", default=None)
@@ -1337,7 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = AppServer(args.node_path, args.codex_path,
                     os.environ.get("PAN_CODEX_CWD") or os.getcwd(), extra,
-                    native_control=args.native_control)
+                    native_control=args.native_control, native_passthrough=args.native_passthrough)
     app.initial_thread_id = args.thread_id
     if system_prompt and not args.thread_id:
         app.config["developer_instructions"] = system_prompt
@@ -1390,6 +1394,14 @@ def main(argv: list[str] | None = None) -> int:
     def native_handler(message):
         receipt = {"type": "pan.native_write", "requestId": message.get("requestId"), "ok": False}
         try:
+            if message["type"] == "native_passthrough":
+                if not app.native_control or type(message.get("enabled")) is not bool:
+                    raise RuntimeError("Invalid native policy")
+                with app._native_policy_lock:
+                    app.native_passthrough = message["enabled"]
+                receipt["ok"] = True
+                _write_stdout(receipt)
+                return
             if app._resident_tui is None:
                 raise RuntimeError("Native TUI is not ready")
             if message["type"] == "native_input":

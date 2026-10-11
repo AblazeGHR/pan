@@ -223,6 +223,7 @@ class Worker:
     # Switching/unknown ownership blocks only new handoffs and Pan controls.
     native_control_mode: str = "pan"
     native_control_enabled: bool = False  # Latched at spawn, not the desired Session config.
+    native_passthrough_enabled: bool | None = None  # None means runtime policy unconfirmed.
     native_control_generation: int = 0
     native_output: bytearray = field(default_factory=bytearray)
     native_output_total: int = 0
@@ -1647,6 +1648,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_control_generation = 0
     w.native_control_error = None
     w.native_kernel_ready = False
+    w.native_passthrough_enabled = None
     w._native_external_turn_active = False
     w.native_output.clear()
     w.native_output_total = 0
@@ -1926,6 +1928,9 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.native_error":
             w.native_control_error = "Native terminal operation failed"
             continue
+        if event.get("type") == "pan.native_settings_uncertain":
+            await _record_native_settings_state(w, uncertain=True)
+            continue
         if event.get("type") == "pan.native_turn_started":
             # This is not the preceding Pan queue item. Allocate a fresh durable
             # sequence without inventing an agent_assign identity or consuming
@@ -2004,7 +2009,10 @@ async def _read_stdout(w: Worker):
         # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
         # spawn 即就绪，所以这里只提取元数据，不做状态转换（worker 初始即 idle）。
         if adapter.is_init_event(event):
+            first_ready = not w.native_kernel_ready
             w.native_kernel_ready = True
+            if first_ready and adapter.name == "codex":
+                await _record_native_settings_state(w, uncertain=False)
             s = _session(w)
             if s:
                 sid = adapter.extract_session_id(event)
@@ -7071,11 +7079,16 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
 async def write_native_control(worker_id: str, control: dict, *, timeout: float = 2.0) -> dict:
     """Private native input/resize seam; receipt is emitted after the PTY write."""
     w = workers.get(worker_id)
-    if w is None or w.native_control_mode != "native" or w.adapter.name != "codex":
+    policy = control.get("type") == "native_passthrough"
+    if (w is None or w.adapter.name != "codex" or
+            (policy and (not w.native_control_enabled or not w.native_kernel_ready)) or
+            (not policy and w.native_control_mode != "native")):
         return {"ok": False, "error": "Native control is not active"}
-    if type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation:
+    if policy and (set(control) != {"type", "enabled"} or type(control.get("enabled")) is not bool):
+        return {"ok": False, "error": "Invalid native policy"}
+    if not policy and (type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation):
         return {"ok": False, "error": "Stale control generation"}
-    if control.get("type") not in {"native_input", "native_resize"}:
+    if control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
         return {"ok": False, "error": "Unsupported native operation"}
     if len(w._native_mode_receipts) >= 32:
         return {"ok": False, "error": "Native input busy"}
@@ -7086,18 +7099,41 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     async def send():
         async with queue_lock(w.session_id):
             if (w.generation != runtime_generation or w.status == "restarting"
-                    or w.native_control_mode != "native" or w.process is None
+                    or (not policy and w.native_control_mode != "native") or w.process is None
                     or w.process.returncode is not None or w.process.stdin is None):
                 raise RuntimeError("Native worker is unavailable")
             w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")
             await w.process.stdin.drain()
         return await asyncio.shield(future)
     try:
-        return await asyncio.wait_for(send(), timeout)
+        receipt = await asyncio.wait_for(send(), timeout)
+        if w.generation != runtime_generation:
+            return {"ok": False, "error": "Native worker changed"}
+        if policy and receipt.get("ok") is True:
+            w.native_passthrough_enabled = control["enabled"]
+        return receipt
     except (asyncio.TimeoutError, OSError, RuntimeError):
         return {"ok": False, "error": "Native operation unconfirmed"}
     finally:
         w._native_mode_receipts.pop(request_id, None)
+
+
+async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
+    """Only a new kernel's init clears the durable uncertainty marker."""
+    s = _session(w)
+    if s is None:
+        return
+    if uncertain:
+        if s.adapter_config.get("native_settings_uncertain") is True:
+            return
+        s.adapter_config["native_settings_uncertain"] = True
+    else:
+        w.native_passthrough_enabled = s.adapter_config.get("native_passthrough") is True
+        if "native_settings_uncertain" not in s.adapter_config:
+            return
+        s.adapter_config.pop("native_settings_uncertain", None)
+    await _sess.save_async(s)
+    await _bcast({"type": "session.updated", "sessionId": w.session_id})
 
 
 async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:

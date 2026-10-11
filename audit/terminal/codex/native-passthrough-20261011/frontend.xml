@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="97" failures="0" errors="0" time="14.905">
+    <testsuite name="stores/nativeControlStore.test.ts" timestamp="2026-10-11T13:52:01.182Z" hostname="ablaze" tests="10" failures="0" errors="0" skipped="0" time="0.0081046">
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; accepts a fresh runtime generation with reset control counters on the same Worker id" time="0.0019754">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; does not publish unchanged poll receipts or replace loaded Session history" time="0.0012029">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; repairs a stale Session projection even when the native receipt is unchanged" time="0.0002865">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; never lets an older refresh overwrite a completed handoff" time="0.0003187">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; lost receipt keeps ownership unknown and serializes retries" time="0.001143">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; a failed native entry reconciles confirmed Pan ownership rather than trapping the view" time="0.0003833">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; allows history presentation without pretending to recover unknown ownership" time="0.0003591">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; late native acknowledgement cannot override a subsequent history-view choice" time="0.0001964">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; an accepted upgrade remains Pan while waiting for idle, rather than claiming native control" time="0.0010395">
+        </testcase>
+        <testcase classname="stores/nativeControlStore.test.ts" name="native ownership receipts &gt; pending downgrade does not manufacture Pan ownership before the worker is replaced" time="0.0002582">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/NativeTerminal.restart.test.tsx" timestamp="2026-10-11T13:52:01.195Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0140325">
+        <testcase classname="components/chat/NativeTerminal.restart.test.tsx" name="recreates the terminal and replay cursor after restart with the same public Worker id" time="0.0135395">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/SettingsPopover.context.test.tsx" timestamp="2026-10-11T13:52:01.196Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1326918">
+        <testcase classname="components/chat/SettingsPopover.context.test.tsx" name="Codex context settings in SettingsPopover &gt; offers Session downgrade in Worker Settings and uses delayed configuration, not immediate restart" time="0.0770794">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.context.test.tsx" name="Codex context settings in SettingsPopover &gt; keeps More collapsed, edits positive integers, rejects invalid values, and restores defaults" time="0.0277215">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.context.test.tsx" name="Codex context settings in SettingsPopover &gt; does not render Codex More controls for another adapter" time="0.0047974">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.context.test.tsx" name="Codex context settings in SettingsPopover &gt; closes on any outside pointer but keeps settings and portal controls open" time="0.0134787">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.context.test.tsx" name="Codex context settings in SettingsPopover &gt; keeps Escape available as a direct close action" time="0.0088469">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/SettingsPopover.optimistic.test.tsx" timestamp="2026-10-11T13:52:01.197Z" hostname="ablaze" tests="11" failures="0" errors="0" skipped="0" time="0.3843783">
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; shows the model and linked effort change before a deferred PATCH settles" time="0.0970374">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; converges to the complete server response and runs snapshot reconciliation in background" time="0.026934">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; rolls back the complete optimistic patch and reports network failure" time="0.0290208">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; ignores an older A response while B is optimistic, then rolls B back to A on B failure" time="0.0465615">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; keeps settings mutations isolated when the selected Session changes" time="0.0009031">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; does not let a session.updated payload overwrite a pending optimistic value" time="0.0004797">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover optimistic session settings &gt; keeps a newer successful setting when an older loadSessions snapshot returns later" time="0.000429">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover mobile Terminal TUI entry (More) &gt; hosts the Terminal TUI entry in More on mobile and schedules the upgrade with pending idle" time="0.0420774">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover mobile Terminal TUI entry (More) &gt; does not host the Terminal TUI entry in More on desktop" time="0.019696">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover mobile Terminal TUI entry (More) &gt; completes an upgrade scheduled from Settings via the shared TopBar poller at the idle boundary" time="0.0570149">
+        </testcase>
+        <testcase classname="components/chat/SettingsPopover.optimistic.test.tsx" name="SettingsPopover mobile Terminal TUI entry (More) &gt; offers manual retry from More after an unconfirmed control error" time="0.0633174">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/AppSettingsModal.test.tsx" timestamp="2026-10-11T13:52:01.204Z" hostname="ablaze" tests="46" failures="0" errors="0" skipped="0" time="3.0703729">
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders nothing when closed" time="0.0154928">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders the settings sections, including Session history search, plus Reset" time="0.0387483">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads lifecycle preferences from config with ask defaults and saves updates" time="0.0621365">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows lifecycle preference save errors and keeps the last saved value" time="0.0982726">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a preference load error and retries the server read" time="0.0777007">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved offline policy without asking again" time="0.0536192">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved preserve-running policy without asking again" time="0.0426532">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved offline policy without asking again" time="0.0340018">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved preserve-running policy without asking again" time="0.0434676">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; refreshes both lifecycle statuses on every modal open and clears stale Exit state" time="0.0472894">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle actions disabled after a status fetch error until Retry succeeds" time="0.0617378">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; ignores status responses from an earlier modal-open cycle" time="0.032518">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not let a lifecycle action response from an earlier open overwrite the new status" time="0.0789991">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps all settings tabs reachable in a horizontal-only scroller" time="0.0262595">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads the Data catalog on demand and keeps long paths usable in a narrow panel" time="0.0369481">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Data catalog loading and failure states without blocking other tabs" time="0.0680071">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads disabled retention policies, edits days, saves, and shows recent scan counts" time="0.0886322">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; projects the shared Jobs retention editor in Data and saves via its canonical API" time="0.0381199">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows retention settings loading and failure while keeping the Data path panel usable" time="0.0170681">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows message visibility on the Appearance tab and keeps its settings and persistence" time="0.0287963">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style" time="0.0213378">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the default new Session Workspace preference and persists it" time="0.025363">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles merged tool/thinking groups on the Appearance tab and persists the setting" time="0.0303513">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the per-session scroll memory on the Appearance tab and persists it" time="0.0308643">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the message navigation rail on the Appearance tab and persists it" time="0.03852">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Codex warning Toast option on the Notification tab" time="0.0302672">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads and replaces the Codex whitelist on the Adapter tab" time="0.0563538">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a readable Codex refresh error in the Adapter tab" time="0.0472863">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Codex terminal input popup option and persists it" time="0.0280982">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; is full-screen on mobile and ~75% of the viewport on desktop" time="0.0152706">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes when the backdrop is clicked" time="0.0162336">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not close when clicking inside the card" time="0.0141625">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes on Escape" time="0.0148983">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles a setting through a switch and writes the store" time="0.0289996">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists the Session history search setting when its switch changes" time="0.0387022">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; exposes the group-by settings only on the Appearance tab without duplicates" time="0.0295297">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles Show Group by on the Appearance tab and persists it" time="0.0354538">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; changes Default group by on the Appearance tab and persists the selection" time="0.034045">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; resets all settings to defaults" time="0.021597">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and reports successful main-service recovery" time="1.1313551">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and schedules a stop-only Pan exit without health polling" time="0.0620046">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows an unavailable exit control and API error state" time="0.0324894">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; allows stopping the bounded health check and does not call health forever" time="0.0864304">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the main-service control when restart scripts are unavailable" time="0.026011">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a finite timeout when the restarted service never becomes healthy" time="0.0627278">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires an explicit lifecycle status refresh when the final restart status read fails" time="0.1200884">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/TopBar.test.tsx" timestamp="2026-10-11T13:52:01.218Z" hostname="ablaze" tests="20" failures="0" errors="0" skipped="0" time="12.3211964">
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; offers Terminal TUI for every Codex Session and cancellation never upgrades it" time="0.086684">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; does not offer Terminal TUI for other adapters" time="0.0116814">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; native entry is distinct and clears all View selections without changing the saved preference" time="0.0396437">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; an unconfirmed handoff cannot trap the selected history view" time="0.0220606">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; native-mode topbar invokes the existing lifecycle actions" time="0.0063493">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; keeps recovery actions when only the native status confirms the live worker" time="0.0044966">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; keeps the mobile top bar single-line and exposes the full truncated session title" time="0.009046">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; keeps the name region as the mobile top bar flexible item instead of a fixed cap" time="0.0075758">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; hides Terminal TUI and deferred/interrupt actions on mobile and keeps them on desktop" time="0.018378">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; offers TUI, Bubble and Raw chat views, kept synchronized with the persistent app setting" time="0.0227633">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; hides model/status/worker text while retaining the dot and worker actions" time="0.0056649">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; shows persisted five-hour and weekly quota when the worker is offline" time="0.0111504">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar compact worker presentation &gt; does not display a quota label for missing or unknown windows" time="0.0119572">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; never auto-enters session B because of a pending upgrade scheduled on session A" time="1.3245716">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; completes session A&apos;s deferred switch when the user returns to it at the idle boundary" time="1.2451014">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; opening a history view cancels the pending auto-enter entirely" time="2.3608525">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; issues the deferred native switch exactly once across repeated polls" time="3.3482976">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; a late configure response cannot revive the auto-enter after a history-view cancel" time="2.3487385">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="shared Terminal TUI auto-enter contract (module-level pending target) &gt; a configure gated across a session switch stays scoped to session A" time="1.4244573">
+        </testcase>
+        <testcase classname="components/layout/TopBar.test.tsx" name="TopBar render isolation (fine-grained selectors) &gt; ignores unrelated UI-store and worker-store updates" time="0.0103753">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/CodexNativePassthrough.test.tsx" timestamp="2026-10-11T13:52:01.224Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.1548368">
+        <testcase classname="components/session/CodexNativePassthrough.test.tsx" name="Codex native passthrough policy &gt; does not offer a mutation without a selected Codex Session" time="0.0437277">
+        </testcase>
+        <testcase classname="components/session/CodexNativePassthrough.test.tsx" name="Codex native passthrough policy &gt; is default off, hot-saves only this Session, and labels the global-config risk" time="0.0317487">
+        </testcase>
+        <testcase classname="components/session/CodexNativePassthrough.test.tsx" name="Codex native passthrough policy &gt; keeps uncertainty after disabling and clears it only on authoritative refresh" time="0.04591">
+        </testcase>
+        <testcase classname="components/session/CodexNativePassthrough.test.tsx" name="Codex native passthrough policy &gt; lost receipt reconciles saved intent but never pretends the kernel confirmed" time="0.0327195">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -305,6 +305,8 @@ class CodexAdapter:
         # This changes only transport, never starts a second execution thread.
         if s.adapter_config.get("native_control") is True:
             args.append("--native-control")
+            if s.adapter_config.get("native_passthrough") is True:
+                args.append("--native-passthrough")
         # 所有 codex 级 option flag（model / permission / effort / mcp）汇总成一份
         # JSON 列表，经 wrapper 的 --codex-extra-args 透传给每次 codex exec 调用。
         codex_opts: list[str] = []

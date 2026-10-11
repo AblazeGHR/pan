@@ -6,6 +6,9 @@ export interface NativeControlState {
   error: string | null;
   enabled?: boolean;
   pendingEnabled?: boolean | null;
+  passthrough?: boolean;
+  passthroughPending?: boolean;
+  settingsUncertain?: boolean;
 }
 export interface NativeConfiguration { enabled: boolean; pendingEnabled: boolean | null }
 export interface NativeOutput extends NativeControlState { cursor: string; gap: boolean; data: string }

@@ -32,15 +32,61 @@ def _status(w):
             "error": w.native_control_error if w else None}
 
 
+def _policy_status(s, w):
+    desired = s.adapter_config.get("native_passthrough") is True
+    return {"passthrough": desired,
+            "passthroughPending": bool(w and getattr(w, "native_control_enabled", False)
+                and getattr(w, "native_passthrough_enabled", None) is not desired),
+            "settingsUncertain": s.adapter_config.get("native_settings_uncertain") is True}
+
+
 @router.get("")
 async def status(request: Request, session_id: str):
     s, rejected = _target(request, session_id, require_enabled=False)
     if rejected is not None:
         return rejected
-    return ok({**_status(worker.find_alive_worker_by_session(session_id)),
+    w = worker.find_alive_worker_by_session(session_id)
+    return ok({**_status(w), **_policy_status(s, w),
                "enabled": s.adapter_config.get("native_control") is True,
                "pendingEnabled": s.adapter_config.get("native_control_next"),
                "delayedRestart": worker.delayed_restart_state(session_id)})
+
+
+@router.post("/passthrough")
+async def passthrough(request: Request, session_id: str):
+    s, rejected = _target(request, session_id, require_enabled=False)
+    if rejected is not None:
+        return rejected
+    try:
+        body = await read_json_object(request, allow_empty=False)
+    except (ValueError, TypeError, BodyError):
+        return fail(422, "invalid-body")
+    if set(body) != {"enabled"} or type(body["enabled"]) is not bool:
+        return fail(422, "invalid-configuration")
+    lock = await worker._session_spawn_lock(session_id)
+    async with lock:
+        if worker._shutdown_started:
+            return fail(409, "service-closing")
+        w = worker.find_alive_worker_by_session(session_id)
+        if w and getattr(w, "native_control_enabled", False) and not w.native_kernel_ready:
+            return fail(409, "native-worker-starting")
+        old = dict(s.adapter_config)
+        s.adapter_config["native_passthrough"] = body["enabled"]
+        try:
+            await session.save_async(s)
+        except BaseException:
+            s.adapter_config = old
+            raise
+        if w and getattr(w, "native_control_enabled", False):
+            # Persist intent before send. Lost receipt remains pending; retry
+            # re-sends to the same kernel, never guesses or restarts a turn.
+            w.native_passthrough_enabled = None
+            receipt = await worker.write_native_control(w.worker_id,
+                {"type": "native_passthrough", "enabled": body["enabled"]})
+            if receipt.get("ok") is not True:
+                return fail(409, "native-policy-unconfirmed")
+        await worker._bcast({"type": "session.updated", "sessionId": session_id})
+        return ok({**_status(w), **_policy_status(s, w)})
 
 
 @router.post("/configuration")
