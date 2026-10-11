@@ -26,6 +26,7 @@ def _target(request, session_id, *, require_enabled=True):
 
 def _status(w):
     return {"workerId": w.worker_id if w else None,
+            "workerGeneration": w.generation if w else None,
             "mode": w.native_control_mode if w else "pan",
             "generation": w.native_control_generation if w else 0,
             "error": w.native_control_error if w else None}
@@ -180,6 +181,10 @@ async def write(request: Request, session_id: str):
     w = worker.find_alive_worker_by_session(session_id)
     if w is None or body.get("workerId") != w.worker_id:
         return fail(409, "native-worker-changed")
+    if "workerGeneration" in body:
+        if type(body["workerGeneration"]) is not int or body["workerGeneration"] != w.generation:
+            return fail(409, "native-worker-changed")
+        body = {key: value for key, value in body.items() if key != "workerGeneration"}
     if type(body.get("generation")) is not int:
         return fail(422, "invalid-generation")
     if set(body) == {"workerId", "generation", "text"}:

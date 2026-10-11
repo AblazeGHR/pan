@@ -45,7 +45,8 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
     try {
       const config = await nativeRequest<NativeConfiguration>(id, '/configuration', { enabled });
       set((current) => ({ sessions: { ...current.sessions, [id]: {
-        workerId: current.sessions[id]?.workerId ?? null, generation: current.sessions[id]?.generation ?? 0,
+        workerId: current.sessions[id]?.workerId ?? null, workerGeneration: current.sessions[id]?.workerGeneration,
+        generation: current.sessions[id]?.generation ?? 0,
         mode: current.sessions[id]?.mode ?? 'pan', error: current.sessions[id]?.error ?? null, ...config,
       } } }));
       useSessionStore.setState((current) => ({ sessions: current.sessions.map((s) => s.id === id ? { ...s, nativeControl: config.enabled } : s) }));
@@ -60,6 +61,7 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
     const viewRevision = viewRevisions[id] ?? 0;
     set((current) => ({ switching: { ...current.switching, [id]: true },
       sessions: { ...current.sessions, [id]: { workerId: current.sessions[id]?.workerId ?? null,
+        workerGeneration: current.sessions[id]?.workerGeneration,
         generation: current.sessions[id]?.generation ?? 0, mode: 'switching', error: null } },
     }));
     try {
@@ -71,6 +73,7 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
       // Ownership is unknown after a lost receipt, not automatically Pan.
       set((current) => ({ sessions: { ...current.sessions, [id]: {
         workerId: current.sessions[id]?.workerId ?? null, mode: 'switching',
+        workerGeneration: current.sessions[id]?.workerGeneration,
         generation: current.sessions[id]?.generation ?? 0,
         error: 'Control ownership unconfirmed. Retry the switch.',
       } } }));
