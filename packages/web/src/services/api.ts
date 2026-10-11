@@ -45,6 +45,8 @@ import type {
   ApiSessionOrderResponse,
   ApiSessionPinResponse,
   ApiSessionUnreadAckResponse,
+  ApiSessionUnreadActionResponse,
+  ApiReapplyUnreadRecordingResponse,
   ApiWorkspacesResponse,
   ApiWorkspaceResponse,
   ApiWorkspaceOrderResponse,
@@ -1164,6 +1166,47 @@ export async function ackSessionUnreadDone(
   }
   return data as ApiSessionUnreadAckResponse
     & { ok: true; unreadDoneCount: number; unreadDoneGeneration: number; unreadDoneReadGeneration: number };
+}
+
+/** Apply one Session-menu unread action.
+ *
+ *  - `enable-tracking` persists a per-Session "record" override (expectedExcluded
+ *    must be true): the Session records from new events on; a later global
+ *    apply clears the override.
+ *  - `mark-unread` records a fresh marker (expectedGeneration = the generation
+ *    the caller saw) while the Session records and count is 0.
+ *  - `clear-unread` clears up to the observed generation while the Session
+ *    keeps recording. A stale expectation fails with state_changed so the
+ *    caller refreshes instead of applying a wrong action. */
+export async function sessionUnreadAction(
+  sessionId: string,
+  action: 'enable-tracking' | 'mark-unread' | 'clear-unread',
+  expected: { expectedExcluded?: true; expectedGeneration?: number },
+): Promise<ApiSessionUnreadActionResponse
+  & { ok: true; unreadTracking: boolean; unreadDoneCount: number }> {
+  const data = await request<ApiSessionUnreadActionResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/unread-action`,
+    { method: 'POST', body: JSON.stringify({ action, ...expected }) },
+  );
+  if (data.ok !== true || typeof data.unreadTracking !== 'boolean'
+      || typeof data.unreadDoneCount !== 'number') {
+    throw new Error(data.error?.message || 'Unread action failed');
+  }
+  return data as ApiSessionUnreadActionResponse
+    & { ok: true; unreadTracking: boolean; unreadDoneCount: number };
+}
+
+/** Re-apply the persisted unread-recording policy to every Session, clearing
+ *  per-Session overrides even when the scope set did not change. */
+export async function reapplyUnreadRecordingSettings(): Promise<ApiReapplyUnreadRecordingResponse> {
+  const data = await request<ApiReapplyUnreadRecordingResponse>(
+    `${BASE}/settings/unread-recording/reapply`,
+    { method: 'POST' },
+  );
+  if (data.ok !== true) {
+    throw new Error(data.error?.message || 'Could not reapply unread recording settings');
+  }
+  return data;
 }
 
 /** Reorder only the supplied currently pinned IDs; omitted pins keep their slots. */

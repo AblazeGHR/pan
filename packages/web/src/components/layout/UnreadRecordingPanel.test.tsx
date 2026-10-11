@@ -4,14 +4,18 @@ import { render, fireEvent, cleanup, act } from '@testing-library/react';
 import { UnreadRecordingPanel } from './UnreadRecordingPanel';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import type { UnreadRecordingScope } from '@/stores/appSettingsStore';
-import { updateUiSettings } from '@/services/api';
+import { reapplyUnreadRecordingSettings, updateUiSettings } from '@/services/api';
+
+const { reapplyMock } = vi.hoisted(() => ({ reapplyMock: vi.fn() }));
 
 vi.mock('@/services/api', () => ({
   fetchUiSettings: vi.fn(async () => ({})),
   updateUiSettings: vi.fn(async () => ({})),
+  reapplyUnreadRecordingSettings: reapplyMock,
 }));
 
 const mockedUpdate = vi.mocked(updateUiSettings);
+const mockedReapply = vi.mocked(reapplyUnreadRecordingSettings);
 
 function resetStore(unreadRecording: UnreadRecordingScope[] = ['all']) {
   useAppSettingsStore.setState({
@@ -34,6 +38,8 @@ describe('UnreadRecordingPanel', () => {
       const notifications = (patch as { notifications?: Record<string, unknown> }).notifications;
       return notifications ? { notifications } : {};
     });
+    mockedReapply.mockReset();
+    mockedReapply.mockResolvedValue({ ok: true, alignedSessionCount: 1, failedSessions: [] });
   });
   afterEach(() => cleanup());
 
@@ -120,5 +126,34 @@ describe('UnreadRecordingPanel', () => {
     expect(checked('unread-recording-all')).toBe(true);
     act(() => { resetStore(['none']); });
     expect(checked('unread-recording-none')).toBe(true);
+  });
+
+  it('reapplies the persisted settings even when nothing changed', async () => {
+    render(<UnreadRecordingPanel />);
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-testid="unread-recording-reapply"]')!);
+    });
+    expect(mockedReapply).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="status"]')?.textContent)
+      .toContain('Per-Session overrides were cleared');
+  });
+
+  it('reports failed Sessions honestly on reapply', async () => {
+    mockedReapply.mockResolvedValueOnce({ ok: true, alignedSessionCount: 0, failedSessions: ['ses_x'] });
+    render(<UnreadRecordingPanel />);
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-testid="unread-recording-reapply"]')!);
+    });
+    expect(document.querySelector('[role="status"]')?.textContent)
+      .toContain('1 Session(s) could not be aligned');
+  });
+
+  it('shows an error when reapply fails', async () => {
+    mockedReapply.mockRejectedValueOnce(new Error('backend down'));
+    render(<UnreadRecordingPanel />);
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-testid="unread-recording-reapply"]')!);
+    });
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('backend down');
   });
 });

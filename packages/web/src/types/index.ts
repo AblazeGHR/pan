@@ -122,6 +122,14 @@ export interface Session {
   unreadDoneGeneration?: number;
   /** Highest done generation acknowledged as read (server-side monotonic). */
   unreadDoneReadGeneration?: number;
+  /**
+   * Whether this Session currently records done unread — the global
+   * unread-recording policy or its per-Session override decides. Drives the
+   * Session menu's "Enable unread tracking" entry.
+   */
+  unreadTracking?: boolean;
+  /** Persisted per-Session recording override ("record"); null = global policy. */
+  unreadRecordingOverride?: 'record' | null;
   /** Pending queue rows per the queue panel's public projection (0 hides). */
   queuePendingCount?: number;
   /** True only when the queue is non-empty and every pending row is locked. */
@@ -593,6 +601,26 @@ export interface ApiSessionPinResponse {
   pinOrder?: number | null;
   pinRevision?: number;
   sessionIds?: string[];
+  error?: { code?: string; message?: string };
+}
+
+/** POST /api/sessions/{id}/unread-action — Session-menu unread action. */
+export interface ApiSessionUnreadActionResponse {
+  ok?: boolean;
+  unreadTracking?: boolean;
+  unreadRecordingOverride?: 'record' | null;
+  unreadDoneCount?: number;
+  unreadDoneGeneration?: number;
+  unreadDoneReadGeneration?: number;
+  error?: { code?: string; message?: string };
+}
+
+/** POST /api/settings/unread-recording/reapply — global apply of the policy. */
+export interface ApiReapplyUnreadRecordingResponse {
+  ok?: boolean;
+  unreadRecording?: string[];
+  alignedSessionCount?: number;
+  failedSessions?: string[];
   error?: { code?: string; message?: string };
 }
 

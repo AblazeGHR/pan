@@ -429,8 +429,11 @@ def test_reset_persist_failure_keeps_projection_zero_and_heals(
         changed_holder["result"] = await task
 
     asyncio.run(scenario())
-    # The failed reset honestly reports no change and left the disk untouched.
-    assert changed_holder["result"] == []
+    # The failed reset honestly reports no committed change but lists the
+    # unaligned Session instead of pretending success.
+    changed, failed = changed_holder["result"]
+    assert changed == []
+    assert failed == [s.id]
     assert _disk(s)["unread_done_count"] == 2
     # ...but the read projection is already authoritative zero everywhere.
     assert server._session_summary(s)["unreadDoneCount"] == 0
@@ -508,3 +511,385 @@ def test_startup_alignment_of_pinned_scope_uses_shared_pin_snapshot(
     assert count == 1
     assert _disk(pinned)["unread_done_count"] == 3  # pinned Session keeps unread
     assert _disk(unpinned)["unread_done_count"] == 0  # unpinned cleared
+
+
+# ── per-Session override (Session menu "Enable unread tracking") ──
+
+@pytest.mark.parametrize("scopes,bridge,pinned", [
+    (("none",), False, False),
+    (("bell-off",), True, False),
+    (("pinned",), False, False),
+])
+def test_override_wins_over_global_scopes(monkeypatch, scopes, bridge, pinned):
+    monkeypatch.setattr(unread_policy, "_COMPILED_SNAPSHOT", scopes)
+    s = _make_session(f"policy-override-{scopes[0]}", bridge=bridge)
+    s.unread_recording_override = "record"
+    assert unread_policy.should_record_unread(s) is True
+    count, _generation, _read, tracking = unread_policy.unread_cursor_projection(s)
+    assert tracking is True
+    assert count == 0
+
+
+def test_override_unknown_value_degrades_to_global_policy(monkeypatch):
+    monkeypatch.setattr(unread_policy, "_COMPILED_SNAPSHOT", ("none",))
+    s = _make_session("policy-override-bogus")
+    s.unread_recording_override = "bogus"
+    assert unread_policy.session_unread_recording_override(s) is None
+    assert unread_policy.should_record_unread(s) is False
+
+
+def test_enable_tracking_persists_and_counts_from_new_events(
+        policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-enable", generation=2, read=0)  # leftover while excluded
+    result = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    assert result["ok"] is True
+    assert result["unreadTracking"] is True
+    assert result["unreadRecordingOverride"] == "record"
+    disk = _disk(s)
+    assert disk["unread_recording_override"] == "record"
+    assert disk["unread_done_count"] == 0  # leftover cleared, old unread not restored
+    assert disk["unread_done_read_generation"] == 2
+    # New events count from now on.
+    _run_terminal(s, task_id="enable-new-done")
+    disk = _disk(s)
+    assert disk["unread_done_generation"] == 3
+    assert disk["unread_done_count"] == 1
+
+
+def test_enable_tracking_rejects_already_tracking(policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-enable-reject")
+    result = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "state_changed"
+    assert _disk(s)["unread_recording_override"] is None
+
+
+def test_mark_unread_creates_a_fresh_marker(policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-mark", generation=2, read=2)
+    result = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "mark-unread", "expectedGeneration": 2}))
+    assert result["ok"] is True
+    assert result["unreadDoneCount"] == 1
+    assert result["unreadDoneGeneration"] == 3
+    disk = _disk(s)
+    assert disk["unread_done_generation"] == 3
+    assert disk["unread_done_read_generation"] == 2
+    assert disk["unread_done_count"] == 1
+    assert server._session_summary(s)["unreadDoneCount"] == 1
+
+
+def test_mark_unread_state_changed_cases(policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-mark-cas", generation=2, read=2)
+    # Stale generation (e.g. a concurrent done already advanced it).
+    stale = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "mark-unread", "expectedGeneration": 1}))
+    assert stale["ok"] is False and stale["error"]["code"] == "state_changed"
+    # Already unread → the menu should have offered Clear instead.
+    s2 = _make_session("policy-mark-unread", generation=2, read=0)
+    already = asyncio.run(server.api_session_unread_action(
+        s2.id, {"action": "mark-unread", "expectedGeneration": 2}))
+    assert already["ok"] is False and already["error"]["code"] == "state_changed"
+    # Not tracking at all.
+    monkeypatch.setattr(unread_policy, "_COMPILED_SNAPSHOT", ("none",))
+    excluded = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "mark-unread", "expectedGeneration": 2}))
+    assert excluded["ok"] is False and excluded["error"]["code"] == "state_changed"
+    assert _disk(s)["unread_done_count"] == 0  # nothing was written
+
+
+def test_clear_unread_keeps_tracking_and_never_clears_newer(policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-clear", generation=3, read=1)
+    # A late observation clears only up to what it saw.
+    late = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "clear-unread", "expectedGeneration": 2}))
+    assert late["ok"] is True
+    assert late["unreadDoneCount"] == 1
+    assert late["unreadDoneReadGeneration"] == 2
+    # The current observation clears everything while keeping recording.
+    final = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "clear-unread", "expectedGeneration": 3}))
+    assert final["ok"] is True
+    assert final["unreadDoneCount"] == 0
+    assert final["unreadTracking"] is True  # recording is preserved
+    disk = _disk(s)
+    assert disk["unread_done_read_generation"] == 3
+    assert disk["unread_done_count"] == 0
+    assert disk["unread_recording_override"] is None  # clear never sets an override
+    # Idempotent no-op retry.
+    again = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "clear-unread", "expectedGeneration": 3}))
+    assert again["ok"] is True and again["unreadDoneCount"] == 0
+
+
+def test_clear_unread_rejects_excluded_session(policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-clear-excluded", generation=3, read=1)
+    result = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "clear-unread", "expectedGeneration": 3}))
+    assert result["ok"] is False and result["error"]["code"] == "state_changed"
+    assert _disk(s)["unread_done_read_generation"] == 1  # untouched
+
+
+def test_unread_action_rejects_invalid_params(policy_env, tmp_config):
+    s = _make_session("policy-action-invalid")
+    bad_action = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "explode"}))
+    assert bad_action["ok"] is False and bad_action["error"]["code"] == "invalid_params"
+    missing_expected = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "mark-unread"}))
+    assert missing_expected["ok"] is False
+    assert missing_expected["error"]["code"] == "invalid_params"
+    missing_excluded = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking"}))
+    assert missing_excluded["ok"] is False
+    assert missing_excluded["error"]["code"] == "invalid_params"
+    missing_session = asyncio.run(server.api_session_unread_action(
+        "ses_missing_action", {"action": "mark-unread", "expectedGeneration": 0}))
+    assert missing_session["ok"] is False
+    assert missing_session["error"]["code"] == "session_not_found"
+
+
+def test_unread_action_persist_failure_is_honest(policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-action-fail", generation=2, read=2)
+    entered, release = _block_metadata_replace(monkeypatch, s, fail=True)
+
+    async def scenario():
+        task = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "mark-unread", "expectedGeneration": 2}))
+        assert await asyncio.to_thread(entered.wait, 2)
+        release.set()
+        return await task
+
+    result = asyncio.run(scenario())
+    assert result["ok"] is False
+    assert result["error"]["code"] == "unread_action_persist_failed"
+    disk = _disk(s)
+    assert disk["unread_done_generation"] == 2  # nothing published
+    assert disk["unread_done_count"] == 0
+    assert s.unread_done_generation == 2  # in-memory value stayed truthful
+
+
+def test_unread_action_override_survives_reload(policy_env, tmp_config):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-override-reload")
+    asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    # Cold reload from disk (restart semantics).
+    sess._cache.clear()
+    sess._all_loaded = False
+    reloaded = sess.get(s.id, load_history=False)
+    assert reloaded is not None
+    assert reloaded.unread_recording_override == "record"
+    assert unread_policy.should_record_unread(reloaded) is True
+    assert server._session_summary(reloaded)["unreadTracking"] is True
+
+
+# ── global apply covers per-Session overrides ──
+
+def test_global_apply_clears_override_and_keeps_recorded_unread(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-apply-keep")
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    _run_terminal(s, task_id="apply-keep-done")
+    assert _disk(s)["unread_done_count"] == 1
+    # The global apply to "all" clears the override; the Session keeps
+    # recording (all includes it) and its legitimate unread stays.
+    asyncio.run(server.api_put_settings_ui(
+        {"notifications": {"unreadRecording": ["all"]}}))
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None
+    assert disk["unread_done_count"] == 1
+    assert server._session_summary(s)["unreadTracking"] is True
+
+
+def test_global_apply_covers_override_back_to_excluded(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-apply-cover")
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    _run_terminal(s, task_id="apply-cover-done")
+    # Re-saving the same "none" is still an apply: it covers the override.
+    asyncio.run(server.api_put_settings_ui(
+        {"notifications": {"unreadRecording": ["none"]}}))
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None
+    assert disk["unread_done_count"] == 0
+    assert server._session_summary(s)["unreadTracking"] is False
+    _run_terminal(s, task_id="apply-cover-after")
+    assert _disk(s)["unread_done_generation"] == 1  # excluded again: no new count
+
+
+def test_reapply_clears_overrides_even_when_scopes_unchanged(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-reapply")
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    _run_terminal(s, task_id="reapply-done")
+    assert _disk(s)["unread_done_count"] == 1
+    result = asyncio.run(server.api_reapply_unread_recording())
+    assert result["ok"] is True
+    assert result["unreadRecording"] == ["none"]
+    assert result["alignedSessionCount"] >= 1
+    assert result["failedSessions"] == []
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None
+    assert disk["unread_done_count"] == 0
+
+
+def test_reapply_is_idempotent_without_overrides(policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-reapply-noop", generation=2, read=0)
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    result = asyncio.run(server.api_reapply_unread_recording())
+    assert result["ok"] is True
+    assert result["alignedSessionCount"] == 0
+    assert _disk(s)["unread_done_count"] == 2  # recorded Session keeps unread
+
+
+def test_reapply_reports_failed_sessions(policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-reapply-fail", generation=2, read=0)
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    entered, release = _block_metadata_replace(monkeypatch, s, fail=True)
+
+    async def scenario():
+        task = asyncio.create_task(server.api_reapply_unread_recording())
+        assert await asyncio.to_thread(entered.wait, 2)
+        release.set()
+        return await task
+
+    result = asyncio.run(scenario())
+    assert result["ok"] is True
+    assert result["failedSessions"] == [s.id]
+    assert result["alignedSessionCount"] == 0
+    assert server._session_summary(s)["unreadDoneCount"] == 0  # projection stays honest
+
+
+def test_override_does_not_block_global_scope_e2e_via_http(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-http-actions", generation=0, read=0)
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://diag") as client:
+            enable = await client.post(
+                f"/api/sessions/{s.id}/unread-action",
+                json={"action": "enable-tracking", "expectedExcluded": True})
+            assert enable.status_code == 200
+            assert enable.json()["unreadTracking"] is True
+            mark = await client.post(
+                f"/api/sessions/{s.id}/unread-action",
+                json={"action": "mark-unread", "expectedGeneration": 0})
+            assert mark.status_code == 200
+            assert mark.json()["unreadDoneCount"] == 1
+            reapply = await client.post("/api/settings/unread-recording/reapply")
+            assert reapply.status_code == 200
+            assert reapply.json()["ok"] is True
+
+    asyncio.run(scenario())
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None
+    assert disk["unread_done_count"] == 0
+
+
+# ── late-response / concurrency regressions across the shared lock ──
+
+def test_done_racing_enable_tracking_serializes_on_the_lock(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-race-enable")
+    entered, release = _block_metadata_replace(monkeypatch, s)
+
+    async def scenario():
+        enable = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+        assert await asyncio.to_thread(entered.wait, 2)
+        done = asyncio.create_task(
+            worker._persist_terminal_state(_task_worker(s, "race-enable"), s, "done", "r"))
+        await asyncio.sleep(0)
+        assert not done.done()  # terminal commit waits for the enable commit
+        release.set()
+        results = await asyncio.gather(enable, done)
+        assert results[0]["ok"] is True
+        assert results[1] is not None
+
+    asyncio.run(scenario())
+    disk = _disk(s)
+    # The done terminal commits after the enable: it records (override wins).
+    assert disk["unread_recording_override"] == "record"
+    assert disk["unread_done_generation"] == 1
+    assert disk["unread_done_count"] == 1
+
+
+def test_clear_racing_done_never_clears_the_new_generation(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-race-clear", generation=2, read=0)
+    entered, release = _block_metadata_replace(monkeypatch, s)
+
+    async def scenario():
+        clear = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "clear-unread", "expectedGeneration": 2}))
+        assert await asyncio.to_thread(entered.wait, 2)
+        done = asyncio.create_task(
+            worker._persist_terminal_state(_task_worker(s, "race-clear"), s, "done", "r"))
+        await asyncio.sleep(0)
+        assert not done.done()
+        release.set()
+        results = await asyncio.gather(clear, done)
+        assert results[0]["ok"] is True
+
+    asyncio.run(scenario())
+    disk = _disk(s)
+    # The observed-cursor clear ran first; the new done stays unread.
+    assert disk["unread_done_read_generation"] == 2
+    assert disk["unread_done_generation"] == 3
+    assert disk["unread_done_count"] == 1
+
+
+def test_stale_mark_after_done_is_rejected_without_side_effects(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-stale-mark", generation=2, read=2)
+    _run_terminal(s, task_id="stale-mark-done")  # gen 3, count 1 while the
+    # client still shows the "Mark as unread" action for generation 2.
+    result = asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "mark-unread", "expectedGeneration": 2}))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "state_changed"
+    disk = _disk(s)
+    assert disk["unread_done_generation"] == 3
+    assert disk["unread_done_count"] == 1  # untouched by the stale action

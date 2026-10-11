@@ -2067,9 +2067,10 @@ def _session_to_api(
         pin_projection = sess.session_pin_projection(s.id)
     queue_pending_count, queue_all_locked = _queue_pending_summary(s)
     # Unread recording policy: one projection for every read surface. Excluded
-    # Sessions report count 0 with the read cursor clamped to the generation.
-    (unread_done_count, unread_done_generation,
-     unread_done_read_generation) = unread_policy.unread_cursor_projection(
+    # Sessions report count 0 with the read cursor clamped to the generation;
+    # unreadTracking is the same single predicate the Session menu acts on.
+    (unread_done_count, unread_done_generation, unread_done_read_generation,
+     unread_tracking) = unread_policy.unread_cursor_projection(
         s, pinned=bool(pin_projection.get("pinned")))
     return {
         "id": s.id,
@@ -2115,6 +2116,8 @@ def _session_to_api(
         "unreadDoneCount": unread_done_count,
         "unreadDoneGeneration": unread_done_generation,
         "unreadDoneReadGeneration": unread_done_read_generation,
+        "unreadTracking": unread_tracking,
+        "unreadRecordingOverride": unread_policy.session_unread_recording_override(s) or None,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
@@ -2350,8 +2353,8 @@ def _session_summary(
     # Unread recording policy: one projection for every read surface (see
     # _session_to_api). The policy snapshot itself is process memory; the only
     # per-Session lookup is the already-computed pin projection.
-    (unread_done_count, unread_done_generation,
-     unread_done_read_generation) = unread_policy.unread_cursor_projection(
+    (unread_done_count, unread_done_generation, unread_done_read_generation,
+     unread_tracking) = unread_policy.unread_cursor_projection(
         s, pinned=bool(pin_projection.get("pinned")))
     return {
         "id": s.id,
@@ -2369,6 +2372,8 @@ def _session_summary(
         "unreadDoneCount": unread_done_count,
         "unreadDoneGeneration": unread_done_generation,
         "unreadDoneReadGeneration": unread_done_read_generation,
+        "unreadTracking": unread_tracking,
+        "unreadRecordingOverride": unread_policy.session_unread_recording_override(s) or None,
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
@@ -5965,10 +5970,10 @@ async def api_set_session_pin(session_id: str, data: dict):
         bridge = unread_policy.msg_bridge_enabled(target)
         await _coordinate_session_unread_transition(
             target,
-            before_record=unread_policy.is_scope_recorded(
-                scopes, bridge=bridge, pinned=was_pinned),
-            after_record=unread_policy.is_scope_recorded(
-                scopes, bridge=bridge, pinned=pinned),
+            before_record=unread_policy.should_record_unread(
+                target, scopes=scopes, pinned=was_pinned, bridge=bridge),
+            after_record=unread_policy.should_record_unread(
+                target, scopes=scopes, pinned=pinned, bridge=bridge),
         )
     return {
         "ok": True,
@@ -6141,7 +6146,7 @@ async def _ack_session_unread_done(session_id: str, observed_raw: int):
                 "session": _session_summary(s),
             })
         (projected_count, projected_generation,
-         projected_read) = unread_policy.unread_cursor_projection(s)
+         projected_read, _projected_tracking) = unread_policy.unread_cursor_projection(s)
         return {
             "ok": True,
             "unreadDoneCount": projected_count,
@@ -6153,38 +6158,55 @@ async def _ack_session_unread_done(session_id: str, observed_raw: int):
 # ── Unread recording policy coordination ──
 #
 # Transition points that can flip a Session's record decision (settings saves,
-# bell edits, pin edits, startup) align the durable cursors and broadcast the
-# result. The reset reuses the ack persistence primitive (staged read cursor +
-# atomic replace, published only after success) under unread_done_lock, so it
-# never interleaves with a terminal generation commit. A failed reset leaves
-# the stored value untouched: the read projection stays authoritative (count 0
-# everywhere) and the next terminal commit or coordination retries it.
+# bell edits, pin edits, Session-menu actions, startup) align the durable
+# state and broadcast the result. Alignment reuses the acknowledgement
+# persistence primitive (staged cursors/override + atomic replace, published
+# only after success) under unread_done_lock, so it never interleaves with a
+# terminal generation commit. A failed alignment leaves the stored value
+# untouched: the read projection stays authoritative (count 0 everywhere) and
+# the next terminal commit, settings apply or Session action retries it.
+
+_UNREAD_ACTION_VALUES = ("enable-tracking", "mark-unread", "clear-unread")
 
 
-async def _reset_session_unread_generation(s: sess.Session) -> bool:
-    """Advance one excluded Session's read cursor to its generation."""
+async def _commit_session_unread_alignment(
+    s: sess.Session, *, zero_unread: bool = False, clear_override: bool = False,
+) -> str:
+    """Commit one Session's unread alignment; reports committed/noop/failed.
+
+    Reads the durable cursors inside the lock so a concurrent terminal commit
+    cannot be clobbered by a stale target; a pending override removal rides
+    the same atomic ticket. Broadcasts the Session summary after a commit.
+    """
     async with worker.unread_done_lock(s.id):
         generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
         read_generation = max(0, int(
             getattr(s, "unread_done_read_generation", 0) or 0))
-        if read_generation >= generation:
-            return False
+        target_read = (
+            generation if zero_unread and read_generation < generation else None)
+        remove_override = (
+            clear_override
+            and unread_policy.session_unread_recording_override(s) is not None)
+        if target_read is None and not remove_override:
+            return "noop"
         try:
-            await sess.ack_unread_done_async(s, generation)
-        except FileNotFoundError:
-            return False
-        except OSError as exc:
-            _log(
-                "[Pan] unread-recording reset failed for "
-                f"{s.id}: {exc}"
+            await sess.commit_unread_state_async(
+                s,
+                read_generation=target_read,
+                unread_recording_override=(
+                    None if remove_override else sess._UNREAD_OVERRIDE_UNSET),
             )
-            return False
+        except FileNotFoundError:
+            return "failed"
+        except OSError as exc:
+            _log(f"[Pan] unread-recording alignment failed for {s.id}: {exc}")
+            return "failed"
         await broadcast({
             "type": "session.updated",
             "sessionId": s.id,
             "session": _session_summary(s),
         })
-        return True
+        return "committed"
 
 
 async def _coordinate_session_unread_transition(
@@ -6199,55 +6221,204 @@ async def _coordinate_session_unread_transition(
     """
     if before_record and after_record:
         return False
-    return await _reset_session_unread_generation(s)
+    return await _commit_session_unread_alignment(s, zero_unread=True) == "committed"
 
 
 async def _coordinate_unread_recording(
-    sessions, *, before_scopes, after_scopes,
-) -> list[str]:
-    """Align every Session after a global policy change (or at startup).
+    sessions, *, before_scopes, after_scopes, clear_overrides: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Align every Session across a policy application; returns (changed, failed).
 
-    ``before_scopes`` and ``after_scopes`` are the normalized tuples on either
-    side of the change; startup passes the current tuple for both. Only
-    Sessions where "excluded" appears on a side need work. The shared pin
-    snapshot is read once, never per Session.
+    ``before_scopes`` is the scope set the Sessions were being evaluated under
+    (persisted value before the save; equal to ``after_scopes`` for Reapply and
+    startup) and each Session's current override participates in the "before"
+    decision. ``clear_overrides=True`` is the global "apply" (a settings save
+    that carries unreadRecording, or Reapply settings): every per-Session
+    override is removed and the Session is re-aligned to ``after_scopes`` —
+    the later global apply covering earlier per-Session state. Startup passes
+    ``clear_overrides=False`` and only aligns Sessions already excluded under
+    the persisted policy (legitimate overrides stay). The shared pin snapshot
+    is read once, never per Session.
     """
     changed: list[str] = []
-    needs_pins = "pinned" in before_scopes or "pinned" in after_scopes
+    failed: list[str] = []
     pin_ids: set[str] = set()
-    if needs_pins:
+    if "pinned" in before_scopes or "pinned" in after_scopes:
         pin_ids = set(sess.session_pin_state().get("sessionIds") or [])
     for s in sessions:
         bridge = unread_policy.msg_bridge_enabled(s)
         pinned = s.id in pin_ids
-        before_record = unread_policy.is_scope_recorded(
-            before_scopes, bridge=bridge, pinned=pinned)
-        after_record = unread_policy.is_scope_recorded(
-            after_scopes, bridge=bridge, pinned=pinned)
-        if before_record and after_record:
+        before_record = unread_policy.should_record_unread(
+            s, scopes=before_scopes, pinned=pinned, bridge=bridge)
+        clear_override = (
+            clear_overrides
+            and unread_policy.session_unread_recording_override(s) is not None)
+        after_record = (
+            unread_policy.is_scope_recorded(
+                after_scopes, bridge=bridge, pinned=pinned)
+            if clear_override
+            else unread_policy.should_record_unread(
+                s, scopes=after_scopes, pinned=pinned, bridge=bridge))
+        zero_unread = not (before_record and after_record)
+        if not zero_unread and not clear_override:
             continue
-        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
-        read_generation = max(0, int(
-            getattr(s, "unread_done_read_generation", 0) or 0))
-        if read_generation >= generation:
-            continue
-        if await _reset_session_unread_generation(s):
+        outcome = await _commit_session_unread_alignment(
+            s, zero_unread=zero_unread, clear_override=clear_override)
+        if outcome == "committed":
             changed.append(s.id)
-    return changed
+        elif outcome == "failed":
+            failed.append(s.id)
+    return changed, failed
 
 
 async def _coordinate_unread_recording_on_startup(sessions) -> int:
     """Startup alignment for old data and crash leftovers.
 
-    The settings save already clears Sessions excluded at the moment the
+    The settings apply already clears Sessions excluded at the moment the
     choice changes; this covers a restart after a failed clear and Sessions
-    loaded from disk under a policy applied by an earlier process.
+    loaded from disk under a policy applied by an earlier process. Persisted
+    per-Session overrides are legitimate state and stay untouched.
     """
     scopes = unread_policy.refresh_unread_recording()
     if "all" in scopes:
         return 0
-    return len(await _coordinate_unread_recording(
-        sessions, before_scopes=scopes, after_scopes=scopes))
+    changed, _failed = await _coordinate_unread_recording(
+        sessions, before_scopes=scopes, after_scopes=scopes)
+    return len(changed)
+
+
+@app.post("/api/sessions/{session_id}/unread-action")
+async def api_session_unread_action(session_id: str, data: dict | None = None):
+    """Session-menu unread actions with explicit expected-state checks.
+
+    Body: ``{"action": "enable-tracking", "expectedExcluded": true}`` or
+    ``{"action": "mark-unread"|"clear-unread", "expectedGeneration": <int>}``.
+
+    - enable-tracking persists a per-Session "record" override: this Session
+      records done unread from new events on (leftover unread is cleared;
+      older unread is never restored). A later global apply clears it.
+    - mark-unread records a fresh unread marker (+1 generation) only while the
+      Session records and its count is 0.
+    - clear-unread advances the read cursor to the observed generation while
+      the Session keeps recording (an older observation never clears newer
+      generations; a no-op observation is an idempotent success).
+
+    A stale expectation (concurrent done, bell/pin change, or a global apply
+    in between) fails with ``state_changed`` instead of applying a wrong
+    action. Writes publish only after the atomic commit.
+    """
+    action = data.get("action") if isinstance(data, dict) else None
+    if action not in _UNREAD_ACTION_VALUES:
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "action must be enable-tracking, mark-unread or clear-unread"}}
+    s = sess.get_cached(session_id)
+    if s is None:
+        s = await _store_read(sess.get, session_id, load_history=False)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found"}}
+
+    def _state_changed(message: str) -> dict:
+        return {"ok": False, "error": {"code": "state_changed", "message": message}}
+
+    async with worker.unread_done_lock(session_id):
+        tracking = unread_policy.should_record_unread(s)
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        read_generation = max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0))
+        commit: dict | None = None
+        if action == "enable-tracking":
+            if data.get("expectedExcluded") is not True:
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedExcluded (true) is required"}}
+            if tracking:
+                return _state_changed("Session already records unread")
+            commit = {
+                "read_generation": (
+                    generation if read_generation < generation else None),
+                "unread_recording_override": "record",
+            }
+        elif action == "mark-unread":
+            expected_generation = data.get("expectedGeneration")
+            if (isinstance(expected_generation, bool)
+                    or not isinstance(expected_generation, int)
+                    or expected_generation < 0):
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedGeneration (non-negative integer) is required"}}
+            if not tracking:
+                return _state_changed("Session does not record unread")
+            if expected_generation != generation:
+                return _state_changed("Unread state changed; refresh and retry")
+            if read_generation < generation:
+                return _state_changed("Session already has unread")
+            commit = {"done_generation": generation + 1}
+        else:  # clear-unread
+            expected_generation = data.get("expectedGeneration")
+            if (isinstance(expected_generation, bool)
+                    or not isinstance(expected_generation, int)
+                    or expected_generation < 0):
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedGeneration (non-negative integer) is required"}}
+            if not tracking:
+                return _state_changed("Session does not record unread")
+            observed = min(expected_generation, generation)
+            new_read = max(read_generation, observed)
+            if new_read > read_generation:
+                commit = {"read_generation": new_read}
+        if commit is not None:
+            try:
+                await sess.commit_unread_state_async(s, **commit)
+            except FileNotFoundError:
+                return {"ok": False, "error": {
+                    "code": "session_not_found",
+                    "message": f"Session {session_id} not found"}}
+            except OSError as exc:
+                return {"ok": False, "error": {
+                    "code": "unread_action_persist_failed",
+                    "message": str(exc) or "Could not persist unread action"}}
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": s.id,
+                "session": _session_summary(s),
+            })
+    (projected_count, projected_generation, projected_read,
+     projected_tracking) = unread_policy.unread_cursor_projection(s)
+    return {
+        "ok": True,
+        "unreadTracking": projected_tracking,
+        "unreadRecordingOverride": (
+            unread_policy.session_unread_recording_override(s) or None),
+        "unreadDoneCount": projected_count,
+        "unreadDoneGeneration": projected_generation,
+        "unreadDoneReadGeneration": projected_read,
+    }
+
+
+@app.post("/api/settings/unread-recording/reapply")
+async def api_reapply_unread_recording():
+    """Re-apply the persisted unread-recording policy to every Session.
+
+    The explicit "Reapply settings" action: clears every per-Session override
+    and re-aligns excluded Sessions even when the persisted scope set did not
+    change. Failures are reported per Session; the read projection already
+    serves an authoritative count 0 for them, and the next terminal commit or
+    another apply retries the durable alignment.
+    """
+    scopes = unread_policy.refresh_unread_recording()
+    changed, failed = await _coordinate_unread_recording(
+        sess.list_all(load_history=False),
+        before_scopes=scopes, after_scopes=scopes, clear_overrides=True)
+    return {
+        "ok": True,
+        "unreadRecording": list(scopes),
+        "alignedSessionCount": len(changed),
+        "failedSessions": failed,
+    }
 
 
 @app.post("/api/sessions/pins/order")
@@ -9868,6 +10039,12 @@ async def api_put_settings_ui(data: dict):
     changes nothing (the previous policy stays active).
     """
     ui = dict(load_config().get("ui") or {})
+    # A save that carries the unread-recording key is a global "apply": it
+    # clears per-Session overrides and re-aligns every Session, even when the
+    # scope set itself did not change.
+    unread_apply_requested = (
+        isinstance(data.get("notifications"), dict)
+        and "unreadRecording" in data["notifications"])
     if "notifications" in data:
         if not isinstance(data["notifications"], dict):
             raise HTTPException(status_code=422, detail="notifications must be an object")
@@ -9897,9 +10074,16 @@ async def api_put_settings_ui(data: dict):
             "type": "settings.uiUpdated",
             "unreadRecording": list(after_scopes),
         })
-        await _coordinate_unread_recording(
+    if unread_apply_requested:
+        _changed, failed = await _coordinate_unread_recording(
             sess.list_all(load_history=False),
-            before_scopes=before_scopes, after_scopes=after_scopes)
+            before_scopes=before_scopes, after_scopes=after_scopes,
+            clear_overrides=True)
+        if failed:
+            _log(
+                "[Pan] unread-recording apply left "
+                f"{len(failed)} Session(s) unaligned: {', '.join(failed[:5])}"
+            )
     return ui
 
 
@@ -11064,14 +11248,15 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
     await broadcast({"type": "session.updated", "sessionId": session_id})
     # Unread recording policy: a bell edit can flip this Session's record
     # decision (bell-on / bell-off scopes); align its unread immediately.
+    # should_record_unread also honors a persisted per-Session override.
     scopes = unread_policy.current_unread_recording()
     pinned_value = bool(sess.session_pin_projection(session_id).get("pinned"))
     await _coordinate_session_unread_transition(
         target,
-        before_record=unread_policy.is_scope_recorded(
-            scopes, bridge=expected_enabled, pinned=pinned_value),
-        after_record=unread_policy.is_scope_recorded(
-            scopes, bridge=_msg_bridge_enabled(target), pinned=pinned_value),
+        before_record=unread_policy.should_record_unread(
+            target, scopes=scopes, pinned=pinned_value, bridge=expected_enabled),
+        after_record=unread_policy.should_record_unread(
+            target, scopes=scopes, pinned=pinned_value),
     )
     return {"ok": True, "sessionId": session_id,
             "msgBridgeEnabled": _msg_bridge_enabled(target),

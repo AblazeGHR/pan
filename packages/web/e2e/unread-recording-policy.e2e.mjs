@@ -1,4 +1,4 @@
-/* global localStorage, console, process */
+/* global localStorage, console, process, setTimeout */
 // Real-browser E2E for the global unread-recording policy (App Settings →
 // Notification). Runs against the isolated e2e/server.py instance: real
 // FastAPI routes, real /ws broadcast path, real React build. Durable unread
@@ -282,6 +282,86 @@ async function assertEventually(read, message, timeout = 5000) {
 }
 
 await runWorkspaceAndSyncCase();
+
+// ── Case 6: Session-menu unread actions + Reapply covers the override ──
+
+async function openSessionMenu(page, sessionId) {
+  const card = page.locator(`[data-session-card-id="${sessionId}"]`);
+  await card.scrollIntoViewIfNeeded();
+  await card.hover();
+  await page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-actions-menu"]`).click();
+  const action = page.locator('[data-testid="session-unread-action"]');
+  await action.waitFor({ state: 'visible' });
+  return action;
+}
+
+async function runSessionMenuCase() {
+  const name = 'session menu unread actions and reapply override';
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const started = new Date().toISOString();
+  let context;
+  let page;
+  try {
+    ({ context, page } = await openPage(DESKTOP));
+    await setPolicy(page, ['none']);
+    const sessionId = await sessionIdOf(page, 'Alpha Session');
+
+    // Excluded → "Enable unread tracking" persists a per-Session override.
+    let action = await openSessionMenu(page, sessionId);
+    assert.equal((await action.textContent())?.trim(), 'Enable unread tracking');
+    await action.click();
+    await assertEventually(async () => {
+      const row = await readSummaryRow(page, 'Alpha Session');
+      return row.unreadTracking === true && row.unreadRecordingOverride === 'record';
+    }, 'enable-tracking did not persist');
+
+    // Recording from new events on: a new completion counts.
+    await seedUnread(page, sessionId, { advance: 1 });
+    await badgeLocator(page, sessionId).waitFor({ state: 'visible' });
+
+    // Recording with unread → "Clear unread" keeps recording (override stays).
+    action = await openSessionMenu(page, sessionId);
+    assert.equal((await action.textContent())?.trim(), 'Clear unread');
+    await action.click();
+    await badgeLocator(page, sessionId).waitFor({ state: 'hidden' });
+    assert.equal(
+      (await readSummaryRow(page, 'Alpha Session')).unreadRecordingOverride, 'record');
+
+    // Recording with count 0 → "Mark as unread" records a fresh marker.
+    action = await openSessionMenu(page, sessionId);
+    assert.equal((await action.textContent())?.trim(), 'Mark as unread');
+    await action.click();
+    await badgeLocator(page, sessionId).waitFor({ state: 'visible' });
+
+    // Reapply (scope set unchanged) covers the override → excluded again.
+    await openNotificationSettings(page);
+    await page.getByTestId('unread-recording-reapply').click();
+    await page.getByText(/Settings reapplied/).waitFor({ state: 'visible' });
+    await badgeLocator(page, sessionId).waitFor({ state: 'hidden' });
+    const row = await readSummaryRow(page, 'Alpha Session');
+    assert.equal(row.unreadTracking, false);
+    assert.equal(row.unreadRecordingOverride, null);
+
+    // Closing the settings modal shows the menu back at "Enable unread tracking".
+    await page.keyboard.press('Escape');
+    await page.getByTestId('unread-recording-panel').waitFor({ state: 'hidden' });
+    action = await openSessionMenu(page, sessionId);
+    assert.equal((await action.textContent())?.trim(), 'Enable unread tracking');
+
+    await context.tracing.stop({ path: path.join(artifacts, `${slug}.zip`) });
+    await page.screenshot({ path: path.join(artifacts, `${slug}.png`), fullPage: true });
+    results.push({ name, status: 'passed', started, screenshot: `${slug}.png` });
+  } catch (error) {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
+    if (page) await page.screenshot({ path: path.join(artifacts, `${slug}-failure.png`), fullPage: true }).catch(() => {});
+    if (context) await context.tracing.stop({ path: path.join(artifacts, `${slug}-failure.zip`) }).catch(() => {});
+    results.push({ name, status: 'failed', started, error: message, screenshot: `${slug}-failure.png` });
+  } finally {
+    await context?.close();
+  }
+}
+
+await runSessionMenuCase();
 
 await browser.close();
 await fs.writeFile(

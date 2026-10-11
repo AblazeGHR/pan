@@ -16,6 +16,14 @@ bell-on and pinned Sessions). ``bell-on``/``bell-off`` are mutually exclusive;
 ``all``/``none`` are exclusive and absorb every other scope. An empty set is
 normalized to ``"none"``; the React settings store mirrors the same rule.
 
+A Session may additionally carry a persisted per-Session override
+(``unread_recording_override == "record"``, set from the Session menu's
+"Enable unread tracking"): while present it wins over the global scope set, so
+that Session records done unread regardless of the global policy. Applying the
+global settings (a save that carries ``unreadRecording`` or the "Reapply
+settings" action) clears every override and re-aligns all Sessions, which is
+how a later global apply covers earlier per-Session state.
+
 Excluded Sessions must be authoritative ``count == 0`` on every surface
 (durable projection, WS patches, list summaries, resync snapshots) while the
 durable generation stays monotonic: an excluded Session stops recording new
@@ -127,6 +135,17 @@ def msg_bridge_enabled(session) -> bool:
     )
 
 
+def session_unread_recording_override(session) -> str | None:
+    """The Session's effective recording override ("record" or None).
+
+    Reads through the shared legal-value set so a value written by a newer
+    version (or a hand-edited file) degrades to "follow the global policy"
+    instead of becoming a second, inconsistent source of truth.
+    """
+    value = getattr(session, "unread_recording_override", None)
+    return value if value in sess.UNREAD_RECORDING_OVERRIDE_VALUES else None
+
+
 def is_scope_recorded(scopes, *, bridge: bool, pinned: bool) -> bool:
     """The single pure scope decision over the normalized scope tuple."""
     if "all" in scopes:
@@ -142,19 +161,26 @@ def is_scope_recorded(scopes, *, bridge: bool, pinned: bool) -> bool:
     return False
 
 
-def should_record_unread(session, *, scopes=None, pinned=None) -> bool:
-    """Evaluate the policy for one Session.
+def should_record_unread(
+    session, *, scopes=None, pinned=None, bridge=None,
+) -> bool:
+    """Evaluate the policy for one Session (the single predicate).
 
-    ``pinned`` may be pre-resolved by callers that already read the shared pin
-    snapshot; when omitted it is looked up from the Session pin projection and
-    only when the scope tuple actually depends on it. Callers on the terminal
-    commit path must guard this call: a damaged pin file may raise here, and a
-    policy read must never fail a real terminal commit.
+    A per-Session override ("record") wins over the global scope set. ``pinned``
+    and ``bridge`` may be pre-resolved by callers that already read the shared
+    pin snapshot or are evaluating a bell transition; when omitted they are
+    derived from the Session, and the pin lookup only runs when the scope tuple
+    actually depends on it. Callers on the terminal commit path must guard this
+    call: a damaged pin file may raise here, and a policy read must never fail
+    a real terminal commit.
     """
+    if session_unread_recording_override(session) == "record":
+        return True
     effective = current_unread_recording() if scopes is None else tuple(scopes)
     if "all" in effective or "none" in effective:
         return "all" in effective
-    bridge = msg_bridge_enabled(session)
+    if bridge is None:
+        bridge = msg_bridge_enabled(session)
     if pinned is None:
         pinned = False
         if "pinned" in effective:
@@ -163,20 +189,25 @@ def should_record_unread(session, *, scopes=None, pinned=None) -> bool:
 
 
 def unread_cursor_projection(
-    session, *, scopes=None, pinned=None,
-) -> tuple[int, int, int]:
-    """Return ``(count, generation, read_generation)`` for every read surface.
+    session, *, scopes=None, pinned=None, bridge=None,
+) -> tuple[int, int, int, bool]:
+    """Return ``(count, generation, read_generation, tracking)`` for read surfaces.
 
-    Excluded Sessions project ``count = 0`` and a read cursor clamped up to the
-    generation. The clamp only moves the cursor forward (monotonic), so
-    client-side merge guards (`preserveNewerUnread`) converge to 0 instead of
-    preserving a stale unread pair, and a late snapshot can never resurrect
-    unread for an excluded Session.
+    ``tracking`` is the policy decision for this Session (``True`` = records
+    done unread), exposed so the Session menu and every card derive their
+    action from the same predicate. Excluded Sessions project ``count = 0``
+    and a read cursor clamped up to the generation. The clamp only moves the
+    cursor forward (monotonic), so client-side merge guards
+    (`preserveNewerUnread`) converge to 0 instead of preserving a stale unread
+    pair, and a late snapshot can never resurrect unread for an excluded
+    Session.
     """
     generation = max(0, int(getattr(session, "unread_done_generation", 0) or 0))
     read_generation = max(0, int(
         getattr(session, "unread_done_read_generation", 0) or 0))
     read_generation = min(read_generation, generation)
-    if should_record_unread(session, scopes=scopes, pinned=pinned):
-        return generation - read_generation, generation, read_generation
-    return 0, generation, generation
+    tracking = should_record_unread(
+        session, scopes=scopes, pinned=pinned, bridge=bridge)
+    if tracking:
+        return generation - read_generation, generation, read_generation, True
+    return 0, generation, generation, False
