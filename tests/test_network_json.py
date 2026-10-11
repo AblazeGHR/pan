@@ -164,3 +164,61 @@ def test_real_history_compression_preserves_window_and_never_revalidates_summary
             missing = await client.get("/api/sessions/missing/history")
             assert missing.json() == {"error": "Session not found"}
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('view', ['full', 'summary', 'history'])
+def test_http_history_encoding_yields_to_other_requests_and_freezes_metadata(monkeypatch, view):
+    from packages.core import session as sess
+    target = sess.create('encoding-snapshot', adapter='codex', history=[
+        {'role': 'assistant', 'content': 'before', 'parts': [{'type': 'text', 'text': 'before'}]},
+    ])
+    target.raw_usage = {'nested': {'value': 'before'}}
+    target.last_result = {'status': 'done', 'result': 'before', 'nested': {'value': 'before'}}
+    entered = threading.Event()
+    release = threading.Event()
+    original = server.jsonable_encoder
+    encoding_threads = []
+
+    def blocked(payload):
+        encoding_threads.append(threading.get_ident())
+        entered.set()
+        assert release.wait(3)
+        return original(payload)
+
+    monkeypatch.setattr(server, 'jsonable_encoder', blocked)
+
+    async def run():
+        loop_thread = threading.get_ident()
+        app = FastAPI()
+        app.add_api_route('/api/sessions', server.api_list_sessions)
+        app.add_api_route('/api/sessions/{session_id}/history', server.api_session_history)
+
+        @app.get('/health')
+        async def health():
+            return {'ok': True}
+
+        path = (f'/api/sessions/{target.id}/history' if view == 'history' else
+                '/api/sessions?summary=1' if view == 'summary' else '/api/sessions')
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
+            pending = asyncio.create_task(client.get(path, headers={'Accept-Encoding': 'identity'}))
+            try:
+                assert await asyncio.to_thread(entered.wait, 2)
+                assert len(encoding_threads) == 1
+                assert encoding_threads[0] != loop_thread
+                result = await asyncio.wait_for(client.get('/health'), 1)
+                assert result.json() == {'ok': True}
+                # The list must own nested live Session fields before encoding
+                # yields; a Worker update cannot mutate its in-flight response.
+                target.raw_usage['nested']['value'] = 'after'
+                target.last_result['nested']['value'] = 'after'
+            finally:
+                release.set()
+                response = await pending
+            assert response.status_code == 200
+            if view == 'full':
+                item = next(row for row in response.json()['sessions'] if row['id'] == target.id)
+                assert item['rawUsage']['nested']['value'] == 'before'
+                assert item['lastResult']['nested']['value'] == 'before'
+            elif view == 'history':
+                assert response.json()['history'][0]['parts'][0]['text'] == 'before'
+    asyncio.run(run())

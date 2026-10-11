@@ -53,6 +53,7 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                                              ws_ping_interval=None))
         host_task = asyncio.create_task(host.serve())
         sampler = None
+        slow_observer = None
         sampling_done = asyncio.Event()
         samples = []
         tid = None
@@ -89,8 +90,27 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                     fast_hello = json.loads(await fast.recv())
                     assert slow_hello['type'] == fast_hello['type'] == 'hello'
                     slow_conn = app.state.terminal_ws_manager._conns[slow_hello['connection_id']]
-                    # No fake transport/queue size or injected sender delay. The
-                    # slow client performs no more recv or ack until output ends.
+                    # No fake transport/queue size or injected sender delay.
+                    # Don't consume until the real server declares backpressure.
+                    # Then permit the close handshake: leaving TCP unread for
+                    # another 180s exceeds the transport's bounded close timeout
+                    # and can discard the queued close frame on Windows.
+                    async def observe_slow_close():
+                        pressure_deadline = time.monotonic() + 215
+                        while not slow_conn.outbound.slow and time.monotonic() < pressure_deadline:
+                            await asyncio.sleep(.05)
+                        assert slow_conn.outbound.slow, 'natural backpressure never occurred'
+                        drained = 0
+                        close_deadline = time.monotonic() + 15
+                        while time.monotonic() < close_deadline:
+                            try:
+                                message = await asyncio.wait_for(slow.recv(), 5)
+                                drained += len(message)
+                            except ConnectionClosed as exc:
+                                return (exc.rcvd.code if exc.rcvd else None, drained,
+                                        {'received': str(exc.rcvd), 'sent': str(exc.sent)})
+                        raise AssertionError('slow observer did not close within 15s of backpressure')
+                    slow_observer = asyncio.create_task(observe_slow_close())
                     async def command(op, **fields):
                         await fast.send(json.dumps({'v': 1, 'type': 'command', 'terminal_id': tid,
                                                     'op': op, **fields}))
@@ -167,20 +187,7 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                     raw = service.read(tid, 0, max_bytes=1)
                     assert raw['gap'] is not None
                     assert raw['total_bytes'] - raw['first_retained_seq'] <= 262144
-                    # Drain the natural client receive backlog only now so the
-                    # actual protocol close code becomes observable to this peer.
-                    slow_code = None
-                    slow_close_detail = None
-                    slow_drained = 0
-                    close_deadline = time.monotonic() + 15
-                    while time.monotonic() < close_deadline:
-                        try:
-                            message = await asyncio.wait_for(slow.recv(), 5)
-                            slow_drained += len(message)
-                        except ConnectionClosed as exc:
-                            slow_code = exc.rcvd.code if exc.rcvd else None
-                            slow_close_detail = {'received': str(exc.rcvd), 'sent': str(exc.sent)}
-                            break
+                    slow_code, slow_drained, slow_close_detail = await slow_observer
                     print(json.dumps({'producer': produced, 'fast_bytes': seen, 'fast_gaps': gaps,
                                       'slow_close_code': slow_code, 'slow_backlog_drained': slow_drained,
                                       'slow_close_detail': slow_close_detail,
@@ -202,6 +209,10 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                 tid = None
         finally:
             sampling_done.set()
+            if slow_observer is not None:
+                if not slow_observer.done():
+                    slow_observer.cancel()
+                await asyncio.gather(slow_observer, return_exceptions=True)
             print(json.dumps({'final_elapsed': round(time.monotonic()-started, 3),
                               'samples': samples}))
             try:

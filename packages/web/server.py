@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
@@ -34,6 +35,7 @@ from typing import Annotated, Any, Callable
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -2189,6 +2191,15 @@ async def _store_read(func, /, *args, **kwargs):
         _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
 
 
+async def _history_network_response(payload: dict, request: Request | None):
+    # Direct internal callers retain the dict contract. Returning a Response
+    # for HTTP skips FastAPI's synchronous recursive encoder and JSON render.
+    # Reuse the single worker so a burst cannot fan out GIL-bound encoders.
+    if request is None:
+        return payload
+    return await _store_read(lambda: NetworkJSONResponse(jsonable_encoder(payload)))
+
+
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:
     """Read one bounded history page per Session in a single blocking call."""
     return {sid: sess.history_page(sid, limit=limit) for sid in session_ids}
@@ -2224,10 +2235,12 @@ def _session_list_api(
     the companion JSONL on the event loop.  Omitting it keeps the historical
     inline read for the remaining synchronous callers.
     """
-    api = _session_to_api(
+    api = copy.deepcopy(_session_to_api(
         s, include_history=False, app_config=app_config,
         pin_projection=pin_projection,
-    )
+    ))
+    # Freeze live usage/result/config metadata before yielding to HTTP encoding.
+    # History pages below are already owned, nested-isolated store snapshots.
     if page is _PAGE_UNSET:
         page = sess.history_page(s.id, limit=history_limit)
     if page is None:
@@ -5171,7 +5184,8 @@ async def api_cancel_reminder(session_id: str, reminder_id: str):
     return {"ok": True, "reminder": item}
 
 @app.get("/api/sessions", response_class=NetworkJSONResponse)
-async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
+async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
+                            request: Request = None):
     """List all sessions (includes worker status if active).
 
     summary=1 → lean payload [{id, name, adapter, workerStatus, updatedAt,
@@ -5190,7 +5204,7 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         # cached) lookup on the event loop rather than sharing it with a
         # worker thread.
         if workspaces.get(workspaceId) is None:
-            return {"sessions": [], "workspaceId": workspaceId}
+            return await _history_network_response({"sessions": [], "workspaceId": workspaceId}, request)
     sessions = await _store_read(sess.list_all, load_history=False)
     manager_by_id = {s.id: s for s in sessions} if summary else None
     if workspaceId == "ungrouped":
@@ -5216,20 +5230,20 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         }
     if summary:
         active_workers = worker.find_alive_workers_by_session()
-        return {"sessions": [
+        return await _history_network_response({"sessions": [
             _session_summary(s, active_workers, pin_projection_for(s.id), manager_by_id)
             for s in sessions
-        ]}
+        ]}, request)
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     # Resolve dynamic configuration once per response. Reading and deep-merging
     # config.json for each Session made list shaping perform one filesystem
     # read per row while the event loop was also serving dashboard heartbeats.
     app_config = load_config()
-    return {"sessions": [_session_list_api(
+    return await _history_network_response({"sessions": [_session_list_api(
                 s, page=pages.get(s.id), app_config=app_config,
                 pin_projection=pin_projection_for(s.id))
-            for s in sessions]}
+            for s in sessions]}, request)
 
 
 def _startup_recovery_candidates(sessions) -> list[dict]:
@@ -6282,13 +6296,13 @@ async def api_session_managers(session_id: str):
 
 @app.get("/api/sessions/{session_id}/history", response_class=NetworkJSONResponse)
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
-                              searchJump: bool = False):
+                              searchJump: bool = False, request: Request = None):
     """Paginated session history for lazy-loading older messages."""
     page = await _store_read(
         _history_page_lookup, session_id, before, limit, searchJump)
     if page is _NOT_FOUND:
-        return {"error": "Session not found"}
-    return {
+        return await _history_network_response({"error": "Session not found"}, request)
+    return await _history_network_response({
         "history": _api_history(
             session_id,
             page["history"],
@@ -6300,7 +6314,7 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
         "start": page["start"],
         "historyEpoch": page.get("historyEpoch"),
         "historyRevision": page.get("historyRevision", 0),
-    }
+    }, request)
 
 
 def _navigation_preview(content: str) -> str:

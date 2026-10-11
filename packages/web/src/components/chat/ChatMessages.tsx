@@ -788,9 +788,15 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         current.timer = null;
         current.active = false;
         paginationCheckDueRef.current = null;
+        // A layout scroll can consume suppression before the real gesture's
+        // scroll event is attributed. Capture the settled position rather than
+        // reviving an anchor from before the user's input.
+        if (!sessionAnchorRef.current && parentRef.current) {
+          rememberScrollPosition(parentRef.current);
+        }
       }
     }, delay);
-  }, []);
+  }, [rememberScrollPosition]);
 
   const markUserScrollInput = useCallback((event?: Event, direction?: 'older' | 'newer') => {
     ignoreUnattributedScrollRef.current = false;
@@ -832,6 +838,8 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
       sessionAnchorRestoreRafRef.current = null;
     }
     paginationAnchorRef.current = null;
+    sessionAnchorRef.current = null;
+    if (currentSessionIdRef.current) scrollSnapshots.delete(currentSessionIdRef.current);
     restoreRef.current = null;
     isRestoringRef.current = false;
     if (direction === 'older') {

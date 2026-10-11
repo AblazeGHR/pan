@@ -847,6 +847,38 @@ describe('ChatMessages scroll positioning', () => {
     ]);
   });
 
+  it('does not restore a stale reading anchor after streaming suppresses the wheel scroll event', () => {
+    vi.useFakeTimers();
+    const restoreGeometry = installRowGeometry();
+    try {
+      const messages = msgs(22).map((message, index) => ({ ...message, messageId: `stable-${index}` }));
+      useSessionStore.setState({ currentSessionId: 'stream-anchor-expiry', currentMessages: messages.slice(0, 20) });
+      m.setTotalSize(2000);
+      m.setVirtualItems(rowWindow([9, 10, 11, 12, 13, 14]));
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      act(() => { vi.advanceTimersByTime(100); });
+      userScroll(scrollEl, 1000);
+      act(() => { vi.advanceTimersByTime(100); });
+      fireEvent.wheel(scrollEl, { deltaY: -300 });
+      // A streaming render lands between wheel input and its scroll event.
+      m.setTotalSize(2100);
+      act(() => { useSessionStore.setState({ currentMessages: messages.slice(0, 21) }); });
+      scrollEl.scrollTop = 700;
+      fireEvent.scroll(scrollEl);
+      fireEvent(scrollEl, new Event('scrollend'));
+      act(() => { vi.advanceTimersByTime(350); });
+      // Once the input quiet period ends, another delta must not revive the
+      // anchor from before the gesture and pull the reader down by 300px.
+      m.setTotalSize(2200);
+      act(() => { useSessionStore.setState({ currentMessages: messages }); });
+      act(() => { vi.advanceTimersByTime(50); });
+      expect(scrollEl.scrollTop).toBe(700);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
   it('keeps upward intent when a layout scroll arrives before the wheel movement', () => {
     vi.useFakeTimers();
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
