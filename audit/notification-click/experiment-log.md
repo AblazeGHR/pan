@@ -89,3 +89,27 @@
 
 E2E 用例：真实 worker.result→通知创建（正文=结果）；onclick→回聊天+选择（其它视图出发）；browser=off 静默无通知；删除前置+点击删除 toast；加载失败保留深链+恢复（其余 query 保留）；慢加载不覆盖用户抢占；连击只生效一次；双 tab 隔离；后台标签 handler；0 外链/0 pageerror/无正文入 URL。
 未验证（如实）：真实 OS 通知点击与焦点（浏览器/OS 边界，stub 捕获+程序化触发 onclick，未弹真实系统通知）；浏览器关闭后的 SW 冷启动（范围外）；headless 下后台标签 visibilityState 记录为 `visible`。
+
+## MA 复核阻塞修复（2026-10-11，e771bef2 之后窄修，保留历史）
+
+MA 复核 e771bef2 指出两个阻塞：
+
+1. `openSessionFromNotification` 在 lookup 之后检查 intent/currentSession/location，但 `await navigateToChat`（lazy import + router.navigate）期间**完全未复查**：用户在该窗口选 B、或第二个通知点击 B，旧 A 返回后无条件 `selectSession(A)`；且仅比 `currentSessionId` 无法发现 A→B→A。
+2. `useSessionDeepLinkParam` 的异步 lookup 无 effect 生命周期/参数代际守卫：raw 被删时 effect 早退、`retry.current.raw` 不更新，旧 lookup 仍可 select/clear 新 URL；unmount 后仍可迟到生效。
+
+修复（`packages/web/src/utils/session-deeplink.ts`）：
+
+- 选择代际：`selectionEpoch()` = `_selectionSeq` 全值和（`selectSession` 是唯一写入者，任何用户选择都使其变化，含 A→B→A）。
+- 点击路径三段复查：lookup 后（intent/epoch/location）、lazy import 后导航前（intent/epoch/location）、navigate await 后（intent/epoch + `isAtChatRoot()`——自身导航落点为聊天根，其它位置=用户改道，用户胜出）；router 失败仍 toast 上报。
+- hook：`generation` ref（参数值变化含 →null 或 unmount 时递增）使旧 continuation 失效；`baselineEpoch` 记录链接出现时的选择代际，用户在其后做过任何选择即静默消费链接、不覆盖；unmount 经独立 effect 失效一切待决结果。
+
+红→绿证据（新增 7 个确定性回归，修复前失败/后通过；断言未削弱）：
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 修复前（对 e771bef2 源码） | 108 中恰 7 失败（4 点击窗口 + 3 hook 生命周期），旧 101 全过 | `blocker-red-before-fix.txt` |
+| 修复后 | 108/108 通过 | `blocker-green-after-fix.txt` |
+
+新增回归：deferred lazy import（首测门控 `@/router` 模块解析）+ deferred navigate 下——用户在 import 窗口选择胜出且**不再发起导航**；第二个通知点击胜出；A→B→A 仍判为用户接管（以 `_selectionSeq` 增量证明迟到流程未二次选择）；用户在 navigate 窗口改道 `/jobs` 时中止。hook：raw 移除后旧 lookup 不作用于新 URL；lookup 中用户选择获胜且链接被静默消费；unmount 后迟到结果不生效。
+
+复验（修复后，全部隔离）：定向 108/108；全量 1455 过/2 失（与基线同两名，`vitest-blockerfix-full.txt`）；tsc、scoped eslint（7 文件）、`vite build`+66 资产、`git diff --check` 全过；mock E2E 6/6；隔离真实后端 E2E 10/10（`e2e-notification-deeplink-real.json`）。修复补丁：`blocker-fix.patch`。

@@ -65,7 +65,22 @@
 - 多窗口同 origin 的浏览器聚焦选择规则（官方无明文）。
 - 删除/live-worker 竞态（§4）为范围外观察，未修复、未深挖。
 
-## 7. 交付
+## 7. MA 复核阻塞修复（e771bef2 之后窄修，保留历史）
+
+MA 复核指出两个阻塞并已修复（`session-deeplink.ts`）：
+
+1. **点击路径 async 窗口未复查**：`await navigateToChat`（lazy import + router.navigate）后无条件 `selectSession(A)`，用户在该窗口选 B / 第二个通知点击 B 会被旧 A 覆盖；且仅比 `currentSessionId` 无法发现 A→B→A。修复：选择代际（`selectionEpoch` = `_selectionSeq` 全值和，`selectSession` 是唯一写入者）贯穿三段复查——lookup 后、lazy import 后导航前、navigate await 后；末段以 `isAtChatRoot()` 区分自身导航落点与用户改道（用户改道即中止）；router 异常仍 toast 上报。
+2. **hook 异步 lookup 无生命周期/参数代际守卫**：raw 被删/变更时旧 continuation 仍可 select/clear 新 URL，unmount 后仍可迟到生效。修复：`generation` ref（参数值变化含 →null、或 unmount 时递增）失效一切旧结果；`baselineEpoch` 记录链接出现时的选择代际——用户其后做过任何选择即静默消费链接、绝不覆盖。
+
+红→绿（新增 7 个确定性回归，覆盖 deferred lazy import / deferred navigate / deferred lookup 三类窗口；修复前失败、后通过；断言未削弱）：
+
+- 修复前：108 中恰 7 失败（`blocker-red-before-fix.txt`）；
+- 修复后：108/108 通过（`blocker-green-after-fix.txt`）。
+- 回归用例：import 窗口用户选择胜出且不再发起导航；第二个通知点击胜出；A→B→A 仍判接管（`_selectionSeq` 增量证明无二次选择）；navigate 窗口用户改道即中止；raw 移除后旧 lookup 不作用新 URL；lookup 中用户选择获胜且链接静默消费；unmount 后迟到结果不生效。
+
+复验：全量 1455 过/2 失（与基线同两名，`vitest-blockerfix-full.txt`）；tsc / scoped eslint / build+66 资产 / diff --check 全过；mock E2E 6/6；隔离真实后端 E2E 10/10。补丁：`audit/notification-click/blocker-fix.patch`。
+
+## 8. 交付
 
 - 本阶段实现提交（见 `git log`，位于 `ca81ed58` 之后）；完整 SHA 证据见 `audit/notification-click/sha-evidence.txt`。
 - 证据产物：`audit/notification-click/`（含 phase1 全量日志两份、real/mock E2E JSON、实验日志）。

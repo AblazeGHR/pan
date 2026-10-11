@@ -15,9 +15,10 @@
  *    that does not contain the id counts as "missing".
  *  - A failed list load is NOT deletion: the deep link keeps waiting and
  *    recovers when a later refresh succeeds.
- *  - Async work carries an intent guard: a click started earlier never wins
- *    over a newer click, a newer selection, or a user navigation that
- *    happened while it was resolving.
+ *  - Every async window (lookup, lazy router import, router navigation) is
+ *    re-validated against the latest click intent, the selection generation
+ *    and the user's own routing. A later user action always wins; comparing
+ *    `currentSessionId` alone is not enough (the user can roam A → B → A).
  *  - Router failures are surfaced (toast + false), never swallowed.
  */
 import { useCallback, useEffect, useRef } from 'react';
@@ -47,6 +48,31 @@ let clickIntent = 0;
 
 function locationKey(): string {
   return `${window.location.pathname}${window.location.search}`;
+}
+
+/**
+ * Does the browser sit on the chat root for this build? Used only AFTER our
+ * own `router.navigate('/')`: the router moves `window.location` itself, so a
+ * pathname that is not the chat root means the user navigated away during the
+ * await — their later action wins over the pending notification jump.
+ */
+function isAtChatRoot(): boolean {
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '');
+  return path === base;
+}
+
+/**
+ * Selection generation: `selectSession` is the single writer of
+ * `currentSessionId` and bumps the target's `_selectionSeq` entry every time.
+ * The summed generation therefore changes for ANY user selection, including
+ * re-selecting a session that was already current (A → B → A).
+ */
+function selectionEpoch(): number {
+  const seq = useSessionStore.getState()._selectionSeq;
+  let total = 0;
+  for (const key of Object.keys(seq)) total += seq[key] ?? 0;
+  return total;
 }
 
 type SessionLookup = 'found' | 'missing' | 'unknown';
@@ -114,33 +140,36 @@ async function lookupSessionRef(sessionId: string): Promise<SessionLookup> {
   return 'unknown';
 }
 
-/** Router-singleton navigation, lazily imported to stay out of its cycle. */
-async function navigateToChat(): Promise<boolean> {
-  try {
-    const { router } = await import('@/router');
-    await router.navigate('/');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Notification click handler: focus Pan, return to the chat view and select
  * the session. Resolves to true only when the routing actually completed and
  * the selection was applied; false means "not applied" (invalid or deleted
  * session, unavailable list, user took over, or router failure). Every
- * failure mode except an overtaken intent is surfaced with a toast; an
- * overtaken intent is silently dropped because a newer action already won.
+ * failure mode except a user take-over is surfaced with a toast; a take-over
+ * is silently dropped because a newer user action already won.
+ *
+ * The click flow has three async windows — the authoritative lookup, the lazy
+ * router import, and the navigation itself. Each window is re-validated, and
+ * the selection generation is checked again directly before the final
+ * `selectSession`, so a click can never overwrite what the user did while it
+ * was settling:
+ *   1. after the lookup: intent + selection generation + location;
+ *   2. after the import, right before navigating: same three;
+ *   3. after the navigation: intent + selection generation + the router's own
+ *      landing point (chat root = our own route change; anywhere else = the
+ *      user navigated away and wins).
  */
 export async function openSessionFromNotification(sessionId: string): Promise<boolean> {
   if (!isValidSessionRef(sessionId)) return false;
   const intent = ++clickIntent;
-  const sessionAtStart = useSessionStore.getState().currentSessionId;
+  const startEpoch = selectionEpoch();
   const startLocation = locationKey();
+  const userTookOver = (): boolean =>
+    selectionEpoch() !== startEpoch || locationKey() !== startLocation;
 
   const lookup = await lookupSessionRef(sessionId);
   if (intent !== clickIntent) return false; // a newer click superseded us
+  if (userTookOver()) return false; // the user acted while we resolved
   if (lookup === 'missing') {
     useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
     return false;
@@ -151,10 +180,6 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
     useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
     return false;
   }
-  // While we were resolving, the user may have taken over: another session
-  // selected or another view opened. Respect the later intent.
-  if (useSessionStore.getState().currentSessionId !== sessionAtStart) return false;
-  if (locationKey() !== startLocation) return false;
 
   try {
     // Same-origin windows may be focused from the notification click listener
@@ -165,13 +190,32 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
     // ignore
   }
 
-  if (!(await navigateToChat())) {
+  let router: { navigate: (to: string) => Promise<unknown> };
+  try {
+    // Lazy import keeps this util out of the router's static cycle; it can
+    // still take time (first load/cold cache), so re-validate afterwards.
+    ({ router } = await import('@/router'));
+  } catch {
     useUIStore.getState().showToast(ROUTE_FAILED_MESSAGE, 'error');
     return false;
   }
-  // navigateToChat settled means the router applied the navigation; the
-  // remaining selectSession state update below is synchronous (its history
-  // fetch keeps its own _selectionSeq guards).
+  if (intent !== clickIntent) return false;
+  if (userTookOver()) return false;
+
+  try {
+    await router.navigate('/');
+  } catch {
+    useUIStore.getState().showToast(ROUTE_FAILED_MESSAGE, 'error');
+    return false;
+  }
+  // Post-navigation: any selection change (even A → B → A) or a newer click
+  // during the await wins. Our own navigation lands on the chat root — if we
+  // are anywhere else, the user routed away and wins too.
+  if (intent !== clickIntent) return false;
+  if (selectionEpoch() !== startEpoch) return false;
+  if (!isAtChatRoot()) return false;
+  // Atomic from here: the remaining selectSession state update is synchronous
+  // (its history fetch keeps its own _selectionSeq guards).
   void useSessionStore.getState().selectSession(sessionId);
   return true;
 }
@@ -182,14 +226,21 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
  *  - a cache miss triggers ONE authoritative list fetch;
  *  - when that fetch fails the parameter is kept (no false "deleted") and the
  *    selection recovers as soon as a later refresh brings the session in;
- *  - only a completed list fetch without the id reports deletion.
+ *  - only a completed list fetch without the id reports deletion;
+ *  - every async result is tied to the parameter generation (raw value change
+ *    or unmount invalidates it) and the selection generation (a user pick
+ *    during the lookup consumes the link without overriding the user).
  */
 export function useSessionDeepLinkParam(): void {
   const [searchParams, setSearchParams] = useSearchParams();
   const raw = searchParams.get(SESSION_DEEPLINK_PARAM);
   const sessions = useSessionStore((s) => s.sessions);
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
-  const retry = useRef({ raw: '', attempted: false, warned: false });
+  const generation = useRef(0);
+  const link = useRef({ raw: null as string | null, baselineEpoch: 0, attempted: false, warned: false });
+
+  // Unmount invalidates every pending continuation for this hook instance.
+  useEffect(() => () => { generation.current += 1; }, []);
 
   const clearParam = useCallback(() => {
     setSearchParams((prev) => {
@@ -200,9 +251,24 @@ export function useSessionDeepLinkParam(): void {
   }, [setSearchParams]);
 
   useEffect(() => {
+    if (link.current.raw !== raw) {
+      // Parameter generation changed (including → null): everything from the
+      // previous raw value must not run any more, and the stale-link budget
+      // resets. The baseline epoch marks the user's state when the link appeared.
+      generation.current += 1;
+      link.current = { raw, baselineEpoch: selectionEpoch(), attempted: false, warned: false };
+    }
+    const myGeneration = generation.current;
     if (!raw) return;
     if (!isValidSessionRef(raw)) {
       useUIStore.getState().showToast('会话链接无效', 'warning');
+      clearParam();
+      return;
+    }
+    const userTookOver = (): boolean => selectionEpoch() !== link.current.baselineEpoch;
+    if (userTookOver()) {
+      // The user picked their own session since the link appeared: the link
+      // is consumed silently and must never override their choice.
       clearParam();
       return;
     }
@@ -218,17 +284,18 @@ export function useSessionDeepLinkParam(): void {
     // failed refresh settles both exactly like a successful one. Run at most
     // one authoritative lookup per parameter value; if it fails, stay patient
     // — a later successful refresh populates the cache and resolves this.
-    const state = retry.current;
-    if (state.raw !== raw) {
-      state.raw = raw;
-      state.attempted = false;
-      state.warned = false;
-    }
+    const state = link.current;
     if (state.attempted || sessionsLoading) return;
     state.attempted = true;
     void (async () => {
       const lookup = await lookupSessionRef(raw);
-      if (retry.current.raw !== raw) return; // parameter changed meanwhile
+      // Lifecycle + parameter generation: the parameter was removed/changed,
+      // or the component unmounted, while we were looking up.
+      if (generation.current !== myGeneration || link.current.raw !== raw) return;
+      if (userTookOver()) {
+        clearParam();
+        return;
+      }
       if (lookup === 'found') {
         void useSessionStore.getState().selectSession(raw);
         clearParam();
@@ -239,8 +306,8 @@ export function useSessionDeepLinkParam(): void {
         clearParam();
         return;
       }
-      if (!retry.current.warned) {
-        retry.current.warned = true;
+      if (!link.current.warned) {
+        link.current.warned = true;
         useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
       }
     })();

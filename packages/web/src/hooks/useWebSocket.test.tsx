@@ -80,12 +80,34 @@ vi.mock('@/services/api', () => ({
 }));
 
 // Notification clicks route through the app router singleton; keep it out of
-// the component graph and assert the navigation call instead.
-const routerMock = vi.hoisted(() => ({ navigate: vi.fn() }));
-
-vi.mock('@/router', () => ({
-  router: { navigate: routerMock.navigate },
+// the component graph and assert the navigation call instead. The module
+// factory can be gated so ONE test can deterministically hold the lazy
+// `import('@/router')` open (the first import in this file resolves the mock;
+// later tests reuse the cached module).
+const routerMock = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  gate: null as Promise<void> | null,
+  releaseGate: null as (() => void) | null,
 }));
+
+vi.mock('@/router', async () => {
+  if (routerMock.gate) await routerMock.gate;
+  return { router: { navigate: routerMock.navigate } };
+});
+
+function armRouterImportGate(): void {
+  routerMock.gate = new Promise<void>((resolve) => { routerMock.releaseGate = resolve; });
+}
+
+function releaseRouterImportGate(): void {
+  routerMock.releaseGate?.();
+  routerMock.gate = null;
+  routerMock.releaseGate = null;
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await act(async () => { await Promise.resolve(); });
+}
 
 function msg(role: string, content: string): Message {
   return { role, content };
@@ -120,7 +142,10 @@ describe('useWebSocket worker.result wiring', () => {
     apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
     apiMock.listWorkers.mockReset().mockRejectedValue(new Error('not mocked'));
     apiMock.fetchSessionHistory.mockReset();
-    routerMock.navigate.mockClear();
+    releaseRouterImportGate();
+    routerMock.navigate.mockReset();
+    routerMock.navigate.mockResolvedValue(undefined);
+    window.history.replaceState(null, '', '/');
     useSessionStore.setState({
       sessions: [
         mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
@@ -1126,6 +1151,171 @@ describe('useWebSocket worker.result wiring', () => {
 
     expect(BrowserNotification).toHaveBeenCalledWith('Pan: demo completed', { body: 'reply' });
     expect(BrowserNotification).not.toHaveProperty('requestPermission');
+    vi.unstubAllGlobals();
+  });
+
+  // NOTE: this must stay the FIRST click-flow test in this file — it holds the
+  // (still unresolved) '@/router' module open via the import gate; later tests
+  // reuse the cached module and cannot observe an import window.
+  it('late import/navigation completion never overrides a user selection made while the lazy import was pending', async () => {
+    armRouterImportGate();
+    let releaseNavigate: (() => void) | undefined;
+    routerMock.navigate.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { releaseNavigate = resolve; }),
+    );
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    act(() => { useSessionStore.setState({ currentSessionId: null }); });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+
+    act(() => { instance.onclick?.(new Event('click')); });
+    await flushMicrotasks(); // lookup done; the flow is parked on the gated import
+
+    // The user takes over while the lazy router import is still unresolved.
+    await act(async () => { await useSessionStore.getState().selectSession('A'); });
+
+    releaseRouterImportGate();
+    await flushMicrotasks();
+    releaseNavigate?.(); // only reached by an implementation that skips the pre-navigate check
+    await flushMicrotasks();
+
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('a second notification click wins over an earlier click whose navigation is still settling', async () => {
+    const navigateResolvers: Array<() => void> = [];
+    routerMock.navigate.mockImplementation(
+      () => new Promise<void>((resolve) => { navigateResolvers.push(resolve); }),
+    );
+    const BrowserNotification = vi.fn();
+    const instances: Array<{ onclick: null | ((event: Event) => void) }> = [];
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    BrowserNotification.mockImplementation(function (this: unknown) {
+      instances.push(this as { onclick: null | ((event: Event) => void) });
+    });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'rb',
+        notification: { title: 'Pan: B completed', body: 'rb', browser: true },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1', status: 'done', result: 'ra',
+        notification: { title: 'Pan: A completed', body: 'ra', browser: true },
+      });
+    });
+    act(() => { useSessionStore.setState({ currentSessionId: null }); });
+    const older = instances[0];
+    const newer = instances[1];
+    if (!older || !newer) throw new Error('expected two notification instances');
+
+    act(() => { older.onclick?.(new Event('click')); }); // intent 1 (session B)
+    await vi.waitFor(() => expect(routerMock.navigate).toHaveBeenCalledTimes(1));
+    act(() => { newer.onclick?.(new Event('click')); }); // intent 2 (session A)
+    await vi.waitFor(() => expect(routerMock.navigate).toHaveBeenCalledTimes(2));
+
+    act(() => { navigateResolvers[0]?.(); }); // the superseded click's navigation settles
+    await flushMicrotasks();
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+
+    act(() => { navigateResolvers[1]?.(); }); // the newest click settles
+    await vi.waitFor(() => expect(useSessionStore.getState().currentSessionId).toBe('A'));
+    vi.unstubAllGlobals();
+  });
+
+  it('user re-selecting the starting session during the navigation window still counts as a take-over', async () => {
+    const navigateResolvers: Array<() => void> = [];
+    routerMock.navigate.mockImplementation(
+      () => new Promise<void>((resolve) => { navigateResolvers.push(resolve); }),
+    );
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+
+    act(() => { instance.onclick?.(new Event('click')); });
+    await vi.waitFor(() => expect(routerMock.navigate).toHaveBeenCalledTimes(1));
+
+    // The user roams A → B → A while the click's navigation is settling:
+    // currentSessionId equals the snapshot again, but a selection generation
+    // changed — the late flow must still yield.
+    const seqBefore = useSessionStore.getState()._selectionSeq['B'] ?? 0;
+    await act(async () => { await useSessionStore.getState().selectSession('B'); });
+    await act(async () => { await useSessionStore.getState().selectSession('A'); });
+    act(() => { navigateResolvers[0]?.(); });
+    await flushMicrotasks();
+
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    // Only the user's own selection bumped B's generation; the late flow did not.
+    expect(useSessionStore.getState()._selectionSeq['B'] ?? 0).toBe(seqBefore + 1);
+    vi.unstubAllGlobals();
+  });
+
+  it('aborts when the user routes away while the navigation is settling', async () => {
+    const navigateResolvers: Array<() => void> = [];
+    routerMock.navigate.mockImplementation(
+      () => new Promise<void>((resolve) => { navigateResolvers.push(resolve); }),
+    );
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    act(() => { useSessionStore.setState({ currentSessionId: null }); });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+
+    act(() => { instance.onclick?.(new Event('click')); });
+    await vi.waitFor(() => expect(routerMock.navigate).toHaveBeenCalledTimes(1));
+
+    // The user opens another view (same SPA session) while we settle.
+    act(() => { window.history.pushState({}, '', '/jobs'); });
+    act(() => { navigateResolvers[0]?.(); });
+    await flushMicrotasks();
+
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
     vi.unstubAllGlobals();
   });
 

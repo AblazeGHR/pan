@@ -1,9 +1,9 @@
 {
   "ok": true,
-  "ranAt": "2026-10-11T16:35:47.735Z",
-  "worktreeHead": "ca81ed58a1161010c04628d6ab3a3e627f8b5c67",
+  "ranAt": "2026-10-11T16:47:02.737Z",
+  "worktreeHead": "e771bef29c9599f5fc65e49aae670e96e789cf0e",
   "python": "D:/project/Pan-main/.venv/Scripts/python.exe",
-  "runtime": "D:\\project\\pan-worktrees\\notification-click-session-20261011\\packages\\web\\test-results\\notify-1791736547708",
+  "runtime": "D:\\project\\pan-worktrees\\notification-click-session-20261011\\packages\\web\\test-results\\notify-1791737222710",
   "results": [
     {
       "name": "real worker.result creates the notification for the completed session",
@@ -47,21 +47,21 @@
       "name": "a slow lookup never overrides a later user selection",
       "ok": true,
       "detail": {
-        "selection": "ses_71318bdcdff7495e"
+        "selection": "ses_0b010fce390bfbed"
       }
     },
     {
       "name": "two rapid clicks on one notification apply only once",
       "ok": true,
       "detail": {
-        "selection": "ses_db558d557c59e11d"
+        "selection": "ses_bc68b52889452fc0"
       }
     },
     {
       "name": "dual tabs stay isolated: clicking one tab does not select in the other",
       "ok": true,
       "detail": {
-        "tabA": "ses_db558d557c59e11d",
+        "tabA": "ses_bc68b52889452fc0",
         "tabB": null
       }
     },
@@ -70,7 +70,7 @@
       "ok": true,
       "detail": {
         "visibilityStateObserved": "visible",
-        "selection": "ses_db558d557c59e11d"
+        "selection": "ses_bc68b52889452fc0"
       }
     },
     {

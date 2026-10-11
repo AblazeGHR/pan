@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, cleanup } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { useSessionDeepLinkParam } from '@/utils/session-deeplink';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -42,13 +42,27 @@ function LocationProbe() {
   return <div data-testid="location-search">{location.search}</div>;
 }
 
-function renderAt(entry: string) {
-  render(
+function RouteControl({ to }: { to: string }) {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(to, { replace: true })}>
+      route-control
+    </button>
+  );
+}
+
+function renderAt(entry: string, options?: { controlTo?: string }) {
+  return render(
     <MemoryRouter initialEntries={[entry]}>
       <LocationProbe />
       <Harness />
+      {options?.controlTo ? <RouteControl to={options.controlTo} /> : null}
     </MemoryRouter>,
   );
+}
+
+function clickRouteControl(): void {
+  screen.getByText('route-control').click();
 }
 
 function currentSearch(): string {
@@ -173,6 +187,73 @@ describe('useSessionDeepLinkParam', () => {
     });
     expect(currentSearch()).toBe('');
     expect(apiMock.fetchSessions).toHaveBeenCalledTimes(3);
+  });
+
+  it('a removed ?session is not acted on by its own pending lookup', async () => {
+    const pending: Array<(value: Session[]) => void> = [];
+    apiMock.fetchSessions.mockImplementationOnce(
+      () => new Promise((resolve) => { pending.push(resolve as (value: Session[]) => void); }),
+    );
+    renderAt('/?session=C&keep=1', { controlTo: '/?keep=1' });
+    await act(async () => { await Promise.resolve(); });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+
+    // The user navigates; the parameter is gone while the lookup is pending.
+    await act(async () => { clickRouteControl(); });
+    expect(currentSearch()).toBe('?keep=1');
+
+    await act(async () => {
+      pending[0]?.([mkSession('A'), mkSession('C')]);
+      await Promise.resolve();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(currentSearch()).toBe('?keep=1');
+  });
+
+  it('a user selection during the lookup wins and the link is consumed without overriding', async () => {
+    const pending: Array<(value: Session[]) => void> = [];
+    apiMock.fetchSessions.mockImplementationOnce(
+      () => new Promise((resolve) => { pending.push(resolve as (value: Session[]) => void); }),
+    );
+    renderAt('/?session=C');
+    await act(async () => { await Promise.resolve(); });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+
+    // The user picks their own session while the deep link is resolving.
+    await act(async () => { await useSessionStore.getState().selectSession('A'); });
+
+    await act(async () => {
+      pending[0]?.([mkSession('A'), mkSession('C')]);
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(currentSearch()).toBe('');
+    });
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it('unmounting while a lookup is pending applies nothing late', async () => {
+    const pending: Array<(value: Session[]) => void> = [];
+    apiMock.fetchSessions.mockImplementationOnce(
+      () => new Promise((resolve) => { pending.push(resolve as (value: Session[]) => void); }),
+    );
+    const rendered = renderAt('/?session=C');
+    await act(async () => { await Promise.resolve(); });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1);
+
+    rendered.unmount();
+    await act(async () => {
+      pending[0]?.([mkSession('A'), mkSession('C')]);
+      await Promise.resolve();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(toastMessages()).toEqual([]);
   });
 
   it('rejects a malformed session reference without touching the store', async () => {
