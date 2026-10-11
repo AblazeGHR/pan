@@ -17,6 +17,7 @@ export function HistorySearchOrdinal({ value, total, disabled, testId, onConfirm
       inputMode="numeric" value={draft} disabled={disabled} onChange={(event) => setDraft(event.target.value)}
       onFocus={(event) => event.currentTarget.select()} onBlur={reset}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
         if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); confirm(); }
         else if (event.key === 'Escape') reset();
       }} /> / {total}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
-import { Globe, Loader2, X } from 'lucide-react';
+import { Eraser, Globe, Loader2, X } from 'lucide-react';
 import { ApiRequestError, fetchHistorySearch, prepareHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, HistorySearchRole } from '@/types';
@@ -485,8 +485,10 @@ export function GlobalHistorySearch({
       : '';
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       closeSearch();
     } else if (event.key === 'Enter') {
       event.preventDefault();
@@ -511,12 +513,12 @@ export function GlobalHistorySearch({
       >
         <Globe size={16} />
       </button>
-      {open && (<HistorySearchPopup container={popupContainer} title="Global history search" onClose={closeSearch}>
+      {open && (<HistorySearchPopup container={popupContainer} title="Global history search" onClose={closeSearch} onMove={(delta) => currentNavigationRef.current?.move(delta)}>
         <div className="global-history-search__popup" role="search" aria-label="Global history search">
           <div className="global-history-search__controls">
             <input
               ref={inputRef}
-              type="search"
+              type="text"
               value={query}
               onChange={(event) => handleQueryChange(event.target.value)}
               onKeyDown={handleInputKeyDown}
@@ -531,13 +533,13 @@ export function GlobalHistorySearch({
               <button
                 type="button"
                 aria-label="Clear global search"
-                title="Clear query"
-                onClick={() => handleQueryChange('')}
+                title="Clear search input"
+                onClick={() => { handleQueryChange(''); inputRef.current?.focus(); }}
               >
-                <X size={14} />
+                <Eraser size={14} />
               </button>
             )}
-            <button type="button" aria-label="Close global search" title="Close" onClick={closeSearch}>
+            <button type="button" aria-label="Close global search" title="Close global search (Esc)" onClick={closeSearch}>
               <X size={15} />
             </button>
           </div>

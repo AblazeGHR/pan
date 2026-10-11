@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FileNode } from '@/types';
 import { EMPTY_FILE_NODES, expansionKey, useEditorStore } from '@/stores/editorStore';
-import { Download, File, Folder, FolderOpen, Pencil, X } from 'lucide-react';
+import { Download, File, Folder, FolderOpen, Pencil, Trash2 } from 'lucide-react';
 
 interface FileTreeProps {
   /** Editor root whose tree this renders (see EditorRoot.id). */
@@ -143,8 +143,9 @@ function FileTreeItem({
               className="text-text-tertiary hover:text-danger p-0.5"
               onClick={handleDelete}
               title="Delete"
+              aria-label="Delete"
             >
-              <X size={10} />
+              <Trash2 size={10} />
             </button>
           </div>
         )}

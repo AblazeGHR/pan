@@ -75,6 +75,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
   useEffect(() => {
     if (navigationOnly) return;
     const shortcut = (event: globalThis.KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape' && open) { event.preventDefault(); close(); return; }
       if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return;
       const target = event.target;
@@ -215,7 +216,8 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
     } finally { if (generation.current === token) setOverviewLoading(false); }
   };
   const keyboard = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') { event.preventDefault(); move(event.shiftKey ? -1 : 1); }
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); move(event.shiftKey ? -1 : 1); }
     else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
   };
   const text = status === 'loading' ? 'Searching full Session history…'
@@ -242,13 +244,13 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
       <button type="button" className="session-history-search__toggle" data-testid="session-history-search-toggle"
         aria-label={open ? 'Close Session history search' : 'Search Session history'} title="Search Session history (Ctrl+F)"
         onClick={() => open ? close() : setOpen(true)}><Search size={16} /></button>
-      {open && <HistorySearchPopup container={popupContainer} title="Session history search" onClose={close}><div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
+      {open && <HistorySearchPopup container={popupContainer} title="Session history search" onClose={close} onMove={move}><div ref={popup} className="session-history-search__popup" role="search" aria-label="Session history search">
         <div className="session-history-search__controls">
           <Search size={16} />
           <input ref={input} data-testid="session-history-search-input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={keyboard}
             aria-label="Search Session history" placeholder="Search history…" maxLength={512} />
           {navigationControls}
-          <button type="button" aria-label="Close search" onClick={close}><X size={16} /></button>
+          <button type="button" aria-label="Close search" title="Close Session history search (Esc)" onClick={close}><X size={16} /></button>
         </div>
         <HistorySearchRoles roles={roles} onChange={setRoles} />
         {status === 'ready' && total > 0 && overviewPage && <HistorySearchOverview hits={overviewPage.hits} query={query}
