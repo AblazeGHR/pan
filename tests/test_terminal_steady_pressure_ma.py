@@ -77,7 +77,11 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                                     "while time.monotonic()-start<180:\n"
                                     " sys.stdout.write(chunk);sys.stdout.flush();count+=len(chunk);time.sleep(.1)\n"
                                     "print('STEADY_FINAL_MARKER');sys.stdout.flush()\n"
-                                    "Path(sys.argv[1]).write_text(json.dumps({'bytes':count,'seconds':time.monotonic()-start}))\n",
+                                    # Publish only after writing and closing: existence is the
+                                    # consumer's completion signal across the PTY process boundary.
+                                    "done=Path(sys.argv[1]);staging=done.with_suffix('.tmp')\n"
+                                    "staging.write_text(json.dumps({'bytes':count,'seconds':time.monotonic()-start}))\n"
+                                    "staging.replace(done)\n",
                                     encoding='utf-8')
                 url = f'ws://127.0.0.1:{port}/ws/terminal/{tid}'
                 # Disable transport ping timers only in this fixture. An unread

@@ -1414,9 +1414,11 @@ def main(argv: list[str] | None = None) -> int:
         _write_stdout(receipt)
     reader = threading.Thread(target=_read_pan_stdin,
                               args=(pan_queue, control_queue, app._turn_active, mode_handler, native_handler), daemon=True)
-    reader.start()
     try:
         app.start()
+        # A failed startup must not leave a daemon holding buffered stdin
+        # during interpreter shutdown and obscure the kernel's real error.
+        reader.start()
         external = None
         while True:
             try:

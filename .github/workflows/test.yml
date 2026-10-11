@@ -28,6 +28,13 @@ jobs:
       - name: Install terminal emulator dependencies
         run: npm ci --prefix packages/core/terminal/emulator_sidecar
 
+      - name: Install Codex native test dependency
+        shell: pwsh
+        run: |
+          npm install --global --prefix "$env:RUNNER_TEMP/pan-codex" --no-audit --no-fund @openai/codex@0.162.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:RUNNER_TEMP/pan-codex" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

@@ -182,3 +182,17 @@ def test_isolated_entrypoint_preserves_output_and_exit_code(tmp_path):
     assert result.returncode == 7
     assert b"owned stdout" in result.stdout
     assert b"owned stderr" in result.stderr
+
+
+def test_kimi_wrapper_help_preserves_unicode_with_cp1252_stdout(tmp_path):
+    repo = Path(__file__).resolve().parents[1]
+    script = repo / "packages" / "core" / "adapters" / "kimi" / "wrapper.py"
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PYTHONPATH"}
+    env.update(PYTHONUTF8="0", PYTHONIOENCODING="cp1252")
+    result = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path,
+                            env=env, capture_output=True, timeout=10,
+                            **command_window_options())
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    help_text = result.stdout.decode("utf-8")
+    assert "usage:" in help_text
+    assert "worker 注入的系统提示词（首轮转 --agent-file）" in help_text

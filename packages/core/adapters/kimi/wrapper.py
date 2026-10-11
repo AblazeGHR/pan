@@ -294,6 +294,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    # argparse help uses the text stream; match the UTF-8 event output above.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     args = _build_arg_parser().parse_args()
 
     cwd = os.environ.get("PAN_KIMI_CWD") or os.environ.get("CLICONDUCTOR_KIMI_CWD") or os.getcwd()

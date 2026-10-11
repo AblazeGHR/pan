@@ -52,6 +52,37 @@ class SyntheticResponses:
         self.thread.join(2)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows owned Codex kernel")
+def test_wrapper_startup_failure_exits_cleanly_with_stdin_open(tmp_path):
+    """A failed kernel must report its cause before reading the still-open pipe."""
+    from packages.core.adapters.codex.adapter import _resolve_codex_node
+    root = Path(__file__).resolve().parents[1]
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    argv = [sys.executable, "-u", str(root / "packages/core/adapters/codex/wrapper.py"),
+            "--app-server", "--native-control", "--node-path", _resolve_codex_node(),
+            "--codex-path", str(tmp_path / "missing-codex.js")]
+    backend = subprocess.Popen(argv, cwd=str(tmp_path),
+        env=dict(os.environ, CODEX_HOME=str(home)), stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        # communicate() closes stdin and would hide the daemon-reader failure.
+        assert backend.wait(15) == 1
+        event = json.loads(backend.stdout.readline())
+        assert event["type"] == "result" and event["is_error"] is True
+        assert event["result"] == "Codex native kernel exited before connection"
+        diagnostic = backend.stderr.read().decode("utf-8", errors="replace")
+        assert "Codex native kernel exited before connection" in diagnostic
+        assert "Fatal Python error" not in diagnostic
+    finally:
+        if backend.poll() is None:
+            backend.kill()
+            backend.wait(3)
+        for stream in (backend.stdin, backend.stdout, backend.stderr):
+            stream.close()
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows ConPTY proof")
 @pytest.mark.parametrize("native_start", [False, True])
 def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_start):
