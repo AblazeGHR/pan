@@ -201,7 +201,11 @@ def test_mcp_args_url_server():
     }]})
     joined = " ".join(a.mcp_args(s))
     assert 'mcp_servers.remote.url="http://127.0.0.1:9000/mcp"' in joined
-    assert 'mcp_servers.remote.transport="http"' in joined
+    # 不注入 transport/type：codex 由「是否存在 url」推断传输方式（实测 cli 0.162
+    # 可调通 http MCP）；显式传这两个键会被判为未识别设置，每次启动报
+    # `mcp_servers.<name>.transport is ignored` 警告。
+    assert "mcp_servers.remote.transport" not in joined
+    assert "mcp_servers.remote.type" not in joined
     print("PASS: mcp_args url server")
 
 

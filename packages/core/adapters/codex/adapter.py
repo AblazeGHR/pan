@@ -334,7 +334,8 @@ class CodexAdapter:
           args = ["...", "..."]
           [mcp_servers.<name>.env]
           KEY = "val"
-        URL server 用 url + transport。对应用 ``-c`` 内联表达。
+        URL server 只表达 ``url``（传输方式由 codex 依 url 推断，见下）。对应用
+        ``-c`` 内联表达。
         """
         servers = build_mcp_servers(s)
         if not servers:
@@ -343,11 +344,12 @@ class CodexAdapter:
         for name, entry in servers.items():
             env = dict(entry.get("env") or {})
             if entry.get("url"):
+                # 只透传 url：codex 由「是否存在 url」推断传输方式（实测
+                # codex-cli 0.162 调通 http MCP）。显式传
+                # mcp_servers.<name>.transport 会被 codex 判为未识别设置，
+                # 每次启动打印 `... transport is ignored` 警告（type 同理）。
                 opts.append("-c")
                 opts.append(_c_override(f"mcp_servers.{name}.url", entry["url"]))
-                transport = entry.get("transport") or "http"
-                opts.append("-c")
-                opts.append(_c_override(f"mcp_servers.{name}.transport", transport))
             else:
                 cmd = entry.get("command")
                 args = list(entry.get("args") or [])

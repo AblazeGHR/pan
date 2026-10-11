@@ -1058,6 +1058,25 @@ describe('useWebSocket worker.result wiring', () => {
       .toBe('Codex MCP pan: offline');
   });
 
+  it('appends a re-authorization hint to Codex MCP auth failures', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'notion', status: 'failed', error: 'Unauthorized' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe(
+      'Codex MCP notion: Unauthorized'
+      + ' —— 授权失效可运行 python scripts/notion_auth.py 重新授权',
+    );
+  });
+
   it('surfaces native Codex model reroutes on the active session', () => {
     renderHook(() => useWebSocket());
 
