@@ -8,6 +8,7 @@ import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import {
+  ApiRequestError,
   enqueueSessionMessage,
   fetchSessionQueue,
   fetchDirectories,
@@ -1244,9 +1245,26 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(textarea.value).toBe('');
 
-    request.reject(new Error('network result unknown'));
+    request.reject(new ApiRequestError(409, 'submission rejected'));
     await waitFor(() => expect(textarea.value).toBe('retry this message'));
     expect(enqueueSessionMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an unconfirmed send cleared and blocks retransmission', async () => {
+    setBusySession();
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+    const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'unknown receipt' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(textarea.value).toBe('');
+    request.reject(new Error('network result unknown'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' }).getAttribute('aria-busy')).toBe('true'));
+    fireEvent.change(textarea, { target: { value: 'new draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(enqueueSessionMessage).toHaveBeenCalledTimes(1);
+    expect(textarea.value).toBe('new draft');
   });
 
   it('does not let a pending send overwrite input typed after the optimistic clear', async () => {

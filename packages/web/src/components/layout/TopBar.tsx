@@ -22,6 +22,8 @@ import {
   Download,
   X,
   TerminalSquare,
+  ArrowUp,
+  Loader2,
 } from 'lucide-react';
 
 /**
@@ -168,6 +170,11 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
       takeover: s.takeover,
     })));
   const { isMobile } = useMediaQuery();
+  const terminalUpgrading = nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean';
+  const terminalAvailable = (nativeState?.enabled ?? currentSession?.nativeControl) === true;
+  const terminalStatus = nativeState?.error ? 'error' : terminalUpgrading ? 'upgrading'
+    : terminalAvailable ? nativeActive ? 'enabled' : 'available' : 'upgrade';
+  const terminalLabel = terminalStatus === 'upgrade' ? 'Upgrades' : 'Terminal TUI';
   const chooseView = async (value: 'tui' | 'bubble' | 'raw') => {
     enterAfterUpgrade.current = null;
     setChatViewStyle(value);
@@ -299,10 +306,17 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             </div>
           )}
           {currentSession.adapter === 'codex' && <button type="button"
-            className={`ml-1 border-l border-border-default pl-2 flex items-center gap-1 text-xs ${nativeActive ? 'text-accent' : 'text-text-secondary'}`}
+            className="terminal-tui-entry ml-1 flex shrink-0 items-center justify-center gap-1 rounded border px-2 py-1 text-xs transition-colors md:min-h-0"
+            data-terminal-status={terminalStatus}
             aria-label="Terminal TUI" aria-pressed={nativeActive} disabled={nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean'}
+            title={terminalStatus === 'upgrade' ? 'Upgrades — upgrade Session to Terminal TUI' : terminalStatus === 'upgrading' ? 'Terminal TUI — upgrade or control switch pending' : terminalStatus === 'error' ? 'Terminal TUI — control error; retry' : terminalStatus === 'enabled' ? 'Terminal TUI — enabled' : 'Terminal TUI — available'}
             onClick={() => void enterNative()}>
-            <TerminalSquare size={16} /> Terminal TUI{typeof nativeState?.pendingEnabled === 'boolean' ? ' · pending idle' : ''}
+            <span className="relative inline-flex shrink-0" aria-hidden="true">
+              <TerminalSquare size={16} />
+              {terminalStatus === 'upgrade' && <ArrowUp size={10} className="terminal-tui-entry__upgrade-arrow absolute -right-1 -top-1 rounded-sm bg-bg-primary" />}
+              {terminalStatus === 'upgrading' && <Loader2 size={10} className="absolute -right-1 -top-1 animate-spin rounded-sm bg-bg-primary" />}
+            </span>
+            {!isMobile && <span>{terminalLabel}{typeof nativeState?.pendingEnabled === 'boolean' ? ' · pending idle' : ''}</span>}
           </button>}
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">

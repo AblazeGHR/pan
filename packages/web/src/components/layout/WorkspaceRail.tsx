@@ -95,16 +95,21 @@ export function WorkspaceRail({
   }, [loaded, workspaces, activeWorkspaceId, setActiveWorkspace]);
 
   const memberStats = useMemo(() => {
-    const stats = new Map<string, { count: number; workerStatus: string | null }>();
+    const stats = new Map<string, { count: number; workerStatus: string | null; unread: boolean }>();
     let ungroupedCount = 0;
+    let ungroupedUnread = false;
+    let anyUnread = false;
     for (const session of sessions) {
       const effective = effectiveWorkspaceIds(session, sessions);
+      const unread = Number.isFinite(session.unreadDoneCount) && Math.floor(session.unreadDoneCount ?? 0) > 0;
+      anyUnread ||= unread;
       // Same rule as the 'ungrouped' scope filter: a child of a managed root
       // inherits the root's membership, so it is NOT counted here.
-      if (effective.length === 0) ungroupedCount += 1;
+      if (effective.length === 0) { ungroupedCount += 1; ungroupedUnread ||= unread; }
       for (const id of effective) {
-        const current = stats.get(id) ?? { count: 0, workerStatus: null };
+        const current = stats.get(id) ?? { count: 0, workerStatus: null, unread: false };
         current.count += 1;
+        current.unread ||= unread;
         const candidate = session.workerStatus ?? '';
         if ((WORKSPACE_STATUS_RANK[candidate] ?? 0) > (WORKSPACE_STATUS_RANK[current.workerStatus ?? ''] ?? 0)) {
           current.workerStatus = candidate;
@@ -112,7 +117,7 @@ export function WorkspaceRail({
         stats.set(id, current);
       }
     }
-    return { stats, ungroupedCount };
+    return { stats, ungroupedCount, ungroupedUnread, anyUnread };
   }, [sessions]);
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
@@ -421,6 +426,7 @@ export function WorkspaceRail({
           >
             <Layers size={mobileDrawer ? 11 : 12} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate">全部</span>
+            <WorkspaceUnreadDot unread={memberStats.anyUnread} id="all" />
             <span className={`shrink-0 rounded-full border border-border-muted bg-bg-tertiary ${mobileDrawer ? 'px-1 text-[9px]' : 'px-1.5 text-[10px]'} leading-4 text-text-tertiary`}>
               {sessions.length}
             </span>
@@ -445,6 +451,7 @@ export function WorkspaceRail({
           >
             <Layers size={mobileDrawer ? 11 : 12} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate">无工作区</span>
+            <WorkspaceUnreadDot unread={memberStats.ungroupedUnread} id="ungrouped" />
             <span
               data-testid="workspace-count-ungrouped"
               className={`shrink-0 rounded-full border border-border-muted bg-bg-tertiary ${mobileDrawer ? 'px-1 text-[9px]' : 'px-1.5 text-[10px]'} leading-4 text-text-tertiary`}
@@ -499,6 +506,7 @@ export function WorkspaceRail({
               >
                 <Folder size={mobileDrawer ? 11 : 12} className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+                <WorkspaceUnreadDot unread={memberStat?.unread ?? false} id={workspace.id} />
                 <span
                   data-testid={`workspace-count-${workspace.id}`}
                   data-worker-status={memberStat?.workerStatus ?? 'offline'}
@@ -638,4 +646,10 @@ export function WorkspaceRail({
       </Modal>
     </div>
   );
+}
+
+function WorkspaceUnreadDot({ unread, id }: { unread: boolean; id: string }) {
+  return <span className="flex w-2 shrink-0 items-center justify-center">
+    {unread && <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" role="img" aria-label="工作区有未读消息" title="工作区有未读消息" data-testid={`workspace-unread-${id}`} />}
+  </span>;
 }

@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, type ReactNode, type PointerEvent } from 'reac
 import { createPortal } from 'react-dom';
 
 /** Viewport-level shell; unmounting on close discards all coordinates. */
-export function HistorySearchPopup({ container, children, title, onClose }: {
-  container?: HTMLElement | null; children: ReactNode; title: string; onClose: () => void;
+export function HistorySearchPopup({ container, children, title, onClose, onMove }: {
+  container?: HTMLElement | null; children: ReactNode; title: string; onClose: () => void; onMove?: (delta: number) => void;
 }) {
   const shell = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
@@ -46,6 +46,11 @@ export function HistorySearchPopup({ container, children, title, onClose }: {
     event.preventDefault();
   };
   return createPortal(<div ref={shell} className="history-search-floating" onKeyDown={(event) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return; }
+    if (event.defaultPrevented) return;
+    if (event.key === 'Enter' && !(event.target instanceof HTMLElement && event.target.closest('button,input,textarea,select,[contenteditable="true"]'))) {
+      event.preventDefault(); event.stopPropagation(); onMove?.(event.shiftKey ? -1 : 1);
+    }
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
   }}>
     <div className="history-search-drag-handle" onPointerDown={start}

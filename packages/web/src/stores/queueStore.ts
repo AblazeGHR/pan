@@ -21,6 +21,8 @@ export interface EnqueueOptions {
   /** Legacy caller compatibility. Enqueue never appends a delivered chat row. */
   appendOptimisticHistory?: boolean;
   locked?: boolean;
+  /** Composer needs the rejection/unknown distinction for transaction recovery. */
+  propagateFailure?: boolean;
 }
 
 interface QueueStore {
@@ -675,6 +677,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           `未确认消息入队：${error instanceof Error ? error.message : String(error)}`,
           'error',
         );
+      if (options?.propagateFailure) throw error;
       return false;
     }
   },
