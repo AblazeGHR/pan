@@ -1,4 +1,4 @@
-/* global process:readonly, setTimeout:readonly, fetch:readonly, performance:readonly, Buffer:readonly, document:readonly, innerWidth:readonly, console:readonly */
+/* global process:readonly, setTimeout:readonly, fetch:readonly, performance:readonly, Buffer:readonly, document:readonly, innerWidth:readonly, console:readonly, getComputedStyle:readonly */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,6 +11,7 @@ const root = path.resolve(import.meta.dirname, '../../..');
 const port = Number(process.env.PAN_SEARCH_TEST_PORT || 18769);
 assert.ok(port !== 8767 && port !== 8768);
 const base = `http://127.0.0.1:${port}`;
+const comparePr = process.env.PAN_COMPARE_PR !== '0';
 const runtime = await fs.mkdtemp(path.join(os.tmpdir(), 'pan-search-completion-'));
 const evidenceDir = path.join(import.meta.dirname, 'test-results/history-search-content-completion');
 await fs.mkdir(evidenceDir, { recursive: true });
@@ -42,7 +43,7 @@ try {
   });
   server = spawn('C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe',
     [path.join(import.meta.dirname, 'historySearchServer.py')], { cwd: root, windowsHide: true,
-      env: { ...process.env, PAN_PORT: String(port), PAN_E2E_RUNTIME: runtime, PAN_COMPARE_PR: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      env: { ...process.env, PAN_PORT: String(port), PAN_E2E_RUNTIME: runtime, PAN_COMPARE_PR: comparePr ? '1' : '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
   server.stdout.on('data', (data) => { logs += data; });
   server.stderr.on('data', (data) => { logs += data; });
   let ready = false;
@@ -85,14 +86,14 @@ try {
   evidence.performance.warm = await measure(bench+'RareNeedle');
   evidence.performance.denseFirst = await measure(bench+'commonterm', 1);
   evidence.performance.denseWarm = await measure(bench+'commonterm');
-  evidence.performance.prSelective = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=RareNeedle`);
-  evidence.performance.prDense = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=commonterm`);
+  if (comparePr) evidence.performance.prSelective = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=RareNeedle`);
+  if (comparePr) evidence.performance.prDense = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=commonterm`);
   const append = () => api('/__e2e/append-history', { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: ids.bench, messages: [{ role: 'tool', content: 'RareNeedle appended' }] }) });
   await append();
   await api('/__e2e/cold-registry', { method: 'POST' });
   evidence.performance.appendFirst = await measure(bench+'RareNeedle', 1);
-  evidence.performance.prAppend = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=RareNeedle`);
+  if (comparePr) evidence.performance.prAppend = await measure(`/__e2e/pr3-search?sessionId=${ids.bench}&q=RareNeedle`);
   assert.equal(evidence.performance.appendFirst[0].total, 21);
   const globals = '/api/history/search?'+options+'&q=SharedNeedle&limit=100';
   let page = await api(globals), seen = [...page.body.hits];
@@ -130,6 +131,28 @@ try {
   await toggle.click();
   await tab.getByRole('switch').filter({ hasText: 'Show QQ messages' }).click();
   await tab.getByRole('button', { name: 'Close', exact: true }).last().click();
+  const waitForActiveLocation = async () => {
+    await tab.waitForFunction(() => {
+      const word = document.querySelector('[data-search-target] .history-search-word-active');
+      if (!word) return false;
+      let viewport = word.parentElement;
+      while (viewport && !/auto|scroll/.test(getComputedStyle(viewport).overflowY)) viewport = viewport.parentElement;
+      if (!viewport) return false;
+      const bounds = viewport.getBoundingClientRect(), target = word.getBoundingClientRect();
+      return target.height > 0 && target.top >= bounds.top - 1 && target.bottom <= bounds.bottom + 1;
+    });
+    evidence.locations ??= [];
+    evidence.locations.push(await tab.locator('[data-search-target] .history-search-word-active').evaluate((word) => ({ index: word.closest('[data-index]')?.getAttribute('data-index'), text: word.textContent, bounds: word.getBoundingClientRect().toJSON() })));
+  };
+  const seekOrdinal = async (testId, value, total) => {
+    const counter = tab.getByTestId(testId);
+    await tab.waitForFunction(({ testId, total }) => document.querySelector(`[data-testid="${testId}"]`)?.textContent?.trim() === `/ ${total}`, { testId, total });
+    await tab.waitForFunction((testId) => !document.querySelector(`[data-testid="${testId}"] input`)?.disabled, testId);
+    await counter.locator('input').fill(String(value));
+    await counter.locator('input').press('Enter');
+    await tab.waitForLoadState('networkidle');
+    await tab.waitForFunction(({ testId, value }) => { const input = document.querySelector(`[data-testid="${testId}"] input`); return input?.value === String(value) && !input.disabled; }, { testId, value });
+  };
   const ensureSidebarOpen = async () => {
     const dock = tab.getByTestId('message-navigation-dock');
     if (await dock.getAttribute('data-expanded') === 'true') return;
@@ -139,7 +162,9 @@ try {
       // Escape may have folded the dock while the pointer is still over its
       // handle. Re-enter it, just as a user would after dismissing the panel.
       await tab.mouse.move(300, 300);
-      await dock.locator('.message-navigation-dock__handle').hover();
+      await dock.locator('.message-navigation-dock__handle').focus();
+      await tab.waitForTimeout(50);
+      if (await dock.getAttribute('data-expanded') !== 'true') await dock.locator('.message-navigation-dock__handle').press('Enter');
     }
     await tab.waitForFunction(() => document.querySelector('[data-testid="message-navigation-dock"]')?.dataset.expanded === 'true');
     await tab.waitForTimeout(200); // let the shared width/panel transition settle
@@ -180,12 +205,15 @@ try {
   await ensureSidebarOpen();
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Legacy Local' }).first().click();
   await ensureSidebarOpen();
-  await tab.getByTestId('session-history-search-toggle').click();
+  await tab.getByTestId('session-history-search-toggle').focus();
+  await tab.getByTestId('session-history-search-toggle').press('Enter');
   await tab.getByTestId('session-history-search-input').fill('LegacyLocalNeedle');
-  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 8');
+  await seekOrdinal('session-history-search-count', 1, 8);
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '1 / 8');
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
   await ensureSidebarOpen();
-  await tab.getByTestId('global-history-search-toggle').click();
+  await tab.getByTestId('global-history-search-toggle').focus();
+  await tab.getByTestId('global-history-search-toggle').press('Enter');
   await tab.getByTestId('global-history-search-input').fill('LegacyGlobalNeedle');
   await tab.getByText(/1 occurrences found so far/).waitFor({ state: 'visible' });
   assert.equal(await tab.getByTestId('global-history-search-load-more').count(), 0);
@@ -206,9 +234,9 @@ try {
   await tab.getByRole('search', { name: 'Global history search' }).getByRole('button', { name: /Search Legacy Global, assistant/ }).first().click();
   await tab.locator('[data-search-target] mark').first().waitFor({ state: 'visible' });
   await tab.getByTestId('global-current-session-count').waitFor({ state: 'visible' });
-  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"]')?.textContent?.trim() === '3 / 8');
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="global-current-session-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '6 / 8');
   await globalPopup.getByRole('button', { name: 'Next result', exact: true }).click();
-  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"]')?.textContent?.trim() === '4 / 8');
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="global-current-session-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '7 / 8');
   assert.match(await globalPopup.innerText(), /Opened in Search Legacy Global/);
   await globalPopup.getByRole('button', { name: 'Collapse results' }).click();
   assert.equal(await globalPopup.getByRole('list').count(), 0);
@@ -225,8 +253,10 @@ try {
   await tab.keyboard.press('Control+f');
   const input = tab.getByTestId('session-history-search-input');
   await input.fill('DeepNeedle');
-  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 7');
+  await seekOrdinal('session-history-search-count', 1, 7);
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '1 / 7');
   await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
   const sessionPopup = tab.getByRole('search', { name: 'Session history search' });
   assert.equal(await sessionPopup.locator('.global-history-search__session-name').count(), 0);
   assert.ok(await sessionPopup.locator('.global-history-search__snippet mark').count() > 0);
@@ -238,20 +268,39 @@ try {
   await sessionPopup.getByRole('button', { name: 'Collapse results' }).click();
   assert.equal(await sessionPopup.getByRole('list').count(), 0);
   await sessionPopup.getByRole('button', { name: 'Expand results' }).click();
+  await seekOrdinal('session-history-search-count', 7, 7);
+  await tab.waitForFunction(() => document.querySelectorAll('[data-search-target] mark').length === 2);
   assert.equal(await tab.locator('[data-search-target] mark').count(), 2);
+  await seekOrdinal('session-history-search-count', 1, 7);
   for (let ordinal = 2; ordinal <= 7; ordinal++) {
     await tab.getByRole('button', { name: 'Next result', exact: true }).click();
-    await tab.waitForFunction((expected) => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === `${expected} / 7`, ordinal);
+    await tab.waitForFunction((expected) => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === `${expected} / 7`, ordinal);
     await tab.getByRole('button', { name: 'Next result', exact: true }).waitFor({ state: 'visible' });
     await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
   }
+  await seekOrdinal('session-history-search-count', 1, 7);
+  await tab.waitForFunction(() => document.querySelectorAll('[data-search-expanded-role="thinking"]').length === 1);
   assert.equal(await tab.locator('[data-search-expanded-role="thinking"]').count(), 1);
+  await input.focus();
+  await input.press('Enter');
+  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"] input')?.value === '2');
+  await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
+  await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
+  await input.press('Shift+Enter');
+  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"] input')?.value === '1');
+  await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
+  await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
+  evidence.tests.push('Real ChatMessages Enter next and Shift+Enter previous locate and highlight tool/thinking results');
   await tab.getByRole('checkbox', { name: 'Search tool messages' }).uncheck();
   await tab.getByRole('checkbox', { name: 'Search thinking messages' }).uncheck();
-  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 3');
+  await seekOrdinal('session-history-search-count', 1, 3);
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '1 / 3');
   assert.equal(await tab.locator('[data-search-expanded-role]').count(), 0);
   await ensureSidebarOpen();
-  await tab.getByTestId('global-history-search-toggle').click();
+  await tab.getByTestId('global-history-search-toggle').focus();
+  await tab.getByTestId('global-history-search-toggle').press('Enter');
   await tab.getByTestId('global-history-search-input').fill('SharedNeedle');
   await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
   assert.match(await tab.getByRole('search', { name: 'Global history search' }).innerText(), /1202 occurrences/);
@@ -261,24 +310,30 @@ try {
   await tab.getByRole('button', { name: 'Clear global search' }).click();
   await tab.locator('[data-session-card-id]').filter({ hasText: 'Search Benchmark' }).first().click();
   await ensureSidebarOpen();
-  await tab.getByTestId('session-history-search-toggle').click();
+  await tab.getByTestId('session-history-search-toggle').focus();
+  await tab.getByTestId('session-history-search-toggle').press('Enter');
   await tab.getByRole('checkbox', { name: 'Search tool messages' }).check();
   await tab.getByRole('checkbox', { name: 'Search thinking messages' }).check();
   const countStart = performance.now();
   const searchRequestsBefore = evidence.requests.filter((url) => url.includes('/api/history/search')).length;
   await input.fill('RareNeedle');
-  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 21');
+  await seekOrdinal('session-history-search-count', 1, 21);
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '1 / 21');
   evidence.performance.browserCountMs = performance.now()-countStart;
   evidence.performance.browserCountRequests = evidence.requests.filter((url) => url.includes('/api/history/search')).length-searchRequestsBefore;
   await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
   await input.fill('commonterm');
-  await tab.waitForFunction(() => document.querySelector('[data-testid="session-history-search-count"]')?.textContent?.trim() === '1 / 20000');
+  await seekOrdinal('session-history-search-count', 1, 20000);
+  await tab.waitForFunction(() => (() => { const count = document.querySelector('[data-testid="session-history-search-count"]'); return `${count?.querySelector('input')?.value}${count?.textContent}`.trim(); })() === '1 / 20000');
   await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
   await ensureSidebarOpen();
-  await tab.getByTestId('global-history-search-toggle').click();
+  await tab.getByTestId('global-history-search-toggle').focus();
+  await tab.getByTestId('global-history-search-toggle').press('Enter');
   await tab.getByTestId('global-history-search-input').fill('SharedNeedle');
   await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
   await tab.screenshot({ path: path.join(evidenceDir, 'desktop.png') });
+  await tab.getByTestId('global-history-search-input').press('Escape');
+  await tab.getByTestId('global-history-search-input').waitFor({ state: 'detached' });
   await tab.setViewportSize({ width: 390, height: 560 });
   await tab.waitForTimeout(250);
   assert.equal(await tab.getByTestId('message-navigation-dock').getAttribute('data-expanded'), 'false');
@@ -292,13 +347,51 @@ try {
   assert.equal(await tab.getByTestId('session-history-search-toggle').isVisible(), false);
   assert.equal(await tab.getByTestId('global-history-search-toggle').isVisible(), false);
   evidence.tests.push('Mobile topbar toggles one whole shared panel; both search buttons fold together');
+  await ensureSidebarOpen();
+  await tab.getByTestId('global-history-search-toggle').click();
+  const mobileSearch = tab.getByTestId('global-history-search-input');
+  await mobileSearch.fill('SharedNeedle');
+  await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
+  await tab.getByRole('search', { name: 'Global history search' }).getByRole('list').getByRole('button').first().click();
+  await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
+  await seekOrdinal('global-current-session-count', 1, 1202);
+  await mobileSearch.focus();
+  await mobileSearch.press('Enter');
+  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"] input')?.value === '2');
+  await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
+  await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
+  await mobileSearch.press('Shift+Enter');
+  await tab.waitForFunction(() => document.querySelector('[data-testid="global-current-session-count"] input')?.value === '1');
+  await tab.waitForFunction(() => !document.querySelector('button[aria-label="Next result"]')?.disabled);
+  await tab.locator('[data-search-target] .history-search-word-active').waitFor({ state: 'visible' });
+  await waitForActiveLocation();
+  await tab.getByRole('button', { name: 'Clear global search' }).click();
+  assert.equal(await mobileSearch.inputValue(), '');
+  assert.equal(await mobileSearch.evaluate((element) => element === document.activeElement), true);
+  assert.equal(await tab.locator('[data-search-target]').count(), 0);
+  await mobileSearch.press('Escape');
+  await mobileSearch.waitFor({ state: 'detached' });
+  await ensureSidebarOpen();
+  await tab.getByTestId('global-history-search-toggle').click();
+  await mobileSearch.fill('SharedNeedle');
+  await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
+  evidence.tests.push('Mobile real backend and ChatMessages global Enter/Shift+Enter location, clear focus/highlight removal and Esc close');
+
   const geometry = await tab.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, width: innerWidth,
     popup: document.querySelector('.global-history-search__popup')?.getBoundingClientRect().toJSON() }));
   assert.ok(geometry.scrollWidth <= geometry.width);
   evidence.geometry = geometry;
   await tab.screenshot({ path: path.join(evidenceDir, 'mobile.png') });
+  await mobileSearch.press('Escape');
   await tab.setViewportSize({ width: 1440, height: 900 });
   await tab.waitForTimeout(200);
+  await ensureSidebarOpen();
+  await tab.getByTestId('global-history-search-toggle').focus();
+  await tab.getByTestId('global-history-search-toggle').press('Enter');
+  await mobileSearch.fill('SharedNeedle');
+  await tab.getByTestId('global-history-search-load-more').waitFor({ state: 'visible' });
   await tab.locator('[title="App settings"]').first().click();
   await tab.locator('#app-settings-tab-appearance').click();
   await toggle.click();
