@@ -23,7 +23,9 @@ assert.ok(port !== 8767 && port !== 8768);
 const server = await createServer({
   configFile: false,
   root: web,
-  cacheDir: path.join(output, 'vite-cache'),
+  // Keep generated dependency bundles out of source transforms and scanning.
+  cacheDir: path.join(output, 'node_modules/.vite'),
+  optimizeDeps: { entries: ['e2e/composerSendFixture.tsx'] },
   resolve: { alias: { '@': path.join(web, 'src') } },
   server: { host: '127.0.0.1', port, strictPort: true, proxy: {} },
   plugins: [
@@ -46,6 +48,11 @@ const server = await createServer({
   ],
 });
 await server.listen();
+// Finish fixture dependency preparation before timing browser navigation.
+await server.warmupRequest('/e2e/composerSendFixture.tsx');
+await server.environments.client.depsOptimizer?.scanProcessing;
+await Promise.all(Object.values(server.environments.client.depsOptimizer?.metadata.discovered ?? {})
+  .map(dependency => dependency.processing));
 const browser = await chromium.launch({ headless: true });
 const evidence = { port, tests: [], requests: [], errors: [], states: [] };
 let active;
@@ -55,6 +62,9 @@ try {
       const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 768, hasTouch: width < 768 });
       await context.tracing.start({ screenshots: true, snapshots: true });
       const page = await context.newPage(); active = page;
+      // This fixture verifies local controls, not external font availability.
+      await page.route('**://fonts.googleapis.com/**', route => route.abort());
+      await page.route('**://fonts.gstatic.com/**', route => route.abort());
       let status = 'upgrade', mode = 'pan';
       page.on('pageerror', (error) => evidence.errors.push(String(error)));
       page.on('request', (request) => evidence.requests.push(request.url()));

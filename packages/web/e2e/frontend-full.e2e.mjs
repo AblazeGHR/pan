@@ -334,13 +334,19 @@ try {
     });
   });
   await context.route('**/api/sessions/*/history?*', async route => {
-    const response = await route.fetch();
-    if (faults.historyDelay > 0) {
-      faults.delayedHistory++;
-      await sleep(faults.historyDelay);
-      faults.completedDelayedHistory++;
+    try {
+      const response = await route.fetch();
+      if (faults.historyDelay > 0) {
+        faults.delayedHistory++;
+        await sleep(faults.historyDelay);
+        faults.completedDelayedHistory++;
+      }
+      await route.fulfill({ response });
+    } catch (error) {
+      // Speculative reads and superseded selections may be aborted by the
+      // browser. Preserve all other fixture/transport failures as failures.
+      if (!/route\.(fetch|fulfill):.*(?:aborted|Target page, context or browser has been closed)/s.test(String(error))) throw error;
     }
-    await route.fulfill({ response });
   });
   await context.route('**://fonts.googleapis.com/**', r => r.abort());
   await context.route('**://fonts.gstatic.com/**', r => r.abort());

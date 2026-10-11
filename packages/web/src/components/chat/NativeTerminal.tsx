@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { nativeRequest, type NativeOutput, type NativeControlState } from '@/services/nativeControl';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { createNativeTerminalPoller } from '@/services/nativeTerminalPolling';
 
 export function NativeTerminal({ sessionId, state }: { sessionId: string; state: NativeControlState }) {
   const host = useRef<HTMLDivElement>(null);
@@ -20,7 +21,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
     terminal.open(host.current);
     let stopped = false;
     let cursor = '0';
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let finishRender: (() => void) | undefined;
     const controller = new AbortController();
     // Serialize inputs so escape sequences and paste chunks never reorder.
     let writes = Promise.resolve();
@@ -30,6 +31,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
         if (stopped || identity.mode !== 'native') return;
         await nativeRequest(sessionId, '/write', { ...payload, workerId: identity.workerId,
           generation: identity.generation }, controller.signal);
+        poller.wake();
       }).catch(() => { if (!stopped) setError('Input was not confirmed; switch control again before retrying.'); });
     };
     const data = terminal.onData((text) => {
@@ -48,27 +50,44 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
     observer.observe(host.current);
     fit.fit();
     terminal.focus();
-    const poll = async () => {
+    const poller = createNativeTerminalPoller(async () => {
       try {
         const output = await nativeRequest<NativeOutput>(sessionId, `/output?cursor=${cursor}`, undefined, controller.signal);
-        if (stopped) return;
-        if (output.workerId !== state.workerId) { setError('The agent process changed. Re-enter Terminal TUI.'); return; }
+        if (stopped) return null;
+        if (output.workerId !== state.workerId) { setError('The agent process changed. Re-enter Terminal TUI.'); return null; }
         if (output.gap) {
           terminal.reset();
           setError('Terminal output exceeded the replay buffer; this view may be incomplete. The agent continues running.');
         }
+        let length = 0;
         if (output.data) {
-          const bytes = Uint8Array.from(atob(output.data), (char) => char.charCodeAt(0));
-          await new Promise<void>((resolve) => terminal.write(bytes, resolve));
+          const decoded = atob(output.data);
+          const bytes = new Uint8Array(decoded.length);
+          for (let index = 0; index < decoded.length; index += 1) bytes[index] = decoded.charCodeAt(index);
+          length = bytes.length;
+          // Bound each ANSI parse batch. Keep the HTTP cursor unchanged until
+          // all bytes are parsed, with xterm callbacks providing backpressure.
+          for (let offset = 0; offset < bytes.length && !stopped; offset += 16384) {
+            await new Promise<void>((resolve) => {
+              finishRender = resolve;
+              terminal.write(bytes.subarray(offset, offset + 16384), resolve);
+            });
+            finishRender = undefined;
+          }
         }
+        if (stopped) return null;
         cursor = output.cursor;
         if (output.mode !== currentState.current.mode) void useNativeControlStore.getState().refresh(sessionId);
+        return length;
       } catch { if (!stopped) setError('Terminal connection unavailable. The agent was not stopped.'); }
-      if (!stopped) timer = setTimeout(() => void poll(), 80);
-    };
-    void poll();
+      return stopped ? null : 0;
+    });
+    const visibility = () => document.visibilityState === 'hidden' ? poller.pause() : poller.wake();
+    document.addEventListener('visibilitychange', visibility);
+    poller.wake();
     return () => {
-      stopped = true; controller.abort(); clearTimeout(timer);
+      stopped = true; poller.stop(); controller.abort(); finishRender?.();
+      document.removeEventListener('visibilitychange', visibility);
       observer.disconnect(); data.dispose(); resize.dispose(); terminal.dispose();
       // Detach only the browser view. Never close the resident TUI or kernel.
     };
