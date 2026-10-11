@@ -5,6 +5,8 @@ import {
   ListChecks,
   MoreHorizontal,
   Pause,
+  Pin,
+  PinOff,
   Play,
   Plus,
   Settings2,
@@ -28,6 +30,7 @@ import {
   fetchJobRuns,
   fetchJobs,
   patchJob,
+  pinJob,
   runJobNow,
 } from '@/services/api';
 import type {
@@ -165,8 +168,9 @@ function updatedAtMs(job: Job): number {
   return typeof v === 'number' ? v * 1000 : Date.parse(v) || 0;
 }
 
-/** 活跃优先；同组内按 updatedAt 倒序（新在前）。 */
-function compareJobs(a: Job, b: Job): number {
+/** 置顶优先；每组保留活跃优先和 updatedAt 倒序（新在前）。 */
+function compareJobs(a: Job, b: Job, usePins = true): number {
+  if (usePins && !!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
   const ra = activeRank(a.status);
   const rb = activeRank(b.status);
   if (ra !== rb) return ra - rb;
@@ -212,6 +216,8 @@ function JobRow({
   menuOpen,
   onToggleMenu,
   onRunNow,
+  pinUnavailable,
+  onTogglePinned,
   onTogglePaused,
   onDelete,
   selectionMode,
@@ -225,6 +231,8 @@ function JobRow({
   menuOpen: boolean;
   onToggleMenu: () => void;
   onRunNow: () => void;
+  pinUnavailable: boolean;
+  onTogglePinned: () => void;
   onTogglePaused: () => void;
   onDelete: () => void;
   selectionMode: boolean;
@@ -273,6 +281,7 @@ function JobRow({
         <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
           {job.name}
         </div>
+        {!pinUnavailable && job.pinned && <span title="Pinned" aria-label="Pinned" className="shrink-0 text-accent"><Pin size={14} /></span>}
         {job.paused && (
           <span className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
             Paused
@@ -307,6 +316,12 @@ function JobRow({
                 role="menu"
                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
               >
+                <button role="menuitem" type="button" disabled={pinUnavailable}
+                  className={`${menuItemClass} disabled:cursor-not-allowed disabled:opacity-50`}
+                  onClick={(e) => { e.stopPropagation(); onToggleMenu(); onTogglePinned(); }}>
+                  {job.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                  {pinUnavailable ? 'Pin unavailable' : job.pinned ? 'Unpin' : 'Pin'}
+                </button>
                 {isScheduledTask && (
                   <button
                     role="menuitem"
@@ -410,6 +425,7 @@ export default function JobsView() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pinMetadataUnavailable, setPinMetadataUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -433,10 +449,16 @@ export default function JobsView() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
 
+  // Lifecycle broadcasts omit Pan-owned pin metadata; explicit pin events override it.
   const upsert = useCallback((job: Job) => {
+    if (job.pinMetadataStatus) setPinMetadataUnavailable(job.pinMetadataStatus === 'unavailable');
     setJobs((prev) =>
       prev.some((j) => j.jobId === job.jobId)
-        ? prev.map((j) => (j.jobId === job.jobId ? job : j))
+        ? prev.map((j) => (j.jobId === job.jobId ? {
+          ...job,
+          pinned: job.pinMetadataStatus === 'unavailable' ? null : job.pinned ?? j.pinned,
+          pinMetadataStatus: job.pinMetadataStatus ?? j.pinMetadataStatus,
+        } : j))
         : [...prev, job],
     );
   }, []);
@@ -445,7 +467,7 @@ export default function JobsView() {
     setLoading(true);
     setError(null);
     try {
-      setJobs(await fetchJobs());
+      setJobs(await fetchJobs((status) => setPinMetadataUnavailable(status === 'unavailable')));
     } catch (e) {
       setError(errMsg(e));
     } finally {
@@ -562,6 +584,8 @@ export default function JobsView() {
     [kindMetas],
   );
 
+  const pinUnavailable = pinMetadataUnavailable || jobs.some((job) => job.pinMetadataStatus === 'unavailable');
+
   const visibleJobs = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return jobs
@@ -580,8 +604,8 @@ export default function JobsView() {
             .toLowerCase()
             .includes(query),
       )
-      .sort(compareJobs);
-  }, [jobs, statusFilter, kindFilter, searchQuery]);
+      .sort((a, b) => compareJobs(a, b, !pinUnavailable));
+  }, [jobs, statusFilter, kindFilter, searchQuery, pinUnavailable]);
 
   const visibleJobIds = useMemo(() => visibleJobs.map((job) => job.jobId), [visibleJobs]);
   const selectedVisibleJobs = useMemo(
@@ -779,6 +803,16 @@ export default function JobsView() {
     }
   };
 
+  const handleTogglePinned = async (job: Job) => {
+    if (bulkActionRef.current || pinUnavailable) return;
+    try {
+      upsert(await pinJob(job.jobId, !job.pinned));
+    } catch (e) {
+      showToast(`${errMsg(e)}. Refresh to read the current pin state.`, 'error');
+      void loadJobs();
+    }
+  };
+
   const handleTogglePaused = async (job: Job) => {
     if (bulkActionRef.current) return;
     const next = !job.paused;
@@ -944,6 +978,12 @@ export default function JobsView() {
                 ))}
               </div>
 
+              {pinUnavailable && (
+                <div role="status" className="rounded border border-warning/50 px-3 py-2 text-xs text-warning">
+                  Pin metadata unavailable. Pin states are unknown and pin actions are disabled.
+                  Jobs remain usable; restore the metadata and refresh to read the current pin states.
+                </div>
+              )}
               <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                 <label className="flex min-w-0 items-center gap-2">
                   <span className="shrink-0 text-[11px] text-text-tertiary">Kind</span>
@@ -1134,6 +1174,8 @@ export default function JobsView() {
                       menuOpen={menuJobId === job.jobId}
                       onToggleMenu={() => setMenuJobId(menuJobId === job.jobId ? null : job.jobId)}
                       onRunNow={() => void handleRunNow(job)}
+                      pinUnavailable={pinUnavailable}
+                      onTogglePinned={() => void handleTogglePinned(job)}
                       onTogglePaused={() => void handleTogglePaused(job)}
                       onDelete={() => setDeleteJobId(job.jobId)}
                       selectionMode={selectionMode}

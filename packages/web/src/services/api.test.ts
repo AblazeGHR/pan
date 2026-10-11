@@ -12,6 +12,7 @@ import {
   reimportSession,
   steerSessionWorker,
   uploadSessionAttachment,
+  fetchJobs,
   fetchCompletedJobRetentionSettings,
   updateCompletedJobRetentionSettings,
 } from './api';
@@ -418,5 +419,22 @@ describe('workspace assignment for Session creation/import requests', () => {
 
     expect(body.workspaceIds).toEqual(['ws-active']);
     expect(body[pathKey as string]).toBe('C:/project');
+  });
+});
+
+
+describe('Jobs pin metadata envelope', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it('reports unknown metadata even when the list is empty', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, jobs: [], pinMetadataStatus: 'unavailable' }), { status: 200 })));
+    const status = vi.fn();
+    expect(await fetchJobs(status)).toEqual([]);
+    expect(status).toHaveBeenCalledWith('unavailable');
+  });
+  it('reports restored available metadata on the next read', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, jobs: [], pinMetadataStatus: 'available' }), { status: 200 })));
+    const status = vi.fn();
+    expect(await fetchJobs(status)).toEqual([]);
+    expect(status).toHaveBeenCalledWith('available');
   });
 });
