@@ -207,7 +207,8 @@ describe('Sidebar Session search controls', () => {
     expect(actions?.className).toContain('flex-wrap');
     expect(screen.getByRole('button', { name: 'Delete selected sessions' }).title).toBe('Delete selected sessions');
     expect(screen.getByRole('button', { name: 'Cancel selection' }).title).toBe('Cancel selection');
-    expect(screen.getByRole('button', { name: 'Move selected sessions to workspace' }).textContent).toContain('Workspace');
+    fireEvent.click(screen.getByRole('button', { name: /Actions/ }));
+    expect(screen.getByRole('menuitem', { name: 'Workspace' }).textContent).toContain('Workspace');
   });
 
   it('keeps full action labels and explicit accessible names in the wide selection bar', () => {
@@ -218,7 +219,8 @@ describe('Sidebar Session search controls', () => {
     expect(document.querySelector('aside')?.style.width).toBe('min(480px, 100vw)');
     expect(screen.getByRole('button', { name: 'Delete selected sessions' }).textContent).toContain('Delete');
     expect(screen.getByRole('button', { name: 'Cancel selection' }).textContent).toContain('Cancel');
-    expect(screen.getByRole('button', { name: 'Move selected sessions to workspace' }).textContent).toContain('Workspace');
+    fireEvent.click(screen.getByRole('button', { name: /Actions/ }));
+    expect(screen.getByRole('menuitem', { name: 'Workspace' }).textContent).toContain('Workspace');
     expect(document.querySelector('.sidebar-selection-action-icon')).toBeTruthy();
   });
 

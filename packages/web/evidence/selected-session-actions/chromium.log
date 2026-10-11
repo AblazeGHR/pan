@@ -1,0 +1,38 @@
+[
+  {
+    "width": 1280,
+    "passed": true,
+    "cases": [
+      "partial read / generation race",
+      "Bell on validation / off API",
+      "workspace snapshot / manager detach cancellation / partial failure / retry",
+      "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+      "weekly controls / cancel",
+      "menu viewport / escape"
+    ]
+  },
+  {
+    "width": 390,
+    "passed": true,
+    "cases": [
+      "partial read / generation race",
+      "Bell on validation / off API",
+      "workspace snapshot / manager detach cancellation / partial failure / retry",
+      "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+      "weekly controls / cancel",
+      "menu viewport / escape"
+    ]
+  },
+  {
+    "width": 320,
+    "passed": true,
+    "cases": [
+      "partial read / generation race",
+      "Bell on validation / off API",
+      "workspace snapshot / manager detach cancellation / partial failure / retry",
+      "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+      "weekly controls / cancel",
+      "menu viewport / escape"
+    ]
+  }
+]
