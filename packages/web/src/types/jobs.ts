@@ -132,6 +132,7 @@ export interface Job {
   shellCommand?: string;
   hideWindow?: boolean;
   enabled?: boolean;
+  pinned?: boolean;
   paused: boolean;
   /** Legacy Job kinds may expose one schedule object or omit/null this field. */
   schedule?: unknown;

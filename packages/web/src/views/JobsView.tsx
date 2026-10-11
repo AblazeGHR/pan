@@ -5,6 +5,8 @@ import {
   ListChecks,
   MoreHorizontal,
   Pause,
+  Pin,
+  PinOff,
   Play,
   Plus,
   Settings2,
@@ -28,6 +30,7 @@ import {
   fetchJobRuns,
   fetchJobs,
   patchJob,
+  pinJob,
   runJobNow,
 } from '@/services/api';
 import type {
@@ -165,8 +168,9 @@ function updatedAtMs(job: Job): number {
   return typeof v === 'number' ? v * 1000 : Date.parse(v) || 0;
 }
 
-/** 活跃优先；同组内按 updatedAt 倒序（新在前）。 */
+/** 置顶优先；每组保留活跃优先和 updatedAt 倒序（新在前）。 */
 function compareJobs(a: Job, b: Job): number {
+  if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
   const ra = activeRank(a.status);
   const rb = activeRank(b.status);
   if (ra !== rb) return ra - rb;
@@ -212,6 +216,7 @@ function JobRow({
   menuOpen,
   onToggleMenu,
   onRunNow,
+  onTogglePinned,
   onTogglePaused,
   onDelete,
   selectionMode,
@@ -225,6 +230,7 @@ function JobRow({
   menuOpen: boolean;
   onToggleMenu: () => void;
   onRunNow: () => void;
+  onTogglePinned: () => void;
   onTogglePaused: () => void;
   onDelete: () => void;
   selectionMode: boolean;
@@ -273,6 +279,7 @@ function JobRow({
         <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
           {job.name}
         </div>
+        {job.pinned && <span title="Pinned" aria-label="Pinned" className="shrink-0 text-accent"><Pin size={14} /></span>}
         {job.paused && (
           <span className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
             Paused
@@ -307,6 +314,11 @@ function JobRow({
                 role="menu"
                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
               >
+                <button role="menuitem" type="button" className={menuItemClass}
+                  onClick={(e) => { e.stopPropagation(); onToggleMenu(); onTogglePinned(); }}>
+                  {job.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                  {job.pinned ? 'Unpin' : 'Pin'}
+                </button>
                 {isScheduledTask && (
                   <button
                     role="menuitem"
@@ -433,10 +445,11 @@ export default function JobsView() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
 
+  // Lifecycle broadcasts omit Pan-owned pin metadata; explicit pin events override it.
   const upsert = useCallback((job: Job) => {
     setJobs((prev) =>
       prev.some((j) => j.jobId === job.jobId)
-        ? prev.map((j) => (j.jobId === job.jobId ? job : j))
+        ? prev.map((j) => (j.jobId === job.jobId ? { ...job, pinned: job.pinned ?? j.pinned } : j))
         : [...prev, job],
     );
   }, []);
@@ -774,6 +787,15 @@ export default function JobsView() {
     try {
       upsert(await runJobNow(job.jobId));
       showToast(`Ran job "${job.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
+  };
+
+  const handleTogglePinned = async (job: Job) => {
+    if (bulkActionRef.current) return;
+    try {
+      upsert(await pinJob(job.jobId, !job.pinned));
     } catch (e) {
       showToast(errMsg(e), 'error');
     }
@@ -1134,6 +1156,7 @@ export default function JobsView() {
                       menuOpen={menuJobId === job.jobId}
                       onToggleMenu={() => setMenuJobId(menuJobId === job.jobId ? null : job.jobId)}
                       onRunNow={() => void handleRunNow(job)}
+                      onTogglePinned={() => void handleTogglePinned(job)}
                       onTogglePaused={() => void handleTogglePaused(job)}
                       onDelete={() => setDeleteJobId(job.jobId)}
                       selectionMode={selectionMode}

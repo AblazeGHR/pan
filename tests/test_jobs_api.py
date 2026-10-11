@@ -1000,3 +1000,54 @@ def test_run_records_carry_entry_id(client, fake_worker):
                                  registry_root=scheduler_store.data_root())
     assert runs, "fire 后应有 run 记录"
     assert runs[0].get("entry_id") == job["schedule"][0]["id"]
+
+
+@pytest.mark.parametrize("kind", ["session-message", "session-broadcast", "background-process", "main-lifecycle", "scheduled-task"])
+def test_pin_persists_without_touching_lifecycle(client, kind):
+    job = {"jobId": "job_pin", "kind": kind, "status": "completed", "updatedAt": 7,
+           "createdAt": 1, "name": "pin test", "schedule": {"type": "once", "at": 99}}
+    jobs._create(job, registry_root=scheduler_store.data_root())
+    before = jobs.get("job_pin", registry_root=scheduler_store.data_root())
+    assert client.put("/api/jobs/job_pin/pin", json={"pinned": True}).json()["job"]["pinned"] is True
+    assert client.get("/api/jobs/job_pin").json()["job"]["pinned"] is True
+    assert client.get("/api/jobs", params={"kind": kind, "status": "completed"}).json()["jobs"][0]["pinned"] is True
+    assert jobs.get("job_pin", registry_root=scheduler_store.data_root()) == before
+    assert client.put("/api/jobs/job_pin/pin", json={"pinned": False}).json()["job"]["pinned"] is False
+    assert client.get("/api/jobs/job_pin").json()["job"]["pinned"] is False
+
+
+def test_pin_failure_keeps_disk_and_emits_nothing(client, monkeypatch):
+    jobs._create({"jobId": "job_pin", "status": "running"}, registry_root=scheduler_store.data_root())
+    assert client.put("/api/jobs/job_pin/pin", json={"pinned": True}).json()["ok"]
+    emitted = []
+    monkeypatch.setitem(jobs_api._state, "broadcast", emitted.append)
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(jobs, "_atomic_write", fail)
+    result = client.put("/api/jobs/job_pin/pin", json={"pinned": False}).json()
+    assert result["error"]["code"] == "persistence_failed"
+    assert emitted == []
+    assert client.get("/api/jobs/job_pin").json()["job"]["pinned"] is True
+
+
+def test_pin_validation_and_independent_owner(client, monkeypatch):
+    remote = {"jobId": "job_remote", "status": "running", "kind": "background-process"}
+    monkeypatch.setattr(jobs_api.pan_bridge, "request", lambda method, *args: remote if method == "get" else {"jobs": [remote]})
+    for body in ({"pinned": 1}, {"pinned": "true"}, {"pinned": None}, {}, {"pinned": True, "status": "completed"}):
+        assert client.put("/api/jobs/job_remote/pin", json=body).json()["error"]["code"] == "invalid_argument"
+    assert client.put("/api/jobs/job_remote/pin", json={"pinned": True}).json()["job"]["executionOwner"] == "independent-job-service"
+    assert client.get("/api/jobs").json()["jobs"][0]["pinned"] is True
+    assert not (scheduler_store.data_root() / "jobs" / "job_remote.json").exists()
+
+
+def test_multiple_pins_filter_and_corrupt_metadata(client):
+    root = scheduler_store.data_root()
+    for name, status in [("a", "running"), ("b", "completed"), ("c", "scheduled")]:
+        jobs._create({"jobId": "job_" + name, "kind": "session-message", "status": status}, registry_root=root)
+    for name in ("b", "c"):
+        assert client.put(f"/api/jobs/job_{name}/pin", json={"pinned": True}).json()["ok"]
+    assert [j["jobId"] for j in client.get("/api/jobs").json()["jobs"]] == ["job_c", "job_b", "job_a"]
+    assert [j["jobId"] for j in client.get("/api/jobs?status=running").json()["jobs"]] == ["job_a"]
+    (root / "pins.json").write_text("broken", encoding="utf-8")
+    assert client.put("/api/jobs/job_a/pin", json={"pinned": True}).json()["error"]["code"] == "persistence_failed"
+    assert (root / "pins.json").read_text(encoding="utf-8") == "broken"

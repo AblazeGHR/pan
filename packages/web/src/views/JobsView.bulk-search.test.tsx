@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   fetchJobRuns: vi.fn(),
   fetchCompletedJobRetentionSettings: vi.fn(),
   updateCompletedJobRetentionSettings: vi.fn(),
+  pinJob: vi.fn(),
   patchJob: vi.fn(),
   deleteJob: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock('@/services/api', () => ({
   fetchJobRuns: api.fetchJobRuns,
   fetchCompletedJobRetentionSettings: api.fetchCompletedJobRetentionSettings,
   updateCompletedJobRetentionSettings: api.updateCompletedJobRetentionSettings,
+  pinJob: api.pinJob,
   patchJob: api.patchJob,
   deleteJob: api.deleteJob,
   createJob: vi.fn(),
@@ -162,6 +164,26 @@ describe('JobsView search, status filters, and bulk actions', () => {
   afterEach(() => {
     cleanup();
     wsHandlers.clear();
+  });
+
+  it('keeps a pin through lifecycle events and restores ordinary ordering after unpin', async () => {
+    const pinned = job({ jobId: 'pinned', name: 'Pinned reminder', status: 'completed', pinned: true });
+    api.fetchJobs.mockResolvedValue([pinned, job({ jobId: 'running', name: 'Running process', status: 'running' })]);
+    api.pinJob.mockResolvedValue({ ...pinned, pinned: false });
+    const { container } = renderView();
+    await screen.findByText('Pinned reminder');
+    const names = () => Array.from(container.querySelectorAll('div[title]')).map((el) => el.getAttribute('title')).filter((v) => v === 'Pinned reminder' || v === 'Running process');
+    expect(names()).toEqual(['Pinned reminder', 'Running process']);
+    const { pinned: ignored, ...eventJob } = pinned;
+    expect(ignored).toBe(true);
+    act(() => wsHandlers.get('job.updated')?.({ job: { ...eventJob, updatedAt: 99 } }));
+    expect(screen.getByLabelText('Pinned')).toBeTruthy();
+    expect(names()).toEqual(['Pinned reminder', 'Running process']);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Job actions' })[0]!);
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Unpin$/ }));
+    await waitFor(() => expect(screen.queryByLabelText('Pinned')).toBeNull());
+    expect(api.pinJob).toHaveBeenCalledWith('pinned', false);
+    expect(names()).toEqual(['Running process', 'Pinned reminder']);
   });
 
   it('matches Completed and Timeout only to their persisted API statuses', async () => {

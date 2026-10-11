@@ -2296,3 +2296,13 @@ export async function runJobNow(jobId: string): Promise<Job> {
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }
+
+/** Persist Pan-owned presentation metadata for every Job kind/owner. */
+export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
+  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}/pin`, {
+    method: 'PUT', body: JSON.stringify({ pinned }),
+  });
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('job missing in response');
+  return data.job;
+}

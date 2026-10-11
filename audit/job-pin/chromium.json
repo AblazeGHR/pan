@@ -1,0 +1,48 @@
+{
+  "backendPort": 62286,
+  "results": [
+    {
+      "steps": [
+        "pin",
+        "multiple pins",
+        "status filter",
+        "kind filter",
+        "search",
+        "refresh",
+        "backend restart",
+        "write failure and reread",
+        "unpin restores sorting"
+      ],
+      "mobile": false,
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "passed": true,
+      "errors": [],
+      "forbidden": []
+    },
+    {
+      "steps": [
+        "pin",
+        "multiple pins",
+        "status filter",
+        "kind filter",
+        "search",
+        "refresh",
+        "backend restart",
+        "write failure and reread",
+        "unpin restores sorting"
+      ],
+      "mobile": true,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "passed": true,
+      "errors": [],
+      "forbidden": []
+    }
+  ],
+  "log": []
+}

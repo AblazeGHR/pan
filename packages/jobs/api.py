@@ -6,6 +6,7 @@
 - ``POST /api/jobs``           创建可创建的 kind（按 kind 严格校验字段）
 - ``GET  /api/jobs/{id}``       详情（结构化 source/target 视图）
 - ``PATCH /api/jobs/{id}``      按 kind 更新其允许字段
+- ``PUT /api/jobs/{id}/pin``    持久化 Pan 展示置顶元数据
 - ``DELETE /api/jobs/{id}``     删除
 - ``GET  /api/jobs/{id}/runs``  执行历史（runs.jsonl，最新在前）
 - ``POST /api/jobs/{id}/run-now`` 手动触发 scheduled-task action（含 shell）
@@ -34,7 +35,7 @@ from packages.core import config as _config
 from packages.jobs.actions import normalize_scheduled_qq_action
 from packages.jobs import cron as _job_cron
 from packages.jobs import templates as _job_templates
-from packages.jobs import pan_bridge
+from packages.jobs import pan_bridge, pins
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -60,7 +61,8 @@ def _err(code: str, message: str):
 
 
 def _view(job: dict) -> dict:
-    return background_jobs.job_public_view(job)
+    return {**background_jobs.job_public_view(job),
+            "pinned": pins.read(_job_root()).get(job["jobId"], False)}
 
 
 def _job_root():
@@ -134,13 +136,15 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
             job = pan_bridge.public_job(item)
             if job["jobId"] not in local_ids:
                 jobs.append(background_jobs.job_public_view(job))
+    pinned = pins.read(_job_root())
+    jobs = [{**job, "pinned": pinned.get(job["jobId"], False)} for job in jobs]
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:
         jobs = [j for j in jobs if j.get("status") == status]
     if not includeCompleted:
         jobs = [j for j in jobs if j.get("status") != "completed"]
-    jobs.sort(key=lambda j: (_KIND_ORDER.get(str(j.get("status")), 9),
+    jobs.sort(key=lambda j: (not j.get("pinned", False), _KIND_ORDER.get(str(j.get("status")), 9),
                              str(j.get("updatedAt") or "")), reverse=False)
     return _ok(jobs=jobs)
 
@@ -599,7 +603,7 @@ async def create_job(data: dict):
         except ValueError as exc:
             return _err("invalid_schedule", str(exc))
         job = _find_job(task["id"]) or {}
-        view = background_jobs.job_public_view(job) if job else None
+        view = _view(job) if job else None
     elif kind == background_jobs.BACKGROUND_PROCESS_KIND:
         unknown = _unknown_fields(
             data, {"kind", "name", "description", "label", "target", "argv", "cwd", "hideWindow"},
@@ -628,7 +632,7 @@ async def create_job(data: dict):
             return _err("invalid_argument", str(exc))
         except OSError as exc:
             return _err("runner_spawn_failed", str(exc))
-        view = background_jobs.job_public_view(job)
+        view = _view(job)
     elif kind in {background_jobs.SESSION_MESSAGE_KIND,
                   background_jobs.SESSION_BROADCAST_KIND}:
         unknown = _unknown_fields(
@@ -670,7 +674,7 @@ async def create_job(data: dict):
                     registry_root=root)
         except ValueError as exc:
             return _err("invalid_argument", str(exc))
-        view = background_jobs.job_public_view(job)
+        view = _view(job)
     else:
         message = ("main-lifecycle is system-managed and cannot be created from Jobs"
                    if kind == background_jobs.SERVICE_LIFECYCLE_KIND
@@ -792,6 +796,22 @@ async def get_job(job_id: str):
 # ── 管理 ──
 
 
+@router.put("/{job_id}/pin")
+async def pin_job(job_id: str, data: dict):
+    if set(data) != {"pinned"} or type(data.get("pinned")) is not bool:
+        return _err("invalid_argument", "pinned must be a boolean and the only field")
+    job = _find_job(job_id)
+    if job is None:
+        return _err("not_found", f"job {job_id} not found")
+    try:
+        await asyncio.to_thread(pins.set_pin, _job_root(), job["jobId"], data["pinned"])
+        view = _view(job)
+    except (OSError, ValueError):
+        return _err("persistence_failed", "Could not persist Job pin metadata")
+    _emit({"type": "job.updated", "jobId": job["jobId"], "job": view})
+    return _ok(job=view)
+
+
 @router.patch("/{job_id}")
 async def patch_job(job_id: str, data: dict):
     """Update fields supported by the immutable kind of an existing Job."""
@@ -861,7 +881,7 @@ async def patch_job(job_id: str, data: dict):
         except ValueError as exc:
             code = "not_found" if "not found" in str(exc) else "invalid_argument"
             return _err(code, str(exc))
-        view = background_jobs.job_public_view(updated)
+        view = _view(updated)
         _emit({"type": "job.updated", "jobId": job["jobId"], "job": view})
         return _ok(job=view)
 
@@ -1017,7 +1037,7 @@ async def patch_job(job_id: str, data: dict):
         if replaced is None:
             return _err("invalid_argument", "no updatable fields in request body")
         # 仅 schedule 替换：已生效，直接返回
-        view = background_jobs.job_public_view(replaced)
+        view = _view(replaced)
         _emit({"type": "job.updated", "jobId": job["jobId"], "job": view})
         return _ok(job=view)
 
@@ -1035,8 +1055,8 @@ async def patch_job(job_id: str, data: dict):
     except ValueError as exc:
         return _err("not_found", str(exc))
     _emit({"type": "job.updated", "jobId": job["jobId"],
-           "job": background_jobs.job_public_view(updated)})
-    return _ok(job=background_jobs.job_public_view(updated))
+           "job": _view(updated)})
+    return _ok(job=_view(updated))
 
 
 @router.delete("/{job_id}")
