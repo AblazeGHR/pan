@@ -215,7 +215,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   };
 
   return (
-    <div data-testid="topbar" className="flex items-center justify-between pl-10 pr-2 md:pl-4 md:pr-4 py-1 md:py-2 border-b border-border-default bg-bg-primary gap-0.5 md:gap-2 flex-wrap max-md:flex-nowrap shrink-0">
+    <div data-testid="topbar" className="flex items-center justify-between pl-9 pr-1 md:pl-4 md:pr-4 py-1 md:py-2 border-b border-border-default bg-bg-primary gap-0.5 md:gap-2 flex-wrap max-md:flex-nowrap shrink-0">
       <div className="flex items-center gap-1 md:gap-3 min-w-0 max-md:flex-1">
         <div className="flex items-center gap-0.5 md:gap-2 min-w-0 max-md:flex-1">
           <WorkerDot status={status} className="shrink-0" />
@@ -242,7 +242,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               aria-pressed={!nativeActive}
               aria-label={nextView.label}
               title={`Chat view: ${currentView.short} — click to switch to ${nextView.short}`}
-              className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-7 max-md:w-7 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
+              className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-6 max-md:w-6 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
             >
               <CurrentViewIcon size={16} />
             </button>
@@ -331,7 +331,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              className="max-md:h-7 max-md:w-7 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
+              className="max-md:h-6 max-md:w-6 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
               onClick={() =>
                 restart(currentSession.id)
                   .then(() => showToast('Restarted worker'))
@@ -395,7 +395,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              className="max-md:h-7 max-md:w-7 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
+              className="max-md:h-6 max-md:w-6 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
               onClick={() => {
                 if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
                 killCurrent(currentSession.id)

@@ -418,6 +418,69 @@ describe('shared Terminal TUI auto-enter contract (module-level pending target)'
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2300)); });
     expect(switchMode).toHaveBeenCalledTimes(1);
   });
+
+  function deferredConfigure() {
+    let resolve!: (value: { enabled: boolean; pendingEnabled: boolean | null }) => void;
+    const promise = new Promise<{ enabled: boolean; pendingEnabled: boolean | null }>((res) => {
+      resolve = res;
+    });
+    const spy = vi.spyOn(useNativeControlStore.getState(), 'configureSession').mockReturnValue(promise);
+    return { spy, resolveConfigure: resolve };
+  }
+
+  it('a late configure response cannot revive the auto-enter after a history-view cancel', async () => {
+    setupSessions(codexSession('A'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    const { resolveConfigure } = deferredConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+    const showToast = vi.fn();
+    useUIStore.setState({ showToast });
+
+    render(<TopBar />);
+    // Click starts the gated configure; while it is in flight the user opens
+    // a history view, which cancels the intent.
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Bubble view' }));
+    await waitFor(() => expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble'));
+
+    // The late response acknowledges the upgrade, but must stay dead: no
+    // deferred target, no scheduling toast, no switch — even once A idles.
+    resolveConfigure({ enabled: false, pendingEnabled: true });
+    await act(async () => { await Promise.resolve(); });
+    expect(showToast).not.toHaveBeenCalledWith(
+      'Session upgrade scheduled: waiting for the current task to finish', 'info');
+    states.A = { enabled: true };
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2300)); });
+    expect(switchMode).not.toHaveBeenCalled();
+  });
+
+  it('a configure gated across a session switch stays scoped to session A', async () => {
+    setupSessions(codexSession('A'), codexSession('B'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    const { resolveConfigure } = deferredConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    // The user moves to session B while the configure for A is still gated.
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 'B' });
+      states.B = { enabled: true };
+    });
+    resolveConfigure({ enabled: false, pendingEnabled: true });
+    await act(async () => { await Promise.resolve(); });
+    // B is never pushed into Terminal TUI…
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1300)); });
+    expect(switchMode).not.toHaveBeenCalled();
+    // …and A's normal pending contract survives the switch: returning to A
+    // (upgrade acknowledged) completes the deferred native switch.
+    states.A = { enabled: true };
+    act(() => { useSessionStore.setState({ currentSessionId: 'A' }); });
+    await waitFor(() => expect(switchMode).toHaveBeenCalledWith('A', 'native'), { timeout: 4000 });
+    expect(switchMode).not.toHaveBeenCalledWith('B', 'native');
+  });
 });
 
 // FE-1: TopBar must only re-render for the slice it reads. Toasts, interactive

@@ -179,7 +179,7 @@ export function Layout() {
       {isMobile && !mobileSidebarOpen && (
         <button
           onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] left-2 z-50 rounded bg-bg-tertiary border border-border-default p-1.5 text-text-primary"
+          className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] left-1 z-50 rounded bg-bg-tertiary border border-border-default p-1.5 text-text-primary"
           aria-label="打开侧边栏"
           title="Toggle sidebar"
         >

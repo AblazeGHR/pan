@@ -11,6 +11,12 @@ import type { Session } from '@/types';
  * surface initiated it.
  */
 let pendingAutoEnter: string | null = null;
+/**
+ * Intent generation for in-flight upgrades. Bumped by every cancellation so a
+ * configure response that resolves after the user opened a history view (or
+ * otherwise cancelled) cannot revive the auto-enter it was waiting for.
+ */
+let autoEnterIntent = 0;
 
 export type TerminalTuiStatus = 'upgrade' | 'upgrading' | 'error' | 'enabled' | 'available';
 
@@ -59,6 +65,7 @@ interface TerminalTuiEntryOptions {
  */
 export function resetTerminalTuiEntryForTests(): void {
   pendingAutoEnter = null;
+  autoEnterIntent = 0;
 }
 
 /**
@@ -112,6 +119,7 @@ export function useTerminalTuiEntry(
 
   const enterNative = async () => {
     if (!session || !isCodex) return;
+    const intent = autoEnterIntent;
     try {
       if (!session.nativeControl) {
         if (
@@ -121,6 +129,10 @@ export function useTerminalTuiEntry(
         )
           return;
         const config = await useNativeControlStore.getState().configureSession(session.id, true);
+        // The configure request can be gated for a while. If the user opened a
+        // history view meanwhile, the intent was cancelled: the late response
+        // must neither arm the deferred auto-enter nor issue the switch.
+        if (autoEnterIntent !== intent) return;
         if (typeof config.pendingEnabled === 'boolean') {
           pendingAutoEnter = session.id;
           showToast('Session upgrade scheduled: waiting for the current task to finish', 'info');
@@ -156,6 +168,7 @@ export function useTerminalTuiEntry(
     pendingIdle: typeof nativeState?.pendingEnabled === 'boolean',
     enterNative,
     cancelAutoEnter: () => {
+      autoEnterIntent += 1;
       pendingAutoEnter = null;
     },
   };

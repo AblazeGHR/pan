@@ -111,13 +111,10 @@ try {
       const title = bar?.querySelector('.font-medium.truncate');
       const status = bar?.querySelector('span[title="running"], span[title="offline"]');
       const style = bar ? getComputedStyle(bar) : null;
-      // Denominator for the 50% name check: the FULL top bar content area
-      // (bar minus its own paddings) with every control inside it — the
-      // action buttons are part of this denominator, never subtracted.
-      const contentWidth = bar && style
-        ? bar.getBoundingClientRect().width
-          - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
-        : 0;
+      // Denominator for the 50% name check: the top bar root element's FULL
+      // visible width (hamburger-reserved padding and every control included,
+      // nothing subtracted).
+      const contentWidth = bar ? bar.getBoundingClientRect().width : 0;
       const padding = style
         ? { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight) }
         : null;
@@ -160,12 +157,12 @@ try {
       if (width >= 768) {
         assert.ok(geometry.title.rect.width <= 200, `Desktop title exceeded its 200px cap: ${JSON.stringify(geometry.title)}`);
       } else {
-        // Requirement: the Session name region takes at least half of the
-        // top bar's full content area (all buttons included in the
-        // denominator) on mobile.
+        // Requirement: the Session name region takes at least half of the top
+        // bar root element's full visible width (hamburger padding included,
+        // all buttons inside the denominator).
         assert.ok(
-          geometry.title.rect.width >= geometry.contentWidth / 2 - 0.5,
-          `Mobile name region ${geometry.title.rect.width}px is below half of the ${geometry.contentWidth}px content area (all controls included): ${JSON.stringify(geometry)}`,
+          geometry.title.rect.width >= geometry.topbar.width / 2 - 0.5,
+          `Mobile name region ${geometry.title.rect.width}px is below half of the ${geometry.topbar.width}px top bar width: ${JSON.stringify(geometry)}`,
         );
         // Small buttons stay reasonably tappable.
         assert.ok(
@@ -204,9 +201,9 @@ try {
     if (scenario !== 'nav-off') {
       const navRect = geometry.controls.find(({ label }) => label === 'Open message navigation rail')?.rect;
       assert.ok(navRect, 'Navigation toggle missing');
-      assert.equal(navRect.width, 32);
-      assert.equal(navRect.height, 32);
-      const rightInset = scenario === 'none' || width >= 768 ? 16 : 8;
+      assert.equal(navRect.width, 28);
+      assert.equal(navRect.height, 28);
+      const rightInset = scenario === 'none' || width >= 768 ? 16 : 4;
       assert.ok(Math.abs(navRect.right - (width - rightInset)) <= 1, `Navigation toggle is not rightmost: ${JSON.stringify(geometry)}`);
     }
     console.log(`${width}px ${scenario}: ${JSON.stringify(geometry)}`);
