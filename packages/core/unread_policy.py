@@ -55,6 +55,27 @@ DEFAULT_UNREAD_RECORDING_SCOPES: tuple[str, ...] = ("all",)
 # and right after the settings PUT that can change it).
 _COMPILED_SNAPSHOT: tuple[str, ...] | None = None
 
+# Monotonic generation of global "apply" actions (a settings save carrying
+# unreadRecording, or Reapply settings). An apply re-derives every per-Session
+# decision under that Session's unread_done_lock; the generation lets a newer
+# apply supersede an older one so an older apply can never commit after (and
+# therefore never overwrite) a newer action. In-memory only: a restart makes
+# the startup alignment the single authority, which is the same convergence
+# path as a fresh apply.
+_APPLY_GENERATION = 0
+
+
+def begin_unread_recording_apply() -> int:
+    """Open one global apply and return its generation."""
+    global _APPLY_GENERATION
+    _APPLY_GENERATION += 1
+    return _APPLY_GENERATION
+
+
+def current_unread_recording_apply_generation() -> int:
+    """The generation of the newest started apply (0 before any apply)."""
+    return _APPLY_GENERATION
+
 
 def normalize_unread_recording(value: object) -> tuple[str, ...]:
     """Normalize one raw setting value into the canonical scope tuple.

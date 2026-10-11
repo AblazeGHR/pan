@@ -621,6 +621,8 @@ export interface ApiReapplyUnreadRecordingResponse {
   unreadRecording?: string[];
   alignedSessionCount?: number;
   failedSessions?: string[];
+  /** True when a newer global apply superseded this one mid-scan. */
+  superseded?: boolean;
   error?: { code?: string; message?: string };
 }
 

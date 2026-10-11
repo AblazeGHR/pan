@@ -156,4 +156,33 @@ describe('UnreadRecordingPanel', () => {
     });
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('backend down');
   });
+
+  it('reports a superseded reapply instead of claiming alignment', async () => {
+    mockedReapply.mockResolvedValueOnce({
+      ok: true, alignedSessionCount: 0, failedSessions: [], superseded: true,
+    });
+    render(<UnreadRecordingPanel />);
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-testid="unread-recording-reapply"]')!);
+    });
+    expect(document.querySelector('[role="status"]')?.textContent)
+      .toContain('A newer settings apply superseded this reapply');
+  });
+
+  it('surfaces partial apply failures while keeping the saved values', async () => {
+    mockedUpdate.mockResolvedValueOnce({
+      notifications: { unreadRecording: ['none'] },
+      unreadRecordingApply: { ok: false, failedSessions: ['ses_a'] },
+    });
+    render(<UnreadRecordingPanel />);
+    fireEvent.click(document.querySelector('[data-testid="unread-recording-none"]')!);
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-testid="unread-recording-save"]')!);
+    });
+    expect(document.querySelector('[role="alert"]')?.textContent)
+      .toContain('1 Session(s) could not be aligned');
+    // The saved scope set is the persisted truth and stays displayed.
+    expect(checked('unread-recording-none')).toBe(true);
+    expect(useAppSettingsStore.getState().notifications.unreadRecording).toEqual(['none']);
+  });
 });

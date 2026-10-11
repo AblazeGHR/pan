@@ -427,7 +427,19 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
         notifications: { unreadRecording: sanitizeUnreadRecording(value) },
       });
       const next = sanitizeSettings(response).notifications.unreadRecording;
+      // The settings are saved (the values above are the persisted truth);
+      // the follow-up alignment may still have failed for some Sessions.
+      // Surface that honestly instead of showing an unconditional success.
+      const applyReport = (
+        response as { unreadRecordingApply?: { ok?: boolean; failedSessions?: string[] } }
+      ).unreadRecordingApply;
+      const failed = applyReport?.failedSessions?.length ?? 0;
       set((state) => ({ notifications: { ...state.notifications, unreadRecording: next } }));
+      if (failed > 0) {
+        throw new Error(
+          `Settings saved, but ${failed} Session(s) could not be aligned yet — use Reapply settings to retry.`,
+        );
+      }
     },
 
     setCodexWarningToast: (v) => {

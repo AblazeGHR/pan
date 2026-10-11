@@ -335,6 +335,20 @@ describe('appSettingsStore', () => {
     expect(useAppSettingsStore.getState().notifications.unreadRecording).toEqual(['all']);
   });
 
+  it('surfaces partial apply failures while keeping the saved values', async () => {
+    // The PUT saved the scope set but could not align some Sessions; the
+    // store keeps the saved truth and the error names the honest follow-up.
+    mockedUpdate.mockResolvedValueOnce({
+      notifications: { unreadRecording: ['none'] },
+      unreadRecordingApply: { ok: false, failedSessions: ['ses_a', 'ses_b'] },
+    });
+    await expect(
+      useAppSettingsStore.getState().saveUnreadRecording(['none']),
+    ).rejects.toThrow('2 Session(s) could not be aligned');
+    expect(useAppSettingsStore.getState().notifications.unreadRecording)
+      .toEqual(['none']);
+  });
+
   it('keeps the legacy all default for old settings objects', () => {
     expect(sanitizeSettings({}).notifications.unreadRecording).toEqual(['all']);
     expect(sanitizeSettings({ notifications: {} }).notifications.unreadRecording).toEqual(['all']);

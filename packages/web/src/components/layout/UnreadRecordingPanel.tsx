@@ -78,9 +78,13 @@ export function UnreadRecordingPanel() {
       const result = await reapplyUnreadRecordingSettings();
       if (live.current) {
         const failed = result.failedSessions?.length ?? 0;
-        setNotice(failed > 0
-          ? `Settings reapplied; ${failed} Session(s) could not be aligned and will retry.`
-          : 'Settings reapplied. Per-Session overrides were cleared.');
+        setNotice(
+          result.superseded
+            ? 'A newer settings apply superseded this reapply.'
+            : failed > 0
+              ? `Settings reapplied; ${failed} Session(s) could not be aligned and will retry.`
+              : 'Settings reapplied. Per-Session overrides were cleared.',
+        );
       }
     } catch (reason) {
       if (live.current) setError(reason instanceof Error ? reason.message : 'Settings could not be reapplied');

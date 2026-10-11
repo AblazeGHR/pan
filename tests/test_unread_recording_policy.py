@@ -431,9 +431,10 @@ def test_reset_persist_failure_keeps_projection_zero_and_heals(
     asyncio.run(scenario())
     # The failed reset honestly reports no committed change but lists the
     # unaligned Session instead of pretending success.
-    changed, failed = changed_holder["result"]
+    changed, failed, superseded = changed_holder["result"]
     assert changed == []
     assert failed == [s.id]
+    assert superseded is False
     assert _disk(s)["unread_done_count"] == 2
     # ...but the read projection is already authoritative zero everywhere.
     assert server._session_summary(s)["unreadDoneCount"] == 0
@@ -893,3 +894,208 @@ def test_stale_mark_after_done_is_rejected_without_side_effects(
     disk = _disk(s)
     assert disk["unread_done_generation"] == 3
     assert disk["unread_done_count"] == 1  # untouched by the stale action
+
+
+# ── MA review: deterministic interleavings under the Session lock ──
+
+def test_apply_committing_after_enable_covers_the_override(
+        policy_env, tmp_config, monkeypatch):
+    """Enable commits first (gated); the apply waits, then re-derives the
+    decision *under* the same lock and covers the override — the later
+    Notification apply wins, exactly as the ordering contract requires."""
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-order-enable-first")
+    entered, release = _block_metadata_replace(monkeypatch, s)
+
+    async def scenario():
+        enable = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+        assert await asyncio.to_thread(entered.wait, 2)
+        apply_task = asyncio.create_task(server._coordinate_unread_recording(
+            [s], before_scopes=("none",), after_scopes=("none",),
+            clear_overrides=True,
+            apply_generation=unread_policy.begin_unread_recording_apply()))
+        await asyncio.sleep(0)
+        assert not apply_task.done()  # the apply waits for the Enable commit
+        release.set()
+        return await asyncio.gather(enable, apply_task)
+
+    enable_result, (changed, failed, superseded) = asyncio.run(scenario())
+    assert enable_result["ok"] is True
+    assert changed == [s.id] and failed == [] and superseded is False
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None  # the later apply covered it
+    assert disk["unread_done_count"] == 0  # aligned to the excluded scope
+
+
+def test_enable_committing_after_the_apply_keeps_the_override(
+        policy_env, tmp_config, monkeypatch):
+    """The apply commits first (gated); Enable waits, re-derives under the
+    lock against the aligned state, and its override survives — the later
+    Session action wins."""
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-order-apply-first", generation=2, read=0)
+    entered, release = _block_metadata_replace(monkeypatch, s)
+
+    async def scenario():
+        apply_task = asyncio.create_task(server._coordinate_unread_recording(
+            [s], before_scopes=("all",), after_scopes=("none",),
+            clear_overrides=True,
+            apply_generation=unread_policy.begin_unread_recording_apply()))
+        assert await asyncio.to_thread(entered.wait, 2)
+        enable = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+        await asyncio.sleep(0)
+        assert not enable.done()  # Enable waits for the gated apply commit
+        release.set()
+        return await asyncio.gather(apply_task, enable)
+
+    (changed, failed, superseded), enable_result = asyncio.run(scenario())
+    assert changed == [s.id] and failed == [] and superseded is False
+    assert enable_result["ok"] is True
+    disk = _disk(s)
+    assert disk["unread_recording_override"] == "record"  # later action wins
+    assert disk["unread_done_count"] == 0  # started clean from new events
+
+
+def test_mark_during_a_gated_exclusion_apply_is_rejected_not_clobbered(
+        policy_env, tmp_config, monkeypatch):
+    """The apply (all→none) commits while gated; a Mark that waited for the
+    lock is answered against the aligned state (excluded → state_changed), so
+    a newer mark can neither be silently cleared nor wrongly applied."""
+    # The PUT has already written and refreshed the new scope set when its
+    # alignment starts; before_scopes carries the pre-change value only.
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-gate-mark", generation=2, read=0)
+    entered, release = _block_metadata_replace(monkeypatch, s)
+
+    async def scenario():
+        apply_task = asyncio.create_task(server._coordinate_unread_recording(
+            [s], before_scopes=("all",), after_scopes=("none",),
+            clear_overrides=True,
+            apply_generation=unread_policy.begin_unread_recording_apply()))
+        assert await asyncio.to_thread(entered.wait, 2)
+        mark = asyncio.create_task(server.api_session_unread_action(
+            s.id, {"action": "mark-unread", "expectedGeneration": 2}))
+        await asyncio.sleep(0)
+        assert not mark.done()
+        release.set()
+        return await asyncio.gather(apply_task, mark)
+
+    (changed, failed, superseded), mark_result = asyncio.run(scenario())
+    assert changed == [s.id] and failed == [] and superseded is False
+    assert mark_result["ok"] is False
+    assert mark_result["error"]["code"] == "state_changed"
+    disk = _disk(s)
+    assert disk["unread_done_count"] == 0
+    assert disk["unread_done_generation"] == 2  # no marker was recorded
+
+
+def test_older_apply_superseded_by_newer_apply_leaves_later_sessions(
+        policy_env, tmp_config, monkeypatch):
+    """PUT#1 (all→none) is gated on Session A; while it waits, PUT#2
+    (none→all) starts a newer generation. After release, Session B must be
+    handled only by the newer apply: its override is cleared and its recorded
+    unread survives — the older apply never touches Session B."""
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["all"]}})
+    unread_policy.refresh_unread_recording()
+    s1 = _make_session("policy-supersede-a", generation=2, read=0)
+    s2 = _make_session("policy-supersede-b")
+    s2.unread_recording_override = "record"
+    sess.save(s2)
+    _run_terminal(s2, task_id="supersede-b-done")  # recorded: count 1
+    entered, release = _block_metadata_replace(monkeypatch, s1)
+
+    async def scenario():
+        old_apply = asyncio.create_task(server._coordinate_unread_recording(
+            [s1, s2], before_scopes=("all",), after_scopes=("none",),
+            clear_overrides=True,
+            apply_generation=unread_policy.begin_unread_recording_apply()))
+        assert await asyncio.to_thread(entered.wait, 2)
+        # A newer global apply starts while the older one is gated on A.
+        new_apply = asyncio.create_task(server._coordinate_unread_recording(
+            [s1, s2], before_scopes=("none",), after_scopes=("all",),
+            clear_overrides=True,
+            apply_generation=unread_policy.begin_unread_recording_apply()))
+        await asyncio.sleep(0)
+        assert not new_apply.done()
+        release.set()
+        return await asyncio.gather(old_apply, new_apply)
+
+    (old_changed, old_failed, old_superseded), (
+        new_changed, new_failed, new_superseded) = asyncio.run(scenario())
+    assert old_superseded is True  # Session B was left to the newer apply
+    assert new_superseded is False
+    disk_a = _disk(s1)
+    assert disk_a["unread_done_count"] == 0  # gated clear committed first
+    disk_b = _disk(s2)
+    assert disk_b["unread_recording_override"] is None  # newer apply cleared it
+    assert disk_b["unread_done_count"] == 1  # and kept the recorded unread
+
+
+def test_reapply_reports_superseded_when_a_newer_apply_started(
+        policy_env, tmp_config, monkeypatch):
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-reapply-superseded")
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    # Every lock re-check observes a newer generation than this Reapply's: the
+    # response must report superseded instead of pretending alignment.
+    monkeypatch.setattr(
+        unread_policy, "current_unread_recording_apply_generation",
+        lambda: unread_policy.begin_unread_recording_apply())
+    result = asyncio.run(server.api_reapply_unread_recording())
+    assert result["ok"] is True
+    assert result["superseded"] is True
+    assert result["alignedSessionCount"] == 0
+
+
+def test_apply_override_clear_failure_is_reported_and_projection_stays_truthful(
+        policy_env, tmp_config, monkeypatch):
+    """A failed override removal is reported on the PUT response, the stored
+    override stays (so the Session keeps recording and every projection shows
+    its REAL unread count — never a pretend zero), and a retry converges."""
+    _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
+    unread_policy.refresh_unread_recording()
+    s = _make_session("policy-apply-fail-override")
+    monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
+    asyncio.run(server.api_session_unread_action(
+        s.id, {"action": "enable-tracking", "expectedExcluded": True}))
+    _run_terminal(s, task_id="apply-fail-done")  # recorded: count 1
+    entered, release = _block_metadata_replace(monkeypatch, s, fail=True)
+    events_after_enable = len(policy_env)  # the Enable commit broadcast already
+
+    async def scenario():
+        task = asyncio.create_task(server.api_put_settings_ui(
+            {"notifications": {"unreadRecording": ["none"]}}))
+        assert await asyncio.to_thread(entered.wait, 2)
+        release.set()
+        return await task
+
+    ui = asyncio.run(scenario())
+    # The settings are saved, but the apply honestly reports the Session it
+    # could not align instead of letting the client show an unconditional
+    # success.
+    assert ui["unreadRecordingApply"]["ok"] is False
+    assert ui["unreadRecordingApply"]["failedSessions"] == [s.id]
+    disk = _disk(s)
+    assert disk["unread_recording_override"] == "record"  # nothing was published
+    # The projection stays truthful: the Session still records, so its real
+    # unread count is shown (never a pretend zero).
+    summary = server._session_summary(s)
+    assert summary["unreadTracking"] is True
+    assert summary["unreadDoneCount"] == 1
+    # No alignment broadcast happened for the unaligned Session.
+    assert not any(
+        e.get("type") == "session.updated" and e.get("sessionId") == s.id
+        for e in policy_env[events_after_enable:])
+    # Retrying the alignment (Reapply) clears the override once the disk works.
+    result = asyncio.run(server.api_reapply_unread_recording())
+    assert result["failedSessions"] == []
+    disk = _disk(s)
+    assert disk["unread_recording_override"] is None
+    assert disk["unread_done_count"] == 0
+    assert server._session_summary(s)["unreadTracking"] is False
