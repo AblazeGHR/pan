@@ -11,7 +11,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
   const currentState = useRef(state);
   currentState.current = state;
   const [error, setError] = useState('');
-  useEffect(() => { setError(''); }, [state.workerId, state.generation]);
+  useEffect(() => { setError(''); }, [state.workerId, state.workerGeneration, state.generation]);
   useEffect(() => {
     if (!host.current) return;
     const terminal = new Terminal({ cursorBlink: true, fontSize: 14, convertEol: false,
@@ -30,7 +30,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
       writes = writes.then(async () => {
         if (stopped || identity.mode !== 'native') return;
         await nativeRequest(sessionId, '/write', { ...payload, workerId: identity.workerId,
-          generation: identity.generation }, controller.signal);
+          generation: identity.generation, workerGeneration: identity.workerGeneration }, controller.signal);
         poller.wake();
       }).catch(() => { if (!stopped) setError('Input was not confirmed; switch control again before retrying.'); });
     };
@@ -54,7 +54,10 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
       try {
         const output = await nativeRequest<NativeOutput>(sessionId, `/output?cursor=${cursor}`, undefined, controller.signal);
         if (stopped) return null;
-        if (output.workerId !== state.workerId) { setError('The agent process changed. Re-enter Terminal TUI.'); return null; }
+        if (output.workerId !== state.workerId || output.workerGeneration !== state.workerGeneration) {
+          void useNativeControlStore.getState().refresh(sessionId);
+          return null;
+        }
         if (output.gap) {
           terminal.reset();
           setError('Terminal output exceeded the replay buffer; this view may be incomplete. The agent continues running.');
@@ -79,7 +82,12 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
         cursor = output.cursor;
         if (output.mode !== currentState.current.mode) void useNativeControlStore.getState().refresh(sessionId);
         return length;
-      } catch { if (!stopped) setError('Terminal connection unavailable. The agent was not stopped.'); }
+      } catch {
+        if (!stopped) {
+          setError('Terminal connection unavailable. The agent was not stopped.');
+          void useNativeControlStore.getState().refresh(sessionId).catch(() => {});
+        }
+      }
       return stopped ? null : 0;
     });
     const visibility = () => document.visibilityState === 'hidden' ? poller.pause() : poller.wake();
@@ -91,7 +99,7 @@ export function NativeTerminal({ sessionId, state }: { sessionId: string; state:
       observer.disconnect(); data.dispose(); resize.dispose(); terminal.dispose();
       // Detach only the browser view. Never close the resident TUI or kernel.
     };
-  }, [sessionId, state.workerId]);
+  }, [sessionId, state.workerId, state.workerGeneration]);
   return <div className="flex flex-1 min-h-0 flex-col" data-testid="native-terminal">
     {(error || state.error || state.mode === 'switching') && <div role="alert" className="px-3 py-1 text-xs text-danger">
       {error || state.error || 'Control ownership is unconfirmed; input is suspended.'}

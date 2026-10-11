@@ -1,5 +1,6 @@
 export interface NativeControlState {
   workerId: string | null;
+  workerGeneration?: number | null;
   mode: 'pan' | 'native' | 'switching';
   generation: number;
   error: string | null;

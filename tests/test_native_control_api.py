@@ -17,7 +17,7 @@ def target(monkeypatch):
     app.include_router(api.router)
     s = session.Session(id="ses-native-api", name="native", adapter="codex")
     s.adapter_config["native_control"] = True
-    w = SimpleNamespace(worker_id="w-native", native_control_mode="native", native_control_generation=4,
+    w = SimpleNamespace(worker_id="w-native", generation=7, native_control_mode="native", native_control_generation=4,
         native_control_error=None, native_output=bytearray(b"abcdef"), native_output_total=10,
         native_kernel_ready=True, process=SimpleNamespace(returncode=None))
     monkeypatch.setattr(api, "_enter", lambda request: (None, None))
@@ -72,7 +72,7 @@ def test_output_offsets_gap_and_no_private_transport(target):
     app, _, w = target
     result = request(app, "GET", "/output?cursor=0").json()["result"]
     assert result["gap"] is True and result["cursor"] == "10" and result["data"] == "YWJjZGVm"
-    assert set(result) == {"workerId", "mode", "generation", "error", "cursor", "gap", "data"}
+    assert set(result) == {"workerId", "workerGeneration", "mode", "generation", "error", "cursor", "gap", "data"}
     assert request(app, "GET", "/output?cursor=11").status_code == 409
     for cursor in ("true", "-1", "1.0", "18446744073709551616"):
         assert request(app, "GET", "/output?cursor=" + cursor).status_code == 422
@@ -87,6 +87,10 @@ def test_write_requires_current_worker_and_real_ack(target, monkeypatch):
     assert write.await_args.args[1]["text"] == "中文\r"
     assert request(app, "POST", "/write", json={**body, "workerId": "old"}).status_code == 409
     assert request(app, "POST", "/write", json={**body, "generation": True}).status_code == 422
+    count = write.await_count
+    assert request(app, "POST", "/write", json={**body, "workerGeneration": 6}).status_code == 409
+    assert write.await_count == count
+    assert request(app, "POST", "/write", json={**body, "workerGeneration": 7}).status_code == 200
     write.return_value = {"ok": False}
     assert request(app, "POST", "/write", json=body).status_code == 409
 

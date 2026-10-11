@@ -8,6 +8,15 @@ const pan: NativeControlState = { workerId: 'w', mode: 'pan', generation: 0, err
 const native: NativeControlState = { ...pan, mode: 'native', generation: 1 };
 beforeEach(() => { request.mockReset(); store.setState({ sessions: {}, switching: {}, terminalViews: {} }); });
 describe('native ownership receipts', () => {
+  it('accepts a fresh runtime generation with reset control counters on the same Worker id', async () => {
+    store.setState({ sessions: { restarted: { ...native, generation: 8, workerGeneration: 2 } } });
+    request.mockResolvedValueOnce({ ...pan, workerGeneration: 3 });
+    await store.getState().refresh('restarted');
+    expect(store.getState().sessions.restarted).toMatchObject({ mode: 'pan', generation: 0, workerGeneration: 3 });
+    request.mockResolvedValueOnce({ ...native, workerGeneration: 3 });
+    await store.getState().switchMode('restarted', 'native');
+    expect(store.getState().sessions.restarted).toMatchObject({ mode: 'native', generation: 1, workerGeneration: 3 });
+  });
   it('does not publish unchanged poll receipts or replace loaded Session history', async () => {
     const state = { ...pan, enabled: true };
     store.setState({ sessions: { stable: state } });

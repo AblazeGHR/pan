@@ -427,7 +427,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="w-full"
+                    className="terminal-tui-entry w-full"
                     data-terminal-status={terminalEntry.status}
                     aria-label="Terminal TUI"
                     aria-pressed={terminalEntry.active}

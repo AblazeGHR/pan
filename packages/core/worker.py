@@ -1635,6 +1635,21 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_rate_limits_updated_at = None
     w.native_plan = None
     w.native_diff = None
+    # The public Worker id/object survives restart, the kernel owner does not.
+    # Settle old callers without cancelling their HTTP tasks; they must never
+    # apply a retiring kernel's receipt to the replacement process.
+    for future in w._native_mode_receipts.values():
+        if not future.done():
+            future.set_result({"ok": False, "error": "Worker restarted"})
+    w._native_mode_receipts.clear()
+    w._native_mode_request_id = None
+    w.native_control_mode = "pan"
+    w.native_control_generation = 0
+    w.native_control_error = None
+    w.native_kernel_ready = False
+    w._native_external_turn_active = False
+    w.native_output.clear()
+    w.native_output_total = 0
 
 
 async def _iter_stdout_lines(w: Worker):
@@ -7013,6 +7028,7 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
     s = _session(w)
     if s is None or s.adapter_config.get("native_control") is not True:
         return {"ok": False, "error": "Native control is not enabled"}
+    runtime_generation = w.generation
     deadline = time.monotonic() + max(0.0, timeout)
     try:
         await asyncio.wait_for(w._native_mode_lock.acquire(), max(0.0, deadline - time.monotonic()))
@@ -7022,6 +7038,8 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
     future = asyncio.get_running_loop().create_future()
     try:
         async def handoff():
+            if w.generation != runtime_generation or w.status == "restarting":
+                raise RuntimeError("Worker restarted")
             if w.process is None or w.process.returncode is not None or w.process.stdin is None:
                 raise RuntimeError("Worker process is not running")
             w.native_control_mode = "switching"
@@ -7036,11 +7054,13 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
                 await handoff()
         await asyncio.wait_for(locked_handoff(), max(0.0, deadline - time.monotonic()))
         receipt = await asyncio.wait_for(asyncio.shield(future), max(0.0, deadline - time.monotonic()))
+        if w.generation != runtime_generation:
+            return {"ok": False, "error": "Worker restarted"}
         if not _apply_native_mode_receipt(w, receipt):
             return {"ok": False, "error": "Invalid control receipt"}
         return receipt
     except (asyncio.TimeoutError, OSError, RuntimeError):
-        if w.native_control_mode == "switching":
+        if w.generation == runtime_generation and w.native_control_mode == "switching":
             w.native_control_error = "Control ownership unconfirmed"
         return {"ok": False, "error": "Control ownership unconfirmed"}
     finally:
@@ -7059,12 +7079,14 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
         return {"ok": False, "error": "Unsupported native operation"}
     if len(w._native_mode_receipts) >= 32:
         return {"ok": False, "error": "Native input busy"}
+    runtime_generation = w.generation
     request_id = uuid.uuid4().hex
     future = asyncio.get_running_loop().create_future()
     w._native_mode_receipts[request_id] = future
     async def send():
         async with queue_lock(w.session_id):
-            if (w.native_control_mode != "native" or w.process is None
+            if (w.generation != runtime_generation or w.status == "restarting"
+                    or w.native_control_mode != "native" or w.process is None
                     or w.process.returncode is not None or w.process.stdin is None):
                 raise RuntimeError("Native worker is unavailable")
             w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")

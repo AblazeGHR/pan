@@ -1,6 +1,7 @@
 import asyncio
 import json
 import threading
+from unittest.mock import AsyncMock
 from functools import wraps
 from types import SimpleNamespace
 
@@ -77,6 +78,75 @@ def test_bridge_native_mode_keeps_read_events_but_fences_pan_writes():
     state = {"pending_requests": {"1": {"id": 1, "deadline": 0}}}
     app._safe_decline_expired(state)
     assert "1" in state["pending_requests"]
+
+
+@run_async
+async def test_restarted_native_kernel_uses_fresh_owner_and_discards_old_receipts(monkeypatch):
+    s, w = runtime(monkeypatch)
+    w.native_control_mode = "native"
+    w.native_control_generation = 5
+    w.native_kernel_ready = True
+    w.native_output.extend(b"old-screen")
+    w.native_output_total = 10
+    old = asyncio.get_running_loop().create_future()
+    w._native_mode_receipts["old"] = old
+    worker.clear_native_runtime_state(w)
+    assert old.result()["ok"] is False
+    assert w._native_mode_receipts == {}
+    assert w.native_control_mode == "pan" and w.native_control_generation == 0
+    assert not w.native_kernel_ready
+    assert w.native_output == b"" and w.native_output_total == 0
+    owner = ControlOwner()
+    class Stdin:
+        def write(self, raw):
+            message = json.loads(raw)
+            receipt = owner.switch(message["mode"], message["generation"])
+            worker._update_pending_interactions(w, {"type": "pan.control_mode",
+                "requestId": message["requestId"], "ok": True, **receipt})
+        async def drain(self): pass
+    w.process = SimpleNamespace(stdin=Stdin(), returncode=None)
+    assert (await worker.switch_native_control(w.worker_id, "native"))["ok"] is True
+    assert w.native_control_mode == "native" and w.native_control_generation == 1
+    assert s.queue_pending[0]["text"] == "keep me"
+
+
+@run_async
+async def test_restart_during_handoff_cannot_mark_replacement_unknown(monkeypatch):
+    _, w = runtime(monkeypatch)
+    sent = asyncio.Event()
+    class Stdin:
+        def write(self, raw): sent.set()
+        async def drain(self): pass
+    w.process = SimpleNamespace(stdin=Stdin(), returncode=None)
+    task = asyncio.create_task(worker.switch_native_control(w.worker_id, "native"))
+    await sent.wait()
+    worker._bump_worker_generation(w)
+    worker.clear_native_runtime_state(w)
+    assert (await task)["ok"] is False
+    assert w.native_control_mode == "pan" and w.native_control_error is None
+
+
+@run_async
+async def test_real_restart_entry_resets_reused_worker_before_new_process(monkeypatch):
+    _, w = runtime(monkeypatch)
+    w.native_control_mode = "native"
+    w.native_control_generation = 8
+    w.native_kernel_ready = True
+    w.native_output.extend(b"retired-screen")
+    w.native_output_total = 14
+    for name in ("_stop_worker_tasks", "_kill_takeover_terminal", "_kill_process_tree",
+                 "_record_legal_worker_state", "_restart_tasks", "_bcast"):
+        monkeypatch.setattr(worker, name, AsyncMock())
+    monkeypatch.setattr(worker, "_runtime_stopped", lambda _: True)
+    monkeypatch.setattr(worker, "resolve_execution_mode", lambda *args: "stream")
+    new_process = SimpleNamespace(returncode=None)
+    async def spawn(*args, **kwargs):
+        assert w.native_control_generation == 0 and w.native_control_mode == "pan"
+        assert not w.native_kernel_ready and not w.native_output
+        return new_process
+    monkeypatch.setattr(worker, "_spawn_process", spawn)
+    assert await worker._restart_worker_unlocked(w.worker_id) is None
+    assert worker.workers[w.worker_id] is w and w.process is new_process
 
 
 def runtime(monkeypatch):
