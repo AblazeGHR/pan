@@ -1,0 +1,40 @@
+﻿[2026-10-11 23:48:08][INFO] === prepare_validation_env.ps1 ===
+[2026-10-11 23:48:09][INFO] Mode: Prepare
+[2026-10-11 23:48:09][INFO] Worktree: D:\project\pan-worktrees\notification-click-session-20261011
+[2026-10-11 23:48:09][OK] Canonical Python: D:\project\Pan-main\.venv\Scripts\python.exe
+[2026-10-11 23:48:09][INFO]   Python 3.14.5
+[2026-10-11 23:48:09][OK]   [OK] import dotenv
+[2026-10-11 23:48:09][OK]   [OK] import mcp
+[2026-10-11 23:48:10][OK]   [OK] import pytest
+[2026-10-11 23:48:10][OK]   [OK] import fastapi
+[2026-10-11 23:48:10][OK]   [OK] import httpx
+[2026-10-11 23:48:10][OK]   [OK] import pydantic
+[2026-10-11 23:48:10][INFO] Python repair skipped (default/check mode is read-only).
+[2026-10-11 23:48:10][OK] Playwright package present in canonical venv.
+[2026-10-11 23:48:10][INFO] Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.
+[2026-10-11 23:48:10][OK] Canonical node_modules target verified (directory): D:\project\Pan-main\packages\web\node_modules
+[2026-10-11 23:48:10][INFO] Creating junction: cmd /c mklink /J "D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules" "D:\project\Pan-main\packages\web\node_modules"
+[2026-10-11 23:48:10][INFO]   为 D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules <<===>> D:\project\Pan-main\packages\web\node_modules 创建的联接
+[2026-10-11 23:48:10][OK] Junction created and verified: D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules -> D:\project\Pan-main\packages\web\node_modules
+[2026-10-11 23:48:10][INFO] Recorded script ownership marker: D:\project\pan-worktrees\notification-click-session-20261011\packages\web\.pan-validation-node-modules.junction
+[2026-10-11 23:48:10][INFO] Exit code: 0
+[2026-10-11 23:52:12][INFO] === prepare_validation_env.ps1 ===
+[2026-10-11 23:52:12][INFO] Mode: Prepare
+[2026-10-11 23:52:12][INFO] Worktree: D:\project\pan-worktrees\notification-click-session-20261011
+[2026-10-11 23:52:12][OK] Canonical Python: D:\project\Pan-main\.venv\Scripts\python.exe
+[2026-10-11 23:52:13][INFO]   Python 3.14.5
+[2026-10-11 23:52:13][OK]   [OK] import dotenv
+[2026-10-11 23:52:13][OK]   [OK] import mcp
+[2026-10-11 23:52:13][OK]   [OK] import pytest
+[2026-10-11 23:52:14][OK]   [OK] import fastapi
+[2026-10-11 23:52:14][OK]   [OK] import httpx
+[2026-10-11 23:52:14][OK]   [OK] import pydantic
+[2026-10-11 23:52:14][INFO] Python repair skipped (default/check mode is read-only).
+[2026-10-11 23:52:14][OK] Playwright package present in canonical venv.
+[2026-10-11 23:52:14][INFO] Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.
+[2026-10-11 23:52:14][OK] Canonical node_modules target verified (directory): D:\project\Pan\packages\web\node_modules
+[2026-10-11 23:52:14][INFO] Creating junction: cmd /c mklink /J "D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules" "D:\project\Pan\packages\web\node_modules"
+[2026-10-11 23:52:14][INFO]   为 D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules <<===>> D:\project\Pan\packages\web\node_modules 创建的联接
+[2026-10-11 23:52:14][OK] Junction created and verified: D:\project\pan-worktrees\notification-click-session-20261011\packages\web\node_modules -> D:\project\Pan\packages\web\node_modules
+[2026-10-11 23:52:14][INFO] Recorded script ownership marker: D:\project\pan-worktrees\notification-click-session-20261011\packages\web\.pan-validation-node-modules.junction
+[2026-10-11 23:52:14][INFO] Exit code: 0
