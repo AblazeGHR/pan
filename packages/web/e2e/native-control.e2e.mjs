@@ -1,7 +1,10 @@
-/* global URL, fetch, process, console, document */
+/* global URL, fetch, console, document */
 import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { createServer } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -14,14 +17,13 @@ const port = await new Promise((resolve, reject) => {
     const value = probe.address().port; probe.close(() => resolve(value));
   });
 });
-// Direct Node child: no cmd launcher tree and no protected application port.
-const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { cwd, windowsHide: true, stdio: 'ignore' });
+const server = await createServer({ configFile: false, root: path.join(cwd, 'src'), cacheDir: path.join(cwd, 'test-results/native-control/vite-cache'), resolve: { alias: { '@': path.join(cwd, 'src') } }, plugins: [react(), tailwindcss()], server: { host: '127.0.0.1', port, strictPort: true, proxy: {} } });
+await server.listen();
 let browser;
 try {
   const url = `http://127.0.0.1:${port}/native-control-harness.html`;
   let ready = false;
   for (let n = 0; n < 80; n++) {
-    if (server.exitCode !== null) throw new Error('Own Vite exited before readiness');
     try { ready = (await fetch(url)).ok; } catch { /* startup only */ }
     if (ready) break; await delay(100);
   }
@@ -120,5 +122,5 @@ try {
   console.log(JSON.stringify({ passed: true, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, stdio_upgrade_waits_idle: true, page_errors: errors }));
 } finally {
   if (browser) await browser.close();
-  server.kill();
+  await server.close();
 }
