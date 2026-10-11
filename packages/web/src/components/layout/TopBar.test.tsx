@@ -10,9 +10,9 @@ import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore
 import * as api from '@/services/api';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
 
-function mockMatchMedia() {
+function mockMatchMedia(matches = false) {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-    matches: false,
+    matches,
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
@@ -132,6 +132,7 @@ describe('TopBar compact worker presentation', () => {
   });
   it('keeps the mobile top bar single-line and exposes the full truncated session title', () => {
     const longTitle = 'A very long session name with an unbreakable identifier abcdefghijklmnopqrstuvwxyz0123456789';
+    mockMatchMedia(true);
     useSessionStore.setState({
       currentSessionId: 'session-123456789',
       sessions: [{
@@ -146,13 +147,45 @@ describe('TopBar compact worker presentation', () => {
     const topbar = screen.getByTestId('topbar');
     const title = topbar.querySelector('.font-medium.truncate');
     expect(topbar.className).toContain('max-md:flex-nowrap');
-    expect(title?.className).toContain('max-w-[120px]');
+    expect(title?.className).toContain('max-md:flex-1');
     expect(title?.getAttribute('title')).toBe(longTitle);
     expect(title?.textContent).toBe(longTitle);
     expect(screen.getByTitle('Restart worker')).toBeTruthy();
-    expect(screen.getByTitle('Interrupt')).toBeTruthy();
     expect(screen.getByTitle('Kill worker')).toBeTruthy();
     expect(topbar.querySelector('.message-navigation-mobile-toggle')).toBeTruthy();
+  });
+
+  it('keeps the name region as the mobile top bar flexible item instead of a fixed cap', () => {
+    mockMatchMedia(true);
+    useSessionStore.setState((state) => ({
+      sessions: state.sessions.map((s) => ({ ...s, name: 'Session' })),
+    }));
+    render(<TopBar />);
+    const title = screen.getByTestId('topbar').querySelector('.font-medium.truncate');
+    expect(title?.className).not.toContain('max-w-[120px]');
+    expect(title?.className).toContain('max-md:flex-1');
+  });
+
+  it('hides Terminal TUI and deferred/interrupt actions on mobile and keeps them on desktop', () => {
+    useSessionStore.setState((state) => ({
+      sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: true })),
+    }));
+    vi.spyOn(useNativeControlStore.getState(), 'refresh').mockResolvedValue();
+
+    mockMatchMedia(true);
+    const { unmount } = render(<TopBar />);
+    expect(screen.queryByRole('button', { name: 'Terminal TUI' })).toBeNull();
+    expect(screen.queryByTitle('Interrupt')).toBeNull();
+    expect(screen.queryByTitle(/Delayed restart/)).toBeNull();
+    expect(screen.getByTitle('Restart worker')).toBeTruthy();
+    expect(screen.getByTitle('Kill worker')).toBeTruthy();
+    unmount();
+
+    mockMatchMedia(false);
+    render(<TopBar />);
+    expect(screen.getByRole('button', { name: 'Terminal TUI' })).toBeTruthy();
+    expect(screen.getByTitle('Interrupt')).toBeTruthy();
+    expect(screen.getByTitle('Delayed restart: after task completion, before queued work')).toBeTruthy();
   });
 
   it('offers TUI, Bubble and Raw chat views, kept synchronized with the persistent app setting', () => {
@@ -252,10 +285,144 @@ describe('TopBar compact worker presentation', () => {
   });
 });
 
+describe('shared Terminal TUI auto-enter contract (module-level pending target)', () => {
+  function codexSession(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id, name: id, adapter: 'codex', nativeControl: false,
+      workerStatus: 'running', workerId: `worker-${id}`,
+      alwaysThinkingEnabled: false, effort: '', history: [],
+      ...overrides,
+    };
+  }
+
+  function setupSessions(...sessions: ReturnType<typeof codexSession>[]) {
+    useSessionStore.setState({
+      currentSessionId: sessions[0]!.id,
+      sessions,
+    });
+    useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
+  }
+
+  function mockConfigure() {
+    return vi.spyOn(useNativeControlStore.getState(), 'configureSession').mockImplementation(async (id: string) => {
+      useNativeControlStore.setState((current) => ({
+        sessions: { ...current.sessions, [id]: { workerId: `worker-${id}`, mode: 'pan', generation: 1, error: null, enabled: false, pendingEnabled: true } },
+      }));
+      return { enabled: false, pendingEnabled: true };
+    });
+  }
+
+  /** refresh mock: mirrors per-session native-control states the test controls. */
+  function mockRefresh(states: Record<string, { enabled: boolean }>) {
+    return vi.spyOn(useNativeControlStore.getState(), 'refresh').mockImplementation(async (id: string) => {
+      const state = states[id];
+      if (!state) return;
+      useNativeControlStore.setState((current) => ({
+        sessions: { ...current.sessions, [id]: {
+          workerId: `worker-${id}`, mode: 'pan',
+          generation: 1, error: null, enabled: state.enabled,
+          pendingEnabled: null,
+        } },
+      }));
+    });
+  }
+
+  beforeEach(async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { resetTerminalTuiEntryForTests } = await import('@/hooks/useTerminalTuiEntry');
+    resetTerminalTuiEntryForTests();
+  });
+
+  it('never auto-enters session B because of a pending upgrade scheduled on session A', async () => {
+    setupSessions(codexSession('A'), codexSession('B'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    mockConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(useNativeControlStore.getState().sessions.A?.pendingEnabled).toBe(true));
+
+    // The user moves to session B, whose upgrade already completed at the
+    // server. The stale pending target on A must not push B into Terminal TUI.
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 'B' });
+      states.B = { enabled: true };
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1300)); });
+    expect(switchMode).not.toHaveBeenCalledWith('B', 'native');
+    expect(switchMode).not.toHaveBeenCalled();
+  });
+
+  it('completes session A\'s deferred switch when the user returns to it at the idle boundary', async () => {
+    setupSessions(codexSession('A'), codexSession('B'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    mockConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockImplementation(async (id: string) => {
+      states[id] = { enabled: true };
+      useNativeControlStore.setState((current) => ({
+        sessions: { ...current.sessions, [id]: { workerId: `worker-${id}`, mode: 'native', generation: 2, error: null, enabled: true, pendingEnabled: null } },
+      }));
+    });
+
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(useNativeControlStore.getState().sessions.A?.pendingEnabled).toBe(true));
+
+    act(() => { useSessionStore.setState({ currentSessionId: 'B' }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1200)); });
+    expect(switchMode).not.toHaveBeenCalled();
+
+    // Return to A with the upgrade already acknowledged: the poll observes
+    // the idle boundary and completes the deferred native switch.
+    states.A = { enabled: true };
+    act(() => { useSessionStore.setState({ currentSessionId: 'A' }); });
+    await waitFor(() => expect(switchMode).toHaveBeenCalledWith('A', 'native'), { timeout: 4000 });
+  });
+
+  it('opening a history view cancels the pending auto-enter entirely', async () => {
+    setupSessions(codexSession('A'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    mockConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(useNativeControlStore.getState().sessions.A?.pendingEnabled).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Bubble view' }));
+    await waitFor(() => expect(useAppSettingsStore.getState().chatViewStyle).toBe('bubble'));
+    states.A = { enabled: true };
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2300)); });
+    expect(switchMode).not.toHaveBeenCalled();
+  });
+
+  it('issues the deferred native switch exactly once across repeated polls', async () => {
+    setupSessions(codexSession('A'));
+    const states: Record<string, { enabled: boolean }> = { A: { enabled: false } };
+    mockRefresh(states);
+    mockConfigure();
+    const switchMode = vi.spyOn(useNativeControlStore.getState(), 'switchMode').mockResolvedValue();
+
+    render(<TopBar />);
+    // The entry schedules the upgrade; the poll target is cleared before the
+    // switch is issued, so later polls (mock still reporting pendingEnabled)
+    // cannot re-issue it.
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
+    await waitFor(() => expect(useNativeControlStore.getState().sessions.A?.pendingEnabled).toBe(true));
+    states.A = { enabled: true };
+    await waitFor(() => expect(switchMode).toHaveBeenCalledTimes(1), { timeout: 4000 });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2300)); });
+    expect(switchMode).toHaveBeenCalledTimes(1);
+  });
+});
+
 // FE-1: TopBar must only re-render for the slice it reads. Toasts, interactive
 // requests and other sessions' worker updates are irrelevant to it.
-describe('TopBar render isolation (fine-grained selectors)', () => {
-  it('ignores unrelated UI-store and worker-store updates', () => {
+describe('TopBar render isolation (fine-grained selectors)', () => {  it('ignores unrelated UI-store and worker-store updates', () => {
     const commits: number[] = [];
     render(
       <Profiler id="topbar" onRender={() => commits.push(1)}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -7,6 +7,7 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useTerminalTuiEntry, terminalTuiTitle } from '@/hooks/useTerminalTuiEntry';
 import { fetchSessionUsage } from '@/services/api';
 import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 import type { CodexQuotaProjection } from '@/types';
@@ -110,30 +111,11 @@ function cachedQuotaLabel(quota: unknown): string | undefined {
 export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
-  const nativeState = useNativeControlStore((s) => currentSession?.id ? s.sessions[currentSession.id] : undefined);
-  const nativeSwitching = useNativeControlStore((s) => currentSession?.id ? s.switching[currentSession.id] : false);
-  const terminalView = useNativeControlStore((s) => currentSession?.id ? s.terminalViews[currentSession.id] : undefined);
-  const nativeActive = terminalView ?? (nativeState?.mode === 'native' || nativeState?.mode === 'switching');
-  const enterAfterUpgrade = useRef<string | null>(null);
-  useEffect(() => {
-    if (currentSession?.adapter !== 'codex') return;
-    const id = currentSession.id;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async () => {
-      try {
-        await useNativeControlStore.getState().refresh(id);
-        const state = useNativeControlStore.getState().sessions[id];
-        if (!stopped && enterAfterUpgrade.current === id && state?.enabled === true && typeof state.pendingEnabled !== 'boolean') {
-          enterAfterUpgrade.current = null;
-          await useNativeControlStore.getState().switchMode(id, 'native');
-        }
-      } catch { /* keep last acknowledged ownership; manual retry stays available */ }
-      if (!stopped) timer = setTimeout(() => void refresh(), 1000);
-    };
-    void refresh();
-    return () => { stopped = true; clearTimeout(timer); };
-  }, [currentSession?.id, currentSession?.adapter]);
+  // TopBar is the always-mounted poller driving the shared Terminal TUI
+  // contract (including the auto-enter after a "pending idle" upgrade that
+  // was scheduled from the Session Settings entry — see useTerminalTuiEntry).
+  const terminalEntry = useTerminalTuiEntry(currentSession, { poll: true });
+  const nativeActive = terminalEntry.active;
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
   // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
   // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
@@ -142,22 +124,6 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     useUIStore(useShallow((s) => ({
       showToast: s.showToast,
       })));
-  const enterNative = async () => {
-    if (!currentSession) return;
-    const id = currentSession.id;
-    try {
-      if (!currentSession.nativeControl) {
-        if (!window.confirm('Upgrade this Codex Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.')) return;
-        const config = await useNativeControlStore.getState().configureSession(id, true);
-        if (typeof config.pendingEnabled === 'boolean') {
-          enterAfterUpgrade.current = id;
-          showToast('Session upgrade scheduled: waiting for the current task to finish', 'info');
-          return;
-        }
-      }
-      await useNativeControlStore.getState().switchMode(id, 'native');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Session upgrade or native control switch was not confirmed', 'error'); }
-  };
   const { chatViewStyle, setChatViewStyle } = useAppSettingsStore(useShallow((s) => ({
     chatViewStyle: s.chatViewStyle,
     setChatViewStyle: s.setChatViewStyle,
@@ -170,13 +136,9 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
       takeover: s.takeover,
     })));
   const { isMobile } = useMediaQuery();
-  const terminalUpgrading = nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean';
-  const terminalAvailable = (nativeState?.enabled ?? currentSession?.nativeControl) === true;
-  const terminalStatus = nativeState?.error ? 'error' : terminalUpgrading ? 'upgrading'
-    : terminalAvailable ? nativeActive ? 'enabled' : 'available' : 'upgrade';
-  const terminalLabel = terminalStatus === 'upgrade' ? 'Upgrades' : 'Terminal TUI';
+  const nativeState = useNativeControlStore((s) => currentSession?.id ? s.sessions[currentSession.id] : undefined);
   const chooseView = async (value: 'tui' | 'bubble' | 'raw') => {
-    enterAfterUpgrade.current = null;
+    terminalEntry.cancelAutoEnter();
     setChatViewStyle(value);
     if (currentSession) useNativeControlStore.getState().showTerminal(currentSession.id, false);
     try {
@@ -253,12 +215,16 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   };
 
   return (
-    <div data-testid="topbar" className="flex items-center justify-between pl-10 pr-3 md:pl-4 md:pr-4 py-1 md:py-2 border-b border-border-default bg-bg-primary gap-1 md:gap-2 flex-wrap max-md:flex-nowrap shrink-0">
-      <div className="flex items-center gap-1.5 md:gap-3 min-w-0 max-md:flex-1">
-        <div className="flex items-center gap-1 md:gap-2 min-w-0">
+    <div data-testid="topbar" className="flex items-center justify-between pl-10 pr-2 md:pl-4 md:pr-4 py-1 md:py-2 border-b border-border-default bg-bg-primary gap-0.5 md:gap-2 flex-wrap max-md:flex-nowrap shrink-0">
+      <div className="flex items-center gap-1 md:gap-3 min-w-0 max-md:flex-1">
+        <div className="flex items-center gap-0.5 md:gap-2 min-w-0 max-md:flex-1">
           <WorkerDot status={status} className="shrink-0" />
+          {/* Mobile: the name region is the top bar's only flexible item, so
+              it takes every px left of the fixed-size controls — ≥ half of
+              the bar's usable width even at 320px. Truncation keeps overflow
+              away while `title`/`aria-label` expose the full name. */}
           <span
-            className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px] min-w-0"
+            className="text-sm font-medium text-text-primary truncate min-w-0 max-md:flex-1 md:max-w-[200px]"
             title={currentSession.name || currentSession.id?.slice(0, 12)}
             aria-label={currentSession.name || currentSession.id?.slice(0, 12)}
           >
@@ -276,7 +242,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               aria-pressed={!nativeActive}
               aria-label={nextView.label}
               title={`Chat view: ${currentView.short} — click to switch to ${nextView.short}`}
-              className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-8 max-md:w-8 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
+              className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors max-md:h-7 max-md:w-7 max-md:flex max-md:flex-none max-md:items-center max-md:justify-center max-md:p-0"
             >
               <CurrentViewIcon size={16} />
             </button>
@@ -305,18 +271,21 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               ))}
             </div>
           )}
-          {currentSession.adapter === 'codex' && <button type="button"
+          {/* Desktop-only entry: on mobile the same contract (upgrade,
+              pending idle, enter TUI, error retry) lives in Session Settings
+              → More (SettingsPopover). */}
+          {!isMobile && currentSession.adapter === 'codex' && <button type="button"
             className="terminal-tui-entry ml-1 flex shrink-0 items-center justify-center gap-1 rounded border px-2 py-1 text-xs transition-colors md:min-h-0"
-            data-terminal-status={terminalStatus}
-            aria-label="Terminal TUI" aria-pressed={nativeActive} disabled={nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean'}
-            title={terminalStatus === 'upgrade' ? 'Upgrades — upgrade Session to Terminal TUI' : terminalStatus === 'upgrading' ? 'Terminal TUI — upgrade or control switch pending' : terminalStatus === 'error' ? 'Terminal TUI — control error; retry' : terminalStatus === 'enabled' ? 'Terminal TUI — enabled' : 'Terminal TUI — available'}
-            onClick={() => void enterNative()}>
+            data-terminal-status={terminalEntry.status}
+            aria-label="Terminal TUI" aria-pressed={terminalEntry.active} disabled={terminalEntry.busy}
+            title={terminalTuiTitle(terminalEntry.status)}
+            onClick={() => void terminalEntry.enterNative()}>
             <span className="relative inline-flex shrink-0" aria-hidden="true">
               <TerminalSquare size={16} />
-              {terminalStatus === 'upgrade' && <ArrowUp size={10} className="terminal-tui-entry__upgrade-arrow absolute -right-1 -top-1 rounded-sm bg-bg-primary" />}
-              {terminalStatus === 'upgrading' && <Loader2 size={10} className="absolute -right-1 -top-1 animate-spin rounded-sm bg-bg-primary" />}
+              {terminalEntry.status === 'upgrade' && <ArrowUp size={10} className="terminal-tui-entry__upgrade-arrow absolute -right-1 -top-1 rounded-sm bg-bg-primary" />}
+              {terminalEntry.status === 'upgrading' && <Loader2 size={10} className="absolute -right-1 -top-1 animate-spin rounded-sm bg-bg-primary" />}
             </span>
-            {!isMobile && <span>{terminalLabel}{typeof nativeState?.pendingEnabled === 'boolean' ? ' · pending idle' : ''}</span>}
+            <span>{terminalEntry.label}{terminalEntry.pendingIdle ? ' · pending idle' : ''}</span>
           </button>}
         </div>
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
@@ -362,7 +331,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
+              className="max-md:h-7 max-md:w-7 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
               onClick={() =>
                 restart(currentSession.id)
                   .then(() => showToast('Restarted worker'))
@@ -372,40 +341,44 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             >
               <RotateCw size={14} />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
-              disabled={delayedRestartState?.status === 'pending'
-                || delayedRestartState?.status === 'restarting'}
-              onClick={() => useWorkerStore.getState().delayedRestart(currentSession.id)
-                .then(() => showToast('Worker will restart after the current task completes'))
-                .catch((e: Error) => showToast(e.message, 'error'))}
-              title={delayedRestartState?.status === 'pending' ? 'Delayed restart pending: waiting for task completion'
-                : delayedRestartState?.status === 'restarting' ? 'Restarting worker'
-                : delayedRestartState?.status === 'failed' ? `Delayed restart failed: ${delayedRestartState.error}`
-                : 'Delayed restart: after task completion, before queued work'}
-            >
-              <Clock size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
-              onClick={() =>
-                interrupt(currentSession.id)
-                  .then(() => showToast('Interrupt sent'))
-                  .catch((e) => showToast(e.message, 'error'))
-              }
-              title="Interrupt"
-            >
-              <Ban size={14} />
-            </Button>
+            {/* Delayed restart / Interrupt stay reachable on mobile via
+                Session Settings → Worker; the mobile top bar keeps only the
+                high-frequency Restart and Kill controls. */}
+            {!isMobile && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={delayedRestartState?.status === 'pending'
+                    || delayedRestartState?.status === 'restarting'}
+                  onClick={() => useWorkerStore.getState().delayedRestart(currentSession.id)
+                    .then(() => showToast('Worker will restart after the current task completes'))
+                    .catch((e: Error) => showToast(e.message, 'error'))}
+                  title={delayedRestartState?.status === 'pending' ? 'Delayed restart pending: waiting for task completion'
+                    : delayedRestartState?.status === 'restarting' ? 'Restarting worker'
+                    : delayedRestartState?.status === 'failed' ? `Delayed restart failed: ${delayedRestartState.error}`
+                    : 'Delayed restart: after task completion, before queued work'}
+                >
+                  <Clock size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    interrupt(currentSession.id)
+                      .then(() => showToast('Interrupt sent'))
+                      .catch((e) => showToast(e.message, 'error'))
+                  }
+                  title="Interrupt"
+                >
+                  <Ban size={14} />
+                </Button>
+              </>
+            )}
             {!isMobile && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
                 onClick={() => {
                   if (nativeActive && !confirm('Takeover stops the current Worker and opens an external PowerShell session. This is not a seamless TUI/Pan control switch. Continue?')) return;
                   takeover(currentSession.id)
@@ -422,7 +395,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              className="max-md:h-8 max-md:w-8 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
+              className="max-md:h-7 max-md:w-7 max-md:flex-none max-md:justify-center max-md:px-0 max-md:py-0"
               onClick={() => {
                 if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
                 killCurrent(currentSession.id)
@@ -439,7 +412,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           <Button
             variant="primary"
             size="sm"
-            className="max-md:h-8 max-md:flex-none max-md:px-2 max-md:py-0"
+            className="max-md:h-7 max-md:flex-none max-md:px-2 max-md:py-0"
             onClick={() =>
               restart(currentSession.id || '')
                 .then(() => showToast('Worker started'))

@@ -1,14 +1,17 @@
-/* global URL, fetch, window, getComputedStyle, process, console, document, innerWidth */
+/* global URL, fetch, console, document, innerWidth, getComputedStyle */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
+import { createServer } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
+const cwd = fileURLToPath(new URL('..', import.meta.url));
 const port = 5197;
 const baseURL = `http://127.0.0.1:${port}/topbar-compact-harness.html`;
-const cwd = new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1').replaceAll('/', '\\');
 const viewports = [320, 360, 390];
 
 async function assertPortAvailable() {
@@ -20,20 +23,23 @@ async function assertPortAvailable() {
 }
 
 await assertPortAvailable();
-const viteArgs = ['exec', 'vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'];
-const server = spawn(process.platform === 'win32' ? 'cmd.exe' : 'pnpm', process.platform === 'win32'
-  ? ['/d', '/s', '/c', `pnpm ${viteArgs.join(' ')}`]
-  : viteArgs, {
-  cwd,
-  windowsHide: true,
-  stdio: 'ignore',
+// Programmatic server (no app vite.config proxy): cacheDir is isolated under
+// test-results so the shared canonical node_modules is never written to, and
+// /api traffic is intercepted by Playwright instead of any Pan instance.
+const server = await createServer({
+  configFile: false,
+  root: path.join(cwd, 'src'),
+  cacheDir: path.join(cwd, 'test-results/topbar-compact/vite-cache'),
+  resolve: { alias: { '@': path.join(cwd, 'src') } },
+  plugins: [react(), tailwindcss()],
+  server: { host: '127.0.0.1', port, strictPort: true, proxy: {} },
 });
+await server.listen();
 let browser;
 
 try {
   let ready = false;
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (server.exitCode !== null) throw new Error(`Vite exited with code ${server.exitCode}`);
     try {
       const response = await fetch(baseURL);
       if (response.ok) {
@@ -59,6 +65,15 @@ try {
   page.on('request', (request) => {
     if (/:(8767|8768)(\/|$)/.test(request.url())) protectedRequests.push(request.url());
   });
+  // All API traffic is mocked; nothing reaches a Pan instance or provider.
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/native-control')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: { workerId: 'worker-123', mode: 'pan', generation: 1, error: null, enabled: false } }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: {} }) });
+  });
   await page.goto(baseURL, { waitUntil: 'networkidle' });
   try {
     await page.waitForFunction(() => typeof window.__setTopBarScenario === 'function', null, { timeout: 10000 });
@@ -78,6 +93,14 @@ try {
     await topbar.waitFor({ state: 'visible' });
     if (scenario === 'nav-off') await nav.waitFor({ state: 'detached' });
     else await nav.waitFor({ state: 'visible' });
+    // The chat-view group only exists when React has flushed isMobile=false;
+    // waiting for it (or its absence) removes the viewport-change race from
+    // the geometry snapshot below.
+    if (scenario !== 'none') {
+      const chatViewGroup = page.getByRole('group', { name: 'Chat view' });
+      if (width >= 768) await chatViewGroup.waitFor({ state: 'visible' });
+      else await chatViewGroup.waitFor({ state: 'detached' });
+    }
     const geometry = await page.evaluate(() => {
       const rect = (element) => {
         const { x, y, width: w, height: h, right, bottom } = element.getBoundingClientRect();
@@ -87,6 +110,17 @@ try {
       const actions = document.querySelector('[data-testid="topbar-actions"]');
       const title = bar?.querySelector('.font-medium.truncate');
       const status = bar?.querySelector('span[title="running"], span[title="offline"]');
+      const style = bar ? getComputedStyle(bar) : null;
+      // Denominator for the 50% name check: the FULL top bar content area
+      // (bar minus its own paddings) with every control inside it — the
+      // action buttons are part of this denominator, never subtracted.
+      const contentWidth = bar && style
+        ? bar.getBoundingClientRect().width
+          - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+        : 0;
+      const padding = style
+        ? { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight) }
+        : null;
       const controls = [...(bar?.querySelectorAll('button') ?? [])].map((button) => ({
         title: button.title,
         label: button.getAttribute('aria-label'),
@@ -95,6 +129,8 @@ try {
       return {
         viewport: { width: innerWidth, documentWidth: document.documentElement.scrollWidth },
         topbar: bar ? rect(bar) : null,
+        contentWidth,
+        padding,
         status: status ? rect(status) : null,
         title: title ? { text: title.textContent, fullTitle: title.title, rect: rect(title) } : null,
         actions: actions ? rect(actions) : null,
@@ -102,7 +138,13 @@ try {
       };
     });
     assert.ok(geometry.topbar, 'TopBar missing');
-    assert.ok(geometry.topbar.height <= 48, `TopBar too tall: ${JSON.stringify(geometry)}`);
+    if (width < 768) {
+      assert.ok(geometry.topbar.height <= 48, `Mobile TopBar too tall: ${JSON.stringify(geometry)}`);
+    } else {
+      // Desktop: 43 without the 32px navigation toggle, 49 with it (baseline
+      // behavior, unchanged).
+      assert.ok(geometry.topbar.height <= 49, `Desktop TopBar too tall: ${JSON.stringify(geometry)}`);
+    }
     assert.equal(geometry.viewport.documentWidth, width, `Horizontal overflow at ${width}px: ${JSON.stringify(geometry)}`);
     assert.ok(geometry.controls.every(({ rect }) => rect.x >= 0 && rect.right <= width), `Control outside viewport: ${JSON.stringify(geometry)}`);
     assert.ok(geometry.controls.every(({ rect }) => rect.y >= geometry.topbar.y && rect.bottom <= geometry.topbar.bottom), `Control outside TopBar: ${JSON.stringify(geometry)}`);
@@ -115,11 +157,44 @@ try {
         ? 'Session'
         : 'A very long session name with an unbreakable identifier abcdefghijklmnopqrstuvwxyz0123456789';
       assert.equal(geometry.title.fullTitle, expectedTitle);
-      const existingTitleCap = width >= 768 ? 200 : 120;
-      assert.ok(geometry.title.rect.width <= existingTitleCap, `Title exceeded its existing ${existingTitleCap}px cap: ${JSON.stringify(geometry.title)}`);
+      if (width >= 768) {
+        assert.ok(geometry.title.rect.width <= 200, `Desktop title exceeded its 200px cap: ${JSON.stringify(geometry.title)}`);
+      } else {
+        // Requirement: the Session name region takes at least half of the
+        // top bar's full content area (all buttons included in the
+        // denominator) on mobile.
+        assert.ok(
+          geometry.title.rect.width >= geometry.contentWidth / 2 - 0.5,
+          `Mobile name region ${geometry.title.rect.width}px is below half of the ${geometry.contentWidth}px content area (all controls included): ${JSON.stringify(geometry)}`,
+        );
+        // Small buttons stay reasonably tappable.
+        assert.ok(
+          geometry.controls.every(({ rect }) => rect.width >= 24 && rect.height >= 24),
+          `Control below 24px tap size at ${width}px: ${JSON.stringify(geometry.controls)}`,
+        );
+      }
       assert.ok(geometry.actions && geometry.actions.y >= geometry.topbar.y && geometry.actions.bottom <= geometry.topbar.bottom);
-      for (const expected of scenario === 'worker' ? ['Restart worker', 'Interrupt', 'Kill worker'] : []) {
-        assert.ok(geometry.controls.some((control) => control.title === expected), `${expected} missing in ${scenario}`);
+      const expectedActions = width >= 768
+        ? ['Restart worker', 'Delayed restart: after task completion, before queued work', 'Interrupt', 'Kill worker']
+        : ['Restart worker', 'Kill worker'];
+      if (scenario === 'worker' || scenario === 'codex') {
+        for (const expected of expectedActions) {
+          assert.ok(geometry.controls.some((control) => control.title === expected), `${expected} missing in ${scenario} at ${width}px`);
+        }
+        const removed = ['Interrupt', 'Delayed restart: after task completion, before queued work'];
+        if (width < 768) {
+          for (const gone of removed) {
+            assert.ok(!geometry.controls.some((control) => control.title === gone), `${gone} must be removed from the mobile top bar`);
+          }
+        }
+      }
+      if (scenario === 'codex') {
+        const terminalEntry = geometry.controls.find((control) => control.label === 'Terminal TUI');
+        if (width >= 768) {
+          assert.ok(terminalEntry, 'Desktop Terminal TUI entry missing for codex session');
+        } else {
+          assert.ok(!terminalEntry, 'Mobile top bar must not host the Terminal TUI entry');
+        }
       }
     }
     if (scenario === 'offline') {
@@ -131,7 +206,8 @@ try {
       assert.ok(navRect, 'Navigation toggle missing');
       assert.equal(navRect.width, 32);
       assert.equal(navRect.height, 32);
-      assert.ok(Math.abs(navRect.right - (width - (scenario === 'none' ? 16 : 12))) <= 1, `Navigation toggle is not rightmost: ${JSON.stringify(geometry)}`);
+      const rightInset = scenario === 'none' || width >= 768 ? 16 : 8;
+      assert.ok(Math.abs(navRect.right - (width - rightInset)) <= 1, `Navigation toggle is not rightmost: ${JSON.stringify(geometry)}`);
     }
     console.log(`${width}px ${scenario}: ${JSON.stringify(geometry)}`);
     return geometry;
@@ -144,13 +220,20 @@ try {
     await measure(width, 'none');
     await measure(width, 'short');
     await measure(width, 'nav-off');
+    await measure(width, 'codex');
   }
 
   const desktop = await measure(1440, 'nav-off');
-  assert.equal(desktop.topbar.height, 41, `Desktop TopBar height changed: ${JSON.stringify(desktop.topbar)}`);
+  // 43px = 8+8 padding + 26px chat-view group + 1px border, measured against
+  // the baseline checkout in this environment (the old 41 came from racing
+  // the isMobile flush; the group wait above removes that race).
+  assert.equal(desktop.topbar.height, 43, `Desktop TopBar height changed: ${JSON.stringify(desktop.topbar)}`);
   assert.equal(desktop.controls.find(({ title }) => title === 'Restart worker')?.rect.height, 24);
   assert.equal(desktop.controls.find(({ title }) => title === 'Interrupt')?.rect.height, 24);
   assert.equal(desktop.controls.find(({ title }) => title === 'Kill worker')?.rect.height, 24);
+  await measure(1440, 'worker');
+  const desktopCodex = await measure(1440, 'codex');
+  assert.ok(desktopCodex.controls.some((control) => control.label === 'Terminal TUI'), 'Desktop codex session keeps the Terminal TUI entry');
 
   await setScenario('worker');
   const nav = page.getByRole('button', { name: 'Open message navigation rail' });
@@ -158,7 +241,9 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Close message navigation rail' }).getAttribute('aria-expanded'), 'true');
   await page.locator('body').click({ position: { x: 5, y: 100 } });
   let navFocusedByKeyboard = false;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  // Desktop DOM has 8 focusable controls before the toggle, mobile 3 — allow
+  // enough Tab presses for either viewport.
+  for (let attempt = 0; attempt < 14; attempt += 1) {
     await page.keyboard.press('Tab');
     navFocusedByKeyboard = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Close message navigation rail');
     if (navFocusedByKeyboard) break;
@@ -176,16 +261,6 @@ try {
   assert.deepEqual(protectedRequests, [], `Unexpected protected-port requests: ${protectedRequests.join(', ')}`);
 } finally {
   await browser?.close();
-  if (server.exitCode === null) {
-    if (process.platform === 'win32') {
-      try {
-        execFileSync('taskkill.exe', ['/PID', String(server.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-      } catch {
-        // The process may have exited between the state check and taskkill.
-      }
-    } else {
-      server.kill('SIGTERM');
-    }
-    await Promise.race([new Promise((resolve) => server.once('exit', resolve)), delay(3000)]);
-  }
+  await server.close();
+  await delay(300);
 }

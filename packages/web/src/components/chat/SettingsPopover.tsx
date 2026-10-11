@@ -14,6 +14,9 @@ import { fetchSession } from '@/services/api';
 import type { AdapterConfig, PermissionMode, Session } from '@/types';
 import { FreshnessStatus } from '@/components/session/FreshnessStatus';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useTerminalTuiEntry, terminalTuiTitle } from '@/hooks/useTerminalTuiEntry';
+import { ArrowUp, Loader2, TerminalSquare } from 'lucide-react';
 
 interface SettingsPopoverProps {
   open: boolean;
@@ -56,6 +59,11 @@ function pickSettings(session: Session): SessionSettingPatch {
  */
 export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverProps) {
   const session = useCurrentSession();
+  const { isMobile } = useMediaQuery();
+  // Mobile-only Terminal TUI entry (the mobile top bar no longer shows it).
+  // poll:false — the always-mounted TopBar drives the shared refresh/auto-enter
+  // loop; this consumer only renders state and dispatches actions.
+  const terminalEntry = useTerminalTuiEntry(session, { poll: false });
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const showToast = useUIStore((s) => s.showToast);
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
@@ -338,6 +346,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     s.adapter === 'codex' &&
     supportsSetting(config, 'modelContextWindow') &&
     supportsSetting(config, 'modelAutoCompactTokenLimit');
+  // The mobile top bar no longer hosts the Terminal TUI / Upgrades entry; the
+  // same contract (upgrade confirm, pending idle, enter TUI, error retry) is
+  // reachable here inside the More disclosure. Desktop keeps its top-bar entry.
+  const mobileTerminalEntry = isMobile && s.adapter === 'codex';
   const hasCodexOverrides = s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
@@ -393,8 +405,9 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
         </div>
       )}
 
-      {/* Codex context controls stay behind a compact More disclosure. */}
-      {showCodexContext && (
+      {/* Codex context controls and (on mobile) the Terminal TUI entry stay
+          behind a compact More disclosure. */}
+      {(showCodexContext || mobileTerminalEntry) && (
         <div className="border-t border-border-muted pt-2">
           <button
             type="button"
@@ -409,77 +422,115 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
           </button>
           {moreOpen && (
             <div className="mt-2 space-y-2">
-              <p className="text-[11px] leading-4 text-text-muted">
-                修改后需 Worker 自动 respawn/restart 后生效；当前 turn 不热更新。
-              </p>
-              <label className="block text-xs text-text-secondary">
-                <span className="mb-1 block">Context window</span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  value={contextWindowInput}
-                  aria-label="model_context_window"
-                  onChange={(e) => {
-                    setContextWindowInput(e.target.value);
-                    if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
-                      setContextWindowError('');
-                    } else {
-                      setContextWindowError('请输入正整数');
-                    }
-                  }}
-                  onBlur={() =>
-                    updateCodexNumber(
-                      'modelContextWindow',
-                      contextWindowInput,
-                      setContextWindowError,
-                    )
-                  }
-                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-                />
-                {contextWindowError && (
-                  <span className="mt-1 block text-[11px] text-danger">{contextWindowError}</span>
-                )}
-              </label>
-              <label className="block text-xs text-text-secondary">
-                <span className="mb-1 block">Auto-compact token limit</span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  value={autoCompactInput}
-                  aria-label="model_auto_compact_token_limit"
-                  onChange={(e) => {
-                    setAutoCompactInput(e.target.value);
-                    if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
-                      setAutoCompactError('');
-                    } else {
-                      setAutoCompactError('请输入正整数');
-                    }
-                  }}
-                  onBlur={() =>
-                    updateCodexNumber(
-                      'modelAutoCompactTokenLimit',
-                      autoCompactInput,
-                      setAutoCompactError,
-                    )
-                  }
-                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-                />
-                {autoCompactError && (
-                  <span className="mt-1 block text-[11px] text-danger">{autoCompactError}</span>
-                )}
-              </label>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!hasCodexOverrides || restoringCodexDefaults}
-                onClick={restoreCodexDefaults}
-              >
-                {restoringCodexDefaults ? 'Restoring…' : 'Restore defaults'}
-              </Button>
+              {mobileTerminalEntry && (
+                <div data-testid="settings-terminal-tui-entry">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    data-terminal-status={terminalEntry.status}
+                    aria-label="Terminal TUI"
+                    aria-pressed={terminalEntry.active}
+                    disabled={terminalEntry.busy}
+                    title={terminalTuiTitle(terminalEntry.status)}
+                    onClick={() => void terminalEntry.enterNative()}
+                  >
+                    <span className="relative inline-flex shrink-0" aria-hidden="true">
+                      <TerminalSquare size={14} />
+                      {terminalEntry.status === 'upgrade' && <ArrowUp size={9} className="absolute -right-1 -top-1 rounded-sm bg-bg-primary" />}
+                      {terminalEntry.status === 'upgrading' && <Loader2 size={9} className="absolute -right-1 -top-1 animate-spin rounded-sm bg-bg-primary" />}
+                    </span>
+                    <span>
+                      {terminalEntry.label}
+                      {terminalEntry.pendingIdle ? ' · pending idle' : ''}
+                    </span>
+                  </Button>
+                  <p className="text-[11px] leading-4 text-text-muted">
+                    {terminalEntry.status === 'error'
+                      ? 'Control ownership unconfirmed — click to retry the switch.'
+                      : terminalEntry.pendingIdle
+                        ? 'Upgrade scheduled: control switches at the next idle boundary.'
+                        : terminalEntry.status === 'upgrade'
+                          ? 'Upgrade this Codex Session to Terminal TUI control; the switch happens at the next idle boundary.'
+                          : 'Opens the native Terminal TUI control view.'}
+                  </p>
+                </div>
+              )}
+              {showCodexContext && (
+                <>
+                  <p className="text-[11px] leading-4 text-text-muted">
+                    修改后需 Worker 自动 respawn/restart 后生效；当前 turn 不热更新。
+                  </p>
+                  <label className="block text-xs text-text-secondary">
+                    <span className="mb-1 block">Context window</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={contextWindowInput}
+                      aria-label="model_context_window"
+                      onChange={(e) => {
+                        setContextWindowInput(e.target.value);
+                        if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
+                          setContextWindowError('');
+                        } else {
+                          setContextWindowError('请输入正整数');
+                        }
+                      }}
+                      onBlur={() =>
+                        updateCodexNumber(
+                          'modelContextWindow',
+                          contextWindowInput,
+                          setContextWindowError,
+                        )
+                      }
+                      className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                    />
+                    {contextWindowError && (
+                      <span className="mt-1 block text-[11px] text-danger">{contextWindowError}</span>
+                    )}
+                  </label>
+                  <label className="block text-xs text-text-secondary">
+                    <span className="mb-1 block">Auto-compact token limit</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={autoCompactInput}
+                      aria-label="model_auto_compact_token_limit"
+                      onChange={(e) => {
+                        setAutoCompactInput(e.target.value);
+                        if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
+                          setAutoCompactError('');
+                        } else {
+                          setAutoCompactError('请输入正整数');
+                        }
+                      }}
+                      onBlur={() =>
+                        updateCodexNumber(
+                          'modelAutoCompactTokenLimit',
+                          autoCompactInput,
+                          setAutoCompactError,
+                        )
+                      }
+                      className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                    />
+                    {autoCompactError && (
+                      <span className="mt-1 block text-[11px] text-danger">{autoCompactError}</span>
+                    )}
+                  </label>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!hasCodexOverrides || restoringCodexDefaults}
+                    onClick={restoreCodexDefaults}
+                  >
+                    {restoringCodexDefaults ? 'Restoring…' : 'Restore defaults'}
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

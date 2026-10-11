@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { TopBar } from './components/layout/TopBar';
 import { useSessionStore } from './stores/sessionStore';
 import { useWorkerStore } from './stores/workerStore';
+import { useNativeControlStore } from './stores/nativeControlStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from './stores/appSettingsStore';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './index.css';
@@ -35,6 +36,11 @@ function Harness() {
   ) : undefined;
 
   window.__setTopBarScenario = (scenario) => {
+    // Scenario switches must not inherit native-control residue from a
+    // previous codex scenario: TopBar's effectiveWorkerId fallback chain reads
+    // nativeState.workerId, which would keep "worker" controls visible in the
+    // offline scenario.
+    useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
     useSessionStore.setState({
       currentSessionId: scenario === 'none' ? null : session.id,
       sessions: scenario === 'none' ? [] : [{
@@ -42,6 +48,8 @@ function Harness() {
         name: scenario === 'short' ? 'Session' : session.name,
         workerStatus: scenario === 'offline' ? 'offline' : 'running',
         workerId: scenario === 'offline' ? null : session.workerId,
+        adapter: scenario === 'codex' ? 'codex' : undefined,
+        nativeControl: scenario === 'codex' ? false : undefined,
       }],
     });
     useWorkerStore.setState({
