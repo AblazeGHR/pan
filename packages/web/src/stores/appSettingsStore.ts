@@ -26,6 +26,76 @@ export function sanitizeCompletionBridge(value: unknown): CompletionBridgeDefaul
   };
 }
 
+/** Scope ids accepted by the backend unread-recording policy. */
+export type UnreadRecordingScope = 'bell-on' | 'bell-off' | 'pinned' | 'all' | 'none';
+
+/** Legacy default: every Session records done unread. */
+export const DEFAULT_UNREAD_RECORDING: UnreadRecordingScope[] = ['all'];
+
+const UNREAD_RECORDING_SCOPES: readonly UnreadRecordingScope[] = [
+  'bell-on', 'bell-off', 'pinned', 'all', 'none',
+];
+
+/**
+ * Mirror of the backend ``unread_policy.normalize_unread_recording`` rule:
+ * missing/invalid values keep the legacy default (all sessions), all/none
+ * absorb every other scope, bell-on + bell-off collapse to all (their union
+ * covers every Session), and an empty set means none ("empty ⇒ no-recording",
+ * shared with the backend).
+ */
+export function sanitizeUnreadRecording(value: unknown): UnreadRecordingScope[] {
+  if (!Array.isArray(value)) return [...DEFAULT_UNREAD_RECORDING];
+  const scopes: UnreadRecordingScope[] = [];
+  for (const item of value) {
+    if (
+      typeof item === 'string'
+      && (UNREAD_RECORDING_SCOPES as readonly string[]).includes(item)
+      && !scopes.includes(item as UnreadRecordingScope)
+    ) {
+      scopes.push(item as UnreadRecordingScope);
+    }
+  }
+  if (scopes.includes('all')) return ['all'];
+  if (scopes.includes('none')) return ['none'];
+  if (scopes.length === 0) return ['none'];
+  if (scopes.includes('bell-on') && scopes.includes('bell-off')) return ['all'];
+  // Canonical, order-stable output (mirrors the backend normalize rule).
+  return UNREAD_RECORDING_SCOPES.filter((candidate) => scopes.includes(candidate));
+}
+
+/**
+ * Apply one checkbox toggle over the canonical scope set
+ * (App Settings → Notification → Unread recording).
+ *
+ * Interaction rules: All / No sessions are exclusive — enabling one clears
+ * every other scope, disabling one falls back to No sessions (the shared
+ * "empty set ⇒ none" rule). Bell on / Bell off are mutually exclusive.
+ * Enabling any category clears All / No sessions; disabling the last category
+ * falls back to No sessions.
+ */
+export function toggleUnreadRecordingScope(
+  scopes: UnreadRecordingScope[],
+  scope: UnreadRecordingScope,
+): UnreadRecordingScope[] {
+  const current = sanitizeUnreadRecording(scopes);
+  if (scope === 'all' || scope === 'none') {
+    if (current.includes(scope)) return ['none'];
+    return [scope];
+  }
+  const next = new Set(current);
+  next.delete('all');
+  next.delete('none');
+  if (next.has(scope)) {
+    next.delete(scope);
+  } else {
+    next.add(scope);
+    if (scope === 'bell-on') next.delete('bell-off');
+    if (scope === 'bell-off') next.delete('bell-on');
+  }
+  const ordered = UNREAD_RECORDING_SCOPES.filter((candidate) => next.has(candidate));
+  return ordered.length > 0 ? [...ordered] : ['none'];
+}
+
 export interface AppSettings {
   /**
    * Chat message presentation. TUI is the default; `bubble` is the opt-in
@@ -69,6 +139,13 @@ export interface AppSettings {
     /** Show structured Codex warning events through a Toast. */
     codexWarningToast: boolean;
     completionBridge?: CompletionBridgeDefaults;
+    /**
+     * Which Sessions record done unread. Persisted globally in
+     * config.json (``ui.notifications.unreadRecording``) and enforced by the
+     * backend single predicate; excluded Sessions stay at an authoritative
+     * count 0 on every surface.
+     */
+    unreadRecording: UnreadRecordingScope[];
     confirmCrossWorkspaceManagement: boolean;
     confirmAgentSystemQueueEdit: boolean;
   };
@@ -90,6 +167,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifications: {
     codexWarningToast: true,
     completionBridge: DEFAULT_COMPLETION_BRIDGE,
+    unreadRecording: DEFAULT_UNREAD_RECORDING,
     confirmCrossWorkspaceManagement: true,
     confirmAgentSystemQueueEdit: true,
   },
@@ -162,6 +240,7 @@ export function sanitizeSettings(
         : DEFAULT_SETTINGS.showHistorySearch,
     notifications: {
       completionBridge: sanitizeCompletionBridge(notifications.completionBridge),
+      unreadRecording: sanitizeUnreadRecording(notifications.unreadRecording),
       confirmAgentSystemQueueEdit: typeof notifications.confirmAgentSystemQueueEdit === 'boolean' ? notifications.confirmAgentSystemQueueEdit : true,
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -192,6 +271,11 @@ interface AppSettingsStore extends AppSettings {
   setShowHistorySearch: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
+  /**
+   * Persist the unread-recording scope set. Resolves only after the server
+   * wrote the settings; a failure rejects and leaves the store unchanged.
+   */
+  saveUnreadRecording: (v: UnreadRecordingScope[]) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -335,6 +419,15 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       const response = await updateUiSettings({ notifications: { completionBridge: value } });
       const next = sanitizeSettings(response).notifications.completionBridge;
       set((state) => ({ notifications: { ...state.notifications, completionBridge: next } }));
+    },
+
+    saveUnreadRecording: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({
+        notifications: { unreadRecording: sanitizeUnreadRecording(value) },
+      });
+      const next = sanitizeSettings(response).notifications.unreadRecording;
+      set((state) => ({ notifications: { ...state.notifications, unreadRecording: next } }));
     },
 
     setCodexWarningToast: (v) => {

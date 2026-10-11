@@ -52,6 +52,8 @@ _UI_DEFAULTS = {
             "system": True, "browser": False, "qqReport": False,
             "qqSubscribe": False, "qqTargets": [],
         },
+        # Legacy default: every Session records done unread.
+        "unreadRecording": ["all"],
     },
 }
 

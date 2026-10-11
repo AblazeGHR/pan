@@ -901,6 +901,13 @@ export function useWebSocket() {
       }
       scheduleRefreshSessions();
     }));
+    // Global ui settings changed on another client (e.g. the unread-recording
+    // scope set). Re-read the persisted settings so every open client shows
+    // the same choice; unread badges already converge through the backend
+    // projection, this only syncs the settings surface itself.
+    unsubscribers.push(wsClient.on('settings.uiUpdated', () => {
+      void useAppSettingsStore.getState().loadSettings();
+    }));
 
     // Error
     unsubscribers.push(wsClient.on('error', (e: StreamEvent) => {

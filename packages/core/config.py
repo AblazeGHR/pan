@@ -218,6 +218,11 @@ DEFAULT_CONFIG: dict = {
         "notifications": {
             "codexWarningToast": True,
             "completionBridge": {"system": True, "browser": False, "qqReport": False, "qqSubscribe": False, "qqTargets": []},
+            # 全局未读记录策略（packages/core/unread_policy.py 的单一谓词）：
+            # ["all"] 全部记录（旧配置默认）| ["none"] 不记录任何 Session |
+            # ["bell-on"]/["bell-off"]/["pinned"] 的并集。空集合规范化为
+            # ["none"]；bell-on 与 bell-off 互斥；all/none 独占。
+            "unreadRecording": ["all"],
         },
     },
 }

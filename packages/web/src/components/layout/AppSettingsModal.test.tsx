@@ -1169,7 +1169,7 @@ describe('AppSettingsModal', () => {
       showMetaAgent: false,
       showTaskAgent: false,
       showQQ: false,
-      notifications: { codexWarningToast: false, confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true },
+      notifications: { codexWarningToast: false, unreadRecording: ['all'], confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true },
     });
     render(<AppSettingsModal open onClose={() => {}} />);
     const resetBtn = Array.from(document.body.querySelectorAll<HTMLElement>('button')).find((b) =>

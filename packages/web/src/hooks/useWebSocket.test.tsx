@@ -69,6 +69,7 @@ const apiMock = vi.hoisted(() => ({
   listWorkers: vi.fn(),
   fetchSessionQueue: vi.fn(),
   updateUiSettings: vi.fn(),
+  fetchUiSettings: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
@@ -77,6 +78,7 @@ vi.mock('@/services/api', () => ({
   listWorkers: apiMock.listWorkers,
   fetchSessionQueue: apiMock.fetchSessionQueue,
   updateUiSettings: apiMock.updateUiSettings,
+  fetchUiSettings: apiMock.fetchUiSettings,
 }));
 
 function msg(role: string, content: string): Message {
@@ -140,6 +142,8 @@ describe('useWebSocket worker.result wiring', () => {
     apiMock.fetchSessionQueue.mockResolvedValue([]);
     apiMock.updateUiSettings.mockReset();
     apiMock.updateUiSettings.mockResolvedValue({});
+    apiMock.fetchUiSettings.mockReset();
+    apiMock.fetchUiSettings.mockResolvedValue({});
   });
 
   // Never let a failing test leak fake timers (or a still-mounted hook's
@@ -2874,5 +2878,19 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
 
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('reloads persisted app settings when another client saves them', async () => {
+    apiMock.fetchUiSettings.mockResolvedValue({
+      notifications: { unreadRecording: ['none'] },
+    });
+    renderHook(() => useWebSocket());
+    await act(async () => {
+      wsMock.trigger('settings.uiUpdated', { type: 'settings.uiUpdated' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(apiMock.fetchUiSettings).toHaveBeenCalled();
+    expect(useAppSettingsStore.getState().notifications.unreadRecording).toEqual(['none']);
   });
 });

@@ -113,6 +113,7 @@ from packages.core import main_lifecycle
 from packages.core import launcher
 from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
+from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
 from packages.scheduler import engine as scheduler_engine
 
@@ -216,6 +217,17 @@ async def lifespan(app: FastAPI):
         await _initialize_startup_recovery(sessions)
     except Exception as exc:
         _log(f"[Pan] Startup legal-state recovery initialization failed: {exc}")
+
+    # Unread recording policy: publish the persisted scope set and align
+    # Sessions excluded under it (old data / crash leftovers) before any
+    # summary read can serve them. Best-effort: a failure never blocks startup
+    # and the read projection stays authoritative either way.
+    try:
+        aligned = await _coordinate_unread_recording_on_startup(sessions)
+        if aligned:
+            _log(f"[Pan] Unread-recording policy aligned {aligned} Session(s) at startup")
+    except Exception as exc:
+        _log(f"[Pan] Unread-recording policy startup alignment failed: {exc}")
 
     # Upgrade-shaped/incomplete summary projections are repaired in one
     # bounded worker-thread scan.  The summary HTTP path remains projection
@@ -2026,8 +2038,8 @@ def _reports_to_manager(s: sess.Session, manager_by_id: dict | None = None) -> b
 
 
 def _msg_bridge_enabled(s: sess.Session) -> bool:
-    settings = notifications.normalize_notification_settings(s.notification_settings)
-    return bool(s.qq_subscriptions or s.qq_report_targets or settings["system"] or settings["browser"])
+    # Single truth shared with the unread-recording policy (bell scopes).
+    return unread_policy.msg_bridge_enabled(s)
 
 def _session_to_api(
     s: sess.Session,
@@ -2054,6 +2066,11 @@ def _session_to_api(
     if pin_projection is None:
         pin_projection = sess.session_pin_projection(s.id)
     queue_pending_count, queue_all_locked = _queue_pending_summary(s)
+    # Unread recording policy: one projection for every read surface. Excluded
+    # Sessions report count 0 with the read cursor clamped to the generation.
+    (unread_done_count, unread_done_generation,
+     unread_done_read_generation) = unread_policy.unread_cursor_projection(
+        s, pinned=bool(pin_projection.get("pinned")))
     return {
         "id": s.id,
         "name": s.name,
@@ -2095,10 +2112,9 @@ def _session_to_api(
         **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
-        "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
-        "unreadDoneGeneration": max(0, int(getattr(s, "unread_done_generation", 0) or 0)),
-        "unreadDoneReadGeneration": max(0, int(
-            getattr(s, "unread_done_read_generation", 0) or 0)),
+        "unreadDoneCount": unread_done_count,
+        "unreadDoneGeneration": unread_done_generation,
+        "unreadDoneReadGeneration": unread_done_read_generation,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
@@ -2300,6 +2316,11 @@ def _session_summary(
     traverse the full history. ``lastMessage`` remains the old API alias for
     the raw ``lastDisplayPreview`` value.
 
+    The unread-recording policy participates through its process-wide hot
+    snapshot (refreshed at startup and on the settings PUT that can change it),
+    never through per-Session config reads; the pin fact comes from the
+    already-computed ``pin_projection`` above.
+
     Since 2026-09-01: also exposes managed / mcpServers / mcpLockReason so the
     sidebar can run the "has subagent" and "is MetaAgent" special filters
     without per-session detail calls (mirrors _session_to_api).
@@ -2326,6 +2347,12 @@ def _session_summary(
     if pin_projection is None:
         pin_projection = sess.session_pin_projection(s.id)
     queue_pending_count, queue_all_locked = _queue_pending_summary(s)
+    # Unread recording policy: one projection for every read surface (see
+    # _session_to_api). The policy snapshot itself is process memory; the only
+    # per-Session lookup is the already-computed pin projection.
+    (unread_done_count, unread_done_generation,
+     unread_done_read_generation) = unread_policy.unread_cursor_projection(
+        s, pinned=bool(pin_projection.get("pinned")))
     return {
         "id": s.id,
         "name": s.name,
@@ -2339,10 +2366,9 @@ def _session_summary(
         "workerTaskSeq": worker_task_seq,
         "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
         "lastLegalWorkerState": s.last_legal_worker_state,
-        "unreadDoneCount": max(0, int(getattr(s, "unread_done_count", 0) or 0)),
-        "unreadDoneGeneration": max(0, int(getattr(s, "unread_done_generation", 0) or 0)),
-        "unreadDoneReadGeneration": max(0, int(
-            getattr(s, "unread_done_read_generation", 0) or 0)),
+        "unreadDoneCount": unread_done_count,
+        "unreadDoneGeneration": unread_done_generation,
+        "unreadDoneReadGeneration": unread_done_read_generation,
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
@@ -5914,6 +5940,7 @@ async def api_set_session_pin(session_id: str, data: dict):
         return {"ok": False, "error": {
             "code": "invalid_params",
             "message": "pinned (boolean) is required"}}
+    was_pinned = bool(sess.session_pin_projection(session_id).get("pinned"))
     try:
         state, error = sess.set_session_pinned(session_id, pinned)
     except OSError as exc:
@@ -5928,6 +5955,21 @@ async def api_set_session_pin(session_id: str, data: dict):
         "sessionIds": state["sessionIds"],
     })
     order = state["sessionIds"].index(session_id) if pinned else None
+    # Unread recording policy: a pin transition can exclude/include this
+    # Session for the {"pinned"} scope; align its unread immediately.
+    target = sess.get_cached(session_id)
+    if target is None:
+        target = sess.get(session_id, load_history=False)
+    if isinstance(target, sess.Session):
+        scopes = unread_policy.current_unread_recording()
+        bridge = unread_policy.msg_bridge_enabled(target)
+        await _coordinate_session_unread_transition(
+            target,
+            before_record=unread_policy.is_scope_recorded(
+                scopes, bridge=bridge, pinned=was_pinned),
+            after_record=unread_policy.is_scope_recorded(
+                scopes, bridge=bridge, pinned=pinned),
+        )
     return {
         "ok": True,
         "pinned": pinned,
@@ -6044,9 +6086,11 @@ async def api_ack_session_unread_done(session_id: str, data: dict | None = None)
     unpersisted clear.  Permission boundary is the same as every other Session
     route; history, terminal results and report routes are untouched.
 
-    Response: {"ok": true, "unreadDoneCount": <remaining>,
-    "unreadDoneGeneration": <gen>, "unreadDoneReadGeneration": <read>} or
-    {"ok": false, "error": {code, message}}.
+    Response: {"ok": true, "unreadDoneCount": <projected count>,
+    "unreadDoneGeneration": <gen>, "unreadDoneReadGeneration": <projected
+    read>} or {"ok": false, "error": {code, message}}. Count and read follow
+    the unread-recording policy projection, so an excluded Session always
+    reports 0 even while its durable cursors still differ.
     """
     observed_raw = data.get("observed") if isinstance(data, dict) else None
     if (isinstance(observed_raw, bool) or not isinstance(observed_raw, int)
@@ -6079,7 +6123,6 @@ async def _ack_session_unread_done(session_id: str, observed_raw: int):
         prev_read = max(0, int(getattr(s, "unread_done_read_generation", 0) or 0))
         observed = min(observed_raw, generation)
         new_read = max(prev_read, observed)
-        remaining = generation - new_read
         if new_read != prev_read:
             try:
                 await sess.ack_unread_done_async(s, new_read)
@@ -6097,12 +6140,114 @@ async def _ack_session_unread_done(session_id: str, observed_raw: int):
                 "sessionId": s.id,
                 "session": _session_summary(s),
             })
+        (projected_count, projected_generation,
+         projected_read) = unread_policy.unread_cursor_projection(s)
         return {
             "ok": True,
-            "unreadDoneCount": remaining,
-            "unreadDoneGeneration": generation,
-            "unreadDoneReadGeneration": new_read,
+            "unreadDoneCount": projected_count,
+            "unreadDoneGeneration": projected_generation,
+            "unreadDoneReadGeneration": projected_read,
         }
+
+
+# ── Unread recording policy coordination ──
+#
+# Transition points that can flip a Session's record decision (settings saves,
+# bell edits, pin edits, startup) align the durable cursors and broadcast the
+# result. The reset reuses the ack persistence primitive (staged read cursor +
+# atomic replace, published only after success) under unread_done_lock, so it
+# never interleaves with a terminal generation commit. A failed reset leaves
+# the stored value untouched: the read projection stays authoritative (count 0
+# everywhere) and the next terminal commit or coordination retries it.
+
+
+async def _reset_session_unread_generation(s: sess.Session) -> bool:
+    """Advance one excluded Session's read cursor to its generation."""
+    async with worker.unread_done_lock(s.id):
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        read_generation = max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0))
+        if read_generation >= generation:
+            return False
+        try:
+            await sess.ack_unread_done_async(s, generation)
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            _log(
+                "[Pan] unread-recording reset failed for "
+                f"{s.id}: {exc}"
+            )
+            return False
+        await broadcast({
+            "type": "session.updated",
+            "sessionId": s.id,
+            "session": _session_summary(s),
+        })
+        return True
+
+
+async def _coordinate_session_unread_transition(
+    s: sess.Session, *, before_record: bool, after_record: bool,
+) -> bool:
+    """Align one Session after a bell/pin decision transition.
+
+    Only a transition touching "excluded" on either side needs the reset:
+    record→exclude clears immediately, exclude→record clears any leftover
+    (normally a no-op because excluded Sessions never accumulate), while
+    record→record must keep its legitimate unread untouched.
+    """
+    if before_record and after_record:
+        return False
+    return await _reset_session_unread_generation(s)
+
+
+async def _coordinate_unread_recording(
+    sessions, *, before_scopes, after_scopes,
+) -> list[str]:
+    """Align every Session after a global policy change (or at startup).
+
+    ``before_scopes`` and ``after_scopes`` are the normalized tuples on either
+    side of the change; startup passes the current tuple for both. Only
+    Sessions where "excluded" appears on a side need work. The shared pin
+    snapshot is read once, never per Session.
+    """
+    changed: list[str] = []
+    needs_pins = "pinned" in before_scopes or "pinned" in after_scopes
+    pin_ids: set[str] = set()
+    if needs_pins:
+        pin_ids = set(sess.session_pin_state().get("sessionIds") or [])
+    for s in sessions:
+        bridge = unread_policy.msg_bridge_enabled(s)
+        pinned = s.id in pin_ids
+        before_record = unread_policy.is_scope_recorded(
+            before_scopes, bridge=bridge, pinned=pinned)
+        after_record = unread_policy.is_scope_recorded(
+            after_scopes, bridge=bridge, pinned=pinned)
+        if before_record and after_record:
+            continue
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        read_generation = max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0))
+        if read_generation >= generation:
+            continue
+        if await _reset_session_unread_generation(s):
+            changed.append(s.id)
+    return changed
+
+
+async def _coordinate_unread_recording_on_startup(sessions) -> int:
+    """Startup alignment for old data and crash leftovers.
+
+    The settings save already clears Sessions excluded at the moment the
+    choice changes; this covers a restart after a failed clear and Sessions
+    loaded from disk under a policy applied by an earlier process.
+    """
+    scopes = unread_policy.refresh_unread_recording()
+    if "all" in scopes:
+        return 0
+    return len(await _coordinate_unread_recording(
+        sessions, before_scopes=scopes, after_scopes=scopes))
 
 
 @app.post("/api/sessions/pins/order")
@@ -9715,6 +9860,12 @@ async def api_put_settings_ui(data: dict):
     the current values (defaults fill the rest) and persisted atomically.
     Unknown keys are stored as-is for forward compatibility. Returns the full
     merged ui object.
+
+    Changing the unread-recording scope set (``notifications.unreadRecording``)
+    publishes the new policy immediately: Sessions that just became excluded
+    are cleared to an authoritative count 0, other clients reload the settings
+    over the ``settings.uiUpdated`` broadcast, and a failed config write
+    changes nothing (the previous policy stays active).
     """
     ui = dict(load_config().get("ui") or {})
     if "notifications" in data:
@@ -9728,11 +9879,27 @@ async def api_put_settings_ui(data: dict):
                     data["notifications"]["completionBridge"], strict=True)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if "unreadRecording" in data["notifications"]:
+            # Canonical form: empty sets become ["none"], all/none absorb the
+            # category scopes, bell-on + bell-off collapse to all.
+            updated_notifications["unreadRecording"] = list(
+                unread_policy.normalize_unread_recording(
+                    data["notifications"]["unreadRecording"]))
         data = {**data, "notifications": updated_notifications}
     ui.update(data)
+    before_scopes = unread_policy.current_unread_recording()
     raw = read_config_file()
     raw["ui"] = ui
     save_config(raw)
+    after_scopes = unread_policy.refresh_unread_recording()
+    if after_scopes != before_scopes:
+        await broadcast({
+            "type": "settings.uiUpdated",
+            "unreadRecording": list(after_scopes),
+        })
+        await _coordinate_unread_recording(
+            sess.list_all(load_history=False),
+            before_scopes=before_scopes, after_scopes=after_scopes)
     return ui
 
 
@@ -10895,6 +11062,17 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
                 rollback()
             raise
     await broadcast({"type": "session.updated", "sessionId": session_id})
+    # Unread recording policy: a bell edit can flip this Session's record
+    # decision (bell-on / bell-off scopes); align its unread immediately.
+    scopes = unread_policy.current_unread_recording()
+    pinned_value = bool(sess.session_pin_projection(session_id).get("pinned"))
+    await _coordinate_session_unread_transition(
+        target,
+        before_record=unread_policy.is_scope_recorded(
+            scopes, bridge=expected_enabled, pinned=pinned_value),
+        after_record=unread_policy.is_scope_recorded(
+            scopes, bridge=_msg_bridge_enabled(target), pinned=pinned_value),
+    )
     return {"ok": True, "sessionId": session_id,
             "msgBridgeEnabled": _msg_bridge_enabled(target),
             "qqSubscriptions": sorted(target.qq_subscriptions),
