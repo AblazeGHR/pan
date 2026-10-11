@@ -774,9 +774,10 @@ export function useWebSocket() {
         const desktopNotification = new Notification(notification.title || 'Pan:', { body: notification.body || '' });
         // Click → focus Pan and jump to the session that just completed. The
         // session id lives on the event (not in the notification payload);
-        // a session deleted before the click degrades to a toast.
+        // the async handler guards against user take-over and reports
+        // deletion / list-unavailable / router failures with a toast.
         desktopNotification.onclick = () => {
-          openSessionFromNotification(sessionId);
+          void openSessionFromNotification(sessionId);
         };
       }
       const sessionStore = useSessionStore.getState();

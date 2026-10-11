@@ -7,10 +7,18 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Session } from '@/types';
 
-// The hook selects via the store (no API beyond the history fetch).
-vi.mock('@/services/api', () => ({
-  fetchSessionHistory: vi.fn().mockResolvedValue({ history: [], total: 0, hasMore: false, start: 0 }),
+const apiMock = vi.hoisted(() => ({
+  fetchSessions: vi.fn(),
+  fetchSessionHistory: vi.fn(),
 }));
+
+vi.mock('@/services/api', () => ({
+  fetchSessions: apiMock.fetchSessions,
+  fetchSessionHistory: apiMock.fetchSessionHistory,
+}));
+
+const MISSING = '通知对应的会话不存在或已被删除，无法跳转';
+const LIST_UNAVAILABLE = '会话列表暂时无法加载，未能打开该会话';
 
 function mkSession(id: string): Session {
   return {
@@ -47,8 +55,15 @@ function currentSearch(): string {
   return screen.getByTestId('location-search').textContent ?? '';
 }
 
+function toastMessages(): string[] {
+  return useUIStore.getState().toastQueue.map((toast) => toast.message);
+}
+
 describe('useSessionDeepLinkParam', () => {
   beforeEach(() => {
+    apiMock.fetchSessions.mockReset();
+    apiMock.fetchSessionHistory.mockReset()
+      .mockResolvedValue({ history: [], total: 0, hasMore: false, start: 0 });
     useSessionStore.setState({
       sessions: [mkSession('A')],
       currentSessionId: null,
@@ -63,51 +78,111 @@ describe('useSessionDeepLinkParam', () => {
     cleanup();
   });
 
-  it('selects an existing session from ?session= and clears the param', async () => {
-    renderAt('/?session=A');
+  it('selects a cached session and clears only the session param', async () => {
+    renderAt('/?session=A&panE2E=1&keep=1');
 
     await vi.waitFor(() => {
       expect(useSessionStore.getState().currentSessionId).toBe('A');
     });
     await vi.waitFor(() => {
-      expect(currentSearch()).toBe('');
+      expect(currentSearch()).toBe('?panE2E=1&keep=1');
     });
-    expect(useUIStore.getState().toastQueue).toHaveLength(0);
+    expect(toastMessages()).toEqual([]);
   });
 
-  it('degrades with a toast when the addressed session is missing after the list settled', async () => {
+  it('reports deletion only after an authoritative list without the session', async () => {
+    apiMock.fetchSessions.mockResolvedValue([mkSession('A')]);
     renderAt('/?session=gone');
 
     await vi.waitFor(() => {
-      expect(useUIStore.getState().toastQueue.at(-1)?.message)
-        .toBe('通知对应的会话不存在或已被删除，无法跳转');
+      expect(toastMessages()).toEqual([MISSING]);
     });
     expect(useSessionStore.getState().currentSessionId).toBeNull();
     expect(currentSearch()).toBe('');
   });
 
-  it('does not declare missing while the first session load is still in flight', async () => {
+  it('keeps the link on a failed list load, never claims deletion, and recovers later', async () => {
+    apiMock.fetchSessions.mockRejectedValueOnce(new Error('offline'));
+    renderAt('/?session=C');
+
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual([LIST_UNAVAILABLE]);
+    });
+    // No false deletion: the parameter survives for a later recovery.
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(currentSearch()).toBe('?session=C');
+
+    // A later successful refresh brings the session in; the hook resolves.
+    apiMock.fetchSessions.mockResolvedValue([mkSession('A'), mkSession('C')]);
+    await act(async () => {
+      await useSessionStore.getState().loadSessions();
+    });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().currentSessionId).toBe('C');
+    });
+    await vi.waitFor(() => {
+      expect(currentSearch()).toBe('');
+    });
+    expect(toastMessages()).not.toContain(MISSING);
+    expect(toastMessages()).toEqual([LIST_UNAVAILABLE]);
+  });
+
+  it('does not conclude while a list load is still in flight', async () => {
     useSessionStore.setState({ sessions: [], sessionsLoading: true, _loadSeq: 1 });
-    renderAt('/?session=gone');
+    renderAt('/?session=C');
 
     await act(async () => { await Promise.resolve(); });
-    expect(useUIStore.getState().toastQueue).toHaveLength(0);
-    expect(currentSearch()).toBe('?session=gone');
+    expect(toastMessages()).toEqual([]);
+    expect(currentSearch()).toBe('?session=C');
+    expect(apiMock.fetchSessions).not.toHaveBeenCalled();
 
+    // The in-flight load settles without the session: NOW the hook may run
+    // its own authoritative lookup, which confirms deletion.
+    apiMock.fetchSessions.mockResolvedValue([mkSession('A')]);
     act(() => { useSessionStore.setState({ sessionsLoading: false }); });
+
     await vi.waitFor(() => {
-      expect(useUIStore.getState().toastQueue).toHaveLength(1);
+      expect(toastMessages()).toEqual([MISSING]);
     });
     expect(currentSearch()).toBe('');
+  });
+
+  it('recovers when a concurrent refresh supersedes its own load', async () => {
+    // Cold start races the app's initial load: the lookup's fetch gets
+    // superseded (its response is dropped), which must not end in 'unknown'
+    // with a permanent warning — it retries once with a clean sequence.
+    const pending: Array<(value: Session[]) => void> = [];
+    apiMock.fetchSessions
+      .mockImplementationOnce(() => new Promise((resolve) => { pending.push(resolve); }))
+      .mockImplementationOnce(() => new Promise((resolve) => { pending.push(resolve); }))
+      .mockResolvedValue([mkSession('A')]);
+    renderAt('/?session=C');
+    await act(async () => { await Promise.resolve(); }); // lookup load in flight
+
+    // The app starts its own refresh, superseding the lookup's load.
+    void useSessionStore.getState().loadSessions();
+    await act(async () => {
+      pending[0]?.([mkSession('A')]); // lookup's superseded response
+      pending[1]?.([mkSession('A')]); // app refresh settles without the session
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual([MISSING]);
+    });
+    expect(currentSearch()).toBe('');
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(3);
   });
 
   it('rejects a malformed session reference without touching the store', async () => {
     renderAt(`/?session=${encodeURIComponent('bad ref!')}`);
 
     await vi.waitFor(() => {
-      expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('会话链接无效');
+      expect(toastMessages()).toEqual(['会话链接无效']);
     });
     expect(useSessionStore.getState().currentSessionId).toBeNull();
     expect(currentSearch()).toBe('');
+    expect(apiMock.fetchSessions).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,92 @@
+{
+  "ok": true,
+  "ranAt": "2026-10-11T16:35:47.735Z",
+  "worktreeHead": "ca81ed58a1161010c04628d6ab3a3e627f8b5c67",
+  "python": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "runtime": "D:\\project\\pan-worktrees\\notification-click-session-20261011\\packages\\web\\test-results\\notify-1791736547708",
+  "results": [
+    {
+      "name": "real worker.result creates the notification for the completed session",
+      "ok": true,
+      "detail": {
+        "title": "Pan: Notify Target completed",
+        "body": "answer:notify-e2e-one"
+      }
+    },
+    {
+      "name": "onclick from another view returns to chat and selects the session",
+      "ok": true,
+      "detail": {
+        "pathname": "/react",
+        "search": ""
+      }
+    },
+    {
+      "name": "a session with browser notifications off completes silently",
+      "ok": true,
+      "detail": {
+        "notificationsBefore": 1,
+        "notificationsAfter": 1
+      }
+    },
+    {
+      "name": "deleted-before-click degrades to the deletion toast, no navigation",
+      "ok": true,
+      "detail": {
+        "selection": null
+      }
+    },
+    {
+      "name": "?session survives a failed list load, then recovers with other query params intact",
+      "ok": true,
+      "detail": {
+        "search": "?panE2E=1&keep=1"
+      }
+    },
+    {
+      "name": "a slow lookup never overrides a later user selection",
+      "ok": true,
+      "detail": {
+        "selection": "ses_71318bdcdff7495e"
+      }
+    },
+    {
+      "name": "two rapid clicks on one notification apply only once",
+      "ok": true,
+      "detail": {
+        "selection": "ses_db558d557c59e11d"
+      }
+    },
+    {
+      "name": "dual tabs stay isolated: clicking one tab does not select in the other",
+      "ok": true,
+      "detail": {
+        "tabA": "ses_db558d557c59e11d",
+        "tabB": null
+      }
+    },
+    {
+      "name": "background-tab click handler still applies the jump",
+      "ok": true,
+      "detail": {
+        "visibilityStateObserved": "visible",
+        "selection": "ses_db558d557c59e11d"
+      }
+    },
+    {
+      "name": "no external requests and no page errors across the run",
+      "ok": true,
+      "detail": {
+        "foreignRequests": 0,
+        "blockedFontRequests": 5,
+        "pageErrors": 0
+      }
+    }
+  ],
+  "browserVersion": "153.0.8010.12",
+  "foreignRequests": [],
+  "blockedFontRequests": [
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "pageErrors": []
+}

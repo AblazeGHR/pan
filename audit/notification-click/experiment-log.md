@@ -58,3 +58,34 @@
 
 - `dependency-hashes.txt`、`validation-env-output.txt`、`vitest-full-output.txt`、`vitest-baseline-full-output.txt`、`e2e-notification-deeplink.json`、`native-simulate-result*.txt`
 - 原型源码变更见研究分支提交；`notifyicon-click-prototype.ps1`
+
+## 阶段一正式实现（2026-10-11，追加提交，基线 ca81ed58）
+
+范围：仅"Pan 页面存活（含后台标签）"的 Web Notification 点击。系统 NotifyIcon/SW/Push/浏览器关闭后通知不在本阶段，行为未改。
+
+### 实现（按 MA 收紧扣分）
+
+- 权威判定：`lookupSessionRef` 仅当"我们发起、未被 supersede、同 epoch、已完成"的列表请求不含该 id 才判 missing；加载失败=unknown（去删化，不误判删除）。
+- 守卫：点击单调 intent 计数 + 起始 selection/位置快照；异步完成后校验，晚到者不覆盖用户后续操作；路由先于选择，navigate 完成且选择已应用才返回 true；router 异常 toast 上报不吞。
+- `?session`：冷启动仅在权威确认为 missing 时清参；加载失败保留参数并在后续成功刷新时恢复；仅删除 session 参数，其余 query（含既有 `panE2E`）保留。
+- 安全：正文不进 URL；E2E 断言 0 外部请求（应用既有字体 CDN 在 E2E 中封禁，计数 5）。
+
+### 过程中发现并修复
+
+- 冷启动 supersede 竞态（mock E2E 首先捕获）：hook 的权威加载与 Layout 初始 `loadSessions` 竞速被 supersede 后落入 unknown 且不再重试。修复：`settleLoads` 等待 + 有界两轮重试；新增单测 `recovers when a concurrent refresh supersedes its own load`。
+- 观察到（非本阶段修复，范围外）：删除 worker 存活/刚完成的 session 时存在竞态——DELETE 先删存储、worker 清理异步，worker 侧迟到保存可把 session 写回（服务端列表复活；E2E 诊断转储 server 列表为证）。E2E 以 kill→delete 循环建立确定前置。建议独立任务核查该后端删除竞态。
+
+### 阶段一验证（全部在隔离环境）
+
+| 验证 | 结果 | 证据 |
+|---|---|---|
+| 定向单测（deeplink 6 + useWebSocket 95） | 101/101 | 本次运行 |
+| 全量 vitest（phase1 首跑） | 1447 过/3 失（多出一次 SessionList.drag.realBackend flake） | `vitest-phase1-full.txt` |
+| 全量 vitest（phase1b 复跑） | 1448 过/2 失，与基线同两名（App.test flake + EditorPane Monaco） | `vitest-phase1b-full.txt`（基线 `vitest-baseline-full-output.txt`） |
+| 隔离真实后端 E2E（真实 React 生产包 + 真实 FastAPI/Worker/WS + 假 CLI；动态端口） | 10/10 | `e2e-notification-deeplink-real.json` |
+| mock/URL E2E | 6/6 | `e2e-notification-deeplink.json` |
+| 后端通知/提醒回归 `tests/test_notifications_reminders.py` | 12 passed | 终端输出（Pan-main venv） |
+| tsc / scoped eslint（7 文件）/ vite build + 66 资产校验 / git diff --check | 全过 | 本次运行 |
+
+E2E 用例：真实 worker.result→通知创建（正文=结果）；onclick→回聊天+选择（其它视图出发）；browser=off 静默无通知；删除前置+点击删除 toast；加载失败保留深链+恢复（其余 query 保留）；慢加载不覆盖用户抢占；连击只生效一次；双 tab 隔离；后台标签 handler；0 外链/0 pageerror/无正文入 URL。
+未验证（如实）：真实 OS 通知点击与焦点（浏览器/OS 边界，stub 捕获+程序化触发 onclick，未弹真实系统通知）；浏览器关闭后的 SW 冷启动（范围外）；headless 下后台标签 visibilityState 记录为 `visible`。

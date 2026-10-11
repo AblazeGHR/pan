@@ -1,4 +1,4 @@
-/* global URL, console, document, process, window, fetch, setTimeout */
+/* global URL, console, process, window, fetch, setTimeout */
 /**
  * Isolated-browser E2E for the notification → session deep link (research
  * prototype, branch research/notification-click-session-20261011).
@@ -124,6 +124,8 @@ try {
       undefined,
       { timeout: 15000 },
     );
+    // Only the session param is consumed; the mode flag survives.
+    assert.equal(new URL(page.url()).search, '?mock=1');
     assert.equal(await page.getByText(MISSING_TOAST).count(), 0);
   });
 

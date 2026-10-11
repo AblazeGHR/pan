@@ -1156,10 +1156,11 @@ describe('useWebSocket worker.result wiring', () => {
       expect(useSessionStore.getState().currentSessionId).toBe('B');
       expect(routerMock.navigate).toHaveBeenCalledWith('/');
     });
+    expect(useUIStore.getState().toastQueue).toHaveLength(0);
     vi.unstubAllGlobals();
   });
 
-  it('notification click degrades to a toast when the session was deleted meanwhile', async () => {
+  it('reports deletion only after an authoritative list without the session', async () => {
     const BrowserNotification = vi.fn();
     Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
     vi.stubGlobal('Notification', BrowserNotification);
@@ -1174,12 +1175,14 @@ describe('useWebSocket worker.result wiring', () => {
     const instance = BrowserNotification.mock.instances[0] as
       { onclick: null | ((event: Event) => void) };
 
-    // Session deleted between notification delivery and the click.
+    // Session deleted between notification delivery and the click: the cache
+    // no longer has it, and a fresh authoritative list confirms the absence.
     act(() => {
       useSessionStore.setState((state) => ({
         sessions: state.sessions.filter((session) => session.id !== 'B'),
       }));
     });
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A', { history: [msg('user', 'u0')] })]);
     act(() => { instance.onclick?.(new Event('click')); });
 
     await vi.waitFor(() => {
@@ -1188,6 +1191,165 @@ describe('useWebSocket worker.result wiring', () => {
     });
     expect(useSessionStore.getState().currentSessionId).toBe('A');
     expect(routerMock.navigate).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('never reports a failed list load as deletion', async () => {
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+
+    act(() => {
+      useSessionStore.setState((state) => ({
+        sessions: state.sessions.filter((session) => session.id !== 'B'),
+      }));
+    });
+    // beforeEach leaves fetchSessions rejecting ("not mocked"): the refresh
+    // fails, which proves nothing about the session.
+    act(() => { instance.onclick?.(new Event('click')); });
+
+    await vi.waitFor(() => {
+      expect(useUIStore.getState().toastQueue.at(-1)?.message)
+        .toBe('会话列表暂时无法加载，未能打开该会话');
+    });
+    expect(useUIStore.getState().toastQueue.map((t) => t.message))
+      .not.toContain('通知对应的会话不存在或已被删除，无法跳转');
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('lets a later user selection win over a slow notification lookup', async () => {
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+
+    act(() => {
+      useSessionStore.setState((state) => ({
+        sessions: state.sessions.filter((session) => session.id !== 'B'),
+        currentSessionId: null,
+      }));
+    });
+    let releaseFetch: ((sessions: Session[]) => void) | undefined;
+    apiMock.fetchSessions.mockImplementation(() => new Promise((resolve) => {
+      releaseFetch = resolve as (sessions: Session[]) => void;
+    }));
+
+    act(() => { instance.onclick?.(new Event('click')); });
+    await act(async () => { await Promise.resolve(); }); // lookup refresh started
+
+    // The user takes over while the notification jump is still resolving.
+    await act(async () => {
+      await useSessionStore.getState().selectSession('A');
+    });
+
+    await act(async () => {
+      releaseFetch?.([
+        mk('A', 'A', { history: [msg('user', 'u0')] }),
+        mk('B', 'B', { history: [msg('user', 'u1')] }),
+      ]);
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().currentSessionId).toBe('A');
+    });
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+    expect(useUIStore.getState().toastQueue).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('applies only the latest of two rapid notification clicks', async () => {
+    const BrowserNotification = vi.fn();
+    const instances: Array<{ onclick: null | ((event: Event) => void) }> = [];
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    BrowserNotification.mockImplementation(function (this: unknown) {
+      instances.push(this as { onclick: null | ((event: Event) => void) });
+    });
+    vi.stubGlobal('Notification', BrowserNotification);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'rb',
+        notification: { title: 'Pan: B completed', body: 'rb', browser: true },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1', status: 'done', result: 'ra',
+        notification: { title: 'Pan: A completed', body: 'ra', browser: true },
+      });
+    });
+    act(() => { useSessionStore.setState({ currentSessionId: null }); });
+    expect(instances).toHaveLength(2);
+    const older = instances[0];
+    const newer = instances[1];
+    if (!older || !newer) throw new Error('expected two notification instances');
+
+    act(() => {
+      older.onclick?.(new Event('click')); // older click (session B)
+      newer.onclick?.(new Event('click')); // newer click (session A)
+    });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().currentSessionId).toBe('A');
+    });
+    await vi.waitFor(() => {
+      expect(routerMock.navigate).toHaveBeenCalledTimes(1);
+    });
+    expect(useUIStore.getState().toastQueue).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('surfaces a router failure instead of swallowing it', async () => {
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: B completed', body: 'reply', browser: true },
+      });
+    });
+    const instance = BrowserNotification.mock.instances[0] as
+      { onclick: null | ((event: Event) => void) };
+
+    routerMock.navigate.mockRejectedValueOnce(new Error('router boom'));
+    act(() => { instance.onclick?.(new Event('click')); });
+
+    await vi.waitFor(() => {
+      expect(useUIStore.getState().toastQueue.at(-1)?.message)
+        .toBe('无法返回聊天视图，请手动打开 Pan 聊天');
+    });
+    // Routing failed: the selection must not be applied half-way.
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
     vi.unstubAllGlobals();
   });
 
