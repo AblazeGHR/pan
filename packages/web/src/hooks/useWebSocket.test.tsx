@@ -128,6 +128,11 @@ function mk(id: string, name: string, extra?: Partial<Session>): Session {
   };
 }
 
+// Every suite owns its mounted hooks; RTL auto-cleanup is disabled here.
+afterEach(() => {
+  cleanup();
+});
+
 describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
     useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
@@ -2572,6 +2577,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
   });
 
   afterEach(() => {
+    // Unmount while the same fake clock still owns the hook's timers.
+    cleanup();
     vi.useRealTimers();
   });
 

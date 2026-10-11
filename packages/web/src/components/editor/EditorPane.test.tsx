@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { EditorPane } from './EditorPane';
 import { useEditorStore } from '@/stores/editorStore';
@@ -75,6 +75,10 @@ describe('EditorPane editor action wiring', () => {
       contents: { 'README.md': '# Preview content' },
     });
     render(<MemoryRouter><EditorPane /></MemoryRouter>);
+    await act(async () => {
+      // Await Vite's real deferred module graph before checking rendered UI.
+      await vi.dynamicImportSettled();
+    });
     expect(await screen.findByRole('heading', { name: 'Preview content' })).toBeTruthy();
     expect(screen.queryByTestId('code-editor')).toBeNull();
     fireEvent.click(screen.getByTitle('Edit'));

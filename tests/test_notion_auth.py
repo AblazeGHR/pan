@@ -21,6 +21,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import notion_auth as na  # noqa: E402
@@ -131,3 +133,72 @@ def test_clear_cbc_tokens_keeps_client_id(monkeypatch, tmp_path):
     assert entry["refreshToken"] == ""
     assert entry["expiresAt"] == 0
     assert entry["clientId"] == "keep-me", "clientId 必须保留（否则要重新注册）"
+
+
+def test_authorize_cbc_spawn_failure_releases_resources(monkeypatch, tmp_path):
+    """Popen 启动失败也要关闭日志、删除目录，并传播同一个异常。"""
+    monkeypatch.setattr(na, "cbc_read_credentials", lambda: None)
+    monkeypatch.setattr(na, "_free_port", lambda: 12345)
+    monkeypatch.setattr(na, "_cbc_argv", lambda: ["fake-cbc"])
+    monkeypatch.setattr(na.tempfile, "tempdir", str(tmp_path))
+    captured = {}
+    failure = OSError("hermetic spawn failure")
+
+    def fail_spawn(argv, **kwargs):
+        captured["log"] = kwargs["stdout"]
+        captured["cwd"] = Path(kwargs["cwd"])
+        assert captured["cwd"].is_dir()
+        assert not captured["log"].closed
+        raise failure
+
+    monkeypatch.setattr(na.subprocess, "Popen", fail_spawn)
+    try:
+        with pytest.raises(OSError) as raised:
+            na.authorize_cbc(timeout=5, open_browser=False, force=False)
+        assert raised.value is failure
+        assert captured["log"].closed, "启动失败必须关闭日志句柄"
+        assert not captured["cwd"].exists(), "启动失败必须删除临时目录"
+    finally:
+        # 基线红测试也不能留下句柄或临时目录。
+        if "log" in captured:
+            captured["log"].close()
+        if "cwd" in captured:
+            na.shutil.rmtree(captured["cwd"], ignore_errors=True)
+
+
+def test_authorize_cbc_timeout_kills_and_reaps_before_cleanup(monkeypatch, tmp_path):
+    """terminate 超时后 kill + wait 回收，随后才关闭日志、删除目录。"""
+    monkeypatch.setattr(na, "cbc_read_credentials", lambda: None)
+    monkeypatch.setattr(na, "_free_port", lambda: 12345)
+    monkeypatch.setattr(na, "_cbc_argv", lambda: ["fake-cbc"])
+    monkeypatch.setattr(na.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(na, "_wait_http_ready", lambda port, timeout: False)
+    events = []
+    captured = {}
+
+    class FakeProc:
+        def __init__(self, argv, **kwargs):
+            captured["log"] = kwargs["stdout"]
+            captured["cwd"] = Path(kwargs["cwd"])
+
+        def terminate(self):
+            events.append("terminate")
+
+        def wait(self, timeout=None):
+            assert not captured["log"].closed
+            assert captured["cwd"].is_dir()
+            events.append(("wait", timeout))
+            if timeout is not None:
+                assert timeout == 10
+                raise subprocess.TimeoutExpired("fake-cbc", timeout)
+            assert events[-2] == "kill", "必须先 kill 再无超时 wait 回收"
+            return 0
+
+        def kill(self):
+            events.append("kill")
+
+    monkeypatch.setattr(na.subprocess, "Popen", FakeProc)
+    assert na.authorize_cbc(timeout=5, open_browser=False, force=False) == 1
+    assert events == ["terminate", ("wait", 10), "kill", ("wait", None)]
+    assert captured["log"].closed
+    assert not captured["cwd"].exists()

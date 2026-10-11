@@ -259,10 +259,12 @@ def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
     log_path = tmpdir / "cbc-serve.log"
     print(f"[cbc] 启动临时承载服务 127.0.0.1:{port}"
           f"（仅 loopback，自带仅含 {SERVER_NAME} 的临时配置，完成后自动清理）")
-    log_file = open(log_path, "w", encoding="utf-8")
-    proc = subprocess.Popen(argv, stdout=log_file, stderr=subprocess.STDOUT,
-                            cwd=str(tmpdir))
+    log_file = None
+    proc = None
     try:
+        log_file = open(log_path, "w", encoding="utf-8")
+        proc = subprocess.Popen(argv, stdout=log_file, stderr=subprocess.STDOUT,
+                                cwd=str(tmpdir))
         if not _wait_http_ready(port, timeout=60):
             _dump_log_tail(log_path)
             print("[cbc] 承载服务启动失败。", file=sys.stderr)
@@ -294,13 +296,20 @@ def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
               f"（到期前 cbc 会自动用 refresh token 续期）")
         return 0
     finally:
-        proc.terminate()
         try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        log_file.close()
-        shutil.rmtree(tmpdir, ignore_errors=True)
+            if proc is not None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+        finally:
+            try:
+                if log_file is not None:
+                    log_file.close()
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _dump_log_tail(log_path: Path, lines: int = 8) -> None:

@@ -141,6 +141,10 @@ describe('responsive WorkspaceRail placement', () => {
     stubViewport(false);
     renderLayout();
     act(() => useDetailStore.getState().openDetail({ type: 'tool', content: 'first tool result' }));
+    await act(async () => {
+      // Await the real lazy pane and its Markdown dependencies before assertions.
+      await vi.dynamicImportSettled();
+    });
     expect((await screen.findAllByText('first tool result')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByTitle('Close detail panel'));
     expect(screen.queryByText('first tool result')).toBeNull();
