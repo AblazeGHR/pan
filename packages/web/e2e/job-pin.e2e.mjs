@@ -11,7 +11,7 @@ import { createServer } from 'vite';
 
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 const root = await mkdtemp(path.join(tmpdir(), 'pan-job-pin-'));
-const evidence = path.resolve(cwd, '../../audit/job-pin');
+const evidence = path.resolve(cwd, '../../audit/job-pin/repair');
 await mkdir(evidence, { recursive: true });
 async function freePort() { return await new Promise((resolve) => {
   const socket = net.createServer();
@@ -100,8 +100,35 @@ try {
     assert.equal((await toggle(2, false)).ok, true);
     await page.waitForFunction(() => document.querySelectorAll('[aria-label="Pinned"]').length === 0);
     assert.deepEqual(await order(), ['Pin fixture 3', 'Pin fixture 0', 'Pin fixture 2', 'Pin fixture 4', 'Pin fixture 1']);
-    assert.deepEqual(errors, []); assert.deepEqual(forbidden, []);
-    results.push({ steps: ['pin', 'multiple pins', 'status filter', 'kind filter', 'search', 'refresh', 'backend restart', 'write failure and reread', 'unpin restores sorting'], mobile, viewport: page.viewportSize(), passed: true, errors, forbidden });
+    await fetch(`http://127.0.0.1:${port}/test/pin-corrupt/1`, { method: 'PUT' });
+    await page.reload(); await row(0).waitFor();
+    const warning = page.getByRole('status');
+    assert.match(await warning.textContent(), /Pin states are unknown/);
+    assert.equal(await page.getByLabel('Pinned', { exact: true }).count(), 0);
+    const action = row(1).getByRole('button', { name: 'Job actions' });
+    if (mobile) await action.tap(); else await action.click();
+    assert.equal(await page.getByRole('menuitem', { name: 'Pin unavailable' }).isDisabled(), true);
+    assert.equal(await page.getByRole('menuitem', { name: 'Delete', exact: true }).isEnabled(), true);
+    await page.screenshot({ path: path.join(evidence, `${mobile ? 'mobile' : 'desktop'}-unavailable.png`) });
+    const rejected = await fetch(`http://127.0.0.1:${port}/api/jobs/job_pin_1/pin`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned: true }),
+    });
+    assert.equal((await rejected.json()).error.code, 'pin_metadata_unavailable');
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/test/pin-bytes`)).json()).hex, Buffer.from('{broken json').toString('hex'));
+    const backdrop = page.locator('div.fixed.inset-0.z-20');
+    if (mobile) await backdrop.tap({ position: { x: 2, y: 2 } }); else await backdrop.click({ position: { x: 2, y: 2 } });
+    await page.getByRole('button', { name: 'Completed', exact: true }).click();
+    assert.deepEqual(await order(), ['Pin fixture 4', 'Pin fixture 1']);
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Search jobs' }).fill('fixture 0');
+    assert.deepEqual(await order(), ['Pin fixture 0']);
+    await fetch(`http://127.0.0.1:${port}/test/pin-corrupt/0`, { method: 'PUT' });
+    await page.reload(); await row(0).waitFor();
+    assert.equal(await warning.count(), 0);
+    assert.equal((await toggle(1, true)).ok, true);
+    assert.equal((await toggle(1, false)).ok, true);
+        assert.deepEqual(errors, []); assert.deepEqual(forbidden, []);
+    results.push({ steps: ['pin', 'multiple pins', 'status filter', 'kind filter', 'search', 'refresh', 'backend restart', 'write failure and reread', 'unpin restores sorting', 'corrupt metadata warning and disabled pin', 'corruption byte preservation', 'filters during metadata outage', 'restore and reread'], mobile, viewport: page.viewportSize(), passed: true, errors, forbidden });
     await context.close();
   }
   await writeFile(path.join(evidence, 'chromium.json'), JSON.stringify({ backendPort: port, results, log }, null, 2));

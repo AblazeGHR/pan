@@ -1,0 +1,19 @@
+# Job Pin compatibility repair
+
+Parent implementation: 63e547981cb68f23f667225d3771d247383c4529. Same isolated feature/job-pin-20261011 worktree.
+
+Fault contract: pins.snapshot catches malformed JSON/schema, Unicode decode errors and IO errors only for optional presentation metadata. Every affected Job view has pinMetadataStatus=unavailable and pinned=null (unknown, not false); list also exposes the status in its envelope, including empty lists. Original Job create/patch/list/get/filter responses remain usable. Unknown pin state uses existing ordinary sorting, with a visible warning and disabled pin menu; stale cached pin badges/order are suppressed globally until fresh readable metadata is obtained. Other Job actions remain enabled.
+
+Strict write contract: read failure in pin PUT returns pin_metadata_unavailable, does not atomic-write anything, does not emit job.updated, and preserves original pins.json bytes. Missing file remains a valid initial empty registry; unreadable file is never normalized to empty. Actual write failures retain persistence_failed with instructions to read current state. The old corrupt-file test now asserts the more precise unavailable error code, without weakening byte preservation.
+
+Cancellation boundary: asyncio.to_thread cancellation interrupts the HTTP coroutine, not the OS writer thread. A started writer can commit after cancellation, or already be committed when cancellation arrives. No rollback is attempted or claimed; cancellation propagates and may suppress the success broadcast. Client interrupted/error responses prompt refresh and reread list/Job; a read before a still-running writer completes may show the prior value, so later refresh is authoritative. Deterministic ASGI test gates the writer after real atomic commit, cancels the request, then proves GET pinned=true and no rollback/failure event. This changes no Job lifecycle or scheduler behavior.
+
+Actual evidence:
+- backend.txt/backend.junit.xml: 125 tests passed, zero errors/failures/skips. Original 117 retained plus six ASGI TestClient cases for session-message/scheduled-task creation and patch under malformed JSON, invalid UTF-8 and read PermissionError; exactly one durable record and one create event, successful responses/list/get/filter, clear pin rejection and unchanged bytes. Empty-list availability and actual ASGITransport cancellation-after-commit add two cases.
+- frontend.txt: original 45 plus five tests = 50 passed. Unknown state, disabled pin with ordinary actions/filter, empty-list envelope, cached WS pins becoming unknown, and envelope recovery.
+- build.txt: TypeScript + production build + 62 compressed assets passed; existing large-bundle warning.
+- chromium.json/chromium.txt + screenshots: desktop 1280x900 and touch mobile 390x844, actual isolated HTTP router/registry. All previous pin/sort/filter/refresh/restart/write-failure/unpin paths retained; malformed metadata adds warning/disabled pin, unchanged byte rejection, ordinary filter usability and recovery followed by successful pin/unpin. Zero page errors and protected 8767/8768 requests. Dynamic ports and temp data/cache/profile; subprocesses closed and temp data removed.
+
+Original 117+45 logs/JUnit/Chromium screenshots and JSON remain unchanged in parent audit/job-pin directory. Initial new ASGI fixtures required creating their temp registry directory; initial new component assertion was narrowed to the row title after a jsdom click opened the detail drawer. Neither failure changed product assertions/thresholds/skips.
+
+Scope: pins.py, jobs/api.py, jobs.ts, api.ts, JobsView, focused tests/harness/evidence. No NewJobForm/server.py/scheduler/lifecycle changes. No main/practical/push/deploy/real service operations. Same limitations: JobsView harness instead of production shell, read IO failures via injection, touch Chromium rather than native phone, independent owner via existing bridge fixture.

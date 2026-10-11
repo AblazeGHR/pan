@@ -17,6 +17,17 @@ def sessions():
 def failure(enabled: int):
     background_jobs._atomic_write = fail if enabled else original
     return {"ok": True}
+@app.put("/test/pin-corrupt/{enabled}")
+def corrupt(enabled: int):
+    path = root / "pins.json"
+    if enabled:
+        path.write_bytes(b"{broken json")
+    else:
+        path.write_bytes(b"{}")
+    return {"ok": True}
+@app.get("/test/pin-bytes")
+def pin_bytes():
+    return {"hex": (root / "pins.json").read_bytes().hex()}
 def fail(*args):
     raise OSError("isolated disk failure")
 original = background_jobs._atomic_write

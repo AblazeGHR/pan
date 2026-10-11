@@ -132,7 +132,9 @@ export interface Job {
   shellCommand?: string;
   hideWindow?: boolean;
   enabled?: boolean;
-  pinned?: boolean;
+  /** null means metadata unavailable, not unpinned. */
+  pinned?: boolean | null;
+  pinMetadataStatus?: 'available' | 'unavailable';
   paused: boolean;
   /** Legacy Job kinds may expose one schedule object or omit/null this field. */
   schedule?: unknown;

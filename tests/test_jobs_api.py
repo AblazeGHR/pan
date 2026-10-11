@@ -1049,5 +1049,107 @@ def test_multiple_pins_filter_and_corrupt_metadata(client):
     assert [j["jobId"] for j in client.get("/api/jobs").json()["jobs"]] == ["job_c", "job_b", "job_a"]
     assert [j["jobId"] for j in client.get("/api/jobs?status=running").json()["jobs"]] == ["job_a"]
     (root / "pins.json").write_text("broken", encoding="utf-8")
-    assert client.put("/api/jobs/job_a/pin", json={"pinned": True}).json()["error"]["code"] == "persistence_failed"
+    assert client.put("/api/jobs/job_a/pin", json={"pinned": True}).json()["error"]["code"] == "pin_metadata_unavailable"
     assert (root / "pins.json").read_text(encoding="utf-8") == "broken"
+
+
+@pytest.mark.parametrize("failure", ["json", "encoding", "read"])
+@pytest.mark.parametrize("kind", ["session-message", "scheduled-task"])
+def test_pin_metadata_failure_does_not_fail_committed_operations(
+        client, monkeypatch, fake_session_repository, failure, kind):
+    from pathlib import Path
+    fake_session_repository("s")
+    root = scheduler_store.data_root()
+    root.mkdir(parents=True, exist_ok=True)
+    pin_path = root / "pins.json"
+    original = b'{bad json' if failure == "json" else b'\xff\xfe' if failure == "encoding" else b'{"job_existing": true}'
+    pin_path.write_bytes(original)
+    original_read = Path.read_text
+    def read_error(path, *args, **kwargs):
+        if path == pin_path:
+            raise PermissionError("isolated unreadable pins")
+        return original_read(path, *args, **kwargs)
+    if failure == "read":
+        monkeypatch.setattr(Path, "read_text", read_error)
+    events = []
+    monkeypatch.setitem(jobs_api._state, "broadcast", events.append)
+    payload = {"kind": kind, "target": {"sessionId": "s"}, "name": "created once",
+               "text": "x", "schedule": ({"type": "interval", "intervalSeconds": 60}
+                   if kind == "session-message" else [{"kind": "interval", "intervalSec": 60}])}
+    response = client.post("/api/jobs", json=payload)
+    assert response.status_code == 200
+    created = response.json()
+    assert created["ok"] is True
+    job_id = created["job"]["jobId"]
+    assert created["job"]["pinned"] is None
+    assert created["job"]["pinMetadataStatus"] == "unavailable"
+    assert len(list((root / "jobs").glob("job_*.json"))) == 1
+    assert len([ev for ev in events if ev["type"] == "job.created"]) == 1
+    changed = client.patch(f"/api/jobs/{job_id}", json={"name": "modified once"})
+    assert changed.status_code == 200
+    assert changed.json()["ok"] is True
+    assert changed.json()["job"]["name"] == "modified once"
+    assert jobs.get(job_id, registry_root=root)["name"] == "modified once"
+    fetched = client.get(f"/api/jobs/{job_id}")
+    assert fetched.status_code == 200 and fetched.json()["ok"] is True
+    assert fetched.json()["job"]["pinMetadataStatus"] == "unavailable"
+    listed = client.get("/api/jobs", params={"kind": kind, "status": created["job"]["status"]})
+    assert listed.status_code == 200 and listed.json()["ok"] is True
+    assert listed.json()["pinMetadataStatus"] == "unavailable"
+    assert [job["jobId"] for job in listed.json()["jobs"]] == [job_id]
+    before_events = list(events)
+    rejected = client.put(f"/api/jobs/{job_id}/pin", json={"pinned": True})
+    assert rejected.status_code == 200
+    assert rejected.json()["error"]["code"] == "pin_metadata_unavailable"
+    assert "unavailable" in rejected.json()["error"]["message"]
+    assert pin_path.read_bytes() == original
+    assert events == before_events
+    assert len(list((root / "jobs").glob("job_*.json"))) == 1
+
+
+def test_empty_list_exposes_pin_metadata_failure(client):
+    scheduler_store.data_root().mkdir(parents=True, exist_ok=True)
+    (scheduler_store.data_root() / "pins.json").write_bytes(b"\xff")
+    result = client.get("/api/jobs").json()
+    assert result == {"ok": True, "jobs": [], "pinMetadataStatus": "unavailable"}
+
+
+def test_cancelled_pin_request_after_commit_requires_durable_reread(monkeypatch):
+    import threading
+    import httpx
+    from packages.jobs import pins
+    root = scheduler_store.data_root()
+    jobs._create({"jobId": "job_cancel_pin", "status": "running"}, registry_root=root)
+    emitted = []
+    monkeypatch.setitem(jobs_api._state, "broadcast", emitted.append)
+    original = pins.set_pin
+    async def scenario():
+        loop = asyncio.get_running_loop()
+        committed, finished = asyncio.Event(), asyncio.Event()
+        release = threading.Event()
+        def write_then_gate(*args):
+            result = original(*args)
+            loop.call_soon_threadsafe(committed.set)
+            try:
+                assert release.wait(5), "writer gate not released"
+                return result
+            finally:
+                loop.call_soon_threadsafe(finished.set)
+        monkeypatch.setattr(pins, "set_pin", write_then_gate)
+        app = FastAPI()
+        app.include_router(jobs_api.router)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://isolated") as client:
+            request = asyncio.create_task(client.put("/api/jobs/job_cancel_pin/pin", json={"pinned": True}))
+            try:
+                await asyncio.wait_for(committed.wait(), 5)
+                request.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await request
+            finally:
+                release.set()
+            await asyncio.wait_for(finished.wait(), 5)
+            assert pins.read(root) == {"job_cancel_pin": True}
+            reread = (await client.get("/api/jobs/job_cancel_pin")).json()
+            assert reread["ok"] is True and reread["job"]["pinned"] is True
+            assert emitted == []  # interrupted response does not send a rollback/failure event
+    asyncio.run(scenario())

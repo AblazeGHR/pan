@@ -17,3 +17,6 @@ Limits: JobsView MemoryRouter harness, not production shell. Lifecycle WS preser
 Dependency hashes match before/after shared source: package.json C719902161F24170FAB65116F7BCEDC77E8499A316B5366CDFFCCC0C8946FFC3; pnpm-lock.yaml 249D2FC3A1A0FD511EF440B4F51224F946F1F58DD850060B0BAE7D78A164B149. No installs or dependency manifest changes. First failed browser attempt used default Vite optimization cache; final runner uses temporary cacheDir. Initial test harness search role mismatch corrected without weakening assertions. Test typing corrected after first build failure; final build passed.
 
 Shared paths: packages/jobs/api.py (view/list projection + standalone endpoint), packages/web/src/services/api.ts (pinJob append), packages/web/src/types/jobs.ts (optional pinned field). server.py untouched.
+
+
+Compatibility repair: see [repair/README.md](repair/README.md). The original implementation allowed pin read failures to fail Job responses; the repair exposes unknown presentation state while preserving original operations. Original evidence above is retained unchanged.

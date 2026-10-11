@@ -61,8 +61,9 @@ def _err(code: str, message: str):
 
 
 def _view(job: dict) -> dict:
+    value, status = pins.snapshot(_job_root())
     return {**background_jobs.job_public_view(job),
-            "pinned": pins.read(_job_root()).get(job["jobId"], False)}
+            **pins.presentation(job["jobId"], value, status)}
 
 
 def _job_root():
@@ -136,8 +137,8 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
             job = pan_bridge.public_job(item)
             if job["jobId"] not in local_ids:
                 jobs.append(background_jobs.job_public_view(job))
-    pinned = pins.read(_job_root())
-    jobs = [{**job, "pinned": pinned.get(job["jobId"], False)} for job in jobs]
+    pinned, pin_status = pins.snapshot(_job_root())
+    jobs = [{**job, **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:
@@ -146,7 +147,7 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
         jobs = [j for j in jobs if j.get("status") != "completed"]
     jobs.sort(key=lambda j: (not j.get("pinned", False), _KIND_ORDER.get(str(j.get("status")), 9),
                              str(j.get("updatedAt") or "")), reverse=False)
-    return _ok(jobs=jobs)
+    return _ok(jobs=jobs, pinMetadataStatus=pin_status)
 
 
 def _all_retention_settings() -> tuple[dict, dict[str, bool]]:
@@ -803,11 +804,15 @@ async def pin_job(job_id: str, data: dict):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
+    # Cancelling this await cannot stop the writer thread or roll back its commit.
+    # Clients with an interrupted response must GET the Job/list to read durable state.
     try:
         await asyncio.to_thread(pins.set_pin, _job_root(), job["jobId"], data["pinned"])
         view = _view(job)
-    except (OSError, ValueError):
-        return _err("persistence_failed", "Could not persist Job pin metadata")
+    except pins.PinMetadataUnavailable:
+        return _err("pin_metadata_unavailable", "Job pin metadata unavailable; restore it before editing pins")
+    except (OSError, ValueError, UnicodeError):
+        return _err("persistence_failed", "Could not persist Job pin metadata; read the Job to confirm current state")
     _emit({"type": "job.updated", "jobId": job["jobId"], "job": view})
     return _ok(job=view)
 

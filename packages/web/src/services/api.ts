@@ -2135,7 +2135,7 @@ export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
 
 // ── Jobs (unified /api/jobs/*; PLAN §5) ──
 
-interface ApiJobsResponse { ok?: boolean; jobs?: Job[]; error?: SchedulerApiError; }
+interface ApiJobsResponse { ok?: boolean; jobs?: Job[]; pinMetadataStatus?: 'available' | 'unavailable'; error?: SchedulerApiError; }
 interface ApiJobResponse { ok?: boolean; job?: Job; error?: SchedulerApiError; }
 interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: SchedulerApiError; }
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
@@ -2225,9 +2225,12 @@ export async function updateCompletedJobRetentionSettings(
 }
 
 /** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
-export async function fetchJobs(): Promise<Job[]> {
+export async function fetchJobs(
+  onPinMetadataStatus?: (status: 'available' | 'unavailable') => void,
+): Promise<Job[]> {
   const data = await request<ApiJobsResponse>(`${BASE}/jobs`);
   if (data.error) throwSchedulerError(data.error);
+  onPinMetadataStatus?.(data.pinMetadataStatus === 'unavailable' ? 'unavailable' : 'available');
   return data.jobs || [];
 }
 
