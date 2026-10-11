@@ -1,0 +1,443 @@
+{
+  "port": 55784,
+  "results": [
+    {
+      "width": 1280,
+      "passed": true,
+      "cases": [
+        "partial read / generation race",
+        "Bell on validation / off API",
+        "workspace snapshot / manager detach cancellation / partial failure / retry",
+        "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+        "weekly controls / cancel",
+        "menu viewport / escape"
+      ]
+    },
+    {
+      "width": 390,
+      "passed": true,
+      "cases": [
+        "partial read / generation race",
+        "Bell on validation / off API",
+        "workspace snapshot / manager detach cancellation / partial failure / retry",
+        "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+        "weekly controls / cancel",
+        "menu viewport / escape"
+      ]
+    },
+    {
+      "width": 320,
+      "passed": true,
+      "cases": [
+        "partial read / generation race",
+        "Bell on validation / off API",
+        "workspace snapshot / manager detach cancellation / partial failure / retry",
+        "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
+        "weekly controls / cancel",
+        "menu viewport / escape"
+      ]
+    }
+  ],
+  "requests": [
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": false,
+        "expectedEnabled": true
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": false,
+        "expectedEnabled": true
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/unread-done/ack",
+      "method": "POST",
+      "body": {
+        "observed": 4
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": true,
+        "expectedEnabled": false
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/msg-bridge",
+      "method": "PUT",
+      "body": {
+        "enabled": false,
+        "expectedEnabled": true
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/workspaces",
+      "method": "PUT",
+      "body": {
+        "workspaceIds": [
+          "w2"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "width": 320,
+      "path": "/api/jobs",
+      "method": "POST",
+      "body": {
+        "description": "",
+        "kind": "session-broadcast",
+        "target": {
+          "sessionId": "a",
+          "sessionIds": [
+            "a",
+            "b"
+          ]
+        },
+        "text": "isolated broadcast",
+        "schedule": {
+          "type": "once",
+          "delaySeconds": 60
+        }
+      }
+    }
+  ],
+  "errors": []
+}

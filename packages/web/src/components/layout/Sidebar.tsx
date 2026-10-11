@@ -2,9 +2,9 @@ import { lazy, Suspense, useState, useCallback, useMemo, useEffect, useRef } fro
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { createQuickNewSession } from '@/utils/quickNewSession';
 import { SessionList } from '@/components/session/SessionList';
@@ -17,6 +17,7 @@ import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from 
 import { SidebarResizer } from './SidebarResizer';
 import { ViewEntryGroups } from './ViewEntryGroups';
 import { Button } from '@/components/ui/Button';
+import { SelectedSessionActions } from '@/components/session/SelectedSessionActions';
 import { WorkspaceManagerChangeConfirmationModal } from './WorkspaceManagerChangeConfirmationModal';
 import type { WorkspaceMoveConfirmationRequest } from '@/utils/workspaceMoveConfirmation';
 
@@ -120,10 +121,9 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     activeWorkspaceId: s.activeWorkspaceId,
   })));
   const effectiveGroupBy = showGroupBy ? groupBy : 'manager';
-  // Workspace rail state (batch move menu + scope label).
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
-  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+  const activeScopeName = useWorkspaceStore((state) => state.workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name);
+
+  const [selectedActionBusy, setSelectedActionBusy] = useState(false);
 
   // Local state
   const [showNewModal, setShowNewModal] = useState(false);
@@ -272,39 +272,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       for (const id of selectable) next.add(id);
     }
     useSessionStore.setState({ selectedIds: next });
-  };
-
-  /** Batch workspace move (single membership + manager cascade, scoped selection). */
-  const [moveMenuOpen, setMoveMenuOpen] = useState(false);
-  const activeScopeName = activeWorkspaceId === 'all'
-    ? '全部'
-    : activeWorkspaceId === UNGROUPED_WORKSPACES
-    ? '无工作区'
-    : workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部';
-
-  // The rail loads workspaces on desktop; the batch menu is reachable on
-  // mobile too, so make sure the list exists before it renders items.
-  useEffect(() => {
-    if (multiSelectMode && !workspacesLoaded) void loadWorkspaces();
-  }, [multiSelectMode, workspacesLoaded, loadWorkspaces]);
-
-  const handleBatchMove = async (workspaceId: string | null) => {
-    setMoveMenuOpen(false);
-    if (selectedIds.size === 0) return;
-    try {
-      const changed = await useWorkspaceStore.getState().moveSessions([...selectedIds], workspaceId);
-      if (changed.length === 0) {
-        showToast(workspaceId ? '所选会话均已在目标工作区' : '所选会话本就没有归属', 'error');
-      } else if (workspaceId) {
-        const name = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)?.name ?? '工作区';
-        showToast(`已将 ${changed.length} 个会话移入「${name}」`);
-      } else {
-        showToast(`已将 ${changed.length} 个会话移出工作区（未分组）`);
-      }
-      exitMultiSelect();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : '移动失败', 'error');
-    }
   };
 
   const handleBatchDelete = () => {
@@ -672,57 +639,24 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 {selectedIds.size} selected
               </span>
               <span className="min-w-0 max-w-full flex-1 text-[10px] text-text-tertiary truncate" title="批量操作的范围（永不跨工作区）">
-                范围：{activeScopeName}
+                范围：{activeWorkspaceId === 'all' ? '全部' : activeWorkspaceId === UNGROUPED_WORKSPACES ? '无工作区' : activeScopeName ?? activeWorkspaceId}
               </span>
               <div className="sidebar-selection-actions ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleToggleSelectAll}
-                  disabled={selectableIds.length === 0}
+                  disabled={selectedActionBusy || selectableIds.length === 0}
                   aria-label={allSelectableSelected ? 'Deselect all visible sessions' : 'Select all visible sessions'}
                 >
                   {allSelectableSelected ? 'Deselect all' : 'Select all'}
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setMoveMenuOpen((v) => !v)}
-                  disabled={selectedIds.size === 0}
-                  aria-label="Move selected sessions to workspace"
-                  title="Move selected sessions to workspace"
-                >
-                  Workspace
-                </Button>
-              {moveMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setMoveMenuOpen(false)} />
-                  <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-44 overflow-y-auto rounded-md border border-border-default bg-bg-tertiary py-1 shadow-xl">
-                    <button
-                      type="button"
-                      className="w-full px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"
-                      onClick={() => void handleBatchMove(null)}
-                    >
-                      未分组（移出工作区）
-                    </button>
-                    {workspaces.map((workspace) => (
-                      <button
-                        key={workspace.id}
-                        type="button"
-                        className="w-full truncate px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"
-                        onClick={() => void handleBatchMove(workspace.id)}
-                      >
-                        {workspace.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                <SelectedSessionActions onBusyChange={setSelectedActionBusy} />
                 <Button
                   variant="danger"
                   size="sm"
                   onClick={handleBatchDelete}
-                  disabled={selectedIds.size === 0}
+                  disabled={selectedActionBusy || selectedIds.size === 0}
                   aria-label="Delete selected sessions"
                   title="Delete selected sessions"
                   className="sidebar-selection-action-button"
@@ -734,6 +668,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                   variant="ghost"
                   size="sm"
                   onClick={exitMultiSelect}
+                  disabled={selectedActionBusy}
                   aria-label="Cancel selection"
                   title="Cancel selection"
                   className="sidebar-selection-action-button"

@@ -111,6 +111,7 @@ function normalizeMessageSchedule(job?: Job): SessionMessageSchedule {
  */
 export function NewJobForm({
   mode = 'create',
+  broadcastTargets,
   initialJob,
   submitting = false,
   kindMetas = [],
@@ -118,6 +119,8 @@ export function NewJobForm({
   onSave,
 }: {
   mode?: JobFormMode;
+  /** Fixed click-time targets for the compact selected-Session composer. */
+  broadcastTargets?: readonly string[];
   initialJob?: Job;
   submitting?: boolean;
   kindMetas?: JobKindMeta[];
@@ -127,7 +130,7 @@ export function NewJobForm({
   const editing = mode === 'edit' && !!initialJob;
   const sessions = useSessionStore((s) => s.sessions);
   const [template, setTemplate] = useState<TemplateId>('scheduled');
-  const [kind, setKind] = useState<JobKind>(initialJob?.kind ?? 'scheduled-task');
+  const [kind, setKind] = useState<JobKind>(broadcastTargets ? 'session-broadcast' : initialJob?.kind ?? 'scheduled-task');
   const initialAction = initialJob?.action;
   const [actionApi, setActionApi] = useState<'assign' | 'send_session' | 'send_qq' | 'shell' | 'resume_legal_running'>(
     initialAction?.api ?? 'assign',
@@ -137,7 +140,7 @@ export function NewJobForm({
   const [description, setDescription] = useState(initialJob?.description ?? '');
   const [targetSessionId, setTargetSessionId] = useState(initialJob?.target.sessionId ?? '');
   const [targetSessionIds, setTargetSessionIds] = useState<string[]>(
-    initialJob?.target.sessionIds
+    broadcastTargets ? [...broadcastTargets] : initialJob?.target.sessionIds
       ? [...initialJob.target.sessionIds]
       : initialJob?.target.sessionId ? [initialJob.target.sessionId] : [],
   );
@@ -806,7 +809,7 @@ export function NewJobForm({
     </div>
   );
 
-  const templateSelector = !editing && (
+  const templateSelector = !editing && !broadcastTargets && (
     <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
       {TEMPLATES.map((item) => (
         <button
@@ -845,7 +848,7 @@ export function NewJobForm({
     <div className="flex flex-col gap-3">
       {templateSelector}
 
-      {editing ? (
+      {broadcastTargets ? null : editing ? (
         <Field label="Job kind (fixed)">
           <input aria-label="Job kind" value={initialJob?.kind ?? ''} readOnly className={inputClass} />
         </Field>
@@ -882,31 +885,35 @@ export function NewJobForm({
         </Field>
       ) : null}
 
-      <Field label={editing ? 'Name *' : 'Name'}>
-        <input
-          aria-label="Name"
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            if (nameError) setNameError('');
-          }}
-          placeholder={editing ? 'Required' : 'Blank uses server-generated job-N'}
-          className={inputClass}
-        />
-        {nameError && <span className="text-[11px] text-danger">{nameError}</span>}
-      </Field>
+      {!broadcastTargets && (
+        <>
+          <Field label={editing ? 'Name *' : 'Name'}>
+            <input
+              aria-label="Name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (nameError) setNameError('');
+              }}
+              placeholder={editing ? 'Required' : 'Blank uses server-generated job-N'}
+              className={inputClass}
+            />
+            {nameError && <span className="text-[11px] text-danger">{nameError}</span>}
+          </Field>
 
-      <Field label="Description">
-        <input
-          aria-label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional"
-          className={inputClass}
-        />
-      </Field>
+          <Field label="Description">
+            <input
+              aria-label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional"
+              className={inputClass}
+            />
+          </Field>
 
-      {sourceNote}
+          {sourceNote}
+        </>
+      )}
 
       {kind === 'scheduled-task' && (
         <>
@@ -1054,7 +1061,7 @@ export function NewJobForm({
 
       {(kind === 'session-message' || kind === 'session-broadcast') && (
         <>
-          {kind === 'session-message' ? kindTargetSelect : messageTargetSelect}
+          {broadcastTargets ? <p className="text-xs text-text-secondary">{targetSessionIds.length} selected Sessions · targets fixed when opened</p> : kind === 'session-message' ? kindTargetSelect : messageTargetSelect}
           <Field label="Message text *">
             <textarea
               aria-label="Message text"
@@ -1069,9 +1076,9 @@ export function NewJobForm({
             {textError && <span className="text-[11px] text-danger">{textError}</span>}
           </Field>
           {messageScheduleEditor}
-          <div className="text-[11px] text-text-tertiary">
+          {!broadcastTargets && <div className="text-[11px] text-text-tertiary">
             Source is server-assigned. These message Jobs do not expose maxRuns, pause, or per-entry schedule controls.
-          </div>
+          </div>}
         </>
       )}
 
