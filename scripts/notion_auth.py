@@ -14,7 +14,10 @@ OAuth 授权 URL 里的 ``state`` 与 PKCE ``code_verifier`` **只存在于生�
 ## 两条通道
 
 - **cbc**：起临时 ``cbc --serve`` 实例（随机空闲端口、仅 loopback、``--auth none``）
-  托管 ``/mcp/oauth/callback``；token 落 ``~/.codebuddy/.credentials.json``。
+  托管 ``/mcp/oauth/callback``。承载服务**自带**「仅含 notion」的临时项目级
+  ``.mcp.json``（``cwd`` 指向临时目录 + ``--settings enableAllProjectMcpServers``
+  绕过项目级批准门），因此完全不依赖用户全局配置；token 仍落真实的
+  ``~/.codebuddy/.credentials.json``。
 - **codex**：委托原生 ``codex mcp login``，它自己开浏览器并监听回调；
   token 落 ``~/.codex/secrets/mcp_oauth.age``（age 加密，本脚本不解析）。
 
@@ -208,6 +211,38 @@ def _clear_cbc_tokens() -> None:
                              encoding="utf-8")
 
 
+# cbc 的项目级 MCP 配置文件名（见 cbc dist 中 "new MCP servers found in .mcp.json"）。
+_PROJECT_MCP_FILENAME = ".mcp.json"
+# 项目级 server 默认要批准（pendingApproval）；不批准就不会发起连接，也就拿不到
+# 授权 URL（授权 URL 只在连接撞 401 时才生成）。故用 settings 绕过批准门。
+_APPROVE_ALL_PROJECT_MCP = '{"enableAllProjectMcpServers":true}'
+
+
+def _build_serve_plan(port: int) -> tuple[list[str], Path]:
+    """构造临时承载服务的 (argv, cwd)，并把「仅含 notion」的临时配置写进 cwd。
+
+    承载服务必须**自带** notion 配置。早期版本只起裸 `cbc --serve`，依赖用户全局
+    `~/.codebuddy/mcp.json` 里的 notion 条目；全局条目一旦被清掉（为避免泄漏进
+    每个 Pan worker），承载服务就不含 notion，`/internal/mcp/oauth/authorize`
+    会一直返回 "No authorization URL available"，首次/--force 授权直接失效。
+
+    做法：临时目录 + 项目级 `.mcp.json`（只写 notion）+ `cwd` 指向该目录，
+    使承载服务完全独立于全局配置。凭证仍走真实 `~/.codebuddy/.credentials.json`
+    （不改 HOME），授权结果照常落盘、可被后续 headless worker 复用。
+    """
+    tmpdir = Path(tempfile.mkdtemp(prefix="notion-auth-"))
+    descriptor = {"type": SERVER_TYPE, "url": SERVER_URL}
+    (tmpdir / _PROJECT_MCP_FILENAME).write_text(
+        json.dumps({"mcpServers": {SERVER_NAME: descriptor}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    argv = _cbc_argv() + [
+        "--serve", "--port", str(port), "--host", "127.0.0.1", "--auth", "none",
+        "--settings", _APPROVE_ALL_PROJECT_MCP,
+    ]
+    return argv, tmpdir
+
+
 def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
     cred = cbc_read_credentials()
     if cred and cred.get("accessToken") and _expires_at(cred) > time.time() + 60 and not force:
@@ -220,20 +255,28 @@ def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
         print("[cbc] --force：已清除本地 token，接下来会走完整授权流程。")
 
     port = _free_port()
-    log_dir = Path(tempfile.mkdtemp(prefix="notion-auth-"))
-    log_path = log_dir / "cbc-serve.log"
-    argv = _cbc_argv() + ["--serve", "--port", str(port),
-                          "--host", "127.0.0.1", "--auth", "none"]
-    print(f"[cbc] 启动临时承载服务 127.0.0.1:{port}（仅 loopback，完成后自动关闭）")
+    argv, tmpdir = _build_serve_plan(port)
+    log_path = tmpdir / "cbc-serve.log"
+    print(f"[cbc] 启动临时承载服务 127.0.0.1:{port}"
+          f"（仅 loopback，自带仅含 {SERVER_NAME} 的临时配置，完成后自动清理）")
     log_file = open(log_path, "w", encoding="utf-8")
     proc = subprocess.Popen(argv, stdout=log_file, stderr=subprocess.STDOUT,
-                            cwd=str(log_dir))
+                            cwd=str(tmpdir))
     try:
         if not _wait_http_ready(port, timeout=60):
-            print(f"[cbc] 承载服务启动失败，日志：{log_path}", file=sys.stderr)
+            _dump_log_tail(log_path)
+            print("[cbc] 承载服务启动失败。", file=sys.stderr)
             return 1
 
-        url = _cbc_fetch_authorization_url(port)
+        try:
+            url = _cbc_fetch_authorization_url(port)
+        except RuntimeError as exc:
+            print(f"[cbc] 未能取得授权 URL：{exc}", file=sys.stderr)
+            print(f"[cbc] 本次临时配置：{(tmpdir / _PROJECT_MCP_FILENAME).read_text(encoding='utf-8')}",
+                  file=sys.stderr)
+            _dump_log_tail(log_path)
+            return 1
+
         print("\n请在浏览器完成授权（只需点一次「允许」）：")
         print(f"  {url}\n")
         if open_browser:
@@ -242,7 +285,7 @@ def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
         print(f"[cbc] 等待授权回调…（最多 {int(timeout)} 秒，Ctrl+C 可中断）")
         if not _wait_cbc_credentials(timeout):
             print("[cbc] 超时：未检测到新凭证。可重新运行本命令。", file=sys.stderr)
-            print(f"[cbc] 承载服务日志：{log_path}", file=sys.stderr)
+            _dump_log_tail(log_path)
             return 1
 
         cred = cbc_read_credentials() or {}
@@ -257,6 +300,20 @@ def authorize_cbc(timeout: float, open_browser: bool, force: bool) -> int:
         except subprocess.TimeoutExpired:
             proc.kill()
         log_file.close()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _dump_log_tail(log_path: Path, lines: int = 8) -> None:
+    """把承载服务日志尾部打到 stderr——临时目录随后会被清掉，不留文件。"""
+    try:
+        content = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return
+    tail = [ln for ln in content if ln.strip()][-lines:]
+    if tail:
+        print("[cbc] 承载服务日志尾部：", file=sys.stderr)
+        for ln in tail:
+            print(f"    {ln}", file=sys.stderr)
 
 
 def _wait_cbc_credentials(timeout: float) -> bool:

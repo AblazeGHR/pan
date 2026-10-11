@@ -655,10 +655,12 @@ export function useWebSocket() {
         ) {
           const name = String(status.name || 'server');
           const detail = status.error || status.failureReason || 'startup failed';
-          // 授权类失败给可操作的恢复入口：光看到 "Unauthorized" 无从下手，而
-          // 重新授权必须由本机进程守着 OAuth 回调（授权 URL 的 state/PKCE 只活在
-          // 生成它的进程内存里），所以只能引导用户跑脚本，不能只给一个 URL。
-          const hint = /unauthor|401|\boauth\b|invalid_grant/i.test(String(detail))
+          // 仅对**托管 notion** 追加可操作的恢复入口：授权 URL 的 state/PKCE 只活在
+          // 生成它的进程内存里、回调也必须由本机进程守着，所以只能引导用户跑脚本，
+          // 不能只给一个 URL。其他 MCP（含 notion-stdio 这类静态 token 的）保持原有
+          // 错误文案——否则会误导用户去跑一个治不了它病的命令。
+          const hint = (name === 'notion'
+                        && /unauthor|401|\boauth\b|invalid_grant/i.test(String(detail)))
             ? ' —— 授权失效可运行 python scripts/notion_auth.py 重新授权'
             : '';
           useUIStore.getState().showToast(`Codex MCP ${name}: ${detail}${hint}`, 'error');

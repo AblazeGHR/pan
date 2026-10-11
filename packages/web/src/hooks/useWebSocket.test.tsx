@@ -1115,6 +1115,41 @@ describe('useWebSocket worker.result wiring', () => {
     );
   });
 
+  it('keeps non-notion MCP auth failures free of the re-authorization hint', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'some-other-mcp', status: 'failed', error: 'Unauthorized' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex MCP some-other-mcp: Unauthorized');
+  });
+
+  it('keeps the stdio notion variant free of the OAuth re-auth hint', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          // notion-stdio 用静态 NOTION_TOKEN，跑 notion_auth.py 治不了它的病
+          mcp_status: { name: 'notion-stdio', status: 'failed', error: 'Unauthorized' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex MCP notion-stdio: Unauthorized');
+  });
+
   it('surfaces native Codex model reroutes on the active session', () => {
     renderHook(() => useWebSocket());
 
