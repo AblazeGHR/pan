@@ -6280,7 +6280,7 @@ async def api_session_managers(session_id: str):
     return {"ok": True, "sessionId": session_id, "managers": managers}
 
 
-@app.get("/api/sessions/{session_id}/history")
+@app.get("/api/sessions/{session_id}/history", response_class=NetworkJSONResponse)
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
                               searchJump: bool = False):
     """Paginated session history for lazy-loading older messages."""

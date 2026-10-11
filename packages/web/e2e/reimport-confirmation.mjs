@@ -1,12 +1,16 @@
+/* global window */
 /* Real Chromium, real components/store/API; private Vite and mocked HTTP responses. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
+import process from 'node:process';
+import console from 'node:console';
+import { setTimeout, clearTimeout } from 'node:timers';
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 
-const evidence = path.resolve('../../audit/codex-reimport-confirmation/browser');
+const evidence = path.resolve('test-results', `reimport-confirmation-${Date.now()}`);
 await fs.mkdir(evidence, { recursive: true });
 const port = await new Promise((resolve, reject) => {
   const server = net.createServer();

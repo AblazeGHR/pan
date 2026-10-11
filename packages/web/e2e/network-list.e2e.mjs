@@ -109,6 +109,32 @@ try {
         if (compression && scenario !== 'network-cold') assert.ok(wireResponses.some(response => response.status === 304));
         results.push({ compression, scenario, sample, visibleMs, requests, wireResponses });
         console.log(JSON.stringify(results.at(-1)));
+        if (scenario === 'network-warm') {
+          const history = await page.evaluate(async () => {
+            const { sessions } = await (await fetch('/api/sessions?summary=1')).json();
+            const id = sessions.find(session => session.name === 'Network Session 0000').id;
+            const url = `/api/sessions/${id}/history?limit=50`;
+            const started = performance.now();
+            const response = await fetch(url);
+            const body = await response.json();
+            const entry = performance.getEntriesByType('resource').filter(item => item.name.endsWith(url)).at(-1);
+            return { elapsedMs: performance.now() - started, count: body.history.length,
+              first: body.history[0].content, last: body.history.at(-1).content,
+              total: body.total, encoding: response.headers.get('content-encoding'),
+              cacheControl: response.headers.get('cache-control'), encodedBytes: entry.encodedBodySize,
+              decodedBytes: entry.decodedBodySize };
+          });
+          assert.equal(history.count, 50);
+          assert.equal(history.total, 50);
+          assert.ok(history.first.startsWith('Network history row 0\n'));
+          assert.ok(history.last.startsWith('Network history row 49\n'));
+          assert.equal(history.encoding === 'gzip', compression);
+          assert.equal(history.cacheControl, 'no-cache, no-store, must-revalidate');
+          const { first, last, ...metrics } = history;
+          assert.ok(first.length === last.length - 1);
+          results.push({ compression, scenario: 'network-history', sample, ...metrics });
+          console.log(JSON.stringify(results.at(-1)));
+        }
         await context.close();
       }
     }

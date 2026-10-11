@@ -133,3 +133,34 @@ def test_real_summary_revalidates_current_preview_status_and_membership(monkeypa
             detail = await client.get(f"/api/sessions/{target.id}?view=metadata")
             assert detail.headers["cache-control"] == "no-cache, no-store, must-revalidate"
     asyncio.run(run())
+
+
+def test_real_history_compression_preserves_window_and_never_revalidates_summary():
+    from packages.core import session as sess
+    target = sess.create("compressed-history", adapter="codex", history=[
+        {"role": "assistant", "content": f"row {i}: " + "正文和代码片段\n" * 300}
+        for i in range(60)
+    ])
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url="http://test") as client:
+            url = f"/api/sessions/{target.id}/history?before=40&limit=20&summary=1"
+            plain = await client.get(url, headers={"Accept-Encoding": "identity"})
+            compressed = await client.get(url, headers={"Accept-Encoding": "gzip", "If-None-Match": "*"})
+            assert plain.status_code == compressed.status_code == 200
+            assert compressed.json() == plain.json()
+            page = compressed.json()
+            assert page["start"] == 20 and page["total"] == 60 and page["hasMore"]
+            assert len(page["history"]) == 20
+            assert compressed.headers["content-encoding"] == "gzip"
+            assert int(compressed.headers["content-length"]) < len(plain.content) / 10
+            assert compressed.headers["cache-control"] == "no-cache, no-store, must-revalidate"
+            assert "etag" not in compressed.headers
+            sess.append_history(target, {"role": "assistant", "content": "new tail"})
+            sess.save(target)
+            tail = await client.get(f"/api/sessions/{target.id}/history?limit=1")
+            assert tail.json()["total"] == 61
+            assert tail.json()["history"][-1]["content"] == "new tail"
+            missing = await client.get("/api/sessions/missing/history")
+            assert missing.json() == {"error": "Session not found"}
+    asyncio.run(run())

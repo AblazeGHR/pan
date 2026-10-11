@@ -15,6 +15,10 @@ def seed():
         fixture.session_store.create(
             f"Network Session {index:04d}", adapter="codex",
             workdir=str(fixture.WORKDIR), history=[
+                {"role": "assistant", "content": f"Network history row {i}\n" +
+                 "def verify_window():\n    return '历史分页保持顺序与正文完整'\n" * 90}
+                for i in range(50)
+            ] if index == 0 else [
                 {"role": "user", "content": f"任务 {index}: 分析加载速度与列表同步，检查错误恢复和请求时序。" * 8},
                 {"role": "assistant", "content": f"结果 {index}: 已检查组件订阅、网络传输和数据一致性；下一步执行验证。" * 8},
             ],

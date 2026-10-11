@@ -13,6 +13,12 @@ interface NativeStore {
 }
 const revisions: Record<string, number> = {};
 const viewRevisions: Record<string, number> = {};
+function sameControlState(a: NativeControlState | undefined, b: NativeControlState): boolean {
+  if (!a) return false;
+  const keys = Object.keys(a) as (keyof NativeControlState)[];
+  return keys.length === Object.keys(b).length
+    && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && Object.is(a[key], b[key]));
+}
 export const useNativeControlStore = create<NativeStore>((set, get) => ({
   sessions: {}, switching: {}, terminalViews: {},
   showTerminal: (id, visible) => {
@@ -23,9 +29,14 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
     const revision = revisions[id] ?? 0;
     const state = await nativeRequest<NativeControlState>(id);
     set((current) => current.switching[id] || revision !== (revisions[id] ?? 0)
+      || sameControlState(current.sessions[id], state)
       ? current : { sessions: { ...current.sessions, [id]: state } });
     if (!get().switching[id] && typeof state.enabled === 'boolean' && revision === (revisions[id] ?? 0))
-      useSessionStore.setState((current) => ({ sessions: current.sessions.map((s) => s.id === id ? { ...s, nativeControl: state.enabled } : s) }));
+      useSessionStore.setState((current) => {
+        const session = current.sessions.find((s) => s.id === id);
+        if (!session || session.nativeControl === state.enabled) return current;
+        return { sessions: current.sessions.map((s) => s.id === id ? { ...s, nativeControl: state.enabled } : s) };
+      });
   },
   configureSession: async (id, enabled) => {
     if (get().switching[id]) throw new Error('Control switch busy');
