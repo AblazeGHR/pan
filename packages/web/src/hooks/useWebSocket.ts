@@ -12,6 +12,7 @@ import {
 } from '@/stores/adapterStore';
 import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
 import { inheritMessageIdentity, rememberMessageIdentity } from '@/utils/messageIdentity';
+import { openSessionFromNotification } from '@/utils/session-deeplink';
 
 function clearInteractiveRequests(sessionId?: string): void {
   if (!sessionId) return;
@@ -776,7 +777,14 @@ export function useWebSocket() {
       // never prompt in the background.
       if (notification?.browser && typeof window !== 'undefined' && 'Notification' in window
         && Notification.permission === 'granted') {
-        new Notification(notification.title || 'Pan:', { body: notification.body || '' });
+        const desktopNotification = new Notification(notification.title || 'Pan:', { body: notification.body || '' });
+        // Click → focus Pan and jump to the session that just completed. The
+        // session id lives on the event (not in the notification payload);
+        // the async handler guards against user take-over and reports
+        // deletion / list-unavailable / router failures with a toast.
+        desktopNotification.onclick = () => {
+          void openSessionFromNotification(sessionId);
+        };
       }
       const sessionStore = useSessionStore.getState();
       clearInteractiveRequests(sessionId);
@@ -906,6 +914,13 @@ export function useWebSocket() {
         });
       }
       scheduleRefreshSessions();
+    }));
+    // Global ui settings changed on another client (e.g. the unread-recording
+    // scope set). Re-read the persisted settings so every open client shows
+    // the same choice; unread badges already converge through the backend
+    // projection, this only syncs the settings surface itself.
+    unsubscribers.push(wsClient.on('settings.uiUpdated', () => {
+      void useAppSettingsStore.getState().loadSettings();
     }));
 
     // Error

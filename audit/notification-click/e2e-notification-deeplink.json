@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "ranAt": "2026-10-11T16:46:51.150Z",
+  "baseURL": "http://127.0.0.1:51473/react/",
+  "browserVersion": "153.0.8010.12",
+  "results": [
+    {
+      "name": "control: plain /react/?mock=1 selects no session",
+      "ok": true
+    },
+    {
+      "name": "cold start selects the addressed session and consumes ?session=",
+      "ok": true
+    },
+    {
+      "name": "unknown session degrades to a toast and selects nothing",
+      "ok": true
+    },
+    {
+      "name": "malformed session reference is rejected with a toast",
+      "ok": true
+    },
+    {
+      "name": "two tabs resolve their own ?session= independently",
+      "ok": true
+    },
+    {
+      "name": "no page error and no real-backend request during the run",
+      "ok": true
+    }
+  ],
+  "pageErrors": [],
+  "foreignBackendRequests": []
+}

@@ -1,0 +1,32 @@
+# Phase-1 SHA evidence (2026-10-11T16:39:01Z)
+
+branch: research/notification-click-session-20261011
+history: b80b272c (base, main=practical=b80b272c) -> ca81ed58 (phase0 prototype) -> 22d8398f147f80bac62146cb6b4a33d06346e346 (phase1 formal implementation)
+phase1_commit: 22d8398f147f80bac62146cb6b4a33d06346e346
+phase0_commit: ca81ed58
+base_commit: b80b272ce6dfb005335d77300ddef6aca730a19b
+
+## key file sha256 (worktree, committed state)
+c11048b850e229a0ac95f910e2c6f7b2328ae28a140334fa1f38274443a8a35a *packages/web/src/utils/session-deeplink.ts
+a125ed879476c7193ce6bccb4f8a4cc774c74d8d3a11de57a6879e02958035c1 *packages/web/src/utils/session-deeplink.test.tsx
+ea74e420963d84f2f60c7af671a5c595968e8d077a32522d89e92abea44b0ca7 *packages/web/src/hooks/useWebSocket.ts
+f24f4429e90e2f06c63a51c2690235cec03668c41d8d2993d5930ec0d1899872 *packages/web/src/hooks/useWebSocket.test.tsx
+395611adc25452a9eb15235140419234713677d5a4eaeea64517c5762d3b440b *packages/web/e2e/notification-deeplink.real.e2e.mjs
+bd1fbf761d43ad2fddcd3205835defa646baec4511738f8c1b1cf06ac29f14f8 *packages/web/e2e/notification-deeplink.server.py
+92aa47dd1a34d6adc4d8af555c9488f4ae4176390b2b7875297a8baff438f5e1 *packages/web/e2e/notification-deeplink.mock.mjs
+7e0e6d66e676c65c352881d6a06c44d046c054e1656c6293e899f22f73dd16b2 *docs/reports/notification-click-phase1-20261011.md
+a2e47b7cb307c34c2bf81afdafe560115d1fd4d2300102cde92dceaec8e8de02 *audit/notification-click/phase1.patch
+
+## dependency hash (reuse gate)
+249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149 *worktree/packages/web/pnpm-lock.yaml
+
+## Blocker-fix round (2026-10-11T16:48:34Z)
+blockerfix_commit: 59e950e053d6ac3d18220c55056e6948b2262248
+
+### key file sha256 (post-fix, committed state)
+683e978e7cc5e2e6749acd177c4ba8ee6a77feaa3b12843f5cf68df3f5b2e606 *packages/web/src/utils/session-deeplink.ts
+a640df7b277f936afde54381508f66b9be49da894982ba4fd01249f2555340a8 *packages/web/src/utils/session-deeplink.test.tsx
+4d9b1d2c0a0752baeaadbd557ef8f8d9de19aae16ab853921029a33d9bfdf02f *packages/web/src/hooks/useWebSocket.test.tsx
+ce8d67677bca40004337e25b77172fa219338f34daf110db030af6d847d9cd17 *audit/notification-click/blocker-fix.patch
+3159589b8f1a43d1b28f861891214066b8ea115e6d3b954d0b2dcfe6fcfbf7d8 *audit/notification-click/blocker-red-before-fix.txt
+f773d3090e8c79d31ad82f160d00f6fd040478244b4d25fecf6511e494098642 *audit/notification-click/blocker-green-after-fix.txt

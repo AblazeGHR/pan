@@ -21,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from packages.core import session as session_store
+from packages.core import workspace as workspace_store
 
 
 RUNTIME = Path(os.environ["PAN_E2E_RUNTIME"]).resolve()
@@ -102,10 +103,15 @@ def _seed_sessions() -> None:
 
 def _install_test_isolation(server_module) -> None:
     # Session is imported before server.py, so this replacement is effective
-    # for every real session API handler in the server process.
+    # for every real session API handler in the server process. Workspace
+    # metadata is isolated too: it is otherwise a repo-level data/ store and
+    # would leak E2E workspaces into the checkout (and across runtimes).
     session_store.SESSION_DIR = SESSION_DIR
     session_store._cache.clear()
     session_store._all_loaded = False
+    workspace_store.WORKSPACE_DIR = RUNTIME / "workspaces"
+    workspace_store._cache.clear()
+    workspace_store._loaded = False
     server_module.DATA_DIR = DATA_DIR
     server_module.WORKDIRS_DIR = RUNTIME / "workdirs"
     server_module.ATTACHMENTS_DIR = RUNTIME / "attachments"
@@ -171,6 +177,40 @@ def main() -> None:
             "ok": True,
             "historyRevision": target.history_revision,
             "historyEpoch": target.history_epoch,
+        }
+
+    @server_module.app.post("/__e2e/unread")
+    async def e2e_unread(payload: dict = Body(...)):
+        """Write durable unread cursors for unread-recording policy cases.
+
+        ``advance`` adds N done generations (the monotonic shape of real done
+        terminal commits: generation grows, the read cursor stays). Absolute
+        ``generation``/``readGeneration`` simulate legacy durable state. Every
+        projection, broadcast and coordination path under test stays real.
+        """
+        session_id = str(payload["sessionId"])
+        target = session_store.get(session_id)
+        if target is None:
+            return {"ok": False, "error": "session not found"}
+        if payload.get("advance") is not None:
+            generation = max(0, int(getattr(target, "unread_done_generation", 0) or 0)) + max(0, int(payload["advance"]))
+            read_generation = max(0, int(getattr(target, "unread_done_read_generation", 0) or 0))
+        else:
+            generation = max(0, int(payload.get("generation", 0)))
+            read_generation = max(0, int(payload.get("readGeneration", 0)))
+        read_generation = min(read_generation, generation)
+        target.unread_done_generation = generation
+        target.unread_done_read_generation = read_generation
+        target.unread_done_count = generation - read_generation
+        session_store.save(target)
+        await server_module.broadcast(
+            {"type": "session.updated", "sessionId": session_id}
+        )
+        return {
+            "ok": True,
+            "unreadDoneGeneration": generation,
+            "unreadDoneReadGeneration": read_generation,
+            "unreadDoneCount": generation - read_generation,
         }
 
     RUNTIME.mkdir(parents=True, exist_ok=True)

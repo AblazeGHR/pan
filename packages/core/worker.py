@@ -1267,14 +1267,32 @@ async def _persist_terminal_state_locked(
     # report 批次在此刻仍持有 _current_report_items（下方 _ack_current_reports
     # 才清空）且 task_seq 为 None，不计入 manager 自己的 done——子 report 到达
     # 不再计一次。count 仅由 generation - read 物化，不是 ack 边界。
-    if (status == "done" and task_seq is not None
-            and not w._current_report_items):
-        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0)) + 1
-        read_generation = max(0, int(
-            getattr(s, "unread_done_read_generation", 0) or 0))
-        s.unread_done_generation = generation
-        s.unread_done_read_generation = min(read_generation, generation)
-        s.unread_done_count = generation - s.unread_done_read_generation
+    # 全局未读记录策略（unread_policy）在此判定：被排除的 Session 不累计，
+    # 并把可能残留的旧未读（旧数据/协调写失败）顺带对齐清零，保证
+    # 「排除 ⇒ 持久化 count=0」。判定失败按既有行为记录（绝不失败终态提交）。
+    from packages.core import unread_policy
+    try:
+        record_unread = unread_policy.should_record_unread(s)
+    except Exception:
+        _log.warning(
+            "[Worker %s] unread-recording policy evaluation failed; "
+            "recording done unread as before", w.worker_id, exc_info=True,
+        )
+        record_unread = True
+    generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+    read_generation = max(0, int(
+        getattr(s, "unread_done_read_generation", 0) or 0))
+    if record_unread:
+        if (status == "done" and task_seq is not None
+                and not w._current_report_items):
+            generation += 1
+            s.unread_done_generation = generation
+            s.unread_done_read_generation = min(read_generation, generation)
+            s.unread_done_count = generation - s.unread_done_read_generation
+    elif read_generation < generation:
+        # 排除状态：不累计，且把存量未读对齐清零（单调推进 read）。
+        s.unread_done_read_generation = generation
+        s.unread_done_count = 0
     if status == "done" and isinstance(result_text, str) and result_text.strip():
         last = s.history[-1] if s.history else None
         already_appended_this_turn = (

@@ -1,0 +1,462 @@
+== BLOCKER-FIX RED run (pre-fix source, 2026-10-11T16:44:26Z) ==
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/notification-click-session-20261011/packages/web/src[39m
+
+[90mstderr[2m | utils/session-deeplink.test.tsx[2m > [22m[2museSessionDeepLinkParam[2m > [22m[2mkeeps the link on a failed list load, never claims deletion, and recovers later
+[22m[39m[sessionStore] loadSessions failed
+
+ [31m❯[39m utils/session-deeplink.test.tsx [2m([22m[2m9 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[90m 232[2mms[22m[39m
+[31m   [31m×[31m useSessionDeepLinkParam[2m > [22ma removed ?session is not acted on by its own pending lookup[90m 10[2mms[22m[31m[39m
+[31m     → expected 'C' to be null[39m
+[31m   [31m×[31m useSessionDeepLinkParam[2m > [22ma user selection during the lookup wins and the link is consumed without overriding[90m 7[2mms[22m[31m[39m
+[31m     → expected 'C' to be 'A' // Object.is equality[39m
+[31m   [31m×[31m useSessionDeepLinkParam[2m > [22munmounting while a lookup is pending applies nothing late[90m 5[2mms[22m[31m[39m
+[31m     → expected 'C' to be null[39m
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mreconnects a stale socket and lets the open path refresh state
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mforces a new transport after a hidden-to-visible resume even when the socket looks fresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrequests pending native interactions when the singleton is already open
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msends sync_interactive at most once for one socket generation during open/mount race
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps two hook mounts on one socket generation to one interactive replay frame
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdoes not resync native interactions after the authoritative snapshot callback
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlets resync_required send a snapshot without another interactive replay
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mapplies session rename/update payloads before the debounced snapshot
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrefreshes selected history when its summary advances without a result frame
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdoes not refresh the wrong history after selection changes during coalescing
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mapplies shared pin snapshots immediately and ignores stale revisions
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mroutes Claude permission requests and removes them after resolution
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps native Codex waiting status available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps a native system error status and its summary visible to the toolbar
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps the latest native Codex token usage available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps native Codex account rate limits available to the active worker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders and replaces native Codex turn plans and aggregate diffs
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native Codex turn errors immediately without adding a fake chat message
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msuppresses Codex warning Toasts when the notification setting is disabled
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces Codex MCP startup failures without surfacing ready notifications
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native Codex model reroutes on the active session
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mupdates a background session card in-place on worker.result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mconstructs a browser Notification from a granted Pan completion payload without requesting permission
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlate import/navigation completion never overrides a user selection made while the lazy import was pending
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2ma second notification click wins over an earlier click whose navigation is still settling
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2ma second notification click wins over an earlier click whose navigation is still settling
+[22m[39mError: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2muser re-selecting the starting session during the navigation window still counts as a take-over
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2maborts when the user routes away while the navigation is settling
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mclicking a completion notification selects its session and navigates to chat
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mreports deletion only after an authoritative list without the session
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mnever reports a failed list load as deletion
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlets a later user selection win over a slow notification lookup
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mapplies only the latest of two rapid notification clicks
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces a router failure instead of swallowing it
+[22m[39m[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\Pan\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-click-session-20261011\packages\web\src\utils\session-deeplink.ts:163:12) [90mundefined[39m
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mappends the [DONE] notice for the current session without duplicating history
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mlabels a native cancelled turn separately from an error
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mkeeps the dot settled when the idle worker.status follows worker.result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msettles runtime and legal state atomically from the terminal event summary
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2maccepts a newer-generation result when the replacement spawn was missed
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mignores an out-of-order running status from an older worker generation
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mclears the card status on worker crash and keeps history intact
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrefreshes the durable agent queue after a worker crash
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders streamed tool content with backend-compatible ASCII escaping
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mrenders unknown native Codex items through the generic tool fallback
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mreplaces a running command item as native output deltas arrive
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mupdates interleaved native tools by item id
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2msurfaces native terminal interaction and clears it on result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.result wiring[2m > [22m[2mdrops stale native interaction prompts when a worker is restarted
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mmerges the agent-injected user message into currentMessages on running + source=agent
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mreconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mreconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mretries when the first history snapshot races the injected message persistence
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mcontinues streaming system/report turns after a completed numbered task
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mdoes not sync for user-originated tasks
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrefreshes the durable queue when receipt transitions to running
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mapplies a consecutive external queue item without a redundant snapshot GET
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrepairs a queue revision gap once and keeps legacy event reconciliation
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2muses a complete queue snapshot without a GET and repairs missing event payloads
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrenders a delivered queue message immediately and keeps it across a stale refresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mrenders a delivered queue message immediately and keeps it across a stale refresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2msyncs injected report history for a background Session without changing the selected Session
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mkeeps in-flight streamed blocks when the server snapshot lags (diverged tail)
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mdoes not duplicate streamed blocks already persisted on the server
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket agent-injected message sync[2m > [22m[2mis idempotent across repeated running events for the same task
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mupdates a background session card lastMessage on stream text
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mtruncates the card preview to 200 chars
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mthrottles lastMessage updates within 500ms, flushing the latest text
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mskips stream events without text content
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mresult wins over a pending throttled stream preview
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mmerges native app-server deltas and replaces them with the final item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps the same display identity across id-less streaming deltas
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mgives separate display identities to blocks from one native item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mupdates compound thinking/text/tool blocks by role without collapsing them
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps old task deltas out of the new task watermark window
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mrejects a foreign taskId at the same taskSeq before native alias lookup
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mconverges a delta that arrives after its turn item completed under another native id
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mreconciles id-less Claude deltas with its multi-block final in canonical order
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mdoes not reuse a transient turn alias after the worker is restarted
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps separate completed assistant items with distinct native ids in one turn
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mignores a late cumulative echo without absorbing the next distinct item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mstreams a new cumulative Codex body after a completed body and intervening tool
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps one selected-session assistant message across an interleaved turn, result, and history refresh
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mrenders each selected-session delta through Markdown and keeps the sidebar preview
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps interleaved native items in event order while each item streams
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mkeeps thinking, tools, and content in arrival order across interleaved stream updates
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/useWebSocket.test.tsx[2m > [22m[2museWebSocket worker.stream lastMessage preview[2m > [22m[2mdoes not append background-session stream or result messages to the selected chat
+[22m[39m[sessionStore] loadSessions failed
+
+ [31m❯[39m hooks/useWebSocket.test.tsx [2m([22m[2m99 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[33m 1327[2mms[22m[39m
+[31m   [31m×[31m useWebSocket worker.result wiring[2m > [22mlate import/navigation completion never overrides a user selection made while the lazy import was pending[90m 12[2mms[22m[31m[39m
+[31m     → expected 'B' to be 'A' // Object.is equality[39m
+[31m   [31m×[31m useWebSocket worker.result wiring[2m > [22ma second notification click wins over an earlier click whose navigation is still settling[90m 127[2mms[22m[31m[39m
+[31m     → expected 'B' to be null[39m
+[31m   [31m×[31m useWebSocket worker.result wiring[2m > [22muser re-selecting the starting session during the navigation window still counts as a take-over[90m 63[2mms[22m[31m[39m
+[31m     → expected 'B' to be 'A' // Object.is equality[39m
+[31m   [31m×[31m useWebSocket worker.result wiring[2m > [22maborts when the user routes away while the navigation is settling[90m 65[2mms[22m[31m[39m
+[31m     → expected 'B' to be null[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 7 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m hooks/useWebSocket.test.tsx[2m > [22museWebSocket worker.result wiring[2m > [22mlate import/navigation completion never overrides a user selection made while the lazy import was pending
+[31m[1mAssertionError[22m: expected 'B' to be 'A' // Object.is equality[39m
+
+Expected: [32m"A"[39m
+Received: [31m"B"[39m
+
+[36m [2m❯[22m hooks/useWebSocket.test.tsx:[2m1195:57[22m[39m
+    [90m1193| [39m    await flushMicrotasks();
+    [90m1194| [39m
+    [90m1195| [39m    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    [90m   | [39m                                                        [31m^[39m
+    [90m1196| [39m    expect(routerMock.navigate).not.toHaveBeenCalled();
+    [90m1197| [39m    vi.unstubAllGlobals();
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m hooks/useWebSocket.test.tsx[2m > [22museWebSocket worker.result wiring[2m > [22ma second notification click wins over an earlier click whose navigation is still settling
+[31m[1mAssertionError[22m: expected 'B' to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+"B"
+
+[36m [2m❯[22m hooks/useWebSocket.test.tsx:[2m1239:57[22m[39m
+    [90m1237| [39m    act(() => { navigateResolvers[0]?.(); }); // the superseded click'…
+    [90m1238| [39m    await flushMicrotasks();
+    [90m1239| [39m    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    [90m   | [39m                                                        [31m^[39m
+    [90m1240| [39m
+    [90m1241| [39m    act(() => { navigateResolvers[1]?.(); }); // the newest click sett…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m hooks/useWebSocket.test.tsx[2m > [22museWebSocket worker.result wiring[2m > [22muser re-selecting the starting session during the navigation window still counts as a take-over
+[31m[1mAssertionError[22m: expected 'B' to be 'A' // Object.is equality[39m
+
+Expected: [32m"A"[39m
+Received: [31m"B"[39m
+
+[36m [2m❯[22m hooks/useWebSocket.test.tsx:[2m1281:57[22m[39m
+    [90m1279| [39m    await flushMicrotasks();
+    [90m1280| [39m
+    [90m1281| [39m    expect(useSessionStore.getState().currentSessionId).toBe('A');
+    [90m   | [39m                                                        [31m^[39m
+    [90m1282| [39m    // Only the user's own selection bumped B's generation; the late f…
+    [90m1283| [39m    expect(useSessionStore.getState()._selectionSeq['B'] ?? 0).toBe(se…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m hooks/useWebSocket.test.tsx[2m > [22museWebSocket worker.result wiring[2m > [22maborts when the user routes away while the navigation is settling
+[31m[1mAssertionError[22m: expected 'B' to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+"B"
+
+[36m [2m❯[22m hooks/useWebSocket.test.tsx:[2m1318:57[22m[39m
+    [90m1316| [39m    await flushMicrotasks();
+    [90m1317| [39m
+    [90m1318| [39m    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    [90m   | [39m                                                        [31m^[39m
+    [90m1319| [39m    vi.unstubAllGlobals();
+    [90m1320| [39m  });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m utils/session-deeplink.test.tsx[2m > [22museSessionDeepLinkParam[2m > [22ma removed ?session is not acted on by its own pending lookup
+[31m[1mAssertionError[22m: expected 'C' to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+"C"
+
+[36m [2m❯[22m utils/session-deeplink.test.tsx:[2m211:57[22m[39m
+    [90m209| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { [35mawait[39m [33mPromise[39m[33m.[39m[34mresolve[39m()[33m;[39m })[33m;[39m
+    [90m210| [39m
+    [90m211| [39m    [34mexpect[39m(useSessionStore[33m.[39m[34mgetState[39m()[33m.[39mcurrentSessionId)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m   | [39m                                                        [31m^[39m
+    [90m212| [39m    [34mexpect[39m([34mcurrentSearch[39m())[33m.[39m[34mtoBe[39m([32m'?keep=1'[39m)[33m;[39m
+    [90m213| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m utils/session-deeplink.test.tsx[2m > [22museSessionDeepLinkParam[2m > [22ma user selection during the lookup wins and the link is consumed without overriding
+[31m[1mAssertionError[22m: expected 'C' to be 'A' // Object.is equality[39m
+
+Expected: [32m"A"[39m
+Received: [31m"C"[39m
+
+[36m [2m❯[22m utils/session-deeplink.test.tsx:[2m235:57[22m[39m
+    [90m233| [39m      [34mexpect[39m([34mcurrentSearch[39m())[33m.[39m[34mtoBe[39m([32m''[39m)[33m;[39m
+    [90m234| [39m    })[33m;[39m
+    [90m235| [39m    [34mexpect[39m(useSessionStore[33m.[39m[34mgetState[39m()[33m.[39mcurrentSessionId)[33m.[39m[34mtoBe[39m([32m'A'[39m)[33m;[39m
+    [90m   | [39m                                                        [31m^[39m
+    [90m236| [39m    [34mexpect[39m([34mtoastMessages[39m())[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m237| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m utils/session-deeplink.test.tsx[2m > [22museSessionDeepLinkParam[2m > [22munmounting while a lookup is pending applies nothing late
+[31m[1mAssertionError[22m: expected 'C' to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+"C"
+
+[36m [2m❯[22m utils/session-deeplink.test.tsx:[2m255:57[22m[39m
+    [90m253| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { [35mawait[39m [33mPromise[39m[33m.[39m[34mresolve[39m()[33m;[39m })[33m;[39m
+    [90m254| [39m
+    [90m255| [39m    [34mexpect[39m(useSessionStore[33m.[39m[34mgetState[39m()[33m.[39mcurrentSessionId)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m   | [39m                                                        [31m^[39m
+    [90m256| [39m    [34mexpect[39m([34mtoastMessages[39m())[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m257| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m101 passed[39m[22m[90m (108)[39m
+[2m   Start at [22m 00:44:27
+[2m   Duration [22m 4.40s[2m (transform 476ms, setup 23ms, collect 1.71s, tests 1.56s, environment 1.16s, prepare 238ms)[22m
+
+VITEST_EXIT=1

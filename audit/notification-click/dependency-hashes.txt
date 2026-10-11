@@ -1,0 +1,16 @@
+# Dependency hash evidence (2026-10-11T15:48:04Z)
+
+## packages/web/package.json sha256
+c719902161f24170fab65116f7bcedc77e8499a316b5366cdffccc0c8946ffc3 *packages/web/package.json
+c719902161f24170fab65116f7bcedc77e8499a316b5366cdffccc0c8946ffc3 *D:/project/Pan/packages/web/package.json
+c719902161f24170fab65116f7bcedc77e8499a316b5366cdffccc0c8946ffc3 *D:/project/Pan-main/packages/web/package.json
+
+## packages/web/pnpm-lock.yaml sha256
+249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149 *packages/web/pnpm-lock.yaml
+249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149 *D:/project/Pan/packages/web/pnpm-lock.yaml
+249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149 *D:/project/Pan-main/packages/web/pnpm-lock.yaml
+
+## packages/web/vite.config.ts sha256
+b819756b94bf5f71f8c824ce6cbdb0ff2c62c5e72a84f24a9a07e13426e8a31d *packages/web/vite.config.ts
+b819756b94bf5f71f8c824ce6cbdb0ff2c62c5e72a84f24a9a07e13426e8a31d *D:/project/Pan/packages/web/vite.config.ts
+b819756b94bf5f71f8c824ce6cbdb0ff2c62c5e72a84f24a9a07e13426e8a31d *D:/project/Pan-main/packages/web/vite.config.ts

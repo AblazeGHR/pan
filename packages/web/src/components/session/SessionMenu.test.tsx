@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
@@ -8,6 +8,15 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { Session, Workspace } from '@/types';
+
+const { sessionUnreadActionMock } = vi.hoisted(() => ({
+  sessionUnreadActionMock: vi.fn(),
+}));
+
+vi.mock('@/services/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/api')>();
+  return { ...actual, sessionUnreadAction: sessionUnreadActionMock };
+});
 
 const session: Session = {
   id: 'ses-menu-test',
@@ -23,6 +32,10 @@ afterEach(() => {
   cleanup();
   document.body.innerHTML = '';
   vi.useRealTimers();
+});
+
+beforeEach(() => {
+  sessionUnreadActionMock.mockReset();
 });
 
 function renderMenuWithCard(onClose: () => void) {
@@ -196,6 +209,116 @@ describe('Session card pin action (moved out of the menu)', () => {
     } finally {
       useSessionStore.setState({ setSessionPinned: original, loadSessions: originalLoad });
     }
+  });
+});
+
+describe('SessionMenu unread action (dynamic per policy)', () => {
+  function renderMenu(overrides: Partial<Session>) {
+    vi.useFakeTimers();
+    const view = render(
+      <SessionMenu
+        session={{ ...session, ...overrides }}
+        position={{ x: 10, y: 10 }}
+        onClose={vi.fn()}
+      />,
+    );
+    act(() => vi.advanceTimersByTime(0));
+    return view;
+  }
+
+  it('offers Enable unread tracking for an excluded Session and persists the override', async () => {
+    const refresh = vi.fn(async () => {});
+    const originalLoad = useSessionStore.getState().loadSessions;
+    useSessionStore.setState({ loadSessions: refresh });
+    useUIStore.setState({ toastQueue: [] });
+    sessionUnreadActionMock.mockResolvedValueOnce(
+      { ok: true, unreadTracking: true, unreadDoneCount: 0 });
+    try {
+      renderMenu({ unreadTracking: false });
+      fireEvent.click(screen.getByRole('button', { name: 'Enable unread tracking' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(sessionUnreadActionMock).toHaveBeenCalledWith(
+        session.id, 'enable-tracking', { expectedExcluded: true });
+      expect(refresh).toHaveBeenCalledWith({ throwOnError: true });
+      expect(useUIStore.getState().toastQueue.some(
+        (toast) => toast.message === 'Unread tracking enabled',
+      )).toBe(true);
+    } finally {
+      useSessionStore.setState({ loadSessions: originalLoad });
+    }
+  });
+
+  it('offers Mark as unread when recording with count 0 and sends the observed generation', async () => {
+    const refresh = vi.fn(async () => {});
+    const originalLoad = useSessionStore.getState().loadSessions;
+    useSessionStore.setState({ loadSessions: refresh });
+    useUIStore.setState({ toastQueue: [] });
+    sessionUnreadActionMock.mockResolvedValueOnce(
+      { ok: true, unreadTracking: true, unreadDoneCount: 1 });
+    try {
+      renderMenu({
+        unreadTracking: true, unreadDoneCount: 0, unreadDoneGeneration: 4,
+      });
+      expect(screen.queryByRole('button', { name: 'Clear unread' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Mark as unread' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(sessionUnreadActionMock).toHaveBeenCalledWith(
+        session.id, 'mark-unread', { expectedGeneration: 4 });
+      expect(useUIStore.getState().toastQueue.some(
+        (toast) => toast.message === 'Marked as unread',
+      )).toBe(true);
+    } finally {
+      useSessionStore.setState({ loadSessions: originalLoad });
+    }
+  });
+
+  it('offers Clear unread when recording with unread and never Mark', async () => {
+    const refresh = vi.fn(async () => {});
+    const originalLoad = useSessionStore.getState().loadSessions;
+    useSessionStore.setState({ loadSessions: refresh });
+    useUIStore.setState({ toastQueue: [] });
+    sessionUnreadActionMock.mockResolvedValueOnce(
+      { ok: true, unreadTracking: true, unreadDoneCount: 0 });
+    try {
+      renderMenu({
+        unreadTracking: true, unreadDoneCount: 2, unreadDoneGeneration: 6,
+      });
+      expect(screen.queryByRole('button', { name: 'Mark as unread' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Clear unread' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(sessionUnreadActionMock).toHaveBeenCalledWith(
+        session.id, 'clear-unread', { expectedGeneration: 6 });
+      expect(useUIStore.getState().toastQueue.some(
+        (toast) => toast.message === 'Unread cleared',
+      )).toBe(true);
+    } finally {
+      useSessionStore.setState({ loadSessions: originalLoad });
+    }
+  });
+
+  it('reports a stale-expectation failure and refreshes the authoritative state', async () => {
+    const refresh = vi.fn(async () => {});
+    const originalLoad = useSessionStore.getState().loadSessions;
+    useSessionStore.setState({ loadSessions: refresh });
+    useUIStore.setState({ toastQueue: [] });
+    sessionUnreadActionMock.mockRejectedValueOnce(new Error('Unread state changed; refresh and retry'));
+    try {
+      renderMenu({ unreadTracking: true, unreadDoneCount: 0, unreadDoneGeneration: 2 });
+      fireEvent.click(screen.getByRole('button', { name: 'Mark as unread' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(refresh).toHaveBeenCalledWith({ throwOnError: true });
+      expect(useUIStore.getState().toastQueue.some(
+        (toast) => toast.type === 'error'
+          && toast.message === 'Unread state changed; refresh and retry',
+      )).toBe(true);
+    } finally {
+      useSessionStore.setState({ loadSessions: originalLoad });
+    }
+  });
+
+  it('keeps the legacy behavior for Sessions without the tracking projection', () => {
+    renderMenu({});
+    expect(screen.getByRole('button', { name: 'Mark as unread' })).toBeTruthy();
   });
 });
 

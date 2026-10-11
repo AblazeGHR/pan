@@ -4,6 +4,8 @@ import {
   useAppSettingsStore,
   DEFAULT_SETTINGS,
   sanitizeSettings,
+  sanitizeUnreadRecording,
+  toggleUnreadRecordingScope,
 } from '@/stores/appSettingsStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
@@ -278,5 +280,81 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
     expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');
     expect(sanitizeSettings({ defaultGroupBy: 'off' }).defaultGroupBy).toBe('none');
+  });
+
+  it('normalizes unread-recording scope sets with the backend rule', () => {
+    // Missing / invalid values keep the legacy (record everything) default.
+    expect(sanitizeUnreadRecording(undefined)).toEqual(['all']);
+    expect(sanitizeUnreadRecording('none')).toEqual(['all']);
+    expect(sanitizeUnreadRecording({ scopes: ['none'] })).toEqual(['all']);
+    // Empty / fully-invalid sets mean "no recording".
+    expect(sanitizeUnreadRecording([])).toEqual(['none']);
+    expect(sanitizeUnreadRecording(['bogus', 7])).toEqual(['none']);
+    // all / none absorb everything else.
+    expect(sanitizeUnreadRecording(['all', 'pinned'])).toEqual(['all']);
+    expect(sanitizeUnreadRecording(['none', 'bell-on'])).toEqual(['none']);
+    // Categories are a union; bell-on + bell-off is every Session.
+    expect(sanitizeUnreadRecording(['bell-on', 'bell-off'])).toEqual(['all']);
+    // Canonical order regardless of input order.
+    expect(sanitizeUnreadRecording(['pinned', 'bell-on'])).toEqual(['bell-on', 'pinned']);
+  });
+
+  it('applies the exclusive toggle rules for unread-recording scopes', () => {
+    // Category toggles clear All / No sessions.
+    expect(toggleUnreadRecordingScope(['all'], 'bell-on')).toEqual(['bell-on']);
+    expect(toggleUnreadRecordingScope(['none'], 'pinned')).toEqual(['pinned']);
+    // Bell on / Bell off are mutually exclusive.
+    expect(toggleUnreadRecordingScope(['bell-on'], 'bell-off')).toEqual(['bell-off']);
+    // Categories combine as a union.
+    expect(toggleUnreadRecordingScope(['bell-on'], 'pinned')).toEqual(['bell-on', 'pinned']);
+    expect(toggleUnreadRecordingScope(['bell-on', 'pinned'], 'bell-on')).toEqual(['pinned']);
+    // Empty after edits falls back to No sessions.
+    expect(toggleUnreadRecordingScope(['pinned'], 'pinned')).toEqual(['none']);
+    // All / No sessions are exclusive and toggle without a dead end.
+    expect(toggleUnreadRecordingScope(['none'], 'all')).toEqual(['all']);
+    expect(toggleUnreadRecordingScope(['all'], 'all')).toEqual(['none']);
+    expect(toggleUnreadRecordingScope(['none'], 'none')).toEqual(['none']);
+  });
+
+  it('persists unread-recording only after the server saved it', async () => {
+    // The PUT response carries the canonical ui object; the store stores the
+    // normalized answer (here the server turned an empty set into ["none"]).
+    mockedUpdate.mockResolvedValueOnce({ notifications: { unreadRecording: [] } });
+    await useAppSettingsStore.getState().saveUnreadRecording(['none']);
+    expect(mockedUpdate).toHaveBeenCalledWith({
+      notifications: { unreadRecording: ['none'] },
+    });
+    expect(useAppSettingsStore.getState().notifications.unreadRecording).toEqual(['none']);
+  });
+
+  it('keeps the previous unread-recording value when the save fails', async () => {
+    mockedUpdate.mockRejectedValueOnce(new Error('backend down'));
+    await expect(
+      useAppSettingsStore.getState().saveUnreadRecording(['none']),
+    ).rejects.toThrow('backend down');
+    expect(useAppSettingsStore.getState().notifications.unreadRecording).toEqual(['all']);
+  });
+
+  it('surfaces partial apply failures while keeping the saved values', async () => {
+    // The PUT saved the scope set but could not align some Sessions; the
+    // store keeps the saved truth and the error names the honest follow-up.
+    mockedUpdate.mockResolvedValueOnce({
+      notifications: { unreadRecording: ['none'] },
+      unreadRecordingApply: { ok: false, failedSessions: ['ses_a', 'ses_b'] },
+    });
+    await expect(
+      useAppSettingsStore.getState().saveUnreadRecording(['none']),
+    ).rejects.toThrow('2 Session(s) could not be aligned');
+    expect(useAppSettingsStore.getState().notifications.unreadRecording)
+      .toEqual(['none']);
+  });
+
+  it('keeps the legacy all default for old settings objects', () => {
+    expect(sanitizeSettings({}).notifications.unreadRecording).toEqual(['all']);
+    expect(sanitizeSettings({ notifications: {} }).notifications.unreadRecording).toEqual(['all']);
+    expect(sanitizeSettings({ notifications: { unreadRecording: ['bad'] } })
+      .notifications.unreadRecording).toEqual(['none']);
+    expect(sanitizeSettings({ notifications: { unreadRecording: ['pinned'] } })
+      .notifications.unreadRecording).toEqual(['pinned']);
   });
 });

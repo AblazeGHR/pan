@@ -1300,6 +1300,15 @@ def _strip_delivery_marks(history: list[dict]) -> list[dict]:
 _PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
 _PROMPT_UNSET = object()  # distinguish an omitted original from explicit None/""
 
+# Legal values for Session.unread_recording_override (persisted per-Session
+# unread-recording state; see packages/core/unread_policy.py for the single
+# predicate). "record" forces this Session to record done unread regardless of
+# the global scope set; the global Notification apply clears it.
+UNREAD_RECORDING_OVERRIDE_VALUES = ("record",)
+# Distinguishes an omitted unread-state parameter from an explicit None
+# (None clears the override).
+_UNREAD_OVERRIDE_UNSET = object()
+
 # Queue receipts written by the previous queue implementation are retained as
 # compatibility metadata.  They are not a second queue: ``queue_pending`` is
 # still the only durable delivery queue.  Keeping the receipt ledger here lets
@@ -1376,6 +1385,12 @@ class Session:
     unread_done_count: int = 0
     unread_done_generation: int = 0
     unread_done_read_generation: int = 0
+    # Per-Session unread-recording override ("record" = this Session records
+    # done unread regardless of the global scope set). The global
+    # Notification apply (save or Reapply settings) clears every override and
+    # re-aligns to the persisted scope set; None means "follow the global
+    # policy". Old JSON without the field loads as None.
+    unread_recording_override: str | None = None
     # The latest formal assign task selected for this Session.  This is a
     # routing context for subsequent agent_send messages, not a second queue
     # or an idempotency registry.  It is persisted so a Worker respawn cannot
@@ -1443,6 +1458,7 @@ class Session:
                  unread_done_count: int = 0,
                  unread_done_generation: int = 0,
                  unread_done_read_generation: int = 0,
+                 unread_recording_override: str | None = None,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
                  summary_projection: dict | None = None,
@@ -1601,6 +1617,13 @@ class Session:
         self.unread_done_generation = unread_generation
         self.unread_done_read_generation = unread_read_generation
         self.unread_done_count = unread_generation - unread_read_generation
+        # Unknown override values (future enums, corrupted JSON) degrade to
+        # "follow the global policy" instead of failing the whole load.
+        self.unread_recording_override = (
+            unread_recording_override
+            if unread_recording_override in UNREAD_RECORDING_OVERRIDE_VALUES
+            else None
+        )
         self.active_task_id = active_task_id
         raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.accepted_input_ids = list(dict.fromkeys(
@@ -1851,6 +1874,7 @@ class Session:
             "unread_done_count": self.unread_done_count,
             "unread_done_generation": self.unread_done_generation,
             "unread_done_read_generation": self.unread_done_read_generation,
+            "unread_recording_override": self.unread_recording_override,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
             "summary_projection": dict(self.summary_projection),
@@ -2008,6 +2032,7 @@ def _summary_metadata_signature(s: Session) -> str:
         "readonly_session": s.readonly_session,
         "unread_done_generation": int(s.unread_done_generation or 0),
         "unread_done_read_generation": int(s.unread_done_read_generation or 0),
+        "unread_recording_override": s.unread_recording_override,
     }
     return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 
@@ -2340,7 +2365,9 @@ def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
 
 
 def _save_body(s: Session, force_full: bool = False, *,
-               unread_done_read_generation: int | None = None):
+               unread_done_read_generation: int | None = None,
+               unread_done_generation: int | None = None,
+               unread_recording_override: object = _UNREAD_OVERRIDE_UNSET):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2361,17 +2388,28 @@ def _save_body(s: Session, force_full: bool = False, *,
     _ensure_summary_metadata(s)
     s.updated_at = datetime.now().isoformat()  # API reads the live object
     metadata = s
-    if unread_done_read_generation is not None:
-        # Stage the read cursor in the metadata projection, not the shared
-        # Session.  Readers and unrelated writes cannot observe or persist an
-        # acknowledgement that has not committed successfully.
+    if (unread_done_read_generation is not None
+            or unread_done_generation is not None
+            or unread_recording_override is not _UNREAD_OVERRIDE_UNSET):
+        # Stage unread-policy state in the metadata projection, not the shared
+        # Session.  Readers and unrelated writes cannot observe or persist a
+        # cursor/override that has not committed successfully.
         metadata = copy.copy(s)
         generation = max(0, int(s.unread_done_generation or 0))
-        metadata.unread_done_read_generation = max(
-            int(s.unread_done_read_generation or 0),
-            min(unread_done_read_generation, generation),
-        )
-        metadata.unread_done_count = generation - metadata.unread_done_read_generation
+        read_generation = max(0, int(s.unread_done_read_generation or 0))
+        if unread_done_generation is not None:
+            generation = max(0, int(unread_done_generation))
+        if unread_done_read_generation is not None:
+            read_generation = max(
+                read_generation,
+                min(unread_done_read_generation, generation),
+            )
+        read_generation = min(read_generation, generation)
+        metadata.unread_done_generation = generation
+        metadata.unread_done_read_generation = read_generation
+        metadata.unread_done_count = generation - read_generation
+        if unread_recording_override is not _UNREAD_OVERRIDE_UNSET:
+            metadata.unread_recording_override = unread_recording_override
         metadata.summary_projection = dict(s.summary_projection)
         _ensure_summary_metadata(metadata)
     meta_sig = _meta_signature(metadata)
@@ -2413,8 +2451,11 @@ def _save_body(s: Session, force_full: bool = False, *,
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot
         # overwrite the just-committed cursor with its previous value.
+        s.unread_done_generation = metadata.unread_done_generation
         s.unread_done_read_generation = metadata.unread_done_read_generation
         s.unread_done_count = metadata.unread_done_count
+        if unread_recording_override is not _UNREAD_OVERRIDE_UNSET:
+            s.unread_recording_override = metadata.unread_recording_override
         # Reconcile with the live projection instead of replacing it: history
         # may have advanced while the metadata filesystem write was in flight.
         _ensure_summary_metadata(s)
@@ -2577,6 +2618,33 @@ async def ack_unread_done_async(s: Session, read_generation: int):
         if not _path(s.id).is_file():
             raise FileNotFoundError(f"Session {s.id} no longer exists")
         return _save_body(s, unread_done_read_generation=read_generation)
+
+    return await _persist_async(s.id, commit)
+
+
+async def commit_unread_state_async(
+    s: Session,
+    *,
+    read_generation: int | None = None,
+    done_generation: int | None = None,
+    unread_recording_override: object = _UNREAD_OVERRIDE_UNSET,
+):
+    """Commit unread-policy state (cursors and/or the recording override).
+
+    Caller holds unread_done_lock, so this cannot interleave with a terminal
+    generation commit. The staged metadata (including the override) is
+    published only after the atomic write succeeds; a failure returns through
+    the ordered ticket and publishes nothing.
+    """
+    def commit():
+        if not _path(s.id).is_file():
+            raise FileNotFoundError(f"Session {s.id} no longer exists")
+        return _save_body(
+            s,
+            unread_done_read_generation=read_generation,
+            unread_done_generation=done_generation,
+            unread_recording_override=unread_recording_override,
+        )
 
     return await _persist_async(s.id, commit)
 
