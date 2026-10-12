@@ -7,6 +7,7 @@ import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble'
 import { RewindConfirmModal } from './RewindConfirmModal';
 import { durableOffsetOf } from '@/stores/messageOrdering';
 import { filterVisibleMessages } from './messageFilter';
+import { findManualReportTarget } from './manualTaskReport';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
 import type { Message } from '@/types';
@@ -163,6 +164,12 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  // Full (non-summary) Session facts the manual report binding needs:
+  // managedBy (report target), workerStatus (busy guard) and lastResult (the
+  // durable terminal this report would carry).
+  const currentSession = useSessionStore((s) => (
+    s.currentSessionId ? s.sessions.find((session) => session.id === s.currentSessionId) : undefined
+  ));
   const searchTargetMessageId = searchTarget?.sessionId === currentSessionId
     ? searchTarget.messageId
     : unscopedSearchTargetMessageId;
@@ -287,6 +294,17 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const grouped = useMemo(
     () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages, searchTargetMessageId),
     [visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages, searchTargetMessageId],
+  );
+
+  // Explicit task-report binding: the tail text block of the latest task.
+  // Computed from the unfiltered transcript so a hidden tail row can never
+  // re-bind the action to an older block; if the bound row is filtered out it
+  // is simply not rendered and no action appears.  Identity is captured here
+  // (never re-read at click time), so a late update or Session switch cannot
+  // re-target a pending click at another task.
+  const manualReportTarget = useMemo(
+    () => findManualReportTarget(currentMessages, currentSession),
+    [currentMessages, currentSession],
   );
 
   const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number; search?: boolean } | null>(null);
@@ -1797,6 +1815,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
                         prevRole={prevRole}
                         onTimestampFlashConsumed={clearTimestampFlash}
                         searchTargetMessageId={searchTargetMessageId}
+                        manualReportTarget={manualReportTarget}
                       />
                     </SearchTextContext.Provider>
                   </div>
@@ -1806,6 +1825,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
                     prevRole={prevRole}
                     onTimestampFlashConsumed={clearTimestampFlash}
                     searchTargetMessageId={searchTargetMessageId}
+                    manualReportTarget={manualReportTarget}
                   />
                 )}
               </div>

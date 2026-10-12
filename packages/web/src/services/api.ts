@@ -54,6 +54,7 @@ import type {
   ApiReportSubscribeResponse,
   ApiReadonlyResponse,
   ApiSessionReportToManagerResponse,
+  ApiSessionManualReportResponse,
   ApiSessionMsgBridgeResponse,
   ApiQqContactsResponse,
   ApiQqChannelsResponse,
@@ -1410,6 +1411,43 @@ export async function setReportsToManager(
     throw new Error(data.error?.message || 'Report subscription update failed');
   }
   return data as ApiSessionReportToManagerResponse & { ok: true; reportsToManager: boolean };
+}
+
+/**
+ * Explicitly report one task's completion to the Session's manager, reusing the
+ * automatic report's queue target and content semantics.  Works regardless of
+ * the manager's report subscription and never modifies it.
+ *
+ * Throws {@link ManualReportRejectedError} for a definite server-side
+ * rejection (nothing was sent — retrying is a fresh attempt).  Transport
+ * failures throw {@link ApiRequestError} / TypeError: the outcome is then
+ * unconfirmed and a retry must rely on the server's idempotency key.
+ */
+export class ManualReportRejectedError extends Error {
+  readonly retryable: boolean;
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.name = 'ManualReportRejectedError';
+    this.retryable = retryable;
+  }
+}
+
+export async function reportTaskManually(
+  sessionId: string,
+  taskId: string | null,
+  messageId: string,
+): Promise<ApiSessionManualReportResponse> {
+  const data = await request<ApiSessionManualReportResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/manual-report`,
+    { method: 'POST', body: JSON.stringify({ taskId, messageId }) },
+  );
+  if (data.ok !== true || typeof data.queueItemId !== 'string') {
+    throw new ManualReportRejectedError(
+      data.error?.message || '汇报失败',
+      data.retryable === true,
+    );
+  }
+  return data;
 }
 
 /** Atomically clear all bridge connections, or activate saved completion defaults. */

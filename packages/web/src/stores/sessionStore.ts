@@ -23,6 +23,9 @@ import {
   setSessionPinned as setSessionPinnedApi,
   ackSessionUnreadDone as ackSessionUnreadApi,
   reorderPinnedSessions as reorderPinnedSessionsApi,
+  reportTaskManually as reportTaskManuallyApi,
+  ApiRequestError,
+  ManualReportRejectedError,
 } from '@/services/api';
 import { applyMockPinnedOrder, isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
@@ -99,6 +102,13 @@ interface SessionStore {
   currentMessages: Message[];
   hasMoreMessages: boolean;
   historyLoading: boolean;
+  /**
+   * Explicit browser-requested task reports, keyed `${sessionId}:${messageId}`.
+   * Kept in the store (not component state) so a virtualized row remount never
+   * loses or restarts an in-flight report, and a second click on the same
+   * block is a no-op instead of a duplicate delivery.
+   */
+  manualTaskReports: Record<string, ManualTaskReportEntry>;
   /** 首次进入 session 时拉取 fresh history 的进行中标志。summary=1 快照不带
    *  每条 history，selectSession 后 currentMessages 短暂为空——此时应显示转圈
    *  loading，而非「无消息」空态。与 historyLoading（loadOlderMessages 用）
@@ -160,6 +170,16 @@ interface SessionStore {
   /** Load pages until the stable fromEnd target is present in currentMessages. */
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   rewindCurrentMessage: (message: Message, scope: RewindScope) => Promise<void>;
+  /**
+   * Explicitly report one task's completion to the Session's manager.
+   * `target` carries the identity captured when the button rendered (never
+   * re-read from live session state), so a late update or Session switch can
+   * never re-target the click at a different task.
+   */
+  reportTaskManually: (
+    sessionId: string,
+    target: { taskId: string | null; messageId: string },
+  ) => Promise<void>;
   /** Apply a session.rewind.progress WS event to the matching in-flight job. */
   applyRewindProgress: (event: StreamEvent) => void;
   /** Close the progress popup but KEEP the job running (not a cancel). */
@@ -471,6 +491,17 @@ export interface SessionSettingsMutationResult {
   response: Session | ApiGenericResponse;
   applied: boolean;
   stale: boolean;
+}
+
+/** Lifecycle of one explicit task report bound to a message block. */
+export interface ManualTaskReportEntry {
+  /** `sending` guards concurrent clicks; `uncertain` means the request outcome
+   *  is unknown (transport failure) — a retry relies on server idempotency. */
+  state: 'sending' | 'sent' | 'failed' | 'uncertain';
+  error?: string;
+  queueItemId?: string;
+  /** Task identity captured when the report was sent (audit / re-render proof). */
+  taskId?: string | null;
 }
 
 export interface LiveStreamBuffer {
@@ -1804,6 +1835,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeRewinds: [],
   rewindTarget: null,
+  manualTaskReports: {},
   sessionsLoading: false,
   currentSessionId: null,
   currentMessages: [],
@@ -2386,6 +2418,61 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : item
       )),
     }));
+  },
+
+  reportTaskManually: async (sessionId, target) => {
+    const key = `${sessionId}:${target.messageId}`;
+    // One in-flight report per message block: a second click (or a remount
+    // racing the first request) must never start a parallel delivery.
+    if (get().manualTaskReports[key]?.state === 'sending') return;
+    if (get().manualTaskReports[key]?.state === 'sent') return;
+    set((s) => ({
+      manualTaskReports: {
+        ...s.manualTaskReports,
+        [key]: { state: 'sending', taskId: target.taskId },
+      },
+    }));
+    const fail = (state: 'failed' | 'uncertain', message: string) => {
+      set((s) => ({
+        manualTaskReports: {
+          ...s.manualTaskReports,
+          [key]: { state, error: message, taskId: target.taskId },
+        },
+      }));
+      useUIStore.getState().showToast(message, state === 'failed' ? 'error' : 'warning');
+    };
+    try {
+      const data = await reportTaskManuallyApi(sessionId, target.taskId, target.messageId);
+      set((s) => ({
+        manualTaskReports: {
+          ...s.manualTaskReports,
+          [key]: {
+            state: 'sent',
+            queueItemId: data.queueItemId,
+            taskId: target.taskId,
+          },
+        },
+      }));
+      useUIStore.getState().showToast(
+        data.alreadyReported ? '该任务已向 manager 汇报过' : '已向 manager 汇报该任务',
+        'info',
+      );
+    } catch (error) {
+      if (error instanceof ManualReportRejectedError) {
+        // Definite server-side rejection: nothing was delivered, so a retry
+        // is a fresh attempt (the button re-arms).
+        fail('failed', error.message);
+        return;
+      }
+      if (error instanceof ApiRequestError) {
+        fail('uncertain', `汇报结果不确定（${error.message}），请重试确认`);
+        return;
+      }
+      fail('uncertain',
+        error instanceof Error && error.message
+          ? `汇报结果不确定（${error.message}），请重试确认`
+          : '汇报结果不确定，请重试确认');
+    }
   },
 
   applyRewindProgress: (event: StreamEvent) => {
@@ -3418,6 +3505,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             result,
             timestamp: new Date().toISOString(),
             ...(meta.taskSeq !== undefined ? { taskSeq: meta.taskSeq } : {}),
+            // The manual task report binds its click to the terminal this
+            // event describes; without the task id the binding could not be
+            // proven against the server's durable last_result.
+            ...(meta.taskId !== undefined ? { taskId: meta.taskId } : {}),
           },
         };
       });

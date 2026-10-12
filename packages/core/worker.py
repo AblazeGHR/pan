@@ -4588,6 +4588,165 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     await _wake_worker(s.managed_by)
 
 
+def manual_report_key(session_id: str, task_id: str | None,
+                      message_id: str) -> str:
+    """Deterministic idempotency key for one explicit browser task report.
+
+    The key is derived from server-side identity only (never client-supplied),
+    so every retry of the same (session, task, message) report — double click,
+    concurrent tab, or a retry after an unconfirmed response — addresses the
+    same durable receipt instead of creating a second report.
+    """
+    task_part = task_id if task_id else "-"
+    return f"manual:{session_id}:{task_part}:{message_id}"
+
+
+def _find_manual_report_receipt(manager, key: str) -> dict | None:
+    """Locate a delivered manual report by key: durable receipt first, then a
+    still-pending queue row (the receipt is written before the broadcast)."""
+    receipts = getattr(manager, "manual_report_receipts", None) or {}
+    record = receipts.get(key)
+    if isinstance(record, dict):
+        return record
+    for item in getattr(manager, "queue_pending", None) or []:
+        if (isinstance(item, dict) and item.get("manualReportKey") == key):
+            return item
+    return None
+
+
+def _remember_manual_report_receipt(manager, key: str, record: dict) -> None:
+    """Record one delivered manual report, bounded FIFO on the manager."""
+    receipts = getattr(manager, "manual_report_receipts", None)
+    if not isinstance(receipts, dict):
+        receipts = {}
+        manager.manual_report_receipts = receipts
+    receipts.pop(key, None)
+    receipts[key] = record
+    while len(receipts) > _sess.MANUAL_REPORT_RECEIPT_MAX:
+        receipts.pop(next(iter(receipts)))
+
+
+async def enqueue_manual_report(session_id: str, task_id: str | None,
+                                message_id: str) -> tuple[dict | None, dict | None]:
+    """Deliver one explicit browser-requested completion report to the manager.
+
+    与 ``_enqueue_report`` 的关系：**路由目标与内容语义完全相同**（manager 的
+    落盘队列 queue_pending + 同一报告 item 形状 + 同一唤醒/广播路径），但：
+
+    - **不读取也不修改 report_subscriptions**：manager 退订
+      （``report_unsubscribe`` / report-to-manager 关闭）后，显式手动汇报依然
+      送达；本函数也绝不临时开订阅。
+    - **内容取自该 Session 的持久终态**（``last_result`` 的 status/result/
+      taskId/workerId），即自动汇报会携带的同一份结果；调用方只提交身份
+      （sessionId + taskId + messageId），不提交正文，避免跨任务内容错配。
+    - **taskId 必须与当前 ``last_result.taskId`` 一致**：渲染点击期间若又有
+      新任务完成，终态已切换 → 明确失败（``task_changed``），不发送。
+    - **幂等去重**：确定性 key（``manual_report_key``）先在 manager 的持久
+      回执与 queue_pending 中查找；已送达 → 原样返回成功（``alreadyReported``），
+      不会二次入队。落盘失败整体回滚 → 明确失败，可安全重试。
+
+    返回 ``(result, error)``：成功时 result=``{"queueItemId", "managerId",
+    "alreadyReported"}``；失败时 error=``{"code", "message", "retryable"}``。
+    """
+    if _shutdown_started:
+        return None, {"code": "shutting_down",
+                      "message": "Pan main service is shutting down",
+                      "retryable": True}
+    s = _get_session_shallow(session_id)
+    if not s:
+        return None, {"code": "session_not_found",
+                      "message": f"Session {session_id} not found",
+                      "retryable": False}
+    if not s.managed_by:
+        return None, {"code": "no_report_target",
+                      "message": "该 Session 没有 manager，无法汇报",
+                      "retryable": False}
+    manager = _get_session_shallow(s.managed_by)
+    if not manager:
+        return None, {"code": "no_report_target",
+                      "message": "manager 会话不存在，无法汇报",
+                      "retryable": False}
+    last_result = s.last_result if isinstance(s.last_result, dict) else None
+    if not last_result:
+        return None, {"code": "no_task_result",
+                      "message": "该任务还没有可汇报的结果",
+                      "retryable": False}
+    if last_result.get("taskId") != task_id:
+        # The durable terminal moved on (a newer task finished, or the pointed
+        # task never reached a terminal state).  Refuse instead of reporting a
+        # different task's result.
+        return None, {"code": "task_changed",
+                      "message": "任务已变化，请刷新后重试",
+                      "retryable": False}
+    key = manual_report_key(session_id, task_id, message_id)
+    async with queue_lock(manager.id):
+        existing = _find_manual_report_receipt(manager, key)
+        if existing is not None:
+            return ({
+                "queueItemId": existing.get("queueItemId") or existing.get("id"),
+                "managerId": manager.id,
+                "alreadyReported": True,
+            }, None)
+        item = {
+            "type": "report",
+            "kind": "report",
+            "id": "q_" + uuid.uuid4().hex,
+            "queueItemId": None,
+            "source": "report",
+            "sourceSessionId": session_id,
+            "status": last_result.get("status"),
+            "result": last_result.get("result"),
+            "sessionId": session_id,
+            "taskId": task_id,
+            "workerId": last_result.get("workerId"),
+            "manual": True,
+            "messageId": message_id,
+            "manualReportKey": key,
+            "deliveryState": _DELIVERY_QUEUED,
+            "dispatchState": _DELIVERY_QUEUED,
+            "revision": 1,
+            "createdAt": time.time(),
+        }
+        item["queueItemId"] = item["id"]
+        item["position"] = len(manager.queue_pending)
+        manager.queue_pending.append(item)
+        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+        old_receipts = dict(getattr(manager, "manual_report_receipts", None) or {})
+        _remember_manual_report_receipt(manager, key, {
+            "sessionId": session_id,
+            "taskId": task_id,
+            "messageId": message_id,
+            "queueItemId": item["id"],
+            "at": time.time(),
+        })
+        old_queue_revision = getattr(manager, "queue_revision", 0)
+        manager.queue_revision = old_queue_revision + 1
+        queue_revision = manager.queue_revision
+        try:
+            await _save_receipt(manager)
+        except Exception as exc:
+            # Roll the whole attempt back: nothing durable was committed, so a
+            # retry stays a first attempt instead of a duplicate.
+            manager.queue_pending = [
+                queued for queued in manager.queue_pending if queued is not item
+            ]
+            manager.manual_report_receipts = old_receipts
+            manager.queue_revision = old_queue_revision
+            manager.queue_delivery_ledger.pop(item["id"], None)
+            _remove_idempotency_receipt(manager, item, item["id"])
+            return None, {"code": "persist_failed",
+                          "message": f"汇报落盘失败: {exc}",
+                          "retryable": True}
+    await _bcast({"type": "queue.item_added", "sessionId": manager.id,
+                  "queueItemId": item["id"],
+                  "queueRevision": queue_revision,
+                  "item": dict(item)})
+    # 与自动汇报同一唤醒路径：正文在落盘队列，信号只负责唤醒。
+    await _wake_worker(s.managed_by)
+    return ({"queueItemId": item["id"], "managerId": manager.id,
+             "alreadyReported": False}, None)
+
+
 async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     """唤醒某 session 的 worker consumer（若存活）。
 

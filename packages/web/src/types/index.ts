@@ -662,6 +662,19 @@ export interface ApiSessionReportToManagerResponse {
   error?: ApiErrorInfo;
 }
 
+/** POST /api/sessions/{id}/manual-report — explicit browser task report. */
+export interface ApiSessionManualReportResponse {
+  ok?: boolean;
+  sessionId?: string;
+  managerId?: string;
+  queueItemId?: string;
+  /** True when this exact (session, task, message) report was already delivered. */
+  alreadyReported?: boolean;
+  /** Present on definite failures; a retry is only safe when retryable. */
+  retryable?: boolean;
+  error?: ApiErrorInfo;
+}
+
 export interface ApiSessionMsgBridgeResponse {
   ok?: boolean;
   sessionId?: string;

@@ -2300,6 +2300,30 @@ def _session_import_api(s: sess.Session) -> dict:
     return response
 
 
+def _summary_last_result(s: sess.Session) -> dict | None:
+    """Bounded terminal identity for a list read, or None without a terminal.
+
+    The full ``last_result`` carries the whole result text, which is why the
+    metadata view excludes it.  A list caller still needs to know *which* task
+    the latest terminal belongs to — the explicit manual task report binds its
+    click to exactly that identity — while the result body comes from the
+    durable terminal on the report path, never from the client.  This exposes
+    identity fields only and never the result payload.
+    """
+    last = s.last_result if isinstance(s.last_result, dict) else None
+    if not last:
+        return None
+    return {
+        "status": last.get("status"),
+        "taskId": last.get("taskId"),
+        "taskSeq": last.get("taskSeq"),
+        "workerId": last.get("workerId"),
+        "terminalKey": last.get("terminalKey"),
+        "resultCursor": last.get("resultCursor"),
+        "timestamp": last.get("timestamp"),
+    }
+
+
 def _session_summary(
     s: sess.Session, active_workers: dict | None = None,
     pin_projection: dict | None = None,
@@ -2384,6 +2408,9 @@ def _session_summary(
         "reportsToManager": _reports_to_manager(s, manager_by_id),
         "msgBridgeEnabled": _msg_bridge_enabled(s),
         "agentLevel": sess.agent_level(s.id, load_history=False),
+        # Terminal identity only (no result body): lets a list caller bind an
+        # action to the latest task without a per-Session detail read.
+        "lastResult": _summary_last_result(s),
         "lastUserPreview": projection["last_user_preview"],
         "lastAssistantPreview": projection["last_assistant_preview"],
         "lastDisplayPreview": projection["last_display_preview"],
@@ -11065,6 +11092,42 @@ async def api_set_reports_to_manager(session_id: str, data: dict):
     await broadcast({"type": "session.updated", "sessionId": session_id})
     return {"ok": True, "sessionId": session_id, "managerId": manager_id,
             "reportsToManager": session_id in manager.report_subscriptions}
+
+
+@app.post("/api/sessions/{session_id}/manual-report")
+async def api_session_manual_report(session_id: str, data: dict):
+    """显式手动汇报：把该 Session 当前任务的完成报告送达其 manager。
+
+    Body: {"taskId": <str|null>, "messageId": <str>}
+
+    与自动汇报的关系：复用同一路由目标（manager 落盘队列 queue_pending）、
+    同一 item 形状与唤醒/广播路径；内容取自服务端持久终态 last_result，
+    调用方只提交身份、不提交正文。与订阅完全解耦——manager 已
+    report_unsubscribe 时手动汇报依然送达，且本端点不修改订阅、不临时开订阅。
+
+    幂等：服务端按 (sessionId, taskId, messageId) 推导确定性 key 去重；
+    重复点击/并发/未确认后的重试都不会二次入队。taskId 与当前终态不一致
+    （渲染期间又有新任务完成）→ 明确失败，不发送。
+    """
+    message_id = data.get("messageId")
+    task_id = data.get("taskId")
+    if not isinstance(message_id, str) or not message_id.strip() or len(message_id) > 200:
+        return {"ok": False, "error": {"code": "invalid_message_id",
+                                       "message": "messageId (non-empty string) is required"}}
+    if task_id is not None and (
+            not isinstance(task_id, str) or not task_id.strip() or len(task_id) > 200):
+        return {"ok": False, "error": {"code": "invalid_task_id",
+                                       "message": "taskId must be a non-empty string or null"}}
+    if sess.get(session_id) is None:
+        return {"ok": False, "error": {"code": "session_not_found",
+                                       "message": f"Session {session_id} not found"}}
+    result, error = await worker.enqueue_manual_report(session_id, task_id, message_id)
+    if error is not None:
+        return {"ok": False, "error": error,
+                "retryable": bool(error.get("retryable"))}
+    return {"ok": True, "sessionId": session_id, "managerId": result["managerId"],
+            "queueItemId": result["queueItemId"],
+            "alreadyReported": result["alreadyReported"]}
 
 
 # ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──

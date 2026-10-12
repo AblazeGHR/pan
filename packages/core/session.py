@@ -55,6 +55,10 @@ HISTORY_PAGE_MAX = 200
 # Search jumps opt in to larger bounded pages; ordinary history callers stay at 200.
 HISTORY_SEARCH_JUMP_PAGE_MAX = 1000
 ACCEPTED_INPUT_ID_MAX = 256
+# One durable receipt per explicitly reported (session, task, message) triple
+# on the manager side.  Small on purpose: it only has to outlive the window in
+# which a browser retry can arrive after an unconfirmed delivery.
+MANUAL_REPORT_RECEIPT_MAX = 64
 QUEUE_RECEIPT_MAX_ENTRIES = 2048
 QUEUE_RECEIPT_TTL_SEC = 7 * 24 * 60 * 60
 QUEUE_IDEMPOTENCY_INDEX_MAX_ENTRIES = 4096
@@ -1401,6 +1405,11 @@ class Session:
     # safely retransmit the same clientMessageId without starting the task twice.
     accepted_input_ids: list[str] = field(default_factory=list)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
+    # Bounded receipts for explicit browser-requested task reports delivered to
+    # this (manager) Session.  Keyed by the deterministic manual-report key so a
+    # retry after an unconfirmed response can never double-deliver, even once
+    # the original queue item has been consumed and left queue_pending.
+    manual_report_receipts: dict = field(default_factory=dict)
     qq_report_targets: set[str] = field(default_factory=set)  # Independent bot/contact completion recipients
     qq_report_outbox: dict = field(default_factory=dict)  # One persisted send attempt per terminal/recipient
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
@@ -1461,6 +1470,7 @@ class Session:
                  unread_recording_override: str | None = None,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
+                 manual_report_receipts: dict | None = None,
                  summary_projection: dict | None = None,
                  report_subscriptions=None,
                  qq_subscriptions=None, qq_report_targets=None, qq_report_outbox=None,
@@ -1630,6 +1640,15 @@ class Session:
             item for item in raw_accepted_ids
             if isinstance(item, str) and item
         ))[-ACCEPTED_INPUT_ID_MAX:]
+        self.manual_report_receipts = {
+            key: dict(value)
+            for key, value in (manual_report_receipts or {}).items()
+            if isinstance(key, str) and key and isinstance(value, dict)
+        }
+        # Keep only the newest receipts: insertion order is the delivery order.
+        if len(self.manual_report_receipts) > MANUAL_REPORT_RECEIPT_MAX:
+            for stale_key in list(self.manual_report_receipts)[:-MANUAL_REPORT_RECEIPT_MAX]:
+                self.manual_report_receipts.pop(stale_key, None)
         self._summary_lock = threading.RLock()
         # Async usage writers hold this through their ordered durable ticket.
         # Provider I/O works on a detached snapshot outside the gate.
@@ -1877,6 +1896,7 @@ class Session:
             "unread_recording_override": self.unread_recording_override,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
+            "manual_report_receipts": self.manual_report_receipts,
             "summary_projection": dict(self.summary_projection),
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_report_targets": sorted(self.qq_report_targets),

@@ -1,6 +1,6 @@
 import type { Message } from '@/types';
 import { memo, useMemo } from 'react';
-import { Undo2 } from 'lucide-react';
+import { Check, Undo2 } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
@@ -13,6 +13,7 @@ import { isValidMessageTs } from '@/utils/messageTimestamp';
 import { getMessageSourceTag, type MessageSourceTag } from './messageFilter';
 import { MessageTimestamp } from './MessageTimestamp';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import type { ManualReportTarget } from './manualTaskReport';
 export { formatMessageTs } from '@/utils/messageTimestamp';
 
 export type GroupedItem = Message | GroupDisplayItem;
@@ -66,6 +67,9 @@ function marginTopClass(role: PrevRole, prevRole: PrevRole): string {
 interface MessageBubbleProps {
   message: Message;
   prevRole?: PrevRole;
+  /** Binding for the explicit task-report action; only the tail text block of
+   *  the latest task carries one (see `findManualReportTarget`). */
+  manualReportTarget?: ManualReportTarget | null;
 }
 
 /** User-facing copy for the durable source tags (classification: messageFilter). */
@@ -75,7 +79,30 @@ const SOURCE_TAG_LABELS: Record<MessageSourceTag, string> = {
   system: 'System',
 };
 
-export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
+/** Tooltip/state copy for the explicit task-report action. */
+function manualReportCopy(
+  state: 'sending' | 'sent' | 'failed' | 'uncertain' | undefined,
+  error: string | undefined,
+): { label: string; title: string } {
+  if (state === 'sending') {
+    return { label: '汇报中…', title: '正在向 manager 汇报该任务' };
+  }
+  if (state === 'sent') {
+    return { label: '已汇报', title: '该任务已汇报给 manager（不影响自动汇报订阅）' };
+  }
+  if (state === 'failed') {
+    return { label: '重试汇报', title: error || '汇报失败，点击重试' };
+  }
+  if (state === 'uncertain') {
+    return {
+      label: '重试汇报',
+      title: '汇报结果不确定（可能已送达）：重试会按同一身份幂等确认，不会重复发送',
+    };
+  }
+  return { label: '汇报', title: '向 manager 手动汇报该任务（不影响自动汇报订阅）' };
+}
+
+export const MessageBubble = memo(function MessageBubble({ message, prevRole = null, manualReportTarget = null }: MessageBubbleProps) {
   const role = message.role;
   const mt = marginTopClass(role, prevRole);
   // Raw view keeps the TUI rows and role bars but swaps the rendered Markdown
@@ -96,6 +123,39 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       {SOURCE_TAG_LABELS[sourceTag]}
     </span>
   ) : null;
+  // The explicit report action belongs to exactly one row: the tail text block
+  // of the latest task.  The store entry is keyed by the binding's identity so
+  // a virtualized remount keeps the in-flight/sent state instead of restarting
+  // or losing it.
+  const manualReportKey = manualReportTarget && manualReportTarget.messageId === message.messageId
+    ? `${manualReportTarget.sessionId}:${manualReportTarget.messageId}`
+    : null;
+  const manualReportEntry = useSessionStore((s) => (
+    manualReportKey ? s.manualTaskReports[manualReportKey] : undefined
+  ));
+  const reportTaskManually = useSessionStore((s) => s.reportTaskManually);
+  const manualReportAction = manualReportKey && manualReportTarget ? (() => {
+    const copy = manualReportCopy(manualReportEntry?.state, manualReportEntry?.error);
+    const disabled = manualReportEntry?.state === 'sending' || manualReportEntry?.state === 'sent';
+    return (
+      <button
+        type="button"
+        data-manual-report={manualReportKey}
+        disabled={disabled}
+        onClick={() => {
+          void reportTaskManually(manualReportTarget.sessionId, {
+            taskId: manualReportTarget.taskId,
+            messageId: manualReportTarget.messageId,
+          });
+        }}
+        className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary disabled:opacity-50"
+        title={copy.title}
+      >
+        {manualReportEntry?.state === 'sent' ? <Check size={13} /> : null}
+        {copy.label}
+      </button>
+    );
+  })() : null;
   const openRewind = useSessionStore((s) => s.openRewind);
   const currentSession = useSessionStore((s) => s.sessions.find((session) => session.id === s.currentSessionId));
   const sessionBusy = ['running', 'queued'].includes(currentSession?.workerStatus ?? '');
@@ -177,7 +237,17 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           />
         )}
       </div>
-      <MessageTimestamp ts={message.ts} className="mt-0.5" />
+      {manualReportAction ? (
+        // Same action-area pattern as the user rows: actions first, timestamp
+        // last, one horizontal meta row. Rows without the action keep the
+        // bare timestamp so their layout is unchanged.
+        <div className="mt-0.5 flex items-center justify-end gap-2 self-end" data-message-meta="">
+          {manualReportAction}
+          <MessageTimestamp ts={message.ts} />
+        </div>
+      ) : (
+        <MessageTimestamp ts={message.ts} className="mt-0.5" />
+      )}
     </div>
   );
 });
@@ -268,6 +338,7 @@ interface MessageDisplayItemProps {
   prevRole?: PrevRole;
   onTimestampFlashConsumed?: (flashKeys: readonly string[]) => void;
   searchTargetMessageId?: string | null;
+  manualReportTarget?: ManualReportTarget | null;
 }
 
 export const MessageDisplayItem = memo(function MessageDisplayItem({
@@ -275,6 +346,7 @@ export const MessageDisplayItem = memo(function MessageDisplayItem({
   prevRole = null,
   onTimestampFlashConsumed,
   searchTargetMessageId,
+  manualReportTarget = null,
 }: MessageDisplayItemProps) {
   if (!('type' in item) && item.messageId === searchTargetMessageId &&
       (item.role === 'tool' || item.role === 'thinking')) {
@@ -326,5 +398,5 @@ export const MessageDisplayItem = memo(function MessageDisplayItem({
       </div>
     );
   }
-  return <MessageBubble message={item as Message} prevRole={prevRole} />;
+  return <MessageBubble message={item as Message} prevRole={prevRole} manualReportTarget={manualReportTarget} />;
 });

@@ -127,6 +127,50 @@ const mockAgentReportsPaused: Record<string, boolean> = {};
 const mockQueueClientIds: Record<string, Map<string, string>> = {};
 let mockQueueSequence = 0;
 
+// Explicit task reports recorded by the mock, mirroring the server's
+// deterministic (session, task, message) idempotency so a browser retry can be
+// observed as exactly one delivery.
+const mockManualReports: Array<{
+  sessionId: string;
+  taskId: string | null;
+  messageId: string;
+  at: number;
+}> = [];
+
+// Every manual-report attempt the mock handled, with its server-side outcome.
+// `delivered`/`replayed` prove what a lost response would have confirmed;
+// `rejected`/`dropped` are the failure simulations.  Exposed on window for
+// isolated browser tests (the mock short-circuits fetch in-page, so the
+// network layer cannot observe these requests).
+const mockManualReportAttempts: Array<{
+  sessionId: string;
+  taskId: string | null;
+  messageId: string;
+  outcome: 'delivered' | 'replayed' | 'rejected' | 'dropped' | 'dropped_after_delivery';
+}> = [];
+
+declare global {
+  interface Window {
+    /** Test hook for the mock manual-report route: 'reject' returns a definite
+     *  server failure, 'drop' fails the transport before recording anything
+     *  (unconfirmed outcome), 'lose_receipt' records the delivery and then
+     *  fails the transport (the already-sent-but-unconfirmed case). */
+    __panMockManualReport?: { mode?: 'reject' | 'drop' | 'lose_receipt' };
+    /** Test-observable log of manual-report attempts and deliveries. */
+    __panMockManualReportLog?: {
+      attempts: typeof mockManualReportAttempts;
+      deliveries: typeof mockManualReports;
+    };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__panMockManualReportLog = {
+    attempts: mockManualReportAttempts,
+    deliveries: mockManualReports,
+  };
+}
+
 function decodePathPart(value: string): string {
   try {
     return decodeURIComponent(value);
@@ -223,6 +267,8 @@ export function resetMockData(): void {
     // no-op
   }
   clearMockQueues();
+  mockManualReports.length = 0;
+  mockManualReportAttempts.length = 0;
 }
 
 /**
@@ -536,6 +582,65 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   }
   if (path === '/api/sessions/batch-delete' && method === 'POST') {
     return { deleted: 0 };
+  }
+
+  // ── Explicit task report (mirrors POST /api/sessions/{id}/manual-report) ──
+  const manualReportMatch = path.match(/^\/api\/sessions\/([^/]+)\/manual-report$/);
+  if (manualReportMatch && method === 'POST') {
+    const sessionId = decodePathPart(manualReportMatch[1]!);
+    const session = findSession(sessionId);
+    if (!session) {
+      return { ok: false, error: { code: 'session_not_found', message: 'Session not found' } };
+    }
+    const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const messageId = values.messageId;
+    const taskId = values.taskId;
+    if (typeof messageId !== 'string' || !messageId) {
+      return { ok: false, error: { code: 'invalid_message_id', message: 'messageId is required' } };
+    }
+    if (taskId !== null && (typeof taskId !== 'string' || !taskId)) {
+      return { ok: false, error: { code: 'invalid_task_id', message: 'taskId must be a string or null' } };
+    }
+    const hook = window.__panMockManualReport;
+    const deliveredTaskId = taskId as string | null;
+    const attempt = {
+      sessionId,
+      taskId: deliveredTaskId,
+      messageId,
+      outcome: 'dropped' as typeof mockManualReportAttempts[number]['outcome'],
+    };
+    mockManualReportAttempts.push(attempt);
+    if (hook?.mode === 'reject') {
+      attempt.outcome = 'rejected';
+      return { ok: false, retryable: true, error: { code: 'persist_failed', message: 'mock 汇报失败' } };
+    }
+    if (hook?.mode === 'drop') {
+      // The outcome is unknown: nothing was recorded before the transport
+      // failed, so the caller cannot tell send from non-send.
+      attempt.outcome = 'dropped';
+      throw new TypeError('Failed to fetch');
+    }
+    const alreadyReported = mockManualReports.some((report) =>
+      report.sessionId === sessionId
+      && report.taskId === deliveredTaskId
+      && report.messageId === messageId);
+    if (!alreadyReported) {
+      mockManualReports.push({ sessionId, taskId: deliveredTaskId, messageId, at: Date.now() });
+    }
+    attempt.outcome = alreadyReported ? 'replayed' : 'delivered';
+    if (hook?.mode === 'lose_receipt') {
+      // Delivered, but the response never reaches the caller: a retry must be
+      // deduplicated by identity instead of sending a second report.
+      attempt.outcome = 'dropped_after_delivery';
+      throw new TypeError('Failed to fetch');
+    }
+    return {
+      ok: true,
+      sessionId,
+      managerId: session.managedBy ?? 'mock-manager',
+      queueItemId: `mock-q-${mockManualReports.length}`,
+      alreadyReported,
+    };
   }
 
   // ── Infra stubs (keep banners/settings/modals quiet) ──
