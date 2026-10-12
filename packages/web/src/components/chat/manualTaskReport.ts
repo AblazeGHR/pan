@@ -1,10 +1,10 @@
 import type { Message, Session, TerminalIdentity } from '@/types';
 
 /**
- * Identity binding for one task's tail text block.  Everything a click needs is
- * captured here at render time — the handler never re-reads live Session state,
- * so a late terminal event or a Session switch can never re-target the click at
- * a different task.
+ * Identity binding for one task run's tail text block.  Everything a click
+ * needs is captured here at render time — the handler never re-reads live
+ * Session state, so a late terminal event or a Session switch can never
+ * re-target the click at a different task.
  */
 export interface ManualReportTarget {
   sessionId: string;
@@ -21,8 +21,20 @@ export interface ManualReportTarget {
 /** Session facts the binding needs; a cold summary may omit them. */
 export type ManualReportSessionView = Pick<
   Session,
-  'id' | 'managedBy' | 'terminalResults' | 'historyEpoch'
+  'id' | 'managedBy' | 'terminalResults'
 >;
+
+/**
+ * Canonical proof inputs for one loaded history window: its epoch/revision/
+ * total, and an `offsetOf` that resolves a row to its absolute storage offset
+ * only when the window owns that row.
+ */
+export interface HistoryBoundaryProof {
+  epoch: string | null;
+  revision: number;
+  total: number;
+  offsetOf: (message: Message) => number | undefined;
+}
 
 /**
  * A task boundary in the transcript: a formal dispatch row (agent assign) that
@@ -45,64 +57,100 @@ function isSameTaskFollowUp(message: Message, taskId: string): boolean {
     && (!message.taskId || message.taskId === taskId);
 }
 
-/** Whether the run's final text block can be proven from this Session. */
-function isBlockProvable(
-  session: ManualReportSessionView,
-  terminal: TerminalIdentity,
-): boolean {
-  if (!session.historyEpoch || terminal.historyEpoch !== session.historyEpoch) return false;
-  return typeof terminal.historyRevision === 'number' && terminal.historyRevision > 0;
-}
-
 /**
- * Resolve the explicit report action for EVERY completed task in the loaded
- * transcript, keyed by the bound block's messageId.
+ * Resolve the explicit report action for every completed task run whose
+ * block↔run relation is provable, keyed by the bound block's messageId.
  *
  * The requirement is one action per task — "the last text block of that task" —
  * not only for the newest task: an earlier task's final answer stays reportable
- * after newer tasks finish or while a newer task is still running.  A task is
- * bound only when its block↔run relation is provable on BOTH sides:
- * - the loaded transcript proves exactly one dispatch segment for that taskId,
- *   with a settled tail text block that has a stable messageId, and
- * - the Session's durable terminal index holds exactly one terminal for that
- *   taskId, and that run's block boundary is comparable (same history epoch,
- *   known revision).
+ * after newer tasks finish or while a newer task is still running.  A run is
+ * bound only when its identity is proven on BOTH sides with canonical offsets:
  *
- * Anything else is left without an action instead of being bound to "the newest
- * terminal" of that task id: two runs of one taskId, a window that holds only
- * one of several runs, a terminal whose history was rewritten, an identity-less
- * tail or a still-streaming tail all stay unbound.  The server re-validates the
- * same relation and refuses when it cannot prove it.
+ * - the transcript proves a formal dispatch segment for that taskId whose tail
+ *   text block is a settled assistant row, and
+ * - the durable terminal for that exact run (taskId + taskSeq) recovers the
+ *   exclusive end of the rows it covered from the loaded window
+ *   (`total - (revision - terminalRevision)`), and the bound block's absolute
+ *   offset is exactly that end minus one — the run's own final row.
+ *
+ * A block at any other offset is never bound: two runs of one taskId each bind
+ * their own row, an evicted index (only the newest terminal left) leaves an
+ * older segment unbound instead of reporting the newest run, a terminal whose
+ * history was rewritten shows nothing, and runtime-only rows without a canonical
+ * offset stay unbound until their canonical rows converge.  The server
+ * re-validates the same relation and refuses when it cannot prove it.
  */
 export function findManualReportTargets(
   messages: readonly Message[],
   session: ManualReportSessionView | undefined,
+  proof: HistoryBoundaryProof | undefined,
 ): Map<string, ManualReportTarget> {
   const targets = new Map<string, ManualReportTarget>();
-  if (!session?.managedBy) return targets;
+  if (!session?.managedBy || !proof) return targets;
   const terminals = (session.terminalResults ?? []).filter(
     (terminal): terminal is TerminalIdentity => !!terminal,
   );
   if (terminals.length === 0) return targets;
 
-  // Count both sides per taskId so an ambiguous task is never bound.
-  const segments = new Map<string, Array<Message>>();
-  const terminalCounts = new Map<string, TerminalIdentity[]>();
+  // Recover the exclusive end of the rows each run covered, from the loaded
+  // window's own epoch/revision/total.  A run whose boundary cannot be
+  // recovered here (other epoch, unknown revision) is unprovable.
+  const boundaries = new Map<TerminalIdentity, number>();
   for (const terminal of terminals) {
     const taskId = typeof terminal.taskId === 'string' ? terminal.taskId : null;
     if (!taskId) continue;
-    const bucket = terminalCounts.get(taskId);
-    if (bucket) bucket.push(terminal);
-    else terminalCounts.set(taskId, [terminal]);
+    if (terminal.historyEpoch !== proof.epoch) continue;
+    if (typeof terminal.historyRevision !== 'number'
+        || !Number.isSafeInteger(terminal.historyRevision)
+        || terminal.historyRevision <= 0
+        || terminal.historyRevision > proof.revision) continue;
+    const coveredEnd = proof.total - (proof.revision - terminal.historyRevision);
+    if (!Number.isSafeInteger(coveredEnd) || coveredEnd <= 0
+        || coveredEnd > proof.total) continue;
+    boundaries.set(terminal, coveredEnd);
+  }
+
+  // A run's final row is the last covered row; its absolute offset is unique.
+  // Two terminals claiming the same offset make the pairing ambiguous, so
+  // neither may be bound.
+  const claims = new Map<number, number>();
+  for (const coveredEnd of boundaries.values()) {
+    const tailOffset = coveredEnd - 1;
+    claims.set(tailOffset, (claims.get(tailOffset) ?? 0) + 1);
+  }
+  const provable = new Map<TerminalIdentity, number>();
+  for (const [terminal, coveredEnd] of boundaries) {
+    if (claims.get(coveredEnd - 1) === 1) provable.set(terminal, coveredEnd);
   }
 
   let taskId: string | null = null;
   let tail: Message | null = null;
+
   const finish = () => {
-    if (taskId && tail && !tail.streaming && tail.messageId) {
-      const bucket = segments.get(taskId);
-      if (bucket) bucket.push(tail);
-      else segments.set(taskId, [tail]);
+    if (!taskId || !tail || tail.streaming || !tail.messageId) {
+      taskId = null;
+      tail = null;
+      return;
+    }
+    // The bound block must be the run's own final row, proven by its absolute
+    // offset — never by segment order, content or "newest terminal".
+    const offset = proof.offsetOf(tail);
+    if (offset !== undefined) {
+      for (const [terminal, coveredEnd] of provable) {
+        if (terminal.taskId !== taskId) continue;
+        if (offset !== coveredEnd - 1) continue;
+        targets.set(tail.messageId, {
+          sessionId: session.id,
+          taskId,
+          taskSeq: typeof terminal.taskSeq === 'number' ? terminal.taskSeq : null,
+          messageId: tail.messageId,
+          ...(typeof terminal.resultCursor === 'number'
+            ? { resultCursor: terminal.resultCursor } : {}),
+          ...(typeof terminal.terminalKey === 'string'
+            ? { terminalKey: terminal.terminalKey } : {}),
+        });
+        break;
+      }
     }
     taskId = null;
     tail = null;
@@ -124,24 +172,5 @@ export function findManualReportTargets(
     if (message.role === 'assistant') tail = message;
   }
   finish();
-
-  for (const [segmentTaskId, tails] of segments) {
-    if (tails.length !== 1) continue;              // several runs in the window
-    const runs = terminalCounts.get(segmentTaskId) ?? [];
-    if (runs.length !== 1) continue;               // several runs in the index
-    const terminal = runs[0]!;
-    if (!isBlockProvable(session, terminal)) continue;
-    const boundTail = tails[0]!;
-    targets.set(boundTail.messageId!, {
-      sessionId: session.id,
-      taskId: segmentTaskId,
-      taskSeq: typeof terminal.taskSeq === 'number' ? terminal.taskSeq : null,
-      messageId: boundTail.messageId!,
-      ...(typeof terminal.resultCursor === 'number'
-        ? { resultCursor: terminal.resultCursor } : {}),
-      ...(typeof terminal.terminalKey === 'string'
-        ? { terminalKey: terminal.terminalKey } : {}),
-    });
-  }
   return targets;
 }

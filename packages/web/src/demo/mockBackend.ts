@@ -368,7 +368,17 @@ const cliAdapters = ['cbc', 'kimi', 'opencode', 'codex'].map((name) => ({
 function handleMockRequest(method: string, path: string, body: unknown): unknown {
   // ── Sessions ──
   if (method === 'GET' && path === '/api/sessions') {
-    return { sessions: mockSessions };
+    // Mirror the real list read: the summary carries no history rows.  Clients
+    // load the transcript through the history endpoint, exactly like against a
+    // real backend.
+    return {
+      sessions: mockSessions.map((session) => ({
+        ...session,
+        // `undefined` disappears in the JSON response, mirroring the real list
+        // read where the summary carries no history rows.
+        history: undefined,
+      })),
+    };
   }
   if (method === 'POST' && path === '/api/sessions/pins/order') {
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
@@ -427,7 +437,18 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   if (historyMatch && method === 'GET') {
     const session = findSession(historyMatch[1]!);
     const history = session?.history ?? [];
-    return { history, hasMore: false, start: 0, total: history.length };
+    return {
+      history,
+      hasMore: false,
+      start: 0,
+      // The stored history may model a truncated client window while the
+      // session's own total/revision describe the full durable history.
+      total: session?.historyTotal ?? history.length,
+      // Same identity fields the real history page carries: the client window
+      // needs the epoch/revision to prove terminal boundaries.
+      historyEpoch: session?.historyEpoch ?? null,
+      historyRevision: session?.historyRevision ?? 0,
+    };
   }
 
   // ── Agent queue (frontend-only response-compatible mock) ──

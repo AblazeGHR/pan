@@ -63,7 +63,7 @@ def _setup_session(sid="ses_test", **kwargs):
     return s
 
 
-async def _noop_save_async(s):
+async def _noop_save_async(s, *, outcome=None):
     pass
 
 
@@ -73,12 +73,14 @@ def _noop_save(s):
 
 def _append_run(s, task_id, task_seq, answers, *, terminal=True,
                 status="done", result=None, result_cursor=None) -> dict | None:
-    """Append one task run exactly like the worker does.
+    """Append one task run exactly like ``_persist_terminal_state`` does.
 
-    Dispatch row and assistant rows are appended first, then (when the run has
-    a terminal) the terminal records the history epoch/revision at that commit,
-    and finally the run's result row is appended — so the run's final text block
-    is provably the last assistant row at or before the recorded boundary.
+    Dispatch row and assistant rows are appended first, then — for a run with a
+    terminal — the run's result row is appended and only afterwards is the
+    terminal's history epoch/revision recorded from the post-append revision
+    (the production path is explicit about covering the revision after the
+    final append).  The run's final text block is therefore the last row of the
+    covered region, not the row at the boundary offset.
 
     Returns the terminal record (with the run's ``tail_id`` added) or None.
     """
@@ -91,6 +93,8 @@ def _append_run(s, task_id, task_seq, answers, *, terminal=True,
     if not terminal:
         return None
     body = result if result is not None else (answers[-1] if answers else "done")
+    # The worker appends the run's result row before recording the boundary.
+    _sess.append_history(s, {"role": "assistant", "content": body})
     record = {
         "status": status,
         "result": body,
@@ -104,8 +108,6 @@ def _append_run(s, task_id, task_seq, answers, *, terminal=True,
     }
     s.terminal_results = list(s.terminal_results) + [record]
     s.last_result = dict(record)
-    # The worker appends the run's result row after the boundary snapshot.
-    _sess.append_history(s, {"role": "assistant", "content": body})
     record["tail_id"] = s.history[-1]["messageId"]
     return record
 
@@ -642,7 +644,7 @@ def test_manual_report_task_rerun_is_a_distinct_report(monkeypatch):
 def test_manual_report_save_failure_rolls_back(monkeypatch):
     _cleanup()
 
-    async def _failing_save(s):
+    async def _failing_save(s, *, outcome=None):
         raise OSError("disk full")
 
     monkeypatch.setattr(_sess, "save_async", _failing_save)

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Message, Session, TerminalIdentity } from '@/types';
-import { findManualReportTargets } from './manualTaskReport';
+import {
+  findManualReportTargets,
+  type HistoryBoundaryProof,
+} from './manualTaskReport';
 
 const EPOCH = 'epoch-1';
 
@@ -38,19 +41,6 @@ function assistant(messageId: string | undefined, content = 'answer', extra: Par
   return { role: 'assistant', content, ...(messageId ? { messageId } : {}), ...extra };
 }
 
-function terminal(
-  patch: Partial<TerminalIdentity> & { taskId: string; taskSeq: number },
-): TerminalIdentity {
-  return {
-    resultCursor: patch.taskSeq,
-    terminalKey: `terminal:${patch.taskId}:${patch.taskSeq}`,
-    status: 'done',
-    historyEpoch: EPOCH,
-    historyRevision: 1,
-    ...patch,
-  };
-}
-
 function session(terminals: TerminalIdentity[], patch: Partial<Session> = {}): Session {
   return {
     id: 'ses_ta',
@@ -65,8 +55,44 @@ function session(terminals: TerminalIdentity[], patch: Partial<Session> = {}): S
   } as Session;
 }
 
+/**
+ * Mirror the production ordering: the terminal's history revision is recorded
+ * AFTER the run's final row was appended, so the run's tail row sits at
+ * (recorded revision - 1) and the boundary recovers exactly that offset.
+ */
+function proofFor(messages: Message[]): HistoryBoundaryProof {
+  const offsets = new Map<string, number>();
+  messages.forEach((message, index) => {
+    if (message.messageId) offsets.set(message.messageId, index);
+  });
+  return {
+    epoch: EPOCH,
+    revision: messages.length,
+    total: messages.length,
+    offsetOf: (message) => offsets.get(message.messageId ?? ''),
+  };
+}
+
+function terminal(
+  taskId: string,
+  taskSeq: number,
+  tailRow: Message,
+  messages: Message[],
+): TerminalIdentity {
+  const index = messages.findIndex((message) => message.messageId === tailRow.messageId);
+  return {
+    taskId,
+    taskSeq,
+    resultCursor: taskSeq,
+    terminalKey: `terminal:${taskId}:${taskSeq}`,
+    status: 'done',
+    historyEpoch: EPOCH,
+    historyRevision: index + 1,
+  };
+}
+
 describe('findManualReportTargets', () => {
-  it('binds the tail text block of every completed task, not only the newest', () => {
+  it('binds the tail text block of every completed run at its own boundary', () => {
     const messages: Message[] = [
       assign('task-1', 'pan:u1'),
       assistant('pan:a1', 'answer 1'),
@@ -75,11 +101,12 @@ describe('findManualReportTargets', () => {
       assign('task-3', 'pan:u3'),
       assistant('pan:a3', 'answer 3'),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-1', taskSeq: 1 }),
-      terminal({ taskId: 'task-2', taskSeq: 2 }),
-      terminal({ taskId: 'task-3', taskSeq: 3 }),
-    ]));
+      terminal('task-1', 1, messages[1]!, messages),
+      terminal('task-2', 2, messages[3]!, messages),
+      terminal('task-3', 3, messages[5]!, messages),
+    ]), proof);
     expect([...targets.keys()].sort()).toEqual(['pan:a1', 'pan:a2', 'pan:a3']);
     expect(targets.get('pan:a1')).toEqual({
       sessionId: 'ses_ta', taskId: 'task-1', taskSeq: 1, messageId: 'pan:a1',
@@ -88,79 +115,113 @@ describe('findManualReportTargets', () => {
     expect(targets.get('pan:a3')?.taskSeq).toBe(3);
   });
 
-  it('keeps an older task bound while a newer task is still streaming', () => {
+  it('keeps an older run bound while a newer task is still streaming', () => {
     const messages: Message[] = [
       assign('task-old', 'pan:u1'),
       assistant('pan:a1', 'old answer'),
       assign('task-new', 'pan:u2'),
       assistant('pan:a2', 'partial', { streaming: true }),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-old', taskSeq: 1 }),
-    ]));
+      terminal('task-old', 1, messages[1]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a1']);
     expect(targets.get('pan:a1')?.taskId).toBe('task-old');
   });
 
-  it('ignores tasks with no durable terminal in the index', () => {
+  it('ignores runs with no durable terminal in the index', () => {
     const messages: Message[] = [
       assign('task-1', 'pan:u1'),
       assistant('pan:a1'),
       assign('task-2', 'pan:u2'),
       assistant('pan:a2'),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-2', taskSeq: 2 }),
-    ]));
+      terminal('task-2', 2, messages[3]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a2']);
   });
 
-  // Red before the fix: the newest terminal of a repeated taskId was bound to
-  // every segment of that task, so an older block could report a later run.
-  it('refuses to bind when one taskId was dispatched twice', () => {
+  // Red before this fix: both segments of one taskId were bound to the newest
+  // terminal, so the older block reported the newer run's result.
+  it('binds each run of a repeated taskId to its own block and result', () => {
     const messages: Message[] = [
       assign('task-r', 'pan:u1'),
       assistant('pan:a1', 'first run'),
       assign('task-r', 'pan:u2'),
       assistant('pan:a2', 'second run'),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-r', taskSeq: 1 }),
-      terminal({ taskId: 'task-r', taskSeq: 2 }),
-    ]));
-    expect([...targets.keys()]).toEqual([]);
+      terminal('task-r', 1, messages[1]!, messages),
+      terminal('task-r', 2, messages[3]!, messages),
+    ]), proof);
+    expect(targets.get('pan:a1')?.taskSeq).toBe(1);
+    expect(targets.get('pan:a2')?.taskSeq).toBe(2);
   });
 
-  // Red before the fix: a window holding only the older segment was bound to the
-  // newer run's terminal, reporting a result the block never produced.
-  it('refuses to bind a segment when the window holds only one of several runs', () => {
+  // Red before this fix: with only the newest terminal indexed, the older
+  // segment was bound to it and reported a result the block never produced.
+  it('binds only the indexed run block when an older run is evicted', () => {
     const messages: Message[] = [
       assign('task-w', 'pan:u1'),
       assistant('pan:a1', 'old run answer'),
+      assign('task-w', 'pan:u2'),
+      assistant('pan:a2', 'newer run answer'),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-w', taskSeq: 1 }),
-      terminal({ taskId: 'task-w', taskSeq: 2 }),
-    ]));
+      terminal('task-w', 2, messages[3]!, messages),
+    ]), proof);
+    // a2 is provably the indexed run's own block; the evicted run's block (a1)
+    // is never bound to it.
+    expect([...targets.keys()]).toEqual(['pan:a2']);
+    expect(targets.get('pan:a2')?.taskSeq).toBe(2);
+  });
+
+  it('binds nothing when two runs claim the same boundary', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'answer'),
+    ];
+    const proof = proofFor(messages);
+    const targets = findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+      terminal('task-2', 2, messages[1]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual([]);
   });
 
-  it('refuses to bind when the run block boundary cannot be proven', () => {
+  it('binds nothing when the run boundary cannot be proven', () => {
     const messages: Message[] = [assign('task-1', 'pan:u1'), assistant('pan:a1')];
-    // Legacy row: no history epoch/revision, so the tail relation is unprovable.
+    const proof = proofFor(messages);
+    // Legacy row: no history epoch/revision at all.
     expect(findManualReportTargets(messages, session([
       { taskId: 'task-1', taskSeq: 1, resultCursor: 1, terminalKey: 't', status: 'done' },
-    ])).size).toBe(0);
-    // Rewritten history epoch: the run's boundary no longer applies.
+    ]), proof).size).toBe(0);
+    // Rewritten history epoch.
     expect(findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-1', taskSeq: 1, historyEpoch: 'older-epoch' }),
-    ])).size).toBe(0);
+      { ...terminal('task-1', 1, messages[1]!, messages), historyEpoch: 'older-epoch' },
+    ]), proof).size).toBe(0);
+    // Revision beyond the loaded window: the boundary is not recoverable here.
     expect(findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-1', taskSeq: 1, historyRevision: 0 }),
-    ])).size).toBe(0);
+      { ...terminal('task-1', 1, messages[1]!, messages), historyRevision: messages.length + 5 },
+    ]), proof).size).toBe(0);
     expect(findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-1', taskSeq: 1, historyRevision: undefined }),
-    ])).size).toBe(0);
+      { ...terminal('task-1', 1, messages[1]!, messages), historyRevision: 0 },
+    ]), proof).size).toBe(0);
+  });
+
+  it('leaves runtime-only rows unbound until their canonical rows converge', () => {
+    const messages: Message[] = [assign('task-1', 'pan:u1'), assistant('pan:a1')];
+    const proof = proofFor(messages);
+    // The proof cannot resolve the block's canonical offset.
+    const noOffsets: HistoryBoundaryProof = { ...proof, offsetOf: () => undefined };
+    expect(findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+    ]), noOffsets).size).toBe(0);
   });
 
   it('does not bind a segment whose tail block is still streaming', () => {
@@ -168,12 +229,18 @@ describe('findManualReportTargets', () => {
       assign('task-1', 'pan:u1'),
       assistant('pan:a1', 'partial', { streaming: true }),
     ];
-    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })])).size).toBe(0);
+    const proof = proofFor(messages);
+    expect(findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+    ]), proof).size).toBe(0);
   });
 
   it('does not bind a tail block without a stable identity', () => {
     const messages: Message[] = [assign('task-1', 'pan:u1'), assistant(undefined)];
-    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })])).size).toBe(0);
+    const proof = proofFor(messages);
+    expect(findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+    ]), proof).size).toBe(0);
   });
 
   it('ends a task segment at a non-follow-up user row', () => {
@@ -183,7 +250,10 @@ describe('findManualReportTargets', () => {
       browser('pan:u2'),
       assistant('pan:a2', 'answer to a plain turn'),
     ];
-    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })]));
+    const proof = proofFor(messages);
+    const targets = findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a1']);
   });
 
@@ -194,7 +264,10 @@ describe('findManualReportTargets', () => {
       report('pan:r1'),
       assistant('pan:a2', 'answer to the report batch'),
     ];
-    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })]));
+    const proof = proofFor(messages);
+    const targets = findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[1]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a1']);
   });
 
@@ -205,22 +278,12 @@ describe('findManualReportTargets', () => {
       followUp('task-1', 'pan:u2'),
       assistant('pan:a2', 'follow-up answer'),
     ];
+    const proof = proofFor(messages);
     const targets = findManualReportTargets(messages, session([
-      terminal({ taskId: 'task-1', taskSeq: 2 }),
-    ]));
+      terminal('task-1', 2, messages[3]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a2']);
     expect(targets.get('pan:a2')?.taskSeq).toBe(2);
-  });
-
-  it('ignores rows before the first dispatch', () => {
-    const messages: Message[] = [
-      browser('pan:u0'),
-      assistant('pan:a0', 'answer before any task'),
-      assign('task-1', 'pan:u1'),
-      assistant('pan:a1'),
-    ];
-    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })]));
-    expect([...targets.keys()]).toEqual(['pan:a1']);
   });
 
   it('binds only the final text block, ignoring tool/thinking/system rows after it', () => {
@@ -232,15 +295,20 @@ describe('findManualReportTargets', () => {
       { role: 'thinking', content: 'hmm', messageId: 'pan:th1' },
       { role: 'system', content: '[DONE] Task completed', messageId: 'pan:d1' },
     ];
-    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })]));
+    const proof = proofFor(messages);
+    const targets = findManualReportTargets(messages, session([
+      terminal('task-1', 1, messages[2]!, messages),
+    ]), proof);
     expect([...targets.keys()]).toEqual(['pan:a2']);
   });
 
-  it('returns nothing without a manager or without terminals', () => {
+  it('returns nothing without a manager, terminals, a window or rows', () => {
     const messages: Message[] = [assign('task-1', 'pan:u1'), assistant('pan:a1')];
-    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1', taskSeq: 1 })], { managedBy: null })).size).toBe(0);
-    expect(findManualReportTargets(messages, session([], { managedBy: 'ses_mgr' })).size).toBe(0);
-    expect(findManualReportTargets(messages, undefined).size).toBe(0);
-    expect(findManualReportTargets([], session([terminal({ taskId: 'task-1', taskSeq: 1 })])).size).toBe(0);
+    const proof = proofFor(messages);
+    expect(findManualReportTargets(messages, session([terminal('task-1', 1, messages[1]!, messages)], { managedBy: null }), proof).size).toBe(0);
+    expect(findManualReportTargets(messages, session([], { managedBy: 'ses_mgr' }), proof).size).toBe(0);
+    expect(findManualReportTargets(messages, undefined, proof).size).toBe(0);
+    expect(findManualReportTargets([], session([terminal('task-1', 1, messages[1]!, messages)]), proof).size).toBe(0);
+    expect(findManualReportTargets(messages, session([terminal('task-1', 1, messages[1]!, messages)]), undefined).size).toBe(0);
   });
 });

@@ -4608,16 +4608,19 @@ def manual_report_key(session_id: str, task_id: str | None,
 def task_tail_block_id(s, terminal: dict) -> str | None:
     """messageId of that task run's final text block, or None when unprovable.
 
-    A durable terminal row records the history epoch/revision it committed at,
-    so within an unchanged epoch the run's final row offset is recoverable from
-    the same arithmetic the client uses for terminal coverage
-    (``total - (revision - boundary_revision)``).  The block itself is the last
-    assistant row at or before that boundary — the run's own tail text block.
+    A durable terminal row records the history epoch/revision it committed at
+    **after** the run's final text row was appended (``_persist_terminal_state``
+    sets it from the post-append revision on purpose), so within an unchanged
+    epoch the recorded revision counts the rows this run covered.  The run's
+    final row therefore sits one before the exclusive end offset:
+
+        covered_end = len(history) - (history_revision_now - terminal_revision)
+        tail_index  = covered_end - 1
 
     Returns None whenever the relation cannot be proven for this Session
-    (legacy rows without epoch/revision, a rewritten history epoch, or no
-    assistant row at the boundary).  Callers must then refuse instead of
-    guessing which block belongs to the task.
+    (legacy rows without epoch/revision, a rewritten history epoch, an unloaded
+    or empty history, or no assistant row inside the covered region).  Callers
+    must then refuse instead of guessing which block belongs to the task.
     """
     epoch = terminal.get("historyEpoch")
     revision = terminal.get("historyRevision")
@@ -4631,10 +4634,12 @@ def task_tail_block_id(s, terminal: dict) -> str | None:
     if not isinstance(rows, list) or not rows:
         return None
     current = max(0, int(getattr(s, "history_revision", 0) or 0))
-    boundary = len(rows) - (current - revision)
-    if boundary < 0 or boundary > len(rows):
+    if revision > current:
         return None
-    for index in range(min(boundary, len(rows) - 1), -1, -1):
+    covered_end = len(rows) - (current - revision)
+    if covered_end <= 0 or covered_end > len(rows):
+        return None
+    for index in range(covered_end - 1, -1, -1):
         row = rows[index]
         if not isinstance(row, dict) or row.get("role") != "assistant":
             continue
@@ -4738,7 +4743,9 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
     - **幂等以任务运行身份为准**：key 只由 (sessionId, taskId, taskSeq)
       决定，客户端 messageId 只作为审计字段，不能改变去重结果；同一任务运行
       反复点击/换 messageId/未确认重试都只送达一次，不同运行各自独立。
-    - 落盘失败整体回滚 → 明确失败，可安全重试。
+    - 落盘失败整体回滚 → 明确失败，可安全重试；请求断开（取消）复用
+      DurableOutcome ticket 规则：已落盘则照常送达并唤醒 manager，未落盘则
+      整体回滚，绝不留下失败候选。
 
     返回 ``(result, error)``：成功时 result=``{"queueItemId", "managerId",
     "alreadyReported"}``；失败时 error=``{"code", "message", "retryable"}``。
@@ -4752,6 +4759,19 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "session_not_found",
                       "message": f"Session {session_id} not found",
                       "retryable": False}
+    if not s.managed_by:
+        return None, {"code": "no_report_target",
+                      "message": "该 Session 没有 manager，无法汇报",
+                      "retryable": False}
+    # The block proof reads canonical history rows; a cold cache returns the
+    # Session without its history JSONL, so hydrate through the existing read
+    # instead of failing every cold report as unprovable.
+    if not getattr(s, "_history_loaded", True):
+        s = _sess.get(session_id)
+        if not s:
+            return None, {"code": "session_not_found",
+                          "message": f"Session {session_id} not found",
+                          "retryable": False}
     if not s.managed_by:
         return None, {"code": "no_report_target",
                       "message": "该 Session 没有 manager，无法汇报",
@@ -4823,11 +4843,11 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         old_queue_revision = getattr(manager, "queue_revision", 0)
         manager.queue_revision = old_queue_revision + 1
         queue_revision = manager.queue_revision
-        try:
-            await _save_receipt(manager)
-        except Exception as exc:
-            # Roll the whole attempt back: nothing durable was committed, so a
-            # retry stays a first attempt instead of a duplicate.
+
+        def _rollback() -> None:
+            """Undo the whole attempt: nothing durable was committed, so a
+            retry stays a first attempt instead of a duplicate or a stale
+            failed candidate."""
             manager.queue_pending = [
                 queued for queued in manager.queue_pending if queued is not item
             ]
@@ -4835,8 +4855,27 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             manager.queue_revision = old_queue_revision
             manager.queue_delivery_ledger.pop(item["id"], None)
             _remove_idempotency_receipt(manager, item, item["id"])
+
+        # Reuse the durable ticket rules: a cancelled or failed request must
+        # neither discard a committed write nor leave a failed candidate.  The
+        # outcome is the only verdict that may be treated as committed.
+        outcome = _sess.DurableOutcome()
+        cancelled = False
+        try:
+            await _save_receipt(manager, outcome=outcome)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception as exc:
+            if not outcome.succeeded:
+                _rollback()
+                return None, {"code": "persist_failed",
+                              "message": f"汇报落盘失败: {exc}",
+                              "retryable": True}
+            # The durable write landed despite the raised error: committed.
+        if cancelled and not outcome.succeeded:
+            _rollback()
             return None, {"code": "persist_failed",
-                          "message": f"汇报落盘失败: {exc}",
+                          "message": "汇报未落盘（请求已断开），可重试",
                           "retryable": True}
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
@@ -4844,6 +4883,10 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
                   "item": dict(item)})
     # 与自动汇报同一唤醒路径：正文在落盘队列，信号只负责唤醒。
     await _wake_worker(s.managed_by)
+    if cancelled:
+        # The caller disconnected, but the report is durably delivered: end the
+        # cancelled request without inventing a failure.
+        raise asyncio.CancelledError()
     return ({"queueItemId": item["id"], "managerId": manager.id,
              "alreadyReported": False}, None)
 

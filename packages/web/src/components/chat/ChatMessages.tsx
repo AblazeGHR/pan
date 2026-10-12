@@ -7,7 +7,7 @@ import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble'
 import { RewindConfirmModal } from './RewindConfirmModal';
 import { durableOffsetOf } from '@/stores/messageOrdering';
 import { filterVisibleMessages } from './messageFilter';
-import { findManualReportTargets, type ManualReportTarget } from './manualTaskReport';
+import { findManualReportTargets, type HistoryBoundaryProof, type ManualReportTarget } from './manualTaskReport';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
 import type { Message } from '@/types';
@@ -313,9 +313,32 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   // bound row is filtered out it is simply not rendered and no action appears.
   // Identity is captured here (never re-read at click time), so a late update
   // or Session switch cannot re-target a pending click at another task.
+  // The block proof needs the loaded window's canonical epoch/revision/total
+  // and each row's absolute offset, exactly the inputs the server validates
+  // against; rows the window does not own resolve to no offset and stay
+  // unbound until their canonical rows converge.
+  const reportTranscript = useSessionStore((s) => (
+    s.currentSessionId ? s.sessionTranscripts[s.currentSessionId] : undefined
+  ));
+  const manualReportProof = useMemo<HistoryBoundaryProof | undefined>(() => {
+    if (!reportTranscript) return undefined;
+    const { window } = reportTranscript;
+    return {
+      epoch: window.epoch,
+      revision: window.revision,
+      total: window.total,
+      offsetOf: (message: Message) => {
+        const offset = durableOffsetOf(message);
+        if (offset === undefined) return undefined;
+        const owner = window.rows.get(offset);
+        return owner && getMessageIdentity(owner) === getMessageIdentity(message)
+          ? offset : undefined;
+      },
+    };
+  }, [reportTranscript]);
   const manualReportTargets = useMemo(
-    () => findManualReportTargets(currentMessages, currentSession),
-    [currentMessages, currentSession],
+    () => findManualReportTargets(currentMessages, currentSession, manualReportProof),
+    [currentMessages, currentSession, manualReportProof],
   );
 
   const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number; search?: boolean } | null>(null);

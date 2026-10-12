@@ -5,6 +5,7 @@ import { ChatMessages } from './ChatMessages';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import type { Message, Session, TerminalIdentity } from '@/types';
+import { markDurableRow } from '@/stores/messageOrdering';
 import { reportTaskManually as reportTaskManuallyApi } from '@/services/api';
 
 // The real virtualizer needs layout/ResizeObserver, which jsdom lacks. This
@@ -58,10 +59,10 @@ function assistant(messageId: string, content: string, extra: Partial<Message> =
 
 const EPOCH = 'epoch-1';
 
-function terminal(taskId: string, taskSeq: number): TerminalIdentity {
+function terminal(taskId: string, taskSeq: number, tailOffset: number): TerminalIdentity {
   return {
     taskId, taskSeq, resultCursor: taskSeq, terminalKey: `terminal:${taskId}`,
-    status: 'done', historyEpoch: EPOCH, historyRevision: taskSeq,
+    status: 'done', historyEpoch: EPOCH, historyRevision: tailOffset + 1,
   };
 }
 
@@ -79,12 +80,34 @@ function session(id: string, extra: Partial<Session> = {}): Session {
   } as Session;
 }
 
-function setTranscript(sessionId: string, messages: Message[], extra: Partial<Session> = {}): void {
-  useSessionStore.setState({
-    currentSessionId: sessionId,
-    currentMessages: messages,
-    sessions: [session(sessionId, extra)],
+/**
+ * Seed the transcript exactly as a loaded history page would: every durable
+ * row is marked with its absolute offset and owned by the window, and runtime
+ * rows (a still-streaming tail) stay outside it.
+ */
+function setTranscript(sessionId: string, durable: Message[], extra: Partial<Session> = {}, runtime: Message[] = [], windowSize: { total: number; revision: number } = { total: durable.length, revision: durable.length }): void {
+  const rows = new Map<number, Message>();
+  durable.forEach((row, index) => {
+    rows.set(index, row);
+    markDurableRow(row, index);
   });
+  useSessionStore.setState((state) => ({
+    currentSessionId: sessionId,
+    currentMessages: [...durable, ...runtime],
+    sessions: [session(sessionId, extra)],
+    sessionTranscripts: {
+      ...state.sessionTranscripts,
+      [sessionId]: {
+        window: {
+          rows, start: 0, end: durable.length, total: windowSize.total,
+          epoch: EPOCH, revision: windowSize.revision,
+        },
+        runtime,
+        anchorOffset: durable.length,
+        serverEpoch: null,
+      },
+    },
+  }));
 }
 
 const THREE_TASKS: Message[] = [
@@ -124,7 +147,7 @@ function buttonKeys(): string[] {
 describe('ChatMessages per-task manual report wiring', () => {
   it('shows one action per completed task, each on its own tail block', () => {
     setTranscript('ses_ta', THREE_TASKS, {
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     render(<ChatMessages />);
     expect(buttonKeys()).toEqual([
@@ -139,19 +162,21 @@ describe('ChatMessages per-task manual report wiring', () => {
       assignRow('pan:u2', 'task-2'),
       assistant('pan:a2', 'answer 2'),
       assignRow('pan:u3', 'task-3'),
-      assistant('pan:a3', 'partial', { streaming: true }),
     ], {
       workerStatus: 'running',
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2)],
-    });
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3)],
+    }, [
+      assistant('pan:a3', 'partial', { streaming: true }),
+    ]);
     render(<ChatMessages />);
-    // A running newest task no longer hides the older completed tasks.
+    // A running newest task no longer hides the older completed tasks; the
+    // streaming runtime tail has no canonical offset and gets no action.
     expect(buttonKeys()).toEqual(['ses_ta:task-1:1', 'ses_ta:task-2:2']);
   });
 
   it('reports the clicked task, not the newest one', () => {
     setTranscript('ses_ta', THREE_TASKS, {
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     render(<ChatMessages />);
     const older = reportButtons().find(
@@ -162,7 +187,7 @@ describe('ChatMessages per-task manual report wiring', () => {
 
   it('adds the action only for tasks with a durable terminal', () => {
     setTranscript('ses_ta', THREE_TASKS, {
-      terminalResults: [terminal('task-2', 2)],
+      terminalResults: [terminal('task-2', 2, 3)],
     });
     render(<ChatMessages />);
     expect(buttonKeys()).toEqual(['ses_ta:task-2:2']);
@@ -172,7 +197,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     setTranscript('ses_ta', THREE_TASKS, {
       managedBy: 'ses_mgr',
       reportsToManager: false,
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     render(<ChatMessages />);
     expect(buttonKeys()).toHaveLength(3);
@@ -181,7 +206,7 @@ describe('ChatMessages per-task manual report wiring', () => {
   it('hides every action without a manager', () => {
     setTranscript('ses_ta', THREE_TASKS, {
       managedBy: null,
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     render(<ChatMessages />);
     expect(buttonKeys()).toEqual([]);
@@ -189,7 +214,7 @@ describe('ChatMessages per-task manual report wiring', () => {
 
   it('re-binds to the newly selected session on a switch', () => {
     setTranscript('ses_ta', THREE_TASKS, {
-      terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
+      terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     const view = render(<ChatMessages />);
     expect(buttonKeys()).toHaveLength(3);
@@ -198,7 +223,7 @@ describe('ChatMessages per-task manual report wiring', () => {
       setTranscript('ses_tb', [
         assignRow('pan:v1', 'task-b1'),
         assistant('pan:b1', 'b answer'),
-      ], { terminalResults: [terminal('task-b1', 7)] });
+      ], { terminalResults: [terminal('task-b1', 7, 1)] });
     });
     view.rerender(<ChatMessages />);
     expect(buttonKeys()).toEqual(['ses_tb:task-b1:7']);
@@ -211,23 +236,28 @@ describe('ChatMessages per-task manual report wiring', () => {
       assignRow('pan:u2', 'task-r'),
       assistant('pan:a2', 'second run'),
     ], {
-      terminalResults: [terminal('task-r', 1), terminal('task-r', 2)],
+      terminalResults: [terminal('task-r', 1, 1), terminal('task-r', 2, 3)],
     });
     render(<ChatMessages />);
-    // Two candidate blocks and two runs: binding either to the newest terminal
-    // would report the wrong run's result, so no action appears.
-    expect(buttonKeys()).toEqual([]);
+    // Two runs of one taskId: canonical offsets prove each block belongs to its
+    // own run, so both actions appear and neither can report the other run.
+    expect(buttonKeys()).toEqual(['ses_ta:task-r:1', 'ses_ta:task-r:2']);
   });
 
-  it('binds nothing when the window holds only the older run', () => {
+  it('binds the older run, never the newer one, when the window is truncated', () => {
     setTranscript('ses_ta', [
       assignRow('pan:u1', 'task-w'),
       assistant('pan:a1', 'old run answer'),
     ], {
-      terminalResults: [terminal('task-w', 1), terminal('task-w', 2)],
-    });
+      // The full history holds the newer run's rows too, but this window does
+      // not contain them: only the older run's boundary is recoverable here.
+      terminalResults: [
+        terminal('task-w', 1, 1),
+        { ...terminal('task-w', 2, 4), historyRevision: 5 },
+      ],
+    }, [], { total: 5, revision: 5 });
     render(<ChatMessages />);
-    expect(buttonKeys()).toEqual([]);
+    expect(buttonKeys()).toEqual(['ses_ta:task-w:1']);
   });
 
   it('binds nothing when the run boundary cannot be proven', () => {
@@ -250,7 +280,7 @@ describe('ChatMessages per-task manual report wiring', () => {
       assistant('pan:a2', 'answer 2', { streaming: true }),
     ], {
       workerStatus: 'running',
-      terminalResults: [terminal('task-1', 1)],
+      terminalResults: [terminal('task-1', 1, 1)],
     });
     const view = render(<ChatMessages />);
     expect(buttonKeys()).toEqual(['ses_ta:task-1:1']);
@@ -264,7 +294,7 @@ describe('ChatMessages per-task manual report wiring', () => {
         assistant('pan:a2', 'answer 2'),
       ], {
         workerStatus: 'idle',
-        terminalResults: [terminal('task-1', 1), terminal('task-2', 2)],
+        terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3)],
       });
     });
     view.rerender(<ChatMessages />);

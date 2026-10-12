@@ -64,10 +64,14 @@ const EPOCH = 'mock-history-epoch';
 /**
  * Build a Session whose seeded history and durable terminals really correspond:
  * each run appends its dispatch row + final answer, and its terminal records the
- * history revision at that commit, so the run's tail block is provable with the
- * same arithmetic the server uses (offset = total - (revision - boundary)).
+ * history revision AFTER that final append (the production ordering), so the
+ * run's tail block is provable with the same arithmetic the server uses
+ * (covered end = total - (revision - terminalRevision); tail = end - 1).
+ * `truncateAfter` serves only a truncated history window while keeping the
+ * full history revision/total, modelling a client that has not loaded the
+ * newer rows yet.
  */
-function buildSession({ id, name, runs, updatedAt, workerStatus = 'idle', reportsToManager = true, managedBy = 'ses_mgr_mock' }) {
+function buildSession({ id, name, runs, updatedAt, workerStatus = 'idle', reportsToManager = true, managedBy = 'ses_mgr_mock', truncateAfter }) {
   const history = [];
   const terminalResults = [];
   for (const run of runs) {
@@ -81,8 +85,9 @@ function buildSession({ id, name, runs, updatedAt, workerStatus = 'idle', report
       terminalKey: `terminal:${run.taskId}`,
       status: 'done',
       historyEpoch: EPOCH,
-      // Boundary = the run's final row index at terminal commit.
-      historyRevision: history.length - 1,
+      // Recorded after the run's final row was appended, exactly like
+      // _persist_terminal_state: the revision counts the rows this run covered.
+      historyRevision: history.length,
     });
   }
   return {
@@ -98,7 +103,7 @@ function buildSession({ id, name, runs, updatedAt, workerStatus = 'idle', report
     historyRevision: history.length,
     terminalResults,
     historyTotal: history.length,
-    history,
+    history: typeof truncateAfter === 'number' ? history.slice(0, truncateAfter) : history,
     updatedAt,
   };
 }
@@ -140,13 +145,14 @@ const TA_SESSIONS = [
     ],
   }),
   buildSession({
-    // The index already holds the newer run's terminal while this history window
-    // only contains the older run: the older block must stay unbound rather than
-    // be reported as the newer run.
+    // The client window only holds the older run's rows while the full history
+    // (and the newer run's terminal boundary) is longer: the older block must
+    // bind to its own run and never to the newer one.
     id: 'ses_ta_window', name: 'TA Window Old Only', updatedAt: ts(6),
+    truncateAfter: 2,
     runs: [
       { taskId: 'task-w', taskSeq: 1, assignId: 'pan:y1', answer: 'old run answer', answerId: 'pan:y1a', terminal: true },
-      { taskId: 'task-w', taskSeq: 2, assignId: 'pan:y2', terminal: true },
+      { taskId: 'task-w', taskSeq: 2, assignId: 'pan:y2', answer: 'newer run answer', answerId: 'pan:y2a', terminal: true },
     ],
   }),
   buildSession({
@@ -353,33 +359,42 @@ try {
     }
   });
 
-  await check('same taskId twice: neither block is bound to the other run', async () => {
+  await check('same taskId twice: each block binds its own run', async () => {
     const { page, pageErrors } = await openSeededPage();
     try {
       await selectSession(page, 'TA Rerun Same Task');
-      await page.getByTestId('rich-text-composer').waitFor({ state: 'visible' });
-      await page.waitForTimeout(300);
-      // Two segments and two runs for one taskId: the pairing is ambiguous, so
-      // no action may appear (binding the newest terminal to both blocks would
-      // report the wrong run's result).
-      assert.equal(await page.locator(REPORT_BUTTON).count(), 0);
+      await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
+      // Canonical offsets prove each block is its own run's final row, so both
+      // actions appear and neither can report the other run's result.
+      const keys = await page.$$eval(REPORT_BUTTON, (nodes) => nodes
+        .map((node) => node.getAttribute('data-manual-report')).sort());
+      assert.deepEqual(keys, ['ses_ta_rerun:task-r:1', 'ses_ta_rerun:task-r:2']);
+      // The older block submitted for the newer run is refused server-side.
+      const older = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_rerun:task-r:1"]`);
+      await setHook(page, 'lose_receipt');
+      await older.click();
+      await older.filter({ hasText: '重试汇报' }).waitFor({ state: 'visible' });
       const { attempts } = await reportLog(page);
-      assert.equal(attempts.length, 0);
+      assert.equal(attempts.length, 1);
+      assert.equal(attempts[0].taskId, 'task-r');
+      assert.equal(attempts[0].taskSeq, 1);
       assert.deepEqual(pageErrors, []);
     } finally {
       await page.close();
     }
   });
 
-  await check('window holds only the older run while the newer terminal exists', async () => {
+  await check('truncated window: the older run binds itself, never the newer one', async () => {
     const { page, pageErrors } = await openSeededPage();
     try {
       await selectSession(page, 'TA Window Old Only');
-      await page.getByTestId('rich-text-composer').waitFor({ state: 'visible' });
-      await page.waitForTimeout(300);
-      // The index already holds the newer run, so the older block cannot be
-      // proven to be the reported run's block: no action.
-      assert.equal(await page.locator(REPORT_BUTTON).count(), 0);
+      await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
+      // Only the older run's boundary is recoverable from this window, so its
+      // own block is actionable and the newer run's block (outside the window)
+      // is not.
+      const keys = await page.$$eval(REPORT_BUTTON, (nodes) => nodes
+        .map((node) => node.getAttribute('data-manual-report')).sort());
+      assert.deepEqual(keys, ['ses_ta_window:task-w:1']);
       assert.deepEqual(pageErrors, []);
     } finally {
       await page.close();
