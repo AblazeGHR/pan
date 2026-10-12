@@ -864,6 +864,19 @@ try {
       innerWindow: event?.target instanceof window.Element && !!event.target.closest('[data-testid="non-body-group-window"]') });
     const wheel = event => record('wheel', event);
     const scroll = () => record('scroll');
+    const topDescriptor = Object.getOwnPropertyDescriptor(window.Element.prototype, 'scrollTop');
+    const originalScrollTo = el.scrollTo;
+    Object.defineProperty(el, 'scrollTop', { configurable: true,
+      get: () => topDescriptor.get.call(el),
+      set: value => {
+        trace.push({ kind: 'scrollTop assignment', at: performance.now(), value, stack: new Error().stack });
+        topDescriptor.set.call(el, value);
+      },
+    });
+    el.scrollTo = function (...args) {
+      trace.push({ kind: 'scrollTo', at: performance.now(), args, stack: new Error().stack });
+      return originalScrollTo.apply(this, args);
+    };
     record('before');
     el.addEventListener('wheel', wheel);
     el.addEventListener('scroll', scroll);
@@ -871,6 +884,8 @@ try {
       record('after');
       el.removeEventListener('wheel', wheel);
       el.removeEventListener('scroll', scroll);
+      delete el.scrollTop;
+      el.scrollTo = originalScrollTo;
       return trace;
     };
   });
@@ -1031,6 +1046,38 @@ try {
   await sleep(3000);
   await select('E2E-A');
   await equalCanonical('cold server restart and websocket reconnect');
+  // Replay the observed bootstrap ordering in this disposable browser only:
+  // running precedes the first history response, leaving a zero start offset.
+  // The real HTTP tail supplies canonical identities and the terminal version.
+  const recoveredTail = await api(`/api/sessions/${ids['E2E-A']}/history?limit=50`);
+  const earlyBoundary = await page.evaluate(({ id, history }) => {
+    const store = window.__panSessionStore;
+    const meta = { workerId: 'fixture-bootstrap-worker', generation: 1, taskSeq: 901, executionSeq: 2 };
+    const final = history.history.at(-1);
+    if (final?.role !== 'assistant') throw new Error('fixture must end with canonical assistant');
+    store.setState(state => ({ currentSessionId: id, currentMessages: [],
+      sessions: state.sessions.map(session => session.id === id
+        ? { ...session, history: [], historyTotal: 0 } : session),
+      sessionTranscripts: Object.fromEntries(Object.entries(state.sessionTranscripts).filter(([key]) => key !== id)),
+      liveStreamBuffers: {}, terminalWatermarks: {},
+    }));
+    store.getState().applyWorkerStatus(id, 'running', meta);
+    store.getState().applyHistoryPage(id, history);
+    store.getState().applyLiveStream(id, [
+      { ...final }, { role: 'thinking', content: '', nativeItemId: 'bootstrap-orphan-thinking' },
+    ], meta);
+    const start = store.getState().liveStreamBuffers[id].historyStartOffset;
+    const coverage = { historyEpoch: history.historyEpoch, historyRevision: history.historyRevision };
+    store.getState().reconcileWorkerResult(id, { status: 'done', result: final.content, terminalCoverage: coverage }, meta);
+    store.getState().appendWorkerResultMarker(id,
+      { role: 'system', content: '[DONE] Task completed', nativeItemId: 'worker.result:bootstrap-fixture' }, meta, coverage);
+    return { start, orphan: store.getState().currentMessages.some(row => row.nativeItemId === 'bootstrap-orphan-thinking') };
+  }, { id: ids['E2E-A'], history: recoveredTail });
+  assert.equal(earlyBoundary.start, 0, 'running really captures an unknown initial boundary');
+  assert.equal(earlyBoundary.orphan, false, 'completed native thinking must not survive the bounded history proof');
+  await poll(() => page.locator('[data-message-identity*="bootstrap-orphan-thinking"]').count(), count => count === 0,
+    'orphan block disappears in actual Chromium DOM');
+  await equalCanonical('browser store replay: running before first history removes stale thinking');
   await page.screenshot({ path: path.join(runtime, 'final.png') });
   assert.deepEqual(evidence.errors, []);
   evidence.pass = true;

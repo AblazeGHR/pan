@@ -1054,6 +1054,9 @@ function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript
   if (!transcript.completedRuns?.length) return transcript;
   const { window } = transcript;
   const covered = new Set<string>();
+  const representedRows = new Set<Message>();
+  let loadedIdentities: Set<string> | undefined;
+  let recoveredAnchorOffset = transcript.anchorOffset;
   const pending = transcript.completedRuns.filter((run) => {
     if (run.epoch !== window.epoch || window.revision < run.revision) return true;
     // Same append/revision invariant as terminalMarkerEnd. Later tasks must
@@ -1062,9 +1065,32 @@ function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript
     const precedingEnd = run.precedingRevision === undefined
       ? run.start
       : window.total - (window.revision - run.precedingRevision);
-    const start = Math.min(run.start, precedingEnd);
+    let start = Math.min(run.start, precedingEnd);
     if (!Number.isSafeInteger(start) || start < 0
         || !Number.isSafeInteger(end) || end <= start || end > window.total) return true;
+    const recoveringBoundary = window.start !== null && start < window.start;
+    if (recoveringBoundary) {
+      // Running can arrive before the first history/list response, recording
+      // an unknown boundary as zero. Do not demand every older history row:
+      // an explicit final-item identity at this versioned end, plus a loaded
+      // user boundary, proves a bounded canonical region for the sealed run.
+      // Without either proof retain the runtime (including paginated tails).
+      const last = window.rows.get(end - 1);
+      const finalIds = explicitIdentityOf(run.finalRow);
+      if (!last || last.role !== 'assistant' || !finalIds.length
+          || !explicitIdentityOf(last).some(id => finalIds.includes(id))) return true;
+      let boundary: number | undefined;
+      for (let offset = end - 2; offset >= window.start!; offset -= 1) {
+        const row = window.rows.get(offset);
+        if (!row) return true;
+        if (row.role === 'user') {
+          boundary = offset;
+          break;
+        }
+      }
+      if (boundary === undefined) return true;
+      start = boundary;
+    }
     let hasFinal = false;
     for (let offset = start; offset < end; offset += 1) {
       const row = window.rows.get(offset);
@@ -1072,15 +1098,37 @@ function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript
       if (row.role === 'assistant' && runtimeRowCompatible(run.finalRow, row)) hasFinal = true;
     }
     if (!hasFinal) return true;
+    if (recoveringBoundary) {
+      recoveredAnchorOffset = Math.max(recoveredAnchorOffset, end);
+      loadedIdentities ??= new Set([...window.rows.values()].flatMap(row =>
+        explicitIdentityOf(row).map(id => `${row.role}\0${id}`)));
+      const prefix = `slot:${run.taskKey}:`;
+      let unrepresented = false;
+      for (const row of transcript.runtime) {
+        if (!runtimeKeyOf(row)?.startsWith(prefix)) continue;
+        const emptyThinking = row.role === 'thinking' && !row.content.trim()
+          && (!row.parts?.length || row.parts.every(part => part.type === 'text' && !part.text.trim()));
+        if (emptyThinking || explicitIdentityOf(row).some(id => loadedIdentities!.has(`${row.role}\0${id}`))) {
+          representedRows.add(row);
+        } else {
+          // A mid-turn user/Steer boundary cannot prove earlier nonempty
+          // runtime absent from this page. Keep it until older history loads.
+          unrepresented = true;
+        }
+      }
+      if (unrepresented) return true;
+    }
     covered.add(`slot:${run.taskKey}:`);
     return false;
   });
-  if (covered.size === 0) return transcript;
+  if (covered.size === 0 && representedRows.size === 0) return transcript;
   const prefixes = [...covered];
   return {
     ...transcript,
+    anchorOffset: recoveredAnchorOffset,
     completedRuns: pending,
     runtime: transcript.runtime.filter((row) => {
+      if (representedRows.has(row)) return false;
       const key = runtimeKeyOf(row);
       return key === null || !prefixes.some((prefix) => key.startsWith(prefix));
     }),
