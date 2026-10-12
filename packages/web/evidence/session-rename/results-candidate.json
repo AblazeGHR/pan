@@ -1,0 +1,341 @@
+{
+  "tag": "candidate",
+  "port": 59033,
+  "results": [
+    {
+      "name": "1280/entry-menu-focus-select",
+      "ok": true,
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
+    },
+    {
+      "name": "1280/draft-survives-refresh",
+      "ok": true,
+      "detail": "draft + caret preserved across identity-changing refresh"
+    },
+    {
+      "name": "1280/submit-enter-and-reopen",
+      "ok": true,
+      "detail": "draft submitted; reopen reseeded + select-all"
+    },
+    {
+      "name": "1280/cancel-and-reseed",
+      "ok": true,
+      "detail": "escape closed without submit; reopen reseeded"
+    },
+    {
+      "name": "1280/fast-type-delete-cancel",
+      "ok": true,
+      "detail": "empty draft discarded on cancel; reopen reseeded"
+    },
+    {
+      "name": "1280/alternating-sessions-no-leak",
+      "ok": true,
+      "detail": "B reseeded after A draft; no leak in either direction"
+    },
+    {
+      "name": "1280/submit-click-and-empty-rejection",
+      "ok": true,
+      "detail": "empty rejected; click-submit carried the draft"
+    },
+    {
+      "name": "1280/in-flight-guard-across-refresh",
+      "ok": true,
+      "detail": "input stayed disabled + draft intact until the POST settled"
+    },
+    {
+      "name": "1280/rename-failure-error-path",
+      "ok": true,
+      "detail": "error toast; draft preserved; click-retry succeeded"
+    },
+    {
+      "name": "1280/late-stale-sessions-get",
+      "ok": true,
+      "detail": "stale snapshot did not roll back the committed name"
+    },
+    {
+      "name": "1280/deferred-reopen-same-session",
+      "ok": true,
+      "detail": "late success persisted but stayed out of the newer dialog"
+    },
+    {
+      "name": "1280/deferred-stale-finaliser-keeps-guard",
+      "ok": true,
+      "detail": "A settled late without unlocking or closing B"
+    },
+    {
+      "name": "1280/duplicate-submit-same-batch",
+      "ok": true,
+      "detail": "same-batch Enter/submit paths collapsed to one POST"
+    },
+    {
+      "name": "1280/ime-composition-guard",
+      "ok": true,
+      "detail": "composition keys ignored; real Enter still submits"
+    },
+    {
+      "name": "390/entry-menu-focus-select",
+      "ok": true,
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
+    },
+    {
+      "name": "390/draft-survives-refresh",
+      "ok": true,
+      "detail": "draft + caret preserved across identity-changing refresh"
+    },
+    {
+      "name": "390/submit-enter-and-reopen",
+      "ok": true,
+      "detail": "draft submitted; reopen reseeded + select-all"
+    },
+    {
+      "name": "390/cancel-and-reseed",
+      "ok": true,
+      "detail": "escape closed without submit; reopen reseeded"
+    },
+    {
+      "name": "390/fast-type-delete-cancel",
+      "ok": true,
+      "detail": "empty draft discarded on cancel; reopen reseeded"
+    },
+    {
+      "name": "390/alternating-sessions-no-leak",
+      "ok": true,
+      "detail": "B reseeded after A draft; no leak in either direction"
+    },
+    {
+      "name": "390/submit-click-and-empty-rejection",
+      "ok": true,
+      "detail": "empty rejected; click-submit carried the draft"
+    },
+    {
+      "name": "390/in-flight-guard-across-refresh",
+      "ok": true,
+      "detail": "input stayed disabled + draft intact until the POST settled"
+    },
+    {
+      "name": "390/rename-failure-error-path",
+      "ok": true,
+      "detail": "error toast; draft preserved; click-retry succeeded"
+    },
+    {
+      "name": "390/late-stale-sessions-get",
+      "ok": true,
+      "detail": "stale snapshot did not roll back the committed name"
+    },
+    {
+      "name": "390/deferred-reopen-same-session",
+      "ok": true,
+      "detail": "late success persisted but stayed out of the newer dialog"
+    },
+    {
+      "name": "390/deferred-stale-finaliser-keeps-guard",
+      "ok": true,
+      "detail": "A settled late without unlocking or closing B"
+    },
+    {
+      "name": "390/duplicate-submit-same-batch",
+      "ok": true,
+      "detail": "same-batch Enter/submit paths collapsed to one POST"
+    },
+    {
+      "name": "390/ime-composition-guard",
+      "ok": true,
+      "detail": "composition keys ignored; real Enter still submits"
+    }
+  ],
+  "requests": [
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "Session A v2"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v3"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v4"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v6"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v10"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "Session A v2"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v3"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v4"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v6"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v10"
+      }
+    }
+  ],
+  "errors": []
+}

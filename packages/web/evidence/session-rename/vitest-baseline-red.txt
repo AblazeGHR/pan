@@ -1,0 +1,51 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/session-rename-20261013/packages/web/src[39m
+
+ [31m❯[39m components/session/RenameSessionModal.test.tsx [2m([22m[2m6 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[90m 266[2mms[22m[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mkeeps the typed draft when a store refresh replaces the session object[90m 23[2mms[22m[31m[39m
+[31m     → expected 'Original name' to be 'Typed draft' // Object.is equality[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mkeeps the submit guard armed while a rename request is in flight across a refresh[90m 25[2mms[22m[31m[39m
+[31m     → expected false to be true // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mkeeps the typed draft when a store refresh replaces the session object
+[31m[1mAssertionError[22m: expected 'Original name' to be 'Typed draft' // Object.is equality[39m
+
+Expected: [32m"Typed draft"[39m
+Received: [31m"Original name"[39m
+
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m70:47[22m[39m
+    [90m 68| [39m      useSessionStore[33m.[39m[34mgetState[39m()[33m.[39m[34mupdateSession[39m([32m'rename-session'[39m[33m,[39m { las…
+    [90m 69| [39m    })[33m;[39m
+    [90m 70| [39m    [34mexpect[39m((input [35mas[39m [33mHTMLInputElement[39m)[33m.[39mvalue)[33m.[39m[34mtoBe[39m([32m'Typed draft'[39m)[33m;[39m
+    [90m   | [39m                                              [31m^[39m
+    [90m 71| [39m    fireEvent[33m.[39m[34mkeyDown[39m(input[33m,[39m { key[33m:[39m [32m'Enter'[39m })[33m;[39m
+    [90m 72| [39m    fireEvent[33m.[39m[34msubmit[39m(input[33m.[39m[34mclosest[39m([32m'form'[39m)[33m![39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mkeeps the submit guard armed while a rename request is in flight across a refresh
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m92:50[22m[39m
+    [90m 90| [39m      useSessionStore[33m.[39m[34mgetState[39m()[33m.[39m[34mupdateSession[39m([32m'rename-session'[39m[33m,[39m { las…
+    [90m 91| [39m    })[33m;[39m
+    [90m 92| [39m    [34mexpect[39m((input [35mas[39m [33mHTMLInputElement[39m)[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m   | [39m                                                 [31m^[39m
+    [90m 93| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { [34mresolveRename[39m[33m?.[39m()[33m;[39m })[33m;[39m
+    [90m 94| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m4 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 01:19:49
+[2m   Duration [22m 2.44s[2m (transform 169ms, setup 13ms, collect 424ms, tests 266ms, environment 580ms, prepare 112ms)[22m
+

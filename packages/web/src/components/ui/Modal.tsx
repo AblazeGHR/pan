@@ -39,6 +39,10 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
+      // Escape that belongs to an IME candidate window must dismiss the
+      // candidate, not this dialog. 229 is the legacy keyCode engines use for
+      // the key that ends a composition.
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handler);

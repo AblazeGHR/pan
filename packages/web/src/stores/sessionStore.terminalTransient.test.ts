@@ -28,7 +28,7 @@ function page(history: Message[], revision = 3, epoch = 'epoch') {
     historyRevision: revision,
   };
 }
-function finish(revision = 3) {
+function finish(revision = 3, scope: typeof meta & { executionSeq?: number } = meta) {
   useSessionStore.getState().reconcileWorkerResult(
     'A',
     {
@@ -36,11 +36,11 @@ function finish(revision = 3) {
       status: 'done',
       terminalCoverage: { historyEpoch: 'epoch', historyRevision: revision },
     },
-    meta,
+    scope,
   );
   useSessionStore
     .getState()
-    .appendWorkerResultMarker('A', row('system', 'DONE', 'worker.result:one'), meta, {
+    .appendWorkerResultMarker('A', row('system', 'DONE', 'worker.result:one'), scope, {
       historyEpoch: 'epoch',
       historyRevision: revision,
     });
@@ -59,6 +59,30 @@ function stream() {
       meta,
     );
 }
+
+it('removes interrupted live fragments on restart while preserving canonical rows and local input', () => {
+  const store = useSessionStore.getState;
+  store().applyLiveStream('A', [row('assistant', 'old prefix', 'interrupted-body')], meta);
+  store().appendLocalMessage('A', row('user', 'queued while running'));
+  store().clearLiveStream('A');
+  expect(store().currentMessages.map(message => message.content)).toEqual(['question', 'queued while running']);
+  expect(store().sessionTranscripts.A!.runtime.some(message => message.nativeItemId === 'interrupted-body')).toBe(false);
+});
+
+it.each([false, true])('preserves persisted partial output at lifecycle replacement (terminal=%s)', terminal => {
+  const store = useSessionStore.getState;
+  const partial = row('assistant', 'persisted partial', 'partial-body');
+  store().applyLiveStream('A', [partial, row('assistant', 'unpersisted prefix', 'orphan-body')], meta);
+  store().applyHistoryPage('A', page([...initial, { ...partial, messageId: 'pan:persisted' }], 2));
+  store().appendLocalMessage('A', row('user', 'keep input'));
+  if (terminal) store().applyWorkerStatus('A', null, meta, true);
+  else store().clearLiveStream('A');
+  expect(store().currentMessages.map(message => message.content)).toEqual(['question', 'persisted partial', 'keep input']);
+  store().applyWorkerStatus('A', 'running', { ...meta, generation: 2, taskSeq: 2 });
+  store().applyLiveStream('A', [row('assistant', 'new body', 'new-body')], { ...meta, generation: 2, taskSeq: 2 });
+  expect(store().currentMessages.some(message => message.nativeItemId === 'orphan-body')).toBe(false);
+  expect(store().currentMessages.some(message => message.nativeItemId === 'new-body')).toBe(true);
+});
 beforeEach(() => {
   const session: Session = {
     id: 'A',
@@ -126,6 +150,65 @@ it('retains transient rows while terminal history coverage is stale or incomplet
   ).toBe(true);
 });
 
+it('retains a completed scope when its loaded tail has no identifiable task boundary', () => {
+  const tools = Array.from({ length: 60 }, (_, index) =>
+    row('tool', `persisted tool ${index}`, `tool-${index}`));
+  const history = [...initial, ...tools, row('assistant', 'final answer', 'body')];
+  useSessionStore.getState().applyLiveStream('A', [
+    ...tools, row('assistant', 'final answer', 'body'),
+    row('thinking', 'transient old reasoning', 'old-reasoning'),
+  ], meta);
+  finish(history.length);
+  useSessionStore.getState().applyHistoryPage('A', {
+    ...page(history.slice(-50), history.length),
+    total: history.length, start: history.length - 50, hasMore: true,
+  });
+  expect(useSessionStore.getState().currentMessages.map(message => message.content))
+    .toContain('transient old reasoning');
+});
+
+it.each([false, true, 'later-completed'])('converges a task whose running status arrived before its history boundary was loaded (new task=%s)', (newTask) => {
+  const scope = { ...meta, executionSeq: 2 };
+  useSessionStore.setState({
+    sessions: useSessionStore.getState().sessions.map(session => ({
+      ...session, history: [], historyTotal: 0,
+    })),
+    sessionTranscripts: {}, currentMessages: [],
+  });
+  useSessionStore.getState().applyWorkerStatus('A', 'running', scope);
+  useSessionStore.getState().applyHistoryPage('A', {
+    ...page(initial, 5001), total: 5001, start: 5000, hasMore: true,
+  });
+  useSessionStore.getState().applyLiveStream('A', [
+    row('tool', 'persisted tool', 'tool-persisted'),
+    row('assistant', 'final answer', 'body'),
+    row('thinking', '', 'old-reasoning'),
+  ], scope);
+  expect(useSessionStore.getState().liveStreamBuffers.A!.historyStartOffset).toBe(0);
+  finish(5003, scope);
+  if (newTask) {
+    const next = { ...scope, taskSeq: 2, executionSeq: 3 };
+    useSessionStore.getState().applyWorkerStatus('A', 'running', next);
+    useSessionStore.getState().applyLiveStream('A', [
+      row('thinking', 'new task reasoning', 'new-reasoning'),
+    ], next);
+  }
+  const laterRows = newTask === 'later-completed' ? [
+    row('user', 'later completed question'),
+    row('assistant', 'later completed answer', 'later-body'),
+  ] : [];
+  useSessionStore.getState().applyHistoryPage('A', {
+    ...page([...final, ...laterRows], 5003 + laterRows.length),
+    total: 5003 + laterRows.length, start: 5000, hasMore: true,
+  });
+  expect(useSessionStore.getState().currentMessages.some(message =>
+    message.nativeItemId === 'old-reasoning')).toBe(false);
+  expect(useSessionStore.getState().currentMessages.map(message => message.content))
+    .toEqual(['question', 'persisted tool', 'final answer', 'DONE',
+      ...laterRows.map(message => message.content),
+      ...(newTask ? ['new task reasoning'] : [])]);
+});
+
 it('keeps canonical thinking and tools even when their final text differs from live progress', () => {
   stream();
   finish(4);
@@ -143,6 +226,33 @@ it('keeps canonical thinking and tools even when their final text differs from l
   expect(contents).toContain('persisted tool');
   expect(contents).not.toContain('transient reasoning');
   expect(contents).not.toContain('transient tool progress');
+});
+
+it('clears the empty orphan without discarding nonempty runtime outside the loaded task region', () => {
+  useSessionStore.setState({
+    sessions: useSessionStore.getState().sessions.map(session => ({
+      ...session, history: [], historyTotal: 0,
+    })),
+    sessionTranscripts: {}, currentMessages: [],
+  });
+  useSessionStore.getState().applyWorkerStatus('A', 'running', meta);
+  useSessionStore.getState().applyHistoryPage('A', {
+    ...page(initial, 5001), total: 5001, start: 5000, hasMore: true,
+  });
+  useSessionStore.getState().applyLiveStream('A', [
+    row('tool', 'older unloaded tool', 'unloaded-tool'),
+    row('assistant', 'final answer', 'body'),
+    row('thinking', '', 'empty-orphan'),
+  ], meta);
+  finish(5003);
+  useSessionStore.getState().applyHistoryPage('A', {
+    ...page(final, 5003), total: 5003, start: 5000, hasMore: true,
+  });
+  const contents = useSessionStore.getState().currentMessages.map(message => message.content);
+  expect(contents).toContain('older unloaded tool');
+  expect(useSessionStore.getState().currentMessages.some(message =>
+    message.nativeItemId === 'empty-orphan')).toBe(false);
+  expect(useSessionStore.getState().sessionTranscripts.A!.completedRuns).toHaveLength(1);
 });
 
 it('does not discard live progress for a legacy result without authoritative coverage', () => {
