@@ -1,0 +1,305 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/session-rename-20261013/packages/web/src[39m
+
+ [32m✓[39m components/session/RenameSessionEntry.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 226[2mms[22m[39m
+ [31m❯[39m components/session/RenameSessionModal.test.tsx [2m([22m[2m10 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[33m 1297[2mms[22m[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mdiscards a late rename result that belongs to a previous edit instance[90m 37[2mms[22m[31m[39m
+[31m     → expected "spy" to not be called at all, but actually been called 1 times[90m
+
+Received: 
+
+[1m  1st spy call:
+
+[22m    Array []
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mdoes not let a stale finaliser release the submit guard of a newer request[90m 36[2mms[22m[31m[39m
+[31m     → expected false to be true // Object.is equality[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mcollapses duplicate submits issued in the same event batch[33m 1019[2mms[22m[31m[39m
+[31m     → expected "spy" to be called 1 times, but got 2 times
+
+Ignored nodes: comments, script, style
+[36m<html>[31m
+  [36m<head />[31m
+  [36m<body>[31m
+    [36m<div />[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33maria-labelledby[31m=[32m"_r_b_"[31m
+        [33maria-modal[31m=[32m"true"[31m
+        [33mclass[31m=[32m"modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden max-w-[24rem]  "[31m
+        [33mrole[31m=[32m"dialog"[31m
+      [36m>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"flex items-center justify-between border-b border-border-default px-4 py-3"[31m
+        [36m>[31m
+          [36m<h2[31m
+            [33mclass[31m=[32m"text-sm font-semibold text-text-primary"[31m
+            [33mid[31m=[32m"_r_b_"[31m
+          [36m>[31m
+            [0mRename Session[0m
+          [36m</h2>[31m
+          [36m<button[31m
+            [33maria-label[31m=[32m"Close"[31m
+            [33mclass[31m=[32m"text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1 rounded transition-colors"[31m
+          [36m>[31m
+            [36m<svg[31m
+              [33maria-hidden[31m=[32m"true"[31m
+              [33mclass[31m=[32m"lucide lucide-x"[31m
+              [33mfill[31m=[32m"none"[31m
+              [33mheight[31m=[32m"14"[31m
+              [33mstroke[31m=[32m"currentColor"[31m
+              [33mstroke-linecap[31m=[32m"round"[31m
+              [33mstroke-linejoin[31m=[32m"round"[31m
+              [33mstroke-width[31m=[32m"2"[31m
+              [33mviewBox[31m=[32m"0 0 24 24"[31m
+              [33mwidth[31m=[32m"14"[31m
+              [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+            [36m>[31m
+              [36m<path[31m
+                [33md[31m=[32m"M18 6 6 18"[31m
+              [36m/>[31m
+              [36m<path[31m
+                [33md[31m=[32m"m6 6 12 12"[31m
+              [36m/>[31m
+            [36m</svg>[31m
+          [36m</button>[31m
+        [36m</div>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"p-4 overflow-y-auto flex-1"[31m
+        [36m>[31m
+          [36m<form[31m
+            [33mclass[31m=[32m"space-y-4"[31m
+          [36m>[31m
+            [36m<label[31m
+              [33mclass[31m=[32m"block text-sm text-text-primary"[31m
+              [33mfor[31m=[32m"rename-session-input"[31m
+            [36m>[31m
+              [0mSession name[0m
+            [36m</label>[31m
+            [36m<input[31m
+              [33mautocomplete[31m=[32m"off"[31m
+              [33mclass[31m=[32m"w-full rounded border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"[31m
+              [33mdisabled[31m=[32m""[31m
+              [33mid[31m=[32m"rename-session-input"[31m
+              [33mvalue[31m=[32m"A v2"[31m
+            [36m/>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"flex justify-end gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-tertiary border-transparent px-3 py-1.5 text-sm "[31m
+                [33mdisabled[31m=[32m""[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [0mCancel[0m
+              [36m</button>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm "[31m
+                [33mdisabled[31m=[32m""[31m
+                [33mtype[31m=[32m"submit"[31m
+              [36m>[31m
+                [0mSaving…[0m
+              [36m</button>[31m
+            [36m</div>[31m
+          [36m</form>[31m
+        [36m</div>[31m
+      [36m</div>[31m
+    [36m</div>[31m
+  [36m</body>[31m
+[36m</html>[31m[39m
+[31m   [31m×[31m RenameSessionModal[2m > [22mignores Enter and Escape while an IME composition is active[90m 21[2mms[22m[31m[39m
+[31m     → expected "spy" to not be called at all, but actually been called 1 times[90m
+
+Received: 
+
+[1m  1st spy call:
+
+[22m    Array []
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 4 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mdiscards a late rename result that belongs to a previous edit instance
+[31m[1mAssertionError[22m: expected "spy" to not be called at all, but actually been called 1 times[90m
+
+Received: 
+
+[1m  1st spy call:
+
+[22m    Array []
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m158:25[22m[39m
+    [90m156| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { [34mresolveRename[39m[33m?.[39m()[33m;[39m })[33m;[39m
+    [90m157| [39m    [90m// The late success must not close the new dialog or claim its nam[39m…
+    [90m158| [39m    [34mexpect[39m(onClose)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m159| [39m    [34mexpect[39m(screen[33m.[39m[34mgetByRole[39m([32m'textbox'[39m[33m,[39m { name[33m:[39m [32m'Session name'[39m }))[33m.[39m[34mtoBe[39m…
+    [90m160| [39m    [34mexpect[39m(useUIStore[33m.[39m[34mgetState[39m()[33m.[39mtoastQueue[33m.[39m[34mmap[39m((toast) [33m=>[39m toast[33m.[39mmessa…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mdoes not let a stale finaliser release the submit guard of a newer request
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m186:51[22m[39m
+    [90m184| [39m    [34mexpect[39m((inputB [35mas[39m [33mHTMLInputElement[39m)[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m185| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { pending[[34m0[39m]()[33m;[39m })[33m;[39m
+    [90m186| [39m    [34mexpect[39m((inputB [35mas[39m [33mHTMLInputElement[39m)[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m   | [39m                                                  [31m^[39m
+    [90m187| [39m    [34mexpect[39m(onClose)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m188| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { pending[[34m1[39m]()[33m;[39m })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mcollapses duplicate submits issued in the same event batch
+[31m[1mAssertionError[22m: expected "spy" to be called 1 times, but got 2 times
+
+Ignored nodes: comments, script, style
+[36m<html>[31m
+  [36m<head />[31m
+  [36m<body>[31m
+    [36m<div />[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33maria-labelledby[31m=[32m"_r_b_"[31m
+        [33maria-modal[31m=[32m"true"[31m
+        [33mclass[31m=[32m"modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden max-w-[24rem]  "[31m
+        [33mrole[31m=[32m"dialog"[31m
+      [36m>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"flex items-center justify-between border-b border-border-default px-4 py-3"[31m
+        [36m>[31m
+          [36m<h2[31m
+            [33mclass[31m=[32m"text-sm font-semibold text-text-primary"[31m
+            [33mid[31m=[32m"_r_b_"[31m
+          [36m>[31m
+            [0mRename Session[0m
+          [36m</h2>[31m
+          [36m<button[31m
+            [33maria-label[31m=[32m"Close"[31m
+            [33mclass[31m=[32m"text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1 rounded transition-colors"[31m
+          [36m>[31m
+            [36m<svg[31m
+              [33maria-hidden[31m=[32m"true"[31m
+              [33mclass[31m=[32m"lucide lucide-x"[31m
+              [33mfill[31m=[32m"none"[31m
+              [33mheight[31m=[32m"14"[31m
+              [33mstroke[31m=[32m"currentColor"[31m
+              [33mstroke-linecap[31m=[32m"round"[31m
+              [33mstroke-linejoin[31m=[32m"round"[31m
+              [33mstroke-width[31m=[32m"2"[31m
+              [33mviewBox[31m=[32m"0 0 24 24"[31m
+              [33mwidth[31m=[32m"14"[31m
+              [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+            [36m>[31m
+              [36m<path[31m
+                [33md[31m=[32m"M18 6 6 18"[31m
+              [36m/>[31m
+              [36m<path[31m
+                [33md[31m=[32m"m6 6 12 12"[31m
+              [36m/>[31m
+            [36m</svg>[31m
+          [36m</button>[31m
+        [36m</div>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"p-4 overflow-y-auto flex-1"[31m
+        [36m>[31m
+          [36m<form[31m
+            [33mclass[31m=[32m"space-y-4"[31m
+          [36m>[31m
+            [36m<label[31m
+              [33mclass[31m=[32m"block text-sm text-text-primary"[31m
+              [33mfor[31m=[32m"rename-session-input"[31m
+            [36m>[31m
+              [0mSession name[0m
+            [36m</label>[31m
+            [36m<input[31m
+              [33mautocomplete[31m=[32m"off"[31m
+              [33mclass[31m=[32m"w-full rounded border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"[31m
+              [33mdisabled[31m=[32m""[31m
+              [33mid[31m=[32m"rename-session-input"[31m
+              [33mvalue[31m=[32m"A v2"[31m
+            [36m/>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"flex justify-end gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-tertiary border-transparent px-3 py-1.5 text-sm "[31m
+                [33mdisabled[31m=[32m""[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [0mCancel[0m
+              [36m</button>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm "[31m
+                [33mdisabled[31m=[32m""[31m
+                [33mtype[31m=[32m"submit"[31m
+              [36m>[31m
+                [0mSaving…[0m
+              [36m</button>[31m
+            [36m</div>[31m
+          [36m</form>[31m
+        [36m</div>[31m
+      [36m</div>[31m
+    [36m</div>[31m
+  [36m</body>[31m
+[36m</html>[31m[39m
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m208:40[22m[39m
+    [90m206| [39m    fireEvent[33m.[39m[34msubmit[39m(form)[33m;[39m
+    [90m207| [39m    fireEvent[33m.[39m[34msubmit[39m(form)[33m;[39m
+    [90m208| [39m    [35mawait[39m [34mwaitFor[39m(() [33m=>[39m [34mexpect[39m(rename)[33m.[39m[34mtoHaveBeenCalledTimes[39m([34m1[39m))[33m;[39m
+    [90m   | [39m                                       [31m^[39m
+    [90m209| [39m    [35mawait[39m [34mact[39m([35masync[39m () [33m=>[39m { [34mresolveRename[39m[33m?.[39m()[33m;[39m })[33m;[39m
+    [90m210| [39m    [34mexpect[39m(rename)[33m.[39m[34mtoHaveBeenCalledTimes[39m([34m1[39m)[33m;[39m
+[90m [2m❯[22m runWithExpensiveErrorDiagnosticsDisabled ../../../../../Pan/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m47:12[22m[39m
+[90m [2m❯[22m checkCallback ../../../../../Pan/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:[2m124:77[22m[39m
+[90m [2m❯[22m Timeout.checkRealTimersCallback ../../../../../Pan/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:[2m118:16[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/session/RenameSessionModal.test.tsx[2m > [22mRenameSessionModal[2m > [22mignores Enter and Escape while an IME composition is active
+[31m[1mAssertionError[22m: expected "spy" to not be called at all, but actually been called 1 times[90m
+
+Received: 
+
+[1m  1st spy call:
+
+[22m    Array []
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m components/session/RenameSessionModal.test.tsx:[2m223:25[22m[39m
+    [90m221| [39m    fireEvent[33m.[39m[34mkeyDown[39m(input[33m,[39m { key[33m:[39m [32m'Escape'[39m[33m,[39m isComposing[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m222| [39m    [34mexpect[39m(rename)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m223| [39m    [34mexpect[39m(onClose)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m224| [39m    [90m// Legacy engines report the composition-ending key as keyCode 229[39m…
+    [90m225| [39m    [90m// isComposing already reset; the guard must cover that too. jsdom[39m…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m7 passed[39m[22m[90m (11)[39m
+[2m   Start at [22m 01:28:21
+[2m   Duration [22m 4.08s[2m (transform 553ms, setup 24ms, collect 1.52s, tests 1.52s, environment 1.37s, prepare 365ms)[22m
+

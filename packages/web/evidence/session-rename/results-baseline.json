@@ -1,21 +1,21 @@
 {
   "tag": "baseline",
-  "port": 54230,
+  "port": 64261,
   "results": [
     {
-      "name": "1280/open-focus-select",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"true/true/0/9/Session A\"\nReceived: \"true/true/9/9/Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "name": "1280/entry-menu-focus-select",
+      "ok": true,
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
     },
     {
       "name": "1280/draft-survives-refresh",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "draft + caret preserved across identity-changing refresh"
     },
     {
       "name": "1280/submit-enter-and-reopen",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: false\nReceived: true\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "draft submitted; reopen reseeded + select-all"
     },
     {
       "name": "1280/cancel-and-reseed",
@@ -24,48 +24,68 @@
     },
     {
       "name": "1280/fast-type-delete-cancel",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"XYZ\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "empty draft discarded on cancel; reopen reseeded"
     },
     {
       "name": "1280/alternating-sessions-no-leak",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"LEAK\"\nReceived: \"Session AK\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "B reseeded after A draft; no leak in either direction"
     },
     {
       "name": "1280/submit-click-and-empty-rejection",
-      "ok": false,
-      "detail": "Expected values to be strictly equal:\n\n'  ' !== '   '\n"
+      "ok": true,
+      "detail": "empty rejected; click-submit carried the draft"
     },
     {
       "name": "1280/in-flight-guard-across-refresh",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "input stayed disabled + draft intact until the POST settled"
     },
     {
       "name": "1280/rename-failure-error-path",
-      "ok": false,
-      "detail": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('status').filter({ hasText: 'Rename rejected by server' }) to be visible\u001b[22m\n"
+      "ok": true,
+      "detail": "error toast; draft preserved; click-retry succeeded"
     },
     {
       "name": "1280/late-stale-sessions-get",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"A v6\"\nReceived: \"Session AA v6\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "stale snapshot did not roll back the committed name"
     },
     {
-      "name": "390/open-focus-select",
+      "name": "1280/deferred-reopen-same-session",
       "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"true/true/0/9/Session A\"\nReceived: \"true/true/9/9/Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "detail": "late result closed the newer dialog\n\nfalse !== true\n"
+    },
+    {
+      "name": "1280/deferred-stale-finaliser-keeps-guard",
+      "ok": false,
+      "detail": "stale finaliser released the newer guard\n\nnull !== true\n"
+    },
+    {
+      "name": "1280/duplicate-submit-same-batch",
+      "ok": false,
+      "detail": "duplicate submits reached the API\n\n11 !== 10\n"
+    },
+    {
+      "name": "1280/ime-composition-guard",
+      "ok": false,
+      "detail": "composing Escape closed the dialog\n\nfalse !== true\n"
+    },
+    {
+      "name": "390/entry-menu-focus-select",
+      "ok": true,
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
     },
     {
       "name": "390/draft-survives-refresh",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \" v2\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "draft + caret preserved across identity-changing refresh"
     },
     {
       "name": "390/submit-enter-and-reopen",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \"A v2\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "draft submitted; reopen reseeded + select-all"
     },
     {
       "name": "390/cancel-and-reseed",
@@ -74,36 +94,96 @@
     },
     {
       "name": "390/fast-type-delete-cancel",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"XYZ\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "empty draft discarded on cancel; reopen reseeded"
     },
     {
       "name": "390/alternating-sessions-no-leak",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"LEAK\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "B reseeded after A draft; no leak in either direction"
     },
     {
       "name": "390/submit-click-and-empty-rejection",
-      "ok": false,
-      "detail": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('status').filter({ hasText: 'Session name cannot be empty' }) to be visible\u001b[22m\n"
+      "ok": true,
+      "detail": "empty rejected; click-submit carried the draft"
     },
     {
       "name": "390/in-flight-guard-across-refresh",
-      "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "ok": true,
+      "detail": "input stayed disabled + draft intact until the POST settled"
     },
     {
       "name": "390/rename-failure-error-path",
-      "ok": false,
-      "detail": "draft must survive a failed rename\n\n' v5' !== 'A v5'\n"
+      "ok": true,
+      "detail": "error toast; draft preserved; click-retry succeeded"
     },
     {
       "name": "390/late-stale-sessions-get",
+      "ok": true,
+      "detail": "stale snapshot did not roll back the committed name"
+    },
+    {
+      "name": "390/deferred-reopen-same-session",
       "ok": false,
-      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"A v6\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+      "detail": "late result closed the newer dialog\n\nfalse !== true\n"
+    },
+    {
+      "name": "390/deferred-stale-finaliser-keeps-guard",
+      "ok": false,
+      "detail": "stale finaliser released the newer guard\n\nnull !== true\n"
+    },
+    {
+      "name": "390/duplicate-submit-same-batch",
+      "ok": false,
+      "detail": "duplicate submits reached the API\n\n11 !== 10\n"
+    },
+    {
+      "name": "390/ime-composition-guard",
+      "ok": false,
+      "detail": "composing Escape closed the dialog\n\nfalse !== true\n"
     }
   ],
   "requests": [
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "Session A v2"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v3"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v4"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
+      }
+    },
     {
       "width": 1280,
       "path": "/api/sessions"
@@ -113,7 +193,51 @@
       "path": "/api/sessions/a/rename",
       "id": "a",
       "body": {
-        "name": "Session AA v6"
+        "name": "A v6"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
       }
     },
     {
@@ -121,7 +245,7 @@
       "path": "/api/sessions/a/rename",
       "id": "a",
       "body": {
-        "name": "A v2"
+        "name": "Session A v2"
       }
     },
     {
@@ -129,7 +253,7 @@
       "path": "/api/sessions/b/rename",
       "id": "b",
       "body": {
-        "name": "Session B"
+        "name": "B v3"
       }
     },
     {
@@ -137,7 +261,7 @@
       "path": "/api/sessions/a/rename",
       "id": "a",
       "body": {
-        "name": "v4"
+        "name": "A v4"
       }
     },
     {
@@ -145,7 +269,15 @@
       "path": "/api/sessions/a/rename",
       "id": "a",
       "body": {
-        "name": "v5"
+        "name": "A v5"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v5"
       }
     },
     {
@@ -157,7 +289,51 @@
       "path": "/api/sessions/a/rename",
       "id": "a",
       "body": {
-        "name": "Session A"
+        "name": "A v6"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
       }
     }
   ],

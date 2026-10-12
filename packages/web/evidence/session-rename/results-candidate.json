@@ -1,11 +1,11 @@
 {
   "tag": "candidate",
-  "port": 49981,
+  "port": 59033,
   "results": [
     {
-      "name": "1280/open-focus-select",
+      "name": "1280/entry-menu-focus-select",
       "ok": true,
-      "detail": "focused, select-all 0..9"
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
     },
     {
       "name": "1280/draft-survives-refresh",
@@ -53,9 +53,29 @@
       "detail": "stale snapshot did not roll back the committed name"
     },
     {
-      "name": "390/open-focus-select",
+      "name": "1280/deferred-reopen-same-session",
       "ok": true,
-      "detail": "focused, select-all 0..9"
+      "detail": "late success persisted but stayed out of the newer dialog"
+    },
+    {
+      "name": "1280/deferred-stale-finaliser-keeps-guard",
+      "ok": true,
+      "detail": "A settled late without unlocking or closing B"
+    },
+    {
+      "name": "1280/duplicate-submit-same-batch",
+      "ok": true,
+      "detail": "same-batch Enter/submit paths collapsed to one POST"
+    },
+    {
+      "name": "1280/ime-composition-guard",
+      "ok": true,
+      "detail": "composition keys ignored; real Enter still submits"
+    },
+    {
+      "name": "390/entry-menu-focus-select",
+      "ok": true,
+      "detail": "menu -> dialog handoff, focused, select-all 0..9"
     },
     {
       "name": "390/draft-survives-refresh",
@@ -101,6 +121,26 @@
       "name": "390/late-stale-sessions-get",
       "ok": true,
       "detail": "stale snapshot did not roll back the committed name"
+    },
+    {
+      "name": "390/deferred-reopen-same-session",
+      "ok": true,
+      "detail": "late success persisted but stayed out of the newer dialog"
+    },
+    {
+      "name": "390/deferred-stale-finaliser-keeps-guard",
+      "ok": true,
+      "detail": "A settled late without unlocking or closing B"
+    },
+    {
+      "name": "390/duplicate-submit-same-batch",
+      "ok": true,
+      "detail": "same-batch Enter/submit paths collapsed to one POST"
+    },
+    {
+      "name": "390/ime-composition-guard",
+      "ok": true,
+      "detail": "composition keys ignored; real Enter still submits"
     }
   ],
   "requests": [
@@ -161,6 +201,46 @@
       "path": "/api/sessions"
     },
     {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v10"
+      }
+    },
+    {
       "width": 390,
       "path": "/api/sessions/a/rename",
       "id": "a",
@@ -215,6 +295,46 @@
     {
       "width": 390,
       "path": "/api/sessions"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v7"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "B v8"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v9"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v10"
+      }
     }
   ],
   "errors": []

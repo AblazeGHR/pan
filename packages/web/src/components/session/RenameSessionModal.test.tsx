@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RenameSessionModal } from './RenameSessionModal';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import type { Session } from '@/types';
 
 const session: Session = { id: 'rename-session', name: 'Original name', alwaysThinkingEnabled: false, effort: '', history: [] };
@@ -130,5 +131,106 @@ describe('RenameSessionModal', () => {
       },
       { timeout: 5000 },
     );
+  });
+
+  it('discards a late rename result that belongs to a previous edit instance', async () => {
+    let resolveRename: (() => void) | undefined;
+    const rename = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { resolveRename = resolve; }),
+    );
+    useSessionStore.setState({ rename, sessions: [session] });
+    useUIStore.setState({ toastQueue: [] });
+    const onClose = vi.fn();
+    const view = render(<RenameSessionModal session={session} onClose={onClose} />);
+    const input = await screen.findByRole('textbox', { name: 'Session name' });
+    fireEvent.change(input, { target: { value: 'A v2' } });
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(1));
+    // The user closes and reopens the SAME session while the request is still
+    // in flight: a new edit instance now owns the dialog. Keying the guard on
+    // the session id alone could not tell these two instances apart.
+    view.rerender(<RenameSessionModal session={null} onClose={onClose} />);
+    view.rerender(<RenameSessionModal session={session} onClose={onClose} />);
+    const reopened = await screen.findByRole('textbox', { name: 'Session name' });
+    expect((reopened as HTMLInputElement).disabled).toBe(false);
+    await act(async () => { resolveRename?.(); });
+    // The late success must not close the new dialog or claim its name in a toast.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Session name' })).toBeTruthy();
+    expect(useUIStore.getState().toastQueue.map((toast) => toast.message))
+      .not.toContain('Session renamed');
+  });
+
+  it('does not let a stale finaliser release the submit guard of a newer request', async () => {
+    const pending: Array<() => void> = [];
+    const rename = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { pending.push(resolve); }),
+    );
+    useSessionStore.setState({ rename, sessions: [session, otherSession] });
+    const onClose = vi.fn();
+    const view = render(<RenameSessionModal session={session} onClose={onClose} />);
+    const inputA = await screen.findByRole('textbox', { name: 'Session name' });
+    fireEvent.change(inputA, { target: { value: 'A v2' } });
+    fireEvent.submit(inputA.closest('form')!);
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(1));
+    // Close A mid-flight and start editing B, which has its own request.
+    view.rerender(<RenameSessionModal session={null} onClose={onClose} />);
+    view.rerender(<RenameSessionModal session={otherSession} onClose={onClose} />);
+    const inputB = await screen.findByRole('textbox', { name: 'Session name' });
+    fireEvent.change(inputB, { target: { value: 'B v2' } });
+    fireEvent.submit(inputB.closest('form')!);
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(2));
+    expect(rename).toHaveBeenLastCalledWith('other-session', 'B v2');
+    expect((inputB as HTMLInputElement).disabled).toBe(true);
+    await act(async () => { pending[0]!(); });
+    expect((inputB as HTMLInputElement).disabled).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => { pending[1]!(); });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('collapses duplicate submits issued in the same event batch', async () => {
+    let resolveRename: (() => void) | undefined;
+    const rename = vi.fn().mockImplementation(
+      () => new Promise<void>((resolve) => { resolveRename = resolve; }),
+    );
+    useSessionStore.setState({ rename, sessions: [session] });
+    render(<RenameSessionModal session={session} onClose={() => {}} />);
+    const input = await screen.findByRole('textbox', { name: 'Session name' });
+    fireEvent.change(input, { target: { value: 'A v2' } });
+    const form = input.closest('form')!;
+    // Enter is handled explicitly now, so the same keypress can also reach
+    // implicit form submission; the synchronous guard must collapse all paths.
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(1));
+    await act(async () => { resolveRename?.(); });
+    expect(rename).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores Enter and Escape while an IME composition is active', async () => {
+    const rename = vi.fn().mockResolvedValue(undefined);
+    useSessionStore.setState({ rename, sessions: [session] });
+    const onClose = vi.fn();
+    render(<RenameSessionModal session={session} onClose={onClose} />);
+    const input = await screen.findByRole('textbox', { name: 'Session name' });
+    fireEvent.change(input, { target: { value: 'Composing' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    expect(rename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    // Legacy engines report the composition-ending key as keyCode 229 with
+    // isComposing already reset; the guard must cover that too. jsdom ignores
+    // keyCode in the event init, so define it on a real event.
+    const legacyEnter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    Object.defineProperty(legacyEnter, 'keyCode', { get: () => 229 });
+    act(() => { input.dispatchEvent(legacyEnter); });
+    expect(rename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    // Once composition ends, Enter submits normally.
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(rename).toHaveBeenCalledWith('rename-session', 'Composing'));
   });
 });

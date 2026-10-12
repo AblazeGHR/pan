@@ -1,4 +1,4 @@
-/* global window, URL, process, fetch, console, setTimeout, clearTimeout */
+/* global window, document, KeyboardEvent, URL, process, fetch, console, setTimeout, clearTimeout */
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -7,12 +7,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, expect } from '@playwright/test';
 
-// Isolated Chromium verification of the real RenameSessionModal (production
-// component + production store, wiring replicated from Sidebar.tsx:808-811).
-// Usage: node e2e/session-rename.e2e.mjs [baseline|candidate]
-//   baseline  = run against the unfixed modal (the draft-overwrite and
-//               submit-guard scenarios must FAIL, proving the bug reproduces)
-//   candidate = run against the fixed modal (every scenario must pass)
+// Isolated Chromium verification of the real rename flow: the production
+// Sidebar session-card menu -> Rename -> RenameSessionModal, with the real
+// session store. Usage: node e2e/session-rename.e2e.mjs [baseline|candidate]
+//   baseline  = the pre-increment modal (the draft-overwrite, submit-guard,
+//               late-result, duplicate-submit and IME scenarios must FAIL)
+//   candidate = the fixed modal (every scenario must pass)
 // Only the dynamic-port vite dev server and the isolated headless Chromium are
 // contacted; the route guard asserts ports 8767/8768 are never requested.
 // Every scenario starts from a fresh page + fresh mock backend so a failure
@@ -45,8 +45,16 @@ const seedSessions = () => [
 let mockSessions = seedSessions();
 let holdSessionsGet = null; // when set, GET /api/sessions waits on this promise
 let sessionsGetOverride = null; // when set, GET /api/sessions replies with this body
-let holdRename = null; // when set, POST .../rename waits on this promise
+let renameGates = []; // FIFO of rename gates armed by the scenario before submitting
 let failNextRename = false;
+
+const armRenameGate = () => {
+  let release;
+  const wait = new Promise((resolve) => { release = resolve; });
+  const gate = { wait, release };
+  renameGates.push(gate);
+  return gate;
+};
 
 const evidence = { tag, port, results: [], requests: [], errors: [] };
 let browser;
@@ -57,7 +65,7 @@ const watchdog = setTimeout(() => {
   writeFileSync(`${output}/results-${tag}.json`, JSON.stringify(evidence, null, 2));
   console.error(`watchdog: ${tag} run exceeded its time budget`);
   process.exit(1);
-}, 300000);
+}, 420000);
 
 function record(name, ok, detail) {
   evidence.results.push({ name, ok, detail: detail ?? null });
@@ -105,7 +113,8 @@ try {
         if (renameMatch) {
           const body = request.postDataJSON();
           evidence.requests.push({ width, path: url.pathname, id: renameMatch[1], body });
-          if (holdRename) await holdRename;
+          const gate = renameGates.shift();
+          if (gate) await gate.wait;
           if (failNextRename) {
             failNextRename = false;
             return await reply({ error: 'Rename rejected by server' }, 409);
@@ -122,16 +131,26 @@ try {
       }
     });
 
-    await page.goto(`${base}/session-rename-harness.html`);
-    await page.getByRole('button', { name: 'Rename A', exact: true }).waitFor();
-
     const dialogState = () => page.evaluate(() => window.dialogState());
     const storeState = () => page.evaluate(() => window.storeState());
-    const openRename = async (label) => {
-      const button = page.getByRole('button', { name: label, exact: true });
-      if (width < 768) await button.tap();
-      else await button.click();
-      await page.locator('[role="dialog"]').waitFor();
+    const toastMessages = () => page.evaluate(() => window.toastMessages());
+    const dialog = page.locator('[role="dialog"]');
+    const submitButton = dialog.getByRole('button', { name: 'Rename', exact: true });
+    const openRename = async (sessionId) => {
+      const trigger = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-actions-menu"]`);
+      if (width < 768) await trigger.tap();
+      else await trigger.click();
+      // Scope to the menu portal: the dialog's own submit button is also
+      // labelled "Rename" once it opens.
+      const item = page.locator('body > div.fixed.z-50')
+        .getByRole('button', { name: 'Rename', exact: true });
+      if (width < 768) await item.tap();
+      else await item.click();
+      await dialog.waitFor();
+    };
+    const closeRename = async () => {
+      await page.keyboard.press('Escape');
+      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
     };
     const renamePosts = () =>
       evidence.requests.filter((r) => r.width === width && r.path.endsWith('/rename'));
@@ -139,11 +158,11 @@ try {
     const resetPage = async () => {
       mockSessions = seedSessions();
       failNextRename = false;
-      holdRename = null;
+      renameGates = [];
       holdSessionsGet = null;
       sessionsGetOverride = null;
       await page.reload();
-      await page.getByRole('button', { name: 'Rename A', exact: true }).waitFor();
+      await page.locator('[data-session-card-id="a"]').waitFor();
     };
     // Every scenario runs even if an earlier one failed; the run exits
     // non-zero at the end when any scenario failed.
@@ -156,24 +175,30 @@ try {
       }
     };
 
-    // 1. Open: focus + select-all of the current name. Selection is polled so
-    //    a late animation frame is not mistaken for a missing selection.
-    await run('open-focus-select', async () => {
+    // Navigate once: resetPage() reloads from here for every scenario.
+    await page.goto(`${base}/session-rename-harness.html`);
+    await page.locator('[data-session-card-id="a"]').waitFor();
+
+    // 1. Real entry path: card actions menu -> Rename, then the menu must hand
+    //    focus to the dialog input with the current name fully selected.
+    await run('entry-menu-focus-select', async () => {
       await resetPage();
-      await openRename('Rename A');
+      await openRename('a');
       await expect.poll(async () => {
         const state = await dialogState();
         return `${state.dialogOpen}/${state.activeIsInput}/${state.selectionStart}/${state.selectionEnd}/${state.value}`;
       }).toBe(`true/true/0/${'Session A'.length}/Session A`);
+      assert.equal((await dialogState()).menuOpen, false, 'card menu must close on handoff');
+      assert.equal(await submitButton.count(), 1, 'dialog owns the only Rename button');
       await page.screenshot({ path: `${output}/${tag}-${width}-open.png`, animations: 'disabled' });
-      return 'focused, select-all 0..9';
+      return 'menu -> dialog handoff, focused, select-all 0..9';
     });
 
     // 2. THE BUG: a store refresh replaces the session object identity while
     //    the user types. The draft must survive; the caret must not be reset.
     await run('draft-survives-refresh', async () => {
       await resetPage();
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('Session A v2');
       await expect.poll(async () => (await dialogState()).value).toBe('Session A v2');
       await page.evaluate(() =>
@@ -197,7 +222,7 @@ try {
     await run('submit-enter-and-reopen', async () => {
       await resetPage();
       const before = renamePosts().length;
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('Session A v2');
       await page.keyboard.press('Enter');
       await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
@@ -206,7 +231,7 @@ try {
       assert.equal(posts.length, before + 1, 'expected exactly one rename POST');
       assert.equal(posts.at(-1).body.name, 'Session A v2');
       await page.getByRole('status').filter({ hasText: 'Session renamed' }).waitFor();
-      await openRename('Rename A');
+      await openRename('a');
       await expect.poll(async () => {
         const state = await dialogState();
         return `${state.value}/${state.selectionStart}/${state.selectionEnd}/${state.activeIsInput}`;
@@ -218,11 +243,10 @@ try {
     await run('cancel-and-reseed', async () => {
       await resetPage();
       const before = renamePosts().length;
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('Session A v2');
-      await page.keyboard.press('Escape');
-      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
-      await openRename('Rename A');
+      await closeRename();
+      await openRename('a');
       await expect.poll(async () => (await dialogState()).value).toBe('Session A');
       assert.equal(renamePosts().length, before, 'cancel must not submit');
       return 'escape closed without submit; reopen reseeded';
@@ -231,14 +255,13 @@ try {
     // 5. Fast typing, deleting everything, then cancel; reopen must reseed.
     await run('fast-type-delete-cancel', async () => {
       await resetPage();
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('XYZ');
       await expect.poll(async () => (await dialogState()).value).toBe('XYZ');
       for (let i = 0; i < 3; i += 1) await page.keyboard.press('Backspace');
       await expect.poll(async () => (await dialogState()).value).toBe('');
-      await page.keyboard.press('Escape');
-      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
-      await openRename('Rename A');
+      await closeRename();
+      await openRename('a');
       await expect.poll(async () => (await dialogState()).value).toBe('Session A');
       return 'empty draft discarded on cancel; reopen reseeded';
     });
@@ -247,17 +270,17 @@ try {
     //    from one session into the other.
     await run('alternating-sessions-no-leak', async () => {
       await resetPage();
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('LEAK');
       await expect.poll(async () => (await dialogState()).value).toBe('LEAK');
-      await page.keyboard.press('Escape');
-      await openRename('Rename B');
+      await closeRename();
+      await openRename('b');
       await expect.poll(async () => {
         const state = await dialogState();
         return `${state.value}/${state.selectionStart}/${state.selectionEnd}`;
       }).toBe(`Session B/0/${'Session B'.length}`);
-      await page.keyboard.press('Escape');
-      await openRename('Rename A');
+      await closeRename();
+      await openRename('a');
       await expect.poll(async () => (await dialogState()).value).toBe('Session A');
       return 'B reseeded after A draft; no leak in either direction';
     });
@@ -266,9 +289,9 @@ try {
     await run('submit-click-and-empty-rejection', async () => {
       await resetPage();
       const before = renamePosts().length;
-      await openRename('Rename B');
+      await openRename('b');
       await page.keyboard.type('   ');
-      await page.getByRole('button', { name: 'Rename', exact: true }).click();
+      await submitButton.click();
       await page.getByRole('status').filter({ hasText: 'Session name cannot be empty' }).waitFor();
       const state = await dialogState();
       assert.equal(state.dialogOpen, true, 'dialog must stay open on empty name');
@@ -276,7 +299,7 @@ try {
       assert.equal(renamePosts().length, before, 'no POST may be sent for an empty name');
       await page.keyboard.press('Control+a');
       await page.keyboard.type('B v3');
-      await page.getByRole('button', { name: 'Rename', exact: true }).click();
+      await submitButton.click();
       await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
       await expect.poll(async () => (await storeState())[1].name).toBe('B v3');
       const posts = renamePosts();
@@ -289,10 +312,9 @@ try {
     //    the rename request is still pending (double-submit window).
     await run('in-flight-guard-across-refresh', async () => {
       await resetPage();
-      let releaseRename;
-      holdRename = new Promise((resolve) => { releaseRename = resolve; });
+      const gate = armRenameGate();
       try {
-        await openRename('Rename A');
+        await openRename('a');
         await page.keyboard.type('A v4');
         await page.keyboard.press('Enter');
         await expect.poll(async () => (await dialogState()).inputDisabled).toBe(true);
@@ -302,8 +324,7 @@ try {
           .toBe(true); // baseline resets submitting=false and re-arms the input
         assert.equal((await dialogState()).value, 'A v4', 'refresh overwrote the draft mid-flight');
       } finally {
-        releaseRename();
-        holdRename = null;
+        gate.release();
       }
       await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
       await expect.poll(async () => (await storeState())[0].name).toBe('A v4');
@@ -311,20 +332,17 @@ try {
     });
 
     // 9. Server-side rename failure: toast, dialog stays open, draft intact.
-    //    Observed (pre-existing, unchanged by this fix): the input loses DOM
-    //    focus while the request is in flight because it is `disabled` during
-    //    submit, so the retry is a real user click on the Rename button.
     await run('rename-failure-error-path', async () => {
       await resetPage();
       failNextRename = true;
-      await openRename('Rename A');
+      await openRename('a');
       await page.keyboard.type('A v5');
       await page.keyboard.press('Enter');
       await page.getByRole('status').filter({ hasText: 'Rename rejected by server' }).waitFor();
       const state = await dialogState();
       assert.equal(state.dialogOpen, true, 'dialog must stay open on server error');
       assert.equal(state.value, 'A v5', 'draft must survive a failed rename');
-      await page.getByRole('button', { name: 'Rename', exact: true }).click();
+      await submitButton.click();
       await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
       await expect.poll(async () => (await storeState())[0].name).toBe('A v5');
       return 'error toast; draft preserved; click-retry succeeded';
@@ -340,10 +358,8 @@ try {
       holdSessionsGet = new Promise((resolve) => { releaseGet = resolve; });
       sessionsGetOverride = stale;
       try {
-        // The held request must not be awaited here: page.evaluate awaits a
-        // returned promise, and this one only settles once the gate opens.
         await page.evaluate(() => { void window.refreshSessions(); });
-        await openRename('Rename A');
+        await openRename('a');
         await page.keyboard.type('A v6');
         await page.keyboard.press('Enter');
         await expect.poll(async () => (await storeState())[0].name).toBe('A v6');
@@ -357,6 +373,120 @@ try {
       await page.evaluate(() => { void window.refreshSessions(); });
       await expect.poll(async () => (await storeState())[0].name).toBe('A v6');
       return 'stale snapshot did not roll back the committed name';
+    });
+
+    // 11. A late result from the previous edit instance must not close the
+    //     dialog of the reopened session, must not claim its name in a toast,
+    //     while the rename itself still persists in the store.
+    await run('deferred-reopen-same-session', async () => {
+      await resetPage();
+      const gate = armRenameGate();
+      try {
+        await openRename('a');
+        await page.keyboard.type('A v7');
+        await page.keyboard.press('Enter');
+        await expect.poll(async () => (await dialogState()).inputDisabled).toBe(true);
+        await closeRename();
+        // Reopen the SAME session while the first request is still in flight.
+        await openRename('a');
+        await expect.poll(async () => (await dialogState()).value).toBe('Session A');
+        assert.equal((await dialogState()).inputDisabled, false);
+      } finally {
+        gate.release();
+      }
+      // The rename persisted ...
+      await expect.poll(async () => (await storeState())[0].name).toBe('A v7');
+      // ... but the late result belongs to the previous edit instance.
+      const state = await dialogState();
+      assert.equal(state.dialogOpen, true, 'late result closed the newer dialog');
+      assert.equal(state.value, 'Session A', 'late result clobbered the newer draft');
+      assert.equal(
+        (await toastMessages()).includes('Session renamed'),
+        false,
+        'late result claimed the newer edit as renamed',
+      );
+      return 'late success persisted but stayed out of the newer dialog';
+    });
+
+    // 12. A stale finaliser must not release the submit guard of a newer
+    //     request that is still in flight.
+    await run('deferred-stale-finaliser-keeps-guard', async () => {
+      await resetPage();
+      const gateA = armRenameGate();
+      const gateB = armRenameGate();
+      try {
+        await openRename('a');
+        await page.keyboard.type('A v8');
+        await page.keyboard.press('Enter');
+        await expect.poll(async () => (await dialogState()).inputDisabled).toBe(true);
+        await closeRename();
+        await openRename('b');
+        await page.keyboard.type('B v8');
+        await page.keyboard.press('Enter');
+        await expect.poll(async () => (await dialogState()).inputDisabled).toBe(true);
+        // Release A only: its finaliser must not touch B's in-flight request.
+        gateA.release();
+        await expect.poll(async () => (await storeState())[0].name).toBe('A v8');
+        const state = await dialogState();
+        assert.equal(state.inputDisabled, true, 'stale finaliser released the newer guard');
+        assert.equal(state.dialogOpen, true, 'stale result closed the newer dialog');
+        assert.equal(state.value, 'B v8', 'stale result clobbered the newer draft');
+      } finally {
+        gateB.release();
+      }
+      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
+      await expect.poll(async () => (await storeState())[1].name).toBe('B v8');
+      return 'A settled late without unlocking or closing B';
+    });
+
+    // 13. Duplicate submits inside one event batch must collapse into one POST.
+    await run('duplicate-submit-same-batch', async () => {
+      await resetPage();
+      const before = renamePosts().length;
+      await openRename('a');
+      await page.keyboard.type('A v9');
+      await page.evaluate(() => {
+        const input = document.querySelector('#rename-session-input');
+        const form = input.closest('form');
+        // Two form submissions plus two Enter keydowns in a single task: the
+        // `disabled` attribute cannot land between them.
+        form.requestSubmit();
+        form.requestSubmit();
+        for (let i = 0; i < 2; i += 1) {
+          input.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter', bubbles: true, cancelable: true,
+          }));
+        }
+      });
+      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
+      await expect.poll(async () => (await storeState())[0].name).toBe('A v9');
+      assert.equal(renamePosts().length, before + 1, 'duplicate submits reached the API');
+      return 'same-batch Enter/submit paths collapsed to one POST';
+    });
+
+    // 14. IME convention: Enter/Escape that belong to a composition must not
+    //     submit or close the dialog; a later real Enter still submits.
+    await run('ime-composition-guard', async () => {
+      await resetPage();
+      const before = renamePosts().length;
+      await openRename('a');
+      await page.keyboard.type('A v10');
+      await page.evaluate(() => {
+        const input = document.querySelector('#rename-session-input');
+        for (const key of ['Escape', 'Enter']) {
+          input.dispatchEvent(new KeyboardEvent('keydown', {
+            key, isComposing: true, bubbles: true, cancelable: true,
+          }));
+        }
+      });
+      const state = await dialogState();
+      assert.equal(state.dialogOpen, true, 'composing Escape closed the dialog');
+      assert.equal(state.value, 'A v10', 'composing Enter lost the draft');
+      assert.equal(renamePosts().length, before, 'composing Enter submitted the rename');
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => (await dialogState()).dialogOpen).toBe(false);
+      await expect.poll(async () => (await storeState())[0].name).toBe('A v10');
+      return 'composition keys ignored; real Enter still submits';
     });
 
     await page.screenshot({
