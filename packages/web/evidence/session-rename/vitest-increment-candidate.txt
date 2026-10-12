@@ -1,0 +1,11 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/session-rename-20261013/packages/web/src[39m
+
+ [32m✓[39m components/session/RenameSessionModal.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 362[2mms[22m[39m
+ [32m✓[39m components/session/RenameSessionEntry.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 294[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m   Start at [22m 01:28:39
+[2m   Duration [22m 3.75s[2m (transform 706ms, setup 30ms, collect 1.87s, tests 656ms, environment 1.57s, prepare 342ms)[22m
+

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CheckCheck,
   ChevronsLeft,
   ChevronsRight,
   Folder,
@@ -13,8 +14,19 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
-import type { Workspace } from '@/types';
+import {
+  ALL_WORKSPACES,
+  UNGROUPED_WORKSPACES,
+  computeWorkspaceRowVisibility,
+  effectiveWorkspaceIds,
+  workspaceMemberIds,
+} from '@/utils/sessionFilters';
+import {
+  describeActionResults,
+  runSelectedSessionAction,
+  snapshotSelectedSessions,
+} from '@/utils/selectedSessionActions';
+import type { Session, Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
 const DRAG_THRESHOLD_PX = 5;
@@ -71,12 +83,18 @@ export function WorkspaceRail({
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const showToast = useUIStore((s) => s.showToast);
+  // The rail shares the Session search box and the special filters: while the
+  // panel is expanded they also narrow the workspace rows (no second input).
+  const searchQuery = useUIStore((s) => s.searchQuery);
+  const specialFilters = useUIStore((s) => s.specialFilters);
 
   const [editing, setEditing] = useState<{ id: string | '__new__'; value: string } | null>(null);
   const [menuFor, setMenuFor] = useState<{ workspace: Workspace; x: number; y: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
   const [dropHint, setDropHint] = useState<{ id: string; place: 'before' | 'after' } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [readAllBusy, setReadAllBusy] = useState(false);
+  const readAllBusyRef = useRef(false);
   const nameErrorShown = useRef(false);
 
   useEffect(() => {
@@ -96,6 +114,10 @@ export function WorkspaceRail({
 
   const memberStats = useMemo(() => {
     const stats = new Map<string, { count: number; workerStatus: string | null; unread: boolean }>();
+    // Effective member sessions per workspace (manager inheritance applied) —
+    // the single source the shared search/status row filtering aggregates over.
+    const members = new Map<string, Session[]>();
+    const ungroupedMembers: Session[] = [];
     let ungroupedCount = 0;
     let ungroupedUnread = false;
     let anyUnread = false;
@@ -105,7 +127,11 @@ export function WorkspaceRail({
       anyUnread ||= unread;
       // Same rule as the 'ungrouped' scope filter: a child of a managed root
       // inherits the root's membership, so it is NOT counted here.
-      if (effective.length === 0) { ungroupedCount += 1; ungroupedUnread ||= unread; }
+      if (effective.length === 0) {
+        ungroupedCount += 1;
+        ungroupedUnread ||= unread;
+        ungroupedMembers.push(session);
+      }
       for (const id of effective) {
         const current = stats.get(id) ?? { count: 0, workerStatus: null, unread: false };
         current.count += 1;
@@ -115,10 +141,28 @@ export function WorkspaceRail({
           current.workerStatus = candidate;
         }
         stats.set(id, current);
+        const list = members.get(id);
+        if (list) list.push(session);
+        else members.set(id, [session]);
       }
     }
-    return { stats, ungroupedCount, ungroupedUnread, anyUnread };
+    return { stats, members, ungroupedMembers, ungroupedCount, ungroupedUnread, anyUnread };
   }, [sessions]);
+
+  // Shared with the Session list: the same searchQuery + specialFilters narrow
+  // the rail rows while the panel is expanded. Derived per render (no stored
+  // state), so Session state changes reflect immediately.
+  const rowVisibility = useMemo(
+    () =>
+      computeWorkspaceRowVisibility(workspaces, sessions, {
+        expanded: isExpanded,
+        searchQuery,
+        specialFilters,
+        membersByWorkspace: memberStats.members,
+        ungroupedMembers: memberStats.ungroupedMembers,
+      }),
+    [isExpanded, workspaces, sessions, searchQuery, specialFilters, memberStats],
+  );
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
     ? '全部'
@@ -179,6 +223,38 @@ export function WorkspaceRail({
   const toggleReassign = (target: Workspace | null) => {
     setMenuFor(null);
     if (target) setDeleteTarget(target);
+  };
+
+  /**
+   * Mark every Session of one Workspace read ("Read all").
+   *
+   * The target set is a snapshot taken HERE, at click time: the workspace's
+   * effective members (management-tree inheritance applied by
+   * `workspaceMemberIds`), never the rows currently visible under the shared
+   * search/status filters. The existing bulk ACK helper runs per target with
+   * each Session's observed done generation, so unread that arrives after the
+   * click stays unread, and failures surface per Session instead of being
+   * silently dropped. `readAllBusyRef` makes a second click a no-op.
+   */
+  const readAllInWorkspace = async (workspace: Workspace) => {
+    if (readAllBusyRef.current) return;
+    readAllBusyRef.current = true;
+    setReadAllBusy(true);
+    setMenuFor(null);
+    try {
+      const sessions = useSessionStore.getState().sessions;
+      const targets = snapshotSelectedSessions(workspaceMemberIds(sessions, workspace.id), sessions);
+      const results = await runSelectedSessionAction(targets, 'read');
+      showToast(
+        describeActionResults(results),
+        results.some((result) => result.error) ? 'error' : 'info',
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Read all failed', 'error');
+    } finally {
+      readAllBusyRef.current = false;
+      setReadAllBusy(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -415,6 +491,7 @@ export function WorkspaceRail({
         </div>
 
         <div ref={tabScrollRef} data-testid="workspace-tab-scroll" className="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {rowVisibility.showAll && (
           <div
             data-workspace-tab-id={ALL_WORKSPACES}
             role="button"
@@ -431,6 +508,7 @@ export function WorkspaceRail({
               {sessions.length}
             </span>
           </div>
+          )}
 
           {/* Virtual "no workspace" scope, pinned directly under "全部".
               It is a read-only aggregation over sessions whose EFFECTIVE
@@ -439,6 +517,7 @@ export function WorkspaceRail({
               the scope key is the UNGROUPED_WORKSPACES sentinel, and
               `updateDropHint` skips it so it can never join the persisted
               workspace order. */}
+          {rowVisibility.showUngrouped && (
           <div
             data-workspace-tab-id={UNGROUPED_WORKSPACES}
             data-testid="workspace-tab-ungrouped"
@@ -459,8 +538,9 @@ export function WorkspaceRail({
               {memberStats.ungroupedCount}
             </span>
           </div>
+          )}
 
-          {workspaces.map((workspace) => {
+          {rowVisibility.workspaces.map((workspace) => {
             const isEditing = editing?.id === workspace.id;
             const memberStat = memberStats.stats.get(workspace.id);
             if (isEditing) {
@@ -516,8 +596,13 @@ export function WorkspaceRail({
                 </span>
                 <button
                   type="button"
-                  className="hidden rounded p-0.5 text-text-tertiary group-hover:block hover:bg-bg-tertiary hover:text-text-primary"
+                  className={mobileDrawer
+                    // Touch has no hover: keep the menu trigger reachable in
+                    // the mobile drawer while desktop keeps the hover reveal.
+                    ? 'flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary'
+                    : 'hidden rounded p-0.5 text-text-tertiary group-hover:block hover:bg-bg-tertiary hover:text-text-primary'}
                   title="更多"
+                  aria-label={`工作区 ${workspace.name} 菜单`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -595,6 +680,17 @@ export function WorkspaceRail({
             className="fixed z-50 min-w-[120px] rounded-md border border-border-default bg-bg-tertiary py-1 shadow-xl"
             style={{ left: menuFor.x, top: menuFor.y }}
           >
+            <button
+              type="button"
+              data-testid={`workspace-read-all-${menuFor.workspace.id}`}
+              disabled={readAllBusy || (memberStats.stats.get(menuFor.workspace.id)?.count ?? 0) === 0}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-busy={readAllBusy}
+              onClick={() => void readAllInWorkspace(menuFor.workspace)}
+            >
+              <CheckCheck size={12} className="text-text-tertiary" />
+              Read all
+            </button>
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"

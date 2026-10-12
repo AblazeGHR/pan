@@ -213,6 +213,28 @@ def main() -> None:
             "unreadDoneCount": generation - read_generation,
         }
 
+    @server_module.app.post("/__e2e/worker-legal-state")
+    async def e2e_worker_legal_state(payload: dict = Body(...)):
+        """Write the durable legal Worker state for illegal-state filter cases.
+
+        The real worker lifecycle owns ``last_legal_worker_state``; this route
+        only simulates durable legacy/derived state the way /__e2e/unread does,
+        then broadcasts the same ``session.updated`` shape the product emits
+        after a lifecycle transition. Every projection and refresh path under
+        test stays real.
+        """
+        session_id = str(payload["sessionId"])
+        target = session_store.get(session_id)
+        if target is None:
+            return {"ok": False, "error": "session not found"}
+        state = payload.get("state")
+        target.last_legal_worker_state = state if isinstance(state, str) else None
+        session_store.save(target)
+        await server_module.broadcast(
+            {"type": "session.updated", "sessionId": session_id}
+        )
+        return {"ok": True, "lastLegalWorkerState": target.last_legal_worker_state}
+
     RUNTIME.mkdir(parents=True, exist_ok=True)
     (RUNTIME / "server-identity.json").write_text(
         json.dumps(

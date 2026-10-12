@@ -1532,7 +1532,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
         shouldFollowBottomRef.current = nearBottom;
       }
       setIsNearBottom(nearBottom);
-      captureScrollMetrics(userDrivenScroll);
+      // Layout can emit a scroll at the old bottom between wheel input and
+      // actual upward movement. Recording it would revive the stale anchor;
+      // a later streaming suppression could then swallow the real position.
+      captureScrollMetrics(userDrivenScroll && (!pendingOlderScroll || movedOlder));
 
       schedulePaginationCheck();
     };

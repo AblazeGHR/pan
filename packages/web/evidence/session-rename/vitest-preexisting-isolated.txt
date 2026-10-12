@@ -1,0 +1,27 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/session-rename-20261013/packages/web/src[39m
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mopens the clicked session in Chat from Jobs, including when it is already selected
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mcloses an open mobile Sidebar after navigating from Jobs to Chat
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+ [32m✓[39m components/layout/Sidebar.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 3934[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mshows an accessible clear button only when the query is non-empty [33m345[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mhides Group by by default while keeping Manager collapse and the toggle cycle usable [33m300[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mrenders the CWD root as a collapsible section labelled CWD [33m378[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mfills a partial selection and then deselects the filtered candidates [33m334[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mkeeps selection actions within a 280px-or-narrower viewport [33m310[2mms[22m[39m
+ [32m✓[39m components/editor/EditorPane.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 5148[2mms[22m[39m
+   [33m[2m✓[22m[39m EditorPane editor action wiring[2m > [22mloads Markdown preview on demand and retains preview/edit/split mode switching [33m4883[2mms[22m[39m
+ [32m✓[39m App.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 4715[2mms[22m[39m
+   [33m[2m✓[22m[39m responsive WorkspaceRail placement[2m > [22mattaches a touch-sized handle to the mobile Sidebar and expands beside it to fill the viewport [33m975[2mms[22m[39m
+   [33m[2m✓[22m[39m responsive WorkspaceRail placement[2m > [22mopens a deferred detail panel, closes it, and reopens with fresh content [33m3584[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m27 passed[39m[22m[90m (27)[39m
+[2m   Start at [22m 01:18:03
+[2m   Duration [22m 14.39s[2m (transform 2.69s, setup 73ms, collect 7.49s, tests 13.80s, environment 8.56s, prepare 1.25s)[22m
+

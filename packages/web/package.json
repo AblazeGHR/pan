@@ -25,6 +25,8 @@
     "e2e:composer-draft-persistence": "node e2e/composer-draft-persistence.mjs",
     "e2e:codex-multi-item-order": "node e2e/codex-multi-item-order.e2e.mjs",
     "e2e:frontend-full": "node e2e/frontend-full.e2e.mjs",
+    "e2e:workspace-shared-search": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-workspace-shared-search.ps1",
+    "e2e:workspace-read-all": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-workspace-read-all.ps1",
     "gen:api": "openapi-typescript http://localhost:8768/api/openapi.json -o src/types/api.d.ts",
     "analyze": "vite-bundle-visualizer"
   },
