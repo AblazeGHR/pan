@@ -90,7 +90,12 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       }}
       onPointerCancel={() => { gesture.current = null; }}
-      onLostPointerCapture={() => { gesture.current = null; }}
+      onLostPointerCapture={(event) => {
+        // Claiming capture from the touched link makes the browser fire a
+        // bubbled lostpointercapture on that descendant mid-gesture; only the
+        // container losing its own capture (release, cancel, removal) ends it.
+        if (event.target === event.currentTarget) gesture.current = null;
+      }}
       onPointerLeave={() => { if (gesture.current?.axis === 'pending') gesture.current = null; }}>
       {/* Inputs during animation retarget the next whole page; moves never change pages. */}
       <div className="flex transition-transform duration-200 ease-out motion-reduce:transition-none"
