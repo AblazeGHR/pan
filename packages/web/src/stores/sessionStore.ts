@@ -8,6 +8,7 @@ import type {
   SettingsBody,
   RewindScope,
   StreamEvent,
+  TerminalIdentity,
 } from '@/types';
 import {
   fetchSessions,
@@ -171,14 +172,14 @@ interface SessionStore {
   ensureMessageLoaded: (fromEnd: number, total: number, signal?: AbortSignal) => Promise<Message | null>;
   rewindCurrentMessage: (message: Message, scope: RewindScope) => Promise<void>;
   /**
-   * Explicitly report one task's completion to the Session's manager.
+   * Explicitly report one completed task to the Session's manager.
    * `target` carries the identity captured when the button rendered (never
    * re-read from live session state), so a late update or Session switch can
    * never re-target the click at a different task.
    */
   reportTaskManually: (
     sessionId: string,
-    target: { taskId: string | null; messageId: string },
+    target: { taskId: string | null; taskSeq: number | null; messageId: string },
   ) => Promise<void>;
   /** Apply a session.rewind.progress WS event to the matching in-flight job. */
   applyRewindProgress: (event: StreamEvent) => void;
@@ -502,6 +503,45 @@ export interface ManualTaskReportEntry {
   queueItemId?: string;
   /** Task identity captured when the report was sent (audit / re-render proof). */
   taskId?: string | null;
+  taskSeq?: number | null;
+}
+
+/** Store key for one report: same task + same block is the same delivery. */
+export function manualTaskReportKey(
+  sessionId: string,
+  target: { taskId: string | null; taskSeq: number | null; messageId: string },
+): string {
+  return `${sessionId}:${target.taskId ?? '-'}:${target.taskSeq ?? '-'}:${target.messageId}`;
+}
+
+/** Mirror bound for the client's per-task terminal index (server summary bound). */
+const TERMINAL_IDENTITY_LIMIT = 16;
+
+/**
+ * Merge one terminal identity into the bounded per-task index (newest last).
+ * A terminal is identified by its stable terminalKey, else by its ordered
+ * cursor plus task identity, so a replayed event updates its own row instead of
+ * appending a duplicate.
+ */
+function mergeTerminalIdentity(
+  existing: TerminalIdentity[] | null | undefined,
+  incoming: TerminalIdentity,
+): TerminalIdentity[] {
+  const rows = [...(existing ?? [])];
+  const sameRow = (row: TerminalIdentity, other: TerminalIdentity): boolean => {
+    if (row.terminalKey && other.terminalKey) return row.terminalKey === other.terminalKey;
+    if (typeof row.resultCursor === 'number' && typeof other.resultCursor === 'number'
+        && row.resultCursor !== other.resultCursor) return false;
+    return (row.taskId ?? null) === (other.taskId ?? null)
+      && (row.taskSeq ?? null) === (other.taskSeq ?? null);
+  };
+  const index = rows.findIndex((row) => sameRow(row, incoming));
+  if (index >= 0) {
+    rows[index] = { ...rows[index], ...incoming };
+  } else {
+    rows.push(incoming);
+  }
+  return rows.slice(-TERMINAL_IDENTITY_LIMIT);
 }
 
 export interface LiveStreamBuffer {
@@ -2421,28 +2461,29 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   reportTaskManually: async (sessionId, target) => {
-    const key = `${sessionId}:${target.messageId}`;
-    // One in-flight report per message block: a second click (or a remount
+    const key = manualTaskReportKey(sessionId, target);
+    // One in-flight report per (task, block): a second click (or a remount
     // racing the first request) must never start a parallel delivery.
     if (get().manualTaskReports[key]?.state === 'sending') return;
     if (get().manualTaskReports[key]?.state === 'sent') return;
     set((s) => ({
       manualTaskReports: {
         ...s.manualTaskReports,
-        [key]: { state: 'sending', taskId: target.taskId },
+        [key]: { state: 'sending', taskId: target.taskId, taskSeq: target.taskSeq },
       },
     }));
     const fail = (state: 'failed' | 'uncertain', message: string) => {
       set((s) => ({
         manualTaskReports: {
           ...s.manualTaskReports,
-          [key]: { state, error: message, taskId: target.taskId },
+          [key]: { state, error: message, taskId: target.taskId, taskSeq: target.taskSeq },
         },
       }));
       useUIStore.getState().showToast(message, state === 'failed' ? 'error' : 'warning');
     };
     try {
-      const data = await reportTaskManuallyApi(sessionId, target.taskId, target.messageId);
+      const data = await reportTaskManuallyApi(
+        sessionId, target.taskId, target.taskSeq, target.messageId);
       set((s) => ({
         manualTaskReports: {
           ...s.manualTaskReports,
@@ -2450,6 +2491,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             state: 'sent',
             queueItemId: data.queueItemId,
             taskId: target.taskId,
+            taskSeq: target.taskSeq,
           },
         },
       }));
@@ -3505,11 +3547,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             result,
             timestamp: new Date().toISOString(),
             ...(meta.taskSeq !== undefined ? { taskSeq: meta.taskSeq } : {}),
-            // The manual task report binds its click to the terminal this
-            // event describes; without the task id the binding could not be
-            // proven against the server's durable last_result.
             ...(meta.taskId !== undefined ? { taskId: meta.taskId } : {}),
           },
+          // Mirror the durable terminal this event describes into the bounded
+          // per-task index, so a task that just completed gets its own explicit
+          // report action immediately instead of waiting for the next list read.
+          terminalResults: mergeTerminalIdentity(candidate.terminalResults, {
+            status,
+            ...(meta.taskId !== undefined ? { taskId: meta.taskId } : {}),
+            ...(meta.taskSeq !== undefined ? { taskSeq: meta.taskSeq } : {}),
+            ...(meta.terminalKey !== undefined ? { terminalKey: meta.terminalKey } : {}),
+            ...(meta.resultCursor !== undefined ? { resultCursor: meta.resultCursor } : {}),
+          }),
         };
       });
 

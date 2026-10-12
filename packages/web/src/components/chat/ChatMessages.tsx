@@ -7,7 +7,7 @@ import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble'
 import { RewindConfirmModal } from './RewindConfirmModal';
 import { durableOffsetOf } from '@/stores/messageOrdering';
 import { filterVisibleMessages } from './messageFilter';
-import { findManualReportTarget } from './manualTaskReport';
+import { findManualReportTargets, type ManualReportTarget } from './manualTaskReport';
 import { getDisplayItemKey, getMessageIdentity } from '@/utils/messageIdentity';
 import { isValidMessageTs } from '@/utils/messageTimestamp';
 import type { Message } from '@/types';
@@ -100,6 +100,17 @@ function getDisplayItemMessageIdentity(item: DisplayItem | undefined): string | 
     return firstMessage ? getMessageIdentity(firstMessage) : undefined;
   }
   return getMessageIdentity(item as Message);
+}
+
+/** Per-row binding lookup: only a message row can carry the manual action. */
+function manualReportTargetForItem(
+  item: DisplayItem,
+  targets: ReadonlyMap<string, ManualReportTarget>,
+): ManualReportTarget | null {
+  if ('type' in item) return null;
+  const messageId = (item as Message).messageId;
+  if (!messageId) return null;
+  return targets.get(messageId) ?? null;
 }
 
 function findDisplayItemIndexByMessageIdentity(items: DisplayItem[], identity: string): number {
@@ -296,14 +307,14 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     [visibleMessages, mergeConsecutiveNonBodyBlocks, timestampFlashMessages, searchTargetMessageId],
   );
 
-  // Explicit task-report binding: the tail text block of the latest task.
-  // Computed from the unfiltered transcript so a hidden tail row can never
-  // re-bind the action to an older block; if the bound row is filtered out it
-  // is simply not rendered and no action appears.  Identity is captured here
-  // (never re-read at click time), so a late update or Session switch cannot
-  // re-target a pending click at another task.
-  const manualReportTarget = useMemo(
-    () => findManualReportTarget(currentMessages, currentSession),
+  // Explicit report bindings: one per completed task, on that task's tail text
+  // block (not only the newest task).  Computed from the unfiltered transcript
+  // so a hidden tail row can never re-bind the action to another block; if a
+  // bound row is filtered out it is simply not rendered and no action appears.
+  // Identity is captured here (never re-read at click time), so a late update
+  // or Session switch cannot re-target a pending click at another task.
+  const manualReportTargets = useMemo(
+    () => findManualReportTargets(currentMessages, currentSession),
     [currentMessages, currentSession],
   );
 
@@ -1815,7 +1826,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
                         prevRole={prevRole}
                         onTimestampFlashConsumed={clearTimestampFlash}
                         searchTargetMessageId={searchTargetMessageId}
-                        manualReportTarget={manualReportTarget}
+                        manualReportTarget={manualReportTargetForItem(item, manualReportTargets)}
                       />
                     </SearchTextContext.Provider>
                   </div>
@@ -1825,7 +1836,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
                     prevRole={prevRole}
                     onTimestampFlashConsumed={clearTimestampFlash}
                     searchTargetMessageId={searchTargetMessageId}
-                    manualReportTarget={manualReportTarget}
+                    manualReportTarget={manualReportTargetForItem(item, manualReportTargets)}
                   />
                 )}
               </div>

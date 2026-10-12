@@ -4588,17 +4588,69 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     await _wake_worker(s.managed_by)
 
 
+_TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
+
+
 def manual_report_key(session_id: str, task_id: str | None,
-                      message_id: str) -> str:
+                      task_seq: int | None, message_id: str) -> str:
     """Deterministic idempotency key for one explicit browser task report.
 
-    The key is derived from server-side identity only (never client-supplied),
-    so every retry of the same (session, task, message) report — double click,
-    concurrent tab, or a retry after an unconfirmed response — addresses the
-    same durable receipt instead of creating a second report.
+    Derived from server-side identity only (never client-supplied), so every
+    retry of the same (session, task, message) report — double click, concurrent
+    tab, or a retry after an unconfirmed response — addresses the same durable
+    receipt instead of creating a second report.  The task's sequence makes two
+    runs of the same task id two distinct reports.
     """
     task_part = task_id if task_id else "-"
-    return f"manual:{session_id}:{task_part}:{message_id}"
+    seq_part = str(task_seq) if task_seq is not None else "-"
+    return f"manual:{session_id}:{task_part}:{seq_part}:{message_id}"
+
+
+def _terminal_row_cursor(row: dict) -> int:
+    """Ordered cursor for one durable terminal row (mirrors the web layer)."""
+    value = row.get("resultCursor")
+    if isinstance(value, bool):
+        value = None
+    try:
+        if value is not None:
+            return max(0, int(value))
+    except (TypeError, ValueError):
+        pass
+    try:
+        return max(0, int(row.get("taskSeq", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def durable_terminal_for_task(s, task_id: str | None,
+                              task_seq: int | None = None) -> dict | None:
+    """Latest durable terminal record for one task, or None.
+
+    Reads the same bounded per-task index the result-replay contract uses
+    (``Session.terminal_results``, newest last; legacy Sessions keep only
+    ``last_result``).  Any completed task in that window stays resolvable, so an
+    older task's report never depends on it still being the newest terminal.
+    ``task_seq`` is an optional stricter match: when provided, the terminal must
+    belong to that exact run.
+    """
+    rows = [
+        dict(item) for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+        and item.get("status") in _TERMINAL_RESULT_STATUSES
+        and item.get("taskId") == task_id
+        and (task_seq is None or item.get("taskSeq") == task_seq)
+    ]
+    if not rows:
+        last = getattr(s, "last_result", None)
+        if (isinstance(last, dict)
+                and last.get("status") in _TERMINAL_RESULT_STATUSES
+                and last.get("taskId") == task_id
+                and (task_seq is None or last.get("taskSeq") == task_seq)):
+            return dict(last)
+        return None
+    rows.sort(key=lambda item: (_terminal_row_cursor(item),
+                                str(item.get("terminalKey") or "")))
+    return rows[-1]
 
 
 def _find_manual_report_receipt(manager, key: str) -> dict | None:
@@ -4627,23 +4679,27 @@ def _remember_manual_report_receipt(manager, key: str, record: dict) -> None:
 
 
 async def enqueue_manual_report(session_id: str, task_id: str | None,
+                                task_seq: int | None,
                                 message_id: str) -> tuple[dict | None, dict | None]:
     """Deliver one explicit browser-requested completion report to the manager.
 
     与 ``_enqueue_report`` 的关系：**路由目标与内容语义完全相同**（manager 的
     落盘队列 queue_pending + 同一报告 item 形状 + 同一唤醒/广播路径），但：
 
+    - **按任务解析终态**：内容取自该任务在**持久终态索引**
+      （``terminal_results``，旧会话回退 ``last_result``）中的记录，而不是
+      “当前最新终态”。因此更早完成的任务同样可汇报，最新任务在跑也不会
+      使旧任务的汇报失效；索引里找不到该任务的终态 → 明确失败
+      （``no_task_result``），绝不拿别的任务的结果顶替。
     - **不读取也不修改 report_subscriptions**：manager 退订
       （``report_unsubscribe`` / report-to-manager 关闭）后，显式手动汇报依然
       送达；本函数也绝不临时开订阅。
-    - **内容取自该 Session 的持久终态**（``last_result`` 的 status/result/
-      taskId/workerId），即自动汇报会携带的同一份结果；调用方只提交身份
-      （sessionId + taskId + messageId），不提交正文，避免跨任务内容错配。
-    - **taskId 必须与当前 ``last_result.taskId`` 一致**：渲染点击期间若又有
-      新任务完成，终态已切换 → 明确失败（``task_changed``），不发送。
+    - **调用方只提交身份**（sessionId + taskId/taskSeq + messageId），不提交
+      正文，避免内容错配。
     - **幂等去重**：确定性 key（``manual_report_key``）先在 manager 的持久
       回执与 queue_pending 中查找；已送达 → 原样返回成功（``alreadyReported``），
-      不会二次入队。落盘失败整体回滚 → 明确失败，可安全重试。
+      不会二次入队。不同任务的 key 不同，互不干扰。落盘失败整体回滚 →
+      明确失败，可安全重试。
 
     返回 ``(result, error)``：成功时 result=``{"queueItemId", "managerId",
     "alreadyReported"}``；失败时 error=``{"code", "message", "retryable"}``。
@@ -4666,19 +4722,12 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "no_report_target",
                       "message": "manager 会话不存在，无法汇报",
                       "retryable": False}
-    last_result = s.last_result if isinstance(s.last_result, dict) else None
-    if not last_result:
+    terminal = durable_terminal_for_task(s, task_id, task_seq)
+    if terminal is None:
         return None, {"code": "no_task_result",
-                      "message": "该任务还没有可汇报的结果",
+                      "message": "该任务的终态结果不可用，无法汇报",
                       "retryable": False}
-    if last_result.get("taskId") != task_id:
-        # The durable terminal moved on (a newer task finished, or the pointed
-        # task never reached a terminal state).  Refuse instead of reporting a
-        # different task's result.
-        return None, {"code": "task_changed",
-                      "message": "任务已变化，请刷新后重试",
-                      "retryable": False}
-    key = manual_report_key(session_id, task_id, message_id)
+    key = manual_report_key(session_id, task_id, task_seq, message_id)
     async with queue_lock(manager.id):
         existing = _find_manual_report_receipt(manager, key)
         if existing is not None:
@@ -4694,11 +4743,12 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             "queueItemId": None,
             "source": "report",
             "sourceSessionId": session_id,
-            "status": last_result.get("status"),
-            "result": last_result.get("result"),
+            "status": terminal.get("status"),
+            "result": terminal.get("result"),
             "sessionId": session_id,
-            "taskId": task_id,
-            "workerId": last_result.get("workerId"),
+            "taskId": terminal.get("taskId"),
+            "taskSeq": terminal.get("taskSeq"),
+            "workerId": terminal.get("workerId"),
             "manual": True,
             "messageId": message_id,
             "manualReportKey": key,
@@ -4715,6 +4765,7 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         _remember_manual_report_receipt(manager, key, {
             "sessionId": session_id,
             "taskId": task_id,
+            "taskSeq": task_seq,
             "messageId": message_id,
             "queueItemId": item["id"],
             "at": time.time(),

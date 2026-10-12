@@ -1,132 +1,204 @@
 import { describe, expect, it } from 'vitest';
-import type { Message, Session } from '@/types';
-import { findManualReportTarget } from './manualTaskReport';
+import type { Message, Session, TerminalIdentity } from '@/types';
+import { findManualReportTargets } from './manualTaskReport';
 
-function assistant(messageId: string | undefined, extra: Partial<Message> = {}): Message {
-  return { role: 'assistant', content: `answer ${messageId ?? 'none'}`, ...(messageId ? { messageId } : {}), ...extra };
+function assign(taskId: string, messageId: string, content = `do ${taskId}`): Message {
+  return {
+    role: 'user',
+    content,
+    messageId,
+    source: 'agent',
+    taskIdSource: 'assign',
+    taskId,
+  };
 }
 
-function session(patch: Partial<Session> = {}): Session {
+function followUp(taskId: string, messageId: string): Message {
+  return {
+    role: 'user',
+    content: `more for ${taskId}`,
+    messageId,
+    source: 'agent',
+    taskIdSource: 'active',
+    taskId,
+  };
+}
+
+function browser(messageId: string, content = 'typed by the user'): Message {
+  return { role: 'user', content, messageId };
+}
+
+function report(messageId: string): Message {
+  return { role: 'user', content: '@@@@by agent : ses_x | name', messageId, source: 'report' };
+}
+
+function assistant(messageId: string | undefined, content = 'answer', extra: Partial<Message> = {}): Message {
+  return { role: 'assistant', content, ...(messageId ? { messageId } : {}), ...extra };
+}
+
+function terminal(patch: Partial<TerminalIdentity> & { taskId: string }): TerminalIdentity {
+  return {
+    taskSeq: 1, resultCursor: 1, terminalKey: `terminal:${patch.taskId}`, status: 'done',
+    ...patch,
+  };
+}
+
+function session(terminals: TerminalIdentity[], patch: Partial<Session> = {}): Session {
   return {
     id: 'ses_ta',
     name: 'TA',
     alwaysThinkingEnabled: false,
     effort: '',
     history: [],
+    managedBy: 'ses_mgr',
+    terminalResults: terminals,
     ...patch,
   } as Session;
 }
 
-const withManager = (patch: Partial<Session> = {}) => session({
-  managedBy: 'ses_mgr',
-  workerStatus: 'idle',
-  // The real list summary exposes terminal identity only — never a result body.
-  lastResult: { status: 'done', taskId: 'task-2', taskSeq: 2, workerId: 'worker-1', terminalKey: 'terminal:task-2' },
-  ...patch,
-});
-
-describe('findManualReportTarget', () => {
-  it('binds the last assistant text block of the transcript', () => {
+describe('findManualReportTargets', () => {
+  it('binds the tail text block of every completed task, not only the newest', () => {
     const messages: Message[] = [
-      { role: 'user', content: 'do task 1', messageId: 'pan:u1', source: 'agent', taskIdSource: 'assign' },
-      assistant('pan:a1'),
-      { role: 'user', content: 'do task 2', messageId: 'pan:u2', source: 'agent', taskIdSource: 'assign' },
-      assistant('pan:a2'),
-      { role: 'user', content: '@@@@by agent report', messageId: 'pan:r1' },
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'answer 1'),
+      assign('task-2', 'pan:u2'),
+      assistant('pan:a2', 'answer 2'),
+      assign('task-3', 'pan:u3'),
+      assistant('pan:a3', 'answer 3'),
     ];
-    expect(findManualReportTarget(messages, withManager())).toEqual({
-      sessionId: 'ses_ta',
-      taskId: 'task-2',
-      messageId: 'pan:a2',
+    const targets = findManualReportTargets(messages, session([
+      terminal({ taskId: 'task-1', taskSeq: 1, resultCursor: 1 }),
+      terminal({ taskId: 'task-2', taskSeq: 2, resultCursor: 2 }),
+      terminal({ taskId: 'task-3', taskSeq: 3, resultCursor: 3 }),
+    ]));
+    expect([...targets.keys()].sort()).toEqual(['pan:a1', 'pan:a2', 'pan:a3']);
+    expect(targets.get('pan:a1')).toEqual({
+      sessionId: 'ses_ta', taskId: 'task-1', taskSeq: 1, messageId: 'pan:a1',
+      resultCursor: 1, terminalKey: 'terminal:task-1',
     });
+    expect(targets.get('pan:a3')?.taskId).toBe('task-3');
   });
 
-  it('binds only one block across multiple tasks (the latest)', () => {
+  it('keeps an older task bound while a newer task is still streaming', () => {
     const messages: Message[] = [
+      assign('task-old', 'pan:u1'),
+      assistant('pan:a1', 'old answer'),
+      assign('task-new', 'pan:u2'),
+      assistant('pan:a2', 'partial', { streaming: true }),
+    ];
+    const targets = findManualReportTargets(messages, session([
+      terminal({ taskId: 'task-old', taskSeq: 1, resultCursor: 1 }),
+    ]));
+    // The newest task has neither a settled block nor a terminal: only the older
+    // task is actionable, and it stays actionable while the newer one runs.
+    expect([...targets.keys()]).toEqual(['pan:a1']);
+    expect(targets.get('pan:a1')?.taskId).toBe('task-old');
+  });
+
+  it('ignores tasks with no durable terminal in the index', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
       assistant('pan:a1'),
+      assign('task-2', 'pan:u2'),
       assistant('pan:a2'),
-      assistant('pan:a3'),
     ];
-    const target = findManualReportTarget(messages, withManager());
-    expect(target?.messageId).toBe('pan:a3');
-    // Exactly one row can match: identity equality, never a role/content guess.
-    expect(messages.filter((m) => m.messageId === target?.messageId)).toHaveLength(1);
+    const targets = findManualReportTargets(messages, session([
+      terminal({ taskId: 'task-2', taskSeq: 2, resultCursor: 2 }),
+    ]));
+    expect([...targets.keys()]).toEqual(['pan:a2']);
   });
 
-  it('ignores tool/thinking rows after the final text block', () => {
+  it('does not bind a segment whose tail block is still streaming', () => {
     const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'partial', { streaming: true }),
+    ];
+    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })])).size).toBe(0);
+  });
+
+  it('does not bind a tail block without a stable identity', () => {
+    const messages: Message[] = [assign('task-1', 'pan:u1'), assistant(undefined)];
+    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })])).size).toBe(0);
+  });
+
+  it('ends a task segment at a non-follow-up user row', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'task 1 answer'),
+      browser('pan:u2'),
+      assistant('pan:a2', 'answer to a plain turn'),
+    ];
+    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })]));
+    // The later answer belongs to another unit of work, never to task-1.
+    expect([...targets.keys()]).toEqual(['pan:a1']);
+  });
+
+  it('ends a task segment at an injected report row', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'task 1 answer'),
+      report('pan:r1'),
+      assistant('pan:a2', 'answer to the report batch'),
+    ];
+    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })]));
+    expect([...targets.keys()]).toEqual(['pan:a1']);
+  });
+
+  it('extends the segment across an inherited same-task follow-up', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'first answer'),
+      followUp('task-1', 'pan:u2'),
+      assistant('pan:a2', 'follow-up answer'),
+    ];
+    const targets = findManualReportTargets(messages, session([
+      terminal({ taskId: 'task-1', taskSeq: 2, resultCursor: 2 }),
+    ]));
+    // The follow-up is the same task scope: its answer is that task's latest
+    // text block, and the identity comes from the newest terminal.
+    expect([...targets.keys()]).toEqual(['pan:a2']);
+    expect(targets.get('pan:a2')?.taskSeq).toBe(2);
+  });
+
+  it('picks the newest terminal when a task ran more than once', () => {
+    const messages: Message[] = [assign('task-1', 'pan:u1'), assistant('pan:a1')];
+    const targets = findManualReportTargets(messages, session([
+      terminal({ taskId: 'task-1', taskSeq: 1, resultCursor: 1, terminalKey: 't1' }),
+      terminal({ taskId: 'task-1', taskSeq: 4, resultCursor: 4, terminalKey: 't4' }),
+    ]));
+    expect(targets.get('pan:a1')?.taskSeq).toBe(4);
+    expect(targets.get('pan:a1')?.terminalKey).toBe('t4');
+  });
+
+  it('ignores rows before the first dispatch', () => {
+    const messages: Message[] = [
+      browser('pan:u0'),
+      assistant('pan:a0', 'answer before any task'),
+      assign('task-1', 'pan:u1'),
       assistant('pan:a1'),
-      { role: 'tool', content: 'ls output', messageId: 'pan:t1' },
+    ];
+    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })]));
+    expect([...targets.keys()]).toEqual(['pan:a1']);
+  });
+
+  it('returns nothing without a manager or without terminals', () => {
+    const messages: Message[] = [assign('task-1', 'pan:u1'), assistant('pan:a1')];
+    expect(findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })], { managedBy: null })).size).toBe(0);
+    expect(findManualReportTargets(messages, session([], { managedBy: 'ses_mgr' })).size).toBe(0);
+    expect(findManualReportTargets(messages, undefined).size).toBe(0);
+    expect(findManualReportTargets([], session([terminal({ taskId: 'task-1' })])).size).toBe(0);
+  });
+
+  it('binds only the final text block, ignoring tool/thinking/system rows after it', () => {
+    const messages: Message[] = [
+      assign('task-1', 'pan:u1'),
+      assistant('pan:a1', 'earlier block'),
+      assistant('pan:a2', 'final block'),
+      { role: 'tool', content: 'ls', messageId: 'pan:t1' },
       { role: 'thinking', content: 'hmm', messageId: 'pan:th1' },
-    ];
-    expect(findManualReportTarget(messages, withManager())?.messageId).toBe('pan:a1');
-  });
-
-  it('ignores system terminal markers after the final text block', () => {
-    const messages: Message[] = [
-      assistant('pan:a1'),
       { role: 'system', content: '[DONE] Task completed', messageId: 'pan:d1' },
     ];
-    expect(findManualReportTarget(messages, withManager())?.messageId).toBe('pan:a1');
-  });
-
-  it('returns null without a manager (no report target)', () => {
-    expect(findManualReportTarget([assistant('pan:a1')], session({ workerStatus: 'idle' }))).toBeNull();
-    expect(findManualReportTarget([assistant('pan:a1')], session({ managedBy: null }))).toBeNull();
-  });
-
-  it('returns null while a worker is running or queued', () => {
-    const messages = [assistant('pan:a1')];
-    expect(findManualReportTarget(messages, withManager({ workerStatus: 'running' }))).toBeNull();
-    expect(findManualReportTarget(messages, withManager({ workerStatus: 'queued' }))).toBeNull();
-  });
-
-  it('returns null without a durable terminal result', () => {
-    expect(findManualReportTarget([assistant('pan:a1')], withManager({ lastResult: null }))).toBeNull();
-    expect(findManualReportTarget([assistant('pan:a1')], withManager({ lastResult: undefined }))).toBeNull();
-  });
-
-  it('returns null when the tail assistant row is still streaming', () => {
-    const messages = [assistant('pan:a1'), assistant('pan:a2', { streaming: true })];
-    expect(findManualReportTarget(messages, withManager())).toBeNull();
-  });
-
-  it('returns null when the tail assistant row has no stable identity', () => {
-    const messages = [assistant('pan:a1'), assistant(undefined)];
-    expect(findManualReportTarget(messages, withManager())).toBeNull();
-  });
-
-  it('returns null without any assistant text block', () => {
-    const messages: Message[] = [{ role: 'user', content: 'hello', messageId: 'pan:u1' }];
-    expect(findManualReportTarget(messages, withManager())).toBeNull();
-    expect(findManualReportTarget([], withManager())).toBeNull();
-  });
-
-  it('binds a null taskId for a plain turn', () => {
-    const messages = [assistant('pan:a1')];
-    expect(findManualReportTarget(messages, withManager({
-      lastResult: { status: 'done', taskId: null },
-    }))).toEqual({ sessionId: 'ses_ta', taskId: null, messageId: 'pan:a1' });
-  });
-
-  it('binds without a result body in the terminal projection', () => {
-    // The list summary deliberately omits the result text; the binding must not
-    // depend on it (the report body comes from the server's durable terminal).
-    const messages = [assistant('pan:a1')];
-    const target = findManualReportTarget(messages, withManager({
-      lastResult: { status: 'done', taskId: 'task-2' },
-    }));
-    expect(target).toEqual({ sessionId: 'ses_ta', taskId: 'task-2', messageId: 'pan:a1' });
-  });
-
-  it('treats a non-string lastResult taskId as null', () => {
-    const messages = [assistant('pan:a1')];
-    expect(findManualReportTarget(messages, withManager({
-      lastResult: { status: 'done', result: 'plain', taskId: 42 },
-    }))?.taskId).toBeNull();
-  });
-
-  it('tolerates a missing session object', () => {
-    expect(findManualReportTarget([assistant('pan:a1')], undefined)).toBeNull();
+    const targets = findManualReportTargets(messages, session([terminal({ taskId: 'task-1' })]));
+    expect([...targets.keys()]).toEqual(['pan:a2']);
   });
 });

@@ -1435,11 +1435,12 @@ export class ManualReportRejectedError extends Error {
 export async function reportTaskManually(
   sessionId: string,
   taskId: string | null,
+  taskSeq: number | null,
   messageId: string,
 ): Promise<ApiSessionManualReportResponse> {
   const data = await request<ApiSessionManualReportResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/manual-report`,
-    { method: 'POST', body: JSON.stringify({ taskId, messageId }) },
+    { method: 'POST', body: JSON.stringify({ taskId, taskSeq, messageId }) },
   );
   if (data.ok !== true || typeof data.queueItemId !== 'string') {
     throw new ManualReportRejectedError(

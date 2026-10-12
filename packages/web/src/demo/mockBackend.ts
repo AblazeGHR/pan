@@ -131,6 +131,8 @@ let mockQueueSequence = 0;
 // deterministic (session, task, message) idempotency so a browser retry can be
 // observed as exactly one delivery.
 const mockManualReports: Array<{
+  /** Server-identical deterministic report key. */
+  key: string;
   sessionId: string;
   taskId: string | null;
   messageId: string;
@@ -145,6 +147,7 @@ const mockManualReports: Array<{
 const mockManualReportAttempts: Array<{
   sessionId: string;
   taskId: string | null;
+  taskSeq: number | null;
   messageId: string;
   outcome: 'delivered' | 'replayed' | 'rejected' | 'dropped' | 'dropped_after_delivery';
 }> = [];
@@ -595,21 +598,27 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     const messageId = values.messageId;
     const taskId = values.taskId;
+    const taskSeq = values.taskSeq;
     if (typeof messageId !== 'string' || !messageId) {
       return { ok: false, error: { code: 'invalid_message_id', message: 'messageId is required' } };
     }
     if (taskId !== null && (typeof taskId !== 'string' || !taskId)) {
       return { ok: false, error: { code: 'invalid_task_id', message: 'taskId must be a string or null' } };
     }
-    const hook = window.__panMockManualReport;
+    if (taskSeq !== null && (!Number.isInteger(taskSeq) || (taskSeq as number) < 0)) {
+      return { ok: false, error: { code: 'invalid_task_seq', message: 'taskSeq must be a non-negative integer or null' } };
+    }
     const deliveredTaskId = taskId as string | null;
+    const deliveredTaskSeq = taskSeq === null ? null : taskSeq as number;
     const attempt = {
       sessionId,
       taskId: deliveredTaskId,
+      taskSeq: deliveredTaskSeq,
       messageId,
       outcome: 'dropped' as typeof mockManualReportAttempts[number]['outcome'],
     };
     mockManualReportAttempts.push(attempt);
+    const hook = window.__panMockManualReport;
     if (hook?.mode === 'reject') {
       attempt.outcome = 'rejected';
       return { ok: false, retryable: true, error: { code: 'persist_failed', message: 'mock 汇报失败' } };
@@ -620,12 +629,19 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       attempt.outcome = 'dropped';
       throw new TypeError('Failed to fetch');
     }
-    const alreadyReported = mockManualReports.some((report) =>
-      report.sessionId === sessionId
-      && report.taskId === deliveredTaskId
-      && report.messageId === messageId);
+    // Resolve the task's durable terminal from the Session's bounded index, the
+    // same way the server does — an older completed task stays reportable.
+    const terminals = (session.terminalResults ?? []).filter((terminal) =>
+      terminal?.taskId === deliveredTaskId
+      && (deliveredTaskSeq === null || terminal.taskSeq === deliveredTaskSeq));
+    if (terminals.length === 0) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'no_task_result', message: '该任务的终态结果不可用，无法汇报' } };
+    }
+    const key = `manual:${sessionId}:${deliveredTaskId ?? '-'}:${deliveredTaskSeq ?? '-'}:${messageId}`;
+    const alreadyReported = mockManualReports.some((report) => report.key === key);
     if (!alreadyReported) {
-      mockManualReports.push({ sessionId, taskId: deliveredTaskId, messageId, at: Date.now() });
+      mockManualReports.push({ key, sessionId, taskId: deliveredTaskId, messageId, at: Date.now() });
     }
     attempt.outcome = alreadyReported ? 'replayed' : 'delivered';
     if (hook?.mode === 'lose_receipt') {

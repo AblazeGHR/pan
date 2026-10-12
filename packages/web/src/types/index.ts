@@ -86,6 +86,21 @@ export interface PanAccess {
   autoClaimCreated?: boolean;
 }
 
+/**
+ * One durable terminal identity from a Session's bounded per-task index
+ * (backend `terminal_results`). Identity only — never a result body.
+ */
+export interface TerminalIdentity {
+  /** Formal assign taskId, or null for a non-assign turn. */
+  taskId?: string | null;
+  taskSeq?: number | null;
+  /** Ordered cursor within the durable terminal window. */
+  resultCursor?: number;
+  /** Stable identity of the terminal event (survives replay/reconnect). */
+  terminalKey?: string;
+  status?: string;
+}
+
 export interface Session {
   nativeControl?: boolean;
   id: string;
@@ -202,6 +217,12 @@ export interface Session {
   /** Explicit worker execution mode for this session: "stream" / "oneshot" / null(unset). */
   outputMode?: string | null;
   lastResult?: Record<string, unknown> | null;
+  /**
+   * Bounded identity view of the durable per-task terminal index (newest last,
+   * no result bodies).  A completed task stays listed here after newer tasks
+   * finish, so an explicit per-task action can bind to it on a cold load.
+   */
+  terminalResults?: TerminalIdentity[] | null;
   totalUsage?: Record<string, number> | null;
   createdAt?: string;
   updatedAt?: string;

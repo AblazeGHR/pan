@@ -1,7 +1,7 @@
 import type { Message } from '@/types';
 import { memo, useMemo } from 'react';
 import { Check, Undo2 } from 'lucide-react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, manualTaskReportKey } from '@/stores/sessionStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
@@ -123,12 +123,12 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       {SOURCE_TAG_LABELS[sourceTag]}
     </span>
   ) : null;
-  // The explicit report action belongs to exactly one row: the tail text block
-  // of the latest task.  The store entry is keyed by the binding's identity so
-  // a virtualized remount keeps the in-flight/sent state instead of restarting
-  // or losing it.
+  // The explicit report action belongs to each task's tail text block (not only
+  // the newest task).  The store entry is keyed by the binding's identity so a
+  // virtualized remount keeps the in-flight/sent state instead of restarting or
+  // losing it.
   const manualReportKey = manualReportTarget && manualReportTarget.messageId === message.messageId
-    ? `${manualReportTarget.sessionId}:${manualReportTarget.messageId}`
+    ? manualTaskReportKey(manualReportTarget.sessionId, manualReportTarget)
     : null;
   const manualReportEntry = useSessionStore((s) => (
     manualReportKey ? s.manualTaskReports[manualReportKey] : undefined
@@ -145,6 +145,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
         onClick={() => {
           void reportTaskManually(manualReportTarget.sessionId, {
             taskId: manualReportTarget.taskId,
+            taskSeq: manualReportTarget.taskSeq,
             messageId: manualReportTarget.messageId,
           });
         }}

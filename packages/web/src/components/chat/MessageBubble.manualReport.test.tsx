@@ -8,7 +8,9 @@ import type { ManualReportTarget } from './manualTaskReport';
 
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ content }: { content: string }) => <span>{content}</span> }));
 
-const TARGET: ManualReportTarget = { sessionId: 'ses_ta', taskId: 'task-2', messageId: 'pan:a2' };
+const TARGET: ManualReportTarget = {
+  sessionId: 'ses_ta', taskId: 'task-2', taskSeq: 2, messageId: 'pan:a2',
+};
 
 const tailBlock: Message = {
   role: 'assistant',
@@ -23,7 +25,7 @@ const originalReport = useSessionStore.getState().reportTaskManually;
 function setReportEntry(state: 'sending' | 'sent' | 'failed' | 'uncertain', error?: string): void {
   useSessionStore.setState({
     manualTaskReports: {
-      [`ses_ta:pan:a2`]: { state, ...(error ? { error } : {}), taskId: 'task-2' },
+      ['ses_ta:task-2:2:pan:a2']: { state, ...(error ? { error } : {}), taskId: 'task-2', taskSeq: 2 },
     },
   });
 }
@@ -79,17 +81,17 @@ describe('manual task report action placement', () => {
     useSessionStore.setState({ reportTaskManually: report });
     render(<MessageBubble message={tailBlock} manualReportTarget={TARGET} />);
     fireEvent.click(screen.getByRole('button', { name: '汇报' }));
-    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: 'task-2', messageId: 'pan:a2' });
+    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: 'task-2', taskSeq: 2, messageId: 'pan:a2' });
   });
 
-  it('forwards a null taskId binding unchanged', () => {
+  it('forwards a binding with an unknown sequence unchanged', () => {
     const report = vi.fn();
     useSessionStore.setState({ reportTaskManually: report });
     render(<MessageBubble
       message={tailBlock}
-      manualReportTarget={{ sessionId: 'ses_ta', taskId: null, messageId: 'pan:a2' }} />);
+      manualReportTarget={{ sessionId: 'ses_ta', taskId: 'task-1', taskSeq: null, messageId: 'pan:a2' }} />);
     fireEvent.click(screen.getByRole('button', { name: '汇报' }));
-    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: null, messageId: 'pan:a2' });
+    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: 'task-1', taskSeq: null, messageId: 'pan:a2' });
   });
 });
 
@@ -130,6 +132,6 @@ describe('manual task report action states', () => {
     setReportEntry('failed', '汇报落盘失败: disk full');
     render(<MessageBubble message={tailBlock} manualReportTarget={TARGET} />);
     fireEvent.click(screen.getByRole('button', { name: '重试汇报' }));
-    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: 'task-2', messageId: 'pan:a2' });
+    expect(report).toHaveBeenCalledWith('ses_ta', { taskId: 'task-2', taskSeq: 2, messageId: 'pan:a2' });
   });
 });
