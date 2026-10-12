@@ -25,7 +25,7 @@ const originalReport = useSessionStore.getState().reportTaskManually;
 function setReportEntry(state: 'sending' | 'sent' | 'failed' | 'uncertain', error?: string): void {
   useSessionStore.setState({
     manualTaskReports: {
-      ['ses_ta:task-2:2:pan:a2']: { state, ...(error ? { error } : {}), taskId: 'task-2', taskSeq: 2 },
+      ['ses_ta:task-2:2']: { state, ...(error ? { error } : {}), taskId: 'task-2', taskSeq: 2 },
     },
   });
 }

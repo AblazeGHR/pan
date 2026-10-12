@@ -506,12 +506,16 @@ export interface ManualTaskReportEntry {
   taskSeq?: number | null;
 }
 
-/** Store key for one report: same task + same block is the same delivery. */
+/**
+ * Store key for one report: the delivery unit is the task **run**, so the same
+ * run cannot start (or show) two parallel reports regardless of which block a
+ * caller points at.
+ */
 export function manualTaskReportKey(
   sessionId: string,
-  target: { taskId: string | null; taskSeq: number | null; messageId: string },
+  target: { taskId: string | null; taskSeq: number | null },
 ): string {
-  return `${sessionId}:${target.taskId ?? '-'}:${target.taskSeq ?? '-'}:${target.messageId}`;
+  return `${sessionId}:${target.taskId ?? '-'}:${target.taskSeq ?? '-'}`;
 }
 
 /** Mirror bound for the client's per-task terminal index (server summary bound). */
@@ -3552,12 +3556,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // Mirror the durable terminal this event describes into the bounded
           // per-task index, so a task that just completed gets its own explicit
           // report action immediately instead of waiting for the next list read.
+          // The history boundary comes from the terminal coverage, which is the
+          // same epoch/revision the server validates the tail block against.
           terminalResults: mergeTerminalIdentity(candidate.terminalResults, {
             status,
             ...(meta.taskId !== undefined ? { taskId: meta.taskId } : {}),
             ...(meta.taskSeq !== undefined ? { taskSeq: meta.taskSeq } : {}),
             ...(meta.terminalKey !== undefined ? { terminalKey: meta.terminalKey } : {}),
             ...(meta.resultCursor !== undefined ? { resultCursor: meta.resultCursor } : {}),
+            ...(coverage.historyEpoch ? { historyEpoch: coverage.historyEpoch } : {}),
+            ...(typeof coverage.historyRevision === 'number'
+              ? { historyRevision: coverage.historyRevision } : {}),
           }),
         };
       });

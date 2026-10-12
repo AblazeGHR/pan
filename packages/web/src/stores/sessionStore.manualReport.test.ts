@@ -20,7 +20,7 @@ const reportMock = vi.mocked(reportTaskManuallyApi);
 
 const TARGET = { taskId: 'task-2', taskSeq: 2, messageId: 'pan:a2' } as const;
 const OTHER_TASK = { taskId: 'task-1', taskSeq: 1, messageId: 'pan:a1' } as const;
-const KEY = 'ses_ta:task-2:2:pan:a2';
+const KEY = 'ses_ta:task-2:2';
 
 function entry(key: string = KEY) {
   return useSessionStore.getState().manualTaskReports[key]!;
@@ -49,7 +49,7 @@ describe('reportTaskManually store action', () => {
       });
     });
     expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', null, 'pan:a2');
-    expect(entry('ses_ta:task-2:-:pan:a2')).toMatchObject({ state: 'sent', taskSeq: null });
+    expect(entry('ses_ta:task-2:-')).toMatchObject({ state: 'sent', taskSeq: null });
   });
 
   it('surfaces an idempotent replay as already reported', async () => {
@@ -69,11 +69,11 @@ describe('reportTaskManually store action', () => {
     });
     const state = useSessionStore.getState().manualTaskReports;
     expect(Object.keys(state).sort()).toEqual([
-      'ses_other:task-2:2:pan:a2', 'ses_ta:task-1:1:pan:a1', 'ses_ta:task-2:2:pan:a2',
+      'ses_other:task-2:2', 'ses_ta:task-1:1', 'ses_ta:task-2:2',
     ]);
-    expect(state['ses_ta:task-1:1:pan:a1']?.state).toBe('sent');
-    expect(state['ses_ta:task-2:2:pan:a2']?.state).toBe('sent');
-    expect(state['ses_other:task-2:2:pan:a2']?.state).toBe('sent');
+    expect(state['ses_ta:task-1:1']?.state).toBe('sent');
+    expect(state['ses_ta:task-2:2']?.state).toBe('sent');
+    expect(state['ses_other:task-2:2']?.state).toBe('sent');
     expect(reportMock).toHaveBeenCalledTimes(3);
   });
 
@@ -98,8 +98,8 @@ describe('reportTaskManually store action', () => {
     expect(reportMock).toHaveBeenCalledTimes(2);
     resolve({ ok: true, queueItemId: 'q_1', managerId: 'ses_mgr', alreadyReported: false });
     await act(async () => { await Promise.all([first, second]); });
-    expect(entry('ses_ta:task-2:2:pan:a2').state).toBe('sent');
-    expect(entry('ses_ta:task-1:1:pan:a1').state).toBe('sent');
+    expect(entry('ses_ta:task-2:2').state).toBe('sent');
+    expect(entry('ses_ta:task-1:1').state).toBe('sent');
   });
 
   it('ignores further clicks after a successful report', async () => {
@@ -172,7 +172,7 @@ describe('terminal identity mirroring', () => {
     await act(async () => {
       useSessionStore.getState().reconcileWorkerResult(
         'ses_ta',
-        { status: 'done', result: 'answer 2' },
+        { status: 'done', result: 'answer 2', terminalCoverage: { historyEpoch: 'epoch', historyRevision: 5 } },
         { serverEpoch: 'epoch', workerId: 'w1', generation: 1, taskId: 'task-2',
           taskSeq: 2, terminalKey: 't2', resultCursor: 2 },
       );
@@ -180,7 +180,8 @@ describe('terminal identity mirroring', () => {
     const session = useSessionStore.getState().sessions[0]!;
     expect(session.terminalResults).toEqual([
       { taskId: 'task-1', taskSeq: 1, resultCursor: 1, terminalKey: 't1', status: 'done' },
-      { status: 'done', taskId: 'task-2', taskSeq: 2, terminalKey: 't2', resultCursor: 2 },
+      { status: 'done', taskId: 'task-2', taskSeq: 2, terminalKey: 't2', resultCursor: 2,
+        historyEpoch: 'epoch', historyRevision: 5 },
     ]);
   });
 
@@ -203,7 +204,7 @@ describe('terminal identity mirroring', () => {
     await act(async () => {
       useSessionStore.getState().reconcileWorkerResult(
         'ses_ta',
-        { status: 'done', result: 'answer 2' },
+        { status: 'done', result: 'answer 2', terminalCoverage: { historyEpoch: 'epoch', historyRevision: 5 } },
         { serverEpoch: 'epoch', workerId: 'w1', generation: 1, taskId: 'task-2',
           taskSeq: 2, terminalKey: 't2', resultCursor: 2 },
       );

@@ -21,7 +21,7 @@ export interface ManualReportTarget {
 /** Session facts the binding needs; a cold summary may omit them. */
 export type ManualReportSessionView = Pick<
   Session,
-  'id' | 'managedBy' | 'terminalResults'
+  'id' | 'managedBy' | 'terminalResults' | 'historyEpoch'
 >;
 
 /**
@@ -45,16 +45,13 @@ function isSameTaskFollowUp(message: Message, taskId: string): boolean {
     && (!message.taskId || message.taskId === taskId);
 }
 
-/** Newest durable terminal identity for one task, or undefined. */
-function terminalForTask(
-  terminals: readonly TerminalIdentity[],
-  taskId: string,
-): TerminalIdentity | undefined {
-  let found: TerminalIdentity | undefined;
-  for (const terminal of terminals) {
-    if (terminal?.taskId === taskId) found = terminal;
-  }
-  return found;
+/** Whether the run's final text block can be proven from this Session. */
+function isBlockProvable(
+  session: ManualReportSessionView,
+  terminal: TerminalIdentity,
+): boolean {
+  if (!session.historyEpoch || terminal.historyEpoch !== session.historyEpoch) return false;
+  return typeof terminal.historyRevision === 'number' && terminal.historyRevision > 0;
 }
 
 /**
@@ -64,16 +61,18 @@ function terminalForTask(
  * The requirement is one action per task — "the last text block of that task" —
  * not only for the newest task: an earlier task's final answer stays reportable
  * after newer tasks finish or while a newer task is still running.  A task is
- * bound only when both sides are provable:
- * - the transcript proves its dispatch boundary (a formal assign row with a
- *   taskId) and its tail text block (the last settled assistant row of that
- *   segment with a stable messageId), and
- * - the Session's durable terminal index proves that task reached a terminal
- *   state, which is what the server resolves the report content from.
+ * bound only when its block↔run relation is provable on BOTH sides:
+ * - the loaded transcript proves exactly one dispatch segment for that taskId,
+ *   with a settled tail text block that has a stable messageId, and
+ * - the Session's durable terminal index holds exactly one terminal for that
+ *   taskId, and that run's block boundary is comparable (same history epoch,
+ *   known revision).
  *
- * A task whose terminal is absent from the (bounded) index, whose tail block is
- * still streaming, or whose tail block has no stable identity is left without an
- * action instead of guessing which task a block or a result belongs to.
+ * Anything else is left without an action instead of being bound to "the newest
+ * terminal" of that task id: two runs of one taskId, a window that holds only
+ * one of several runs, a terminal whose history was rewritten, an identity-less
+ * tail or a still-streaming tail all stay unbound.  The server re-validates the
+ * same relation and refuses when it cannot prove it.
  */
 export function findManualReportTargets(
   messages: readonly Message[],
@@ -86,28 +85,24 @@ export function findManualReportTargets(
   );
   if (terminals.length === 0) return targets;
 
+  // Count both sides per taskId so an ambiguous task is never bound.
+  const segments = new Map<string, Array<Message>>();
+  const terminalCounts = new Map<string, TerminalIdentity[]>();
+  for (const terminal of terminals) {
+    const taskId = typeof terminal.taskId === 'string' ? terminal.taskId : null;
+    if (!taskId) continue;
+    const bucket = terminalCounts.get(taskId);
+    if (bucket) bucket.push(terminal);
+    else terminalCounts.set(taskId, [terminal]);
+  }
+
   let taskId: string | null = null;
   let tail: Message | null = null;
-
   const finish = () => {
-    if (taskId && tail) {
-      // The tail must be a settled block with a stable identity; a streaming or
-      // identity-less tail proves nothing and stays without an action.
-      if (!tail.streaming && tail.messageId) {
-        const terminal = terminalForTask(terminals, taskId);
-        if (terminal) {
-          targets.set(tail.messageId, {
-            sessionId: session.id,
-            taskId,
-            taskSeq: typeof terminal.taskSeq === 'number' ? terminal.taskSeq : null,
-            messageId: tail.messageId,
-            ...(typeof terminal.resultCursor === 'number'
-              ? { resultCursor: terminal.resultCursor } : {}),
-            ...(typeof terminal.terminalKey === 'string'
-              ? { terminalKey: terminal.terminalKey } : {}),
-          });
-        }
-      }
+    if (taskId && tail && !tail.streaming && tail.messageId) {
+      const bucket = segments.get(taskId);
+      if (bucket) bucket.push(tail);
+      else segments.set(taskId, [tail]);
     }
     taskId = null;
     tail = null;
@@ -129,5 +124,24 @@ export function findManualReportTargets(
     if (message.role === 'assistant') tail = message;
   }
   finish();
+
+  for (const [segmentTaskId, tails] of segments) {
+    if (tails.length !== 1) continue;              // several runs in the window
+    const runs = terminalCounts.get(segmentTaskId) ?? [];
+    if (runs.length !== 1) continue;               // several runs in the index
+    const terminal = runs[0]!;
+    if (!isBlockProvable(session, terminal)) continue;
+    const boundTail = tails[0]!;
+    targets.set(boundTail.messageId!, {
+      sessionId: session.id,
+      taskId: segmentTaskId,
+      taskSeq: typeof terminal.taskSeq === 'number' ? terminal.taskSeq : null,
+      messageId: boundTail.messageId!,
+      ...(typeof terminal.resultCursor === 'number'
+        ? { resultCursor: terminal.resultCursor } : {}),
+      ...(typeof terminal.terminalKey === 'string'
+        ? { terminalKey: terminal.terminalKey } : {}),
+    });
+  }
   return targets;
 }

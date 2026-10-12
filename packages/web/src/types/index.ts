@@ -99,6 +99,11 @@ export interface TerminalIdentity {
   /** Stable identity of the terminal event (survives replay/reconnect). */
   terminalKey?: string;
   status?: string;
+  /** History epoch this run committed at (absent on legacy rows). */
+  historyEpoch?: string | null;
+  /** History revision at that commit; with the epoch it proves the run's tail
+   *  block boundary. Absent/zero means the relation cannot be proven. */
+  historyRevision?: number;
 }
 
 export interface Session {

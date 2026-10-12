@@ -1,23 +1,26 @@
 """Tests for explicit per-task manual reports (POST /api/sessions/{id}/manual-report).
 
-Covers the delivery semantics that make a browser-clicked per-task report safe:
+Covers the identity rules that make a browser-clicked per-task report safe:
 
 - content/target reuse: the manual item mirrors the automatic report item
-  (same queue target, same shape, content resolved from that task's durable
-  terminal row — not from "whatever terminal happens to be newest")
-- any completed task in the bounded durable index stays reportable, including
-  older tasks after newer ones finish or while a newer one is still running
-- a task without a durable terminal row is a definite failure (never a
-  substitution with another task's result)
+  (same queue target, same shape, content resolved from that task run's durable
+  terminal row — never from "whatever terminal happens to be newest")
+- every completed task run in the bounded durable index stays reportable,
+  including older runs after newer ones finish or while a newer one is running
+- the submitted messageId must be that run's final text block, proven from the
+  terminal row's own history epoch/revision; a non-tail block, a block from
+  another run, an unprovable (legacy/rewritten) history and an unknown task are
+  all definite failures with no delivery and no substitution
 - subscription independence: delivered after report_unsubscribe, and the
   subscription is never modified (no temporary subscribe either)
-- idempotency: retries of the same (session, task, block) deliver once, and
-  distinct tasks never dedupe each other
+- idempotency is keyed on the task run identity, so an arbitrary or repeated
+  client messageId cannot turn one run into several deliveries, while distinct
+  runs of one task id stay distinct
 - save failure rolls the attempt back (definite failure; a retry stays fresh)
 - concurrent duplicate clicks deliver once (queue lock)
 - automatic report behavior is untouched by this feature
 - the list projection exposes bounded terminal identities (no result bodies)
-- real durable write + cold reload keeps per-task dedup
+- real durable write + cold reload keeps per-run dedup
 """
 
 import asyncio
@@ -60,27 +63,6 @@ def _setup_session(sid="ses_test", **kwargs):
     return s
 
 
-def _terminal(task_id="task-1", status="done", result="the answer",
-              worker_id="worker-1", task_seq=1, result_cursor=1, terminal_key=None):
-    return {
-        "status": status,
-        "result": result,
-        "taskId": task_id,
-        "taskSeq": task_seq,
-        "workerId": worker_id,
-        "resultCursor": result_cursor,
-        "terminalKey": terminal_key or f"terminal:{task_id}:{task_seq}",
-    }
-
-
-def _child(**kwargs):
-    """A managed Session whose durable per-task index holds the given terminals."""
-    terminals = kwargs.pop("terminals", [_terminal()])
-    last = kwargs.pop("last_result", terminals[-1] if terminals else None)
-    return _setup_session("ses_child", managed_by="ses_mgr",
-                          terminal_results=terminals, last_result=last, **kwargs)
-
-
 async def _noop_save_async(s):
     pass
 
@@ -89,9 +71,60 @@ def _noop_save(s):
     pass
 
 
-def _report(task_id="task-1", task_seq=1, message_id="pan:msg1"):
+def _append_run(s, task_id, task_seq, answers, *, terminal=True,
+                status="done", result=None, result_cursor=None) -> dict | None:
+    """Append one task run exactly like the worker does.
+
+    Dispatch row and assistant rows are appended first, then (when the run has
+    a terminal) the terminal records the history epoch/revision at that commit,
+    and finally the run's result row is appended — so the run's final text block
+    is provably the last assistant row at or before the recorded boundary.
+
+    Returns the terminal record (with the run's ``tail_id`` added) or None.
+    """
+    _sess.append_history(s, {
+        "role": "user", "content": f"do {task_id}",
+        "source": "agent", "taskId": task_id, "taskIdSource": "assign",
+    })
+    for answer in answers:
+        _sess.append_history(s, {"role": "assistant", "content": answer})
+    if not terminal:
+        return None
+    body = result if result is not None else (answers[-1] if answers else "done")
+    record = {
+        "status": status,
+        "result": body,
+        "taskId": task_id,
+        "taskSeq": task_seq,
+        "workerId": "worker-1",
+        "resultCursor": task_seq if result_cursor is None else result_cursor,
+        "terminalKey": f"terminal:{task_id}:{task_seq}",
+        "historyEpoch": s.history_epoch,
+        "historyRevision": s.history_revision,
+    }
+    s.terminal_results = list(s.terminal_results) + [record]
+    s.last_result = dict(record)
+    # The worker appends the run's result row after the boundary snapshot.
+    _sess.append_history(s, {"role": "assistant", "content": body})
+    record["tail_id"] = s.history[-1]["messageId"]
+    return record
+
+
+def _child(runs, manager=True, sid="ses_child"):
+    """A managed Session with a real history/terminal correspondence.
+
+    ``runs`` is a list of (task_id, task_seq, answers) tuples.
+    """
+    s = _setup_session(sid, managed_by="ses_mgr" if manager else None)
+    records = []
+    for task_id, task_seq, answers in runs:
+        records.append(_append_run(s, task_id, task_seq, answers))
+    return s, records
+
+
+def _report(sid="ses_child", task_id="task-1", task_seq=1, message_id="pan:tail"):
     """Call the real delivery function the HTTP route calls."""
-    return worker.enqueue_manual_report("ses_child", task_id, task_seq, message_id)
+    return worker.enqueue_manual_report(sid, task_id, task_seq, message_id)
 
 
 # ── delivery semantics ──
@@ -99,12 +132,13 @@ def _report(task_id="task-1", task_seq=1, message_id="pan:msg1"):
 def test_manual_report_delivers_to_manager(monkeypatch, _no_real_recovery_spawn):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
     mgr.report_subscriptions = {"ses_child"}
 
     async def scenario():
-        return await _report()
+        return await _report(message_id=tail)
 
     result, error = asyncio.run(scenario())
 
@@ -121,38 +155,36 @@ def test_manual_report_delivers_to_manager(monkeypatch, _no_real_recovery_spawn)
     assert item["sessionId"] == "ses_child"
     assert item["deliveryState"] == "queued"
     assert item["queueItemId"] == item["id"]
-    # Content semantics = that task's durable terminal row.
+    # Content semantics = that task run's durable terminal row.
     assert item["status"] == "done"
     assert item["result"] == "the answer"
     assert item["taskId"] == "task-1"
     assert item["taskSeq"] == 1
     assert item["workerId"] == "worker-1"
-    # Manual markers for audit/dedup.
     assert item["manual"] is True
-    assert item["messageId"] == "pan:msg1"
-    assert item["manualReportKey"] == worker.manual_report_key(
-        "ses_child", "task-1", 1, "pan:msg1")
+    assert item["messageId"] == tail
+    assert item["manualReportKey"] == worker.manual_report_key("ses_child", "task-1", 1)
     assert _no_real_recovery_spawn == ["ses_mgr"], \
         "manual report must wake the manager through the same recovery path"
     _cleanup()
 
 
 def test_manual_report_reports_each_historical_task_separately(monkeypatch):
-    """Every completed task in the durable index is reportable, not just the
-    newest one — and each report carries its own task's result."""
+    """Every completed run in the durable index is reportable with its own
+    block and its own result — not just the newest one."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[
-        _terminal(task_id="task-a", result="answer A", task_seq=1, result_cursor=1),
-        _terminal(task_id="task-b", result="answer B", task_seq=2, result_cursor=2),
-        _terminal(task_id="task-c", result="answer C", task_seq=3, result_cursor=3),
+    _, records = _child([
+        ("task-a", 1, ["answer A"]),
+        ("task-b", 2, ["answer B"]),
+        ("task-c", 3, ["answer C"]),
     ])
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        first = await _report("task-a", 1, "pan:blockA")
-        second = await _report("task-c", 3, "pan:blockC")
-        third = await _report("task-b", 2, "pan:blockB")
+        first = await _report(task_id="task-a", task_seq=1, message_id=records[0]["tail_id"])
+        second = await _report(task_id="task-c", task_seq=3, message_id=records[2]["tail_id"])
+        third = await _report(task_id="task-b", task_seq=2, message_id=records[1]["tail_id"])
         return first, second, third
 
     results = asyncio.run(scenario())
@@ -162,50 +194,46 @@ def test_manual_report_reports_each_historical_task_separately(monkeypatch):
     assert rows["task-a"]["result"] == "answer A"
     assert rows["task-b"]["result"] == "answer B"
     assert rows["task-c"]["result"] == "answer C"
-    assert len(mgr.queue_pending) == 3, "each task keeps its own queue row"
+    assert len(mgr.queue_pending) == 3, "each run keeps its own queue row"
     _cleanup()
 
 
 def test_manual_report_older_task_while_newest_is_running(monkeypatch):
-    """A newer task still running (no terminal yet) must not block reporting an
-    older completed task, and must not change what that report contains."""
+    """A newer run still executing (no terminal, no settled answer) must not
+    block reporting an older completed run, nor change its content."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[_terminal(task_id="task-old", result="old answer",
-                                task_seq=1, result_cursor=1)],
-           last_result=_terminal(task_id="task-old", result="old answer",
-                                 task_seq=1, result_cursor=1))
+    s, records = _child([("task-old", 1, ["old answer"])])
+    # The newer run has been dispatched but has no answer and no terminal yet.
+    _append_run(s, "task-new", 2, [], terminal=False)
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await _report("task-old", 1, "pan:blockOld")
+        return await _report(task_id="task-old", task_seq=1, message_id=records[0]["tail_id"])
 
     result, error = asyncio.run(scenario())
-    assert error is None, f"older task must stay reportable: {error}"
+    assert error is None, f"older run must stay reportable: {error}"
     assert mgr.queue_pending[0]["taskId"] == "task-old"
     assert mgr.queue_pending[0]["result"] == "old answer"
     _cleanup()
 
 
 def test_manual_report_older_task_survives_late_new_terminal(monkeypatch):
-    """A newer task finishing between the capture and the retry never
-    re-targets the older report, and the newer task reports independently."""
+    """A newer run finishing between the click and the retry never re-targets
+    the older report, and the newer run reports its own result."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    child = _child(terminals=[
-        _terminal(task_id="task-old", result="old answer", task_seq=1, result_cursor=1),
-    ])
+    s, records = _child([("task-old", 1, ["old answer"])])
+    older_tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        older = await _report("task-old", 1, "pan:blockOld")
-        # A newer task completes between the first click and the retry.
-        child.terminal_results = child.terminal_results + [
-            _terminal(task_id="task-new", result="new answer", task_seq=2, result_cursor=2),
-        ]
-        child.last_result = child.terminal_results[-1]
-        older_retry = await _report("task-old", 1, "pan:blockOld")
-        newer = await _report("task-new", 2, "pan:blockNew")
+        older = await _report(task_id="task-old", task_seq=1, message_id=older_tail)
+        # The newer run completes before the retry.
+        newer_record = _append_run(s, "task-new", 2, ["new answer"])
+        older_retry = await _report(task_id="task-old", task_seq=1, message_id=older_tail)
+        newer = await _report(task_id="task-new", task_seq=2,
+                             message_id=newer_record["tail_id"])
         return older, older_retry, newer
 
     older, older_retry, newer = asyncio.run(scenario())
@@ -220,22 +248,148 @@ def test_manual_report_older_task_survives_late_new_terminal(monkeypatch):
     _cleanup()
 
 
-def test_manual_report_never_substitutes_another_task(monkeypatch):
-    """A requested task absent from the index fails instead of reporting the
-    newest (or any other) task's result."""
+# ── block identity proof ──
+
+def test_manual_report_rejects_a_non_tail_block_of_the_run(monkeypatch):
+    """Only the run's final text block is accepted: an earlier assistant row of
+    the same run is a definite failure (nothing is delivered)."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[_terminal(task_id="task-new", result="new answer",
-                                task_seq=2, result_cursor=2)])
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    _append_run(s, "task-1", 1, ["first block", "final block"])
+    middle_block = next(
+        row["messageId"] for row in s.history
+        if row.get("role") == "assistant" and row.get("content") == "first block")
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await _report("task-missing", 1, "pan:block")
+        return await _report(message_id=middle_block)
+
+    result, error = asyncio.run(scenario())
+    assert result is None
+    assert error["code"] == "block_mismatch"
+    assert error["retryable"] is False
+    assert mgr.queue_pending == []
+    assert mgr.manual_report_receipts == {}
+    _cleanup()
+
+
+def test_manual_report_rejects_a_block_of_another_run(monkeypatch):
+    """Red/green regression: the same taskId dispatched twice must never pair an
+    earlier run's block with a later run's terminal (the pre-fix behaviour would
+    have reported the newer result for the older block)."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, records = _child([
+        ("task-r", 1, ["first run"]),
+        ("task-r", 2, ["second run"]),
+    ])
+    first_tail, second_tail = records[0]["tail_id"], records[1]["tail_id"]
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        wrong = await _report(task_id="task-r", task_seq=2, message_id=first_tail)
+        right_first = await _report(task_id="task-r", task_seq=1, message_id=first_tail)
+        right_second = await _report(task_id="task-r", task_seq=2, message_id=second_tail)
+        return wrong, right_first, right_second
+
+    wrong, right_first, right_second = asyncio.run(scenario())
+    assert wrong[0] is None and wrong[1]["code"] == "block_mismatch", \
+        "an earlier run's block must not report a later run"
+    assert right_first[1] is None and right_second[1] is None
+    rows = [(item["taskId"], item["taskSeq"], item["result"])
+            for item in mgr.queue_pending]
+    assert rows == [("task-r", 1, "first run"), ("task-r", 2, "second run")]
+    _cleanup()
+
+
+def test_manual_report_rejects_a_foreign_message_id(monkeypatch):
+    """An arbitrary message id that is not a durable row of this Session is a
+    definite failure — it can never create a second report for one run."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        first = await _report(message_id=tail)
+        spam = await _report(message_id="pan:made-up")
+        retry = await _report(message_id=tail)
+        return first, spam, retry
+
+    first, spam, retry = asyncio.run(scenario())
+    assert first[1] is None
+    assert spam[0] is None and spam[1]["code"] == "block_mismatch"
+    assert retry[0]["alreadyReported"] is True
+    assert len(mgr.queue_pending) == 1, \
+        "a client-supplied message id must not turn one run into several reports"
+    _cleanup()
+
+
+def test_manual_report_unprovable_history_is_definite_failure(monkeypatch):
+    """Legacy rows without a history boundary (and rewritten epochs) cannot
+    prove the block relation: refuse instead of guessing."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    _sess.append_history(s, {"role": "user", "content": "do task-1",
+                             "source": "agent", "taskId": "task-1",
+                             "taskIdSource": "assign"})
+    _sess.append_history(s, {"role": "assistant", "content": "the answer"})
+    tail = s.history[-1]["messageId"]
+    s.terminal_results = [{
+        "status": "done", "result": "the answer", "taskId": "task-1",
+        "taskSeq": 1, "workerId": "worker-1", "resultCursor": 1,
+        "terminalKey": "terminal:task-1:1",
+    }]
+    s.last_result = dict(s.terminal_results[0])
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        return await _report(message_id=tail)
+
+    result, error = asyncio.run(scenario())
+    assert result is None
+    assert error["code"] == "block_unproven"
+    assert error["retryable"] is False
+    assert mgr.queue_pending == []
+    _cleanup()
+
+
+def test_manual_report_rejects_a_rewritten_history_epoch(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
+    # The history was replaced after the terminal committed: the recorded
+    # boundary no longer applies to the current rows.
+    _sess.replace_history(s, list(s.history))
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        return await _report(message_id=tail)
+
+    result, error = asyncio.run(scenario())
+    assert result is None
+    assert error["code"] == "block_unproven"
+    assert mgr.queue_pending == []
+    _cleanup()
+
+
+def test_manual_report_never_substitutes_another_task(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, records = _child([("task-new", 2, ["new answer"])])
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        return await _report(task_id="task-missing", task_seq=1,
+                             message_id=records[0]["tail_id"])
 
     result, error = asyncio.run(scenario())
     assert result is None
     assert error["code"] == "no_task_result"
-    assert error["retryable"] is False
     assert mgr.queue_pending == [], "nothing may be sent for an unknown task"
     assert mgr.manual_report_receipts == {}
     _cleanup()
@@ -245,11 +399,12 @@ def test_manual_report_task_seq_mismatch_is_definite_failure(monkeypatch):
     """The same task id at another run's sequence is a different identity."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[_terminal(task_id="task-1", task_seq=5, result_cursor=5)])
+    _, records = _child([("task-1", 5, ["answer"])])
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await _report("task-1", 4, "pan:block")
+        return await _report(task_id="task-1", task_seq=4,
+                             message_id=records[0]["tail_id"])
 
     result, error = asyncio.run(scenario())
     assert result is None
@@ -258,33 +413,38 @@ def test_manual_report_task_seq_mismatch_is_definite_failure(monkeypatch):
     _cleanup()
 
 
-def test_manual_report_legacy_last_result_fallback(monkeypatch):
-    """Old Sessions with only ``last_result`` still resolve their task."""
+def test_manual_report_task_seq_optional(monkeypatch):
+    """A caller that knows only the task id still resolves that run (and the
+    key uses the resolved run's identity)."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[], last_result=_terminal(task_id="task-legacy",
-                                               result="legacy answer"))
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await _report("task-legacy", 1, "pan:block")
+        first = await _report(task_id="task-1", task_seq=None, message_id=tail)
+        second = await _report(task_id="task-1", task_seq=1, message_id=tail)
+        return first, second
 
-    result, error = asyncio.run(scenario())
-    assert error is None, f"unexpected error: {error}"
-    assert mgr.queue_pending[0]["result"] == "legacy answer"
+    first, second = asyncio.run(scenario())
+    assert first[1] is None
+    assert mgr.queue_pending[0]["taskSeq"] == 1
+    assert second[0]["alreadyReported"] is True, \
+        "the resolved run identity is the dedup key"
     _cleanup()
 
 
 def test_manual_report_error_status_terminal(monkeypatch):
-    """An errored task is still a completion: the same status is reported."""
+    """An errored run is still a completion: the same status is reported."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[_terminal(task_id="task-e", status="error", result="boom",
-                                task_seq=9, result_cursor=9)])
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    record = _append_run(s, "task-e", 9, ["boom"], status="error", result="boom")
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await _report("task-e", 9, "pan:block")
+        return await _report(task_id="task-e", task_seq=9, message_id=record["tail_id"])
 
     result, error = asyncio.run(scenario())
     assert error is None
@@ -298,11 +458,11 @@ def test_manual_report_works_after_unsubscribe_without_touching_subscription(mon
     still delivered and the subscription set is neither read nor modified."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
     mgr = _setup_session("ses_mgr")  # not subscribed
 
     async def scenario():
-        return await _report()
+        return await _report(message_id=records[0]["tail_id"])
 
     result, error = asyncio.run(scenario())
 
@@ -316,12 +476,12 @@ def test_manual_report_works_after_unsubscribe_without_touching_subscription(mon
 def test_manual_report_keeps_existing_subscription(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
     mgr = _setup_session("ses_mgr")
     mgr.report_subscriptions = {"ses_child"}
 
     async def scenario():
-        await _report()
+        await _report(message_id=records[0]["tail_id"])
 
     asyncio.run(scenario())
     assert mgr.report_subscriptions == {"ses_child"}
@@ -331,11 +491,10 @@ def test_manual_report_keeps_existing_subscription(monkeypatch):
 def test_manual_report_no_manager_is_definite_failure(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _setup_session("ses_child", terminal_results=[_terminal()],
-                   last_result=_terminal())
+    _, records = _child([("task-1", 1, ["the answer"])], manager=False)
 
     async def scenario():
-        return await worker.enqueue_manual_report("ses_child", "task-1", 1, "pan:msg1")
+        return await _report(message_id=records[0]["tail_id"])
 
     result, error = asyncio.run(scenario())
     assert result is None
@@ -347,11 +506,11 @@ def test_manual_report_no_manager_is_definite_failure(monkeypatch):
 def test_manual_report_missing_manager_session(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _setup_session("ses_child", managed_by="ses_ghost",
-                   terminal_results=[_terminal()], last_result=_terminal())
+    s = _setup_session("ses_child", managed_by="ses_ghost")
+    record = _append_run(s, "task-1", 1, ["the answer"])
 
     async def scenario():
-        return await worker.enqueue_manual_report("ses_child", "task-1", 1, "pan:msg1")
+        return await _report(message_id=record["tail_id"])
 
     result, error = asyncio.run(scenario())
     assert result is None
@@ -366,7 +525,7 @@ def test_manual_report_without_any_terminal(monkeypatch):
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await worker.enqueue_manual_report("ses_child", "task-1", 1, "pan:msg1")
+        return await _report()
 
     result, error = asyncio.run(scenario())
     assert result is None
@@ -393,12 +552,13 @@ def test_manual_report_session_not_found(monkeypatch):
 def test_manual_report_retry_delivers_once(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        first = await _report()
-        second = await _report()
+        first = await _report(message_id=tail)
+        second = await _report(message_id=tail)
         return first, second
 
     first, second = asyncio.run(scenario())
@@ -416,13 +576,14 @@ def test_manual_report_retry_after_consumption_delivers_once(monkeypatch):
     double-send."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        first = await _report()
+        first = await _report(message_id=tail)
         mgr.queue_pending.clear()  # the manager's consumer drained the batch
-        second = await _report()
+        second = await _report(message_id=tail)
         return first, second
 
     first, second = asyncio.run(scenario())
@@ -430,8 +591,8 @@ def test_manual_report_retry_after_consumption_delivers_once(monkeypatch):
     assert second[0]["alreadyReported"] is True
     assert second[0]["queueItemId"] == first[0]["queueItemId"]
     receipt = mgr.manual_report_receipts[
-        worker.manual_report_key("ses_child", "task-1", 1, "pan:msg1")]
-    assert receipt["messageId"] == "pan:msg1"
+        worker.manual_report_key("ses_child", "task-1", 1)]
+    assert receipt["messageId"] == tail
     assert receipt["taskId"] == "task-1"
     assert receipt["taskSeq"] == 1
     _cleanup()
@@ -440,11 +601,13 @@ def test_manual_report_retry_after_consumption_delivers_once(monkeypatch):
 def test_manual_report_concurrent_clicks_deliver_once(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        return await asyncio.gather(_report(), _report(), _report())
+        return await asyncio.gather(
+            _report(message_id=tail), _report(message_id=tail), _report(message_id=tail))
 
     outcomes = asyncio.run(scenario())
     assert len(mgr.queue_pending) == 1, f"concurrent clicks double-sent: {mgr.queue_pending}"
@@ -453,38 +616,18 @@ def test_manual_report_concurrent_clicks_deliver_once(monkeypatch):
     _cleanup()
 
 
-def test_manual_report_distinct_blocks_of_same_task_deliver_separately(monkeypatch):
-    """Different blocks are different reports of the same task."""
-    _cleanup()
-    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
-    mgr = _setup_session("ses_mgr")
-
-    async def scenario():
-        await _report(message_id="pan:msg1")
-        await _report(message_id="pan:msg2")
-
-    asyncio.run(scenario())
-    assert len(mgr.queue_pending) == 2
-    _cleanup()
-
-
 def test_manual_report_task_rerun_is_a_distinct_report(monkeypatch):
-    """The same task id at a new sequence is a new report, not a replay."""
+    """The same task id at a new sequence is a new report of a new run."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    child = _child(terminals=[
-        _terminal(task_id="task-1", result="first run", task_seq=1, result_cursor=1),
-    ])
+    _, records = _child([("task-1", 1, ["first run"])])
     mgr = _setup_session("ses_mgr")
+    first_tail = records[0]["tail_id"]
 
     async def scenario():
-        first = await _report("task-1", 1, "pan:block")
-        child.terminal_results = child.terminal_results + [
-            _terminal(task_id="task-1", result="second run", task_seq=2, result_cursor=2),
-        ]
-        child.last_result = child.terminal_results[-1]
-        second = await _report("task-1", 2, "pan:block")
+        first = await _report(task_id="task-1", task_seq=1, message_id=first_tail)
+        rerun = _append_run(_sess.get("ses_child"), "task-1", 2, ["second run"])
+        second = await _report(task_id="task-1", task_seq=2, message_id=rerun["tail_id"])
         return first, second
 
     first, second = asyncio.run(scenario())
@@ -503,12 +646,13 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr(_sess, "save_async", _failing_save)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
     old_revision = mgr.queue_revision
 
     async def scenario():
-        return await _report()
+        return await _report(message_id=tail)
 
     result, error = asyncio.run(scenario())
     assert result is None
@@ -526,7 +670,7 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
 
     async def retry():
-        return await _report()
+        return await _report(message_id=tail)
 
     result2, error2 = asyncio.run(retry())
     assert error2 is None
@@ -538,12 +682,16 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
 def test_manual_report_receipts_bounded(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    tails = [
+        _append_run(s, f"task-{index}", index, [f"answer {index}"])["tail_id"]
+        for index in range(1, _sess.MANUAL_REPORT_RECEIPT_MAX + 6)
+    ]
     mgr = _setup_session("ses_mgr")
 
     async def scenario():
-        for index in range(_sess.MANUAL_REPORT_RECEIPT_MAX + 5):
-            await _report(message_id=f"pan:msg{index}")
+        for index, tail in enumerate(tails, start=1):
+            await _report(task_id=f"task-{index}", task_seq=index, message_id=tail)
 
     asyncio.run(scenario())
     assert len(mgr.manual_report_receipts) == _sess.MANUAL_REPORT_RECEIPT_MAX
@@ -555,7 +703,7 @@ def test_manual_report_receipts_bounded(monkeypatch):
 def test_manual_report_wakes_manager_consumer(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
     _setup_session("ses_mgr")
     mw = worker.Worker(
         worker_id="worker-mgr", session_id="ses_mgr",
@@ -565,7 +713,7 @@ def test_manual_report_wakes_manager_consumer(monkeypatch):
     worker.workers["worker-mgr"] = mw
 
     async def scenario():
-        await _report()
+        await _report(message_id=records[0]["tail_id"])
 
     asyncio.run(scenario())
 
@@ -610,13 +758,13 @@ def test_auto_report_still_delivers_when_subscribed(monkeypatch, _no_real_recove
 def test_manual_and_auto_reports_coexist(monkeypatch, _no_real_recovery_spawn):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
     mgr = _setup_session("ses_mgr")
     mgr.report_subscriptions = {"ses_child"}
 
     async def scenario():
         await worker._enqueue_report("ses_child", "done", "auto", "task-0", "worker-0")
-        await _report()
+        await _report(message_id=records[0]["tail_id"])
 
     asyncio.run(scenario())
     assert len(mgr.queue_pending) == 2
@@ -629,26 +777,36 @@ def test_manual_and_auto_reports_coexist(monkeypatch, _no_real_recovery_spawn):
 
 def test_durable_terminal_for_task_picks_newest_run():
     _cleanup()
-    child = _child(terminals=[
-        _terminal(task_id="task-1", result="old", task_seq=1, result_cursor=1),
-        _terminal(task_id="task-2", result="other", task_seq=2, result_cursor=2),
-        _terminal(task_id="task-1", result="new", task_seq=3, result_cursor=3),
+    s, records = _child([
+        ("task-1", 1, ["old"]),
+        ("task-2", 2, ["other"]),
+        ("task-1", 3, ["new"]),
     ])
-    terminal = worker.durable_terminal_for_task(child, "task-1")
+    terminal = worker.durable_terminal_for_task(s, "task-1")
     assert terminal is not None and terminal["result"] == "new"
-    assert worker.durable_terminal_for_task(child, "task-1", 1)["result"] == "old"
-    assert worker.durable_terminal_for_task(child, "task-9") is None
+    assert worker.durable_terminal_for_task(s, "task-1", 1)["result"] == "old"
+    assert worker.durable_terminal_for_task(s, "task-9") is None
+    assert records[0]["result"] == "old"
     _cleanup()
 
 
-def test_durable_terminal_ignores_non_terminal_statuses():
+def test_task_tail_block_id_matches_appended_result_row():
     _cleanup()
-    child = _child(terminals=[
-        {"status": "running", "result": "partial", "taskId": "task-1", "taskSeq": 1},
-        {"status": "done", "result": "final", "taskId": "task-1", "taskSeq": 1,
-         "resultCursor": 1},
-    ], last_result=None)
-    assert worker.durable_terminal_for_task(child, "task-1")["result"] == "final"
+    s, records = _child([("task-1", 1, ["answer"])])
+    tail = worker.task_tail_block_id(s, records[0])
+    assert tail == records[0]["tail_id"] == s.history[-1]["messageId"]
+    _cleanup()
+
+
+def test_task_tail_block_id_unproven_cases():
+    _cleanup()
+    s, records = _child([("task-1", 1, ["answer"])])
+    record = records[0]
+    assert worker.task_tail_block_id(s, {**record, "historyEpoch": None}) is None
+    assert worker.task_tail_block_id(s, {**record, "historyEpoch": "other"}) is None
+    assert worker.task_tail_block_id(s, {**record, "historyRevision": None}) is None
+    assert worker.task_tail_block_id(s, {**record, "historyRevision": 0}) is None
+    assert worker.task_tail_block_id(s, {**record, "historyRevision": len(s.history) + 5}) is None
     _cleanup()
 
 
@@ -656,11 +814,11 @@ def test_durable_terminal_ignores_non_terminal_statuses():
 
 def test_manual_report_receipts_roundtrip():
     mgr = _sess.Session(id="ses_mgr", name="mgr")
-    mgr.manual_report_receipts = {"manual:a:b:c": {"queueItemId": "q1"}}
+    mgr.manual_report_receipts = {"manual:a:b": {"queueItemId": "q1"}}
     data = mgr.to_dict()
-    assert data["manual_report_receipts"] == {"manual:a:b:c": {"queueItemId": "q1"}}
+    assert data["manual_report_receipts"] == {"manual:a:b": {"queueItemId": "q1"}}
     restored = _sess.Session._from_data(dict(data))
-    assert restored.manual_report_receipts == {"manual:a:b:c": {"queueItemId": "q1"}}
+    assert restored.manual_report_receipts == {"manual:a:b": {"queueItemId": "q1"}}
 
 
 def test_manual_report_receipts_default_and_legacy():
@@ -678,23 +836,23 @@ def test_manual_report_receipts_default_and_legacy():
 # ── list projection: bounded terminal identities, no result bodies ──
 
 def test_session_summary_exposes_bounded_terminal_identities():
-    """A list read must let a per-task action bind on a cold load, while the
-    (potentially large) result bodies stay out of it."""
+    """A list read must let a per-task action bind (and know the run's block is
+    provable) on a cold load, while result bodies stay out of it."""
     import packages.web.server as srv
     _cleanup()
-    ta = _child(terminals=[
-        _terminal(task_id="task-a", result="answer A", task_seq=1, result_cursor=1),
-        _terminal(task_id="task-b", result="answer B", task_seq=2, result_cursor=2),
-    ])
-    summary = srv._session_summary(ta, {})
-    assert summary["terminalResults"] == [
-        {"taskId": "task-a", "taskSeq": 1, "resultCursor": 1,
-         "terminalKey": "terminal:task-a:1", "status": "done"},
-        {"taskId": "task-b", "taskSeq": 2, "resultCursor": 2,
-         "terminalKey": "terminal:task-b:2", "status": "done"},
+    s, records = _child([("task-a", 1, ["answer A"]), ("task-b", 2, ["answer B"])])
+    summary = srv._session_summary(s, {})
+    expected = [
+        {key: record[key] for key in
+         ("taskId", "taskSeq", "resultCursor", "terminalKey", "status",
+          "historyEpoch", "historyRevision")}
+        for record in records
     ]
-    assert "result" not in summary["terminalResults"][0], \
-        "the list projection must not carry result bodies"
+    assert summary["terminalResults"] == expected
+    for row in summary["terminalResults"]:
+        assert set(row) == {"taskId", "taskSeq", "resultCursor", "terminalKey",
+                            "status", "historyEpoch", "historyRevision"}
+        assert "result" not in row, "the list projection must not carry result bodies"
     assert "lastResult" not in summary, "the list read stays identity-only"
     _cleanup()
 
@@ -702,14 +860,11 @@ def test_session_summary_exposes_bounded_terminal_identities():
 def test_session_summary_terminal_identities_bounded():
     import packages.web.server as srv
     _cleanup()
-    terminals = [
-        _terminal(task_id=f"task-{index}", task_seq=index, result_cursor=index)
-        for index in range(1, srv._TERMINAL_IDENTITY_LIMIT + 6)
-    ]
-    ta = _child(terminals=terminals)
-    rows = srv._session_summary(ta, {})["terminalResults"]
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    for index in range(1, srv._TERMINAL_IDENTITY_LIMIT + 6):
+        _append_run(s, f"task-{index}", index, [f"answer {index}"])
+    rows = srv._session_summary(s, {})["terminalResults"]
     assert len(rows) == srv._TERMINAL_IDENTITY_LIMIT
-    # Newest last: the oldest identities are the ones dropped.
     assert rows[-1]["taskId"] == f"task-{srv._TERMINAL_IDENTITY_LIMIT + 5}"
     assert all("result" not in row for row in rows)
     _cleanup()
@@ -725,21 +880,18 @@ def test_session_summary_terminal_identities_empty_without_terminal():
 
 def test_session_summary_identity_is_accepted_by_report_route(monkeypatch):
     """The identity the list exposes is exactly what the report route accepts,
-    for an older task as well as for the newest one."""
+    for an older run as well as for the newest one."""
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    ta = _child(terminals=[
-        _terminal(task_id="task-old", result="old answer", task_seq=1, result_cursor=1),
-        _terminal(task_id="task-new", result="new answer", task_seq=2, result_cursor=2),
-    ])
+    s, records = _child([("task-old", 1, ["old answer"]), ("task-new", 2, ["new answer"])])
     _setup_session("ses_mgr")
-    older = srv._session_summary(ta, {})["terminalResults"][0]
+    older = srv._session_summary(s, {})["terminalResults"][0]
     result = asyncio.run(srv.api_session_manual_report(
         "ses_child",
         {"taskId": older["taskId"], "taskSeq": older["taskSeq"],
-         "messageId": "pan:blockOld"},
+         "messageId": records[0]["tail_id"]},
     ))
     assert result.get("ok") is True, f"older identity must be accepted: {result}"
     _cleanup()
@@ -752,11 +904,12 @@ def test_manual_report_endpoint_ok(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     result = asyncio.run(srv.api_session_manual_report(
-        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": "pan:msg1"}))
+        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": tail}))
     assert result.get("ok") is True
     assert result.get("managerId") == "ses_mgr"
     assert result.get("alreadyReported") is False
@@ -764,7 +917,7 @@ def test_manual_report_endpoint_ok(monkeypatch):
     assert len(mgr.queue_pending) == 1
 
     replay = asyncio.run(srv.api_session_manual_report(
-        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": "pan:msg1"}))
+        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": tail}))
     assert replay.get("ok") is True
     assert replay.get("alreadyReported") is True
     assert len(mgr.queue_pending) == 1
@@ -776,7 +929,8 @@ def test_manual_report_endpoint_after_unsubscribe(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     subscribed = asyncio.run(srv.api_report_subscribe(
@@ -787,7 +941,7 @@ def test_manual_report_endpoint_after_unsubscribe(monkeypatch):
     assert unsubscribed.get("subscribed") is False
 
     result = asyncio.run(srv.api_session_manual_report(
-        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": "pan:msg1"}))
+        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": tail}))
     assert result.get("ok") is True, f"manual report must work after unsubscribe: {result}"
     assert len(mgr.queue_pending) == 1
     assert mgr.report_subscriptions == set(), "unsubscribe state must be unchanged"
@@ -799,11 +953,12 @@ def test_manual_report_endpoint_unknown_task(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[_terminal(task_id="task-other")])
+    _, records = _child([("task-other", 1, ["other"])])
     mgr = _setup_session("ses_mgr")
 
     result = asyncio.run(srv.api_session_manual_report(
-        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": "pan:msg1"}))
+        "ses_child", {"taskId": "task-1", "taskSeq": 1,
+                      "messageId": records[0]["tail_id"]}))
     assert result.get("ok") is False
     assert result["error"]["code"] == "no_task_result"
     assert result.get("retryable") is False
@@ -816,19 +971,20 @@ def test_manual_report_endpoint_rejects_bad_bodies(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     for body in (
         {},
         {"taskId": "task-1"},
-        {"messageId": "pan:msg1"},
+        {"messageId": tail},
         {"taskId": "task-1", "messageId": ""},
         {"taskId": "task-1", "messageId": 42},
-        {"taskId": 7, "messageId": "pan:msg1"},
-        {"taskId": "task-1", "taskSeq": "1", "messageId": "pan:msg1"},
-        {"taskId": "task-1", "taskSeq": -1, "messageId": "pan:msg1"},
-        {"taskId": "task-1", "taskSeq": True, "messageId": "pan:msg1"},
+        {"taskId": 7, "messageId": tail},
+        {"taskId": "task-1", "taskSeq": "1", "messageId": tail},
+        {"taskId": "task-1", "taskSeq": -1, "messageId": tail},
+        {"taskId": "task-1", "taskSeq": True, "messageId": tail},
         {"taskId": "task-1", "messageId": "x" * 201},
     ):
         result = asyncio.run(srv.api_session_manual_report("ses_child", body))
@@ -838,19 +994,22 @@ def test_manual_report_endpoint_rejects_bad_bodies(monkeypatch):
     _cleanup()
 
 
-def test_manual_report_endpoint_task_seq_optional(monkeypatch):
-    """A caller that knows only the task id still resolves that task."""
+def test_manual_report_endpoint_rejects_non_tail_block(monkeypatch):
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child()
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    _append_run(s, "task-1", 1, ["first block", "final block"])
+    middle = next(row["messageId"] for row in s.history
+                  if row.get("role") == "assistant" and row.get("content") == "first block")
     mgr = _setup_session("ses_mgr")
 
     result = asyncio.run(srv.api_session_manual_report(
-        "ses_child", {"taskId": "task-1", "messageId": "pan:msg1"}))
-    assert result.get("ok") is True, f"taskSeq must be optional: {result}"
-    assert mgr.queue_pending[0]["taskSeq"] == 1
+        "ses_child", {"taskId": "task-1", "taskSeq": 1, "messageId": middle}))
+    assert result.get("ok") is False
+    assert result["error"]["code"] == "block_mismatch"
+    assert mgr.queue_pending == []
     _cleanup()
 
 
@@ -869,41 +1028,31 @@ def test_manual_report_endpoint_session_not_found(monkeypatch):
 
 # ── real link: real persistence + real ASGI route (no save stubs) ──
 
-def test_manual_report_per_task_dedup_survives_cold_reload(monkeypatch, _no_real_recovery_spawn):
+def test_manual_report_per_run_dedup_survives_cold_reload(monkeypatch, _no_real_recovery_spawn):
     """Real durable write into the isolated data root, then a cold reload: the
-    per-task rows and receipts are on disk, retrying an OLDER task after the
-    reload is still deduplicated, and a newer task reports independently."""
+    per-run rows and receipts are on disk, retrying an OLDER run after the reload
+    is still deduplicated, and a newer run reports independently."""
     import json
     import packages.web.server as srv
     _cleanup()
-    _setup_session("ses_child", managed_by="ses_mgr",
-                   terminal_results=[
-                       _terminal(task_id="task-old", result="old answer",
-                                 task_seq=1, result_cursor=1),
-                       _terminal(task_id="task-new", result="new answer",
-                                 task_seq=2, result_cursor=2),
-                   ],
-                   last_result=_terminal(task_id="task-new", result="new answer",
-                                         task_seq=2, result_cursor=2))
+    s, records = _child([("task-old", 1, ["old answer"]), ("task-new", 2, ["new answer"])])
+    old_tail, new_tail = records[0]["tail_id"], records[1]["tail_id"]
     _setup_session("ses_mgr")
 
     async def scenario():
         await _sess.save_async(_sess.get("ses_child"))
         await _sess.save_async(_sess.get("ses_mgr"))
         older = await srv.api_session_manual_report(
-            "ses_child", {"taskId": "task-old", "taskSeq": 1,
-                          "messageId": "pan:blockOld"})
+            "ses_child", {"taskId": "task-old", "taskSeq": 1, "messageId": old_tail})
         on_disk = json.loads(
             (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
         # Cold load: drop every in-memory Session and read the manager from disk.
         _sess._cache.clear()
         reloaded = _sess.get("ses_mgr")
         older_retry = await srv.api_session_manual_report(
-            "ses_child", {"taskId": "task-old", "taskSeq": 1,
-                          "messageId": "pan:blockOld"})
+            "ses_child", {"taskId": "task-old", "taskSeq": 1, "messageId": old_tail})
         newer = await srv.api_session_manual_report(
-            "ses_child", {"taskId": "task-new", "taskSeq": 2,
-                          "messageId": "pan:blockNew"})
+            "ses_child", {"taskId": "task-new", "taskSeq": 2, "messageId": new_tail})
         return older, on_disk, reloaded, older_retry, newer
 
     older, on_disk, reloaded, older_retry, newer = asyncio.run(scenario())
@@ -914,19 +1063,19 @@ def test_manual_report_per_task_dedup_survives_cold_reload(monkeypatch, _no_real
     assert set(rows) == {"task-old"}
     assert rows["task-old"]["result"] == "old answer"
     assert rows["task-old"]["taskSeq"] == 1
-    assert rows["task-old"]["messageId"] == "pan:blockOld"
-    assert worker.manual_report_key("ses_child", "task-old", 1, "pan:blockOld") \
+    assert rows["task-old"]["messageId"] == old_tail
+    assert worker.manual_report_key("ses_child", "task-old", 1) \
         in on_disk["manual_report_receipts"]
 
     assert reloaded is not None
-    assert worker.manual_report_key("ses_child", "task-old", 1, "pan:blockOld") \
+    assert worker.manual_report_key("ses_child", "task-old", 1) \
         in reloaded.manual_report_receipts
     assert older_retry.get("alreadyReported") is True
     assert newer.get("ok") is True and newer.get("alreadyReported") is False
     manual_rows = {item["taskId"]: item for item in reloaded.queue_pending
                    if item.get("manualReportKey")}
     assert set(manual_rows) == {"task-old", "task-new"}, \
-        "a retry after a cold reload must not double-deliver, and each task keeps its own row"
+        "a retry after a cold reload must not double-deliver, and each run keeps its own row"
     assert manual_rows["task-new"]["result"] == "new answer"
     _cleanup()
 
@@ -940,10 +1089,8 @@ def test_manual_report_route_through_asgi(monkeypatch, _no_real_recovery_spawn):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    _child(terminals=[
-        _terminal(task_id="task-old", result="old answer", task_seq=1, result_cursor=1),
-        _terminal(task_id="task-new", result="new answer", task_seq=2, result_cursor=2),
-    ])
+    _, records = _child([("task-old", 1, ["old answer"]), ("task-new", 2, ["new answer"])])
+    old_tail, new_tail = records[0]["tail_id"], records[1]["tail_id"]
     mgr = _setup_session("ses_mgr")
 
     app = FastAPI()
@@ -952,7 +1099,7 @@ def test_manual_report_route_through_asgi(monkeypatch, _no_real_recovery_spawn):
     with TestClient(app) as client:
         response = client.post("/api/sessions/ses_child/manual-report",
                                json={"taskId": "task-old", "taskSeq": 1,
-                                     "messageId": "pan:blockOld"})
+                                     "messageId": old_tail})
         assert response.status_code == 200
         body = response.json()
         assert body["ok"] is True
@@ -962,70 +1109,40 @@ def test_manual_report_route_through_asgi(monkeypatch, _no_real_recovery_spawn):
 
         replay = client.post("/api/sessions/ses_child/manual-report",
                              json={"taskId": "task-old", "taskSeq": 1,
-                                   "messageId": "pan:blockOld"})
+                                   "messageId": old_tail})
         assert replay.status_code == 200
         assert replay.json()["alreadyReported"] is True
 
+        # The other run's block is a different, accepted report; the same block
+        # submitted for the other run is refused.
+        wrong = client.post("/api/sessions/ses_child/manual-report",
+                            json={"taskId": "task-new", "taskSeq": 2,
+                                  "messageId": old_tail})
+        assert wrong.json()["ok"] is False
+        assert wrong.json()["error"]["code"] == "block_mismatch"
+
         newer = client.post("/api/sessions/ses_child/manual-report",
                             json={"taskId": "task-new", "taskSeq": 2,
-                                  "messageId": "pan:blockNew"})
+                                  "messageId": new_tail})
         assert newer.json()["ok"] is True
         assert newer.json()["alreadyReported"] is False
         assert len(mgr.queue_pending) == 2
 
         invalid = client.post("/api/sessions/ses_child/manual-report",
-                              json={"messageId": "pan:blockOld"})
+                              json={"messageId": old_tail})
         assert invalid.status_code == 200
         assert invalid.json()["ok"] is False
 
         missing = client.post("/api/sessions/ses_ghost/manual-report",
                               json={"taskId": "task-old", "taskSeq": 1,
-                                    "messageId": "pan:blockOld"})
+                                    "messageId": old_tail})
         assert missing.status_code == 200
         assert missing.json()["error"]["code"] == "session_not_found"
     _cleanup()
 
 
 if __name__ == "__main__":
-    test_manual_report_delivers_to_manager()
-    test_manual_report_reports_each_historical_task_separately()
-    test_manual_report_older_task_while_newest_is_running()
-    test_manual_report_older_task_survives_late_new_terminal()
-    test_manual_report_never_substitutes_another_task()
-    test_manual_report_task_seq_mismatch_is_definite_failure()
-    test_manual_report_legacy_last_result_fallback()
-    test_manual_report_error_status_terminal()
-    test_manual_report_works_after_unsubscribe_without_touching_subscription()
-    test_manual_report_keeps_existing_subscription()
-    test_manual_report_no_manager_is_definite_failure()
-    test_manual_report_missing_manager_session()
-    test_manual_report_without_any_terminal()
-    test_manual_report_session_not_found()
-    test_manual_report_retry_delivers_once()
-    test_manual_report_retry_after_consumption_delivers_once()
-    test_manual_report_concurrent_clicks_deliver_once()
-    test_manual_report_distinct_blocks_of_same_task_deliver_separately()
-    test_manual_report_task_rerun_is_a_distinct_report()
-    test_manual_report_save_failure_rolls_back()
-    test_manual_report_receipts_bounded()
-    test_manual_report_wakes_manager_consumer()
-    test_auto_report_still_requires_subscription()
-    test_auto_report_still_delivers_when_subscribed()
-    test_manual_and_auto_reports_coexist()
-    test_durable_terminal_for_task_picks_newest_run()
-    test_durable_terminal_ignores_non_terminal_statuses()
-    test_manual_report_receipts_roundtrip()
-    test_manual_report_receipts_default_and_legacy()
-    test_session_summary_exposes_bounded_terminal_identities()
-    test_session_summary_terminal_identities_bounded()
-    test_session_summary_terminal_identities_empty_without_terminal()
-    test_session_summary_identity_is_accepted_by_report_route()
-    test_manual_report_endpoint_ok()
-    test_manual_report_endpoint_after_unsubscribe()
-    test_manual_report_endpoint_unknown_task()
-    test_manual_report_endpoint_rejects_bad_bodies()
-    test_manual_report_endpoint_task_seq_optional()
-    test_manual_report_endpoint_session_not_found()
-    test_manual_report_per_task_dedup_survives_cold_reload()
-    test_manual_report_route_through_asgi()
+    for name, value in sorted(globals().items()):
+        if name.startswith("test_") and callable(value):
+            value()
     print("\n=== ALL MANUAL TASK REPORT TESTS PASSED ===")

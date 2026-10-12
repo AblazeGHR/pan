@@ -4592,18 +4592,55 @@ _TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
 
 
 def manual_report_key(session_id: str, task_id: str | None,
-                      task_seq: int | None, message_id: str) -> str:
-    """Deterministic idempotency key for one explicit browser task report.
+                      task_seq: int | None) -> str:
+    """Deterministic idempotency key for one explicit task report.
 
-    Derived from server-side identity only (never client-supplied), so every
-    retry of the same (session, task, message) report — double click, concurrent
-    tab, or a retry after an unconfirmed response — addresses the same durable
-    receipt instead of creating a second report.  The task's sequence makes two
-    runs of the same task id two distinct reports.
+    Keyed on the provable task **run** identity only (session + taskId +
+    taskSeq), never on a client-supplied message id: an arbitrary or repeated
+    message id must not be able to turn one task into several deliveries, while
+    distinct runs of one task id still stay distinct.
     """
     task_part = task_id if task_id else "-"
     seq_part = str(task_seq) if task_seq is not None else "-"
-    return f"manual:{session_id}:{task_part}:{seq_part}:{message_id}"
+    return f"manual:{session_id}:{task_part}:{seq_part}"
+
+
+def task_tail_block_id(s, terminal: dict) -> str | None:
+    """messageId of that task run's final text block, or None when unprovable.
+
+    A durable terminal row records the history epoch/revision it committed at,
+    so within an unchanged epoch the run's final row offset is recoverable from
+    the same arithmetic the client uses for terminal coverage
+    (``total - (revision - boundary_revision)``).  The block itself is the last
+    assistant row at or before that boundary — the run's own tail text block.
+
+    Returns None whenever the relation cannot be proven for this Session
+    (legacy rows without epoch/revision, a rewritten history epoch, or no
+    assistant row at the boundary).  Callers must then refuse instead of
+    guessing which block belongs to the task.
+    """
+    epoch = terminal.get("historyEpoch")
+    revision = terminal.get("historyRevision")
+    if not isinstance(epoch, str) or not epoch:
+        return None
+    if getattr(s, "history_epoch", None) != epoch:
+        return None
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision <= 0:
+        return None
+    rows = getattr(s, "history", None)
+    if not isinstance(rows, list) or not rows:
+        return None
+    current = max(0, int(getattr(s, "history_revision", 0) or 0))
+    boundary = len(rows) - (current - revision)
+    if boundary < 0 or boundary > len(rows):
+        return None
+    for index in range(min(boundary, len(rows) - 1), -1, -1):
+        row = rows[index]
+        if not isinstance(row, dict) or row.get("role") != "assistant":
+            continue
+        message_id = row.get("messageId")
+        return message_id if isinstance(message_id, str) and message_id else None
+    return None
 
 
 def _terminal_row_cursor(row: dict) -> int:
@@ -4691,15 +4728,17 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
       “当前最新终态”。因此更早完成的任务同样可汇报，最新任务在跑也不会
       使旧任务的汇报失效；索引里找不到该任务的终态 → 明确失败
       （``no_task_result``），绝不拿别的任务的结果顶替。
+    - **校验消息与任务的持久关联**：``messageId`` 必须正是该任务运行终态的
+      **末块**（由终态行记录的 history epoch/revision 推出边界后取边界内最后
+      一条 assistant 行）。无法证明该关联时明确失败（``block_unproven`` /
+      ``block_mismatch``），不用“最新”近似，也不接受任意消息 id。
     - **不读取也不修改 report_subscriptions**：manager 退订
       （``report_unsubscribe`` / report-to-manager 关闭）后，显式手动汇报依然
       送达；本函数也绝不临时开订阅。
-    - **调用方只提交身份**（sessionId + taskId/taskSeq + messageId），不提交
-      正文，避免内容错配。
-    - **幂等去重**：确定性 key（``manual_report_key``）先在 manager 的持久
-      回执与 queue_pending 中查找；已送达 → 原样返回成功（``alreadyReported``），
-      不会二次入队。不同任务的 key 不同，互不干扰。落盘失败整体回滚 →
-      明确失败，可安全重试。
+    - **幂等以任务运行身份为准**：key 只由 (sessionId, taskId, taskSeq)
+      决定，客户端 messageId 只作为审计字段，不能改变去重结果；同一任务运行
+      反复点击/换 messageId/未确认重试都只送达一次，不同运行各自独立。
+    - 落盘失败整体回滚 → 明确失败，可安全重试。
 
     返回 ``(result, error)``：成功时 result=``{"queueItemId", "managerId",
     "alreadyReported"}``；失败时 error=``{"code", "message", "retryable"}``。
@@ -4727,7 +4766,18 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "no_task_result",
                       "message": "该任务的终态结果不可用，无法汇报",
                       "retryable": False}
-    key = manual_report_key(session_id, task_id, task_seq, message_id)
+    tail_block = task_tail_block_id(s, terminal)
+    if tail_block is None:
+        return None, {"code": "block_unproven",
+                      "message": "无法证明该消息属于该任务的末块，暂不能汇报",
+                      "retryable": False}
+    if tail_block != message_id:
+        return None, {"code": "block_mismatch",
+                      "message": "提交的消息不是该任务的末块，无法汇报",
+                      "retryable": False}
+    run_task_id = terminal.get("taskId")
+    run_task_seq = terminal.get("taskSeq")
+    key = manual_report_key(session_id, run_task_id, run_task_seq)
     async with queue_lock(manager.id):
         existing = _find_manual_report_receipt(manager, key)
         if existing is not None:
@@ -4764,8 +4814,8 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         old_receipts = dict(getattr(manager, "manual_report_receipts", None) or {})
         _remember_manual_report_receipt(manager, key, {
             "sessionId": session_id,
-            "taskId": task_id,
-            "taskSeq": task_seq,
+            "taskId": run_task_id,
+            "taskSeq": run_task_seq,
             "messageId": message_id,
             "queueItemId": item["id"],
             "at": time.time(),

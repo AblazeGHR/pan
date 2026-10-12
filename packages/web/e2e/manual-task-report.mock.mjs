@@ -11,7 +11,9 @@
  *      target — and each task is delivered as its own report.
  *   3. Cold load: the session list projection alone (terminal identities, no
  *      result bodies) is enough to bind actions for every indexed task.
- *   4. Tasks missing from the durable index get no action (no guessing).
+ *   4. Tasks missing from the durable index get no action (no guessing); two
+ *      runs of one taskId, and a window holding only one of several runs, stay
+ *      unbound instead of being reported as the newest run.
  *   5. Unsubscribe: an unsubscribed manager still receives reports and the
  *      subscription is never toggled.
  *   6. Double click / concurrency: one attempt, one delivery.
@@ -56,85 +58,105 @@ function answerRow(messageId, content) {
   return { role: 'assistant', content, messageId, ts: ts(29) };
 }
 
-/** Durable terminal identity row (no result body), as the summary projects it. */
-function terminal(taskId, taskSeq) {
+/** One fixed history epoch for all seeded Sessions (append-only model). */
+const EPOCH = 'mock-history-epoch';
+
+/**
+ * Build a Session whose seeded history and durable terminals really correspond:
+ * each run appends its dispatch row + final answer, and its terminal records the
+ * history revision at that commit, so the run's tail block is provable with the
+ * same arithmetic the server uses (offset = total - (revision - boundary)).
+ */
+function buildSession({ id, name, runs, updatedAt, workerStatus = 'idle', reportsToManager = true, managedBy = 'ses_mgr_mock' }) {
+  const history = [];
+  const terminalResults = [];
+  for (const run of runs) {
+    history.push(assignRow(run.assignId, run.taskId));
+    if (run.answer !== undefined) history.push(answerRow(run.answerId, run.answer));
+    if (!run.terminal) continue;
+    terminalResults.push({
+      taskId: run.taskId,
+      taskSeq: run.taskSeq,
+      resultCursor: run.taskSeq,
+      terminalKey: `terminal:${run.taskId}`,
+      status: 'done',
+      historyEpoch: EPOCH,
+      // Boundary = the run's final row index at terminal commit.
+      historyRevision: history.length - 1,
+    });
+  }
   return {
-    taskId, taskSeq, resultCursor: taskSeq,
-    terminalKey: `terminal:${taskId}`, status: 'done',
+    id,
+    name,
+    adapter: 'cbc',
+    alwaysThinkingEnabled: false,
+    effort: '',
+    workerStatus,
+    ...(managedBy ? { managedBy } : {}),
+    reportsToManager,
+    historyEpoch: EPOCH,
+    historyRevision: history.length,
+    terminalResults,
+    historyTotal: history.length,
+    history,
+    updatedAt,
   };
 }
 
-const MULTI_TASKS = [
-  assignRow('pan:u1', 'task-1'), answerRow('pan:a1', 'answer 1'),
-  assignRow('pan:u2', 'task-2'), answerRow('pan:a2', 'answer 2'),
-  assignRow('pan:u3', 'task-3'), answerRow('pan:a3', 'answer 3'),
-];
-
-// task-3 is running: it has a dispatch row but no settled answer and no
-// terminal yet, so only the older tasks are actionable.
-const OLDER_WHILE_RUNNING = [
-  assignRow('pan:v1', 'task-1'), answerRow('pan:v1a', 'old answer 1'),
-  assignRow('pan:v2', 'task-2'), answerRow('pan:v2a', 'old answer 2'),
-  assignRow('pan:v3', 'task-3'),
-];
-
 const TA_SESSIONS = [
-  {
-    id: 'ses_ta_multi',
-    name: 'TA Multi Task',
-    adapter: 'cbc',
-    alwaysThinkingEnabled: false,
-    effort: '',
-    workerStatus: 'idle',
-    managedBy: 'ses_mgr_mock',
+  buildSession({
+    id: 'ses_ta_multi', name: 'TA Multi Task', updatedAt: ts(1),
     reportsToManager: false, // unsubscribed: the actions must still work
-    terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
-    historyTotal: MULTI_TASKS.length,
-    history: MULTI_TASKS,
-    updatedAt: ts(1),
-  },
-  {
-    id: 'ses_ta_running',
-    name: 'TA Older While Running',
-    adapter: 'cbc',
-    alwaysThinkingEnabled: false,
-    effort: '',
-    workerStatus: 'running',
-    managedBy: 'ses_mgr_mock',
-    terminalResults: [terminal('task-1', 1), terminal('task-2', 2)],
-    historyTotal: OLDER_WHILE_RUNNING.length,
-    history: OLDER_WHILE_RUNNING,
-    updatedAt: ts(2),
-  },
-  {
-    id: 'ses_ta_partial',
-    name: 'TA Partial Index',
-    adapter: 'cbc',
-    alwaysThinkingEnabled: false,
-    effort: '',
-    workerStatus: 'idle',
-    managedBy: 'ses_mgr_mock',
-    // task-1's terminal is outside the index: no action may appear for it.
-    terminalResults: [terminal('task-2', 2)],
-    historyTotal: 4,
-    history: [
-      assignRow('pan:w1', 'task-1'), answerRow('pan:w1a', 'answer 1'),
-      assignRow('pan:w2', 'task-2'), answerRow('pan:w2a', 'answer 2'),
+    runs: [
+      { taskId: 'task-1', taskSeq: 1, assignId: 'pan:u1', answer: 'answer 1', answerId: 'pan:a1', terminal: true },
+      { taskId: 'task-2', taskSeq: 2, assignId: 'pan:u2', answer: 'answer 2', answerId: 'pan:a2', terminal: true },
+      { taskId: 'task-3', taskSeq: 3, assignId: 'pan:u3', answer: 'answer 3', answerId: 'pan:a3', terminal: true },
     ],
-    updatedAt: ts(3),
-  },
-  {
-    id: 'ses_ta_solo',
-    name: 'TA No Manager',
-    adapter: 'cbc',
-    alwaysThinkingEnabled: false,
-    effort: '',
-    workerStatus: 'idle',
-    terminalResults: [terminal('task-1', 1), terminal('task-2', 2), terminal('task-3', 3)],
-    historyTotal: MULTI_TASKS.length,
-    history: MULTI_TASKS,
-    updatedAt: ts(4),
-  },
+  }),
+  buildSession({
+    id: 'ses_ta_running', name: 'TA Older While Running', updatedAt: ts(2), workerStatus: 'running',
+    runs: [
+      { taskId: 'task-1', taskSeq: 1, assignId: 'pan:v1', answer: 'old answer 1', answerId: 'pan:v1a', terminal: true },
+      { taskId: 'task-2', taskSeq: 2, assignId: 'pan:v2', answer: 'old answer 2', answerId: 'pan:v2a', terminal: true },
+      // Running: dispatched, no settled answer and no terminal yet.
+      { taskId: 'task-3', taskSeq: 3, assignId: 'pan:v3' },
+    ],
+  }),
+  buildSession({
+    id: 'ses_ta_partial', name: 'TA Partial Index', updatedAt: ts(3),
+    runs: [
+      // No terminal recorded for task-1: it must get no action.
+      { taskId: 'task-1', taskSeq: 1, assignId: 'pan:w1', answer: 'answer 1', answerId: 'pan:w1a' },
+      { taskId: 'task-2', taskSeq: 2, assignId: 'pan:w2', answer: 'answer 2', answerId: 'pan:w2a', terminal: true },
+    ],
+  }),
+  buildSession({
+    // Same taskId dispatched twice: two candidate blocks, two runs — neither may
+    // be bound to the other's result, so no action appears at all.
+    id: 'ses_ta_rerun', name: 'TA Rerun Same Task', updatedAt: ts(5),
+    runs: [
+      { taskId: 'task-r', taskSeq: 1, assignId: 'pan:x1', answer: 'first run', answerId: 'pan:x1a', terminal: true },
+      { taskId: 'task-r', taskSeq: 2, assignId: 'pan:x2', answer: 'second run', answerId: 'pan:x2a', terminal: true },
+    ],
+  }),
+  buildSession({
+    // The index already holds the newer run's terminal while this history window
+    // only contains the older run: the older block must stay unbound rather than
+    // be reported as the newer run.
+    id: 'ses_ta_window', name: 'TA Window Old Only', updatedAt: ts(6),
+    runs: [
+      { taskId: 'task-w', taskSeq: 1, assignId: 'pan:y1', answer: 'old run answer', answerId: 'pan:y1a', terminal: true },
+      { taskId: 'task-w', taskSeq: 2, assignId: 'pan:y2', terminal: true },
+    ],
+  }),
+  buildSession({
+    id: 'ses_ta_solo', name: 'TA No Manager', updatedAt: ts(4), managedBy: null,
+    runs: [
+      { taskId: 'task-1', taskSeq: 1, assignId: 'pan:u1', answer: 'answer 1', answerId: 'pan:a1', terminal: true },
+      { taskId: 'task-2', taskSeq: 2, assignId: 'pan:u2', answer: 'answer 2', answerId: 'pan:a2', terminal: true },
+      { taskId: 'task-3', taskSeq: 3, assignId: 'pan:u3', answer: 'answer 3', answerId: 'pan:a3', terminal: true },
+    ],
+  }),
 ];
 
 function freePort() {
@@ -250,15 +272,15 @@ try {
       // Bound purely from the list projection (terminal identities) + history:
       // a cold load with no per-Session detail read.
       assert.deepEqual(await buttonKeys(page), [
-        'ses_ta_multi:task-1:1:pan:a1',
-        'ses_ta_multi:task-2:2:pan:a2',
-        'ses_ta_multi:task-3:3:pan:a3',
+        'ses_ta_multi:task-1:1',
+        'ses_ta_multi:task-2:2',
+        'ses_ta_multi:task-3:3',
       ]);
       // Each action sits on its own task's final answer row.
       for (const [key, answer] of [
-        ['ses_ta_multi:task-1:1:pan:a1', 'answer 1'],
-        ['ses_ta_multi:task-2:2:pan:a2', 'answer 2'],
-        ['ses_ta_multi:task-3:3:pan:a3', 'answer 3'],
+        ['ses_ta_multi:task-1:1', 'answer 1'],
+        ['ses_ta_multi:task-2:2', 'answer 2'],
+        ['ses_ta_multi:task-3:3', 'answer 3'],
       ]) {
         const row = await page.locator(`${REPORT_BUTTON}[data-manual-report="${key}"]`)
           .evaluate((node) => node.closest('.message-row-assistant')?.textContent ?? '');
@@ -277,8 +299,8 @@ try {
       await selectSession(page, 'TA Older While Running');
       await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
       assert.deepEqual(await buttonKeys(page), [
-        'ses_ta_running:task-1:1:pan:v1a',
-        'ses_ta_running:task-2:2:pan:v2a',
+        'ses_ta_running:task-1:1',
+        'ses_ta_running:task-2:2',
       ]);
       const { attempts } = await reportLog(page);
       assert.equal(attempts.length, 0, 'no report may be sent without a click');
@@ -292,12 +314,12 @@ try {
     const { page, pageErrors, protectedRequests } = await openSeededPage();
     try {
       await selectSession(page, 'TA Multi Task');
-      const older = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1:pan:a1"]`);
+      const older = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1"]`);
       await older.waitFor({ state: 'visible' });
       await older.click();
       await older.filter({ hasText: '已汇报' }).waitFor({ state: 'visible' });
 
-      const newest = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-3:3:pan:a3"]`);
+      const newest = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-3:3"]`);
       await newest.click();
       await newest.filter({ hasText: '已汇报' }).waitFor({ state: 'visible' });
 
@@ -311,7 +333,7 @@ try {
       );
       assert.equal(deliveries.length, 2, 'each task keeps its own report');
       // The middle task stays untouched and actionable.
-      assert.equal(await page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2:pan:a2"]`).count(), 1);
+      assert.equal(await page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2"]`).count(), 1);
       assert.deepEqual(protectedRequests, []);
       assert.deepEqual(pageErrors, []);
     } finally {
@@ -324,7 +346,40 @@ try {
     try {
       await selectSession(page, 'TA Partial Index');
       await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
-      assert.deepEqual(await buttonKeys(page), ['ses_ta_partial:task-2:2:pan:w2a']);
+      assert.deepEqual(await buttonKeys(page), ['ses_ta_partial:task-2:2']);
+      assert.deepEqual(pageErrors, []);
+    } finally {
+      await page.close();
+    }
+  });
+
+  await check('same taskId twice: neither block is bound to the other run', async () => {
+    const { page, pageErrors } = await openSeededPage();
+    try {
+      await selectSession(page, 'TA Rerun Same Task');
+      await page.getByTestId('rich-text-composer').waitFor({ state: 'visible' });
+      await page.waitForTimeout(300);
+      // Two segments and two runs for one taskId: the pairing is ambiguous, so
+      // no action may appear (binding the newest terminal to both blocks would
+      // report the wrong run's result).
+      assert.equal(await page.locator(REPORT_BUTTON).count(), 0);
+      const { attempts } = await reportLog(page);
+      assert.equal(attempts.length, 0);
+      assert.deepEqual(pageErrors, []);
+    } finally {
+      await page.close();
+    }
+  });
+
+  await check('window holds only the older run while the newer terminal exists', async () => {
+    const { page, pageErrors } = await openSeededPage();
+    try {
+      await selectSession(page, 'TA Window Old Only');
+      await page.getByTestId('rich-text-composer').waitFor({ state: 'visible' });
+      await page.waitForTimeout(300);
+      // The index already holds the newer run, so the older block cannot be
+      // proven to be the reported run's block: no action.
+      assert.equal(await page.locator(REPORT_BUTTON).count(), 0);
       assert.deepEqual(pageErrors, []);
     } finally {
       await page.close();
@@ -335,7 +390,7 @@ try {
     const { page, pageErrors, protectedRequests } = await openSeededPage();
     try {
       await selectSession(page, 'TA Multi Task'); // seeded reportsToManager: false
-      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2:pan:a2"]`);
+      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2"]`);
       await button.waitFor({ state: 'visible' });
       await button.click();
       await button.filter({ hasText: '已汇报' }).waitFor({ state: 'visible' });
@@ -356,7 +411,7 @@ try {
     const { page, pageErrors } = await openSeededPage();
     try {
       await selectSession(page, 'TA Multi Task');
-      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1:pan:a1"]`);
+      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1"]`);
       await button.waitFor({ state: 'visible' });
       await button.click({ clickCount: 2, delay: 30 });
       await button.filter({ hasText: '已汇报' }).waitFor({ state: 'visible' });
@@ -375,7 +430,7 @@ try {
     try {
       await selectSession(page, 'TA Multi Task');
       await setHook(page, 'reject');
-      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2:pan:a2"]`);
+      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-2:2"]`);
       await button.waitFor({ state: 'visible' });
       await button.click();
       await button.filter({ hasText: '重试汇报' }).waitFor({ state: 'visible' });
@@ -396,7 +451,7 @@ try {
     try {
       await selectSession(page, 'TA Multi Task');
       await setHook(page, 'drop');
-      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-3:3:pan:a3"]`);
+      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-3:3"]`);
       await button.waitFor({ state: 'visible' });
       await button.click();
       await button.filter({ hasText: '重试汇报' }).waitFor({ state: 'visible' });
@@ -419,7 +474,7 @@ try {
     try {
       await selectSession(page, 'TA Multi Task');
       await setHook(page, 'lose_receipt');
-      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1:pan:a1"]`);
+      const button = page.locator(`${REPORT_BUTTON}[data-manual-report="ses_ta_multi:task-1:1"]`);
       await button.waitFor({ state: 'visible' });
       await button.click();
       await button.filter({ hasText: '重试汇报' }).waitFor({ state: 'visible' });
@@ -447,15 +502,15 @@ try {
 
       await selectSession(page, 'TA Partial Index');
       await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
-      assert.deepEqual(await buttonKeys(page), ['ses_ta_partial:task-2:2:pan:w2a']);
+      assert.deepEqual(await buttonKeys(page), ['ses_ta_partial:task-2:2']);
 
       // Back on the first session every task's action is still its own.
       await selectSession(page, 'TA Multi Task');
       await page.locator(REPORT_BUTTON).first().waitFor({ state: 'visible' });
       assert.deepEqual(await buttonKeys(page), [
-        'ses_ta_multi:task-1:1:pan:a1',
-        'ses_ta_multi:task-2:2:pan:a2',
-        'ses_ta_multi:task-3:3:pan:a3',
+        'ses_ta_multi:task-1:1',
+        'ses_ta_multi:task-2:2',
+        'ses_ta_multi:task-3:3',
       ]);
       assert.deepEqual(pageErrors, []);
     } finally {

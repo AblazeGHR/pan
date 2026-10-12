@@ -56,8 +56,13 @@ function assistant(messageId: string, content: string, extra: Partial<Message> =
   return { role: 'assistant', content, messageId, ts: '2026-10-06T12:00:00', ...extra };
 }
 
+const EPOCH = 'epoch-1';
+
 function terminal(taskId: string, taskSeq: number): TerminalIdentity {
-  return { taskId, taskSeq, resultCursor: taskSeq, terminalKey: `terminal:${taskId}`, status: 'done' };
+  return {
+    taskId, taskSeq, resultCursor: taskSeq, terminalKey: `terminal:${taskId}`,
+    status: 'done', historyEpoch: EPOCH, historyRevision: taskSeq,
+  };
 }
 
 function session(id: string, extra: Partial<Session> = {}): Session {
@@ -69,6 +74,7 @@ function session(id: string, extra: Partial<Session> = {}): Session {
     history: [],
     workerStatus: 'idle',
     managedBy: 'ses_mgr',
+    historyEpoch: EPOCH,
     ...extra,
   } as Session;
 }
@@ -122,7 +128,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     });
     render(<ChatMessages />);
     expect(buttonKeys()).toEqual([
-      'ses_ta:task-1:1:pan:a1', 'ses_ta:task-2:2:pan:a2', 'ses_ta:task-3:3:pan:a3',
+      'ses_ta:task-1:1', 'ses_ta:task-2:2', 'ses_ta:task-3:3',
     ]);
   });
 
@@ -140,7 +146,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     });
     render(<ChatMessages />);
     // A running newest task no longer hides the older completed tasks.
-    expect(buttonKeys()).toEqual(['ses_ta:task-1:1:pan:a1', 'ses_ta:task-2:2:pan:a2']);
+    expect(buttonKeys()).toEqual(['ses_ta:task-1:1', 'ses_ta:task-2:2']);
   });
 
   it('reports the clicked task, not the newest one', () => {
@@ -149,7 +155,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     });
     render(<ChatMessages />);
     const older = reportButtons().find(
-      (button) => button.getAttribute('data-manual-report') === 'ses_ta:task-1:1:pan:a1')!;
+      (button) => button.getAttribute('data-manual-report') === 'ses_ta:task-1:1')!;
     fireEvent.click(older);
     expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-1', 1, 'pan:a1');
   });
@@ -159,7 +165,7 @@ describe('ChatMessages per-task manual report wiring', () => {
       terminalResults: [terminal('task-2', 2)],
     });
     render(<ChatMessages />);
-    expect(buttonKeys()).toEqual(['ses_ta:task-2:2:pan:a2']);
+    expect(buttonKeys()).toEqual(['ses_ta:task-2:2']);
   });
 
   it('keeps the action visible when the manager is unsubscribed', () => {
@@ -195,7 +201,45 @@ describe('ChatMessages per-task manual report wiring', () => {
       ], { terminalResults: [terminal('task-b1', 7)] });
     });
     view.rerender(<ChatMessages />);
-    expect(buttonKeys()).toEqual(['ses_tb:task-b1:7:pan:b1']);
+    expect(buttonKeys()).toEqual(['ses_tb:task-b1:7']);
+  });
+
+  it('binds nothing when one taskId was dispatched twice', () => {
+    setTranscript('ses_ta', [
+      assignRow('pan:u1', 'task-r'),
+      assistant('pan:a1', 'first run'),
+      assignRow('pan:u2', 'task-r'),
+      assistant('pan:a2', 'second run'),
+    ], {
+      terminalResults: [terminal('task-r', 1), terminal('task-r', 2)],
+    });
+    render(<ChatMessages />);
+    // Two candidate blocks and two runs: binding either to the newest terminal
+    // would report the wrong run's result, so no action appears.
+    expect(buttonKeys()).toEqual([]);
+  });
+
+  it('binds nothing when the window holds only the older run', () => {
+    setTranscript('ses_ta', [
+      assignRow('pan:u1', 'task-w'),
+      assistant('pan:a1', 'old run answer'),
+    ], {
+      terminalResults: [terminal('task-w', 1), terminal('task-w', 2)],
+    });
+    render(<ChatMessages />);
+    expect(buttonKeys()).toEqual([]);
+  });
+
+  it('binds nothing when the run boundary cannot be proven', () => {
+    setTranscript('ses_ta', [
+      assignRow('pan:u1', 'task-1'),
+      assistant('pan:a1', 'answer 1'),
+    ], {
+      historyEpoch: EPOCH,
+      terminalResults: [{ taskId: 'task-1', taskSeq: 1, resultCursor: 1, terminalKey: 't', status: 'done' }],
+    });
+    render(<ChatMessages />);
+    expect(buttonKeys()).toEqual([]);
   });
 
   it('adds a late-completed task action without disturbing older ones', () => {
@@ -209,7 +253,7 @@ describe('ChatMessages per-task manual report wiring', () => {
       terminalResults: [terminal('task-1', 1)],
     });
     const view = render(<ChatMessages />);
-    expect(buttonKeys()).toEqual(['ses_ta:task-1:1:pan:a1']);
+    expect(buttonKeys()).toEqual(['ses_ta:task-1:1']);
 
     // task-2 finishes: its terminal arrives and its block settles.
     act(() => {
@@ -224,7 +268,7 @@ describe('ChatMessages per-task manual report wiring', () => {
       });
     });
     view.rerender(<ChatMessages />);
-    expect(buttonKeys()).toEqual(['ses_ta:task-1:1:pan:a1', 'ses_ta:task-2:2:pan:a2']);
+    expect(buttonKeys()).toEqual(['ses_ta:task-1:1', 'ses_ta:task-2:2']);
 
     fireEvent.click(reportButtons()[1]!);
     expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2');

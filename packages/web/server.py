@@ -2324,6 +2324,12 @@ def _terminal_identity_rows(s: sess.Session,
             "resultCursor": _result_cursor(row),
             "terminalKey": row.get("terminalKey"),
             "status": row.get("status"),
+            # The history boundary this run committed at.  A caller needs it to
+            # know whether the run's final text block can be proven at all
+            # (legacy rows and rewritten epochs cannot), and it is the same
+            # epoch/revision arithmetic the server validates against.
+            "historyEpoch": row.get("historyEpoch"),
+            "historyRevision": row.get("historyRevision"),
         }
         for row in rows
     ]

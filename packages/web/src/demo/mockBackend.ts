@@ -631,14 +631,42 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     }
     // Resolve the task's durable terminal from the Session's bounded index, the
     // same way the server does — an older completed task stays reportable.
-    const terminals = (session.terminalResults ?? []).filter((terminal) =>
+    const runs = (session.terminalResults ?? []).filter((terminal) =>
       terminal?.taskId === deliveredTaskId
       && (deliveredTaskSeq === null || terminal.taskSeq === deliveredTaskSeq));
-    if (terminals.length === 0) {
+    if (runs.length === 0) {
       attempt.outcome = 'rejected';
       return { ok: false, error: { code: 'no_task_result', message: '该任务的终态结果不可用，无法汇报' } };
     }
-    const key = `manual:${sessionId}:${deliveredTaskId ?? '-'}:${deliveredTaskSeq ?? '-'}:${messageId}`;
+    const run = runs[runs.length - 1]!;
+    // Mirror the server's durable tail-block proof: within an unchanged history
+    // epoch the run's final row offset is total - (revision - boundary).
+    const history = session.history ?? [];
+    const boundary = typeof run.historyRevision === 'number'
+      && run.historyEpoch === session.historyEpoch
+      ? history.length - ((session.historyRevision ?? 0) - run.historyRevision)
+      : -1;
+    let tailBlockId: string | null = null;
+    if (boundary >= 0 && boundary <= history.length) {
+      for (let index = Math.min(boundary, history.length - 1); index >= 0; index -= 1) {
+        const row = history[index];
+        if (row?.role === 'assistant' && typeof row.messageId === 'string') {
+          tailBlockId = row.messageId;
+          break;
+        }
+      }
+    }
+    if (tailBlockId === null) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'block_unproven', message: '无法证明该消息属于该任务的末块，暂不能汇报' } };
+    }
+    if (tailBlockId !== messageId) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'block_mismatch', message: '提交的消息不是该任务的末块，无法汇报' } };
+    }
+    // Dedup is keyed on the task run identity only: a client message id can
+    // never turn one run into several deliveries.
+    const key = `manual:${sessionId}:${deliveredTaskId ?? '-'}:${run.taskSeq ?? '-'}`;
     const alreadyReported = mockManualReports.some((report) => report.key === key);
     if (!alreadyReported) {
       mockManualReports.push({ key, sessionId, taskId: deliveredTaskId, messageId, at: Date.now() });
