@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
 import { isMockMode } from '@/demo/mockBackend';
-import { useSessionStore, workerResultMarkerId } from '@/stores/sessionStore';
+import { useSessionStore, workerResultMarkerId, markCompletedLiveRows } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
@@ -1538,6 +1538,10 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   // from an earlier turn must not attach a new event to that old turn.
   if (before.length === 0) clearNativeTurnAliases(sessionId);
   const messages = appendEventToMessages(sessionId, event, before, meta);
+  if (event.final) {
+    const blocks = extractBlocks(event);
+    markCompletedLiveRows(messages.filter(row => blocks.some(block => block.role === row.role && block.content === row.content)));
+  }
   const accepted = store.applyLiveStream(sessionId, messages, scope);
   return accepted;
 }

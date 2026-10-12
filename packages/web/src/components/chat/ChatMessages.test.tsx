@@ -861,6 +861,9 @@ describe('ChatMessages scroll positioning', () => {
       userScroll(scrollEl, 1000);
       act(() => { vi.advanceTimersByTime(100); });
       fireEvent.wheel(scrollEl, { deltaY: -300 });
+      // A queued layout scroll at the old position precedes actual wheel
+      // movement. It must not recreate the anchor the gesture just discarded.
+      fireEvent.scroll(scrollEl);
       // A streaming render lands between wheel input and its scroll event.
       m.setTotalSize(2100);
       act(() => { useSessionStore.setState({ currentMessages: messages.slice(0, 21) }); });
