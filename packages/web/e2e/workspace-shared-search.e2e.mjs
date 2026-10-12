@@ -227,6 +227,7 @@ let wsBeta;
 let alphaId;
 let bravoId;
 let charlieId;
+let dragId;
 
 async function seedWorkspaceFixtures(page) {
   wsAlpha ??= await createWorkspace(page, 'Alpha WS');
@@ -234,6 +235,7 @@ async function seedWorkspaceFixtures(page) {
   alphaId ??= await sessionIdOf(page, 'Alpha Session');
   bravoId ??= await sessionIdOf(page, 'Bravo Session');
   charlieId ??= await sessionIdOf(page, 'Charlie Session');
+  dragId ??= await sessionIdOf(page, 'Drag 01');
   await moveToWorkspace(page, alphaId, wsAlpha);
   await moveToWorkspace(page, bravoId, wsBeta);
   // Charlie Session deliberately stays ungrouped.
@@ -363,9 +365,12 @@ await runCase('queued messages filter reflects the real queue projection', DESKT
 
   await expectHidden(workspaceRow(page, wsAlpha));
   await expectHidden(workspaceRow(page, wsBeta));
+  await expectHidden(ungroupedRow(page));
 
-  // Real durable queue row on the Beta WS member.
-  const enqueued = await api(page, `/api/sessions/${bravoId}/queue`, {
+  // Real durable queue row. Enqueued on the UNGROUPED session: the product
+  // wake-up path spawns a worker attempt for the target, which would otherwise
+  // leak a running worker state onto a workspace member for later cases.
+  const enqueued = await api(page, `/api/sessions/${dragId}/queue`, {
     method: 'post',
     body: { text: 'workspace shared search queue fixture', clientMessageId: `e2e-wss-${Date.now()}` },
   });
@@ -373,9 +378,10 @@ await runCase('queued messages filter reflects the real queue projection', DESKT
   // Queue events carry no session summary; nudge the authoritative session
   // refresh (the same broadcast shape /__e2e/unread uses) so the real
   // queuePendingCount projection reaches the rail.
-  await injectSessionPatch(page, bravoId, {});
-  await workspaceRow(page, wsBeta).waitFor({ state: 'visible', timeout: 10000 });
+  await injectSessionPatch(page, dragId, {});
+  await ungroupedRow(page).waitFor({ state: 'visible', timeout: 10000 });
   await expectHidden(workspaceRow(page, wsAlpha));
+  await expectHidden(workspaceRow(page, wsBeta));
 
   await clearSpecialFilters(page);
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
@@ -422,6 +428,15 @@ await runCase('keyword and status filters combine with the original semantics', 
   await toggleSpecialFilter(page, 'Running state');
   await broadcastWorkerStatus(page, alphaId, 'running', { lastLegalWorkerState: 'running' });
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
+
+  // Preconditions: the Running filter is really active, Alpha actually runs
+  // and Bravo does not (a leaked worker state here would corrupt the case).
+  const preRows = (await api(page, '/api/sessions?summary=1')).sessions;
+  const bravoWorkerStatus = preRows.find((row) => row.id === bravoId)?.workerStatus ?? null;
+  assert.equal(bravoWorkerStatus, null, 'Bravo unexpectedly reports a running worker');
+  await page.locator('[data-session-card-id]').filter({ hasText: 'Alpha Session' }).first()
+    .waitFor({ state: 'visible' });
+  await expectHidden(page.locator('[data-session-card-id]').filter({ hasText: 'Bravo Session' }).first());
 
   // Name matches AND a member runs → visible.
   await searchInput(page).fill('alpha');
