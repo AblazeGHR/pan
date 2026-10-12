@@ -24,7 +24,9 @@ Covers the identity rules that make a browser-clicked per-task report safe:
 """
 
 import asyncio
+import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -642,12 +644,21 @@ def test_manual_report_task_rerun_is_a_distinct_report(monkeypatch):
 # ── durability / rollback ──
 
 def test_manual_report_save_failure_rolls_back(monkeypatch):
+    """The candidate write fails inside the real ticket/executor: the rollback
+    runs before the ticket retires, so memory and disk are left clean and a
+    retry stays a fresh first attempt."""
     _cleanup()
+    real_save_body = _sess._save_body
+    calls = {"n": 0}
 
-    async def _failing_save(s, *, outcome=None):
-        raise OSError("disk full")
+    def _failing_first_write(session, *args, **kwargs):
+        if session.id == "ses_mgr":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("disk full")
+        return real_save_body(session, *args, **kwargs)
 
-    monkeypatch.setattr(_sess, "save_async", _failing_save)
+    monkeypatch.setattr(_sess, "_save_body", _failing_first_write)
     _, records = _child([("task-1", 1, ["the answer"])])
     tail = records[0]["tail_id"]
     mgr = _setup_session("ses_mgr")
@@ -660,6 +671,7 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
     assert result is None
     assert error["code"] == "persist_failed"
     assert error["retryable"] is True
+    assert calls["n"] == 1, "the failure must come from the real writer"
     assert mgr.queue_pending == [], "failed attempt must not stay queued"
     assert mgr.manual_report_receipts == {}
     assert mgr.queue_revision == old_revision
@@ -669,7 +681,7 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
     ), "failed attempt must not leave a durable receipt behind"
 
     # A retry after the definite failure is a fresh first attempt.
-    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    monkeypatch.setattr(_sess, "_save_body", real_save_body)
 
     async def retry():
         return await _report(message_id=tail)
@@ -681,9 +693,93 @@ def test_manual_report_save_failure_rolls_back(monkeypatch):
     _cleanup()
 
 
+def test_manual_report_failed_write_rolls_back_inside_the_ticket(monkeypatch):
+    """Thread-gating regression: a later queued writer for the same session must
+    never persist the failed candidate.  The rollback therefore runs inside the
+    report's own ticket, before it retires, and a disk re-read holds no failed
+    report row or receipt."""
+    _cleanup()
+    real_save_body = _sess._save_body
+    calls = {"n": 0}
+
+    def _failing_first_write(session, *args, **kwargs):
+        if session.id == "ses_mgr":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("first write failed")
+        return real_save_body(session, *args, **kwargs)
+
+    monkeypatch.setattr(_sess, "_save_body", _failing_first_write)
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        # The later writer is enqueued while the report's ticket is in flight,
+        # so the executor would persist the candidate if the rollback happened
+        # only after the ticket retired.
+        report_task = asyncio.create_task(_report(message_id=tail))
+        later_writer = asyncio.create_task(_sess.save_async(_sess.get("ses_mgr")))
+        outcome = await asyncio.gather(report_task, return_exceptions=True)
+        await later_writer
+        return outcome
+
+    gathered = asyncio.run(scenario())
+    error = gathered[0]
+    assert isinstance(error, tuple) and error[0] is None \
+        and error[1]["code"] == "persist_failed", f"unexpected outcome: {error}"
+    assert mgr.queue_pending == [] and mgr.manual_report_receipts == {}
+    on_disk = json.loads((_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+    assert [item.get("taskId") for item in on_disk["queue_pending"]] == [], \
+        "a later writer must not persist the failed candidate"
+    assert on_disk["manual_report_receipts"] == {}, \
+        "no failed receipt may reach the disk"
+    _cleanup()
+
+
+def test_manual_report_cancelled_failed_write_leaves_no_candidate(monkeypatch, _no_real_recovery_spawn):
+    """Cancel the caller while the real writer is failing: the ticket rolls the
+    candidate back before retiring and the disk re-read holds nothing."""
+    _cleanup()
+    real_save_body = _sess._save_body
+    calls = {"n": 0}
+
+    def _slow_failing_first_write(session, *args, **kwargs):
+        if session.id == "ses_mgr":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                time.sleep(0.3)
+                raise OSError("write failed")
+        return real_save_body(session, *args, **kwargs)
+
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
+    mgr = _setup_session("ses_mgr")
+    asyncio.run(_sess.save_async(mgr))
+    on_disk_before = json.loads(
+        (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+    # Inject only after the baseline save so the real writer runs the attempt.
+    monkeypatch.setattr(_sess, "_save_body", _slow_failing_first_write)
+
+    async def scenario():
+        task = asyncio.create_task(_report(message_id=tail))
+        await asyncio.sleep(0.05)  # the writer is running when the request dies
+        task.cancel()
+        return await task
+
+    result, error = asyncio.run(scenario())
+    assert result is None
+    assert error["code"] == "persist_failed"
+    assert mgr.queue_pending == [] and mgr.manual_report_receipts == {}
+    on_disk_after = json.loads(
+        (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+    assert on_disk_after == on_disk_before,         "an uncommitted cancelled attempt must not reach the disk"
+    _cleanup()
+
+
 def test_manual_report_receipts_bounded(monkeypatch):
     _cleanup()
-    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    monkeypatch.setattr(_sess, "_save_body", lambda session, *args, **kwargs: None)
     s = _setup_session("ses_child", managed_by="ses_mgr")
     tails = [
         _append_run(s, f"task-{index}", index, [f"answer {index}"])["tail_id"]

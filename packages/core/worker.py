@@ -4842,12 +4842,9 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         })
         old_queue_revision = getattr(manager, "queue_revision", 0)
         manager.queue_revision = old_queue_revision + 1
-        queue_revision = manager.queue_revision
 
         def _rollback() -> None:
-            """Undo the whole attempt: nothing durable was committed, so a
-            retry stays a first attempt instead of a duplicate or a stale
-            failed candidate."""
+            """Undo the whole attempt in memory."""
             manager.queue_pending = [
                 queued for queued in manager.queue_pending if queued is not item
             ]
@@ -4856,34 +4853,52 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             manager.queue_delivery_ledger.pop(item["id"], None)
             _remove_idempotency_receipt(manager, item, item["id"])
 
-        # Reuse the durable ticket rules: a cancelled or failed request must
-        # neither discard a committed write nor leave a failed candidate.  The
-        # outcome is the only verdict that may be treated as committed.
+        # Reuse the durable ticket pattern: the candidate write and its failure
+        # rollback run inside ONE persistence ticket, so the rollback happens
+        # before the ticket retires and a later queued writer for this session
+        # serializes after the clean state instead of persisting the failed
+        # candidate.  The queue lock only orders report writers; it does not
+        # serialize with the writer executor.
+        _prepare_receipt_persistence(manager)
         outcome = _sess.DurableOutcome()
-        cancelled = False
-        try:
-            await _save_receipt(manager, outcome=outcome)
-        except asyncio.CancelledError:
-            cancelled = True
-        except Exception as exc:
-            if not outcome.succeeded:
+        committed = [False]
+        cancelled = [False]
+
+        def _write_candidate() -> None:
+            try:
+                _sess._save_body(manager)
+                committed[0] = True
+            except BaseException:
+                # Roll the candidate back BEFORE this ticket retires.
                 _rollback()
+                raise
+
+        try:
+            await _sess._persist_async_outcome(manager.id, _write_candidate, outcome)
+        except asyncio.CancelledError:
+            cancelled[0] = True
+        except Exception as exc:
+            if not committed[0]:
+                # The ticket already rolled the candidate back; nothing durable
+                # was written.
                 return None, {"code": "persist_failed",
                               "message": f"汇报落盘失败: {exc}",
                               "retryable": True}
             # The durable write landed despite the raised error: committed.
-        if cancelled and not outcome.succeeded:
+        if cancelled[0] and not committed[0]:
+            # The ticket retired without a committed writer: undo the candidate
+            # so no failed candidate is left behind or persisted later.
             _rollback()
             return None, {"code": "persist_failed",
                           "message": "汇报未落盘（请求已断开），可重试",
                           "retryable": True}
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
-                  "queueRevision": queue_revision,
+                  "queueRevision": manager.queue_revision,
                   "item": dict(item)})
     # 与自动汇报同一唤醒路径：正文在落盘队列，信号只负责唤醒。
     await _wake_worker(s.managed_by)
-    if cancelled:
+    if cancelled[0]:
         # The caller disconnected, but the report is durably delivered: end the
         # cancelled request without inventing a failure.
         raise asyncio.CancelledError()
