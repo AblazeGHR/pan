@@ -4743,9 +4743,11 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
     - **幂等以任务运行身份为准**：key 只由 (sessionId, taskId, taskSeq)
       决定，客户端 messageId 只作为审计字段，不能改变去重结果；同一任务运行
       反复点击/换 messageId/未确认重试都只送达一次，不同运行各自独立。
-    - 落盘失败整体回滚 → 明确失败，可安全重试；请求断开（取消）复用
-      DurableOutcome ticket 规则：已落盘则照常送达并唤醒 manager，未落盘则
-      整体回滚，绝不留下失败候选。
+    - 落盘失败整体回滚 → 明确失败，可安全重试；候选的 apply、写入与失败回滚
+      全部在**同一个持久化 ticket** 内执行（旧状态在 ticket 执行时捕获，不覆
+      盖期间其他 writer 的提交），因此已在执行/已排队的 manager writer 都不
+      可能把失败候选写上盘；请求断开（取消）复用 DurableOutcome ticket 规则：
+      已落盘则照常送达并唤醒 manager，未落盘则整体回滚，绝不留下失败候选。
 
     返回 ``(result, error)``：成功时 result=``{"queueItemId", "managerId",
     "alreadyReported"}``；失败时 error=``{"code", "message", "retryable"}``。
@@ -4828,53 +4830,59 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             "createdAt": time.time(),
         }
         item["queueItemId"] = item["id"]
-        item["position"] = len(manager.queue_pending)
-        manager.queue_pending.append(item)
-        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
-        old_receipts = dict(getattr(manager, "manual_report_receipts", None) or {})
-        _remember_manual_report_receipt(manager, key, {
-            "sessionId": session_id,
-            "taskId": run_task_id,
-            "taskSeq": run_task_seq,
-            "messageId": message_id,
-            "queueItemId": item["id"],
-            "at": time.time(),
-        })
-        old_queue_revision = getattr(manager, "queue_revision", 0)
-        manager.queue_revision = old_queue_revision + 1
 
-        def _rollback() -> None:
-            """Undo the whole attempt in memory."""
-            manager.queue_pending = [
-                queued for queued in manager.queue_pending if queued is not item
-            ]
-            manager.manual_report_receipts = old_receipts
-            manager.queue_revision = old_queue_revision
-            manager.queue_delivery_ledger.pop(item["id"], None)
-            _remove_idempotency_receipt(manager, item, item["id"])
-
-        # Reuse the durable ticket pattern: the candidate write and its failure
-        # rollback run inside ONE persistence ticket, so the rollback happens
-        # before the ticket retires and a later queued writer for this session
-        # serializes after the clean state instead of persisting the failed
-        # candidate.  The queue lock only orders report writers; it does not
-        # serialize with the writer executor.
+        # Reuse the durable ticket pattern: the candidate APPLY, the write and
+        # its failure rollback all run inside ONE persistence ticket, so no
+        # writer that is already executing or queued for this session can
+        # persist the candidate before a failed rollback.  The queue lock only
+        # orders report writers; it does not serialize with the writer
+        # executor.
         _prepare_receipt_persistence(manager)
         outcome = _sess.DurableOutcome()
         committed = [False]
         cancelled = [False]
 
-        def _write_candidate() -> None:
+        def _apply_write_or_rollback() -> None:
+            # Snapshot the old state at ticket EXECUTION time: commits another
+            # writer made between submission and execution are part of the
+            # snapshot and are never clobbered by the rollback.
+            old_queue_pending = list(manager.queue_pending)
+            old_receipts = dict(getattr(manager, "manual_report_receipts", None) or {})
+            old_queue_revision = getattr(manager, "queue_revision", 0)
+
+            def _rollback() -> None:
+                """Undo the whole attempt in memory."""
+                manager.queue_pending = old_queue_pending
+                manager.manual_report_receipts = old_receipts
+                manager.queue_revision = old_queue_revision
+                manager.queue_delivery_ledger.pop(item["id"], None)
+                _remove_idempotency_receipt(manager, item, item["id"])
+
             try:
+                # Apply the candidate in memory inside the ticket.
+                item["position"] = len(manager.queue_pending)
+                manager.queue_pending.append(item)
+                _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+                _remember_manual_report_receipt(manager, key, {
+                    "sessionId": session_id,
+                    "taskId": run_task_id,
+                    "taskSeq": run_task_seq,
+                    "messageId": message_id,
+                    "queueItemId": item["id"],
+                    "at": time.time(),
+                })
+                manager.queue_revision = old_queue_revision + 1
                 _sess._save_body(manager)
                 committed[0] = True
             except BaseException:
-                # Roll the candidate back BEFORE this ticket retires.
+                # Roll the candidate back BEFORE this ticket retires: a later
+                # queued writer for this session serializes after the clean
+                # state instead of persisting the failed candidate.
                 _rollback()
                 raise
 
         try:
-            await _sess._persist_async_outcome(manager.id, _write_candidate, outcome)
+            await _sess._persist_async_outcome(manager.id, _apply_write_or_rollback, outcome)
         except asyncio.CancelledError:
             cancelled[0] = True
         except Exception as exc:
@@ -4886,9 +4894,9 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
                               "retryable": True}
             # The durable write landed despite the raised error: committed.
         if cancelled[0] and not committed[0]:
-            # The ticket retired without a committed writer: undo the candidate
-            # so no failed candidate is left behind or persisted later.
-            _rollback()
+            # The ticket retired without a committed writer: the candidate was
+            # either never applied or already rolled back inside the ticket, so
+            # no failed candidate is left behind.
             return None, {"code": "persist_failed",
                           "message": "汇报未落盘（请求已断开），可重试",
                           "retryable": True}

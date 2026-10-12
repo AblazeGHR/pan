@@ -26,6 +26,7 @@ Covers the identity rules that make a browser-clicked per-task report safe:
 import asyncio
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -734,6 +735,66 @@ def test_manual_report_failed_write_rolls_back_inside_the_ticket(monkeypatch):
         "a later writer must not persist the failed candidate"
     assert on_disk["manual_report_receipts"] == {}, \
         "no failed receipt may reach the disk"
+    _cleanup()
+
+
+def test_manual_report_reverse_interleave_never_persists_candidate(monkeypatch, _no_real_recovery_spawn):
+    """Reverse interleaving with a gated old writer: an old writer is already
+    executing (gated inside its own ticket) when the report is requested; the
+    report's ticket queues behind it; releasing the old writer completes it, and
+    only then does the report writer fail.  The apply/save/rollback all run
+    inside the report's ticket, so the disk must hold no failed report or
+    receipt (the gated old writer saved the pre-report state)."""
+    _cleanup()
+    real_save_body = _sess._save_body
+    calls = {"n": 0}
+    release = threading.Event()
+
+    def _gated_then_failing(session, *args, **kwargs):
+        if session.id != "ses_mgr":
+            return real_save_body(session, *args, **kwargs)
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # The old writer is already executing and gated.
+            assert release.wait(timeout=10), "gated old writer was never released"
+            return real_save_body(session, *args, **kwargs)
+        raise OSError("report write failed")
+
+    _, records = _child([("task-1", 1, ["the answer"])])
+    tail = records[0]["tail_id"]
+    mgr = _setup_session("ses_mgr")
+    asyncio.run(_sess.save_async(mgr))
+    on_disk_before = json.loads(
+        (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+    # Inject only after the baseline save: the gated call must be the old
+    # writer's, never the baseline's.
+    monkeypatch.setattr(_sess, "_save_body", _gated_then_failing)
+
+    async def scenario():
+        # 1) the old writer starts and gates inside its ticket
+        old_writer = asyncio.create_task(_sess.save_async(_sess.get("ses_mgr")))
+        await asyncio.sleep(0.2)
+        # 2) the manual report is requested: its ticket queues behind the old one
+        report_task = asyncio.create_task(_report(message_id=tail))
+        await asyncio.sleep(0.2)
+        assert mgr.queue_pending == [],             "the candidate must not be applied before the report ticket executes"
+        # 3) release the old writer; it completes and saves the pre-report state
+        release.set()
+        await old_writer
+        # 4) the report writer now fails inside its own ticket
+        return await report_task
+
+    result, error = asyncio.run(scenario())
+    assert result is None
+    assert error["code"] == "persist_failed"
+    assert calls["n"] == 2
+    assert mgr.queue_pending == [] and mgr.manual_report_receipts == {}
+    on_disk_after = json.loads(
+        (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+    # The gated old writer saved the pre-report state: no manual report row and
+    # no receipt may be on the disk (updated_at moves on every save by design).
+    assert [item.get("taskId") for item in on_disk_after["queue_pending"]] == []
+    assert on_disk_after["manual_report_receipts"] == {}
     _cleanup()
 
 
