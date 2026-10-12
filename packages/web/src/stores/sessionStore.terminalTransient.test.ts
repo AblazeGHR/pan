@@ -59,6 +59,30 @@ function stream() {
       meta,
     );
 }
+
+it('removes interrupted live fragments on restart while preserving canonical rows and local input', () => {
+  const store = useSessionStore.getState;
+  store().applyLiveStream('A', [row('assistant', 'old prefix', 'interrupted-body')], meta);
+  store().appendLocalMessage('A', row('user', 'queued while running'));
+  store().clearLiveStream('A');
+  expect(store().currentMessages.map(message => message.content)).toEqual(['question', 'queued while running']);
+  expect(store().sessionTranscripts.A!.runtime.some(message => message.nativeItemId === 'interrupted-body')).toBe(false);
+});
+
+it.each([false, true])('preserves persisted partial output at lifecycle replacement (terminal=%s)', terminal => {
+  const store = useSessionStore.getState;
+  const partial = row('assistant', 'persisted partial', 'partial-body');
+  store().applyLiveStream('A', [partial, row('assistant', 'unpersisted prefix', 'orphan-body')], meta);
+  store().applyHistoryPage('A', page([...initial, { ...partial, messageId: 'pan:persisted' }], 2));
+  store().appendLocalMessage('A', row('user', 'keep input'));
+  if (terminal) store().applyWorkerStatus('A', null, meta, true);
+  else store().clearLiveStream('A');
+  expect(store().currentMessages.map(message => message.content)).toEqual(['question', 'persisted partial', 'keep input']);
+  store().applyWorkerStatus('A', 'running', { ...meta, generation: 2, taskSeq: 2 });
+  store().applyLiveStream('A', [row('assistant', 'new body', 'new-body')], { ...meta, generation: 2, taskSeq: 2 });
+  expect(store().currentMessages.some(message => message.nativeItemId === 'orphan-body')).toBe(false);
+  expect(store().currentMessages.some(message => message.nativeItemId === 'new-body')).toBe(true);
+});
 beforeEach(() => {
   const session: Session = {
     id: 'A',

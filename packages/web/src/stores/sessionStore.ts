@@ -534,6 +534,10 @@ export interface SessionTranscript {
 // Stable keys for runtime rows so a re-delivered live buffer replaces its own
 // previous run instead of appending a second copy.
 const runtimeKeys = new WeakMap<Message, string>();
+const completedLiveRows = new WeakSet<Message>();
+export function markCompletedLiveRows(rows: Message[]): void {
+  rows.forEach(row => completedLiveRows.add(row));
+}
 /** Canonical end offset proven to precede a local worker.result marker. */
 const terminalMarkerCoverage = Symbol('terminalMarkerCoverage');
 /** Server history boundary retained until its page has been loaded locally. */
@@ -1601,6 +1605,7 @@ function projectLiveRows(
           ...(keepDurableBody ? { content: target.content } : {}),
         };
         inheritMessageIdentity(merged, target);
+        if (completedLiveRows.has(live) || completedLiveRows.has(target)) completedLiveRows.add(merged);
         if (durableOffset !== undefined) markDurableRow(merged, durableOffset);
         display[targetIndex] = merged;
       }
@@ -1613,6 +1618,7 @@ function projectLiveRows(
     }
     targetIndexes[slot] = targetIndex;
     targetRefs[slot] = display[targetIndex]!;
+    if (completedLiveRows.has(live)) completedLiveRows.add(display[targetIndex]!);
     for (const key of keys) {
       indexes[key] = targetIndex;
       refs[key] = display[targetIndex]!;
@@ -3658,9 +3664,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ) + 1;
         const nextBuffers = { ...s.liveStreamBuffers };
         delete nextBuffers[sessionId];
+        const base = s.sessionTranscripts[sessionId];
+        const prefix = previous?.taskKey ? `slot:${previous.taskKey}:` : null;
+        const transcript = base && prefix ? {
+          ...base,
+          runtime: base.runtime.filter(row => !runtimeKeyOf(row)?.startsWith(prefix) || completedLiveRows.has(row)),
+        } : base;
+        if (previous?.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
         return {
           ...next,
           liveStreamBuffers: nextBuffers,
+          ...(transcript && transcript !== base ? {
+            ...withTranscript(s, sessionId, transcript),
+            ...(s.currentSessionId === sessionId ? { currentMessages: projectTranscript(transcript) } : {}),
+          } : {}),
           terminalWatermarks: {
             ...s.terminalWatermarks,
             [sessionId]: { ...meta, status: status || 'terminal', revision },
@@ -3674,10 +3691,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   clearLiveStream: (sessionId) => {
     set((s) => {
-      if (!s.liveStreamBuffers[sessionId]) return s;
+      const buffer = s.liveStreamBuffers[sessionId];
+      if (!buffer) return s;
       const liveStreamBuffers = { ...s.liveStreamBuffers };
       delete liveStreamBuffers[sessionId];
-      return { liveStreamBuffers };
+      // Lifecycle replacement ends this live projection even without a result.
+      // Preserve durable window rows and locally owned user/queue rows; only
+      // the interrupted buffer's task slots cease to be authoritative.
+      const base = s.sessionTranscripts[sessionId];
+      if (!base) return { liveStreamBuffers };
+      const prefix = `slot:${buffer.taskKey}:`;
+      const transcript = { ...base,
+        runtime: base.runtime.filter(row => !runtimeKeyOf(row)?.startsWith(prefix) || completedLiveRows.has(row)),
+      };
+      if (buffer.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
+      return { liveStreamBuffers, ...withTranscript(s, sessionId, transcript),
+        ...(s.currentSessionId === sessionId ? { currentMessages: projectTranscript(transcript) } : {}),
+      };
     });
   },
 

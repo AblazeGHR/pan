@@ -1078,6 +1078,20 @@ try {
   await poll(() => page.locator('[data-message-identity*="bootstrap-orphan-thinking"]').count(), count => count === 0,
     'orphan block disappears in actual Chromium DOM');
   await equalCanonical('browser store replay: running before first history removes stale thinking');
+  const restartProjection = await page.evaluate(id => {
+    const store = window.__panSessionStore;
+    const meta = { workerId: 'fixture-interrupted-worker', generation: 3, taskSeq: 132, executionSeq: 9 };
+    store.getState().applyWorkerStatus(id, 'running', meta);
+    store.getState().applyLiveStream(id, [{ role: 'assistant', content: 'interrupted prefix', nativeItemId: 'restart-orphan-body' }], meta);
+    const before = store.getState().currentMessages.some(row => row.nativeItemId === 'restart-orphan-body');
+    store.getState().clearLiveStream(id);
+    return { before, after: store.getState().currentMessages.some(row => row.nativeItemId === 'restart-orphan-body') };
+  }, ids['E2E-A']);
+  assert.equal(restartProjection.before, true);
+  assert.equal(restartProjection.after, false);
+  await poll(() => page.locator('[data-message-identity*="restart-orphan-body"]').count(), count => count === 0,
+    'interrupted body disappears from Chromium after lifecycle replacement');
+  await equalCanonical('browser store replay: restart discards unfinished body and preserves canonical history');
   await page.screenshot({ path: path.join(runtime, 'final.png') });
   assert.deepEqual(evidence.errors, []);
   evidence.pass = true;

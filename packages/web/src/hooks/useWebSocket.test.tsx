@@ -2961,6 +2961,11 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     act(() => {
       wsMock.trigger('worker.stream', {
         type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: { type: 'content.part', role: 'assistant', delta: true, turn_id: 'turn-restarted',
+          item_id: 'old-item', part: { type: 'text', text: 'old reply' } },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
         event: {
           type: 'assistant', final: true, turn_id: 'turn-restarted',
           item_id: 'old-item',
@@ -2985,6 +2990,26 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
         { role: 'assistant', content: 'old reply', nativeItemId: 'old-item' },
         { role: 'assistant', content: 'new reply', nativeItemId: 'new-item' },
       ]);
+  });
+
+  it('does not retain an unfinished assistant prefix after restart and a later result', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 3, taskSeq: 132, executionSeq: 9,
+        event: { type: 'content.part', role: 'assistant', delta: true, item_id: 'interrupted-item',
+          part: { type: 'text', text: 'old prefix' } },
+      });
+      wsMock.trigger('worker.restarted', { type: 'worker.restarted', sessionId: 'A', workerId: 'w1', generation: 4 });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 4, taskSeq: 133, executionSeq: 10,
+        event: { type: 'assistant', final: true, item_id: 'new-item', message: { content: [{ type: 'text', text: 'new reply' }] } },
+      });
+      wsMock.trigger('worker.result', { type: 'worker.result', sessionId: 'A', workerId: 'w1', generation: 4,
+        taskSeq: 133, executionSeq: 10, status: 'done', result: 'new reply' });
+    });
+    expect(useSessionStore.getState().currentMessages.filter(row => row.role === 'assistant').map(row => row.content))
+      .toEqual(['new reply']);
   });
 
   it('keeps separate completed assistant items with distinct native ids in one turn', () => {
