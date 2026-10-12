@@ -1,0 +1,165 @@
+{
+  "tag": "baseline",
+  "port": 54230,
+  "results": [
+    {
+      "name": "1280/open-focus-select",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"true/true/0/9/Session A\"\nReceived: \"true/true/9/9/Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/draft-survives-refresh",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/submit-enter-and-reopen",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: false\nReceived: true\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/cancel-and-reseed",
+      "ok": true,
+      "detail": "escape closed without submit; reopen reseeded"
+    },
+    {
+      "name": "1280/fast-type-delete-cancel",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"XYZ\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/alternating-sessions-no-leak",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"LEAK\"\nReceived: \"Session AK\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/submit-click-and-empty-rejection",
+      "ok": false,
+      "detail": "Expected values to be strictly equal:\n\n'  ' !== '   '\n"
+    },
+    {
+      "name": "1280/in-flight-guard-across-refresh",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "1280/rename-failure-error-path",
+      "ok": false,
+      "detail": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('status').filter({ hasText: 'Rename rejected by server' }) to be visible\u001b[22m\n"
+    },
+    {
+      "name": "1280/late-stale-sessions-get",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"A v6\"\nReceived: \"Session AA v6\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/open-focus-select",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"true/true/0/9/Session A\"\nReceived: \"true/true/9/9/Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/draft-survives-refresh",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \" v2\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/submit-enter-and-reopen",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"Session A v2\"\nReceived: \"A v2\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/cancel-and-reseed",
+      "ok": true,
+      "detail": "escape closed without submit; reopen reseeded"
+    },
+    {
+      "name": "390/fast-type-delete-cancel",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"XYZ\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/alternating-sessions-no-leak",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"LEAK\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/submit-click-and-empty-rejection",
+      "ok": false,
+      "detail": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('status').filter({ hasText: 'Session name cannot be empty' }) to be visible\u001b[22m\n"
+    },
+    {
+      "name": "390/in-flight-guard-across-refresh",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "390/rename-failure-error-path",
+      "ok": false,
+      "detail": "draft must survive a failed rename\n\n' v5' !== 'A v5'\n"
+    },
+    {
+      "name": "390/late-stale-sessions-get",
+      "ok": false,
+      "detail": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"A v6\"\nReceived: \"Session A\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    }
+  ],
+  "requests": [
+    {
+      "width": 1280,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "Session AA v6"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "A v2"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/rename",
+      "id": "b",
+      "body": {
+        "name": "Session B"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "v4"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "v5"
+      }
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/rename",
+      "id": "a",
+      "body": {
+        "name": "Session A"
+      }
+    }
+  ],
+  "errors": []
+}
