@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CheckCheck,
   ChevronsLeft,
   ChevronsRight,
   Folder,
@@ -13,7 +14,18 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, computeWorkspaceRowVisibility, effectiveWorkspaceIds } from '@/utils/sessionFilters';
+import {
+  ALL_WORKSPACES,
+  UNGROUPED_WORKSPACES,
+  computeWorkspaceRowVisibility,
+  effectiveWorkspaceIds,
+  workspaceMemberIds,
+} from '@/utils/sessionFilters';
+import {
+  describeActionResults,
+  runSelectedSessionAction,
+  snapshotSelectedSessions,
+} from '@/utils/selectedSessionActions';
 import type { Session, Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
@@ -81,6 +93,8 @@ export function WorkspaceRail({
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
   const [dropHint, setDropHint] = useState<{ id: string; place: 'before' | 'after' } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [readAllBusy, setReadAllBusy] = useState(false);
+  const readAllBusyRef = useRef(false);
   const nameErrorShown = useRef(false);
 
   useEffect(() => {
@@ -209,6 +223,38 @@ export function WorkspaceRail({
   const toggleReassign = (target: Workspace | null) => {
     setMenuFor(null);
     if (target) setDeleteTarget(target);
+  };
+
+  /**
+   * Mark every Session of one Workspace read ("Read all").
+   *
+   * The target set is a snapshot taken HERE, at click time: the workspace's
+   * effective members (management-tree inheritance applied by
+   * `workspaceMemberIds`), never the rows currently visible under the shared
+   * search/status filters. The existing bulk ACK helper runs per target with
+   * each Session's observed done generation, so unread that arrives after the
+   * click stays unread, and failures surface per Session instead of being
+   * silently dropped. `readAllBusyRef` makes a second click a no-op.
+   */
+  const readAllInWorkspace = async (workspace: Workspace) => {
+    if (readAllBusyRef.current) return;
+    readAllBusyRef.current = true;
+    setReadAllBusy(true);
+    setMenuFor(null);
+    try {
+      const sessions = useSessionStore.getState().sessions;
+      const targets = snapshotSelectedSessions(workspaceMemberIds(sessions, workspace.id), sessions);
+      const results = await runSelectedSessionAction(targets, 'read');
+      showToast(
+        describeActionResults(results),
+        results.some((result) => result.error) ? 'error' : 'info',
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Read all failed', 'error');
+    } finally {
+      readAllBusyRef.current = false;
+      setReadAllBusy(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -550,8 +596,13 @@ export function WorkspaceRail({
                 </span>
                 <button
                   type="button"
-                  className="hidden rounded p-0.5 text-text-tertiary group-hover:block hover:bg-bg-tertiary hover:text-text-primary"
+                  className={mobileDrawer
+                    // Touch has no hover: keep the menu trigger reachable in
+                    // the mobile drawer while desktop keeps the hover reveal.
+                    ? 'flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary'
+                    : 'hidden rounded p-0.5 text-text-tertiary group-hover:block hover:bg-bg-tertiary hover:text-text-primary'}
                   title="更多"
+                  aria-label={`工作区 ${workspace.name} 菜单`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -629,6 +680,17 @@ export function WorkspaceRail({
             className="fixed z-50 min-w-[120px] rounded-md border border-border-default bg-bg-tertiary py-1 shadow-xl"
             style={{ left: menuFor.x, top: menuFor.y }}
           >
+            <button
+              type="button"
+              data-testid={`workspace-read-all-${menuFor.workspace.id}`}
+              disabled={readAllBusy || (memberStats.stats.get(menuFor.workspace.id)?.count ?? 0) === 0}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-busy={readAllBusy}
+              onClick={() => void readAllInWorkspace(menuFor.workspace)}
+            >
+              <CheckCheck size={12} className="text-text-tertiary" />
+              Read all
+            </button>
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"

@@ -116,6 +116,21 @@ export function matchesSpecialFilters(
 export const ALL_WORKSPACES = 'all';
 export const UNGROUPED_WORKSPACES = 'ungrouped';
 
+/**
+ * Ids of every Session effectively belonging to a Workspace, resolved through
+ * the manager chain exactly like {@link scopeSessionsByWorkspace} (descendants
+ * inherit the root's membership; corrupt chains fail closed). Ids are returned
+ * in input order; the keyword/status filters deliberately do NOT participate —
+ * this is the workspace's real membership, not the visible filtered subset.
+ */
+export function workspaceMemberIds(sessions: Session[], workspaceId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const session of sessions) {
+    if (effectiveWorkspaceIds(session, sessions).includes(workspaceId)) ids.add(session.id);
+  }
+  return ids;
+}
+
 /** Resolve a session's workspace from its manager chain; corrupt chains fail closed. */
 export function effectiveWorkspaceIds(session: Session, sessions: Session[]): string[] {
   const byId = new Map(sessions.map((item) => [item.id, item]));

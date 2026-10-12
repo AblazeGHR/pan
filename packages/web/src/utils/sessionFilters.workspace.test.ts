@@ -4,6 +4,7 @@ import {
   UNGROUPED_WORKSPACES,
   getSessionListCandidates,
   scopeSessionsByWorkspace,
+  workspaceMemberIds,
 } from './sessionFilters';
 import type { Session } from '@/types';
 
@@ -66,6 +67,42 @@ describe('scopeSessionsByWorkspace', () => {
     expect(scopeSessionsByWorkspace(broken, 'ws_1')).toEqual([]);
     expect(scopeSessionsByWorkspace(broken, UNGROUPED_WORKSPACES).map((s) => s.id))
       .toEqual(['cycle-a', 'cycle-b', 'dangling']);
+  });
+});
+
+describe('workspaceMemberIds', () => {
+  it('returns the direct members of one workspace only', () => {
+    expect([...workspaceMemberIds(sessions, 'ws_1')]).toEqual(['alpha']);
+    expect([...workspaceMemberIds(sessions, 'ws_2')]).toEqual(['beta']);
+  });
+
+  it('includes inherited descendants and ignores their legacy membership', () => {
+    const tree = [
+      makeSession('root', ['ws_1']),
+      { ...makeSession('child', ['ws_2']), managedBy: 'root' },
+      { ...makeSession('leaf', ['ws_2']), managedBy: 'child' },
+      makeSession('other', ['ws_2']),
+    ];
+    expect([...workspaceMemberIds(tree, 'ws_1')]).toEqual(['root', 'child', 'leaf']);
+    expect([...workspaceMemberIds(tree, 'ws_2')]).toEqual(['other']);
+  });
+
+  it('fails closed for corrupt manager chains and never counts the ungrouped', () => {
+    const broken = [
+      { ...makeSession('cycle-a', ['ws_1']), managedBy: 'cycle-b' },
+      { ...makeSession('cycle-b', ['ws_2']), managedBy: 'cycle-a' },
+      { ...makeSession('dangling', ['ws_1']), managedBy: 'missing' },
+      makeSession('loose'),
+    ];
+    expect([...workspaceMemberIds(broken, 'ws_1')]).toEqual([]);
+    expect([...workspaceMemberIds(broken, 'ws_2')]).toEqual([]);
+  });
+
+  it('is the real membership, not the keyword/filter-visible subset', () => {
+    // A member whose name would never match a keyword is still a member: the
+    // helper has no query/status inputs by design.
+    const members = [makeSession('zzz-hidden', ['ws_1']), makeSession('alpha', ['ws_1'])];
+    expect([...workspaceMemberIds(members, 'ws_1')]).toEqual(['zzz-hidden', 'alpha']);
   });
 });
 
