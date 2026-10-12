@@ -238,6 +238,28 @@ describe('Workspace rail shares the Session search box and status filters', () =
     expect(row(container, 'ws-alpha')).toBeNull();
   });
 
+  it('lets different members satisfy different status filters (workspace-level AND)', () => {
+    const sessions = [
+      // ws-alpha: the root runs, the inherited child carries the unread.
+      makeSession('w-root', 'workspace-root', { workspaceIds: ['ws-alpha'], workerStatus: 'running' }),
+      makeSession('w-child', 'inherited-unread', { managedBy: 'w-root', unreadDoneCount: 2 }),
+      // ws-beta: running only — no unread member.
+      makeSession('w-beta', 'beta-worker', { workspaceIds: ['ws-beta'], workerStatus: 'running' }),
+    ];
+    setupStore(sessions);
+    const { container } = renderRail();
+
+    act(() => {
+      useUIStore.getState().toggleSpecialFilter('running');
+      useUIStore.getState().toggleSpecialFilter('unread');
+    });
+
+    // Running by one member and unread by another still satisfies both.
+    expect(row(container, 'ws-alpha')).not.toBeNull();
+    // The AND still requires every selected filter to be met somewhere.
+    expect(row(container, 'ws-beta')).toBeNull();
+  });
+
   it('aggregates actual member states — a keyword-hidden member still counts', () => {
     // ws-alpha's only member is named 'zzz-runner' (keyword 'alpha' hides it
     // from the Session list) but it IS running; the workspace name matches.

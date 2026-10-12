@@ -180,9 +180,15 @@ export function matchesWorkspaceSearch(workspace: Pick<Workspace, 'name'>, query
 }
 
 /**
- * True when ANY member session of a Workspace passes every active special
- * filter (workspace-level aggregation of the same per-session predicates).
+ * True when a Workspace satisfies every active special filter at the Workspace
+ * level: EACH selected filter must be met by at least one of the Workspace's
+ * effective members, but a single Session need not satisfy them all. Selecting
+ * `running` + `unread` therefore matches a Workspace whose member A is running
+ * and whose member B has unread — exactly the Workspace-level AND of the
+ * per-filter any() results.
  *
+ * Every filter is judged through the existing single-filter predicate
+ * {@link matchesSpecialFilters} rather than re-deriving its state definition.
  * `members` must be the workspace's EFFECTIVE member sessions — the caller
  * resolves them through the manager chain ({@link effectiveWorkspaceIds}), so
  * descendants inherit the root's workspace. Each member is judged on its
@@ -190,7 +196,7 @@ export function matchesWorkspaceSearch(workspace: Pick<Workspace, 'name'>, query
  * list, so a session hidden from that list by the search keyword still
  * contributes its real state here. The Workspace result is therefore computed
  * independently from the Session-list result while both share the same filter
- * conditions.
+ * conditions. The keyword never participates in this aggregation.
  */
 export function workspaceMatchesSpecialFilters(
   members: Session[],
@@ -198,7 +204,11 @@ export function workspaceMatchesSpecialFilters(
   filters: Set<SpecialFilterId>,
 ): boolean {
   if (filters.size === 0) return true;
-  return members.some((session) => matchesSpecialFilters(session, allSessions, filters));
+  for (const filter of filters) {
+    const single = new Set<SpecialFilterId>([filter]);
+    if (!members.some((session) => matchesSpecialFilters(session, allSessions, single))) return false;
+  }
+  return true;
 }
 
 /** Which workspace-rail rows stay visible under the shared search/filters. */
@@ -215,9 +225,10 @@ export interface WorkspaceRowVisibility {
  * Compute the workspace-rail row visibility for the shared Session search box
  * and special filters (no second input, no stored state — pure derivation):
  *
- * - A real workspace row shows when its NAME matches the keyword AND any
- *   effective member passes the status filters (actual member states, never
- *   the keyword-filtered Session list).
+ * - A real workspace row shows when its NAME matches the keyword AND the
+ *   workspace satisfies every active status filter ({@link
+ *   workspaceMatchesSpecialFilters}: per-filter any() over the ACTUAL effective
+ *   members, then AND — never derived from the keyword-filtered Session list).
  * - A virtual scope row shows when its own session content matches: 'all'
  *   covers every session, 'ungrouped' only sessions without membership.
  * - Collapsed, or with no keyword and no status filter active, every row

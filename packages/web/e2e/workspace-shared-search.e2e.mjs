@@ -168,6 +168,19 @@ async function setUnreadPolicyAll(page) {
   assert.equal(response.ok(), true, `PUT settings failed: ${response.status()}`);
 }
 
+/**
+ * Pause a Session's whole queue. The real enqueue wake-up can spawn a worker
+ * that drains the pending row inside the assertion window; pausing keeps the
+ * durable row pending (queuePendingCount stays > 0) without faking anything.
+ */
+async function setQueuePaused(page, sessionId, paused) {
+  const response = await page.request.patch(`${baseURL}/api/sessions/${sessionId}/queue/paused`, {
+    data: { paused },
+  });
+  assert.equal(response.ok(), true, `queue pause failed: ${response.status()}`);
+  return response.json();
+}
+
 // ── UI helpers ──
 
 function workspaceRow(page, id) {
@@ -369,7 +382,9 @@ await runCase('queued messages filter reflects the real queue projection', DESKT
 
   // Real durable queue row. Enqueued on the UNGROUPED session: the product
   // wake-up path spawns a worker attempt for the target, which would otherwise
-  // leak a running worker state onto a workspace member for later cases.
+  // leak a running worker state onto a workspace member for later cases. The
+  // queue is paused so the durable row cannot be drained mid-assertion.
+  await setQueuePaused(page, dragId, true);
   const enqueued = await api(page, `/api/sessions/${dragId}/queue`, {
     method: 'post',
     body: { text: 'workspace shared search queue fixture', clientMessageId: `e2e-wss-${Date.now()}` },
@@ -385,6 +400,7 @@ await runCase('queued messages filter reflects the real queue projection', DESKT
 
   await clearSpecialFilters(page);
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
+  await setQueuePaused(page, dragId, false);
 });
 
 // ── Case 6: illegal filter (legal running, actual not running) ──
@@ -483,6 +499,71 @@ await runCase('mobile drawer rail shares the session search box', MOBILE, async 
 
   await page.locator('button[aria-label="Clear session search"]').click();
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
+});
+
+// ── Case 9: different members satisfy different status filters (AND at the Workspace level) ──
+
+await runCase('different members satisfy different status filters', DESKTOP, async (page) => {
+  await seedWorkspaceFixtures(page);
+  await expandRail(page);
+
+  // Dedicated workspaces so the durable moves cannot skew the cases above.
+  // Gamma: one member per filter, no member carrying two of them.
+  const gammaId = await createWorkspace(page, 'Gamma WS');
+  const deltaId = await createWorkspace(page, 'Delta WS');
+  const runningId = await sessionIdOf(page, 'Drag 02');
+  const unreadId = await sessionIdOf(page, 'Drag 03');
+  const illegalId = await sessionIdOf(page, 'Drag 05');
+  const controlId = await sessionIdOf(page, 'Drag 06');
+  await moveToWorkspace(page, runningId, gammaId);
+  await moveToWorkspace(page, unreadId, gammaId);
+  await moveToWorkspace(page, illegalId, gammaId);
+  await moveToWorkspace(page, controlId, deltaId);
+  await page.waitForTimeout(400);
+
+  // Gamma: running (Drag 02) + unread (Drag 03) + illegal (Drag 05).
+  await broadcastWorkerStatus(page, runningId, 'running', { lastLegalWorkerState: 'running' });
+  await seedUnread(page, unreadId, 1);
+  await seedLegalWorkerState(page, illegalId, 'running');
+  // Delta keeps only a running member — no unread, no queue, no illegal.
+  await broadcastWorkerStatus(page, controlId, 'running', { lastLegalWorkerState: 'running' });
+  await page.waitForTimeout(400);
+
+  // Precondition: with Running alone both workspaces match.
+  await toggleSpecialFilter(page, 'Running state');
+  await workspaceRow(page, gammaId).waitFor({ state: 'visible' });
+  await workspaceRow(page, deltaId).waitFor({ state: 'visible' });
+
+  // Running + unread: Gamma is satisfied by two DIFFERENT members, Delta is not
+  // (the per-filter any() results are ANDed at the Workspace level).
+  await toggleSpecialFilter(page, 'Has unread');
+  await workspaceRow(page, gammaId).waitFor({ state: 'visible' });
+  await expectHidden(workspaceRow(page, deltaId));
+
+  await clearSpecialFilters(page);
+
+  // The real durable queue satisfies the queue filter for yet another member.
+  const queuedId = await sessionIdOf(page, 'Drag 04');
+  await moveToWorkspace(page, queuedId, gammaId);
+  await setQueuePaused(page, queuedId, true);
+  const enqueued = await api(page, `/api/sessions/${queuedId}/queue`, {
+    method: 'post',
+    body: { text: 'workspace combination queue fixture', clientMessageId: `e2e-wss9-${Date.now()}` },
+  });
+  assert.equal(enqueued.ok, true, `enqueue failed: ${JSON.stringify(enqueued)}`);
+  await injectSessionPatch(page, queuedId, {});
+
+  // Queued + illegal: Gamma holds the queued member and the illegal member,
+  // Delta holds neither.
+  await toggleSpecialFilter(page, 'Has queued messages');
+  await toggleSpecialFilter(page, 'Illegal state');
+  await workspaceRow(page, gammaId).waitFor({ state: 'visible', timeout: 10000 });
+  await expectHidden(workspaceRow(page, deltaId));
+
+  await clearSpecialFilters(page);
+  await setQueuePaused(page, queuedId, false);
+  await clearWorkerStatus(page, runningId);
+  await clearWorkerStatus(page, controlId);
 });
 
 // ── helpers used above (declared after use is fine: function hoisting) ──

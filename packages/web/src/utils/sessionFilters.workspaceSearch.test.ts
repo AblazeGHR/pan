@@ -85,7 +85,7 @@ describe('workspaceMatchesSpecialFilters', () => {
     expect(workspaceMatchesSpecialFilters([sessions[2]!], sessions, new Set(['illegal']))).toBe(false);
   });
 
-  it('requires ONE member to satisfy every active filter (AND inside, OR across)', () => {
+  it('requires a satisfying member for EVERY active filter (per-filter any, then AND)', () => {
     const runningOnly = [sessions[1]!];
     const unreadOnly = [makeSession('unread-only', { unreadDoneCount: 3 })];
     expect(workspaceMatchesSpecialFilters(runningOnly, sessions, new Set(['running', 'unread']))).toBe(false);
@@ -93,6 +93,30 @@ describe('workspaceMatchesSpecialFilters', () => {
     const both = [makeSession('both', { workerStatus: 'running', unreadDoneCount: 1 })];
     expect(workspaceMatchesSpecialFilters(both, sessions, new Set(['running', 'unread']))).toBe(true);
     expect(workspaceMatchesSpecialFilters(unreadOnly, sessions, new Set(['running', 'unread']))).toBe(false);
+  });
+
+  it('lets a DIFFERENT member satisfy each filter (workspace-level AND)', () => {
+    const running = makeSession('m-running', { workerStatus: 'running' });
+    const unread = makeSession('m-unread', { unreadDoneCount: 2 });
+    const queued = makeSession('m-queued', { queuePendingCount: 1 });
+    const illegal = makeSession('m-illegal', { lastLegalWorkerState: 'running', workerStatus: 'idle' });
+    const members = [running, unread, queued, illegal];
+
+    // Every selected filter is met by some member, though no single member
+    // satisfies more than one of them.
+    expect(workspaceMatchesSpecialFilters(members, members, new Set(['running', 'unread']))).toBe(true);
+    expect(workspaceMatchesSpecialFilters(members, members, new Set(['unread', 'queue']))).toBe(true);
+    expect(workspaceMatchesSpecialFilters(members, members, new Set(['queue', 'illegal']))).toBe(true);
+    expect(workspaceMatchesSpecialFilters(members, members, new Set(['illegal', 'running']))).toBe(true);
+    expect(
+      workspaceMatchesSpecialFilters(members, members, new Set(['running', 'unread', 'queue', 'illegal'])),
+    ).toBe(true);
+
+    // Removing the member that carries a selected filter fails that filter.
+    expect(workspaceMatchesSpecialFilters([running, unread], members, new Set(['running', 'queue']))).toBe(false);
+    expect(workspaceMatchesSpecialFilters([queued], members, new Set(['running', 'queue']))).toBe(false);
+    expect(workspaceMatchesSpecialFilters([illegal], members, new Set(['illegal', 'unread']))).toBe(false);
+    expect(workspaceMatchesSpecialFilters([unread, queued], members, new Set(['illegal', 'unread']))).toBe(false);
   });
 
   it('aggregates ACTUAL member states — a session the keyword would hide still counts', () => {
