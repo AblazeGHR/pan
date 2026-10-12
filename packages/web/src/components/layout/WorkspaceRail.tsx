@@ -13,8 +13,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
-import type { Workspace } from '@/types';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES, computeWorkspaceRowVisibility, effectiveWorkspaceIds } from '@/utils/sessionFilters';
+import type { Session, Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
 const DRAG_THRESHOLD_PX = 5;
@@ -71,6 +71,10 @@ export function WorkspaceRail({
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const showToast = useUIStore((s) => s.showToast);
+  // The rail shares the Session search box and the special filters: while the
+  // panel is expanded they also narrow the workspace rows (no second input).
+  const searchQuery = useUIStore((s) => s.searchQuery);
+  const specialFilters = useUIStore((s) => s.specialFilters);
 
   const [editing, setEditing] = useState<{ id: string | '__new__'; value: string } | null>(null);
   const [menuFor, setMenuFor] = useState<{ workspace: Workspace; x: number; y: number } | null>(null);
@@ -96,6 +100,10 @@ export function WorkspaceRail({
 
   const memberStats = useMemo(() => {
     const stats = new Map<string, { count: number; workerStatus: string | null; unread: boolean }>();
+    // Effective member sessions per workspace (manager inheritance applied) —
+    // the single source the shared search/status row filtering aggregates over.
+    const members = new Map<string, Session[]>();
+    const ungroupedMembers: Session[] = [];
     let ungroupedCount = 0;
     let ungroupedUnread = false;
     let anyUnread = false;
@@ -105,7 +113,11 @@ export function WorkspaceRail({
       anyUnread ||= unread;
       // Same rule as the 'ungrouped' scope filter: a child of a managed root
       // inherits the root's membership, so it is NOT counted here.
-      if (effective.length === 0) { ungroupedCount += 1; ungroupedUnread ||= unread; }
+      if (effective.length === 0) {
+        ungroupedCount += 1;
+        ungroupedUnread ||= unread;
+        ungroupedMembers.push(session);
+      }
       for (const id of effective) {
         const current = stats.get(id) ?? { count: 0, workerStatus: null, unread: false };
         current.count += 1;
@@ -115,10 +127,28 @@ export function WorkspaceRail({
           current.workerStatus = candidate;
         }
         stats.set(id, current);
+        const list = members.get(id);
+        if (list) list.push(session);
+        else members.set(id, [session]);
       }
     }
-    return { stats, ungroupedCount, ungroupedUnread, anyUnread };
+    return { stats, members, ungroupedMembers, ungroupedCount, ungroupedUnread, anyUnread };
   }, [sessions]);
+
+  // Shared with the Session list: the same searchQuery + specialFilters narrow
+  // the rail rows while the panel is expanded. Derived per render (no stored
+  // state), so Session state changes reflect immediately.
+  const rowVisibility = useMemo(
+    () =>
+      computeWorkspaceRowVisibility(workspaces, sessions, {
+        expanded: isExpanded,
+        searchQuery,
+        specialFilters,
+        membersByWorkspace: memberStats.members,
+        ungroupedMembers: memberStats.ungroupedMembers,
+      }),
+    [isExpanded, workspaces, sessions, searchQuery, specialFilters, memberStats],
+  );
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
     ? '全部'
@@ -415,6 +445,7 @@ export function WorkspaceRail({
         </div>
 
         <div ref={tabScrollRef} data-testid="workspace-tab-scroll" className="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {rowVisibility.showAll && (
           <div
             data-workspace-tab-id={ALL_WORKSPACES}
             role="button"
@@ -431,6 +462,7 @@ export function WorkspaceRail({
               {sessions.length}
             </span>
           </div>
+          )}
 
           {/* Virtual "no workspace" scope, pinned directly under "全部".
               It is a read-only aggregation over sessions whose EFFECTIVE
@@ -439,6 +471,7 @@ export function WorkspaceRail({
               the scope key is the UNGROUPED_WORKSPACES sentinel, and
               `updateDropHint` skips it so it can never join the persisted
               workspace order. */}
+          {rowVisibility.showUngrouped && (
           <div
             data-workspace-tab-id={UNGROUPED_WORKSPACES}
             data-testid="workspace-tab-ungrouped"
@@ -459,8 +492,9 @@ export function WorkspaceRail({
               {memberStats.ungroupedCount}
             </span>
           </div>
+          )}
 
-          {workspaces.map((workspace) => {
+          {rowVisibility.workspaces.map((workspace) => {
             const isEditing = editing?.id === workspace.id;
             const memberStat = memberStats.stats.get(workspace.id);
             if (isEditing) {

@@ -1,4 +1,4 @@
-import type { Session } from '@/types';
+import type { Session, Workspace } from '@/types';
 
 /**
  * Special (non-text) session-list filters, rendered as checkboxes next to the
@@ -149,6 +149,104 @@ export function scopeSessionsByWorkspace(
     return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).length === 0);
   }
   return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).includes(activeWorkspaceId));
+}
+
+/**
+ * True when the Workspace name matches the shared Session-list search input.
+ *
+ * Same normalization as {@link matchesSessionSearch} (trim + case-insensitive
+ * substring; an empty query matches everything), but judged on the Workspace
+ * name only — the rail reuses the existing search box instead of adding one.
+ */
+export function matchesWorkspaceSearch(workspace: Pick<Workspace, 'name'>, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  return String(workspace.name ?? '').toLowerCase().includes(normalizedQuery);
+}
+
+/**
+ * True when ANY member session of a Workspace passes every active special
+ * filter (workspace-level aggregation of the same per-session predicates).
+ *
+ * `members` must be the workspace's EFFECTIVE member sessions — the caller
+ * resolves them through the manager chain ({@link effectiveWorkspaceIds}), so
+ * descendants inherit the root's workspace. Each member is judged on its
+ * ACTUAL state: the aggregation never runs over the keyword-filtered Session
+ * list, so a session hidden from that list by the search keyword still
+ * contributes its real state here. The Workspace result is therefore computed
+ * independently from the Session-list result while both share the same filter
+ * conditions.
+ */
+export function workspaceMatchesSpecialFilters(
+  members: Session[],
+  allSessions: Session[],
+  filters: Set<SpecialFilterId>,
+): boolean {
+  if (filters.size === 0) return true;
+  return members.some((session) => matchesSpecialFilters(session, allSessions, filters));
+}
+
+/** Which workspace-rail rows stay visible under the shared search/filters. */
+export interface WorkspaceRowVisibility {
+  /** Real workspace rows to render, in store order. */
+  workspaces: Workspace[];
+  /** Virtual 'all' scope row (全部) stays visible. */
+  showAll: boolean;
+  /** Virtual 'ungrouped' scope row (无工作区) stays visible. */
+  showUngrouped: boolean;
+}
+
+/**
+ * Compute the workspace-rail row visibility for the shared Session search box
+ * and special filters (no second input, no stored state — pure derivation):
+ *
+ * - A real workspace row shows when its NAME matches the keyword AND any
+ *   effective member passes the status filters (actual member states, never
+ *   the keyword-filtered Session list).
+ * - A virtual scope row shows when its own session content matches: 'all'
+ *   covers every session, 'ungrouped' only sessions without membership.
+ * - Collapsed, or with no keyword and no status filter active, every row
+ *   keeps its original visibility.
+ *
+ * `membersByWorkspace` / `ungroupedMembers` are the caller's already-resolved
+ * effective memberships (see {@link effectiveWorkspaceIds}); passing them in
+ * keeps this a single-pass derivation over the Session list.
+ */
+export function computeWorkspaceRowVisibility(
+  workspaces: Workspace[],
+  sessions: Session[],
+  options: {
+    /** Rail expanded (desktop panel or mobile drawer). Collapsed keeps every row. */
+    expanded: boolean;
+    searchQuery: string;
+    specialFilters: Set<SpecialFilterId>;
+    /** Effective member sessions per workspace id (inheritance applied). */
+    membersByWorkspace: Map<string, Session[]>;
+    /** Sessions with no effective workspace membership. */
+    ungroupedMembers: Session[];
+  },
+): WorkspaceRowVisibility {
+  const everything: WorkspaceRowVisibility = { workspaces, showAll: true, showUngrouped: true };
+  if (!options.expanded) return everything;
+  if (!options.searchQuery.trim() && options.specialFilters.size === 0) return everything;
+
+  const visibleWorkspaces = workspaces.filter(
+    (workspace) =>
+      matchesWorkspaceSearch(workspace, options.searchQuery) &&
+      workspaceMatchesSpecialFilters(
+        options.membersByWorkspace.get(workspace.id) ?? [],
+        sessions,
+        options.specialFilters,
+      ),
+  );
+  const sessionMatches = (session: Session) =>
+    matchesSessionSearch(session, options.searchQuery) &&
+    matchesSpecialFilters(session, sessions, options.specialFilters);
+  return {
+    workspaces: visibleWorkspaces,
+    showAll: sessions.some(sessionMatches),
+    showUngrouped: options.ungroupedMembers.some(sessionMatches),
+  };
 }
 
 /**
