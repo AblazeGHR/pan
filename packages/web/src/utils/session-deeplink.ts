@@ -15,16 +15,25 @@
  *    that does not contain the id counts as "missing".
  *  - A failed list load is NOT deletion: the deep link keeps waiting and
  *    recovers when a later refresh succeeds.
- *  - Every async window (lookup, lazy router import, router navigation) is
- *    re-validated against the latest click intent, the selection generation
- *    and the user's own routing. A later user action always wins; comparing
+ *  - Every async window (lookup, lazy router import, router navigation, the
+ *    workspace-list settle) is re-validated against the latest click intent,
+ *    the selection generation, the workspace-selection generation and the
+ *    user's own routing. A later user action always wins; comparing
  *    `currentSessionId` alone is not enough (the user can roam A → B → A).
+ *  - The jump switches the workspace scope AND selects the session together:
+ *    the scope is the session's EFFECTIVE membership (a managed child inherits
+ *    its root's workspace), resolved from the latest state after the waits. A
+ *    session with no (provable) membership lands in the virtual '无工作区'
+ *    scope — a missing root or an unavailable workspace list must never pick an
+ *    arbitrary workspace.
  *  - Router failures are surfaced (toast + false), never swallowed.
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { UNGROUPED_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
 
 export const SESSION_DEEPLINK_PARAM = 'session';
 
@@ -73,6 +82,83 @@ function selectionEpoch(): number {
   let total = 0;
   for (const key of Object.keys(seq)) total += seq[key] ?? 0;
   return total;
+}
+
+/**
+ * Workspace-selection generation: `setActiveWorkspace` bumps `_workspaceSeq`
+ * on every actual switch, so an async jump can tell a user workspace take-over
+ * (including A → B → A) apart from "nothing happened", which a value comparison
+ * would miss. This is a race guard, not a source of workspace ownership.
+ */
+function workspaceEpoch(): number {
+  return useUIStore.getState()._workspaceSeq ?? 0;
+}
+
+/**
+ * Resolve the workspace scope a jump must switch to for a session, from the
+ * LATEST store state (call only after every async wait):
+ *  - ownership is the session's EFFECTIVE membership (`effectiveWorkspaceIds`),
+ *    so a managed child inherits its root's workspace and a corrupt/missing-root
+ *    chain fails closed to no membership — never the child's own stale ids;
+ *  - no membership → the virtual '无工作区' scope;
+ *  - a membership id counts only while the workspace list is loaded AND still
+ *    contains it (a deleted workspace's leftover id is not a real workspace);
+ *  - an unavailable workspace list therefore falls back to '无工作区' — it must
+ *    never pick an arbitrary workspace.
+ * Returns null only when the target session no longer exists.
+ */
+function resolveWorkspaceScopeFor(sessionId: string): string | null {
+  const sessions = useSessionStore.getState().sessions;
+  const session = sessions.find((item) => item.id === sessionId);
+  if (!session) return null;
+  const [candidate] = effectiveWorkspaceIds(session, sessions);
+  if (!candidate) return UNGROUPED_WORKSPACES;
+  const workspaceStore = useWorkspaceStore.getState();
+  if (workspaceStore.loaded && workspaceStore.workspaces.some((w) => w.id === candidate)) {
+    return candidate;
+  }
+  return UNGROUPED_WORKSPACES;
+}
+
+/**
+ * Wait for the workspace list to settle before resolving ownership, so a cold
+ * start does not mistake a valid membership for a stale one just because the
+ * list has not arrived yet. Bounded: a failed load settles (error set) and the
+ * caller falls back to a safe scope.
+ */
+async function settleWorkspaceLoad(): Promise<void> {
+  const store = useWorkspaceStore;
+  const start = store.getState();
+  if (start.loaded) return;
+  if (!start.loading) void start.loadWorkspaces();
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      unsubscribe();
+      clearTimeout(timer);
+      resolve();
+    };
+    const unsubscribe = store.subscribe((s) => {
+      if (s.loaded || (!s.loading && !!s.error)) finish();
+    });
+    const timer = setTimeout(finish, 15000);
+    const now = store.getState();
+    if (now.loaded || (!now.loading && !!now.error)) finish();
+  });
+}
+
+/**
+ * Apply a resolved target atomically: switch the workspace scope to the
+ * session's effective workspace AND select the session, so the pair can never
+ * come from two different user actions (no cross-session crosstalk). The
+ * selection generation guards in `selectSession` keep a later user pick safe.
+ */
+function commitTarget(sessionId: string): void {
+  const scope = resolveWorkspaceScopeFor(sessionId);
+  if (scope) useUIStore.getState().setActiveWorkspace(scope);
+  void useSessionStore.getState().selectSession(sessionId);
 }
 
 type SessionLookup = 'found' | 'missing' | 'unknown';
@@ -141,31 +227,38 @@ async function lookupSessionRef(sessionId: string): Promise<SessionLookup> {
 }
 
 /**
- * Notification click handler: focus Pan, return to the chat view and select
- * the session. Resolves to true only when the routing actually completed and
- * the selection was applied; false means "not applied" (invalid or deleted
- * session, unavailable list, user took over, or router failure). Every
- * failure mode except a user take-over is surfaced with a toast; a take-over
- * is silently dropped because a newer user action already won.
+ * Notification click handler: focus Pan, return to the chat view, switch to
+ * the session's effective workspace and select the session. Resolves to true
+ * only when the routing completed and the workspace + selection were applied;
+ * false means "not applied" (invalid or deleted session, unavailable list,
+ * user took over, or router failure). Every failure mode except a user
+ * take-over is surfaced with a toast; a take-over is silently dropped because
+ * a newer user action already won.
  *
- * The click flow has three async windows — the authoritative lookup, the lazy
- * router import, and the navigation itself. Each window is re-validated, and
- * the selection generation is checked again directly before the final
- * `selectSession`, so a click can never overwrite what the user did while it
- * was settling:
+ * The click flow has four async windows — the authoritative lookup, the lazy
+ * router import, the navigation itself, and the workspace-list settle. Each
+ * window is re-validated against the click intent, the selection generation,
+ * the workspace-selection generation and the location, and the target scope is
+ * re-resolved from the latest state right before the final apply, so a click
+ * can never overwrite what the user did while it was settling:
  *   1. after the lookup: intent + selection generation + location;
  *   2. after the import, right before navigating: same three;
- *   3. after the navigation: intent + selection generation + the router's own
+ *   3. after the navigation: intent + both generations + the router's own
  *      landing point (chat root = our own route change; anywhere else = the
- *      user navigated away and wins).
+ *      user navigated away and wins);
+ *   4. after the workspace-list settle: the same guards again, then the
+ *      workspace scope and the session are applied together.
  */
 export async function openSessionFromNotification(sessionId: string): Promise<boolean> {
   if (!isValidSessionRef(sessionId)) return false;
   const intent = ++clickIntent;
   const startEpoch = selectionEpoch();
   const startLocation = locationKey();
+  const startWorkspaceEpoch = workspaceEpoch();
   const userTookOver = (): boolean =>
-    selectionEpoch() !== startEpoch || locationKey() !== startLocation;
+    selectionEpoch() !== startEpoch ||
+    workspaceEpoch() !== startWorkspaceEpoch ||
+    locationKey() !== startLocation;
 
   const lookup = await lookupSessionRef(sessionId);
   if (intent !== clickIntent) return false; // a newer click superseded us
@@ -208,15 +301,24 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
     useUIStore.getState().showToast(ROUTE_FAILED_MESSAGE, 'error');
     return false;
   }
-  // Post-navigation: any selection change (even A → B → A) or a newer click
-  // during the await wins. Our own navigation lands on the chat root — if we
-  // are anywhere else, the user routed away and wins too.
+  // Post-navigation: any selection or workspace change (even A → B → A) or a
+  // newer click during the await wins. Our own navigation lands on the chat
+  // root — if we are anywhere else, the user routed away and wins too.
   if (intent !== clickIntent) return false;
   if (selectionEpoch() !== startEpoch) return false;
+  if (workspaceEpoch() !== startWorkspaceEpoch) return false;
   if (!isAtChatRoot()) return false;
-  // Atomic from here: the remaining selectSession state update is synchronous
-  // (its history fetch keeps its own _selectionSeq guards).
-  void useSessionStore.getState().selectSession(sessionId);
+  // The workspace list may still be arriving (cold tab): wait for it, then
+  // re-validate every guard, so a valid membership is not mistaken for a stale
+  // one and a user action during the wait still wins.
+  await settleWorkspaceLoad();
+  if (intent !== clickIntent) return false;
+  if (selectionEpoch() !== startEpoch) return false;
+  if (workspaceEpoch() !== startWorkspaceEpoch) return false;
+  if (!isAtChatRoot()) return false;
+  // Atomic from here: the workspace scope and the session are applied together
+  // (selectSession keeps its own _selectionSeq guards for its late history).
+  commitTarget(sessionId);
   return true;
 }
 
@@ -228,8 +330,13 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
  *    selection recovers as soon as a later refresh brings the session in;
  *  - only a completed list fetch without the id reports deletion;
  *  - every async result is tied to the parameter generation (raw value change
- *    or unmount invalidates it) and the selection generation (a user pick
- *    during the lookup consumes the link without overriding the user).
+ *    or unmount invalidates it), the selection generation (a user pick during
+ *    the lookup consumes the link without overriding the user) and the
+ *    workspace-selection generation (a user workspace switch — including
+ *    A → B → A — wins the same way);
+ *  - the target workspace (the session's effective membership, or the virtual
+ *    '无工作区' scope) is applied together with the selection, after the
+ *    workspace list settles, so the pair always comes from one resolution.
  */
 export function useSessionDeepLinkParam(): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -237,7 +344,14 @@ export function useSessionDeepLinkParam(): void {
   const sessions = useSessionStore((s) => s.sessions);
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
   const generation = useRef(0);
-  const link = useRef({ raw: null as string | null, baselineEpoch: 0, attempted: false, warned: false });
+  const link = useRef({
+    raw: null as string | null,
+    baselineEpoch: 0,
+    baselineWorkspaceEpoch: 0,
+    attempted: false,
+    warned: false,
+    committed: false,
+  });
 
   // Unmount invalidates every pending continuation for this hook instance.
   useEffect(() => () => { generation.current += 1; }, []);
@@ -256,7 +370,14 @@ export function useSessionDeepLinkParam(): void {
       // previous raw value must not run any more, and the stale-link budget
       // resets. The baseline epoch marks the user's state when the link appeared.
       generation.current += 1;
-      link.current = { raw, baselineEpoch: selectionEpoch(), attempted: false, warned: false };
+      link.current = {
+        raw,
+        baselineEpoch: selectionEpoch(),
+        baselineWorkspaceEpoch: workspaceEpoch(),
+        attempted: false,
+        warned: false,
+        committed: false,
+      };
     }
     const myGeneration = generation.current;
     if (!raw) return;
@@ -265,19 +386,41 @@ export function useSessionDeepLinkParam(): void {
       clearParam();
       return;
     }
-    const userTookOver = (): boolean => selectionEpoch() !== link.current.baselineEpoch;
+    const userTookOver = (): boolean =>
+      selectionEpoch() !== link.current.baselineEpoch ||
+      workspaceEpoch() !== link.current.baselineWorkspaceEpoch;
     if (userTookOver()) {
       // The user picked their own session since the link appeared: the link
       // is consumed silently and must never override their choice.
       clearParam();
       return;
     }
+    // Resolve the target workspace AND the session together, once the workspace
+    // list has settled, re-validating every guard afterwards: a user action
+    // during the wait (including a workspace A → B → A) still wins.
+    const applyLink = (sessionId: string) => {
+      const expectedGeneration = generation.current;
+      const expectedRaw = raw;
+      void (async () => {
+        await settleWorkspaceLoad();
+        if (generation.current !== expectedGeneration || link.current.raw !== expectedRaw) return;
+        if (userTookOver()) {
+          clearParam();
+          return;
+        }
+        commitTarget(sessionId);
+        clearParam();
+      })();
+    };
     if (sessions.some((session) => session.id === raw)) {
       // selectSession holds the session it was given; its internal selection
       // generation guards make a later user pick win over its late history
-      // fetch, so no extra guard is needed here.
-      void useSessionStore.getState().selectSession(raw);
-      clearParam();
+      // fetch, so no extra guard is needed here. `committed` keeps a later
+      // re-run of this effect from applying the same link twice.
+      if (!link.current.committed) {
+        link.current.committed = true;
+        applyLink(raw);
+      }
       return;
     }
     // Cache miss. Do not conclude from `sessionsLoading`/`_loadSeq` alone: a
@@ -297,8 +440,10 @@ export function useSessionDeepLinkParam(): void {
         return;
       }
       if (lookup === 'found') {
-        void useSessionStore.getState().selectSession(raw);
-        clearParam();
+        if (!link.current.committed) {
+          link.current.committed = true;
+          applyLink(raw);
+        }
         return;
       }
       if (lookup === 'missing') {

@@ -1,0 +1,71 @@
+{
+  "ok": true,
+  "ranAt": "2026-10-13T18:37:59.870Z",
+  "worktreeHead": "1db8d9bd893be7f764619e12bcd2d09a5f3eba00",
+  "python": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "port": 61378,
+  "runtime": "D:\\project\\pan-worktrees\\notification-workspace-jump-20261014\\packages\\web\\test-results\\notify-ws-1791916679844",
+  "results": [
+    {
+      "name": "cold ?session selects a workspace member AND its workspace",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_d71b691cd17bb4f4"
+      }
+    },
+    {
+      "name": "managed child inherits its root workspace (not its own empty id)",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_13a3074959fa0516",
+        "inherited": true
+      }
+    },
+    {
+      "name": "ungrouped session selects the no-workspace scope, no workspace selected",
+      "ok": true,
+      "detail": {
+        "workspace": "ungrouped"
+      }
+    },
+    {
+      "name": "notification onclick selects the session AND its workspace from another view",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_d71b691cd17bb4f4",
+        "selection": "ses_59b5ea88bbcca229"
+      }
+    },
+    {
+      "name": "a user workspace switch (A -> B -> A) during a slow lookup wins",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_d71b691cd17bb4f4",
+        "selection": null
+      }
+    },
+    {
+      "name": "mobile viewport: cold ?session selects session AND workspace",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_d71b691cd17bb4f4",
+        "viewport": "390x844"
+      }
+    },
+    {
+      "name": "no external requests and no page errors across the run",
+      "ok": true,
+      "detail": {
+        "foreignRequests": 0,
+        "blockedFontRequests": 6,
+        "pageErrors": 0
+      }
+    }
+  ],
+  "browserVersion": "153.0.8010.12",
+  "foreignRequests": [],
+  "blockedFontRequests": [
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "pageErrors": []
+}
