@@ -50,9 +50,12 @@ def seed():
         return session
 
     notify = {'browser': True, 'system': False}
-    # Alpha Lab: two real members (Alpha One is the hot-click target).
+    # Alpha Lab: two real members (Alpha One is the hot-click target) plus two
+    # disposable targets that the deep-link checks delete mid-flight.
     make('Alpha One', notification_settings=notify, workspace_ids=[alpha.id])
     make('Alpha Two', workspace_ids=[alpha.id])
+    make('Doomed Cold', workspace_ids=[alpha.id])
+    make('Hot Target', notification_settings=notify, workspace_ids=[alpha.id])
     # Beta Lab: a root plus a managed child that carries NO own workspace id and
     # must inherit Beta Lab through the manager chain.
     beta_root = make('Beta Root', workspace_ids=[beta.id])

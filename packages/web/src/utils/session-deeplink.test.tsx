@@ -26,6 +26,7 @@ vi.mock('@/router', () => ({ router: { navigate: routerMock.navigate } }));
 
 const MISSING = '通知对应的会话不存在或已被删除，无法跳转';
 const LIST_UNAVAILABLE = '会话列表暂时无法加载，未能打开该会话';
+const WORKSPACE_UNAVAILABLE = '工作区列表暂时无法加载，未能确定会话的工作区';
 const ROUTE_FAILED = '无法返回聊天视图，请手动打开 Pan 聊天';
 
 function mkSession(id: string, extra: Partial<Session> = {}): Session {
@@ -340,7 +341,7 @@ describe('useSessionDeepLinkParam', () => {
     });
   });
 
-  it('cold-start: an unavailable workspace list resolves to no-workspace, never a guessed one', async () => {
+  it('cold-start: an unavailable workspace list keeps the link, never claiming no-workspace', async () => {
     useSessionStore.setState({ sessions: [mkSession('A', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
     useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
     apiMock.fetchWorkspaces.mockRejectedValueOnce(new Error('offline'));
@@ -348,9 +349,64 @@ describe('useSessionDeepLinkParam', () => {
     renderAt('/?session=A');
 
     await vi.waitFor(() => {
-      expect(useSessionStore.getState().currentSessionId).toBe('A');
+      expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
     });
-    expect(useUIStore.getState().activeWorkspaceId).toBe(UNGROUPED_WORKSPACES);
+    // The membership has a workspace id but the list cannot be trusted: this is
+    // unknown, not "no workspace". Nothing is applied and the link is kept.
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(currentSearch()).toBe('?session=A');
+  });
+
+  it('cold-start: a valid workspace with an unavailable list keeps the link, then recovers', async () => {
+    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
+    useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
+    apiMock.fetchWorkspaces.mockRejectedValueOnce(new Error('offline'));
+
+    renderAt('/?session=C');
+    await vi.waitFor(() => {
+      expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
+    });
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(currentSearch()).toBe('?session=C');
+
+    // A later successful workspace refresh resolves the preserved link.
+    apiMock.fetchWorkspaces.mockResolvedValue([mkWorkspace('ws1')]);
+    await act(async () => { await useWorkspaceStore.getState().loadWorkspaces(); });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().currentSessionId).toBe('C');
+    });
+    expect(useUIStore.getState().activeWorkspaceId).toBe('ws1');
+    await vi.waitFor(() => {
+      expect(currentSearch()).toBe('');
+    });
+  });
+
+  it('cold-start: a target deleted while the workspace list loads reports missing and clears the link', async () => {
+    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
+    useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
+    let resolveLoad: (value: Workspace[]) => void = () => {};
+    apiMock.fetchWorkspaces.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveLoad = resolve as (value: Workspace[]) => void; }),
+    );
+    apiMock.fetchSessions.mockResolvedValue([]); // authoritative list without C
+
+    renderAt('/?session=C');
+    await act(async () => { await Promise.resolve(); });
+
+    // The session is deleted while the workspace list is still loading.
+    useSessionStore.setState({ sessions: [] });
+
+    await act(async () => {
+      resolveLoad([mkWorkspace('ws1')]);
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(toastMessages()).toContain(MISSING);
+    });
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
     await vi.waitFor(() => {
       expect(currentSearch()).toBe('');
     });
@@ -440,39 +496,90 @@ describe('openSessionFromNotification workspace sync', () => {
     expect(useUIStore.getState().activeWorkspaceId).toBe('ws2');
   });
 
-  it('a child whose root is missing resolves to no-workspace, never a guessed workspace', async () => {
+  it('a child whose root is missing is unprovable: feedback, no workspace guessed', async () => {
     useSessionStore.setState({ sessions: [mkSession('ORPHAN', { managedBy: 'GONE', workspaceIds: ['ws1'] })] });
     useWorkspaceStore.setState({ workspaces: [mkWorkspace('ws1')], loaded: true, loading: false, error: null });
     useUIStore.setState({ activeWorkspaceId: 'all' });
 
     const ok = await openSessionFromNotification('ORPHAN');
 
-    expect(ok).toBe(true);
-    expect(useUIStore.getState().activeWorkspaceId).toBe(UNGROUPED_WORKSPACES);
+    // A dangling manager is not "no workspace": it is unknown, so nothing is
+    // applied and the honest feedback is surfaced.
+    expect(ok).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
   });
 
-  it('a stale membership (workspace no longer exists) resolves to no-workspace', async () => {
+  it('a membership whose workspace is absent from the loaded list is unprovable (no no-workspace claim)', async () => {
     useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['wsGone'] })] });
     useWorkspaceStore.setState({ workspaces: [mkWorkspace('ws1')], loaded: true, loading: false, error: null });
     useUIStore.setState({ activeWorkspaceId: 'all' });
 
     const ok = await openSessionFromNotification('C');
 
-    expect(ok).toBe(true);
-    expect(useUIStore.getState().activeWorkspaceId).toBe(UNGROUPED_WORKSPACES);
+    expect(ok).toBe(false);
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
   });
 
-  it('a workspace-list load failure never selects an arbitrary workspace', async () => {
-    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })] });
+  it('a workspace-list load failure is unprovable, never an arbitrary or no-workspace scope', async () => {
+    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
     useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
     apiMock.fetchWorkspaces.mockRejectedValueOnce(new Error('offline'));
 
     const ok = await openSessionFromNotification('C');
 
-    expect(ok).toBe(true);
-    expect(useSessionStore.getState().currentSessionId).toBe('C');
-    expect(useUIStore.getState().activeWorkspaceId).toBe(UNGROUPED_WORKSPACES);
+    expect(ok).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
     expect(apiMock.fetchWorkspaces).toHaveBeenCalled();
+  });
+
+  it('a valid workspace with an unavailable list applies nothing, then recovers on retry', async () => {
+    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
+    useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
+    apiMock.fetchWorkspaces.mockRejectedValueOnce(new Error('offline'));
+
+    expect(await openSessionFromNotification('C')).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(toastMessages()).toContain(WORKSPACE_UNAVAILABLE);
+
+    // The list comes back: a retried click now applies BOTH workspace and session.
+    apiMock.fetchWorkspaces.mockResolvedValue([mkWorkspace('ws1')]);
+    await act(async () => { await useWorkspaceStore.getState().loadWorkspaces(); });
+
+    expect(await openSessionFromNotification('C')).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBe('C');
+    expect(useUIStore.getState().activeWorkspaceId).toBe('ws1');
+  });
+
+  it('a target deleted while the workspace list loads reports missing and applies nothing', async () => {
+    useSessionStore.setState({ sessions: [mkSession('C', { workspaceIds: ['ws1'] })], sessionsLoading: false, _loadSeq: 1 });
+    useWorkspaceStore.setState({ workspaces: [], loaded: false, loading: false, error: null });
+    let resolveLoad: (value: Workspace[]) => void = () => {};
+    apiMock.fetchWorkspaces.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveLoad = resolve as (value: Workspace[]) => void; }),
+    );
+    apiMock.fetchSessions.mockResolvedValue([]); // authoritative list without C
+
+    const click = openSessionFromNotification('C');
+    await act(async () => { await Promise.resolve(); });
+
+    // The session is deleted while the workspace list is still loading.
+    useSessionStore.setState({ sessions: [] });
+
+    await act(async () => {
+      resolveLoad([mkWorkspace('ws1')]);
+      await click;
+    });
+
+    expect(await click).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(toastMessages()).toContain(MISSING);
   });
 
   it('a user workspace switch during the lookup wins (A → B → A)', async () => {

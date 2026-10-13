@@ -22,10 +22,13 @@
  *    `currentSessionId` alone is not enough (the user can roam A → B → A).
  *  - The jump switches the workspace scope AND selects the session together:
  *    the scope is the session's EFFECTIVE membership (a managed child inherits
- *    its root's workspace), resolved from the latest state after the waits. A
- *    session with no (provable) membership lands in the virtual '无工作区'
- *    scope — a missing root or an unavailable workspace list must never pick an
- *    arbitrary workspace.
+ *    its root's workspace), resolved from the latest state after the waits.
+ *    Success means BOTH were applied. A session is only placed in the virtual
+ *    '无工作区' scope when its ownership is PROVABLE; a broken manager chain or
+ *    an unavailable/timed-out workspace list is 'unknown' — it keeps the deep
+ *    link (cold) or surfaces feedback (hot) instead of claiming '无工作区'.
+ *  - The target is re-verified at the final apply, so a session deleted while
+ *    waiting reports the existing deletion feedback and applies nothing.
  *  - Router failures are surfaced (toast + false), never swallowed.
  */
 import { useCallback, useEffect, useRef } from 'react';
@@ -33,7 +36,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { UNGROUPED_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
+import { UNGROUPED_WORKSPACES, resolveWorkspaceOwnership } from '@/utils/sessionFilters';
 
 export const SESSION_DEEPLINK_PARAM = 'session';
 
@@ -50,6 +53,7 @@ export function isValidSessionRef(value: string | null | undefined): value is st
 
 const MISSING_SESSION_MESSAGE = '通知对应的会话不存在或已被删除，无法跳转';
 const LIST_UNAVAILABLE_MESSAGE = '会话列表暂时无法加载，未能打开该会话';
+const WORKSPACE_UNAVAILABLE_MESSAGE = '工作区列表暂时无法加载，未能确定会话的工作区';
 const ROUTE_FAILED_MESSAGE = '无法返回聊天视图，请手动打开 Pan 聊天';
 
 /** Monotonic intent id: every notification click supersedes earlier ones. */
@@ -95,42 +99,62 @@ function workspaceEpoch(): number {
 }
 
 /**
- * Resolve the workspace scope a jump must switch to for a session, from the
- * LATEST store state (call only after every async wait):
- *  - ownership is the session's EFFECTIVE membership (`effectiveWorkspaceIds`),
- *    so a managed child inherits its root's workspace and a corrupt/missing-root
- *    chain fails closed to no membership — never the child's own stale ids;
- *  - no membership → the virtual '无工作区' scope;
- *  - a membership id counts only while the workspace list is loaded AND still
- *    contains it (a deleted workspace's leftover id is not a real workspace);
- *  - an unavailable workspace list therefore falls back to '无工作区' — it must
- *    never pick an arbitrary workspace.
- * Returns null only when the target session no longer exists.
+ * The outcome of resolving a jump's workspace target from the latest state.
+ * Only a PROVABLE absence of membership is 'ungrouped'; anything we cannot
+ * prove is 'unknown', so the caller never claims "无工作区" by accident.
  */
-function resolveWorkspaceScopeFor(sessionId: string): string | null {
+type WorkspaceTarget =
+  /** Proven: the session's effective workspace, present in the loaded list. */
+  | { kind: 'workspace'; id: string }
+  /** Proven: a determinate root with no workspace id. */
+  | { kind: 'ungrouped' }
+  /** Cannot prove: broken/cyclic chain, or a workspace list we cannot trust. */
+  | { kind: 'unknown' };
+
+/** 'missing' when the target session is no longer in the list at all. */
+type WorkspaceTargetResolution = WorkspaceTarget | { kind: 'missing' };
+
+/**
+ * Resolve the workspace target for a session from the LATEST store state (call
+ * only after every async wait):
+ *  - ownership is the session's EFFECTIVE membership (`resolveWorkspaceOwnership`
+ *    → a managed child inherits its root's workspace; the child's own stale ids
+ *    are never used);
+ *  - a determinate root with no workspace id → 'ungrouped' (provable);
+ *  - a determinate root whose workspace id the LOADED list still contains →
+ *    'workspace';
+ *  - everything we cannot prove → 'unknown': a dangling manager / cycle, a
+ *    workspace list that is not loaded (unavailable / timed out), or a
+ *    membership id the loaded list no longer contains (so '无工作区' would hide
+ *    the target too — the scope resolver keeps such a session out of it);
+ *  - the session itself being gone → 'missing'.
+ */
+function resolveWorkspaceTarget(sessionId: string): WorkspaceTargetResolution {
   const sessions = useSessionStore.getState().sessions;
   const session = sessions.find((item) => item.id === sessionId);
-  if (!session) return null;
-  const [candidate] = effectiveWorkspaceIds(session, sessions);
-  if (!candidate) return UNGROUPED_WORKSPACES;
+  if (!session) return { kind: 'missing' };
+  const ownership = resolveWorkspaceOwnership(session, sessions);
+  if (ownership.kind === 'indeterminate') return { kind: 'unknown' };
+  if (ownership.kind === 'none') return { kind: 'ungrouped' };
   const workspaceStore = useWorkspaceStore.getState();
-  if (workspaceStore.loaded && workspaceStore.workspaces.some((w) => w.id === candidate)) {
-    return candidate;
+  if (workspaceStore.loaded && workspaceStore.workspaces.some((w) => w.id === ownership.id)) {
+    return { kind: 'workspace', id: ownership.id };
   }
-  return UNGROUPED_WORKSPACES;
+  return { kind: 'unknown' };
 }
 
 /**
  * Wait for the workspace list to settle before resolving ownership, so a cold
  * start does not mistake a valid membership for a stale one just because the
- * list has not arrived yet. Bounded: a failed load settles (error set) and the
- * caller falls back to a safe scope.
+ * list has not arrived yet. Bounded, and loop-free: it only REQUESTS a load
+ * when none has failed yet, so a persistent failure settles (error set) and the
+ * caller keeps the link instead of retrying forever.
  */
 async function settleWorkspaceLoad(): Promise<void> {
   const store = useWorkspaceStore;
   const start = store.getState();
   if (start.loaded) return;
-  if (!start.loading) void start.loadWorkspaces();
+  if (!start.loading && !start.error) void store.getState().loadWorkspaces();
   await new Promise<void>((resolve) => {
     let done = false;
     const finish = () => {
@@ -150,14 +174,18 @@ async function settleWorkspaceLoad(): Promise<void> {
 }
 
 /**
- * Apply a resolved target atomically: switch the workspace scope to the
- * session's effective workspace AND select the session, so the pair can never
- * come from two different user actions (no cross-session crosstalk). The
- * selection generation guards in `selectSession` keep a later user pick safe.
+ * Apply a PROVEN target: switch the workspace scope AND select the session
+ * together, so the pair can never come from two different user actions (no
+ * cross-session crosstalk). Never called for an 'unknown' target — success
+ * means both the workspace and the session were applied.
  */
-function commitTarget(sessionId: string): void {
-  const scope = resolveWorkspaceScopeFor(sessionId);
-  if (scope) useUIStore.getState().setActiveWorkspace(scope);
+function applyTarget(
+  sessionId: string,
+  target: { kind: 'workspace'; id: string } | { kind: 'ungrouped' },
+): void {
+  useUIStore.getState().setActiveWorkspace(
+    target.kind === 'workspace' ? target.id : UNGROUPED_WORKSPACES,
+  );
   void useSessionStore.getState().selectSession(sessionId);
 }
 
@@ -316,9 +344,38 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
   if (selectionEpoch() !== startEpoch) return false;
   if (workspaceEpoch() !== startWorkspaceEpoch) return false;
   if (!isAtChatRoot()) return false;
+  // Final apply: re-verify the target still EXISTS (it may have been deleted
+  // while we waited) and resolve its workspace from the latest state. Success
+  // means BOTH the workspace and the session were applied — a deleted /
+  // unprovable target reports the existing feedback and applies nothing.
+  const verified = await lookupSessionRef(sessionId);
+  if (intent !== clickIntent) return false;
+  if (selectionEpoch() !== startEpoch) return false;
+  if (workspaceEpoch() !== startWorkspaceEpoch) return false;
+  if (!isAtChatRoot()) return false;
+  if (verified === 'missing') {
+    useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+    return false;
+  }
+  if (verified === 'unknown') {
+    useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
+    return false;
+  }
+  const target = resolveWorkspaceTarget(sessionId);
+  if (target.kind === 'missing') {
+    useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+    return false;
+  }
+  if (target.kind === 'unknown') {
+    // Cannot prove the workspace: never fall back to '无工作区'. The
+    // notification stays in the tray, so the user can retry once the list is
+    // back.
+    useUIStore.getState().showToast(WORKSPACE_UNAVAILABLE_MESSAGE, 'warning');
+    return false;
+  }
   // Atomic from here: the workspace scope and the session are applied together
   // (selectSession keeps its own _selectionSeq guards for its late history).
-  commitTarget(sessionId);
+  applyTarget(sessionId, target);
   return true;
 }
 
@@ -334,15 +391,22 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
  *    the lookup consumes the link without overriding the user) and the
  *    workspace-selection generation (a user workspace switch — including
  *    A → B → A — wins the same way);
- *  - the target workspace (the session's effective membership, or the virtual
- *    '无工作区' scope) is applied together with the selection, after the
- *    workspace list settles, so the pair always comes from one resolution.
+ *  - the target workspace is applied together with the selection, after the
+ *    workspace list settles, so the pair always comes from one resolution;
+ *  - only a PROVABLE target is applied: an unprovable workspace (list
+ *    unavailable / timed out, or a broken manager chain) keeps the link and
+ *    surfaces honest feedback instead of claiming '无工作区'; the link then
+ *    recovers when the workspace list later loads.
  */
 export function useSessionDeepLinkParam(): void {
   const [searchParams, setSearchParams] = useSearchParams();
   const raw = searchParams.get(SESSION_DEEPLINK_PARAM);
   const sessions = useSessionStore((s) => s.sessions);
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
+  // The workspace list is a resolution input too: re-run the effect when it
+  // actually loads so a preserved link recovers.
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
   const generation = useRef(0);
   const link = useRef({
     raw: null as string | null,
@@ -350,7 +414,8 @@ export function useSessionDeepLinkParam(): void {
     baselineWorkspaceEpoch: 0,
     attempted: false,
     warned: false,
-    committed: false,
+    applying: false,
+    done: false,
   });
 
   // Unmount invalidates every pending continuation for this hook instance.
@@ -376,7 +441,8 @@ export function useSessionDeepLinkParam(): void {
         baselineWorkspaceEpoch: workspaceEpoch(),
         attempted: false,
         warned: false,
-        committed: false,
+        applying: false,
+        done: false,
       };
     }
     const myGeneration = generation.current;
@@ -395,32 +461,70 @@ export function useSessionDeepLinkParam(): void {
       clearParam();
       return;
     }
+    const warnOnce = (message: string) => {
+      if (link.current.warned) return;
+      link.current.warned = true;
+      useUIStore.getState().showToast(message, 'warning');
+    };
     // Resolve the target workspace AND the session together, once the workspace
-    // list has settled, re-validating every guard afterwards: a user action
-    // during the wait (including a workspace A → B → A) still wins.
-    const applyLink = (sessionId: string) => {
+    // list has settled, re-validating every guard afterwards. An unprovable
+    // target keeps the link (no false '无工作区'); it is retried when the
+    // workspace list later loads. `applying`/`done` make concurrent effect runs
+    // safe.
+    const maybeApply = (sessionId: string) => {
+      const state = link.current;
+      if (state.done || state.applying) return;
+      state.applying = true;
       const expectedGeneration = generation.current;
-      const expectedRaw = raw;
       void (async () => {
-        await settleWorkspaceLoad();
-        if (generation.current !== expectedGeneration || link.current.raw !== expectedRaw) return;
-        if (userTookOver()) {
+        try {
+          await settleWorkspaceLoad();
+          if (generation.current !== expectedGeneration || link.current !== state) return;
+          if (userTookOver()) {
+            state.done = true;
+            clearParam();
+            return;
+          }
+          // Re-verify existence: the session may have been deleted while we
+          // waited, even though it was found earlier.
+          const verified = await lookupSessionRef(sessionId);
+          if (generation.current !== expectedGeneration || link.current !== state) return;
+          if (userTookOver()) {
+            state.done = true;
+            clearParam();
+            return;
+          }
+          if (verified === 'missing') {
+            state.done = true;
+            useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+            clearParam();
+            return;
+          }
+          if (verified === 'unknown') {
+            warnOnce(LIST_UNAVAILABLE_MESSAGE);
+            return; // keep the link; a later refresh recovers it
+          }
+          const target = resolveWorkspaceTarget(sessionId);
+          if (target.kind === 'missing') {
+            state.done = true;
+            useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+            clearParam();
+            return;
+          }
+          if (target.kind === 'unknown') {
+            warnOnce(WORKSPACE_UNAVAILABLE_MESSAGE);
+            return; // keep the link; it recovers when the list loads
+          }
+          state.done = true;
+          applyTarget(sessionId, target);
           clearParam();
-          return;
+        } finally {
+          if (link.current === state) state.applying = false;
         }
-        commitTarget(sessionId);
-        clearParam();
       })();
     };
     if (sessions.some((session) => session.id === raw)) {
-      // selectSession holds the session it was given; its internal selection
-      // generation guards make a later user pick win over its late history
-      // fetch, so no extra guard is needed here. `committed` keeps a later
-      // re-run of this effect from applying the same link twice.
-      if (!link.current.committed) {
-        link.current.committed = true;
-        applyLink(raw);
-      }
+      maybeApply(raw);
       return;
     }
     // Cache miss. Do not conclude from `sessionsLoading`/`_loadSeq` alone: a
@@ -440,10 +544,7 @@ export function useSessionDeepLinkParam(): void {
         return;
       }
       if (lookup === 'found') {
-        if (!link.current.committed) {
-          link.current.committed = true;
-          applyLink(raw);
-        }
+        maybeApply(raw);
         return;
       }
       if (lookup === 'missing') {
@@ -451,10 +552,7 @@ export function useSessionDeepLinkParam(): void {
         clearParam();
         return;
       }
-      if (!link.current.warned) {
-        link.current.warned = true;
-        useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
-      }
+      warnOnce(LIST_UNAVAILABLE_MESSAGE);
     })();
-  }, [raw, sessions, sessionsLoading, clearParam]);
+  }, [raw, sessions, sessionsLoading, workspaces, workspacesLoaded, clearParam]);
 }

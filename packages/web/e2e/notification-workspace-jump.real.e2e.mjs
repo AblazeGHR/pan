@@ -1,4 +1,4 @@
-/* global window, URL, fetch, process, console, MouseEvent */
+/* global window, document, URL, fetch, process, console, MouseEvent */
 /**
  * Real-backend E2E for the notification -> workspace jump.
  *
@@ -38,6 +38,10 @@ await fs.mkdir(runtime, { recursive: true });
 await fs.mkdir(outDir, { recursive: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const MISSING_TOAST = '通知对应的会话不存在或已被删除，无法跳转';
+const LIST_UNAVAILABLE_TOAST = '会话列表暂时无法加载，未能打开该会话';
+const WORKSPACE_UNAVAILABLE_TOAST = '工作区列表暂时无法加载，未能确定会话的工作区';
 
 async function firstExisting(paths) {
   for (const candidate of paths) {
@@ -93,6 +97,40 @@ async function poll(read, test, label, timeout = 20000) {
     if (test(last)) return last;
   }
   throw new Error(`${label}: last=${JSON.stringify(last)?.slice(0, 800)}`);
+}
+
+/** Kill any worker first, then retry DELETE until the server really drops it. */
+async function deleteSessionForGood(sessionId) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try { await fetch(`${base}/api/sessions/${sessionId}/worker/kill`, { method: 'POST' }); } catch { /* none */ }
+    try { await fetch(`${base}/api/sessions/${sessionId}`, { method: 'DELETE' }); } catch { /* gone */ }
+    await sleep(300);
+    const payload = await api('/api/sessions?summary=1');
+    if (!(payload.sessions || []).some((entry) => entry.id === sessionId)) return true;
+  }
+  return false;
+}
+
+/** Wait for the client to drop a session (the delete broadcast refreshes it). */
+async function dropFromClient(page, sessionId) {
+  await poll(() => state(page), (s) => s && !(s.list || []).includes(sessionId),
+    `client dropped ${sessionId}`, 15000);
+}
+
+/**
+ * Start watching for a jump's feedback toast (deleted / session-list or
+ * workspace-list unavailable). The client's delete broadcast triggers a refresh
+ * that can supersede the jump's own authoritative fetch, so the existing
+ * contract legitimately reports any of these — all honest feedback. The
+ * invariant that always holds is that an unapplied target is never selected.
+ */
+function watchDeletionFeedback(page) {
+  return page.waitForFunction(
+    (texts) => [...document.querySelectorAll('.toast-enter')]
+      .some((node) => texts.some((text) => (node.textContent || '').includes(text))),
+    [MISSING_TOAST, LIST_UNAVAILABLE_TOAST, WORKSPACE_UNAVAILABLE_TOAST],
+    { timeout: 30000 },
+  ).then(() => true).catch(() => false);
 }
 
 const results = [];
@@ -273,7 +311,7 @@ try {
   const wsNameToId = new Map((workspacesPayload.workspaces || []).map((w) => [w.name, w.id]));
   const alphaId = wsNameToId.get('Alpha Lab');
   const betaId = wsNameToId.get('Beta Lab');
-  for (const name of ['Alpha One', 'Alpha Two', 'Beta Root', 'Beta Child', 'Loose One']) {
+  for (const name of ['Alpha One', 'Alpha Two', 'Beta Root', 'Beta Child', 'Loose One', 'Doomed Cold', 'Hot Target']) {
     assert.ok(nameToId.get(name), `seeded session '${name}' is present`);
   }
   assert.ok(alphaId && betaId, 'seeded workspaces Alpha Lab / Beta Lab are present');
@@ -281,6 +319,8 @@ try {
   const alphaTwo = nameToId.get('Alpha Two');
   const betaChild = nameToId.get('Beta Child');
   const looseOne = nameToId.get('Loose One');
+  const doomedCold = nameToId.get('Doomed Cold');
+  const hotTarget = nameToId.get('Hot Target');
 
   browser = await chromium.launch({ headless: true });
   // Each check gets its OWN context: localStorage (the persisted active
@@ -402,6 +442,91 @@ try {
     assert.notEqual(snapshot.id, alphaOne, 'late jump did not force-select the session');
     await context.close();
     return { workspace: snapshot.workspace, selection: snapshot.id };
+  });
+
+  await check('cold ?session with an unavailable workspace list keeps the link, then recovers', async () => {
+    const context = await newIsolatedContext();
+    const page = await context.newPage();
+    watchPage(page);
+    let failing = true;
+    const wsPredicate = (url) => new URL(url).pathname === '/api/workspaces';
+    await page.route(wsPredicate, (route) => (failing ? route.abort() : route.continue()));
+
+    await page.goto(`${chatUrl}?panE2E=1&session=${alphaOne}`, { waitUntil: 'domcontentloaded' });
+    await page.getByText(WORKSPACE_UNAVAILABLE_TOAST).first().waitFor({ state: 'visible', timeout: 20000 });
+
+    const held = await state(page);
+    assert.equal(held.id, null, 'nothing selected while the workspace is unprovable');
+    assert.equal(held.workspace, 'all', 'no workspace scope claimed');
+    assert.ok((await searchOf(page)).includes(`session=${alphaOne}`), 'deep link preserved');
+    assert.equal(await page.getByText(MISSING_TOAST).count(), 0, 'not reported as deleted');
+
+    // The list is back: the preserved link resolves from a fresh load.
+    failing = false;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await poll(() => state(page), (s) => s?.id === alphaOne, 'recovered selection');
+    const recovered = await state(page);
+    assert.equal(recovered.workspace, alphaId, 'recovered workspace');
+    await poll(() => searchOf(page), (q) => !q.includes('session='), 'session param consumed');
+    await context.close();
+    return { workspace: recovered.workspace };
+  });
+
+  await check('cold ?session whose target is deleted during the workspace wait is not applied', async () => {
+    const context = await newIsolatedContext();
+    const page = await context.newPage();
+    watchPage(page);
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const wsPredicate = (url) => new URL(url).pathname === '/api/workspaces';
+    await page.route(wsPredicate, async (route) => { await gate; return route.continue(); });
+
+    await page.goto(`${chatUrl}?panE2E=1&session=${doomedCold}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForRequest((request) => new URL(request.url()).pathname === '/api/workspaces', { timeout: 20000 });
+
+    // Delete the target while the workspace list is still held.
+    assert.ok(await deleteSessionForGood(doomedCold), 'Doomed Cold deleted durably');
+    const feedback = watchDeletionFeedback(page);
+    await dropFromClient(page, doomedCold);
+    release();
+
+    assert.ok(await feedback, 'the deletion was surfaced (deleted or list unavailable)');
+    const after = await state(page);
+    assert.equal(after.id, null, 'deleted target is not selected');
+    assert.equal(after.workspace, 'all', 'no workspace applied');
+    await context.close();
+    return { selection: after.id };
+  });
+
+  await check('hot click with an unavailable workspace list applies nothing and reports honestly', async () => {
+    const context = await newIsolatedContext();
+    const page = await context.newPage();
+    watchPage(page);
+    const wsPredicate = (url) => new URL(url).pathname === '/api/workspaces';
+    await page.route(wsPredicate, (route) => route.abort());
+
+    await page.goto(`${chatUrl}?panE2E=1`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
+    await poll(() => state(page), (s) => s && s.loaded, 'sessions loaded');
+
+    await selectSessionByName(page, 'Hot Target');
+    await poll(() => state(page), (s) => s?.id === hotTarget, 'Hot Target selected');
+    await sendFromComposer(page, 'ws-e2e-unavailable');
+    await waitForNotification(page, 'Hot Target');
+    // Make another session current: the jump must NOT force-select the target
+    // when its workspace cannot be proven.
+    await selectSessionByName(page, 'Alpha Two');
+    await poll(() => state(page), (s) => s?.id === alphaTwo, 'Alpha Two is current');
+
+    const feedback = watchDeletionFeedback(page);
+    await clickNotification(page, 'Hot Target');
+
+    assert.ok(await feedback, 'the unprovable workspace was surfaced honestly (not as 无工作区)');
+    const after = await state(page);
+    assert.equal(after.id, alphaTwo, 'the target was not force-selected');
+    assert.equal(after.workspace, 'all', 'no workspace was applied');
+    await context.close();
+    return { selection: after.id, workspace: after.workspace };
   });
 
   // --- mobile ------------------------------------------------------------------
