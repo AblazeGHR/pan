@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import base64
 from collections import deque
+from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -40,39 +41,50 @@ class NativeBridge:
         self.draft_unknown = False
         self.awaiting_native_submit = False
         self.permission_pending = False
+        self.input_uncertain = False
         self.last_text = {}
         self.finished = deque(maxlen=256)
         self.ready = threading.Event()
 
     def _write(self, data):
+        # Called inside owner.write's admitted operation. Validation/epoch
+        # rejection never reaches here; any backend attempt can accept bytes
+        # before throwing. Only a full receipt can release this attempt, and
+        # it cannot release uncertainty left by an earlier write.
+        previously_uncertain = self.input_uncertain
+        self.input_uncertain = True
+        if not previously_uncertain:
+            self.emit({"type": "pan.native_input_state", "uncertain": True})
         written = self.backend.write(data)
         if written != len(data):
             raise ControlRejected("PTY input acceptance is unknown")
+        self.input_uncertain = previously_uncertain
+        if not previously_uncertain:
+            self.emit({"type": "pan.native_input_state", "uncertain": False})
 
     def submit(self, text):
         if not isinstance(text, str) or not text or "\x1b" in text:
             raise ControlRejected("Invalid CBC prompt")
+        try:
+            encoded = text.encode("utf-8")
+        except UnicodeError:
+            raise ControlRejected("Invalid CBC prompt") from None
         with self.lock:
             if (not self.ready.is_set() or self.turn or self.pending_prompt is not None
-                    or self.draft_unknown or self.awaiting_native_submit):
+                    or self.draft_unknown or self.awaiting_native_submit or self.input_uncertain):
                 raise ControlRejected("CBC input is not available")
             # Persist uncertainty in memory before touching the PTY. A partial
             # write may have submitted the prompt; never automatically resend.
-            self.pending_prompt = text
-            self.pending_origin = "pan"
-            try:
-                def deliver():
-                    self._write(b"\x1b[200~" + text.encode("utf-8") + b"\x1b[201~")
-                    # CBC's React input commits bracketed paste on a later
-                    # render. Enter in the same input batch can submit the old
-                    # box. The submit hook remains the authoritative receipt.
-                    time.sleep(.2)
-                    self._write(b"\r")
-                self.owner.write("pan", deliver)
-            except ControlRejected:
-                if self.owner.snapshot()["mode"] != "pan":
-                    self.pending_prompt = self.pending_origin = None
-                raise
+            def deliver():
+                self.pending_prompt = text
+                self.pending_origin = "pan"
+                self._write(b"\x1b[200~" + encoded + b"\x1b[201~")
+                # CBC's React input commits bracketed paste on a later
+                # render. Enter in the same input batch can submit the old
+                # box. The submit hook remains the authoritative receipt.
+                time.sleep(.2)
+                self._write(b"\r")
+            self.owner.write("pan", deliver)
 
     def control(self, control):
         kind = control.get("type")
@@ -81,7 +93,8 @@ class NativeBridge:
             try:
                 if kind == "control_mode":
                     if control.get("mode") == "pan" and (
-                            self.draft_unknown or (self.awaiting_native_submit and self.turn)):
+                            self.input_uncertain or self.draft_unknown
+                            or (self.awaiting_native_submit and self.turn)):
                         raise ControlRejected("Finish native input before handing back control")
                     self.owner.switch(control.get("mode"), control.get("generation"))
                 elif kind in {"native_input", "native_resize"}:
@@ -90,28 +103,35 @@ class NativeBridge:
                     text = control.get("text", "")
                     if not isinstance(text, str) or len(text.encode()) > 32768:
                         raise ControlRejected("Invalid native input")
-                    if text and kind == "native_input":
-                        self.owner.write("native", lambda: self._write(text.encode()),
-                                         generation=control.get("generation"))
-                        # While a turn runs, raw keys answer its resident approval
-                        # or cancel it. At idle they may leave a draft. Unknown
-                        # editing sequences cannot be mistaken for an empty box.
-                        focus_report = re.fullmatch(r"(?:\x1b\[[IO])+", text) is not None
-                        if (self.ready.is_set() and not self.permission_pending
-                                and text != "\x1b" and not focus_report):
-                            if "\r" in text or "\n" in text:
-                                self.draft_unknown = False
-                                self.awaiting_native_submit = True
-                                self.emit({"type": "pan.native_busy", "busy": True})
-                            else:
-                                self.draft_unknown = True
-                    if "rows" in control or "cols" in control:
+                    resize = "rows" in control or "cols" in control
+                    if kind == "native_resize" and not resize:
+                        raise ControlRejected("Invalid terminal size")
+                    if resize:
                         rows, cols = control.get("rows"), control.get("cols")
                         if (type(rows) is not int or type(cols) is not int
                                 or not 1 <= rows <= 500 or not 1 <= cols <= 1000):
                             raise ControlRejected("Invalid terminal size")
+                    if text and kind == "native_input":
+                        # While a turn runs, raw keys answer its resident approval
+                        # or cancel it. At idle they may leave a draft. Unknown
+                        # editing sequences cannot be mistaken for an empty box.
+                        def deliver():
+                            focus_report = re.fullmatch(r"(?:\x1b\[[IO])+", text) is not None
+                            if (self.ready.is_set() and not self.permission_pending
+                                and text != "\x1b" and not focus_report):
+                                if "\r" in text or "\n" in text:
+                                    self.draft_unknown = False
+                                    self.awaiting_native_submit = True
+                                    self.emit({"type": "pan.native_busy", "busy": True})
+                                else:
+                                    self.draft_unknown = True
+                            self._write(text.encode())
+                        self.owner.write("native", deliver, generation=control.get("generation"))
+                    if resize:
                         self.owner.write("native", lambda: self.backend.resize(rows, cols),
                                          generation=control.get("generation"))
+                    elif not text:
+                        self.owner.write("native", lambda: None, generation=control.get("generation"))
                 elif kind == "interrupt":
                     self.owner.write("pan", lambda: self._write(b"\x1b"),
                                      generation=control.get("generation"))
@@ -119,7 +139,7 @@ class NativeBridge:
                     raise ControlRejected("Unsupported CBC native operation")
                 self.emit({"type": receipt, "ok": True, "requestId": control.get("requestId"),
                            **self.owner.snapshot()})
-            except (ControlRejected, ValueError, TypeError, OSError) as error:
+            except Exception as error:
                 self.emit({"type": receipt, "ok": False, "requestId": control.get("requestId"),
                            "error": str(error), **self.owner.snapshot()})
 
@@ -238,10 +258,12 @@ def run(cli_argv, cwd, session_id):
             except (ValueError, TypeError, ControlRejected):
                 self.send_error(409)
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = True
     stop = threading.Event()
-    with tempfile.TemporaryDirectory(prefix="pan-cbc-bridge-") as directory:
+    with ExitStack() as cleanup:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server.daemon_threads = True
+        cleanup.callback(server.server_close)
+        directory = cleanup.enter_context(tempfile.TemporaryDirectory(prefix="pan-cbc-bridge-"))
         argv = list(cli_argv)
         settings = {}
         # Merge adapter-owned settings without overriding its thinking policy.
@@ -266,8 +288,20 @@ def run(cli_argv, cwd, session_id):
                    PAN_CBC_HOOK_URL=f"http://127.0.0.1:{server.server_port}/hook",
                    PAN_CBC_HOOK_TOKEN=token)
         backend = ConPtyBackend.spawn(argv, cwd=cwd, env=env, rows=30, cols=120)
+        # Independent callbacks run even if termination or close raises. The
+        # backend owns this exclusive Job; closing it also retires tool children.
+        cleanup.callback(backend.close)
+        guard = getattr(backend, "guard", None)
+        if guard is not None:
+            def close_guard():
+                if guard.close() is False:
+                    raise RuntimeError("CBC owned Job cleanup was not confirmed")
+            cleanup.callback(close_guard)
+        cleanup.callback(backend.terminate, force=True)
         bridge = NativeBridge(backend, emit, session_id)
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        cleanup.callback(server.shutdown)
+        cleanup.callback(stop.set)
         # Control must be available before SessionStart: the real native CLI
         # can require workspace trust confirmation before Agent initialization.
         # This acknowledges the transport only; submit still waits for its hook.
@@ -298,35 +332,26 @@ def run(cli_argv, cwd, session_id):
             inbox.put(None)
 
         threading.Thread(target=read_input, daemon=True).start()
-        try:
-            while not stop.is_set():
-                try:
-                    line = inbox.get(timeout=.2)
-                except queue.Empty:
-                    continue
-                if line is None:
-                    break
-                try:
-                    message = json.loads(line)
-                    if not isinstance(message, dict):
-                        raise ValueError("Invalid bridge message")
-                    if message.get("type") == "user":
-                        if not bridge.ready.wait(30):
-                            raise ControlRejected("CBC TUI startup is unconfirmed")
-                        content = message.get("message", {}).get("content", [])
-                        bridge.submit("".join(part.get("text", "") for part in content if part.get("type") == "text"))
-                    else:
-                        bridge.control(message)
-                except (ValueError, TypeError, ControlRejected):
-                    emit({"type": "pan.native_error", "error": "CBC input was not confirmed"})
-        finally:
-            # EOF retires the owned Worker; merely closing its browser view
-            # never closes this stdin or the resident Agent kernel.
-            backend.terminate(force=True)
-            stop.set()
-            backend.close()
-            server.shutdown()
-            server.server_close()
+        while not stop.is_set():
+            try:
+                line = inbox.get(timeout=.2)
+            except queue.Empty:
+                continue
+            if line is None:
+                break
+            try:
+                message = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError("Invalid bridge message")
+                if message.get("type") == "user":
+                    if not bridge.ready.wait(30):
+                        raise ControlRejected("CBC TUI startup is unconfirmed")
+                    content = message.get("message", {}).get("content", [])
+                    bridge.submit("".join(part.get("text", "") for part in content if part.get("type") == "text"))
+                else:
+                    bridge.control(message)
+            except Exception:
+                emit({"type": "pan.native_error", "error": "CBC input was not confirmed"})
 
 
 def main():

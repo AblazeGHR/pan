@@ -230,6 +230,7 @@ class Worker:
     native_control_error: str | None = None
     native_kernel_ready: bool = False
     _native_external_turn_active: bool = False
+    native_input_uncertain: bool = False
     _native_mode_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
     _native_mode_request_id: str | None = None  # Latest issued handoff, including a timed-out one.
     _native_mode_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -1668,6 +1669,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_kernel_ready = False
     w.native_passthrough_enabled = None
     w._native_external_turn_active = False
+    w.native_input_uncertain = False
     w.native_output.clear()
     w.native_output_total = 0
 
@@ -1942,6 +1944,10 @@ async def _read_stdout(w: Worker):
             w.native_output_total += len(chunk)
             if len(w.native_output) > 4 * 1024 * 1024:
                 del w.native_output[:len(w.native_output) - 4 * 1024 * 1024]
+            continue
+        if (event.get("type") == "pan.native_input_state"
+                and adapter.name == "cbc" and w.native_control_enabled):
+            w.native_input_uncertain = event.get("uncertain") is not False
             continue
         if (event.get("type") == "pan.native_ready"
                 and adapter.name == "cbc" and w.native_control_enabled):
@@ -3265,7 +3271,8 @@ def _native_handoff_blocked(s) -> bool:
     if type(s.adapter_config.get("native_control_next")) is bool:
         return True
     w = find_worker_by_session(s.id)
-    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active)
+    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active
+                             or getattr(w, "native_input_uncertain", False))
 
 
 def _has_sendable_queued_items(s) -> bool:
@@ -5654,6 +5661,8 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
         if w.native_control_mode != "pan":
             raise _QueuePausedBeforeHandoff("Native control owns CLI hand-off")
+        if w.native_input_uncertain:
+            raise _QueuePausedBeforeHandoff("Native input acceptance is unknown")
         items = ([w._current_queue_item] if w._current_queue_item is not None
                  else w._current_report_items)
         if any(not queue_item_eligible(s, item, queued=False) for item in items):

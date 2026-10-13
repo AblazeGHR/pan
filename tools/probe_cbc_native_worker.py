@@ -12,43 +12,55 @@ import asyncio
 import json
 import uuid
 
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--real-hy3", action="store_true", required=True)
-parser.add_argument("--browser", action="store_true", help="Also connect real Chromium components to the isolated native API")
-args = parser.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-for key in list(os.environ):
-    if key.startswith('PAN_'):
-        os.environ.pop(key, None)
-
 from packages.core import session, worker
 from packages.core.adapters.cbc.native_adapter import CbcNativeAdapter
 from packages.web import native_control_api as api
 from fastapi import FastAPI
 import httpx
 
-isolated = Path(tempfile.mkdtemp(prefix='pan-cbc-api-real-'))
-session.SESSION_DIR = isolated / 'sessions'
-session._cache.clear()
-session._all_loaded = True
-worker._DEFAULTS_INITIALIZED = True
-worker._WORKER_IDLE_SEC = 600
-# No Pan server lifespan, QQ, external MCP, provider fallback or enrichment.
-CbcNativeAdapter.mcp_args = lambda self, s: ['--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--no-session-persistence', '--tools', 'PowerShell', '--settings', '{"trustAll":true,"autoUpdates":false}']
-CbcNativeAdapter.enrich_after_result = lambda self, s: None
-api._enter = lambda request: (None, None)
-events = []
-async def broadcast(event):
-    events.append(event)
-worker._bcast = broadcast
+def kernel_identity(wrapper_pid):
+    import psutil
+    matches = []
+    for child in psutil.Process(wrapper_pid).children(recursive=True):
+        try:
+            if any(arg.replace(chr(92), '/').endswith('/bin/codebuddy') for arg in child.cmdline()):
+                matches.append((child.pid, child.create_time()))
+        except psutil.NoSuchProcess:
+            # Command hooks can exit between enumeration and inspection. A
+            # disappeared kernel still fails the unique-live-kernel assertion.
+            continue
+    assert len(matches) == 1, 'expected exactly one native CBC CLI kernel'
+    return matches[0]
+
 
 async def until(predicate, limit=60):
     async with asyncio.timeout(limit):
         while not predicate():
             await asyncio.sleep(.05)
 
-async def main():
+async def main(args):
+    for key in list(os.environ):
+        if key.startswith('PAN_'):
+            os.environ.pop(key, None)
+
+    isolated = Path(tempfile.mkdtemp(prefix='pan-cbc-api-real-'))
+    os.environ['XDG_CACHE_HOME'] = str(isolated / 'cache')
+    session.SESSION_DIR = isolated / 'sessions'
+    session._cache.clear()
+    session._all_loaded = True
+    worker._DEFAULTS_INITIALIZED = True
+    worker._WORKER_IDLE_SEC = 600
+    # No Pan server lifespan, QQ, external MCP, provider fallback or enrichment.
+    CbcNativeAdapter.mcp_args = lambda self, s: ['--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', '', '--no-session-persistence', '--tools', 'PowerShell', '--settings', '{"trustAll":true,"autoUpdates":false}']
+    CbcNativeAdapter.enrich_after_result = lambda self, s: None
+    api._enter = lambda request: (None, None)
+    events = []
+    async def broadcast(event):
+        events.append(event)
+    worker._bcast = broadcast
+
     sid = 'ses-cbc-proof-' + uuid.uuid4().hex
     cwd = isolated / 'work'
     cwd.mkdir()
@@ -76,12 +88,7 @@ async def main():
             import socket
             import uvicorn
             import psutil
-            def kernel_identity():
-                matches = [child for child in psutil.Process(pid).children(recursive=True)
-                           if any(arg.replace(chr(92), '/').endswith('/bin/codebuddy') for arg in child.cmdline())]
-                assert len(matches) == 1, 'expected exactly one native CBC CLI kernel'
-                return (matches[0].pid, matches[0].create_time())
-            identity = kernel_identity()
+            identity = kernel_identity(pid)
             listener = socket.socket()
             listener.bind(('127.0.0.1', 0))
             port = listener.getsockname()[1]
@@ -98,7 +105,7 @@ async def main():
                 stdout, stderr = await asyncio.wait_for(browser_process.communicate(), timeout=45)
                 assert browser_process.returncode == 0, stderr.decode(errors='replace')
                 print(stdout.decode().strip(), flush=True)
-                assert kernel_identity() == identity, 'native CBC PID/creation identity changed'
+                assert kernel_identity(pid) == identity, 'native CBC PID/creation identity changed'
                 print(json.dumps({'native_cli_pid': identity[0], 'same_kernel_after_browser_refresh_switch': True}), flush=True)
             finally:
                 if browser_process is not None and browser_process.returncode is None:
@@ -136,4 +143,8 @@ async def main():
     finally:
         await worker.kill_worker(w.worker_id)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--real-hy3", action="store_true", required=True)
+    parser.add_argument("--browser", action="store_true", help="Also connect real Chromium components to the isolated native API")
+    asyncio.run(main(parser.parse_args()))
