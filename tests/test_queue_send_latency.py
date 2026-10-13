@@ -232,3 +232,227 @@ def test_renewed_edit_lease_still_blocks_fifo_until_new_expiry(monkeypatch):
             await asyncio.gather(consumer, *worker._queue_retry_tasks.values(), return_exceptions=True)
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("replacement", ["worker", "process", "generation", "stdin", "before_sender", "during_encode"])
+def test_direct_steer_cannot_write_to_replaced_runtime(monkeypatch, replacement):
+    async def run():
+        s, w, stdin = live_session(CodexAdapter(), status="running")
+        process, generation = w.process, w.generation
+        other_stdin = Mock(drain=AsyncMock())
+        other_process = SimpleNamespace(returncode=None, stdin=other_stdin)
+        stdin.drain = AsyncMock()
+        entered = asyncio.Event()
+        real_send = worker.send_control_message
+
+        def accepted(data):
+            request = json.loads(data)["requestId"]
+            w._steer_receipts[request].set_result({"ok": True, "outcome": "accepted"})
+
+        stdin.write.side_effect = other_stdin.write.side_effect = accepted
+
+        async def observed_send(*args, **kwargs):
+            if replacement == "before_sender":
+                w.process = other_process
+            entered.set()
+            return await real_send(*args, **kwargs)
+
+        monkeypatch.setattr(worker, "send_control_message", observed_send)
+        if replacement == "during_encode":
+            encode = w.adapter.encode_control_message
+            def replace_while_encoding(control):
+                wire = encode(control)
+                w.process = other_process
+                return wire
+            w.adapter.encode_control_message = replace_while_encoding
+        lock = worker.queue_lock(s.id)
+        await lock.acquire()
+        steer = asyncio.create_task(worker.steer_worker(w.worker_id, "old runtime", "steer:replacement"))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            if replacement == "worker":
+                worker.workers[w.worker_id] = worker.Worker(
+                    worker_id=w.worker_id, session_id=s.id, adapter=CodexAdapter(),
+                    status="running", process=other_process, generation=generation+1)
+            elif replacement == "process":
+                w.process = other_process
+            elif replacement == "generation":
+                w.generation += 1
+            elif replacement == "stdin":
+                process.stdin = other_stdin
+            lock.release()
+            error = await asyncio.wait_for(asyncio.shield(steer), 0.2)
+            assert error == "Worker changed before control handoff"
+            stdin.write.assert_not_called()
+            other_stdin.write.assert_not_called()
+            stdin.drain.assert_not_awaited()
+            other_stdin.drain.assert_not_awaited()
+            assert s.history == []
+            assert not w._direct_steer_pending
+        finally:
+            if lock.locked():
+                lock.release()
+            if not steer.done():
+                steer.cancel()
+            await asyncio.gather(steer, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("finish", ["http_cancel", "30s_unknown"])
+def test_direct_steer_waiting_for_queue_lock_never_writes_after_owner_ends(monkeypatch, finish):
+    async def run():
+        s, w, stdin = live_session(CodexAdapter(), status="running")
+        stdin.drain = AsyncMock()
+        entered = asyncio.Event()
+        senders = []
+        real_send = worker.send_control_message
+
+        async def observed_send(*args, **kwargs):
+            senders.append(asyncio.current_task())
+            entered.set()
+            return await real_send(*args, **kwargs)
+
+        monkeypatch.setattr(worker, "send_control_message", observed_send)
+        lock = worker.queue_lock(s.id)
+        await lock.acquire()
+        started = time.monotonic()
+        steer = asyncio.create_task(worker.steer_worker(w.worker_id, "never write", "steer:prewrite-cancel"))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            stdin.write.assert_not_called()
+            if finish == "http_cancel":
+                steer.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await steer
+            else:
+                error = await asyncio.wait_for(asyncio.shield(steer), 32)
+                assert error.startswith("Steer outcome unknown")
+                elapsed = time.monotonic()-started
+                assert 30 <= elapsed < 32  # Exercise the unchanged real deadline.
+                print(f"queue-lock-to-unknown-ms={elapsed*1000:.1f}")
+            assert lock.locked()
+            assert len(senders) == 1 and senders[0].done() and senders[0].cancelled()
+            assert w._direct_steer_pending
+            assert "awaiting" in await worker.steer_worker(w.worker_id, "resend")
+            lock.release()
+            await asyncio.sleep(0)
+            stdin.write.assert_not_called()
+            stdin.drain.assert_not_awaited()
+            assert s.history == []
+        finally:
+            if lock.locked():
+                lock.release()
+            if not steer.done():
+                steer.cancel()
+            await asyncio.gather(steer, return_exceptions=True)
+            for receipt in list(w._steer_receipts.values()):
+                receipt.cancel()
+
+    asyncio.run(run())
+
+
+def test_written_direct_steer_drains_captured_stdin_after_process_replacement(monkeypatch):
+    async def run():
+        s, w, stdin = live_session(CodexAdapter(), status="running")
+        other_stdin = Mock(drain=AsyncMock())
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def drain():
+            entered.set()
+            await release.wait()
+
+        stdin.drain = drain
+        steer = asyncio.create_task(worker.steer_worker(w.worker_id, "accepted original", "steer:old-pipe"))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            request = json.loads(stdin.write.call_args.args[0])["requestId"]
+            w.process = SimpleNamespace(returncode=None, stdin=other_stdin)
+            w._steer_receipts[request].set_result({"ok": True, "outcome": "accepted"})
+            assert await asyncio.wait_for(asyncio.shield(steer), 0.2) is None
+            assert not release.is_set()
+            assert stdin.write.call_count == 1
+            other_stdin.write.assert_not_called()
+            other_stdin.drain.assert_not_awaited()
+            assert sum(row.get("clientMessageId") == "steer:old-pipe" for row in s.history) == 1
+        finally:
+            release.set()
+            await asyncio.gather(steer, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+def test_cancelled_written_direct_steer_late_unknown_keeps_resend_block(monkeypatch):
+    async def run():
+        s, w, stdin = live_session(CodexAdapter(), status="running")
+        written, settled = asyncio.Event(), asyncio.Event()
+        stdin.drain = AsyncMock(side_effect=lambda: written.set())
+        steer = asyncio.create_task(worker.steer_worker(w.worker_id, "uncertain original"))
+        await asyncio.wait_for(written.wait(), 1)
+        request = json.loads(stdin.write.call_args.args[0])["requestId"]
+        steer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await steer
+        receipt = w._steer_receipts[request]
+        receipt.add_done_callback(lambda _: settled.set())
+        receipt.set_result({"ok": False, "outcome": "unknown"})
+        await asyncio.wait_for(settled.wait(), 0.2)
+        assert w._direct_steer_pending
+        assert "awaiting" in await worker.steer_worker(w.worker_id, "do not replay")
+        assert stdin.write.call_count == 1
+        assert s.history == []
+
+    asyncio.run(run())
+
+
+def test_cancelled_http_steer_waiting_for_queue_lock_has_no_late_write(monkeypatch):
+    import httpx
+    from packages.web import server
+
+    async def run():
+        s, w, stdin = live_session(CodexAdapter(), status="running")
+        stdin.drain = AsyncMock()
+        entered = asyncio.Event()
+        senders = []
+        real_send = worker.send_control_message
+
+        async def observed_send(*args, **kwargs):
+            senders.append(asyncio.current_task())
+            entered.set()
+            return await real_send(*args, **kwargs)
+
+        monkeypatch.setattr(worker, "send_control_message", observed_send)
+        lock = worker.queue_lock(s.id)
+        await lock.acquire()
+        spawn_lock = await worker._session_spawn_lock(s.id)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app),
+                                     base_url="http://isolated.test", trust_env=False) as client:
+            url = f"/api/sessions/{s.id}/worker/steer"
+            request = asyncio.create_task(client.post(url, json={"text": "no late HTTP write"}))
+            try:
+                await asyncio.wait_for(entered.wait(), 1)
+                assert spawn_lock.locked()
+                request.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await request
+                assert senders[0].done() and senders[0].cancelled()
+                assert not spawn_lock.locked()
+                assert lock.locked()
+                assert w._direct_steer_pending
+                rejected = await asyncio.wait_for(client.post(url, json={"text": "do not replay"}), 0.2)
+                assert "awaiting" in rejected.json()["error"]
+                lock.release()
+                await asyncio.sleep(0)
+                stdin.write.assert_not_called()
+                stdin.drain.assert_not_awaited()
+                assert s.history == []
+            finally:
+                if lock.locked():
+                    lock.release()
+                if not request.done():
+                    request.cancel()
+                await asyncio.gather(request, return_exceptions=True)
+                for receipt in list(w._steer_receipts.values()):
+                    receipt.cancel()
+
+    asyncio.run(run())

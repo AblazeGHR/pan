@@ -7618,10 +7618,23 @@ async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
     await _bcast({"type": "session.updated", "sessionId": w.session_id})
 
 
-async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain: bool = True) -> str | None:
+def _control_runtime_matches(worker_id: str, runtime) -> bool:
+    owner, generation, process, stdin = runtime
+    return (workers.get(worker_id) is owner
+            and getattr(owner, "generation", None) == generation
+            and owner.process is process
+            and getattr(process, "stdin", None) is stdin)
+
+
+async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain: bool = True,
+                                         _expected_runtime=None) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    runtime = _expected_runtime or (
+        w, getattr(w, "generation", None), w.process, getattr(w.process, "stdin", None))
+    if not _control_runtime_matches(worker_id, runtime):
+        return "Worker changed before control handoff"
     if w.native_control_mode != "pan":
         return "Pan controls are suspended during native control"
     if isinstance(control, dict) and control.get("type") == "steer":
@@ -7650,8 +7663,12 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
     if encode_control is None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
     try:
-        stdin = w.process.stdin
-        stdin.write(encode_control(control) + b"\n")
+        stdin = runtime[3]
+        wire = encode_control(control) + b"\n"
+        # Encoding/permission handling must not retarget an earlier request.
+        if not _control_runtime_matches(worker_id, runtime):
+            return "Worker changed before control handoff"
+        stdin.write(wire)
         if drain:
             await stdin.drain()
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
@@ -7659,7 +7676,7 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
     return None
 
 
-async def send_control_message(worker_id: str, control: dict) -> str | None:
+async def send_control_message(worker_id: str, control: dict, *, _expected_runtime=None) -> str | None:
     """Send an out-of-band control, serializing Steer against queue edits.
 
     Native adapters may use this for controls that are not user turns, such
@@ -7670,19 +7687,26 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    runtime = _expected_runtime or (
+        w, getattr(w, "generation", None), w.process, getattr(w.process, "stdin", None))
+    if not _control_runtime_matches(worker_id, runtime):
+        return "Worker changed before control handoff"
     if isinstance(control, dict) and control.get("type") == "steer":
         s = _session(w)
         if s is not None:
             async with queue_lock(s.id):
+                if not _control_runtime_matches(worker_id, runtime):
+                    return "Worker changed before control handoff"
                 if any(queue_item_edit_locked(s, item_id)
                        for item_id in list(getattr(s, "queue_edit_locks", {}))):
                     return "Cannot Steer while a queued message is being edited"
                 # Keep the lease check and stdin write in one critical section
                 # so direct API/programmatic Steer cannot race edit acquisition.
-                error = await _send_control_message_unlocked(worker_id, control, drain=False)
+                error = await _send_control_message_unlocked(
+                    worker_id, control, drain=False, _expected_runtime=runtime)
                 if error:
                     return error
-                stdin = w.process.stdin
+                stdin = runtime[3]
             # Backpressure is after the synchronous handoff. New queue appends
             # and edit acquisition need not wait for this control's drain.
             try:
@@ -7690,7 +7714,7 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
             except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
                 return "Worker control write failed"
             return None
-    return await _send_control_message_unlocked(worker_id, control)
+    return await _send_control_message_unlocked(worker_id, control, _expected_runtime=runtime)
 
 
 async def steer_worker(worker_id: str, text: str,
@@ -7777,6 +7801,8 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         w._steer_receipts[request_id] = future
     late_receipt = False
     sender = None
+    # Bind before the sender task gets its first scheduling opportunity.
+    runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
 
     def retain_late_receipt():
         nonlocal late_receipt
@@ -7797,10 +7823,10 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         if not _process_alive(w):
             return "Worker process is not running"
         if not wants_receipt:
-            error = await send_control_message(w.worker_id, control)
+            error = await send_control_message(w.worker_id, control, _expected_runtime=runtime)
             return ("Steer outcome unknown: control write/drain failed"
                     if error == "Worker control write failed" else error)
-        sender = asyncio.create_task(send_control_message(w.worker_id, control))
+        sender = asyncio.create_task(send_control_message(w.worker_id, control, _expected_runtime=runtime))
         # Never infer acceptance from stdout activity, completion or stdin write.
         # A missing receipt is ambiguous and must not be retried automatically.
         deadline = time.monotonic() + 30
