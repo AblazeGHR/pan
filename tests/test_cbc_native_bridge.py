@@ -661,3 +661,30 @@ def test_probe_identity_ignores_finished_hook_but_requires_live_kernel(monkeypat
     children.extend([kernel, kernel])
     with pytest.raises(AssertionError, match="exactly one"):
         probe.kernel_identity(7)
+
+
+@pytest.mark.parametrize("status", ["running", "queued", "idle"])
+def test_watchdog_cannot_retire_or_auto_recover_uncertain_input(monkeypatch, status):
+    from packages.core import worker
+    from packages.core.adapters.cbc.native_adapter import CbcNativeAdapter
+    w = worker.Worker("cbc-unknown-watchdog", "ses-cbc-unknown-watchdog", CbcNativeAdapter(),
+        status=status, process=SimpleNamespace(returncode=None), native_control_enabled=True,
+        native_control_mode="pan", native_input_uncertain=True)
+    w.last_activity = w._task_started_at = 0
+    monkeypatch.setattr(worker, "workers", {w.worker_id: w})
+    for name in ("_WORKER_TASK_TIMEOUT_SEC", "_WORKER_TIMEOUT_SEC", "_WORKER_IDLE_SEC"):
+        monkeypatch.setattr(worker, name, 0)
+    monkeypatch.setattr(worker, "_worker_has_pending_work", lambda _: False)
+    kill = AsyncMock()
+    monkeypatch.setattr(worker, "kill_worker", kill)
+    monkeypatch.setattr(worker, "_enqueue_zombie_report", AsyncMock())
+    ticks = 0
+    async def tick(_):
+        nonlocal ticks
+        ticks += 1
+        if ticks == 2:
+            raise asyncio.CancelledError
+    monkeypatch.setattr(worker.asyncio, "sleep", tick)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(worker._watchdog(w))
+    kill.assert_not_awaited()

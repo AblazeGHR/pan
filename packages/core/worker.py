@@ -5333,9 +5333,12 @@ async def _watchdog(w: Worker):
             continue
 
         # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
-        if w.native_control_mode != "pan" or w._native_external_turn_active:
+        if (w.native_control_mode != "pan" or w._native_external_turn_active
+                or w.native_input_uncertain):
             # User-owned native turns and their resident kernel are not abandoned
             # Pan tasks. Browser detach/control handoff never reclaims them.
+            # Unknown input is not a timeout receipt: recover=True could resend
+            # already-accepted bytes. Retirement must remain an explicit action.
             continue
         if w.status == "running":
             # 任务运行时长 = 当前时间 - 任务开始处理时刻（_consumer_stream 进入 running 时记录）。
