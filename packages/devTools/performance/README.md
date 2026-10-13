@@ -1,5 +1,15 @@
 # 前端性能验证入口
 
+## Session 与汇报派生计算
+
+```powershell
+node packages/devTools/performance/benchmark-derived-ui.mjs
+node packages/devTools/performance/benchmark-derived-ui.mjs --browser
+node packages/devTools/performance/benchmark-derived-ui.mjs --browser --ref add07f49
+```
+
+脚本只构造合成数据，报告 15 次采样的中位数和 P95；`--browser` 使用临时 headless Chromium，`--ref` 从 Git 只读加载指定版本的两个算法。它不访问 Pan 服务、不改 Session 或 Git 状态。需要 `packages/web` 已安装 TypeScript 和 Playwright，以及可用的 Chromium。5000 个 Session 和超过 16 个终态的场景用于规模压力分析；当前摘要终态列表上限为 16，不能把压力场景节省量直接当作普通用户加载耗时的节省量。
+
 这些工具用于可复现的隔离验证，不连接现有 Pan 服务，不操作 8767/8768，不使用真实 Session 数据。它们不执行 Git 集成、安装依赖或构建；浏览器场景运行前，请在目标 checkout 的 `packages/web` 中执行 `pnpm build`。
 
 ## 浏览器与草稿场景

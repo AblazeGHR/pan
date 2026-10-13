@@ -118,9 +118,9 @@ export function findManualReportTargets(
     const tailOffset = coveredEnd - 1;
     claims.set(tailOffset, (claims.get(tailOffset) ?? 0) + 1);
   }
-  const provable = new Map<TerminalIdentity, number>();
+  const provable = new Map<number, TerminalIdentity>();
   for (const [terminal, coveredEnd] of boundaries) {
-    if (claims.get(coveredEnd - 1) === 1) provable.set(terminal, coveredEnd);
+    if (claims.get(coveredEnd - 1) === 1) provable.set(coveredEnd - 1, terminal);
   }
 
   let taskId: string | null = null;
@@ -136,9 +136,8 @@ export function findManualReportTargets(
     // offset — never by segment order, content or "newest terminal".
     const offset = proof.offsetOf(tail);
     if (offset !== undefined) {
-      for (const [terminal, coveredEnd] of provable) {
-        if (terminal.taskId !== taskId) continue;
-        if (offset !== coveredEnd - 1) continue;
+      const terminal = provable.get(offset);
+      if (terminal?.taskId === taskId) {
         targets.set(tail.messageId, {
           sessionId: session.id,
           taskId,
@@ -149,7 +148,6 @@ export function findManualReportTargets(
           ...(typeof terminal.terminalKey === 'string'
             ? { terminalKey: terminal.terminalKey } : {}),
         });
-        break;
       }
     }
     taskId = null;

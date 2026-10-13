@@ -68,6 +68,21 @@ describe('scopeSessionsByWorkspace', () => {
     expect(scopeSessionsByWorkspace(broken, UNGROUPED_WORKSPACES).map((s) => s.id))
       .toEqual(['cycle-a', 'cycle-b', 'dangling']);
   });
+
+  it('indexes a Session snapshot once for bulk membership resolution', () => {
+    let reads = 0;
+    const tree = Array.from({ length: 500 }, (_, index) => ({
+      ...makeSession(`s${index}`, ['ws_1']),
+      get id() { reads += 1; return `s${index}`; },
+      managedBy: index ? `s${index - 1}` : undefined,
+    }));
+    expect([...workspaceMemberIds(tree, 'ws_1')]).toHaveLength(500);
+    expect(reads).toBeLessThan(500 * 12);
+    const changed = tree.map(item => ({ ...item }));
+    changed[0] = { ...changed[0]!, workspaceIds: ['ws_2'] };
+    expect([...workspaceMemberIds(changed, 'ws_1')]).toEqual([]);
+    expect([...workspaceMemberIds(changed, 'ws_2')]).toHaveLength(500);
+  });
 });
 
 describe('workspaceMemberIds', () => {

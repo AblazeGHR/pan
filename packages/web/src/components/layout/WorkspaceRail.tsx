@@ -18,7 +18,7 @@ import {
   ALL_WORKSPACES,
   UNGROUPED_WORKSPACES,
   computeWorkspaceRowVisibility,
-  effectiveWorkspaceIds,
+  createWorkspaceResolver,
   workspaceMemberIds,
 } from '@/utils/sessionFilters';
 import {
@@ -113,6 +113,7 @@ export function WorkspaceRail({
   }, [loaded, workspaces, activeWorkspaceId, setActiveWorkspace]);
 
   const memberStats = useMemo(() => {
+    const resolveWorkspace = createWorkspaceResolver(sessions);
     const stats = new Map<string, { count: number; workerStatus: string | null; unread: boolean }>();
     // Effective member sessions per workspace (manager inheritance applied) —
     // the single source the shared search/status row filtering aggregates over.
@@ -122,7 +123,7 @@ export function WorkspaceRail({
     let ungroupedUnread = false;
     let anyUnread = false;
     for (const session of sessions) {
-      const effective = effectiveWorkspaceIds(session, sessions);
+      const effective = resolveWorkspace(session);
       const unread = Number.isFinite(session.unreadDoneCount) && Math.floor(session.unreadDoneCount ?? 0) > 0;
       anyUnread ||= unread;
       // Same rule as the 'ungrouped' scope filter: a child of a managed root

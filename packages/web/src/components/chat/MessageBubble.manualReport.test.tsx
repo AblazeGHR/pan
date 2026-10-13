@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { MessageBubble } from './MessageBubble';
 import type { ManualReportTarget } from './manualTaskReport';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
-vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ content }: { content: string }) => <span>{content}</span> }));
+vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: vi.fn(({ content }: { content: string }) => <span>{content}</span>) }));
 
 const TARGET: ManualReportTarget = {
   sessionId: 'ses_ta', taskId: 'task-2', taskSeq: 2, messageId: 'pan:a2',
@@ -40,6 +41,20 @@ afterEach(() => {
 });
 
 describe('manual task report action placement', () => {
+  it('does not rerender an unchanged body for recreated report bindings or sidebar preview updates', () => {
+    useSessionStore.setState({ currentSessionId: 'ses_ta', sessions: [{
+      id: 'ses_ta', name: 'TA', history: [], effort: '', alwaysThinkingEnabled: false,
+      workerStatus: 'idle', adapter: 'codex',
+    }] });
+    vi.mocked(MarkdownRenderer).mockClear();
+    const view = render(<MessageBubble message={tailBlock} manualReportTarget={TARGET} />);
+    const before = vi.mocked(MarkdownRenderer).mock.calls.length;
+    view.rerender(<MessageBubble message={tailBlock} manualReportTarget={{ ...TARGET }} />);
+    act(() => useSessionStore.setState(state => ({ sessions: state.sessions.map(session => ({ ...session, lastMessage: 'new streaming preview' })) })));
+    expect(vi.mocked(MarkdownRenderer).mock.calls.length).toBe(before);
+    view.rerender(<MessageBubble message={tailBlock} manualReportTarget={null} />);
+    expect(screen.queryByRole('button', { name: '汇报' })).toBeNull();
+  });
   it('shows the action only on the bound tail block', () => {
     render(<MessageBubble message={tailBlock} manualReportTarget={TARGET} />);
     expect(screen.getByRole('button', { name: '汇报' })).not.toBeNull();

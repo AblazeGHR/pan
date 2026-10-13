@@ -59,12 +59,12 @@ python main.py
 
 Open <http://127.0.0.1:8768>. You can also use the startup helpers: Windows `scripts\start_pan.bat`; macOS/Linux `bash scripts/start.sh`. The corresponding normal exit helpers are `scripts\stop.bat` and `bash scripts/stop.sh`. For a foreground process, run `python main.py` and press Ctrl+C to exit.
 
-`minimal-requirements.txt` installs Pan Core/API/MCP dependencies, not the QQ bridge or Memory machine-learning dependencies. In the example config, `qq.enabled` defaults to `true`; set it to `false` in `config.json` to skip the QQ child process when you do not use QQ. To use QQ, install `packages/qq/requirements.txt` into the interpreter configured by `qq.python` or `PAN_QQ_PYTHON`, then configure a gateway. See the [QQ and SnowLuma guide](QQ_PLUGIN_SNOWLUMA.en.md). Optional Memory dependencies are in `memory-requirements.txt`.
+`minimal-requirements.txt` installs Pan Core/API/MCP dependencies, not the QQ bridge dependencies. In the example config, `qq.enabled` defaults to `true`; set it to `false` in `config.json` to skip the QQ child process when you do not use QQ. To use QQ, install `packages/qq/requirements.txt` into the interpreter configured by `qq.python` or `PAN_QQ_PYTHON`, then configure a gateway. See the [QQ and SnowLuma guide](QQ_PLUGIN_SNOWLUMA.en.md). Memory / Character are currently shelved; their historical dependencies are not needed for everyday use.
 
 | Setting | Current default / purpose |
 |---|---|
 | Pan port | `config.json` defaults `port` to `8768`; `PAN_PORT` overrides it |
-| Listen address | `127.0.0.1` by default; `PAN_HOST` overrides it |
+| Listen address | `127.0.0.1` by default; existing `PAN_HOST` can bind an external address and is read only at startup |
 | `PAN_API_URL` | Address used by a standalone MCP server to reach Pan; keep it aligned if you use a non-default port |
 | Remote | `remote.enabled` is `false` in `config.example.json` |
 
@@ -81,11 +81,15 @@ Identity-dependent MCP tools require `PAN_AGENT_SESSION_ID` to belong to that Pa
 
 Expand **服务端队列** below Chat. The lock button at the right of each row locks or unlocks that queued message. **Lock all / Unlock all** changes all items that are still `queued` in one operation. Locks never reorder the list or the durable queue. The Worker skips locked items and selects the next sendable item in the original order. An unlocked item participates again from its original position. Items already in `reserved` or `writing` cannot be recalled or locked.
 
-Click **new locked msg** to enter locked send mode for the current Session, or **cancel locked msg** to leave it. The Send button gains a red border and reads **put in queue**. Sending stores the text and attachments atomically as one locked user message. Success restores ordinary Send; failure keeps the draft and locked mode for retry. A locked message is persisted first even when the Worker is idle, and does not start a Worker by itself.
+Click **new locked msg** to enter locked send mode for the current Session, or **cancel locked msg** to leave it. The Send button gains a red border and reads **put in queue**. Sending stores the text and attachments atomically as one locked user message. Success restores ordinary Send; confirmed rejection restores the draft and locked mode. Inspect an unconfirmed outcome before retrying. A locked message is persisted first even when the Worker is idle, and does not start a Worker by itself.
 
 **Pause reports / Resume reports** is a persisted per-Session rule using the same item locks. Enabling it locks queued child Agent completion, error, and abnormal-exit reports and automatically locks new reports of those kinds. It leaves system notices and QQ / WeChat reminders alone. You can unlock existing reports individually or with **Unlock all** while the rule stays enabled; future reports are still locked automatically. Disabling the rule removes only its automatic report locks and preserves manual locks.
 
 The default workdir is on the Pan server. For parallel changes to one repository, give each Session a different Git worktree; Pan does not create worktrees automatically.
+
+**Pause everything / Resume everything** persistently pauses/resumes subsequent delivery for the whole Session queue, independently of item locks and Pause reports. New messages can still queue. It does not interrupt the running task or recall an item already handed off. A supported running Adapter also offers **Steer** for live follow-up; queued-message Steer respects locks and the whole-queue pause. An unconfirmed handoff is not a reason to resend.
+
+Valid **Send / Steer** submissions clear the input immediately and show a pending spinner. Confirmed rejection restores the original draft; an unknown outcome retains the pending transaction and blocks duplicate submission. Check the queue/history and the displayed outcome before retrying. A cleared input or queued receipt does not prove task completion.
 
 <a id="workspaces"></a>
 ## 4. Session lists and Workspaces
@@ -93,7 +97,7 @@ The default workdir is on the Pan server. For parallel changes to one repository
 ### Work with the sidebar
 
 - Search filters Sessions. Sorting can use recent activity, name, or custom order; grouping can use workdir or manager relationships.
-- Right-click a Session for actions such as **Pin / Unpin, Rename, Branch, Manage, msgBridge, Details, Select, and Delete**. **Reimport** is available for Sessions linked to imported CLI history.
+- Right-click a Session for actions such as **Rename, Branch, Manage, msgBridge, Details, Select, and Delete**. **Reimport** is available for Sessions linked to imported CLI history.
 - Pinned Sessions appear ahead of unpinned Sessions in the current group. When dragging is enabled, use the handle to change custom order or reorder pinned items within a group; the Dashboard shows feedback for the current drop target.
 - **Select** mode supports moving multiple Sessions to a Workspace and batch deletion. If a selected Session has managed children, read the confirmation and choose whether to cascade.
 
@@ -102,6 +106,16 @@ The default workdir is on the Pan server. For parallel changes to one repository
 The Workspace rail on the left lists **All** and named Workspaces. You can create, rename, reorder, switch, or delete a Workspace. **All** is only a list scope; it does not assign Sessions to a Workspace. Use **Manage → Workspaces** to move a management-tree root Session into a Workspace. Managed children inherit the Workspace along their manager chain.
 
 A Workspace is not a Git branch or a directory move. A Session's `workdir` determines where its Agent works; a Workspace stores grouping and directory references. In **Editor → Directories**, add a directory shared by the current Workspace or add a temporary directory. Adding or removing a reference does not create, move, or delete the directory on disk.
+
+### Search, unread counts, and batch actions
+
+The list search matches Session name, ID, CLI history ID, workdir, or Adapter. The shared search independently matches Workspace names only while the **Workspace Bar** is expanded; when collapsed, it retains the original Session search. Filters include **has managed child Sessions, Is MetaAgent, Running state, Illegal state, Has unread, Has queued messages**. Session filters combine with AND. A Workspace satisfies each selected filter if at least one of its members satisfies it; different members may satisfy different filters. Search is distinct from Chat history search: **Search all Sessions** searches message history across Sessions, while the current-Session search stays within its history. Role filters and result navigation are available; expired results require a new search.
+
+Yellow counts indicate unread completions; adjacent queue counts are blue, or red when all pending items are locked. Opening the queue does not clear its count. A Workspace menu **Read all** marks its actual members read, including members hidden by search/filters; a completion arriving after the action remains unread. Multi-select **Actions** provides **Workspace, Read all, 群发, Bell on, Bell off** for the selected targets. 群发 creates a broadcast Job; inspect per-target results and any partial failure before retrying.
+
+Workspace scope includes **全部** (all) and **无工作区** (no Workspace). A Session belongs to at most one Workspace; managed descendants inherit the root membership. New/imported Sessions default to the active named Workspace. Moving a managed subtree across Workspaces may detach its manager relationship and asks for confirmation according to your settings.
+
+Use the Session row **Pin** quick action to pin/unpin; it is no longer a right-click menu entry. For **Codex Reimport**, an origin mismatch opens a summary for review. **取消** preserves current history. **确认强行覆盖** replaces it with native history and can lose unmatched Pan messages and their task/source/attachment information. If history changes during confirmation, use **重新检查** and review again.
 
 <a id="relationships"></a>
 ## 5. Relationships and access
@@ -135,6 +149,10 @@ From the Dashboard, click **Subscribe** for the target under the manager's **Man
 
 An existing Agent CLI can also enable the `pan` MCP server and select servers for its Pan Session under **Manage → MCP and Plugins**. Restart the Worker after changing its MCP selection. A standalone MCP server without a Pan-injected Session identity cannot call identity-dependent management or reporting tools.
 
+**Stop reports / Start reports** controls automatic reporting to the manager without removing the management relationship. It differs from **Pause reports**, which locks reports in the receiving queue. A completed task’s final assistant block may offer **汇报** (manual report), even with automatic reporting off. Only tasks still within the retained, provable terminal-result window qualify; arbitrary messages and all historical tasks are not reportable. A newer running task does not by itself invalidate an older eligible result. Repeated reporting of the same task run is deduplicated.
+
+For advanced Agents, the self queue MCP tools inspect and consume their own eligible queued messages during work. Reading does not consume; consuming can interrupt the current task. They cannot select another Session, bypass locks or Pause everything, or establish success from an unknown receipt. See the [orchestration handbook](skills/pan/SKILL.md) for integration details.
+
 <a id="jobs"></a>
 ## 7. Jobs and scheduled tasks
 
@@ -152,6 +170,8 @@ Schedules can use one-time triggers, repeat intervals, calendar/cron options, an
 The Jobs **Settings** tab controls retention periods for completed, failed, timed-out, and cancelled Jobs and their log files. New configurations do not automatically clean these records; cleanup requires an enabled rule with a number of days.
 
 Command Jobs run on the Pan host with paths and permissions available to the service process. Check the executable and working directory before submitting a command. Background processes use argv, not a shell string.
+
+Use a Job row menu **Pin / Unpin** to keep important Jobs ahead of unpinned rows. Pinning changes presentation only, not scheduling or execution; **Pin unavailable** means its metadata cannot currently be changed.
 
 <a id="lifecycle"></a>
 ## 8. Worker lifecycle, Exit, and startup recovery
@@ -182,9 +202,27 @@ See the [QQ and SnowLuma guide](QQ_PLUGIN_SNOWLUMA.en.md) for registry fields, W
 
 ### Optional integrations
 
-- **Memory** is not part of the minimal runtime dependencies. Install `memory-requirements.txt` dependencies before enabling it.
+- **Memory / Character** are currently shelved. Historical dependencies and design notes do not establish an available user workflow.
 - **Remote** is disabled by default (`remote.enabled: false`). Enabling Cloudflare Remote creates an additional remote access path and expands the service's exposure.
 - **MCP and orchestration references**: see the [Pan skill](skills/pan/SKILL.md), [HTTP API reference](skills/pan/references/http-api.md), and [WebSocket protocol](skills/pan/references/ws-protocol.md). These are advanced integration references, not required for first startup.
+
+### Notifications and unread recording
+
+In **App Settings → Notification → Completion bell defaults**, choose System, Browser, QQ Report, or QQ Subscribe and **Save completion defaults**. QQ options require at least one default contact; search contacts by name or number. Defaults apply the next time an unlit Session bell is enabled and do not replace existing connections. Browser delivery also requires notification permission; QQ bots and selected contacts must be available when enabling the bell. QQ Report sends results; QQ Subscribe receives QQ inbox reminders.
+
+**Unread recording** defaults to All sessions and can select No sessions or categories such as Bell on/off and Pinned. Bell on and Bell off are mutually exclusive; Pinned can combine with either as a union. All sessions and No sessions are mutually exclusive and cannot be combined with categories. Excluded Sessions remain at zero; re-including starts with new completions and never restores older unread. A Session menu can enable its own tracking; saving the global policy or **Reapply settings** clears these overrides.
+
+Clicking a browser completion notification targets its Session while the Pan page is alive. Page notifications do not work with the browser fully closed. Windows System completion notifications have a helper with a **60-second click window**; opening the default browser from a closed state is a code path, not a verified real OS click. This is not persistent notification-center activation. Browser and System are separate channels; there is no “System only when Browser fails” option. Neither a dispatched notification nor the bell proves delivery.
+
+### Tailscale fallback access
+
+Under **App Settings → General → Tailscale 备用访问**, use an installed, signed-in Tailscale client on the same tailnet. Choose protocol/port, **保存配置**, then **开启当前访问** (or **应用已保存入口**). Saving alone does not start access. Pan keeps its loopback listener; this uses Serve, not public Funnel. Startup is disabled by default. HTTPS may require enabling Tailscale HTTPS first. Normal exit closes the owned mapping; a forced exit may leave it until recovery. External mappings are not taken over. A displayed running state does not prove reachability from another device. See [advanced access notes](tailscale-fallback-access.md).
+
+### Direct LAN access
+
+From the computer's loopback Pan URL, open **App Settings → General → 普通局域网访问（LAN）**. It is off by default. Select a local IPv4 address and an available port (default `8780`), save, then click **开启 LAN 访问**. Use the displayed URL on a trusted same-network device. Saving does not start/stop the listener; start/stop takes effect without restarting Pan. **下次启动 Pan 默认开启 LAN** controls startup. To change a running address/port, stop the current listener first. `0.0.0.0` covers every IPv4 interface, including VPN interfaces, rather than only the LAN.
+
+Manage this listener through the local loopback entry. The LAN entry blocks local identity bridges, agent WebSocket, main-service control, global-settings writes, and managed/readonly management. It has no site-wide login protection and uses unencrypted HTTP. Directly setting `PAN_HOST` exposes the main listener at startup and does not provide this separate LAN isolation. Keep `PAN_HOST` at its loopback default for local management. Phone access, firewall behavior, and live coexistence with Cloudflare Tunnel / Tailscale have not been tested. See [LAN usage and limits](lan-access.md).
 
 ### Troubleshooting
 
@@ -201,6 +239,12 @@ See the [QQ and SnowLuma guide](QQ_PLUGIN_SNOWLUMA.en.md) for registry fields, W
 The API has no authentication by default and binds to loopback. Do not expose it to an untrusted network by changing `PAN_HOST` or opening a remote tunnel alone.
 
 Manual Session deletion stops its Worker and removes Session records and history, but preserves an ordinary workdir. A separate data-retention policy is disabled by default. If Session auto-retention is enabled, Pan may delete a default workdir only after verifying that it belongs to that Session and is not referenced by another Session or Workspace. Commit or back up important files before cleanup.
+
+### Mobile navigation and Codex Terminal TUI
+
+View entries come in groups of three: Chat / Editor / Jobs, then Terminal. Swipe the entry strip on mobile; desktop arrows or its wheel change groups. Changing the group does not itself navigate. Chat display modes **TUI / Bubble / Raw** change presentation, not the Agent control mode.
+
+Codex **Terminal TUI** is a separate native-control entry: desktop uses the top bar, mobile uses **Session Settings → More**. Older Sessions may offer an upgrade and wait until the next idle boundary; check the displayed pending/error state. This differs from **Takeover**, which stops the Worker and opens an external terminal, and from the independent shell on the Terminal page.
 
 ## 11. Persistent terminals (Windows)
 

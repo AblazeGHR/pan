@@ -175,12 +175,17 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  // Full (non-summary) Session facts the manual report binding needs:
-  // managedBy (report target), workerStatus (busy guard) and lastResult (the
-  // durable terminal this report would carry).
-  const currentSession = useSessionStore((s) => (
-    s.currentSessionId ? s.sessions.find((session) => session.id === s.currentSessionId) : undefined
+  // Subscribe only to report authority. Preview/status updates recreate the
+  // Session object frequently, but do not change these bindings.
+  const reportManagedBy = useSessionStore((s) => (
+    s.sessions.find((session) => session.id === s.currentSessionId)?.managedBy
   ));
+  const reportTerminals = useSessionStore((s) => (
+    s.sessions.find((session) => session.id === s.currentSessionId)?.terminalResults
+  ));
+  const reportSession = useMemo(() => currentSessionId ? {
+    id: currentSessionId, managedBy: reportManagedBy, terminalResults: reportTerminals,
+  } : undefined, [currentSessionId, reportManagedBy, reportTerminals]);
   const searchTargetMessageId = searchTarget?.sessionId === currentSessionId
     ? searchTarget.messageId
     : unscopedSearchTargetMessageId;
@@ -317,12 +322,12 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
   // and each row's absolute offset, exactly the inputs the server validates
   // against; rows the window does not own resolve to no offset and stay
   // unbound until their canonical rows converge.
-  const reportTranscript = useSessionStore((s) => (
-    s.currentSessionId ? s.sessionTranscripts[s.currentSessionId] : undefined
+  const reportWindow = useSessionStore((s) => (
+    s.currentSessionId ? s.sessionTranscripts[s.currentSessionId]?.window : undefined
   ));
   const manualReportProof = useMemo<HistoryBoundaryProof | undefined>(() => {
-    if (!reportTranscript) return undefined;
-    const { window } = reportTranscript;
+    if (!reportWindow) return undefined;
+    const window = reportWindow;
     return {
       epoch: window.epoch,
       revision: window.revision,
@@ -335,10 +340,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
           ? offset : undefined;
       },
     };
-  }, [reportTranscript]);
+  }, [reportWindow]);
   const manualReportTargets = useMemo(
-    () => findManualReportTargets(currentMessages, currentSession, manualReportProof),
-    [currentMessages, currentSession, manualReportProof],
+    () => findManualReportTargets(currentMessages, reportSession, manualReportProof),
+    [currentMessages, reportSession, manualReportProof],
   );
 
   const [highlightedTarget, setHighlightedTarget] = useState<{ identity: string; historyIndex?: number; search?: boolean } | null>(null);
