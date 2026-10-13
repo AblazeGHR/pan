@@ -496,6 +496,15 @@ class TerminalRuntime:
                 and request.headers.get("sec-fetch-mode") in {"cors", "same-origin"}
                 and request.headers.get("sec-fetch-dest") == "empty"
             )
+            # Plain HTTP on a LAN IP is not a secure context: browsers omit
+            # Fetch Metadata as well as Origin for GET. The dedicated listener
+            # verifies its exact Host, marks the scope (never a client header),
+            # and only safe reads may use that verified authority.
+            lan = getattr(request.app.state, "lan_controller", None)
+            lan_read = (request.method == "GET" and request.scope.get("pan_lan_entry")
+                        and lan is not None
+                        and f"http://{request.headers.get('host', '')}" in lan.origins)
+            browser_read = browser_read or lan_read
             if not browser_read:
                 raise GateRejected(403, "forbidden-origin")
             origin_raw = f"{request.url.scheme}://{request.headers.get('host', '')}"
@@ -525,6 +534,9 @@ class TerminalRuntime:
     def request_origins(self, app) -> frozenset[str]:
         controller = getattr(app.state, "tailscale_controller", None)
         extra = controller.origins if controller is not None else frozenset()
+        lan = getattr(app.state, "lan_controller", None)
+        if lan is not None:
+            extra = extra | lan.origins
         return self.allowlist.origins | extra if self.allowlist.config_valid else frozenset()
 
     def check_ready(self) -> None:

@@ -284,7 +284,13 @@ async def lifespan(app: FastAPI):
                 app.state.tailscale_controller = tailscale
                 try:
                     await tailscale.operation(tailscale.startup)
-                    yield
+                    lan = _lan_controller()
+                    await lan.operation("startup")
+                    try:
+                        yield
+                    finally:
+                        lan.closing = True
+                        await lan.operation("stop")
                 finally:
                     result = await tailscale.operation(tailscale.shutdown)
                     if not result["ok"]:
@@ -10287,6 +10293,69 @@ async def api_put_settings_worker(data: dict):
     raw["worker"] = section
     save_config(raw)
     return worker.reload_worker_config()
+
+
+# ── Optional direct LAN listener ──
+
+def _lan_controller():
+    from packages.remote.lan_runtime import Controller
+    controller = getattr(app.state, "lan_controller", None)
+    if controller is None:
+        def read():
+            from packages.core.config import CONFIG_FILE
+            if not CONFIG_FILE.exists():
+                return {}
+            value = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("config.json must be an object; existing file preserved")
+            return value
+        controller = Controller(app, read_config=read, write_config=save_config)
+        app.state.lan_controller = controller
+    return controller
+
+
+def _require_lan_management(request):
+    # LAN listener marks every request, including a local client using 0.0.0.0.
+    # Browser management is only permitted from the primary loopback origin.
+    if request.scope.get("pan_lan_entry") or not request.client:
+        raise HTTPException(403, "请从本机回环地址管理 LAN 入口")
+    from packages.web.terminal_api import is_loopback_host, normalize_origin
+    if not is_loopback_host(request.client.host):
+        raise HTTPException(403, "请从本机回环地址管理 LAN 入口")
+    host = request.headers.get("host", "")
+    try:
+        hostname = urlsplit(f"http://{host}").hostname
+    except ValueError:
+        hostname = None
+    origin = request.headers.get("origin")
+    if not is_loopback_host(hostname) or (origin is not None and
+            normalize_origin(origin) != normalize_origin(f"{request.url.scheme}://{host}")):
+        raise HTTPException(403, "Local same-origin administration required")
+    if request.headers.get("sec-fetch-site", "same-origin") != "same-origin":
+        raise HTTPException(403, "Local same-origin administration required")
+
+
+@app.get("/api/remote/lan")
+async def api_lan_status():
+    return await _lan_controller().operation("status")
+
+
+@app.put("/api/remote/lan")
+async def api_lan_config(request: Request):
+    _require_lan_management(request)
+    try:
+        value = await request.json()
+    except (ValueError, UnicodeError):
+        raise HTTPException(422, "Invalid LAN JSON configuration") from None
+    return await _lan_controller().operation("save", value)
+
+
+@app.post("/api/remote/lan/{action}")
+async def api_lan_control(action: str, request: Request):
+    _require_lan_management(request)
+    if action not in {"start", "stop"}:
+        raise HTTPException(400, "Unknown LAN action")
+    return await _lan_controller().operation(action)
 
 
 # ── Remote tunnel (cloudflared, owned by packages.core.launcher) ──

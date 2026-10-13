@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
+import { LanSettings } from './LanSettings';
 import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -2096,6 +2097,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
               <McpRemoteSettings />
               <TailscaleSettings />
+              <LanSettings />
               {/* Reset */}
               <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-start gap-3">
                 <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-[32rem]">
