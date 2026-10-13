@@ -48,6 +48,7 @@ import psutil
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import session_bookmarks
 from packages.core import session_drafts
 from packages.core import history_search_index
 from packages.core import history_search_scan
@@ -4472,6 +4473,11 @@ def _api_history(
     include_identity: bool = True,
 ) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
+    # One stamped sidecar read per projection (cached, lock-free fast path
+    # when the Session has no bookmark file).  Additive: only durable Pan
+    # identities can carry the flag, so legacy positional rows and old
+    # clients are unaffected.
+    bookmarks = session_bookmarks.bookmarked_message_ids(session_id)
     normalized: list[dict] = []
     for offset, message in enumerate(history):
         absolute_index = max(0, int(start or 0)) + offset
@@ -4496,6 +4502,11 @@ def _api_history(
             if not isinstance(wire_identity, str) or not wire_identity:
                 epoch = history_epoch or "legacy"
                 wire_identity = f"legacy:{session_id}:{epoch}:{absolute_index}"
+        if bookmarks and isinstance(wire_identity, str) and wire_identity in bookmarks:
+            # Project the bookmark flag only for identities the store can
+            # actually address; a dangling entry never matches a live row.
+            if isinstance(public_message, dict):
+                public_message["bookmarked"] = True
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             if isinstance(message, dict) and isinstance(message.get("parts"), list):
                 normalized.append({
@@ -6106,6 +6117,139 @@ async def api_put_session_draft(session_id: str, data: dict | None = None):
     # draft bodies in the session summary, and overwrite other clients'
     # composers with text they are not editing.
     return {"ok": True, **state}
+
+
+@app.get("/api/sessions/{session_id}/bookmarks")
+async def api_get_session_bookmarks(session_id: str):
+    """Read one Session's message bookmarks for a cold client load.
+
+    Deliberately separate from GET /api/sessions: bookmarks are loaded
+    lazily for the one selected Session, never scanned across Sessions.
+
+    A damaged or unreadable sidecar is reported as ``bookmarks_unreadable``,
+    never as an empty set: telling the client "no bookmarks" when a file
+    exists would make the next write destroy the entries it still holds.
+    ``dangling`` lists bookmarks whose target row no longer exists (for
+    example after an ambiguous reimport re-id); they are kept on disk and
+    excluded from projection rather than silently dropped or re-matched.
+    """
+    try:
+        envelope, dangling = await asyncio.gather(
+            asyncio.to_thread(session_bookmarks.read_bookmarks, session_id),
+            asyncio.to_thread(session_bookmarks.dangling_bookmarks, session_id),
+        )
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "bookmarks_read_failed", "message": str(exc) or "Could not read bookmarks"}}
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "revision": envelope["revision"],
+        "updatedAt": envelope["updatedAt"],
+        "bookmarks": envelope["bookmarks"],
+        "dangling": dangling,
+    }
+
+
+async def _mutate_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None, *, add: bool):
+    """Add or remove one bookmark; body is ``{"baseRevision": <int|null>}``.
+
+    Only durable Pan message identities (``pan:<uuid>``) are accepted.
+    Additions resolve the identity against this Session's own history first
+    (covering blocks pagination has not loaded), so a bookmark can never
+    address another Session's block, a positional ``legacy:``/``msg_`` id or
+    an invented uuid.  Removals operate on this Session's own store and stay
+    available for dangling entries.
+
+    ``baseRevision`` gives compare-and-set semantics for dual clients: it
+    must equal the revision the caller last read, or the write is rejected
+    with the current envelope attached.  Omitted/null applies
+    unconditionally; add and remove are idempotent, so a retry repeating the
+    desired state is a successful no-op that neither writes nor bumps the
+    revision.  The WS event is published only after the durable commit and
+    only when the state actually changed; a broadcast failure never fails
+    the already-committed write.
+    """
+    if data is not None and not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "bookmark body must be an object"}}
+    base_revision = (data or {}).get("baseRevision")
+    try:
+        if add:
+            result = await asyncio.to_thread(
+                session_bookmarks.add_bookmark, session_id, message_id, base_revision)
+        else:
+            result = await asyncio.to_thread(
+                session_bookmarks.remove_bookmark, session_id, message_id, base_revision)
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkTargetUnresolved as exc:
+        return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
+    except session_bookmarks.BookmarkConflict as exc:
+        # The caller is behind.  Hand back the authoritative envelope so it
+        # can re-read instead of overwriting on a stale base.
+        return {"ok": False, "error": {
+            "code": "bookmark_conflict", "message": "Bookmarks changed; reload before saving"},
+            **exc.current}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write:
+        # reporting this as "absent" is what would let a create-if-absent
+        # save destroy the bookmarks the file still holds.
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except session_bookmarks.BookmarkTooMany as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_too_many", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "bookmark_persist_failed",
+            "message": str(exc) or "Could not persist bookmark"}}
+    if result["changed"]:
+        try:
+            await broadcast({
+                "type": "bookmarks.changed",
+                "sessionId": session_id,
+                "revision": result["revision"],
+                "action": "added" if add else "removed",
+                "messageIds": [message_id],
+            })
+        except Exception as exc:  # noqa: BLE001 - the durable write already committed
+            _log(f"[bookmarks] broadcast failed for {session_id}: {type(exc).__name__}")
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "messageId": message_id,
+        "bookmarked": add,
+        "changed": result["changed"],
+        "revision": result["revision"],
+        "updatedAt": result["updatedAt"],
+        "bookmarks": result["bookmarks"],
+        "target": result["target"],
+    }
+
+
+@app.put("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_add_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None = None):
+    """Bookmark one message; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=True)
+
+
+@app.delete("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_remove_session_bookmark(session_id: str, message_id: str,
+                                      data: dict | None = None):
+    """Remove one bookmark; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=False)
 
 
 @app.post("/api/sessions/{session_id}/unread-done/ack")
