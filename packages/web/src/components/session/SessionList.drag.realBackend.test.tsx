@@ -41,7 +41,7 @@ function mk(id: string, name: string, extra: Partial<Session> = {}): Session {
     alwaysThinkingEnabled: false,
     effort: '',
     history: [],
-    updatedAt: new Date(Date.now() - 1000 * 60 * Math.random()).toISOString(),
+    updatedAt: new Date(Date.UTC(2026, 0, 1) - id.charCodeAt(0) * 60_000).toISOString(),
     ...extra,
   };
 }
@@ -271,8 +271,8 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
 
   it('cancelling a cross-workspace reparent sends no relationship request', async () => {
     useSessionStore.setState({ sessions: [
-      mk('A', 'Alpha', { workspaceIds: ['workspace-a'], updatedAt: new Date().toISOString() }),
-      mk('B', 'Bravo', { workspaceIds: ['workspace-b'], updatedAt: new Date().toISOString() }),
+      mk('A', 'Alpha', { workspaceIds: ['workspace-a'], updatedAt: '2026-01-02T00:00:00.000Z' }),
+      mk('B', 'Bravo', { workspaceIds: ['workspace-b'], updatedAt: '2026-01-01T23:59:00.000Z' }),
       mk('C', 'Charlie', { workspaceIds: ['workspace-a'] }),
       mk('D', 'Delta', { workspaceIds: ['workspace-b'] }),
     ] });
@@ -303,8 +303,8 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
       notifications: { codexWarningToast: true, unreadRecording: ['all'], confirmCrossWorkspaceManagement: false, confirmAgentSystemQueueEdit: true },
     });
     useSessionStore.setState({ sessions: [
-      mk('A', 'Alpha', { workspaceIds: ['workspace-a'], updatedAt: new Date().toISOString() }),
-      mk('B', 'Bravo', { workspaceIds: ['workspace-b'], updatedAt: new Date().toISOString() }),
+      mk('A', 'Alpha', { workspaceIds: ['workspace-a'], updatedAt: '2026-01-02T00:00:00.000Z' }),
+      mk('B', 'Bravo', { workspaceIds: ['workspace-b'], updatedAt: '2026-01-01T23:59:00.000Z' }),
       mk('C', 'Charlie', { workspaceIds: ['workspace-a'] }),
       mk('D', 'Delta', { workspaceIds: ['workspace-b'] }),
     ] });
