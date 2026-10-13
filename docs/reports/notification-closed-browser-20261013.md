@@ -1,5 +1,7 @@
 # 浏览器关闭后的 system 通知与 browser 失败回退调查
 
+> 历史调查/阶段记录，描述当时的基线与验证范围，不是当前操作指南。当前已合入版本的通知选项与 60 秒点击窗口限制见[用户手册](../USER_MANUAL.md#integrations)；真实 Windows OS 点击仍未验证。
+
 基线：`c981dbe533e96612dc7170cc8d968c8a8c9b8a73`；独立工作树 `notification-closed-sol-20261013`。状态：原生候选待验证/MA 验收，禁止快进。未改变 main/practical、push、重启现存服务或请求 8767/8768 测试；未写真实用户配置、凭证或 Session。
 
 ## 结论与实现范围

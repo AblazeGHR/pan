@@ -11,7 +11,7 @@ Pan 是一个用于管理 CLI Agent 会话并协调多 Agent 任务的本地 Web
 - **协调多个 Agent**：SMA 模板提供 MA（主管）会话。MA 与 TA 是 Session 承载的职责角色，Worker 是运行 Session 的临时 CLI 进程，因此既有 MA Worker 也有 TA Worker。MA 可以创建或认领子 Session、异步派发任务，并通过持久化报告队列收集完成或错误结果。
 - **跟进 Jobs**：Dashboard 的 Jobs 页面可查看和管理定时任务、定时 Session 消息/群发和立即运行的后台进程。
 - **管理运行状态**：分别控制 Session Worker 与 Pan 主服务；重新启动后，可对上次仍记录为运行中的 Session 做恢复选择。
-- **按需接入通道**：每个 Session 可配置 MCP server；QQ OneBot 网关在 App Settings → Plugin 中管理。Cloudflare Remote 与 Memory 是可选能力，Remote 默认关闭。
+- **按需接入通道**：每个 Session 可配置 MCP server；QQ OneBot 网关在 App Settings → Plugin 中管理。Cloudflare Remote 默认关闭；Tailscale 可提供同一 tailnet 内的备用访问。Memory / Character 当前搁置，不作为可用功能。
 
 Pan 不会自动为每个子任务创建 Git worktree。需要隔离并行代码改动时，为各 Session 指定不同的 workdir 或 Git worktree。
 
@@ -61,6 +61,8 @@ python main.py
 打开 Dashboard，点击侧栏 **New** 快速创建；点击旁边的设置按钮可指定 Adapter、Session Template、模型和 workdir。选中 Session 后点击 **Start**，或直接发送第一条消息。忙碌时追加的消息会进入发送队列。**Import** 可浏览并导入支持的 CLI 历史会话。
 
 要从单个 Agent 开始，使用普通 Session。要进行多 Session 编排，可在新建配置中选择 `SMA(NoAdapter)`（创建后选择 adapter）或 `SMA(cbc)`（固定使用 cbc）。详细操作见[中文用户手册](docs/USER_MANUAL.md)。
+
+侧栏支持 Session / Workspace 搜索筛选，多选 **Actions** 可执行 Read all、群发和 Bell on/off。队列锁与 **Pause everything** 控制后续投递；不会停止已经运行的任务。通知、Terminal TUI 和远程访问的使用边界见[用户手册](docs/USER_MANUAL.md)。
 
 ## 文档
 

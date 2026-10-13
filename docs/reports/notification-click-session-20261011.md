@@ -1,5 +1,7 @@
 # 通知点击 → 打开/聚焦 Pan 并跳转 Session：可行性调查
 
+> 历史调查/阶段记录，描述当时的基线与验证范围，不是当前操作指南。当前已合入版本的通知选项与 60 秒点击窗口限制见[用户手册](../USER_MANUAL.md#integrations)；真实 Windows OS 点击仍未验证。
+
 > 研究分支 `research/notification-click-session-20261011`（base `b80b272c`，独立 worktree）。
 > 本报告为**可行性调查**（不承诺完整产品实现）；所有实验限定在独立 worktree / 隔离浏览器 / 动态端口，未合并 main/practical、未推送、未部署、未重启真实服务、未改用户配置、未发真实 QQ 通知、未弹任何系统通知。
 > 日期：2026-10-11。证据与命令见 `audit/notification-click/experiment-log.md`。
