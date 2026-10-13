@@ -25,7 +25,7 @@ const API_EXPORTS = [
   'sendSessionMessage', 'steerSessionWorker', 'fetchSessionQueue',
   'updateSessionSettings', 'fetchSessionSummary',
   'rewindSessionHistory', 'setSessionWorkspaces', 'setSessionPinned',
-  'ackSessionUnreadDone', 'reorderPinnedSessions',
+  'ackSessionUnreadDone', 'reorderPinnedSessions', 'reportTaskManually',
 ];
 
 const STUBS = {
@@ -34,7 +34,10 @@ const STUBS = {
   '@/stores/uiStore': 'export const useUIStore = { getState: () => ({}) };',
   '@/services/historyPagePrefetch': 'export const takeHistoryPrefetch = () => null; export const peekHistoryPrefetch = () => null;',
   '@/utils/creationWorkspace': 'export const getCreationWorkspaceIds = async () => [];',
-  '@/services/api': API_EXPORTS.map((n) => `export const ${n} = async () => ({});`).join('\n'),
+  '@/services/api': API_EXPORTS.map((n) => `export const ${n} = async () => ({});`).join('\n')
+    // Manual-report collaborators are not exercised by reconcile cases.
+    + '\nexport class ApiRequestError extends Error {}'
+    + '\nexport class ManualReportRejectedError extends Error {}',
 };
 
 const plugin = {

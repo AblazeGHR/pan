@@ -109,7 +109,7 @@ Workspace 不是 Git 分支或目录移动操作。Session 的 `workdir` 决定 
 
 ### 搜索、未读与批量操作
 
-列表搜索匹配 Session 名称、ID、CLI 历史 ID、workdir 或 Adapter，仅在 **Workspace Bar** 展开时，共享搜索框也独立筛选 Workspace 名称；收起时保持原 Session 搜索。筛选项包括 **Has subagent、Is MetaAgent、Running state、Illegal state、Has unread、Has queued messages**；Session 必须满足全部已选条件。Workspace 的每个条件只需有一个成员满足，不必由同一成员满足。列表搜索与 Chat 历史搜索不同：**Search all Sessions** 搜索跨 Session 消息历史，当前 Session 搜索只查本会话；可按角色筛选并导航命中，结果过期时重新搜索。
+列表搜索匹配 Session 名称、ID、CLI 历史 ID、workdir 或 Adapter，仅在 **Workspace Bar** 展开时，共享搜索框也独立筛选 Workspace 名称；收起时保持原 Session 搜索。筛选项包括 **有受管理子 Session、Is MetaAgent、Running state、Illegal state、Has unread、Has queued messages**；Session 必须满足全部已选条件。Workspace 的每个条件只需有一个成员满足，不必由同一成员满足。列表搜索与 Chat 历史搜索不同：**Search all Sessions** 搜索跨 Session 消息历史，当前 Session 搜索只查本会话；可按角色筛选并导航命中，结果过期时重新搜索。
 
 黄色计数表示未读完成结果；旁边队列计数为蓝色，待发项全部锁定时为红色。打开队列不会清除队列计数。Workspace 菜单的 **Read all** 标记其实际成员已读，包括被搜索/筛选隐藏的成员；操作后新到的完成结果仍会保留未读。多选 **Actions** 提供 **Workspace、Read all、群发、Bell on、Bell off**，针对所选目标执行。群发创建 Job，请核对逐目标结果及部分失败后再重试。
 
