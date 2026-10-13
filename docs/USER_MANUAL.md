@@ -64,7 +64,7 @@ python main.py
 | 设置 | 当前默认值 / 作用 |
 |---|---|
 | Pan 端口 | `config.json` 的 `port` 默认 `8768`；`PAN_PORT` 可覆盖 |
-| 监听地址 | 默认 `127.0.0.1`；`PAN_HOST` 可覆盖 |
+| 监听地址 | 默认 `127.0.0.1`；已有 `PAN_HOST` 可绑定外部地址，仅启动时读取 |
 | `PAN_API_URL` | 独立 MCP server 连接 Pan 时使用的地址；使用非默认端口时应同步调整 |
 | Remote | `config.example.json` 中 `remote.enabled` 默认 `false` |
 
@@ -217,6 +217,12 @@ Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏�
 ### Tailscale 备用访问
 
 在 **App Settings → General → Tailscale 备用访问** 使用已安装、已登录且属于同一 tailnet 的 Tailscale。选择协议/端口，**保存配置**后点**开启当前访问**（或**应用已保存入口**）；只保存不会开启。Pan 保持回环监听，使用 Serve，不开放公网 Funnel；下次启动默认关闭。HTTPS 可能需先在 Tailscale 管理界面启用。正常退出关闭自有映射，强制退出可能保留至下次协调恢复；不会接管外部映射。界面“已开启”不证明另一设备可达。高级限制见[备用访问说明](tailscale-fallback-access.md)。
+
+### 普通局域网访问（LAN）
+
+从电脑本机的 Pan 回环地址打开 **App Settings → General → 普通局域网访问（LAN）**。默认关闭；选择本机 IPv4 与空闲端口（默认 `8780`），保存后点**开启 LAN 访问**，在可信同网设备上访问显示的 URL。保存不启停，start/stop 无需重启 Pan 即时生效；**下次启动 Pan 默认开启 LAN** 控制启动恢复。修改运行中的地址/端口必须先关闭当前入口。`0.0.0.0` 包含所有 IPv4 接口及 VPN，不只限于 LAN。
+
+请从本机 loopback 入口管理。LAN 入口禁止本机身份桥、agent WebSocket、主服务控制、全局设置写入和 managed/readonly 管理；没有全站登录保护，HTTP 未加密。直接设置 `PAN_HOST` 是启动时开放主入口，不具备独立 LAN 入口的管理隔离；保留本机管理时应保持其回环默认值。手机访问、防火墙行为及 live Cloudflare Tunnel / Tailscale 共存尚未实测。详见[LAN 使用与限制](lan-access.md)。
 
 ### 常见排查
 

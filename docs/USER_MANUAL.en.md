@@ -64,7 +64,7 @@ Open <http://127.0.0.1:8768>. You can also use the startup helpers: Windows `scr
 | Setting | Current default / purpose |
 |---|---|
 | Pan port | `config.json` defaults `port` to `8768`; `PAN_PORT` overrides it |
-| Listen address | `127.0.0.1` by default; `PAN_HOST` overrides it |
+| Listen address | `127.0.0.1` by default; existing `PAN_HOST` can bind an external address and is read only at startup |
 | `PAN_API_URL` | Address used by a standalone MCP server to reach Pan; keep it aligned if you use a non-default port |
 | Remote | `remote.enabled` is `false` in `config.example.json` |
 
@@ -217,6 +217,12 @@ Clicking a browser completion notification targets its Session while the Pan pag
 ### Tailscale fallback access
 
 Under **App Settings → General → Tailscale 备用访问**, use an installed, signed-in Tailscale client on the same tailnet. Choose protocol/port, **保存配置**, then **开启当前访问** (or **应用已保存入口**). Saving alone does not start access. Pan keeps its loopback listener; this uses Serve, not public Funnel. Startup is disabled by default. HTTPS may require enabling Tailscale HTTPS first. Normal exit closes the owned mapping; a forced exit may leave it until recovery. External mappings are not taken over. A displayed running state does not prove reachability from another device. See [advanced access notes](tailscale-fallback-access.md).
+
+### Direct LAN access
+
+From the computer's loopback Pan URL, open **App Settings → General → 普通局域网访问（LAN）**. It is off by default. Select a local IPv4 address and an available port (default `8780`), save, then click **开启 LAN 访问**. Use the displayed URL on a trusted same-network device. Saving does not start/stop the listener; start/stop takes effect without restarting Pan. **下次启动 Pan 默认开启 LAN** controls startup. To change a running address/port, stop the current listener first. `0.0.0.0` covers every IPv4 interface, including VPN interfaces, rather than only the LAN.
+
+Manage this listener through the local loopback entry. The LAN entry blocks local identity bridges, agent WebSocket, main-service control, global-settings writes, and managed/readonly management. It has no site-wide login protection and uses unencrypted HTTP. Directly setting `PAN_HOST` exposes the main listener at startup and does not provide this separate LAN isolation. Keep `PAN_HOST` at its loopback default for local management. Phone access, firewall behavior, and live coexistence with Cloudflare Tunnel / Tailscale have not been tested. See [LAN usage and limits](lan-access.md).
 
 ### Troubleshooting
 

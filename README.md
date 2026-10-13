@@ -50,7 +50,7 @@ cd packages/web && pnpm install && pnpm build && cd ../..
 python main.py
 ```
 
-默认 Dashboard 地址为 <http://127.0.0.1:8768>。`config.json` 的 `port` 默认是 `8768`，环境变量 `PAN_PORT` 可覆盖它。服务默认只监听 `127.0.0.1`；API 默认没有身份验证。
+默认 Dashboard 地址为 <http://127.0.0.1:8768>。`config.json` 的 `port` 默认是 `8768`，环境变量 `PAN_PORT` 可覆盖它。主入口默认监听 `127.0.0.1`；已有的 `PAN_HOST` 可在启动时改为外部地址，运行中修改不会生效。API 默认没有身份验证。
 
 `config.example.json` 中 `qq.enabled` 默认是 `true`，但这不会安装或登录 QQ 网关。若不使用 QQ，在启动前将 `config.json` 的 `qq.enabled` 设为 `false`。启用 QQ 时，还需为配置的 `qq.python` / `PAN_QQ_PYTHON` 安装 `packages/qq/requirements.txt`，并按[QQ 与 SnowLuma 使用说明](docs/QQ_PLUGIN_SNOWLUMA.md)选择和配置网关。
 
@@ -73,4 +73,4 @@ python main.py
 
 ## 安全提示
 
-不要把默认无鉴权的服务监听地址改为公网或局域网地址后直接暴露。Cloudflare Remote 需显式启用，并会提供远程访问通道；启用前请先评估访问范围与网关安全。
+可信同网设备可通过本机 **App Settings → General → 普通局域网访问（LAN）** 使用独立入口：默认关闭，选本机 IPv4 和端口（默认 `8780`），保存后开启；保存不启停，启停热生效。详见[LAN 使用与限制](docs/lan-access.md)。该入口保留本机管理隔离，直接用 `PAN_HOST` 开放主入口不具有同样的隔离；不要暴露到不可信网络。Cloudflare Remote 需显式启用，并会提供远程访问通道；启用前请先评估访问范围与网关安全。

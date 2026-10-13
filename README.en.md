@@ -50,7 +50,7 @@ cd packages/web && pnpm install && pnpm build && cd ../..
 python main.py
 ```
 
-The default Dashboard URL is <http://127.0.0.1:8768>. `config.json` sets `port` to `8768` by default; `PAN_PORT` overrides it. The service listens on `127.0.0.1` by default, and the API has no authentication by default.
+The default Dashboard URL is <http://127.0.0.1:8768>. `config.json` sets `port` to `8768` by default; `PAN_PORT` overrides it. The main listener defaults to `127.0.0.1`. The existing `PAN_HOST` can bind it to an external address and is read only at startup. The API has no authentication by default.
 
 In `config.example.json`, `qq.enabled` defaults to `true`, but this does not install or sign in to a QQ gateway. Set `qq.enabled` to `false` before startup if you do not use QQ. To enable QQ, install `packages/qq/requirements.txt` into the interpreter configured by `qq.python` / `PAN_QQ_PYTHON`, then select and configure a gateway using the [QQ and SnowLuma guide](docs/QQ_PLUGIN_SNOWLUMA.en.md).
 
@@ -73,4 +73,4 @@ Use sidebar search and filters for Sessions. The shared search also filters Work
 
 ## Security
 
-Do not expose the unauthenticated service by changing its listen address to a public or LAN address. Cloudflare Remote provides a remote access path and must be enabled explicitly; review the access scope and gateway security before enabling it.
+For trusted devices on the same network, use the separate listener under local **App Settings → General → 普通局域网访问（LAN）**: off by default, select a local IPv4 address and port (default `8780`), save, then start. Saving does not start/stop it; start/stop takes effect immediately. See [LAN usage and limits](docs/lan-access.md). This listener preserves local management isolation; exposing the main listener through `PAN_HOST` does not provide the same isolation. Do not expose Pan to untrusted networks. Cloudflare Remote provides a remote access path and must be enabled explicitly; review the access scope and gateway security before enabling it.
