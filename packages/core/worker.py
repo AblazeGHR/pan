@@ -361,6 +361,7 @@ _recovery_required: set[str] = set()
 # backoff.  This is deliberately separate from pending_signal: the timer only
 # emits a generic wake-up and never stores queue payload.
 _queue_retry_tasks: dict[str, asyncio.Task] = {}
+_queue_retry_wakes: dict[str, asyncio.Event] = {}
 _queue_locks: dict[str, asyncio.Lock] = {}
 _unread_done_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_locks: dict[str, asyncio.Lock] = {}
@@ -5504,44 +5505,52 @@ async def drain_recoveries(timeout: float = 10.0) -> int:
     return len(inflight)
 
 
+def _queue_wake_deadlines(session) -> list[float]:
+    """Finite queue gates need a wake when both retry and edit lease are due."""
+    now = time.time()
+    deadlines = []
+    for item in session.queue_pending or []:
+        if (not isinstance(item, dict) or _queue_item_kind(item) is None
+                or _delivery_state(item) != _DELIVERY_QUEUED or _queue_item_locked(item)):
+            continue
+        retry = item.get("nextAttemptAt")
+        due = retry if isinstance(retry, (int, float)) and retry > now else now
+        lease = _active_queue_edit_lock(session, _queue_item_id(item), now)
+        if lease is not None:
+            due = max(due, lease["expiresAt"])
+        if due > now:
+            deadlines.append(due)
+    return deadlines
+
+
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
-    """Wake a session once its earliest persisted retry becomes due."""
+    """Wake at a retry/lease deadline; queue mutations can re-arm the wait."""
     session = _get_session_shallow(session_id)
-    if session is None or getattr(session, "queue_paused", False) or not any(
-        isinstance(item, dict)
-        and _queue_item_kind(item) is not None
-        and _delivery_state(item) == _DELIVERY_QUEUED
-        and not _queue_item_locked(item)
-        and isinstance(item.get("nextAttemptAt"), (int, float))
-        and item.get("nextAttemptAt") > time.time()
-        for item in (session.queue_pending or [])
-    ):
+    if (session is None or getattr(session, "queue_paused", False)
+            or not _queue_wake_deadlines(session)):
         # Immediate queue items already have a queue_signal.  Only create a
-        # timer for an item that is actually waiting for persisted backoff;
+        # timer for an item actually waiting for backoff or an edit lease;
         # otherwise the timer would emit a duplicate wakeup on every spawn.
         return None
     existing = _queue_retry_tasks.get(session_id)
     if existing is not None and not existing.done():
+        _queue_retry_wakes[session_id].set()
         return existing
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return None
 
+    changed = asyncio.Event()
+    _queue_retry_wakes[session_id] = changed
+
     async def _wait_and_wake() -> None:
         while True:
+            changed.clear()
             s = _get_session_shallow(session_id)
             if s is None or getattr(s, "queue_paused", False):
                 return
-            future_times = [
-                item.get("nextAttemptAt") for item in (s.queue_pending or [])
-                if isinstance(item, dict)
-                and _queue_item_kind(item) is not None
-                and _delivery_state(item) == _DELIVERY_QUEUED
-                and not _queue_item_locked(item)
-                and isinstance(item.get("nextAttemptAt"), (int, float))
-                and item.get("nextAttemptAt") > time.time()
-            ]
+            future_times = _queue_wake_deadlines(s)
             if not future_times:
                 worker = find_alive_worker_by_session(session_id)
                 if (worker and worker.pending_signal is not None
@@ -5551,7 +5560,10 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
                     _schedule_session_recovery(session_id)
                 return
             delay = max(0.0, min(future_times) - time.time())
-            await asyncio.sleep(min(delay, 60.0))
+            try:
+                await asyncio.wait_for(changed.wait(), delay)
+            except asyncio.TimeoutError:
+                pass
 
     task = loop.create_task(_wait_and_wake(), name=f"pan-queue-retry-{session_id}")
     _queue_retry_tasks[session_id] = task
@@ -5559,6 +5571,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     def _finish(done: asyncio.Task) -> None:
         if _queue_retry_tasks.get(session_id) is done:
             _queue_retry_tasks.pop(session_id, None)
+            _queue_retry_wakes.pop(session_id, None)
         if not done.cancelled():
             try:
                 done.result()
@@ -7605,7 +7618,7 @@ async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
     await _bcast({"type": "session.updated", "sessionId": w.session_id})
 
 
-async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:
+async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain: bool = True) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -7637,8 +7650,10 @@ async def _send_control_message_unlocked(worker_id: str, control: dict) -> str |
     if encode_control is None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
     try:
-        w.process.stdin.write(encode_control(control) + b"\n")
-        await w.process.stdin.drain()
+        stdin = w.process.stdin
+        stdin.write(encode_control(control) + b"\n")
+        if drain:
+            await stdin.drain()
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
         return "Worker control write failed"
     return None
@@ -7664,7 +7679,17 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
                     return "Cannot Steer while a queued message is being edited"
                 # Keep the lease check and stdin write in one critical section
                 # so direct API/programmatic Steer cannot race edit acquisition.
-                return await _send_control_message_unlocked(worker_id, control)
+                error = await _send_control_message_unlocked(worker_id, control, drain=False)
+                if error:
+                    return error
+                stdin = w.process.stdin
+            # Backpressure is after the synchronous handoff. New queue appends
+            # and edit acquisition need not wait for this control's drain.
+            try:
+                await stdin.drain()
+            except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
+                return "Worker control write failed"
+            return None
     return await _send_control_message_unlocked(worker_id, control)
 
 
@@ -7700,6 +7725,8 @@ async def steer_worker(worker_id: str, text: str,
         return "Previous Steer is awaiting a provider receipt; do not resend"
     w._direct_steer_pending = True
     async def complete_late(error):
+        if error and error.startswith("Steer outcome unknown"):
+            return
         w._direct_steer_pending = False
         if error is None:
             await _record_direct_steer(w, text, message_id)
@@ -7749,33 +7776,56 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
     if wants_receipt:
         w._steer_receipts[request_id] = future
     late_receipt = False
+    sender = None
+
+    def retain_late_receipt():
+        nonlocal late_receipt
+        if on_late_receipt is None:
+            return
+        late_receipt = True
+        def settle_late(done):
+            w._steer_receipts.pop(request_id, None)
+            if not done.cancelled():
+                status, detail = _steer_receipt_result(done.result())
+                error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
+                task = asyncio.create_task(on_late_receipt(error))
+                task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+        future.add_done_callback(settle_late)
+
     try:
-        error = await send_control_message(w.worker_id, {"type": "steer", "text": text,
-                                          "requestId": request_id})
-        if error == "Worker control write failed":
-            error = None if wants_receipt else "Steer outcome unknown: control write/drain failed"
-        if error or not wants_receipt:
-            return error
+        control = {"type": "steer", "text": text, "requestId": request_id}
+        if not _process_alive(w):
+            return "Worker process is not running"
+        if not wants_receipt:
+            error = await send_control_message(w.worker_id, control)
+            return ("Steer outcome unknown: control write/drain failed"
+                    if error == "Worker control write failed" else error)
+        sender = asyncio.create_task(send_control_message(w.worker_id, control))
         # Never infer acceptance from stdout activity, completion or stdin write.
         # A missing receipt is ambiguous and must not be retried automatically.
         deadline = time.monotonic() + 30
         while _process_alive(w) and time.monotonic() < deadline:
-            done, _ = await asyncio.wait({future}, timeout=1)
-            if done:
+            waiting = {future} | ({sender} if not sender.done() else set())
+            await asyncio.wait(waiting, timeout=min(1, max(0, deadline-time.monotonic())),
+                               return_when=asyncio.FIRST_COMPLETED)
+            if future.done():
                 status, detail = _steer_receipt_result(future.result())
                 return ("Steer outcome unknown: " + str(detail) if status == "unknown" else detail)
-        if on_late_receipt is not None:
-            late_receipt = True
-            def settle_late(done):
-                w._steer_receipts.pop(request_id, None)
-                if not done.cancelled():
-                    status, detail = _steer_receipt_result(done.result())
-                    error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
-                    task = asyncio.create_task(on_late_receipt(error))
-                    task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
-            future.add_done_callback(settle_late)
+            if sender.done():
+                error = sender.result()
+                if error and error != "Worker control write failed":
+                    return error
+        retain_late_receipt()
         return "Steer outcome unknown: provider receipt missing; do not resend"
+    except asyncio.CancelledError:
+        if wants_receipt:
+            retain_late_receipt()
+        raise
     finally:
+        if sender is not None:
+            if not sender.done():
+                sender.cancel()
+            await asyncio.gather(sender, return_exceptions=True)
         if not late_receipt:
             w._steer_receipts.pop(request_id, None)
 

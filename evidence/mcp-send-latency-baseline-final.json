@@ -1,0 +1,430 @@
+{
+  "label": "baseline-final",
+  "port": 58869,
+  "dataRoot": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\mcp-send-latency-baseline-final",
+  "sourceSha256": {
+    "packages/core/worker.py": "a1751464519f765fb23b592ae5744f28cf4e8404f0b7139d9bcabbcf7c6cf0c7",
+    "packages/mcp/server.py": "a2460daacc2a35490d84abd7135eb931cd7ea9eb03e9f24988764cd588ead557"
+  },
+  "callerHistoryRows": 8000,
+  "rows": [
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-0",
+      "queueItemId": "q_8b2f52b1d66a43e583b3fe65499cdffd",
+      "eventMark": 6,
+      "requestAt": 1791918636.1184163,
+      "ackAt": 1791918636.470577,
+      "httpAckMs": 352.5,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 185.0
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 134.0
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 29.5
+        }
+      ],
+      "ackToWsAddedMs": -4.0,
+      "enqueueToCliMs": 352.8,
+      "cliToDeliveredMs": 5.0,
+      "totalMs": 357.8,
+      "eventsObserved": 7
+    },
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-1",
+      "queueItemId": "q_7239deee3437443f9c46e5d8e89e78b7",
+      "eventMark": 13,
+      "requestAt": 1791918636.4816942,
+      "ackAt": 1791918636.8118021,
+      "httpAckMs": 329.9,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 146.1
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 148.1
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 30.6
+        }
+      ],
+      "ackToWsAddedMs": -5.0,
+      "enqueueToCliMs": 331.1,
+      "cliToDeliveredMs": 4.5,
+      "totalMs": 335.6,
+      "eventsObserved": 7
+    },
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-2",
+      "queueItemId": "q_3bc9a482544b4b46b973b68f99c6cde3",
+      "eventMark": 20,
+      "requestAt": 1791918636.8227582,
+      "ackAt": 1791918637.093035,
+      "httpAckMs": 270.1,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 122.9
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 124.5
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 18.4
+        }
+      ],
+      "ackToWsAddedMs": -5.0,
+      "enqueueToCliMs": 270.6,
+      "cliToDeliveredMs": 5.2,
+      "totalMs": 275.8,
+      "eventsObserved": 7
+    },
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-3",
+      "queueItemId": "q_13ce1900273a4f219cff4087aac3ce8a",
+      "eventMark": 27,
+      "requestAt": 1791918637.104056,
+      "ackAt": 1791918637.3851361,
+      "httpAckMs": 280.7,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 128.1
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 140.3
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 8.0
+        }
+      ],
+      "ackToWsAddedMs": -6.8,
+      "enqueueToCliMs": 281.1,
+      "cliToDeliveredMs": 5.5,
+      "totalMs": 286.6,
+      "eventsObserved": 5
+    },
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-4",
+      "queueItemId": "q_fe2b9e4a23da4b1d885da5c01467c03d",
+      "eventMark": 34,
+      "requestAt": 1791918637.3962984,
+      "ackAt": 1791918637.8241699,
+      "httpAckMs": 428.2,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 181.6
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 232.5
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 10.4
+        }
+      ],
+      "ackToWsAddedMs": -7.0,
+      "enqueueToCliMs": 429.9,
+      "cliToDeliveredMs": 6.5,
+      "totalMs": 436.4,
+      "eventsObserved": 5
+    },
+    {
+      "kind": "agent_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nagent_send-5",
+      "queueItemId": "q_f2c627ee333a4b86ba7334a70af4fcd7",
+      "eventMark": 41,
+      "requestAt": 1791918637.840742,
+      "ackAt": 1791918638.2862287,
+      "httpAckMs": 445.5,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 177.6
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 236.1
+        },
+        {
+          "method": "POST",
+          "path": "/api/send",
+          "ms": 28.1
+        }
+      ],
+      "ackToWsAddedMs": -6.0,
+      "enqueueToCliMs": 446.5,
+      "cliToDeliveredMs": 4.5,
+      "totalMs": 451.0,
+      "eventsObserved": 7
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-0",
+      "queueItemId": "q_a0725cc5bcce495eb0d3bffe53d643d0",
+      "eventMark": 48,
+      "requestAt": 1791918638.2972414,
+      "ackAt": 1791918638.6798441,
+      "httpAckMs": 382.6,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 1.8
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 152.3
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 186.5
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 38.0
+        }
+      ],
+      "ackToWsAddedMs": -8.3,
+      "enqueueToCliMs": 397.0,
+      "cliToDeliveredMs": 12.1,
+      "totalMs": 409.1,
+      "eventsObserved": 5
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-1",
+      "queueItemId": "q_6d733d8311af40648395552ae564baf2",
+      "eventMark": 55,
+      "requestAt": 1791918638.7192075,
+      "ackAt": 1791918639.158206,
+      "httpAckMs": 439.4,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 24.6
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 211.7
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 172.7
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 26.4
+        }
+      ],
+      "ackToWsAddedMs": -4.9,
+      "enqueueToCliMs": 440.6,
+      "cliToDeliveredMs": 5.3,
+      "totalMs": 445.9,
+      "eventsObserved": 5
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-2",
+      "queueItemId": "q_aca9ddca4c304660b8cf1c9bb472e11e",
+      "eventMark": 62,
+      "requestAt": 1791918639.1744792,
+      "ackAt": 1791918639.6290567,
+      "httpAckMs": 455.2,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 1.8
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 216.3
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 201.9
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 31.1
+        }
+      ],
+      "ackToWsAddedMs": -5.5,
+      "enqueueToCliMs": 457.8,
+      "cliToDeliveredMs": 9.5,
+      "totalMs": 467.4,
+      "eventsObserved": 5
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-3",
+      "queueItemId": "q_acc5b080f16f4df49049b4e313047a21",
+      "eventMark": 69,
+      "requestAt": 1791918639.6515791,
+      "ackAt": 1791918640.0049386,
+      "httpAckMs": 353.9,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 2.3
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 208.8
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 129.9
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 9.0
+        }
+      ],
+      "ackToWsAddedMs": -5.4,
+      "enqueueToCliMs": 354.0,
+      "cliToDeliveredMs": 6.1,
+      "totalMs": 360.1,
+      "eventsObserved": 7
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-4",
+      "queueItemId": "q_ec0bc1a6b9ad4ad290c83466174d0e84",
+      "eventMark": 76,
+      "requestAt": 1791918640.0161061,
+      "ackAt": 1791918640.3692715,
+      "httpAckMs": 353.4,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 1.8
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 153.4
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 185.4
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 8.5
+        }
+      ],
+      "ackToWsAddedMs": -5.5,
+      "enqueueToCliMs": 355.5,
+      "cliToDeliveredMs": 5.3,
+      "totalMs": 360.8,
+      "eventsObserved": 6
+    },
+    {
+      "kind": "worker_send",
+      "text": "////by agent : ses_mcp_latency | probe-caller\nworker_send-5",
+      "queueItemId": "q_cd579a3f1d244e49b05abb28c5f478c9",
+      "eventMark": 83,
+      "requestAt": 1791918640.3862596,
+      "ackAt": 1791918640.8697205,
+      "httpAckMs": 484.2,
+      "stages": [
+        {
+          "method": "GET",
+          "path": "/api/list",
+          "ms": 11.7
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 275.7
+        },
+        {
+          "method": "GET",
+          "path": "/api/sessions/ses_mcp_latency",
+          "ms": 185.0
+        },
+        {
+          "method": "POST",
+          "path": "/api/task",
+          "ms": 8.0
+        }
+      ],
+      "ackToWsAddedMs": -5.0,
+      "enqueueToCliMs": 486.3,
+      "cliToDeliveredMs": 6.0,
+      "totalMs": 492.3,
+      "eventsObserved": 5
+    }
+  ],
+  "aggregate": {
+    "agent_send": {
+      "n": 6,
+      "minMs": 270.1,
+      "p50Ms": 329.9,
+      "p90Ms": 428.2,
+      "maxMs": 445.5
+    },
+    "worker_send": {
+      "n": 6,
+      "minMs": 353.4,
+      "p50Ms": 382.6,
+      "p90Ms": 455.2,
+      "maxMs": 484.2
+    }
+  }
+}

@@ -73,13 +73,22 @@ def main() -> None:
     data_root.mkdir(parents=True, exist_ok=True)
 
     from packages.core import session as session_store
+    from packages.core import config
     from packages.core.adapters.cbc import adapter as cbc_adapter
-    import packages.web.server as server
-
+    config.CONFIG_FILE = data_root / "config.json"
     session_store.SESSION_DIR = data_root / "sessions"
     session_store._cache.clear()
     session_store._all_loaded = False
     cbc_adapter.MCP_CONFIG_DIR = data_root / "mcp-configs"
+
+    import packages.web.server as server
+    from packages.core import background_jobs
+    from packages.scheduler import store as scheduler
+    from packages.core.terminal import registry as terminals
+    background_jobs.DEFAULT_ROOT = data_root / "background_jobs"
+    scheduler.DEFAULT_ROOT = data_root / "background_jobs"
+    scheduler.LEGACY_TASKS_ROOT = data_root / "scheduler"
+    terminals.DEFAULT_REGISTRY_ROOT = data_root / "terminals"
 
     server.DATA_DIR = data_root
     server.WORKDIRS_DIR = data_root / "workdirs"
@@ -94,6 +103,43 @@ def main() -> None:
             return [sys.executable, fake_cli]
 
         CbcAdapter._resolve_cbc_argv = resolve_fake_cli
+
+    if os.environ.get("PAN_E2E_LATENCY_CONTROLS") == "1" and fake_cli:
+        # This capability belongs only to the deterministic probe CLI. It
+        # exercises Pan's receipt path without a real native provider.
+        from packages.core import worker
+        CbcAdapter.supports_native_steer = True
+        CbcAdapter.supports_steer_receipt = True
+        CbcAdapter.encode_control_message = lambda self, value: json.dumps(value).encode()
+        worker._QUEUE_EDIT_LOCK_TTL_SECONDS = 0.15
+        spawn = worker._spawn_process
+
+        class ProbeStdin:
+            def __init__(self, stdin):
+                self.stdin = stdin
+                self.blocked = False
+
+            def write(self, data):
+                self.blocked = json.loads(data).get("text") == "blocked-control"
+                if self.blocked:
+                    (data_root / "steer-write").touch()
+                return self.stdin.write(data)
+
+            async def drain(self):
+                while self.blocked and not (data_root / "release-drain").exists():
+                    await asyncio.sleep(0.005)
+                await self.stdin.drain()
+
+            def __getattr__(self, name):
+                return getattr(self.stdin, name)
+
+        async def probe_spawn(*pos, **kw):
+            proc = await spawn(*pos, **kw)
+            if not isinstance(proc, str) and proc.stdin is not None:
+                proc.stdin = ProbeStdin(proc.stdin)
+            return proc
+
+        worker._spawn_process = probe_spawn
 
     import uvicorn
 
