@@ -62,7 +62,7 @@ python main.py
 
 要从单个 Agent 开始，使用普通 Session。要进行多 Session 编排，可在新建配置中选择 `SMA(NoAdapter)`（创建后选择 adapter）或 `SMA(cbc)`（固定使用 cbc）。详细操作见[中文用户手册](docs/USER_MANUAL.md)。
 
-侧栏支持 Session / Workspace 搜索筛选，多选 **Actions** 可执行 Read all、群发和 Bell on/off。队列锁与 **Pause everything** 控制后续投递；不会停止已经运行的任务。通知、Terminal TUI 和远程访问的使用边界见[用户手册](docs/USER_MANUAL.md)。
+侧栏支持 Session 搜索筛选；仅在 **Workspace Bar** 展开时，共享搜索框也筛选 Workspace，收起时保持原 Session 搜索。多选 **Actions** 可执行 Read all、群发和 Bell on/off。队列锁与 **Pause everything** 控制后续投递；不会停止已经运行的任务。通知、Terminal TUI 和远程访问的使用边界见[用户手册](docs/USER_MANUAL.md)。
 
 ## 文档
 

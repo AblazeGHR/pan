@@ -109,7 +109,7 @@ Workspace 不是 Git 分支或目录移动操作。Session 的 `workdir` 决定 
 
 ### 搜索、未读与批量操作
 
-列表搜索匹配 Session 名称、ID、CLI 历史 ID、workdir 或 Adapter，并独立筛选 Workspace 名称。筛选项包括 **Has subagent、Is MetaAgent、Running state、Illegal state、Has unread、Has queued messages**；Session 必须满足全部已选条件。Workspace 的每个条件只需有一个成员满足，不必由同一成员满足。列表搜索与 Chat 历史搜索不同：**Search all Sessions** 搜索跨 Session 消息历史，当前 Session 搜索只查本会话；可按角色筛选并导航命中，结果过期时重新搜索。
+列表搜索匹配 Session 名称、ID、CLI 历史 ID、workdir 或 Adapter，仅在 **Workspace Bar** 展开时，共享搜索框也独立筛选 Workspace 名称；收起时保持原 Session 搜索。筛选项包括 **Has subagent、Is MetaAgent、Running state、Illegal state、Has unread、Has queued messages**；Session 必须满足全部已选条件。Workspace 的每个条件只需有一个成员满足，不必由同一成员满足。列表搜索与 Chat 历史搜索不同：**Search all Sessions** 搜索跨 Session 消息历史，当前 Session 搜索只查本会话；可按角色筛选并导航命中，结果过期时重新搜索。
 
 黄色计数表示未读完成结果；旁边队列计数为蓝色，待发项全部锁定时为红色。打开队列不会清除队列计数。Workspace 菜单的 **Read all** 标记其实际成员已读，包括被搜索/筛选隐藏的成员；操作后新到的完成结果仍会保留未读。多选 **Actions** 提供 **Workspace、Read all、群发、Bell on、Bell off**，针对所选目标执行。群发创建 Job，请核对逐目标结果及部分失败后再重试。
 
@@ -210,7 +210,7 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 在 **App Settings → Notification → Completion bell defaults** 选择 System、Browser、QQ Report 或 QQ Subscribe，再点 **Save completion defaults**。QQ 选项必须选择至少一个默认联系人，可按名称或号码搜索。默认值在下次点亮未亮的 Session Bell 时应用，不替换已有连接。Browser 还需浏览器通知权限；启用 Bell 时 QQ bot 和所选联系人须可用。QQ Report 发送结果，QQ Subscribe 接收 QQ 收件箱提醒。
 
-**Unread recording** 默认 All sessions，可选 No sessions 或 Bell on/off、Pinned 等类别；类别按并集生效。排除的 Session 保持零未读，重新纳入只统计新完成结果，不恢复旧未读。Session 菜单可单独启用记录；保存全局规则或 **Reapply settings** 会清除这些覆盖。
+**Unread recording** 默认 All sessions，可选 No sessions 或 Bell on/off、Pinned 等类别；Bell on 与 Bell off 互斥，Pinned 可与其中一个按并集组合；All sessions 与 No sessions 互斥，且都不能与类别同时选择。排除的 Session 保持零未读，重新纳入只统计新完成结果，不恢复旧未读。Session 菜单可单独启用记录；保存全局规则或 **Reapply settings** 会清除这些覆盖。
 
 Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏览器完全关闭后页面通知不可用。Windows System 完成通知有 **60 秒 helper 点击窗口**；从关闭状态打开默认浏览器仅有代码路径，真实 OS 点击未验证。这不是持久通知中心激活。Browser 与 System 是独立通道，没有“Browser 失败才发 System”选项；已派发通知或亮 Bell 不代表已送达。
 

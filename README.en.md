@@ -62,7 +62,7 @@ Open the Dashboard and click **New** in the sidebar for a quick Session. Use the
 
 Use a regular Session for a single Agent. To coordinate multiple Sessions, choose `SMA(NoAdapter)` (select an adapter after creation) or `SMA(cbc)` (pins cbc) in the full creation form. See the [English user manual](docs/USER_MANUAL.en.md) for details.
 
-Use sidebar search and filters for Sessions / Workspaces, and multi-select **Actions** for Read all, broadcasts (群发), and Bell on/off. Queue locks and **Pause everything** control subsequent delivery; they do not stop work already running. See the [user manual](docs/USER_MANUAL.en.md) for notifications, Terminal TUI, and remote-access limits.
+Use sidebar search and filters for Sessions. The shared search also filters Workspaces only while the **Workspace Bar** is expanded; when collapsed, it retains the original Session search. Use multi-select **Actions** for Read all, broadcasts (群发), and Bell on/off. Queue locks and **Pause everything** control subsequent delivery; they do not stop work already running. See the [user manual](docs/USER_MANUAL.en.md) for notifications, Terminal TUI, and remote-access limits.
 
 ## Documentation
 
