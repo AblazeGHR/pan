@@ -245,6 +245,16 @@ async def test_user_queue_pause_survives_native_round_trip(monkeypatch):
 @run_async
 async def test_late_receipt_recovers_only_the_latest_issued_handoff(monkeypatch):
     s, w = runtime(monkeypatch)
+    # This case requires an issued handoff before simulating a lost receipt.
+    # Drive that timeout explicitly: a loaded runner can exhaust the 10ms
+    # wall-clock budget before stdin.write, which tests a different boundary.
+    async def receipt_timeout(awaitable, timeout):
+        if asyncio.isfuture(awaitable):
+            assert messages, "receipt timeout must follow an issued request"
+            awaitable.cancel()  # Cancel the shield, not its underlying receipt.
+            raise asyncio.TimeoutError
+        return await awaitable
+    monkeypatch.setattr(worker.asyncio, "wait_for", receipt_timeout)
     messages = []
     class Stdin:
         def write(self, raw):
