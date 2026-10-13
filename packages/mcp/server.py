@@ -165,6 +165,8 @@ def self_queue_consume(item_id: str) -> dict:
 
     Only status=consumed proves handoff. Pending/unconfirmed means no success
     claim; use the same original ID to inspect its receipt, never resend its body.
+    Rejected with retryable=true proves this attempt was not accepted and allows
+    an explicit retry with the same original ID. Unknown results are not retried.
     Locked or paused IDs are unavailable even if previously read. No session
     selection is accepted. Original message identity and metadata are retained.
     完整编排流程见 /pan skill。

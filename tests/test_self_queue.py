@@ -102,7 +102,9 @@ def test_final_handoff_rechecks_after_reservation(gate):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("receipt", [None, "provider rejected", "Steer outcome unknown: missing receipt"])
+@pytest.mark.parametrize("receipt", [None,
+    pytest.param({"ok": False, "outcome": "rejected", "error": "provider rejected"}, id="provider rejected"),
+    pytest.param({"ok": False, "outcome": "unknown", "error": "missing receipt"}, id="Steer outcome unknown: missing receipt")])
 def test_actual_native_chain_metadata_and_duplicate(receipt):
     async def run():
         s, item = setup()
@@ -126,7 +128,7 @@ def test_actual_native_chain_metadata_and_duplicate(receipt):
                 assert ledger[field] == original[field]
             assert (await self_queue.consume(s.id, item["id"]))["alreadyConsumed"]
             assert stdin.write.call_count == 1
-        elif receipt.startswith("Steer outcome unknown"):
+        elif receipt["outcome"] == "unknown":
             assert (await self_queue.read(s.id))["items"] == []
             assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
             # An authoritative late receipt reconciles the exact old request.
@@ -332,8 +334,8 @@ def test_native_reservation_failure_does_not_leave_failed_candidate(monkeypatch)
                 raise OSError("reservation failed")
             real_save(candidate, **kwargs)
         monkeypatch.setattr(sess, "_save_body", fail)
-        with pytest.raises(OSError, match="reservation failed"):
-            await self_queue.consume(s.id, item["id"])
+        assert await self_queue.consume(s.id, item["id"]) == {
+            "ok": False, "status": "rejected", "retryable": True}
         assert item == original
         stdin.write.assert_not_called()
         await sess.save_async(s)
@@ -442,4 +444,196 @@ def test_http_bridge_reuses_local_identity_gate_and_rejects_session_arguments():
         foreign = httpx.ASGITransport(app=app, client=("192.0.2.1", 12345))
         async with httpx.AsyncClient(transport=foreign, base_url="http://local") as client:
             assert (await client.post("/api/self-queue/read", headers=bound)).json()["error"] == "caller_unavailable"
+    asyncio.run(run())
+
+
+def test_native_explicit_rejection_allows_original_id_retry_even_with_unknown_words():
+    async def run():
+        s, item = setup()
+        stdin = Mock()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        async def drain():
+            wire = json.loads(stdin.write.call_args.args[0])
+            result = ({"ok": False, "outcome": "rejected", "error": "Steer outcome unknown: provider's literal rejection"}
+                      if stdin.write.call_count == 1 else {"ok": True, "outcome": "accepted"})
+            w._steer_receipts[wire["requestId"]].set_result(result)
+        stdin.drain = drain
+        rejected = await self_queue.consume(s.id, item["id"])
+        assert rejected == {"ok": False, "status": "rejected", "retryable": True}
+        disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+        assert disk["queue_pending"][0]["id"] == item["id"]
+        assert not disk["queue_pending"][0].get("queueSteerPending")
+        assert (await self_queue.consume(s.id, item["id"]))["status"] == "consumed"
+        assert stdin.write.call_count == 2
+        disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+        assert disk["queue_delivery_ledger"][item["id"]]["deliveryState"] == "sent_to_cli"
+    asyncio.run(run())
+
+
+def test_native_structured_unknown_stays_blocked_without_magic_error_prefix():
+    async def run():
+        s, item = setup()
+        stdin = Mock()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        async def drain():
+            wire = json.loads(stdin.write.call_args.args[0])
+            w._steer_receipts[wire["requestId"]].set_result({"ok": False, "outcome": "unknown", "error": "socket gone"})
+        stdin.drain = drain
+        assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
+        disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+        assert disk["queue_pending"][0]["queueSteerPending"]
+        assert await self_queue.consume(s.id, item["id"]) == await self_queue.consume(s.id, "guessed")
+        assert stdin.write.call_count == 1
+    asyncio.run(run())
+
+
+def test_native_prewrite_encoding_failure_is_retryable(monkeypatch):
+    async def run():
+        s, item = setup()
+        stdin = Mock(drain=AsyncMock())
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        monkeypatch.setattr(w.adapter, "encode_control_message", Mock(side_effect=ValueError("bad encoding")))
+        assert await self_queue.consume(s.id, item["id"]) == {"ok": False, "status": "rejected", "retryable": True}
+        stdin.write.assert_not_called()
+        assert not item.get("queueSteerPending")
+    asyncio.run(run())
+
+
+def test_native_capable_idle_worker_uses_normal_handoff_without_restart(monkeypatch):
+    async def run():
+        s, item = setup()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="idle",
+                          process=SimpleNamespace(returncode=None), pending_signal=asyncio.Queue())
+        worker.workers[w.worker_id] = w
+        restart = AsyncMock(return_value=w)
+        monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+        assert (await self_queue.consume(s.id, item["id"]))["status"] == "pending"
+        restart.assert_not_called()
+        assert w.pending_signal.qsize() == 1
+        async def write(w, text, source, s, *, on_handoff):
+            await worker._queue_handoff(w, s, AsyncMock(), on_handoff)
+        monkeypatch.setattr(worker, "_consumer_stream", write)
+        await worker._deliver_queue_unit(w, s, worker._select_queue_unit(s))
+        assert (await self_queue.consume(s.id, item["id"]))["alreadyConsumed"]
+        assert w.generation == 0
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_native_real_ticket_cancel_then_disk_reload_and_original_id_retry(monkeypatch, fail):
+    async def run():
+        s, item = setup()
+        await sess.save_async(s)
+        path = sess.SESSION_DIR / f"{s.id}.json"
+        entered, release = threading.Event(), threading.Event()
+        real_save = sess._save_body
+        attempts = [0]
+        def save(candidate, **kwargs):
+            if item.get("queueSteerPending") and attempts[0] == 0:
+                attempts[0] += 1
+                entered.set()
+                assert release.wait(5)
+                if fail:
+                    raise OSError("cancelled native candidate failed")
+            real_save(candidate, **kwargs)
+        monkeypatch.setattr(sess, "_save_body", save)
+        stdin = Mock()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        async def drain():
+            wire = json.loads(stdin.write.call_args.args[0])
+            w._steer_receipts[wire["requestId"]].set_result({"ok": True, "outcome": "accepted"})
+        stdin.drain = drain
+        request = asyncio.create_task(self_queue.consume(s.id, item["id"]))
+        assert await asyncio.to_thread(entered.wait, 5)
+        owner = worker._queue_steer_tasks[(s.id, item["id"])]
+        owner.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await request
+        stdin.write.assert_not_called()
+        disk = json.loads(path.read_text(encoding="utf-8"))
+        restored = disk["queue_pending"][0]
+        assert restored["id"] == item["id"] and restored["text"] == item["text"]
+        assert not restored.get("queueSteerPending")
+        assert restored["parts"] == item["parts"]
+        assert restored["envelope"] == item["envelope"]
+        assert (await self_queue.consume(s.id, item["id"]))["status"] == "consumed"
+        assert stdin.write.call_count == 1
+        assert json.loads(path.read_text(encoding="utf-8"))["queue_delivery_ledger"][item["id"]]["deliveryState"] == "sent_to_cli"
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("provider_error", [None, {"message": "Steer outcome unknown: this is an explicit RPC rejection"}])
+def test_wrapper_classifies_rpc_response_without_parsing_error_text(monkeypatch, provider_error):
+    from packages.core.adapters.codex import app_server_wrapper
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/fake", [])
+    emitted = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._steer_requests[7] = "original-request"
+    message = {"id": 7, "result": {}}
+    if provider_error is not None:
+        message["error"] = provider_error
+    assert app._emit_steer_receipt(message)
+    assert emitted[0]["outcome"] == ("accepted" if provider_error is None else "rejected")
+    assert emitted[0]["requestId"] == "original-request"
+
+
+def test_wrapper_rpc_write_failure_is_structured_unknown(monkeypatch):
+    from queue import Queue
+    from packages.core.adapters.codex import app_server_wrapper
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/fake", [])
+    emitted = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    monkeypatch.setattr(app_server_wrapper, "_write_stderr", lambda text: None)
+    monkeypatch.setattr(app, "_request", Mock(side_effect=OSError("transport failure")))
+    controls = Queue()
+    controls.put({"type": "steer", "requestId": "request", "text": "original"})
+    app._drain_controls({"turn_id": "turn", "done": False}, controls)
+    assert emitted[0]["ok"] is False and emitted[0]["outcome"] == "unknown"
+
+
+def test_idle_native_existing_delayed_restart_keeps_priority(monkeypatch):
+    async def run():
+        s, item = setup()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="idle",
+                          process=SimpleNamespace(returncode=None), pending_signal=asyncio.Queue())
+        w.pending_restart = True
+        worker.workers[w.worker_id] = w
+        restart = AsyncMock()
+        monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+        assert (await self_queue.consume(s.id, item["id"]))["status"] == "pending"
+        restart.assert_not_called()
+        assert w.pending_restart
+        assert not await worker._reserve_queue_unit(w, s, [item], item["text"])
+        assert item["deliveryState"] == "queued"
+    asyncio.run(run())
+
+
+def test_real_worker_stdout_preserves_structured_rejection(monkeypatch):
+    async def run():
+        s, _ = setup()
+        reader = asyncio.StreamReader()
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdout=reader))
+        worker.workers[w.worker_id] = w
+        receipt = asyncio.get_running_loop().create_future()
+        w._steer_receipts["request"] = receipt
+        event = {"type": "pan.steer_receipt", "requestId": "request", "ok": False,
+                 "outcome": "rejected", "error": "Steer outcome unknown: literal rejected detail"}
+        reader.feed_data(json.dumps(event).encode() + b"\n")
+        task = asyncio.create_task(worker._read_stdout(w))
+        try:
+            assert await asyncio.wait_for(asyncio.shield(receipt), 3) == event
+            assert worker._steer_receipt_result(receipt.result())[0] == "rejected"
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
     asyncio.run(run())

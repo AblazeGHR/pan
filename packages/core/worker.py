@@ -1993,8 +1993,7 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.steer_receipt":
             receipt = w._steer_receipts.get(event.get("requestId"))
             if receipt is not None and not receipt.done():
-                receipt.set_result(None if event.get("ok") is True else
-                                   str(event.get("error") or "Provider rejected Steer"))
+                receipt.set_result(event)
             continue
         if w._terminal_handled and not adapter.is_result_event(event):
             # `worker.result` closes this serialized provider turn. A provider
@@ -7721,13 +7720,16 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         while _process_alive(w) and time.monotonic() < deadline:
             done, _ = await asyncio.wait({future}, timeout=1)
             if done:
-                return future.result()
+                status, detail = _steer_receipt_result(future.result())
+                return ("Steer outcome unknown: " + str(detail) if status == "unknown" else detail)
         if on_late_receipt is not None:
             late_receipt = True
             def settle_late(done):
                 w._steer_receipts.pop(request_id, None)
                 if not done.cancelled():
-                    task = asyncio.create_task(on_late_receipt(done.result()))
+                    status, detail = _steer_receipt_result(done.result())
+                    error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
+                    task = asyncio.create_task(on_late_receipt(error))
                     task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
             future.add_done_callback(settle_late)
         return "Steer outcome unknown: provider receipt missing; do not resend"
@@ -7828,12 +7830,31 @@ async def _queue_steer_bcast(event: dict) -> None:
         _log.exception("Queue Steer broadcast failed; durable receipt remains authoritative")
 
 
-async def steer_queue_item(session_id: str, item_id: str, expected_revision: int):
+def _steer_receipt_result(value) -> tuple[str, str | None]:
+    """Keep structured provider rejection distinct from a bridge write failure."""
+    if value is None:  # Legacy in-process accepted receipt.
+        return "accepted", None
+    if isinstance(value, dict):
+        if value.get("ok") is True and value.get("outcome") in {None, "accepted"}:
+            return "accepted", None
+        detail = str(value.get("error") or "Provider did not accept Steer")
+        if value.get("ok") is False and value.get("outcome") == "rejected":
+            return "rejected", detail
+        return "unknown", detail
+    # Legacy untyped failures have no proof of rejection. Never parse prose.
+    return "unknown", str(value)
+
+
+async def steer_queue_item(session_id: str, item_id: str, expected_revision: int, *, outcome=None):
     """Use the original durable item; serialize controls with lifecycle and FIFO."""
     key = (session_id, item_id)
+    if outcome is None:
+        outcome = {}
+    outcome["status"] = "rejected"  # No write until the synchronous boundary.
     if key in _queue_steer_tasks:
+        outcome["status"] = "unknown"
         return "Queue Steer is already awaiting a provider receipt"
-    task = asyncio.create_task(_steer_queue_item(session_id, item_id, expected_revision))
+    task = asyncio.create_task(_steer_queue_item(session_id, item_id, expected_revision, outcome=outcome))
     _queue_steer_tasks[key] = task
     def finished(done):
         _queue_steer_tasks.pop(key, None)
@@ -7843,10 +7864,13 @@ async def steer_queue_item(session_id: str, item_id: str, expected_revision: int
     try:
         return await asyncio.wait_for(asyncio.shield(task), 10)
     except asyncio.TimeoutError:
+        outcome["status"] = "unknown"  # The server owner may still attempt delivery.
         return "Steer awaiting provider receipt; item retained and blocked against duplicate delivery"
 
 
-async def _steer_queue_item(session_id: str, item_id: str, expected_revision: int):
+async def _steer_queue_item(session_id: str, item_id: str, expected_revision: int, *, outcome=None):
+    if outcome is None:
+        outcome = {"status": "rejected"}
     lock = await _session_spawn_lock(session_id)
     async with lock:
         w = find_alive_worker_by_session(session_id)
@@ -7904,7 +7928,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 return f"Steer encoding failed before handoff: {exc}"
             # Apply, write and failed rollback inside the same writer ticket.
-            outcome = _sess.DurableOutcome()
+            durable = _sess.DurableOutcome()
             def apply_reservation():
                 original = dict(item)
                 old_revision = s.queue_revision
@@ -7921,9 +7945,9 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     s.queue_revision = old_revision
                     raise
             try:
-                await _sess._persist_async_outcome(s.id, apply_reservation, outcome)
+                await _sess._persist_async_outcome(s.id, apply_reservation, durable)
             except BaseException:
-                if not outcome.succeeded:
+                if not durable.succeeded:
                     raise
                 # Cancellation may follow a successful ticket. In either case
                 # no control has been written: durably release the reservation.
@@ -7957,28 +7981,32 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     if w._steer_receipts.get(request_id) is done:
                         w._steer_receipts.pop(request_id, None)
                     if not done.cancelled():
+                        disposition, detail = _steer_receipt_result(done.result())
                         _own_queue_steer_task(_settle_queue_steer(
-                            w, s, item, history_text, done.result(), request_id, generation))
+                            w, s, item, history_text, detail, request_id, generation,
+                            disposition=disposition))
                 future.add_done_callback(settle_receipt)
             # This synchronous write is the pause/lease linearization boundary.
             # Once attempted, even a write/drain error is conservatively unknown.
             write_error = None
+            outcome["status"] = "unknown"
             try:
                 process.stdin.write(wire)
             except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 write_error = str(exc)
             owner = _own_queue_steer_task(_finish_queue_steer(
                 w, s, item, history_text, request_id, generation, process,
-                future if wants_receipt else None, write_error))
+                future if wants_receipt else None, write_error, outcome=outcome))
     # No lifecycle or queue lock is held while drain/RPC/broadcast is awaited.
     return await asyncio.shield(owner)
 
 
-async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error):
+async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error, *, outcome=None):
     await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
                              "queueRevision": s.queue_revision})
     drain = asyncio.create_task(process.stdin.drain()) if write_error is None else None
     error = "Steer outcome unknown: control write/drain failed"
+    disposition = "unknown"
     deadline = asyncio.get_running_loop().time() + 30
     try:
         if drain is not None:
@@ -7987,11 +8015,16 @@ async def _finish_queue_steer(w, s, item, text, request_id, generation, process,
         if future is not None:
             if not future.done():
                 await asyncio.wait({future}, timeout=max(0, deadline-asyncio.get_running_loop().time()))
-            error = future.result() if future.done() and not future.cancelled() else (
-                "Steer outcome unknown: provider receipt missing; item retained, no automatic retry")
+            if future.done() and not future.cancelled():
+                disposition, error = _steer_receipt_result(future.result())
+            else:
+                error = "Steer outcome unknown: provider receipt missing; item retained, no automatic retry"
         elif drain is not None and drain.done() and not drain.cancelled() and drain.exception() is None:
+            disposition = "accepted"
             error = None
-        await _settle_queue_steer(w, s, item, text, error, request_id, generation)
+        await _settle_queue_steer(w, s, item, text, error, request_id, generation, disposition=disposition)
+        if outcome is not None:
+            outcome["status"] = disposition
         return error
     finally:
         if drain is not None:
@@ -8001,7 +8034,7 @@ async def _finish_queue_steer(w, s, item, text, request_id, generation, process,
 
 
 async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None,
-                            request_id: str, generation: int):
+                            request_id: str, generation: int, *, disposition: str = "unknown"):
     """Apply an authoritative receipt, including one arriving after HTTP timeout."""
     delivery = None
     async with queue_lock(s.id):
@@ -8010,7 +8043,7 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
                 or item.get("queueSteerWorkerId") != w.worker_id or item.get("queueSteerGeneration") != generation):
             return
         if error:
-            if not error.startswith("Steer outcome unknown"):
+            if disposition == "rejected":
                 item.pop("queueSteerPending", None)
                 item.pop("queueSteerRequestId", None)
                 item.pop("queueSteerWorkerId", None)

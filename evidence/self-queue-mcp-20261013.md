@@ -1,5 +1,8 @@
 # Own queue MCP implementation and verification
 
+MA-review follow-up supersedes the incident uncertainty and rejection/idle-route
+details below: see `self-queue-mcp-review-20261013.md` and its red/green evidence.
+
 Worktree: `D:/project/pan-worktrees/self-queue-mcp-20261013`
 Branch: `feature/self-queue-mcp-20261013`
 Baseline: `c981dbe533e96612dc7170cc8d968c8a8c9b8a73`

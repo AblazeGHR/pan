@@ -1,0 +1,131 @@
+{
+  "readOnly": true,
+  "pytestLock": {
+    "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2334\\.lock",
+    "pid": "36208"
+  },
+  "tempSessions": [
+    {
+      "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2334\\test_priority_intent_is_not_co0\\sessions\\ses-own.json",
+      "sha256": "6869456429a5cde8c1ba3d967cb9f23a1dc74a9febb187efac15769bdc87463d",
+      "mtimeLocal": "2026-10-13T12:02:57.567939",
+      "id": "ses-own",
+      "adapter": "codex",
+      "workdir": "",
+      "cli_session_id": null,
+      "last_legal_worker_state": "running",
+      "queueItems": [
+        {
+          "id": "original",
+          "state": "queued",
+          "reservedBy": null,
+          "generation": null
+        },
+        {
+          "id": "earlier",
+          "state": "queued",
+          "reservedBy": null,
+          "generation": null
+        }
+      ],
+      "historyBytes": 0
+    },
+    {
+      "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2334\\test_cancelled_request_keeps_s0\\sessions\\ses-own.json",
+      "sha256": "4fdcbb11c0aca1b0f5fdfb94ef1abfb668a9da15055f638023afdf5dc4a3bbad",
+      "mtimeLocal": "2026-10-13T12:02:57.842432",
+      "id": "ses-own",
+      "adapter": "codex",
+      "workdir": "",
+      "cli_session_id": null,
+      "last_legal_worker_state": "idle",
+      "queueItems": [
+        {
+          "id": "original",
+          "state": "reserved",
+          "reservedBy": "worker-1",
+          "generation": 1
+        }
+      ],
+      "historyBytes": 0
+    }
+  ],
+  "nativeLogPath": "C:\\Users\\14709\\.codex\\logs_2.sqlite",
+  "nativeProcesses": [
+    {
+      "processUuid": "pid:4476:a6e8dddb-adca-4953-9e05-5762e52ad67d",
+      "firstLocal": "2026-10-13T12:02:57",
+      "lastLocal": "2026-10-13T12:03:13",
+      "nativeLogRows": 61,
+      "panClientRows": 25,
+      "defaultHomeConfigRows": 1,
+      "requests": [
+        {
+          "logRowId": 13212061,
+          "ts": 1791864177,
+          "request": "app-server request: initialize connection_id=ConnectionId(0) request_id=Integer(1)"
+        },
+        {
+          "logRowId": 13212067,
+          "ts": 1791864177,
+          "request": "app-server request: thread/start connection_id=ConnectionId(0) request_id=Integer(2)"
+        }
+      ]
+    },
+    {
+      "processUuid": "pid:11368:8d55d49f-3db9-47ae-b0df-737cd54feb7d",
+      "firstLocal": "2026-10-13T12:02:58",
+      "lastLocal": "2026-10-13T12:03:13",
+      "nativeLogRows": 61,
+      "panClientRows": 25,
+      "defaultHomeConfigRows": 1,
+      "requests": [
+        {
+          "logRowId": 13212122,
+          "ts": 1791864178,
+          "request": "app-server request: initialize connection_id=ConnectionId(0) request_id=Integer(1)"
+        },
+        {
+          "logRowId": 13212126,
+          "ts": 1791864178,
+          "request": "app-server request: thread/start connection_id=ConnectionId(0) request_id=Integer(2)"
+        }
+      ]
+    }
+  ],
+  "nativeThreadsPresent": [],
+  "nativeRolloutFilesPresent": [],
+  "startupThreadIdsFromLogs": [
+    "01a1336d-84e8-7630-b396-ac23199f9575",
+    "01a1336d-8616-7413-a1a8-90aba7c1dd79"
+  ],
+  "reconstructedCurrentArgv_NotHistoricalCapture": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-u",
+    "D:\\project\\pan-worktrees\\self-queue-mcp-20261013\\packages\\core\\adapters\\codex\\wrapper.py",
+    "--app-server",
+    "--codex-path",
+    "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js",
+    "--node-path",
+    "D:\\software\\nodeJs\\node.EXE",
+    "--codex-extra-args",
+    "[\"-c\", \"model=\\\"gpt-6-luna\\\"\", \"--dangerously-bypass-approvals-and-sandbox\"]"
+  ],
+  "nativeConfigFileMetadata": [
+    {
+      "path": "C:\\Users\\14709\\.codex\\config.toml",
+      "mtimeLocal": "2026-10-13T11:44:34.896597"
+    },
+    {
+      "path": "C:\\Users\\14709\\.codex\\auth.json",
+      "mtimeLocal": "2026-10-13T11:44:34.877866"
+    }
+  ],
+  "boundaries": [
+    "Two native app-server PIDs and 122 native log rows are proved.",
+    "The timing and Pan client identify the two leaked unit-test spawns with high confidence; no historical parent PID/creation-filetime/argv capture survives.",
+    "No turn/start request, thread index row, or rollout file was found for these two startup thread IDs; this does not prove absence of every network call or native side effect.",
+    "Default native home was used, so native log writes DID occur. No native/user data was deleted or rewritten in this follow-up.",
+    "Windows Security process-audit log is inaccessible without elevation; Sysmon process audit was unavailable. No elevated access was requested."
+  ]
+}

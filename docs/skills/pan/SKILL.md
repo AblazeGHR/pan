@@ -45,6 +45,7 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 - `self_queue_consume(item_id)` 按读取所得的原 ID 提前消费，可打断当前任务。接口不接受 Session 参数；身份来自 Pan 为本地 stdio MCP 注入的可信调用者上下文，远程无绑定身份的调用不可用。
 - 带逐项锁、全体锁、Stop reports 实际自动锁、编辑租约，以及 Pause everything 阻止的项不可见、不可消费；不会返回隐藏项的正文、ID、数量、队列位置或整体 revision。Stop reports 只隐藏实际锁定的 Agent 报告，通道提醒和显式通知沿用原规则；UI 显式解锁后可恢复可见。消费会复检当前限制并遵守最终交接 gate。
 - 只有 `ok=true, status=consumed` 证明原消息已实际交给 CLI；这不是任务完成报告。`pending`、`unconfirmed` 不表示成功。调用可能因为打断当前任务而失去响应；再次使用**同一原 ID**只查已有意图或持久回执，不重新发送正文或伪造新消息。不确定交接不会自动重投；待确认项继续受阻，需由用户调查处置。
+- `status=rejected, retryable=true` 表示本次可证明未写入或被明确拒绝，保留原 item，允许显式按同一原 ID 重试；真正未知结果禁止自动重投。拒绝/未知由控制写入边界与结构化回执判断，不按错误文字猜测。空闲且具备原生消费能力的 Worker 复用正常队列交接，不额外重启。
 - 此接口只读和消费自己的队列，不提供编辑、删除或别的 Session 队列控制。原 source/taskId/channel/envelope/parts/message 身份由原 item 与既有交接回执保留。
 
 | 概念 | 说明 |

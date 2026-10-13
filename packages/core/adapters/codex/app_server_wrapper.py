@@ -455,7 +455,7 @@ class AppServer:
         if request_id is None:
             return False
         receipt = {"type": "pan.steer_receipt", "requestId": request_id,
-                   "ok": "error" not in message}
+                   "ok": "error" not in message, "outcome": "rejected" if "error" in message else "accepted"}
         if "error" in message:
             receipt["error"] = self._error_text(message["error"])
         _write_stdout(receipt)
@@ -1055,7 +1055,7 @@ class AppServer:
                 if state.get("done") or not state.get("turn_id"):
                     if request_id:
                         _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
-                                       "ok": False, "error": "No active Codex turn"})
+                                       "ok": False, "outcome": "rejected", "error": "No active Codex turn"})
                         continue
                     state["steer_pending"] = str(control["text"])
                     continue
@@ -1064,7 +1064,7 @@ class AppServer:
                         if len(self._steer_requests) >= 128:
                             if request_id:
                                 _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
-                                               "ok": False, "error": "Too many unconfirmed Steer requests"})
+                                               "ok": False, "outcome": "rejected", "error": "Too many unconfirmed Steer requests"})
                             continue
                         rpc_id = self._request("turn/steer", {
                             "threadId": self.thread_id,
@@ -1077,7 +1077,7 @@ class AppServer:
                     _write_stderr("[codex app-server bridge] failed to steer turn\n")
                     if request_id:
                         _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
-                                       "ok": False, "error": "Steer outcome unknown: Codex turn/steer request write failed"})
+                                       "ok": False, "outcome": "unknown", "error": "Steer outcome unknown: Codex turn/steer request write failed"})
             elif kind == "approval_response":
                 request_id = control.get("request_id", control.get("requestId"))
                 pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
@@ -1310,7 +1310,7 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             if (message.get("type") == "steer" and message.get("requestId")
                     and turn_active is not None and not turn_active.is_set()):
                 _write_stdout({"type": "pan.steer_receipt", "requestId": message["requestId"],
-                               "ok": False, "error": "No active Codex turn"})
+                               "ok": False, "outcome": "rejected", "error": "No active Codex turn"})
             else:
                 control_queue.put(message)
         elif message.get("text"):

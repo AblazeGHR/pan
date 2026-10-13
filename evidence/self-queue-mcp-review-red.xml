@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="1.270" timestamp="2026-10-13T12:16:52.230097+08:00" hostname="ablaze"><testcase classname="tests.test_self_queue" name="test_native_explicit_rejection_allows_original_id_retry_even_with_unknown_words" time="0.013"><failure message="AttributeError: 'dict' object has no attribute 'startswith'">def test_native_explicit_rejection_allows_original_id_retry_even_with_unknown_words():
+        async def run():
+            s, item = setup()
+            stdin = Mock()
+            w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                              process=SimpleNamespace(returncode=None, stdin=stdin))
+            worker.workers[w.worker_id] = w
+            async def drain():
+                wire = json.loads(stdin.write.call_args.args[0])
+                result = ({"ok": False, "outcome": "rejected", "error": "Steer outcome unknown: provider's literal rejection"}
+                          if stdin.write.call_count == 1 else {"ok": True, "outcome": "accepted"})
+                w._steer_receipts[wire["requestId"]].set_result(result)
+            stdin.drain = drain
+            rejected = await self_queue.consume(s.id, item["id"])
+            assert rejected == {"ok": False, "status": "rejected", "retryable": True}
+            disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+            assert disk["queue_pending"][0]["id"] == item["id"]
+            assert not disk["queue_pending"][0].get("queueSteerPending")
+            assert (await self_queue.consume(s.id, item["id"]))["status"] == "consumed"
+            assert stdin.write.call_count == 2
+            disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+            assert disk["queue_delivery_ledger"][item["id"]]["deliveryState"] == "sent_to_cli"
+&gt;       asyncio.run(run())
+
+tests\test_self_queue.py:470:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_self_queue.py:461: in run
+    rejected = await self_queue.consume(s.id, item["id"])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\self_queue.py:95: in consume
+    return await asyncio.wait_for(asyncio.shield(task), 10)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\core\self_queue.py:160: in _consume
+    error = await worker.steer_queue_item(session_id, item_id, revision)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:7844: in steer_queue_item
+    return await asyncio.wait_for(asyncio.shield(task), 10)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\core\worker.py:7974: in _steer_queue_item
+    return await asyncio.shield(owner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:7994: in _finish_queue_steer
+    await _settle_queue_steer(w, s, item, text, error, request_id, generation)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+w = Worker(worker_id='w', session_id='ses-own', adapter=&lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False)
+s = Session(id='ses-own', name='own', adapter='codex', model=None, permission_mode=None, pan_access={'restrict_to_managed'...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+item = {'id': 'original', 'queueItemId': 'original', 'type': 'task', 'source': 'agent', ...}
+history_text = 'complete text complete text complete text complete text complete text complete text complete text complete text compl... text complete text complete text complete text complete text complete text complete text complete text complete text '
+error = {'ok': False, 'outcome': 'rejected', 'error': "Steer outcome unknown: provider's literal rejection"}
+request_id = 'dba0e47d3e69417f8f038a702ea03494', generation = 0
+
+    async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None,
+                                request_id: str, generation: int):
+        """Apply an authoritative receipt, including one arriving after HTTP timeout."""
+        delivery = None
+        async with queue_lock(s.id):
+            if (not any(candidate is item for candidate in s.queue_pending)
+                    or not item.get("queueSteerPending") or item.get("queueSteerRequestId") != request_id
+                    or item.get("queueSteerWorkerId") != w.worker_id or item.get("queueSteerGeneration") != generation):
+                return
+            if error:
+&gt;               if not error.startswith("Steer outcome unknown"):
+                       ^^^^^^^^^^^^^^^^
+E               AttributeError: 'dict' object has no attribute 'startswith'
+
+packages\core\worker.py:8013: AttributeError</failure></testcase><testcase classname="tests.test_self_queue" name="test_native_structured_unknown_stays_blocked_without_magic_error_prefix" time="0.025"><failure message="AttributeError: 'dict' object has no attribute 'startswith'">def test_native_structured_unknown_stays_blocked_without_magic_error_prefix():
+        async def run():
+            s, item = setup()
+            stdin = Mock()
+            w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                              process=SimpleNamespace(returncode=None, stdin=stdin))
+            worker.workers[w.worker_id] = w
+            async def drain():
+                wire = json.loads(stdin.write.call_args.args[0])
+                w._steer_receipts[wire["requestId"]].set_result({"ok": False, "outcome": "unknown", "error": "socket gone"})
+            stdin.drain = drain
+            assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
+            disk = json.loads((sess.SESSION_DIR / f"{s.id}.json").read_text(encoding="utf-8"))
+            assert disk["queue_pending"][0]["queueSteerPending"]
+            assert await self_queue.consume(s.id, item["id"]) == await self_queue.consume(s.id, "guessed")
+            assert stdin.write.call_count == 1
+&gt;       asyncio.run(run())
+
+tests\test_self_queue.py:489:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_self_queue.py:484: in run
+    assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\self_queue.py:95: in consume
+    return await asyncio.wait_for(asyncio.shield(task), 10)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\core\self_queue.py:160: in _consume
+    error = await worker.steer_queue_item(session_id, item_id, revision)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:7844: in steer_queue_item
+    return await asyncio.wait_for(asyncio.shield(task), 10)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\core\worker.py:7974: in _steer_queue_item
+    return await asyncio.shield(owner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:7994: in _finish_queue_steer
+    await _settle_queue_steer(w, s, item, text, error, request_id, generation)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+w = Worker(worker_id='w', session_id='ses-own', adapter=&lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000...=None, _hist_save_task=None, generation=0, _interrupt_guard_task=None, _steer_receipts={}, _direct_steer_pending=False)
+s = Session(id='ses-own', name='own', adapter='codex', model=None, permission_mode=None, pan_access={'restrict_to_managed'...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+item = {'id': 'original', 'queueItemId': 'original', 'type': 'task', 'source': 'agent', ...}
+history_text = 'complete text complete text complete text complete text complete text complete text complete text complete text compl... text complete text complete text complete text complete text complete text complete text complete text complete text '
+error = {'ok': False, 'outcome': 'unknown', 'error': 'socket gone'}
+request_id = 'c89fbff373714618837558ce8b5d018d', generation = 0
+
+    async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None,
+                                request_id: str, generation: int):
+        """Apply an authoritative receipt, including one arriving after HTTP timeout."""
+        delivery = None
+        async with queue_lock(s.id):
+            if (not any(candidate is item for candidate in s.queue_pending)
+                    or not item.get("queueSteerPending") or item.get("queueSteerRequestId") != request_id
+                    or item.get("queueSteerWorkerId") != w.worker_id or item.get("queueSteerGeneration") != generation):
+                return
+            if error:
+&gt;               if not error.startswith("Steer outcome unknown"):
+                       ^^^^^^^^^^^^^^^^
+E               AttributeError: 'dict' object has no attribute 'startswith'
+
+packages\core\worker.py:8013: AttributeError</failure></testcase><testcase classname="tests.test_self_queue" name="test_native_prewrite_encoding_failure_is_retryable" time="0.004"><failure message="AssertionError: assert {'ok': False,...yable': False} == {'ok': False,...ryable': True}&#10;  &#10;  Omitting 1 identical items, use -vv to show&#10;  Differing items:&#10;  {'retryable': False} != {'retryable': True}&#10;  {'status': 'unconfirmed'} != {'status': 'rejected'}&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018D2C5430B0&gt;
+
+    def test_native_prewrite_encoding_failure_is_retryable(monkeypatch):
+        async def run():
+            s, item = setup()
+            stdin = Mock(drain=AsyncMock())
+            w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                              process=SimpleNamespace(returncode=None, stdin=stdin))
+            worker.workers[w.worker_id] = w
+            monkeypatch.setattr(w.adapter, "encode_control_message", Mock(side_effect=ValueError("bad encoding")))
+            assert await self_queue.consume(s.id, item["id"]) == {"ok": False, "status": "rejected", "retryable": True}
+            stdin.write.assert_not_called()
+            assert not item.get("queueSteerPending")
+&gt;       asyncio.run(run())
+
+tests\test_self_queue.py:503:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, item = setup()
+        stdin = Mock(drain=AsyncMock())
+        w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="running",
+                          process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        monkeypatch.setattr(w.adapter, "encode_control_message", Mock(side_effect=ValueError("bad encoding")))
+&gt;       assert await self_queue.consume(s.id, item["id"]) == {"ok": False, "status": "rejected", "retryable": True}
+E       AssertionError: assert {'ok': False,...yable': False} == {'ok': False,...ryable': True}
+E
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'retryable': False} != {'retryable': True}
+E         {'status': 'unconfirmed'} != {'status': 'rejected'}
+E         Use -v to get more diff
+
+tests\test_self_queue.py:500: AssertionError</failure></testcase><testcase classname="tests.test_self_queue" name="test_native_capable_idle_worker_uses_normal_handoff_without_restart" time="0.005"><failure message="AssertionError: Expected 'mock' to not have been called. Called 1 times.&#10;Calls: [call('ses-own', expected_worker_id='w', expected_generation=0)].">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018D2C69BBD0&gt;
+
+    def test_native_capable_idle_worker_uses_normal_handoff_without_restart(monkeypatch):
+        async def run():
+            s, item = setup()
+            w = worker.Worker(worker_id="w", session_id=s.id, adapter=CodexAdapter(), status="idle",
+                              process=SimpleNamespace(returncode=None), pending_signal=asyncio.Queue())
+            worker.workers[w.worker_id] = w
+            restart = AsyncMock(return_value=w)
+            monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+            assert (await self_queue.consume(s.id, item["id"]))["status"] == "pending"
+            restart.assert_not_called()
+            assert w.pending_signal.qsize() == 1
+            async def write(w, text, source, s, *, on_handoff):
+                await worker._queue_handoff(w, s, AsyncMock(), on_handoff)
+            monkeypatch.setattr(worker, "_consumer_stream", write)
+            await worker._deliver_queue_unit(w, s, worker._select_queue_unit(s))
+            assert (await self_queue.consume(s.id, item["id"]))["alreadyConsumed"]
+            assert w.generation == 0
+&gt;       asyncio.run(run())
+
+tests\test_self_queue.py:523:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_self_queue.py:515: in run
+    restart.assert_not_called()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;AsyncMock id='1705845947904'&gt;
+
+    def assert_not_called(self):
+        """assert that the mock was never called.
+        """
+        if self.call_count != 0:
+            msg = ("Expected '%s' to not have been called. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+&gt;           raise AssertionError(msg)
+E           AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E           Calls: [call('ses-own', expected_worker_id='w', expected_generation=0)].
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:947: AssertionError</failure></testcase></testsuite></testsuites>

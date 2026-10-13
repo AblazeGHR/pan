@@ -157,18 +157,32 @@ async def _consume(session_id: str, item_id: str) -> dict:
             except Exception:
                 return {"ok": False, "error": "persist_failed", "retryable": True}
     if native:
-        error = await worker.steer_queue_item(session_id, item_id, revision)
+        outcome = {}
+        try:
+            error = await worker.steer_queue_item(session_id, item_id, revision, outcome=outcome)
+        except Exception:
+            error = "Control failed"
         # Never forward provider errors (which can mention hidden queue state).
         if error is not None:
             async with worker.queue_lock(session_id):
                 if not _eligible(s, item):
                     return dict(UNAVAILABLE)
+            if outcome.get("status") == "rejected":
+                return {"ok": False, "status": "rejected", "retryable": True}
             return {"ok": False, "status": "unconfirmed", "retryable": False}
     else:
         # No queue lock across process exit, spawn lock acquisition or restart.
-        result = (await worker.restart_or_start_worker(
-            session_id, expected_worker_id=worker_id, expected_generation=generation)
-                  if worker_id is not None else await worker.create_worker(session_id))
+        if (w is not None and w.status in {"idle", "queued"}
+                and worker.resolve_execution_mode(w.adapter, s) == "stream"
+                and getattr(w.adapter, "supports_native_steer", False)):
+            # There is no active turn to interrupt. The existing consumer also
+            # owns delayed-restart priority; a wakeup does not cancel it.
+            await worker._wake_worker(session_id)
+            result = w
+        else:
+            result = (await worker.restart_or_start_worker(
+                session_id, expected_worker_id=worker_id, expected_generation=generation)
+                      if worker_id is not None else await worker.create_worker(session_id))
         if isinstance(result, str):
             return {"ok": False, "status": "unconfirmed", "retryable": False}
     async with worker.queue_lock(session_id):
