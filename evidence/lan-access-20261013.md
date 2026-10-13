@@ -34,6 +34,17 @@
 
 ## Reproduction
 
+### MA cancellation follow-up
+
+- Added event-gated `tests/test_lan_cancellation.py`. Red run against the original implementation reproduced the operation lock becoming unlocked after stop caller cancellation, before the old listener retired. Assertions and gates are retained in the green tests.
+- Stop now keeps its operation ownership across repeated real caller `task.cancel()` requests, waits for the listener task's terminal event, closes/clears resources, and only then propagates cancellation. A late listener failure is consumed and recorded without releasing ownership early or swallowing caller cancellation.
+- Shutdown marks closing before waiting for a control owner and owns a stop task until completion even when its caller is repeatedly cancelled while waiting for the lock. A listener becoming ready after closing begins is rolled back before publishing origins. The application lifespan uses this shutdown path.
+- Stopping listeners report no running status/URL, and idempotent start only accepts an actually started, non-stopping listener with active origins. No new polling or locks on HTTP/WS business handlers.
+- Cancellation-focused plus LAN suite: **25 passed**. Real dedicated HTTP/WS entry is exercised before stop, closes under gated retirement, and works again after the competing start; both normal and failing late retirement are covered. Late start/startup, repeated cancellation, shutdown while waiting for ownership, old socket/port release and final lock release are event-gated.
+- Final combined related backend regression (the original related batch plus cancellation gates): **247 passed**, one existing Pydantic forward-reference warning. Touched-module/test `compileall` and `git diff --check` passed. Frontend source is unchanged in this follow-up; earlier frontend evidence is retained without claiming a new run.
+- Verified `PAN_HOST` is read in `main.py`'s startup block only; original external binding via that startup setting was possible. Added this clarification to `docs/lan-access.md`; correction of older shared user documentation remains with the documentation TA.
+- Follow-up changes stay on the original branch and extend the original commit. No provider/user service, protected-port HTTP/WS request, push, branch promotion or production operation.
+
 ```powershell
 python scripts/run_tests_isolated.py -- D:\project\Pan-main\.venv\Scripts\python.exe -m pytest tests/test_lan_access.py -o addopts= -q -ra
 # Related batch: additionally pass test_terminal_api.py, test_terminal_ws.py,

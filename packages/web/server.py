@@ -289,8 +289,7 @@ async def lifespan(app: FastAPI):
                     try:
                         yield
                     finally:
-                        lan.closing = True
-                        await lan.operation("stop")
+                        await lan.shutdown()
                 finally:
                     result = await tailscale.operation(tailscale.shutdown)
                     if not result["ok"]:

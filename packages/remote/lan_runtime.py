@@ -105,31 +105,67 @@ class Controller:
         except Exception as exc:
             config = None
             self.error = str(exc)
-        running = self.task is not None and not self.task.done() and self.server.started
+        running = (self.task is not None and not self.task.done() and self.server.started
+                   and not self.server.should_exit and bool(self.origins))
         return {"config": config, "activeConfig": self.active_config, "running": running,
                 "addresses": addresses(), "urls": sorted(self.origins) if running else [],
                 "error": self.error, "localManagementOnly": True}
+
+    async def _settle(self, task):
+        """Keep ownership through repeated caller cancellation, then report it.
+
+        Await the actual task's terminal event; never cancel it or poll for it.
+        A terminal task's own exception/cancellation is propagated separately.
+        """
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+            except Exception:
+                break
+        try:
+            task.result()
+        except Exception as exc:
+            if cancelled:
+                self.error = str(exc)
+                raise asyncio.CancelledError from exc
+            raise
+        return cancelled
+
+    async def shutdown(self):
+        # Closing is visible before waiting for the operation owner. Its stop
+        # must survive cancellation even while still waiting to acquire lock.
+        self.closing = True
+        owner = asyncio.create_task(self.operation("stop"))
+        if await self._settle(owner):
+            raise asyncio.CancelledError
 
     async def stop(self):
         self.origins = frozenset()
         if self.server is not None:
             self.server.should_exit = True
+        cancelled = False
         try:
             if self.task is not None:
-                await asyncio.shield(self.task)
+                cancelled = await self._settle(self.task)
         finally:
             if self.task is None or self.task.done():
                 if self.socket is not None:
                     self.socket.close()
                 self.server = self.task = self.socket = None
                 self.active_config = None
+        if cancelled:
+            raise asyncio.CancelledError
 
     async def start(self):
         config = validate(self.config())
         if not config["host"]:
             raise ValueError("请先选择并保存本机监听地址")
         if self.task is not None and not self.task.done():
-            if self.active_config == config:
+            if (self.active_config == config and self.server.started
+                    and not self.server.should_exit and self.origins):
                 return
             raise ValueError("请先关闭当前 LAN 入口，再应用新配置")
         if self.socket is not None:
@@ -156,6 +192,8 @@ class Controller:
                     await self.task
                     raise RuntimeError("LAN listener exited before startup")
                 if server.started:
+                    if self.closing:
+                        raise ValueError("Pan is shutting down")
                     self.active_config, self.origins = dict(config), origins
                     self.task.add_done_callback(self._finished)
                     return
