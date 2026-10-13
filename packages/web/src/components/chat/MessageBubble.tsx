@@ -67,8 +67,7 @@ function marginTopClass(role: PrevRole, prevRole: PrevRole): string {
 interface MessageBubbleProps {
   message: Message;
   prevRole?: PrevRole;
-  /** Binding for the explicit task-report action; only the tail text block of
-   *  the latest task carries one (see `findManualReportTarget`). */
+  /** Binding for this completed task run's tail text block. */
   manualReportTarget?: ManualReportTarget | null;
 }
 
@@ -158,11 +157,13 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     );
   })() : null;
   const openRewind = useSessionStore((s) => s.openRewind);
-  const currentSession = useSessionStore((s) => s.sessions.find((session) => session.id === s.currentSessionId));
-  const sessionBusy = ['running', 'queued'].includes(currentSession?.workerStatus ?? '');
+  const sessionBusy = useSessionStore((s) => ['running', 'queued'].includes(
+    s.sessions.find((session) => session.id === s.currentSessionId)?.workerStatus ?? '',
+  ));
   // Rewind anchors are user-role only (worker report messages included, they
   // land in history as role=user). Busy sessions grey the button out.
-  const showRewind = currentSession?.adapter === 'cbc' && role === 'user' && !message.streaming;
+  const currentAdapter = useSessionStore((s) => s.sessions.find((session) => session.id === s.currentSessionId)?.adapter);
+  const showRewind = currentAdapter === 'cbc' && role === 'user' && !message.streaming;
   const actions = showRewind ? (
       <button type="button" onClick={() => openRewind(message)} disabled={sessionBusy}
         className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary disabled:opacity-50"
@@ -251,6 +252,15 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       )}
     </div>
   );
+}, (previous, next) => {
+  // A streaming sibling rebuilds the binding map. Equal authority fields do
+  // not require this settled row to rerender; changed bindings must still do so.
+  const a = previous.manualReportTarget;
+  const b = next.manualReportTarget;
+  const sameReport = a === b || (!!a && !!b
+    && a.sessionId === b.sessionId && a.taskId === b.taskId && a.taskSeq === b.taskSeq
+    && a.messageId === b.messageId && a.resultCursor === b.resultCursor && a.terminalKey === b.terminalKey);
+  return previous.message === next.message && previous.prevRole === next.prevRole && sameReport;
 });
 
 /**

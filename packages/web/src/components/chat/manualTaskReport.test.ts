@@ -7,6 +7,20 @@ import {
 
 const EPOCH = 'epoch-1';
 
+it('matches many task runs by their unique offset without scanning every terminal per task', () => {
+  let reads = 0;
+  const messages: Message[] = [];
+  const terminals: TerminalIdentity[] = [];
+  for (let index = 0; index < 300; index += 1) {
+    messages.push(assign(`task-${index}`, `u-${index}`), assistant(`a-${index}`));
+    terminals.push({ taskSeq: index, historyEpoch: EPOCH, historyRevision: messages.length,
+      get taskId() { reads += 1; return `task-${index}`; },
+    });
+  }
+  expect(findManualReportTargets(messages, session(terminals), proofFor(messages)).size).toBe(300);
+  expect(reads).toBeLessThan(300 * 8);
+});
+
 function assign(taskId: string, messageId: string, content = `do ${taskId}`): Message {
   return {
     role: 'user',

@@ -125,24 +125,39 @@ export const UNGROUPED_WORKSPACES = 'ungrouped';
  */
 export function workspaceMemberIds(sessions: Session[], workspaceId: string): Set<string> {
   const ids = new Set<string>();
+  const resolve = createWorkspaceResolver(sessions);
   for (const session of sessions) {
-    if (effectiveWorkspaceIds(session, sessions).includes(workspaceId)) ids.add(session.id);
+    if (resolve(session).includes(workspaceId)) ids.add(session.id);
   }
   return ids;
 }
 
 /** Resolve a session's workspace from its manager chain; corrupt chains fail closed. */
 export function effectiveWorkspaceIds(session: Session, sessions: Session[]): string[] {
+  return createWorkspaceResolver(sessions)(session);
+}
+
+/** One index and path cache per derivation; never retained across store snapshots. */
+export function createWorkspaceResolver(sessions: Session[]): (session: Session) => string[] {
   const byId = new Map(sessions.map((item) => [item.id, item]));
-  const seen = new Set<string>();
-  let current: Session | undefined = session;
-  while (current) {
-    if (seen.has(current.id)) return [];
-    seen.add(current.id);
-    if (!current.managedBy) return (current.workspaceIds ?? []).slice(0, 1);
-    current = byId.get(current.managedBy);
-  }
-  return [];
+  const cache = new Map<Session, string[]>();
+  return (session) => {
+    const path: Session[] = [];
+    const seen = new Set<string>();
+    let current: Session | undefined = session;
+    let result: string[] = [];
+    while (current) {
+      const known = cache.get(current);
+      if (known) { result = known; break; }
+      if (seen.has(current.id)) break;
+      seen.add(current.id);
+      path.push(current);
+      if (!current.managedBy) { result = (current.workspaceIds ?? []).slice(0, 1); break; }
+      current = byId.get(current.managedBy);
+    }
+    path.forEach(item => cache.set(item, result));
+    return result;
+  };
 }
 
 /**
@@ -160,10 +175,11 @@ export function scopeSessionsByWorkspace(
   activeWorkspaceId?: string | null,
 ): Session[] {
   if (!activeWorkspaceId || activeWorkspaceId === ALL_WORKSPACES) return sessions;
+  const resolve = createWorkspaceResolver(sessions);
   if (activeWorkspaceId === UNGROUPED_WORKSPACES) {
-    return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).length === 0);
+    return sessions.filter((session) => resolve(session).length === 0);
   }
-  return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).includes(activeWorkspaceId));
+  return sessions.filter((session) => resolve(session).includes(activeWorkspaceId));
 }
 
 /**
