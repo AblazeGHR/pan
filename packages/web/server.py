@@ -2949,8 +2949,8 @@ def _build_session_params(
             raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
     if "nativeControl" in data:
-        if type(data["nativeControl"]) is not bool or adapter_name != "codex":
-            raise ValueError("nativeControl requires a Codex Session and a boolean")
+        if type(data["nativeControl"]) is not bool or adapter_name not in {"codex", "cbc"}:
+            raise ValueError("nativeControl requires a Codex or CBC Session and a boolean")
         if data["nativeControl"]:
             params["adapter_config"]["native_control"] = True
     # These are deliberately added only when explicitly supplied.  In

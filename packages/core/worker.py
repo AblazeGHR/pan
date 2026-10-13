@@ -1943,6 +1943,10 @@ async def _read_stdout(w: Worker):
             if len(w.native_output) > 4 * 1024 * 1024:
                 del w.native_output[:len(w.native_output) - 4 * 1024 * 1024]
             continue
+        if (event.get("type") == "pan.native_ready"
+                and adapter.name == "cbc" and w.native_control_enabled):
+            w.native_kernel_ready = True
+            continue
         if event.get("type") == "pan.native_error":
             w.native_control_error = "Native terminal operation failed"
             continue
@@ -6364,7 +6368,7 @@ async def _apply_pending_native_configuration(s) -> None:
     mutate the running adapter's transport configuration mid-turn.
     """
     desired = s.adapter_config.get("native_control_next")
-    if s.adapter != "codex" or type(desired) is not bool:
+    if s.adapter not in {"codex", "cbc"} or type(desired) is not bool:
         return
     before = dict(s.adapter_config)
     if desired:
@@ -6414,6 +6418,9 @@ async def _create_worker(session_id: str) -> Worker | str:
     await _apply_pending_native_configuration(s)
     try:
         adapter = get_adapter(s.adapter)
+        if s.adapter == "cbc" and s.adapter_config.get("native_control") is True:
+            from .adapters.cbc.native_adapter import CbcNativeAdapter
+            adapter = CbcNativeAdapter()
     except KeyError:
         # A legacy/corrupt session may outlive the adapter that created it.
         # Surface an actionable worker error instead of allowing a raw
@@ -6450,7 +6457,7 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               native_control_enabled=s.adapter == "codex" and s.adapter_config.get("native_control") is True,
+               native_control_enabled=s.adapter in {"codex", "cbc"} and s.adapter_config.get("native_control") is True,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
@@ -7458,7 +7465,7 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
     kernel's authoritative generation. Never guess ownership after timeout.
     """
     w = workers.get(worker_id)
-    if w is None or w.adapter.name != "codex" or mode not in {"pan", "native"}:
+    if w is None or w.adapter.name not in {"codex", "cbc"} or mode not in {"pan", "native"}:
         return {"ok": False, "error": "Unsupported native control"}
     s = _session(w)
     if s is None or s.adapter_config.get("native_control") is not True:
@@ -7507,15 +7514,20 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     """Private native input/resize seam; receipt is emitted after the PTY write."""
     w = workers.get(worker_id)
     policy = control.get("type") == "native_passthrough"
-    if (w is None or w.adapter.name != "codex" or
+    cbc_interrupt = bool(w and w.adapter.name == "cbc" and w.native_control_enabled
+                         and control.get("type") == "interrupt")
+    if (w is None or w.adapter.name not in {"codex", "cbc"} or
             (policy and (not w.native_control_enabled or not w.native_kernel_ready)) or
-            (not policy and w.native_control_mode != "native")):
+            (cbc_interrupt and w.native_control_mode != "pan") or
+            (not policy and not cbc_interrupt and w.native_control_mode != "native")):
         return {"ok": False, "error": "Native control is not active"}
     if policy and (set(control) != {"type", "enabled"} or type(control.get("enabled")) is not bool):
         return {"ok": False, "error": "Invalid native policy"}
+    if policy and w.adapter.name != "codex":
+        return {"ok": False, "error": "Unsupported native policy"}
     if not policy and (type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation):
         return {"ok": False, "error": "Stale control generation"}
-    if control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
+    if not cbc_interrupt and control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
         return {"ok": False, "error": "Unsupported native operation"}
     if len(w._native_mode_receipts) >= 32:
         return {"ok": False, "error": "Native input busy"}
@@ -7526,7 +7538,8 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     async def send():
         async with queue_lock(w.session_id):
             if (w.generation != runtime_generation or w.status == "restarting"
-                    or (not policy and w.native_control_mode != "native") or w.process is None
+                    or (cbc_interrupt and w.native_control_mode != "pan")
+                    or (not policy and not cbc_interrupt and w.native_control_mode != "native") or w.process is None
                     or w.process.returncode is not None or w.process.stdin is None):
                 raise RuntimeError("Native worker is unavailable")
             w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")
@@ -8080,6 +8093,12 @@ async def _interrupt_worker_unlocked(worker_id: str) -> str | None:
         return "Worker not found"
     if w.status != "running":
         return "Worker is not running"
+    if w.adapter.name == "cbc" and w.native_control_enabled:
+        receipt = await write_native_control(worker_id, {
+            "type": "interrupt", "generation": w.native_control_generation})
+        # Cancellation uncertainty must not secretly become kill/resume of
+        # the resident CBC kernel. FinalStop will establish its actual result.
+        return None if receipt.get("ok") is True else "CBC interruption was not confirmed"
     # Codex app-server can interrupt the active turn while preserving the
     # long-lived native thread and app-server process.  Fall back to the
     # established kill+resume path for adapters without this optional

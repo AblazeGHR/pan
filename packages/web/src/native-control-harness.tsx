@@ -10,7 +10,7 @@ import './index.css';
 // Browser-only fixture. All API traffic is intercepted by the acceptance script;
 // this does not connect to a running Pan instance or a provider.
 useSessionStore.setState({ currentSessionId: 'native-browser', sessions: [{
-  id: 'native-browser', name: 'Native control browser fixture', adapter: 'codex',
+  id: 'native-browser', name: 'Native control browser fixture', adapter: new URLSearchParams(window.location.search).get('adapter') === 'cbc' ? 'cbc' : 'codex',
   workerId: 'same-worker', workerStatus: 'idle',
   nativeControl: new URLSearchParams(window.location.search).get('standard') !== '1', alwaysThinkingEnabled: false, effort: '', history: [],
 }], currentMessages: [] });

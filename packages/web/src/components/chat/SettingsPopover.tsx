@@ -339,7 +339,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // execution mode (e.g. cbc: ["stream","oneshot"]). Single-mode adapters
   // (kimi/opencode: ["stream"]) never render it — they cannot switch.
   const execModes = config.executionModes || ['stream'];
-  const showOutputMode = execModes.length > 1;
+  const showOutputMode = execModes.length > 1 && !(s.adapter === 'cbc' && s.nativeControl);
   const currentOutputMode =
     s.outputMode ?? (execModes.includes('stream') ? 'stream' : execModes[0]);
   const showCodexContext =
@@ -349,7 +349,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // The mobile top bar no longer hosts the Terminal TUI / Upgrades entry; the
   // same contract (upgrade confirm, pending idle, enter TUI, error retry) is
   // reachable here inside the More disclosure. Desktop keeps its top-bar entry.
-  const mobileTerminalEntry = isMobile && s.adapter === 'codex';
+  const mobileTerminalEntry = isMobile && (s.adapter === 'codex' || s.adapter === 'cbc');
   const hasCodexOverrides = s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
@@ -593,7 +593,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
 
       <div className="border-t border-border-muted" />
 
-      {session.adapter === 'codex' && session.nativeControl && (
+      {(session.adapter === 'codex' || session.adapter === 'cbc') && session.nativeControl && (
         <div>
           <h4 className="text-xs font-semibold text-text-secondary mb-2">Session control mode</h4>
           <Button variant="secondary" size="sm" disabled={converting || typeof nativeState?.pendingEnabled === 'boolean'}
