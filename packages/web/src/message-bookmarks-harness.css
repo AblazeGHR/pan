@@ -1,0 +1,306 @@
+/* Message bookmarks phase-1 mock harness — harness-scoped styles only.
+ *
+ * Everything visual that exists in production today (chat rows, role bars,
+   source pills, navigation rail markers, theme tokens) comes from the real
+   index.css.  The rules below cover only what phase 2 would add: the
+   clickable left-rail hit target, the bookmark tag chip, the bookmark
+   marker variant and the small anchor menu.  They are NOT production
+   styles and are deliberately kept out of index.css.
+ */
+
+.bookmark-harness {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary, #0f1115);
+  color: var(--color-text-primary, #e6e6e6);
+  font-family: inherit;
+}
+
+.bookmark-harness-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border-default, #2a2e35);
+  font-size: 12px;
+}
+
+.bookmark-harness-header h1 {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.bookmark-harness-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bookmark-harness-group > span {
+  color: var(--color-text-tertiary, #9aa0a8);
+}
+
+.bookmark-harness-btn {
+  border: 1px solid var(--color-border-default, #2a2e35);
+  background: var(--color-bg-tertiary, #1b1e24);
+  color: var(--color-text-primary, #e6e6e6);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bookmark-harness-btn:hover {
+  background: var(--color-bg-hover, #23272e);
+}
+
+.bookmark-harness-btn.is-active {
+  border-color: var(--color-accent, #4f8cc9);
+  color: var(--color-accent, #4f8cc9);
+}
+
+.bookmark-stage {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.bookmark-stage[data-layout='mobile'] .bookmark-chat {
+  max-width: 100%;
+}
+
+.bookmark-chat {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  max-width: 860px;
+}
+
+.bookmark-rail-column {
+  width: 300px;
+  flex: 0 0 300px;
+  border-left: 1px solid var(--color-border-default, #2a2e35);
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 11px;
+}
+
+/* Sections must not be flex-shrunk: a shrunk section overflows its own box
+   and the next section paints on top of it.  The column scrolls instead. */
+.bookmark-rail-column > section {
+  flex: 0 0 auto;
+}
+
+/* The mock navigation rail mirrors the production rail's DOM/classes so the
+   decoration is demonstrated on the real structure.  A bounded height keeps
+   the demo deterministic: the production rail sits in a full-height dock,
+   while here it must not resolve height:100% against an auto-height panel. */
+.bookmark-rail-panel .message-navigation-rail {
+  position: static;
+  width: 52px;
+  flex: 0 0 auto;
+  height: 320px;
+  border: 1px solid var(--color-border-default, #2a2e35);
+  border-radius: 8px;
+}
+
+.bookmark-rail-panel h2,
+.bookmark-readout h2,
+.bookmark-notes h2 {
+  font-size: 11px;
+  font-weight: 650;
+  margin: 0 0 6px;
+  color: var(--color-text-secondary, #b6bcc4);
+}
+
+.bookmark-rail-labels {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bookmark-rail-labels li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary, #b6bcc4);
+}
+
+.bookmark-rail-labels li[data-bookmarked='true'] {
+  color: var(--color-accent, #4f8cc9);
+}
+
+.bookmark-rail-labels .bookmark-rail-note {
+  color: var(--color-text-tertiary, #9aa0a8);
+  font-size: 10px;
+}
+
+/* Bookmarked marker: bookmark icon replaces the kind glyph; the kind slug
+   (color/position/preview) is preserved.  Scoped away from
+   is-viewport-target so the shared active-tag highlight keeps its inverted
+   color when this mock marker is clicked. */
+.message-navigation-marker.is-bookmarked:not(.is-viewport-target) {
+  color: var(--color-accent, #4f8cc9);
+}
+
+/* A block's leftmost vertical line.  In production this is a CSS border with
+   no hit target of its own; the mock turns it into a clickable strip, which
+   is the interaction phase 2 must add. */
+.bookmark-row {
+  position: relative;
+}
+
+.bookmark-rail-strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.bookmark-rail-strip:hover,
+.bookmark-rail-strip[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--color-accent, #4f8cc9) 22%, transparent);
+}
+
+.bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip {
+  background: color-mix(in srgb, var(--color-accent, #4f8cc9) 45%, transparent);
+}
+
+/* Bookmarked body blocks keep the role bar and gain an inset accent echo of
+   the existing search-target pattern. */
+.bookmark-row[data-bookmark-state='on'] .msg.assistant,
+.bookmark-row[data-bookmark-state='on'] .msg.user,
+.bookmark-row[data-bookmark-state='on'] .thinking,
+.bookmark-row[data-bookmark-state='on'] .tool-group {
+  box-shadow: inset 3px 0 0 var(--color-accent, #4f8cc9);
+}
+
+/* New bookmark tag for blocks that have no navigation tag. */
+.bookmark-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: 0 0 3px 2px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-accent, #4f8cc9) 48%, var(--color-border-default, #2a2e35));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent, #4f8cc9) 13%, var(--color-bg-secondary, #15181d));
+  color: var(--color-accent, #4f8cc9);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+/* Small anchor menu, styled after SessionMenu. */
+.bookmark-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 150px;
+  background: var(--color-bg-tertiary, #1b1e24);
+  border: 1px solid var(--color-border-default, #2a2e35);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  padding: 4px 0;
+}
+
+.bookmark-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--color-text-primary, #e6e6e6);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.bookmark-menu button:hover {
+  background: color-mix(in srgb, var(--color-accent, #4f8cc9) 20%, transparent);
+}
+
+.bookmark-readout ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--color-text-tertiary, #9aa0a8);
+  word-break: break-all;
+}
+
+.bookmark-notes {
+  line-height: 1.55;
+  color: var(--color-text-secondary, #b6bcc4);
+}
+
+.bookmark-notes ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.bookmark-notes code {
+  font-size: 10px;
+  color: var(--color-text-primary, #e6e6e6);
+}
+
+/* Mobile: the rail collapses behind a toggle, mirroring the dock pattern. */
+.bookmark-mobile-toggle {
+  display: none;
+}
+
+.bookmark-stage[data-layout='mobile'] .bookmark-mobile-toggle {
+  display: inline-flex;
+  position: fixed;
+  right: 8px;
+  bottom: 96px;
+  z-index: 40;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--color-border-default, #2a2e35);
+  background: var(--color-bg-tertiary, #1b1e24);
+  color: var(--color-text-primary, #e6e6e6);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.bookmark-stage[data-layout='mobile'] .bookmark-rail-column {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 86vw);
+  flex-basis: auto;
+  z-index: 50;
+  background: var(--color-bg-primary, #0f1115);
+  transform: translateX(100%);
+  transition: transform 160ms ease;
+}
+
+.bookmark-stage[data-layout='mobile'] .bookmark-rail-column.is-open {
+  transform: translateX(0);
+}
