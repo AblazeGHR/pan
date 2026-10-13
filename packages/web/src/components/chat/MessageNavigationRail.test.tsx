@@ -712,3 +712,72 @@ describe('open nearest canonical regression', () => {
     expect(markers(view.container).length).toBeLessThan(100);
   });
 });
+
+describe('clicked navigation tag reuses the nearest-tag highlight', () => {
+  const seedRows = (total: number, start: number, count: number, id = 'click-highlight') => {
+    const rows = Array.from({ length: count }, (_, i): Message => ({ role: (start + i) % 10 === 0 ? 'user' : 'assistant', content: `row ${start + i}`, messageId: `canonical-${start + i}` }));
+    rows.forEach((m, i) => messageOrdering.markDurableRow(m, start + i));
+    useSessionStore.setState({ currentSessionId: id, sessions: [{ id, historyTotal: total } as never], currentMessages: rows, sessionTranscripts: {} });
+    return rows;
+  };
+  const selected = (container: HTMLElement) => container.querySelector<HTMLElement>('.is-viewport-target')?.dataset.canonicalOffset;
+  const markerAt = (container: HTMLElement, offset: number) =>
+    container.querySelector<HTMLButtonElement>(`.message-navigation-marker[data-canonical-offset="${offset}"]`);
+
+  it('marks the clicked tag with the nearest-tag style until real input releases it', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(performance.now()); return 1; });
+    seedRows(1000, 400, 200);
+    const scrollToMessage = vi.fn(() => true);
+    const ensureMessageLoaded = vi.fn().mockImplementation(async (fromEnd: number) => {
+      const offset = 999 - fromEnd;
+      return { role: (offset % 10 === 0 ? 'user' : 'assistant'), content: `row ${offset}`, messageId: `canonical-${offset}` } as Message;
+    });
+    useSessionStore.setState({ ensureMessageLoaded });
+    const ref = { current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }), scrollToMessage } } as never;
+    const view = render(<MessageNavigationRail chatRef={ref} expanded />);
+    await act(async () => { await Promise.resolve(); });
+    expect(selected(view.container)).toBe('500');
+
+    const clicked = markerAt(view.container, 510)!;
+    await act(async () => { fireEvent.click(clicked); await Promise.resolve(); await Promise.resolve(); });
+    expect(scrollToMessage).toHaveBeenCalledWith(expect.objectContaining({ messageId: 'canonical-510' }), 510);
+    // The clicked tag takes the active highlight (same state/CSS as the
+    // located nearest); the previous nearest no longer carries it.
+    expect(selected(view.container)).toBe('510');
+    expect(markerAt(view.container, 510)?.getAttribute('aria-current')).toBe('location');
+
+    // Real user input releases the jump highlight; the existing
+    // locate-on-expansion rule moves it again instead of staying locked.
+    fireEvent.wheel(window);
+    expect(selected(view.container)).toBeUndefined();
+    view.rerender(<MessageNavigationRail chatRef={ref} expanded={false} />);
+    view.rerender(<MessageNavigationRail chatRef={ref} expanded />);
+    await act(async () => { await Promise.resolve(); });
+    expect(selected(view.container)).toBe('500');
+  });
+
+  it('keeps the located nearest highlight through scroll, and clears a jump highlight on session switch', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(performance.now()); return 1; });
+    seedRows(1000, 400, 200);
+    const ensureMessageLoaded = vi.fn().mockImplementation(async (fromEnd: number) => {
+      const offset = 999 - fromEnd;
+      return { role: (offset % 10 === 0 ? 'user' : 'assistant'), content: `row ${offset}`, messageId: `canonical-${offset}` } as Message;
+    });
+    useSessionStore.setState({ ensureMessageLoaded });
+    const ref = { current: { getViewportHistoryRange: () => ({ start: 499, end: 501 }), scrollToMessage: () => true } } as never;
+    const view = render(<MessageNavigationRail chatRef={ref} expanded />);
+    await act(async () => { await Promise.resolve(); });
+    expect(selected(view.container)).toBe('500');
+    // Existing semantics preserved: a located nearest is not scroll-released.
+    fireEvent.wheel(window);
+    expect(selected(view.container)).toBe('500');
+
+    // A completed jump highlight never survives a session switch.
+    const clicked = markerAt(view.container, 510)!;
+    await act(async () => { fireEvent.click(clicked); await Promise.resolve(); await Promise.resolve(); });
+    expect(selected(view.container)).toBe('510');
+    act(() => { seedRows(1000, 400, 200, 'click-highlight-other'); });
+    await act(async () => { await Promise.resolve(); });
+    expect(selected(view.container)).toBe('500');
+  });
+});

@@ -142,6 +142,12 @@ export function MessageNavigationRail({
   const pendingOpenRef = useRef<{ epoch: number; context: typeof context; range: NavigationRange | null } | null>(null);
   const observerCleanupRef = useRef<(() => void) | null>(null);
   const [viewportTarget, setViewportTarget] = useState<{ context: typeof context; epoch: number; offset: number } | null>(null);
+  // True while viewportTarget was set by a completed jump rather than by the
+  // nearest-tag location.  Both reuse the same marker state and CSS; the
+  // origin only decides whether real user input releases the highlight
+  // (jump: "you just jumped here") or leaves it to the location rules
+  // (nearest: the existing one-shot-per-expansion tracking).
+  const viewportFromJumpRef = useRef(false);
   const [retryEpoch, setRetryEpoch] = useState(0);
   const [listScroll, setListScroll] = useState(0);
   const rowHeight = isMobile ? 45 : 27;
@@ -201,7 +207,7 @@ export function MessageNavigationRail({
       if(pendingOpenRef.current!==pending||!pending.range||!current()||!context.index.proven(pending.range))return;
       const best=nearestNavigationTarget(context.index.targets(),pending.range);
       pendingOpenRef.current=null;pendingWantedRef.current=false;
-      if(best)setViewportTarget({context,epoch,offset:best.offset});
+      if(best){viewportFromJumpRef.current=false;setViewportTarget({context,epoch,offset:best.offset});}
     };
     const acceptRange=(range:NavigationRange)=>{
       if(!current()||pendingOpenRef.current!==pending||pending.range!==null)return;
@@ -219,6 +225,10 @@ export function MessageNavigationRail({
       }else rows.push(...canonicalRowsWithOffsets(state.currentMessages).filter(row=>Math.abs(row.offset-center)<=1000));
       context.index.addRows(rows);publish();locate();
     };
+    // A fresh open re-locates from the current viewport; a previous highlight
+    // (including one a completed jump set) is superseded there.  An append
+    // continuation (retrying) keeps it.
+    if(!retrying)viewportFromJumpRef.current=false;
     setViewportTarget(value=>retrying&&value?.context===context?value:null);
     const range=retrying?locationRef.current!.range:chatRef.current?.getViewportHistoryRange?.();
     if(range)acceptRange(range);
@@ -285,6 +295,14 @@ export function MessageNavigationRail({
       // Reading cancels only the one-shot location. Complete indexing continues
       // and preserves the user's list anchor, with no scroll-driven requests.
       pendingWantedRef.current=false;cancelOpenLocation();
+      // A highlight a completed jump set stays active only until the reader
+      // takes over: real input releases it, and the next expansion locates
+      // the nearest again.  A nearest-located highlight keeps the existing
+      // semantics and is left untouched here.
+      if(viewportFromJumpRef.current){
+        viewportFromJumpRef.current=false;
+        setViewportTarget(value=>value&&value.context===context&&value.epoch===openEpochRef.current?null:value);
+      }
     };
     for(const type of ['pointerdown','wheel','keydown','touchmove'])window.addEventListener(type,input,true);
     return()=>{
@@ -338,6 +356,13 @@ export function MessageNavigationRail({
       }
       if (!didJump) { setJumpError('Message loaded, but its rendered row could not be located.'); return; }
       setActiveOffset(target.offset);
+      // The clicked tag becomes the active tag, reusing the exact nearest-tag
+      // highlight state and CSS (inverted color + enlarged) instead of a
+      // second style.  The rail's list-centering effect treats it like any
+      // located target.  Real user input releases it and the next expansion
+      // re-locates, so the clicked marker is never locked in place.
+      viewportFromJumpRef.current = true;
+      setViewportTarget({ context: contextAtClick, epoch: openEpochRef.current, offset: target.offset });
       const epochAtJump = openEpochRef.current;
       window.setTimeout(() => { if (current() && epochAtJump === openEpochRef.current) setActiveOffset(null); }, 1200);
     } finally { if (current()) setJumpingOffset(null); }
