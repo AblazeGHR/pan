@@ -576,6 +576,9 @@ def test_worker_uncertainty_survives_result_and_blocks_reserved_handoff(monkeypa
             handoff.assert_not_awaited()
             assert s.queue_pending == [queued]
             worker.clear_native_runtime_state(w)
+            assert w.native_input_uncertain
+            process.returncode = 0
+            worker.clear_native_runtime_state(w)
             assert not w.native_input_uncertain
         finally:
             reader.cancel()
@@ -688,3 +691,44 @@ def test_watchdog_cannot_retire_or_auto_recover_uncertain_input(monkeypatch, sta
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(worker._watchdog(w))
     kill.assert_not_awaited()
+
+
+@pytest.mark.parametrize("operation", ["restart", "respawn", "takeover"])
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_input_gate_clears_only_after_confirmed_retirement(monkeypatch, operation, confirmed):
+    from packages.core import worker, session
+    from packages.core.adapters.cbc.native_adapter import CbcNativeAdapter
+    s = session.Session(id="ses-cbc-retirement", name="retirement", adapter="cbc")
+    s.adapter_config["native_control"] = True
+    old = SimpleNamespace(returncode=None)
+    w = worker.Worker("cbc-retirement", s.id, CbcNativeAdapter(), process=old,
+        native_control_enabled=True, native_control_mode="native", native_input_uncertain=True)
+    monkeypatch.setattr(worker, "workers", {w.worker_id: w})
+    monkeypatch.setattr(worker, "_session", lambda _: s)
+    for name in ("_stop_worker_tasks", "_kill_takeover_terminal", "_record_legal_worker_state",
+                 "_restart_tasks", "_bcast"):
+        monkeypatch.setattr(worker, name, AsyncMock())
+    monkeypatch.setattr(worker, "resolve_execution_mode", lambda *args: "stream")
+    admission = []
+    async def kill(value):
+        admission.append(value.native_input_uncertain)
+        if confirmed:
+            old.returncode = 0
+    monkeypatch.setattr(worker, "_kill_process_tree", kill)
+    async def spawn(*args, **kwargs):
+        assert not w.native_input_uncertain and old.returncode == 0
+        return SimpleNamespace(returncode=None)
+    create = AsyncMock(side_effect=spawn)
+    monkeypatch.setattr(worker, "_spawn_process", create)
+    action = {"restart": worker._restart_worker_unlocked,
+              "respawn": worker._respawn_worker_unlocked,
+              "takeover": worker._takeover_worker_unlocked}[operation]
+    result = asyncio.run(action(w.worker_id))
+    assert admission == [True], "snapshot reset must not release unretired input"
+    if confirmed:
+        assert result is None and not w.native_input_uncertain
+        assert create.await_count == (0 if operation == "takeover" else 1)
+    else:
+        assert "not confirmed" in result
+        assert w.native_input_uncertain and w.process is old and w.status == "error"
+        create.assert_not_awaited()

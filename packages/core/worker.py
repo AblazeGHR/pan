@@ -1669,7 +1669,8 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_kernel_ready = False
     w.native_passthrough_enabled = None
     w._native_external_turn_active = False
-    w.native_input_uncertain = False
+    if _runtime_stopped(w):
+        w.native_input_uncertain = False
     w.native_output.clear()
     w.native_output_total = 0
 
@@ -6578,6 +6579,16 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     return True
 
 
+def _confirm_native_input_retirement(w: Worker) -> bool:
+    if not w.native_input_uncertain:
+        return True
+    if not _runtime_stopped(w):
+        w.status = "error"
+        return False
+    w.native_input_uncertain = False
+    return True
+
+
 async def _cancel_worker_task(task: asyncio.Task | None) -> None:
     """Cancel a worker task and wait until its finally blocks have run.
 
@@ -6682,6 +6693,8 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     clear_native_runtime_state(w)
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "held", "pan/takeover")
     w.process = None
@@ -7171,6 +7184,8 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
     # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/restart-stop")
     w.process = None
@@ -7264,6 +7279,8 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/respawn-stop")
     w.process = None
