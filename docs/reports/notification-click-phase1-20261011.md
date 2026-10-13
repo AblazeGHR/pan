@@ -1,5 +1,7 @@
 # 通知点击 → Session 深链：阶段一正式实现与验证
 
+> 历史调查/阶段记录，描述当时的基线与验证范围，不是当前操作指南。当前已合入版本的通知选项与 60 秒点击窗口限制见[用户手册](../USER_MANUAL.md#integrations)；真实 Windows OS 点击仍未验证。
+
 > 研究分支 `research/notification-click-session-20261011`，本阶段提交在 `ca81ed58` 之上追加（保留历史）。
 > 基线 main = practical = `b80b272c`，未移动；未合并、未推送、未部署、未重启服务、未改用户配置、未弹真实系统通知。
 > 可行性调查见 `docs/reports/notification-click-session-20261011.md`；实验日志与原始证据在 `audit/notification-click/`。

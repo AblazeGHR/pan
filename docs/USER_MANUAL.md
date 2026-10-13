@@ -59,7 +59,7 @@ python main.py
 
 访问 <http://127.0.0.1:8768>。也可用项目启动脚本：Windows `scripts\start_pan.bat`，macOS/Linux `bash scripts/start.sh`；对应的正常关闭脚本为 `scripts\stop.bat` 和 `bash scripts/stop.sh`。直接运行 `python main.py` 时，Ctrl+C 会结束前台进程。
 
-`minimal-requirements.txt` 安装 Pan Core/API/MCP 依赖，不包含 QQ bridge 或 Memory 的机器学习依赖。配置示例的 `qq.enabled` 默认是 `true`；不使用 QQ 时，可在 `config.json` 将它设为 `false`，跳过 QQ 子进程。使用 QQ 时，需在 `qq.python` 或 `PAN_QQ_PYTHON` 指定的解释器中安装 `packages/qq/requirements.txt`，并配置一个网关。详见[QQ 与 SnowLuma 说明](QQ_PLUGIN_SNOWLUMA.md)。Memory 的可选依赖在 `memory-requirements.txt`。
+`minimal-requirements.txt` 安装 Pan Core/API/MCP 依赖，不包含 QQ bridge 的依赖。配置示例的 `qq.enabled` 默认是 `true`；不使用 QQ 时，可在 `config.json` 将它设为 `false`，跳过 QQ 子进程。使用 QQ 时，需在 `qq.python` 或 `PAN_QQ_PYTHON` 指定的解释器中安装 `packages/qq/requirements.txt`，并配置一个网关。详见[QQ 与 SnowLuma 说明](QQ_PLUGIN_SNOWLUMA.md)。Memory / Character 当前搁置，无需为日常使用安装其历史依赖。
 
 | 设置 | 当前默认值 / 作用 |
 |---|---|
@@ -81,11 +81,15 @@ MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。�
 
 展开 Chat 下方的 **服务端队列**，每条排队消息最右侧的锁按钮可单独锁定或解锁；**Lock all / Unlock all** 一次处理当前所有仍为 `queued` 的消息。锁定不会改变列表或落盘队列顺序；Worker 跳过锁定项，按原顺序选下一条可发送消息。解锁后，该项从原位置重新参与选择。已经进入 `reserved` 或 `writing` 的消息无法撤回或锁定。
 
-点击 **new locked msg** 进入当前 Session 的带锁发送模式，也可点击 **cancel locked msg** 退出该模式。Send 按钮变为红边的 **put in queue**；点击后，正文和附件会作为一条已锁定的用户消息原子入队。入队成功后恢复普通 Send；失败时保留草稿和带锁模式以便重试。带锁消息即使在 Worker 空闲时也只先落盘，不会单独启动 Worker。
+点击 **new locked msg** 进入当前 Session 的带锁发送模式，也可点击 **cancel locked msg** 退出该模式。Send 按钮变为红边的 **put in queue**；点击后，正文和附件会作为一条已锁定的用户消息原子入队。入队成功后恢复普通 Send；确认拒绝时恢复草稿和带锁模式，结果未确认时先核对再重试。带锁消息即使在 Worker 空闲时也只先落盘，不会单独启动 Worker。
 
 **Pause reports / Resume reports** 是同一锁机制的报告自动规则，按 Session 持久化。开启时锁定当前 `queued` 的子 Agent 完成、错误和异常退出报告，并自动锁定以后新入队的此类报告；不会锁定系统通知或 QQ / 微信提醒。即使规则仍开启，也可以单独解锁报告或使用 **Unlock all** 放行已有消息；以后新报告仍会自动锁定。关闭规则只解除报告的自动锁，保留手动锁。
 
 新建的默认 workdir 位于 Pan 服务端。若并行修改同一仓库，应为每个 Session 指定不同 Git worktree；Pan 不会自动创建 worktree。
+
+**Pause everything / Resume everything** 按 Session 持久暂停/恢复整个队列的后续投递，与单条锁和 Pause reports 独立。暂停时仍可入队；不会中断正在运行的任务，也不能撤回已交接项。支持的 Adapter 在运行中提供 **Steer**，用于追加当前任务的指令；队列条目的 Steer 也遵守锁与全队列暂停。交接结果未确认时不要重发。
+
+合法的 **Send / Steer** 提交会立即清空输入并显示等待转圈。确认拒绝后恢复原草稿；结果未知时保留待确认事务并阻止重复提交。请先核对队列、历史及界面结果，再决定重试；输入清空或入队回执不代表任务完成。
 
 <a id="workspaces"></a>
 ## 4. Session 列表与 Workspace
@@ -93,7 +97,7 @@ MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。�
 ### 使用侧栏管理列表
 
 - 搜索框筛选 Session；可切换按最近活动、名称或自定义顺序排列，也可按 workdir 或 manager 关系分组。
-- 右键 Session 可打开 **Pin / Unpin、Rename、Branch、Manage、msgBridge、Details、Select、Delete** 等操作；与导入历史关联的 Session 还可使用 **Reimport**。
+- 右键 Session 可打开 **Rename、Branch、Manage、msgBridge、Details、Select、Delete** 等操作；与导入历史关联的 Session 还可使用 **Reimport**。
 - 置顶 Session 显示在当前分组的未置顶 Session 之前。启用拖拽后，可调整自定义顺序或在同一分组内调整置顶项顺序；拖拽目标不同，界面会显示对应提示。
 - **Select** 多选模式支持批量移动到 Workspace 和批量删除。删除有子 Session 的管理树时，先阅读确认对话框再选择是否级联。
 
@@ -102,6 +106,16 @@ MCP 身份相关工具还需要 `PAN_AGENT_SESSION_ID` 属于该 Pan 实例。�
 桌面 Dashboard 左侧的 Workspace rail 列出 **全部** 和命名 Workspace。可新建、重命名、排序、切换或删除 Workspace；**全部**只是列表范围，不会给 Session 写入 Workspace 归属。使用 **Manage → Workspaces** 可将管理树根 Session 移入 Workspace。受管理的子 Session 沿 manager 链继承根节点的 Workspace。
 
 Workspace 不是 Git 分支或目录移动操作。Session 的 `workdir` 决定 Agent 工作位置；Workspace 只保存分组与目录引用。**Editor → Directories** 可为当前 Workspace 添加共享目录，或临时添加额外目录；添加/移除引用不会在磁盘上创建、移动或删除目录。
+
+### 搜索、未读与批量操作
+
+列表搜索匹配 Session 名称、ID、CLI 历史 ID、workdir 或 Adapter，仅在 **Workspace Bar** 展开时，共享搜索框也独立筛选 Workspace 名称；收起时保持原 Session 搜索。筛选项包括 **Has subagent、Is MetaAgent、Running state、Illegal state、Has unread、Has queued messages**；Session 必须满足全部已选条件。Workspace 的每个条件只需有一个成员满足，不必由同一成员满足。列表搜索与 Chat 历史搜索不同：**Search all Sessions** 搜索跨 Session 消息历史，当前 Session 搜索只查本会话；可按角色筛选并导航命中，结果过期时重新搜索。
+
+黄色计数表示未读完成结果；旁边队列计数为蓝色，待发项全部锁定时为红色。打开队列不会清除队列计数。Workspace 菜单的 **Read all** 标记其实际成员已读，包括被搜索/筛选隐藏的成员；操作后新到的完成结果仍会保留未读。多选 **Actions** 提供 **Workspace、Read all、群发、Bell on、Bell off**，针对所选目标执行。群发创建 Job，请核对逐目标结果及部分失败后再重试。
+
+Workspace 范围还包括 **全部** 与 **无工作区**。一个 Session 最多属于一个 Workspace，受管理子 Session 继承根节点归属。新建/导入默认归属当前命名 Workspace。跨 Workspace 移动受管理子树可能解除其 manager 关系，按设置显示确认。
+
+Session 行上的 **Pin** 快捷按钮用于置顶/取消置顶，右键菜单不再提供 Pin。**Codex Reimport** 发现来源不匹配时会显示摘要供核对。**取消**保留当前历史；**确认强行覆盖**会以原生历史替换，无法匹配的 Pan 消息及任务、来源、附件信息可能丢失。确认期间历史变化时，需**重新检查**并再次核对。
 
 <a id="relationships"></a>
 ## 5. 管理关系与访问控制
@@ -135,6 +149,10 @@ report_subscribe → agent_assign → Worker 完成或报错 → manager queue_p
 
 已有 Agent CLI 也可以启用 `pan` MCP，并在该 Pan Session 的 **Manage → MCP and Plugins** 选择 server。修改 MCP 选择后，重启 Worker 使其在 CLI 中生效。独立运行、未由 Pan Session 注入身份的 MCP server 无法调用依赖 Session 身份的管理和报告工具。
 
+**Stop reports / Start reports** 控制向 manager 自动汇报，不解除管理关系；它不同于接收队列中锁住报告的 **Pause reports**。已完成任务的最后 assistant 消息块可出现 **汇报** 按钮，自动汇报关闭时也可手动发送。仅保留在可证明终态窗口内的任务适用，不能对任意消息或全部历史任务汇报；较新任务仍在运行不影响较早且仍符合条件的结果。同一任务运行重复汇报会去重。
+
+高级 Agent 可通过 self queue MCP 在工作中查看和接收自己的可投递队列消息。查看不消费；消费可能打断当前任务。它不能选择其他 Session、绕过锁或 Pause everything，也不能将未知回执当成功。接线细节见[编排手册](skills/pan/SKILL.md)。
+
 <a id="jobs"></a>
 ## 7. Jobs 与定时任务
 
@@ -152,6 +170,8 @@ report_subscribe → agent_assign → Worker 完成或报错 → manager queue_p
 Jobs 页面中的 **Settings** 可配置已完成、失败、超时、取消任务及其日志文件的保留期限。新配置默认不自动清理这些项目；只有明确启用并填写天数后才会按策略清理。
 
 命令类 Job 在 Pan 所在主机运行，使用服务进程可访问的路径和权限。提交命令前确认执行文件与工作目录；后台进程使用 argv 而不是 shell 字符串。
+
+Job 行菜单的 **Pin / Unpin** 可让重要 Job 排在未置顶项前。置顶只影响展示，不改变调度或执行；显示 **Pin unavailable** 时暂不能修改置顶元数据。
 
 <a id="lifecycle"></a>
 ## 8. Worker 生命周期、退出与启动恢复
@@ -182,9 +202,21 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 ### 可选集成
 
-- **Memory**：不属于最小运行依赖；启用前按配置安装 `memory-requirements.txt` 中的依赖。
+- **Memory / Character**：当前搁置；历史依赖和设计说明不代表已有可用的用户流程。
 - **Remote**：`remote.enabled` 默认 `false`。启用 Cloudflare Remote 会建立额外远程访问路径，并扩大服务暴露面。
 - **MCP / 编排参考**：参见 [Pan skill](skills/pan/SKILL.md)、[HTTP API reference](skills/pan/references/http-api.md) 与 [WebSocket protocol](skills/pan/references/ws-protocol.md)。这些参考适用于高级集成，不是首次启动所必需。
+
+### 通知与未读记录
+
+在 **App Settings → Notification → Completion bell defaults** 选择 System、Browser、QQ Report 或 QQ Subscribe，再点 **Save completion defaults**。QQ 选项必须选择至少一个默认联系人，可按名称或号码搜索。默认值在下次点亮未亮的 Session Bell 时应用，不替换已有连接。Browser 还需浏览器通知权限；启用 Bell 时 QQ bot 和所选联系人须可用。QQ Report 发送结果，QQ Subscribe 接收 QQ 收件箱提醒。
+
+**Unread recording** 默认 All sessions，可选 No sessions 或 Bell on/off、Pinned 等类别；Bell on 与 Bell off 互斥，Pinned 可与其中一个按并集组合；All sessions 与 No sessions 互斥，且都不能与类别同时选择。排除的 Session 保持零未读，重新纳入只统计新完成结果，不恢复旧未读。Session 菜单可单独启用记录；保存全局规则或 **Reapply settings** 会清除这些覆盖。
+
+Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏览器完全关闭后页面通知不可用。Windows System 完成通知有 **60 秒 helper 点击窗口**；从关闭状态打开默认浏览器仅有代码路径，真实 OS 点击未验证。这不是持久通知中心激活。Browser 与 System 是独立通道，没有“Browser 失败才发 System”选项；已派发通知或亮 Bell 不代表已送达。
+
+### Tailscale 备用访问
+
+在 **App Settings → General → Tailscale 备用访问** 使用已安装、已登录且属于同一 tailnet 的 Tailscale。选择协议/端口，**保存配置**后点**开启当前访问**（或**应用已保存入口**）；只保存不会开启。Pan 保持回环监听，使用 Serve，不开放公网 Funnel；下次启动默认关闭。HTTPS 可能需先在 Tailscale 管理界面启用。正常退出关闭自有映射，强制退出可能保留至下次协调恢复；不会接管外部映射。界面“已开启”不证明另一设备可达。高级限制见[备用访问说明](tailscale-fallback-access.md)。
 
 ### 常见排查
 
@@ -201,6 +233,12 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 API 默认无身份验证且绑定 loopback。不要仅通过设置 `PAN_HOST` 或打开远程隧道就把它暴露到不可信网络。
 
 手动删除 Session 会停止其 Worker、删除会话记录和历史，但会保留普通 workdir。另有默认关闭的数据保留策略；若启用 Session 自动清理，Pan 可能删除经验证只属于该 Session 且未被其他 Session 或 Workspace 引用的默认 workdir。重要文件应在清理前提交或备份。
+
+### 移动入口与 Codex Terminal TUI
+
+视图入口按三个一组展示：Chat / Editor / Jobs，下一组是 Terminal。移动端在入口栏滑动，桌面可用箭头或入口栏滚轮切组；切组本身不跳转页面。Chat 的 **TUI / Bubble / Raw** 只切换消息展示，不改变 Agent 控制模式。
+
+Codex **Terminal TUI** 是单独的原生控制入口：桌面在顶栏，移动端在 **Session Settings → More**。旧 Session 可能显示升级并等待下一次 idle 边界，请以界面的等待/错误状态为准。它不同于停止 Worker 后打开外部终端的 **Takeover**，也不同于 Terminal 页面独立运行的 shell。
 
 ## 11. 常驻终端（Windows）
 

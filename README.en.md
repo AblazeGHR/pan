@@ -8,10 +8,10 @@ Pan is a local web app for managing CLI Agent sessions and coordinating multi-ag
 
 - **Manage Sessions**: create, import, rename, branch, pin, and delete Sessions in one Dashboard. Built-in adapters cover cbc, kimi, opencode, claude, and codex; each requires its CLI to be installed locally.
 - **Organize workspaces**: group Sessions, filter the list by workspace, and add shared workspace directories to the current Session's Editor. A Workspace is organizational metadata; it does not move or copy directories on disk. The Session `workdir` remains the Agent's working directory.
-- **Coordinate Agents**: SMA templates provide an MA (supervisor) Session. MA and TA are roles carried by Sessions; Workers are temporary CLI processes, so Pan has MA Workers as well as TA Workers. An MA can create or claim child Sessions, dispatch work asynchronously, and collect completion or error reports from a durable inbox.
+- **Coordinate Agents**: SMA templates provide an MA (supervisor) Session. MA and TA are roles carried by Sessions; Workers are temporary CLI processes, so Pan has MA Workers as well as TA Workers. An MA can create or claim child Sessions, dispatch work asynchronously, and collect completion or error reports from a durable report queue.
 - **Track Jobs**: the Dashboard Jobs page lists scheduled tasks, scheduled Session messages or broadcasts, and immediate background processes.
 - **Manage runtime state**: control Session Workers separately from the Pan service. After startup, choose how to handle Sessions still recorded as running when their Worker is absent.
-- **Add integrations as needed**: configure MCP servers per Session and manage QQ OneBot gateways in App Settings → Plugin. Cloudflare Remote and Memory are optional; Remote is disabled by default.
+- **Add integrations as needed**: configure MCP servers per Session and manage QQ OneBot gateways in App Settings → Plugin. Cloudflare Remote is disabled by default; Tailscale offers fallback access within the same tailnet. Memory / Character are currently shelved and are not available features.
 
 Pan does not create a Git worktree for every child task. For isolated parallel code changes, assign each Session a different workdir or Git worktree.
 
@@ -61,6 +61,8 @@ For an already prepared checkout, use the helper scripts: Windows `scripts\start
 Open the Dashboard and click **New** in the sidebar for a quick Session. Use the adjacent settings button to choose an Adapter, Session Template, model, and workdir. Select the Session and click **Start**, or send the first message directly. Messages sent while the Worker is busy enter its send queue. Click **Import** to browse and import supported CLI histories.
 
 Use a regular Session for a single Agent. To coordinate multiple Sessions, choose `SMA(NoAdapter)` (select an adapter after creation) or `SMA(cbc)` (pins cbc) in the full creation form. See the [English user manual](docs/USER_MANUAL.en.md) for details.
+
+Use sidebar search and filters for Sessions. The shared search also filters Workspaces only while the **Workspace Bar** is expanded; when collapsed, it retains the original Session search. Use multi-select **Actions** for Read all, broadcasts (群发), and Bell on/off. Queue locks and **Pause everything** control subsequent delivery; they do not stop work already running. See the [user manual](docs/USER_MANUAL.en.md) for notifications, Terminal TUI, and remote-access limits.
 
 ## Documentation
 
