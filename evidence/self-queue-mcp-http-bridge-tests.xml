@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="2.803" timestamp="2026-10-13T12:10:23.276963+08:00" hostname="ablaze"><testcase classname="tests.test_real_queue_http_e2e" name="test_real_self_queue_original_item_restart_and_receipt" time="2.697" /></testsuite></testsuites>

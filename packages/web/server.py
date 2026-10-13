@@ -7942,6 +7942,24 @@ async def api_session_queue(session_id: str):
     return snapshot
 
 
+@app.post("/api/self-queue/{operation}")
+async def api_self_queue(operation: str, request: Request):
+    """Local MCP bridge; the caller header is set by the bound stdio server."""
+    from packages.core import self_queue
+    from packages.web.terminal_tools_api import _local, resolve_caller
+    caller = request.headers.get("X-Pan-Queue-Caller")
+    if not caller or not _local(request) or resolve_caller(caller) is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    if operation == "read":
+        return await self_queue.read(caller)
+    if operation == "consume":
+        data = await request.json()
+        if not isinstance(data, dict) or set(data) != {"itemId"} or not isinstance(data["itemId"], str):
+            return {"ok": False, "error": "invalid_request"}
+        return await self_queue.consume(caller, data["itemId"])
+    return {"ok": False, "error": "invalid_request"}
+
+
 @app.post("/api/sessions/{session_id}/queue")
 async def api_session_queue_enqueue(session_id: str, data: dict):
     """Canonical user enqueue endpoint.

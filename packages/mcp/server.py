@@ -123,6 +123,54 @@ def _terminal_api(operation: str, arguments: dict) -> dict:
 from packages.mcp.terminal_tools import register_terminal_tools
 register_terminal_tools(mcp, _terminal_api)
 
+
+def _self_queue_api(operation: str, item_id: str | None = None) -> dict:
+    """Never lend a local worker's identity to remote MCP clients."""
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    url = urlsplit(_pan_api_url)
+    if (_terminal_transport != "stdio" or not sid or url.scheme != "http"
+            or url.hostname not in {"127.0.0.1", "::1"} or url.username or url.password
+            or url.path not in {"", "/"} or url.query or url.fragment):
+        return {"ok": False, "error": "caller_unavailable"}
+    req = urllib.request.Request(
+        f"{_pan_api_url.rstrip('/')}/api/self-queue/{operation}",
+        data=json.dumps({"itemId": item_id} if operation == "consume" else {}).encode("utf-8"),
+        method="POST", headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    try:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
+            return json.loads(response.read())
+    except Exception:
+        # A consume may have interrupted its own caller after real handoff.
+        # Inspect the original ID again; never recreate/repost its contents.
+        return {"ok": False, "status": "unconfirmed", "retryable": False}
+
+
+@mcp.tool()
+def self_queue_read() -> dict:
+    """Read complete visible messages in your own queue, with original IDs and metadata.
+
+    Locked, paused and unavailable messages are hidden. Reading does not consume.
+    Caller identity is bound by Pan; no session selection is accepted.
+    完整编排流程见 /pan skill。
+    """
+    return _self_queue_api("read")
+
+
+@mcp.tool()
+def self_queue_consume(item_id: str) -> dict:
+    """Consume a visible message in your own queue by its original ID, interrupting your task.
+
+    Only status=consumed proves handoff. Pending/unconfirmed means no success
+    claim; use the same original ID to inspect its receipt, never resend its body.
+    Locked or paused IDs are unavailable even if previously read. No session
+    selection is accepted. Original message identity and metadata are retained.
+    完整编排流程见 /pan skill。
+    """
+    return _self_queue_api("consume", item_id)
+
 _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
 

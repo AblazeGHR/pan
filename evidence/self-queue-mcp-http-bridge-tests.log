@@ -1,0 +1,17 @@
+REAL_SELF_QUEUE_E2E {"port": 55857, "sessionId": "ses_cf537f2fc60eca21", "oldPid": 16072, "newPid": 25480, "originalId": "q_f5637ee6155443cea0b811d9b7cb967c", "receipt": {"type": "task", "kind": "task", "id": "q_f5637ee6155443cea0b811d9b7cb967c", "queueItemId": "q_f5637ee6155443cea0b811d9b7cb967c", "text": "chosen original", "source": "user", "seq": 3, "taskId": null, "deliveryState": "sent_to_cli", "dispatchState": "sent_to_cli", "revision": 1, "createdAt": 1791864625.3250527, "clientMessageId": "own-chosen", "position": 1, "selfConsumeRequested": true, "reservedBy": "worker-1", "reservedGeneration": 1, "reservedAt": 1791864625.5494382, "selfConsumeAttempted": true, "receiptAt": 1791864625.5546973, "deliveredAt": 1791864625.5546973}, "readIds": ["q_b106a189ff154cec8acdd25ffbe45dfe", "q_f5637ee6155443cea0b811d9b7cb967c"]}
+.
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\self-queue-mcp-20261013\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests/test_real_queue_http_e2e.py::test_real_self_queue_original_item_restart_and_receipt
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

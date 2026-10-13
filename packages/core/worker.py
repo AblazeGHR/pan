@@ -2391,7 +2391,9 @@ def _select_queue_unit(s) -> list[dict] | None:
             # Keep FIFO ordering while the browser owns this item's edit
             # lease.  Releasing or saving the lease sends a fresh wakeup.
             return None
-        if kind == "task":
+        if not queue_item_eligible(s, item):
+            return None
+        if kind == "task" or item.get("selfConsumeRequested"):
             return [item]
         unit = [item]
         for follower in pending[index + 1:]:
@@ -2463,6 +2465,35 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
         # 保留（reserved）会把行移出待处理计数集：版本与状态在同一次落盘提交，
         # 防止 HTTP 快照与广播补丁之间出现“同版本不同计数”的窗口。
         old_queue_revision = getattr(s, "queue_revision", 0)
+        if any(item.get("selfConsumeRequested") for item in items):
+            outcome = _sess.DurableOutcome()
+            def reserve_selected():
+                originals = [(item, dict(item)) for item in items]
+                old_revision = s.queue_revision
+                old_ledger = {_queue_item_id(item): s.queue_delivery_ledger.get(_queue_item_id(item))
+                              for item in items}
+                try:
+                    for item in items:
+                        item.update(deliveryState=_DELIVERY_RESERVED, reservedBy=w.worker_id,
+                                    reservedGeneration=w.generation, reservedAt=time.time())
+                        s.queue_delivery_ledger[_queue_item_id(item)] = dict(item)
+                    s.queue_revision += 1
+                    _sess._save_body(s)
+                except BaseException:
+                    for item, original in originals:
+                        item.clear()
+                        item.update(original)
+                    for identity, original in old_ledger.items():
+                        if original is None:
+                            s.queue_delivery_ledger.pop(identity, None)
+                        else:
+                            s.queue_delivery_ledger[identity] = original
+                    s.queue_revision = old_revision
+                    raise
+            await _sess._persist_async_outcome(s.id, reserve_selected, outcome)
+            for item in items:
+                item["deliveryState"] = _DELIVERY_WRITING
+            return history_added
         for item in items:
             item["deliveryState"] = _DELIVERY_RESERVED
             item["reservedBy"] = w.worker_id
@@ -2664,7 +2695,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         w._current_source_session_id = None
         history_text = _format_report_batch(items)
     w._current_queue_item = items[0] if kind == "task" else None
-    w._current_report_items = list(items) if kind == "report" else []
+    w._current_report_items = list(items) if kind != "task" else []
     w._current_handoff_acked = False
     history_added = False
     w._queue_unit_active = True
@@ -2726,7 +2757,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
                     immediate=w.pending_restart and w.status in {"idle", "queued", "restarting"})
             if w._current_queue_item is items[0] if kind == "task" else False:
                 w._current_queue_item = None
-            if kind == "report":
+            if kind != "task":
                 w._current_report_items = []
             if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
                 w._current_task_id = None
@@ -3179,8 +3210,23 @@ def _is_pauseable_agent_report(item) -> bool:
 def _queue_item_locked(item) -> bool:
     return isinstance(item, dict) and bool(
         item.get("queueLockManual") or item.get("queueLockAutoReport")
-        or item.get("queueSteerPending")
+        or item.get("queueSteerPending") or item.get("selfConsumeUncertain")
     )
+
+
+def queue_item_eligible(s, item, *, queued: bool = True) -> bool:
+    """Shared own-queue and final handoff gates; lock sources are authoritative.
+
+    Stop reports materializes queueLockAutoReport on the affected reports;
+    an explicit UI unlock can release a report while the future-report rule
+    remains enabled. Do not infer extra locks from that future-report flag.
+    """
+    return (s is not None and isinstance(item, dict)
+            and not getattr(s, "queue_paused", False) and not _native_handoff_blocked(s)
+            and _queue_item_kind(item) is not None
+            and not _queue_item_locked(item)
+            and not queue_item_edit_locked(s, _queue_item_id(item))
+            and (not queued or _is_dispatchable(item)))
 
 
 def _only_locked_queue_items(s) -> bool:
@@ -3619,6 +3665,10 @@ def _clear_delivery_reservation(item: dict) -> None:
 
 def _queue_item_backoff(item: dict, reason: str, *, immediate: bool = False) -> None:
     """Return an item to queued with bounded, persisted retry backoff."""
+    if item.get("selfConsumeAttempted"):
+        # A selected original item whose write outcome is unknown must not be
+        # retried by recovery/watchdog/FIFO, including after main restarts.
+        item["selfConsumeUncertain"] = True
     attempts = item.get("deliveryAttempts", 0)
     try:
         attempts = max(0, int(attempts))
@@ -5601,6 +5651,33 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
         if w.native_control_mode != "pan":
             raise _QueuePausedBeforeHandoff("Native control owns CLI hand-off")
+        items = ([w._current_queue_item] if w._current_queue_item is not None
+                 else w._current_report_items)
+        if any(not queue_item_eligible(s, item, queued=False) for item in items):
+            raise _QueuePausedBeforeHandoff("Queue item blocked before CLI hand-off")
+        selected = [item for item in items if item.get("selfConsumeRequested")]
+        if selected:
+            outcome = _sess.DurableOutcome()
+            def apply_attempt():
+                originals = [(item, dict(item)) for item in selected]
+                old_ledger = { _queue_item_id(item): s.queue_delivery_ledger.get(_queue_item_id(item))
+                               for item in selected }
+                try:
+                    for item in selected:
+                        item["selfConsumeAttempted"] = True
+                        s.queue_delivery_ledger[_queue_item_id(item)] = dict(item)
+                    _sess._save_body(s)
+                except BaseException:
+                    for item, original in originals:
+                        item.clear()
+                        item.update(original)
+                    for identity, original in old_ledger.items():
+                        if original is None:
+                            s.queue_delivery_ledger.pop(identity, None)
+                        else:
+                            s.queue_delivery_ledger[identity] = original
+                    raise
+            await _sess._persist_async_outcome(s.id, apply_attempt, outcome)
         result = await operation()
         if on_handoff is not None:
             await on_handoff()
@@ -6172,7 +6249,8 @@ async def create_worker(session_id: str) -> Worker | str:
         return await _create_worker(session_id)
 
 
-async def restart_or_start_worker(session_id: str) -> Worker | str:
+async def restart_or_start_worker(session_id: str, *, expected_worker_id: str | None = None,
+                                  expected_generation: int | None = None) -> Worker | str:
     """Atomically restart a live session worker, or create one if absent.
 
     The session lock covers the liveness decision and lifecycle transition, so
@@ -6185,12 +6263,18 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     recovery_pending = session_id in _recovery_required
-    _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
         if _shutdown_started:
             return "Pan main service is shutting down"
         alive = find_alive_worker_by_session(session_id)
+        if expected_generation is not None and (
+                alive is None or alive.worker_id != expected_worker_id
+                or alive.generation != expected_generation):
+            # An immediate/delayed restart already supplied another generation.
+            # Never interrupt that replacement again for a stale own-queue call.
+            return alive if alive is not None else "Worker identity changed"
+        _cancel_session_restart(session_id)
         if alive is not None:
             if recovery_pending and session_id not in _recovery_required:
                 # A watchdog/lifecycle recovery won the lock and already
@@ -7785,7 +7869,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 return "Queue item revision conflict"
             if s.queue_paused:
                 return "Pause everything blocks queue Steer"
-            if _queue_item_locked(item):
+            if not queue_item_eligible(s, item):
                 return "Queue item is locked or awaiting Steer confirmation"
             if any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks)):
                 return "Cannot Steer while a queued message is being edited"
@@ -7819,16 +7903,28 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     "type": "steer", "text": native_text, "requestId": request_id}) + b"\n"
             except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 return f"Steer encoding failed before handoff: {exc}"
-            # The token binds late receipts to this original item/Worker turn.
-            item["queueSteerPending"] = True
-            item["queueSteerRequestId"] = request_id
-            item["queueSteerWorkerId"] = w.worker_id
-            item["queueSteerGeneration"] = generation
-            s.queue_revision += 1
+            # Apply, write and failed rollback inside the same writer ticket.
             outcome = _sess.DurableOutcome()
+            def apply_reservation():
+                original = dict(item)
+                old_revision = s.queue_revision
+                try:
+                    item["queueSteerPending"] = True
+                    item["queueSteerRequestId"] = request_id
+                    item["queueSteerWorkerId"] = w.worker_id
+                    item["queueSteerGeneration"] = generation
+                    s.queue_revision += 1
+                    _sess._save_body(s)
+                except BaseException:
+                    item.clear()
+                    item.update(original)
+                    s.queue_revision = old_revision
+                    raise
             try:
-                await _save_receipt(s, outcome=outcome)
+                await _sess._persist_async_outcome(s.id, apply_reservation, outcome)
             except BaseException:
+                if not outcome.succeeded:
+                    raise
                 # Cancellation may follow a successful ticket. In either case
                 # no control has been written: durably release the reservation.
                 item.pop("queueSteerPending", None)
@@ -7843,7 +7939,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     except asyncio.CancelledError:
                         continue
                 raise
-            if (workers.get(w.worker_id) is not w or w.generation != generation
+            if (w.native_control_mode != "pan" or workers.get(w.worker_id) is not w or w.generation != generation
                     or w.process is not process or w.status != "running"
                     or process is None or process.returncode is not None or process.stdin is None):
                 item.pop("queueSteerPending", None)

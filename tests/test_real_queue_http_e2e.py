@@ -599,3 +599,51 @@ def test_real_http_queue_fifo_races_sources_and_restart(isolated_runtime):
         for item in runtime.fake_records() if item.get("kind") == "received"
     ]
     print("REAL_HTTP_QUEUE_E2E " + json.dumps(evidence, ensure_ascii=False, sort_keys=True))
+
+
+def test_real_self_queue_original_item_restart_and_receipt(isolated_runtime, monkeypatch):
+    """Real HTTP, bound MCP, process restart, stdin and durable original receipt."""
+    from packages.mcp import server as mcp_server
+    runtime, recorder = isolated_runtime
+    session = _create(runtime, "real-fifo")
+    sid = session["id"]
+    _spawn(runtime, sid)
+    _enqueue(runtime, sid, "hold-A", "own-active")
+    _wait_for(lambda: _received(runtime, cwd=session["workdir"], text="hold-A"),
+              label="own active task started")
+    original_pid = _received(runtime, cwd=session["workdir"], text="hold-A")[0]["pid"]
+    first = _enqueue(runtime, sid, "earlier FIFO", "own-earlier")["item"]["queueItemId"]
+    chosen = _enqueue(runtime, sid, "chosen original", "own-chosen")["item"]["queueItemId"]
+    hidden = _enqueue(runtime, sid, "hidden original", "own-hidden")["item"]["queueItemId"]
+    runtime.request("PATCH", f"/api/sessions/{sid}/queue/{hidden}/lock", json={"locked": True})
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", sid)
+    monkeypatch.setattr(mcp_server, "_pan_api_url", runtime.base_url)
+    monkeypatch.setattr(mcp_server, "_terminal_transport", "stdio")
+    visible = mcp_server.self_queue_read()
+    assert [it["id"] for it in visible["items"]] == [first, chosen]
+    assert hidden not in json.dumps(visible) and "hidden original" not in json.dumps(visible)
+    assert mcp_server.self_queue_consume(hidden) == mcp_server.self_queue_consume("guessed")
+    before_path = runtime.data_root / "sessions" / f"{sid}.json"
+    before = json.loads(before_path.read_text(encoding="utf-8"))
+    original = next(it for it in before["queue_pending"] if it["id"] == chosen)
+    response = mcp_server.self_queue_consume(chosen)
+    assert response.get("status") in {"consumed", "pending"}
+    _wait_for(lambda: _received(runtime, cwd=session["workdir"], text="chosen original"),
+              label="chosen original reached replacement stdin")
+    records = _received(runtime, cwd=session["workdir"])
+    assert records[1]["text"] == "chosen original"
+    assert records[1]["pid"] != original_pid
+    _wait_for(lambda: chosen in json.loads(before_path.read_text(encoding="utf-8"))["queue_delivery_ledger"]
+              and json.loads(before_path.read_text(encoding="utf-8"))["queue_delivery_ledger"][chosen]["deliveryState"] == "sent_to_cli",
+              label="chosen durable handoff receipt")
+    assert mcp_server.self_queue_consume(chosen)["alreadyConsumed"]
+    assert len(_received(runtime, cwd=session["workdir"], text="chosen original")) == 1
+    after = json.loads(before_path.read_text(encoding="utf-8"))
+    receipt = after["queue_delivery_ledger"][chosen]
+    for field in ["id", "queueItemId", "source", "taskId", "clientMessageId", "text", "parts"]:
+        assert receipt.get(field) == original.get(field)
+    assert any(it["id"] == hidden for it in after["queue_pending"])
+    assert not _received(runtime, cwd=session["workdir"], text="hidden original")
+    print("REAL_SELF_QUEUE_E2E " + json.dumps({"port": PORT, "sessionId": sid,
+          "oldPid": original_pid, "newPid": records[1]["pid"], "originalId": chosen,
+          "receipt": receipt, "readIds": [it["id"] for it in visible["items"]]}, ensure_ascii=False))
