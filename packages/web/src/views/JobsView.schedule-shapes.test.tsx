@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import JobsView from './JobsView';
+import { useJobStore } from '@/stores/jobStore';
 import type { Job } from '@/types/jobs';
 
 const api = vi.hoisted(() => ({
@@ -72,6 +73,10 @@ describe('JobsView schedule payload compatibility', () => {
     cleanup();
     wsHandlers.clear();
     vi.clearAllMocks();
+    // The job list now lives in the shared store; isolate it per test.
+    useJobStore.setState({
+      jobs: [], loaded: false, loading: false, error: null, pinMetadataUnavailable: false,
+    });
   });
 
   it('reproduces a historical object schedule from the initial REST list', async () => {
@@ -173,8 +178,10 @@ describe('JobsView schedule payload compatibility', () => {
   it('accepts object schedule updates arriving over WebSocket', async () => {
     api.fetchJobs.mockResolvedValue([]);
     renderView();
-    await waitFor(() => expect(wsHandlers.has('job.updated')).toBe(true));
-    wsHandlers.get('job.updated')?.({ job: job({ name: 'WS object schedule' }) });
+    // job.updated is wired globally (useWebSocket -> jobStore); the page reads
+    // the shared store, so an upsert into it is what reaches the list.
+    await waitFor(() => expect(useJobStore.getState().loaded).toBe(true));
+    act(() => useJobStore.getState().upsertJob(job({ name: 'WS object schedule' })));
     expect(await screen.findByText('WS object schedule')).toBeTruthy();
   });
 });

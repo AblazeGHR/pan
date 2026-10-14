@@ -7,7 +7,9 @@ import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
+import { selectRunningJobCount, useJobStore } from '@/stores/jobStore';
 import type { Session, Message } from '@/types';
+import type { Job } from '@/types/jobs';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { SessionItem } from '@/components/session/SessionItem';
 import { getMessageIdentity } from '@/utils/messageIdentity';
@@ -70,6 +72,7 @@ const apiMock = vi.hoisted(() => ({
   fetchSessionQueue: vi.fn(),
   updateUiSettings: vi.fn(),
   fetchUiSettings: vi.fn(),
+  fetchJobs: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
@@ -79,6 +82,7 @@ vi.mock('@/services/api', () => ({
   fetchSessionQueue: apiMock.fetchSessionQueue,
   updateUiSettings: apiMock.updateUiSettings,
   fetchUiSettings: apiMock.fetchUiSettings,
+  fetchJobs: apiMock.fetchJobs,
 }));
 
 // Notification clicks route through the app router singleton; keep it out of
@@ -177,6 +181,10 @@ describe('useWebSocket worker.result wiring', () => {
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
     useQueueStore.setState({ agentQueues: {}, agentQueueLoadSeq: {} });
+    useJobStore.setState({
+      jobs: [], loaded: false, loading: false, error: null, pinMetadataUnavailable: false,
+    });
+    apiMock.fetchJobs.mockReset().mockResolvedValue([]);
     apiMock.fetchSessionQueue.mockReset();
     apiMock.fetchSessionQueue.mockResolvedValue([]);
     apiMock.updateUiSettings.mockReset();
@@ -246,6 +254,59 @@ describe('useWebSocket worker.result wiring', () => {
     act(() => wsMock.trigger('open', { type: 'open' }));
     expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2);
     expect(apiMock.listWorkers).toHaveBeenCalledTimes(2);
+  });
+
+  it('hydrates the unified job store on open and routes job lifecycle events into it', async () => {
+    const jobRow = (overrides: Partial<Job> = {}): Job => ({
+      jobId: 'job-1',
+      kind: 'session-message',
+      status: 'running',
+      name: 'Job',
+      description: '',
+      source: { type: 'agent' },
+      target: { sessionId: 'session-1' },
+      paused: false,
+      runCount: 0,
+      createdAt: 1,
+      updatedAt: 1,
+      ...overrides,
+    }) as Job;
+
+    wsMock.isOpen = false;
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('open', { type: 'open' })); // initial connect
+    await act(async () => { await Promise.resolve(); });
+    expect(apiMock.fetchJobs).toHaveBeenCalledTimes(1);
+    expect(useJobStore.getState().loaded).toBe(true);
+    expect(useJobStore.getState().jobs).toEqual([]);
+
+    // Job events reach the store without the Jobs page being mounted, so the
+    // nav running-count badge stays correct on every route.
+    act(() => {
+      wsMock.trigger('job.created', { type: 'job.created', job: jobRow() });
+    });
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual(['job-1']);
+    expect(selectRunningJobCount(useJobStore.getState())).toBe(1);
+
+    act(() => {
+      wsMock.trigger('job.updated', { type: 'job.updated', job: jobRow({ status: 'completed' }) });
+    });
+    expect(useJobStore.getState().jobs[0]?.status).toBe('completed');
+    expect(selectRunningJobCount(useJobStore.getState())).toBe(0);
+
+    act(() => {
+      wsMock.trigger('job.deleted', { type: 'job.deleted', jobId: 'job-1' });
+    });
+    expect(useJobStore.getState().jobs).toEqual([]);
+
+    // A reconnect re-hydrates from the authoritative REST list, converging any
+    // event missed while the socket was down.
+    apiMock.fetchJobs.mockClear().mockResolvedValue([jobRow({ jobId: 'job-2' })]);
+    act(() => wsMock.trigger('open', { type: 'open' })); // reconnect
+    await act(async () => { await Promise.resolve(); });
+    expect(apiMock.fetchJobs).toHaveBeenCalledTimes(1);
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual(['job-2']);
+    expect(selectRunningJobCount(useJobStore.getState())).toBe(1);
   });
 
   it('reconnects a stale socket and lets the open path refresh state', () => {

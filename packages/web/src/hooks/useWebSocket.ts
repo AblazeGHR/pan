@@ -7,10 +7,12 @@ import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useJobStore } from '@/stores/jobStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
 import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
+import type { Job } from '@/types/jobs';
 import { inheritMessageIdentity, rememberMessageIdentity } from '@/utils/messageIdentity';
 import { openSessionFromNotification } from '@/utils/session-deeplink';
 
@@ -264,6 +266,10 @@ export function useWebSocket() {
       }
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
+      // Hydrate the unified job store on every open (initial connect and
+      // reconnect): the Jobs page and the nav running-count badge share this
+      // one list, so it must be correct on every route without its own fetch.
+      void useJobStore.getState().loadJobs();
       // An open event is the completion point for a focus-triggered stale
       // reconnect. The snapshot callback finalizes buffered tasks before
       // refreshing history, so a missed terminal cannot leave a partial echo.
@@ -897,6 +903,22 @@ export function useWebSocket() {
       if (e.sessionId && Array.isArray(e.workspaceIds)) {
         useWorkspaceStore.getState().applySessionMembership(e.sessionId, e.workspaceIds);
       }
+    }));
+    // Job lifecycle events drive the unified job store. The Jobs page list and
+    // the nav running-count badge read that one store, so this is the only
+    // job.* subscription in the app — no page-local copies, no extra polling.
+    // Incremental payloads carry the full job, so no REST refresh is needed.
+    unsubscribers.push(wsClient.on('job.created', (e: StreamEvent) => {
+      const job = (e as unknown as { job?: Job }).job;
+      if (job) useJobStore.getState().upsertJob(job);
+    }));
+    unsubscribers.push(wsClient.on('job.updated', (e: StreamEvent) => {
+      const job = (e as unknown as { job?: Job }).job;
+      if (job) useJobStore.getState().upsertJob(job);
+    }));
+    unsubscribers.push(wsClient.on('job.deleted', (e: StreamEvent) => {
+      const jobId = (e as unknown as { jobId?: string }).jobId;
+      if (jobId) useJobStore.getState().removeJob(jobId);
     }));
     // Custom session order persisted (POST /api/sessions/order broadcast). A
     // debounced full-list refresh re-reads the server snapshot; in custom sort
