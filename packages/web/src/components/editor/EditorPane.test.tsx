@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { EditorPane } from './EditorPane';
@@ -18,6 +18,11 @@ vi.mock('@/services/api', () => ({
   renameFs: vi.fn(async () => undefined),
   deleteFs: vi.fn(async () => undefined),
 }));
+
+// Load the real dependency graph during setup; UI assertions keep their budget.
+beforeAll(async () => {
+  await import('@/components/chat/MarkdownRenderer');
+});
 
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from './App';
@@ -9,6 +9,11 @@ import { useWorkspaceStore } from './stores/workspaceStore';
 import { useDetailStore } from './stores/detailStore';
 
 vi.mock('./hooks/useWebSocket', () => ({ useWebSocket: vi.fn() }));
+
+// Load the real dependency graph during setup; UI assertions keep their budget.
+beforeAll(async () => {
+  await import('./components/detail/DetailPanel');
+});
 
 afterEach(() => {
   cleanup();

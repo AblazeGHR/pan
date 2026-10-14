@@ -68,16 +68,23 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
     events = []
     timeline = []
     enrich_started = []
+    save_timings = []
+    event_timings = []
 
     original_save = _sess._save_body
 
     def save(value, **kwargs):
         saves.append((value.last_result is not None, len(value.history)))
         timeline.append(("save", value.last_result is not None))
-        return original_save(value, **kwargs)
+        started = time.monotonic()
+        try:
+            return original_save(value, **kwargs)
+        finally:
+            save_timings.append(time.monotonic() - started)
 
     async def broadcast(value):
         events.append(value)
+        event_timings.append((value.get("type"), time.monotonic()))
         timeline.append(("broadcast", value.get("type"), value.get("status")))
 
     def slow_enrich(_session):
@@ -120,7 +127,12 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
             if item[0:2] == ("broadcast", "worker.result")
         )
         assert saved_terminal_index < result_timeline_index
-        assert elapsed < 0.12, f"terminal path waited for enrich: {elapsed:.3f}s"
+        assert elapsed < 0.12, (
+            f"terminal path waited for enrich: {elapsed:.3f}s; "
+            f"save_body_seconds={save_timings}; "
+            f"event_offsets={[(kind, stamp - started) for kind, stamp in event_timings]}; "
+            f"enrich_offsets={[stamp - started for stamp in enrich_started]}"
+        )
         # Let the scheduled task finish so this test also proves the call was
         # moved to a thread and remains eventual rather than being dropped.
         await worker._run_usage_enrichment(s.id)

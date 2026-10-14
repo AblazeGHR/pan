@@ -1,0 +1,12 @@
+{"kind": "init", "pid": 39492, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd", "at": 1791917744.1621902}
+{"kind": "init", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917744.25152}
+{"kind": "received", "text": "warmup", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917744.25152}
+{"kind": "received", "text": "lease-head", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917745.099728}
+{"kind": "received", "text": "lease-tail", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917745.1121736}
+{"kind": "received", "text": "hold-A", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917745.129871}
+{"kind": "control", "text": "blocked-control", "at": 1791917745.142517}
+{"kind": "receipt", "text": "blocked-control", "at": 1791917745.142517}
+{"kind": "control", "text": "late-receipt", "at": 1791917745.5272179}
+{"kind": "receipt", "text": "late-receipt", "at": 1791917755.5337973}
+{"kind": "control", "text": "missing-receipt", "at": 1791917755.5449536}
+{"kind": "received", "text": "during-steer", "pid": 3296, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd\\evidence\\queue-control-latency-baseline\\workdirs\\real-fifo", "at": 1791917785.8637185}

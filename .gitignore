@@ -105,3 +105,15 @@ packages/web/test-results/
 
 # Local workflow documents are maintained outside Git on main
 /.workflow/
+
+# T-QUEUE-SEND-LATENCY-20261014: keep reports, exclude owned runtime stores.
+/evidence/frozen-baseline-1db8d9bd/
+/evidence/queue-latency-baseline-1db8d9bd.zip
+/evidence/queue-latency-probe-*/
+/evidence/queue-control-latency-*/
+/evidence/mcp-send-latency-*/
+# Preserve raw failing JUnit locally; commit byte-exact gzip artifacts.
+/evidence/queue-send-latency-red.xml
+/evidence/mcp-send-latency-red.xml
+/evidence/queue-latency-prewrite-rejection-red.xml
+/evidence/queue-latency-ma-runtime-red.xml

@@ -361,6 +361,15 @@ interface UIStore {
   theme: Theme;
   /** Active workspace scope for the session list ('all' | 'ungrouped' | ws id). */
   activeWorkspaceId: string;
+  /**
+   * Monotonic workspace-selection generation, bumped on every actual switch.
+   * A race guard (like sessionStore's `_selectionSeq`), NOT a source of
+   * workspace ownership: the notification deep link resolves ownership from
+   * the session manager chain, and uses this only to detect a user workspace
+   * take-over during its async waits — including A → B → A, which a plain
+   * value comparison would miss.
+   */
+  _workspaceSeq: number;
   /** Workspace rail panel expanded (false = the floating handle only). */
   railExpanded: boolean;
   /** One-shot requests from the editor to the mounted chat composer. */
@@ -448,6 +457,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   collapsedGroups: loadCollapsedGroups(),
   theme: loadTheme(),
   activeWorkspaceId: loadActiveWorkspaceId(),
+  _workspaceSeq: 0,
   railExpanded: loadRailExpanded(),
   chatAttachmentRequests: [],
   composerFocusToken: 0,
@@ -756,7 +766,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   setActiveWorkspace: (id) => {
     if (get().activeWorkspaceId === id) return;
-    set({ activeWorkspaceId: id });
+    set((s) => ({ activeWorkspaceId: id, _workspaceSeq: s._workspaceSeq + 1 }));
     persistActiveWorkspaceId(id);
   },
 
@@ -788,3 +798,14 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => ({ composerFocusToken: s.composerFocusToken + 1 }));
   },
 }));
+
+// ── E2E inspection seam ─────────────────────────────────────────────────────
+// Mirrors sessionStore's `?panE2E=1` seam: the read-only browser verification
+// asserts the active workspace scope alongside the selected Session, but the
+// store is intentionally not a global. Exposed only when the page is opened
+// with the explicit `panE2E` query parameter; normal app URLs never set it and
+// the bundle behaves exactly as before.
+if (typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('panE2E')) {
+  (window as unknown as Record<string, unknown>).__panUIStore = useUIStore;
+}

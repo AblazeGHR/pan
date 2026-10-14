@@ -132,31 +132,73 @@ export function workspaceMemberIds(sessions: Session[], workspaceId: string): Se
   return ids;
 }
 
+/**
+ * A session's effective workspace ownership AND whether it is provable.
+ *
+ * The ids alone cannot tell "a root with no workspace" apart from "a broken
+ * manager chain", yet the difference matters: only the former is a *provable*
+ * absence of membership. A dangling manager reference or a cycle is
+ * 'indeterminate' — the caller must not treat it as ungrouped.
+ */
+export type WorkspaceOwnership =
+  /** Determinate root that carries no workspace id: provably ungrouped. */
+  | { kind: 'none' }
+  /** Determinate root that carries a workspace id. */
+  | { kind: 'workspace'; id: string }
+  /** A dangling manager reference or a cycle: ownership cannot be proven. */
+  | { kind: 'indeterminate' };
+
 /** Resolve a session's workspace from its manager chain; corrupt chains fail closed. */
 export function effectiveWorkspaceIds(session: Session, sessions: Session[]): string[] {
   return createWorkspaceResolver(sessions)(session);
 }
 
-/** One index and path cache per derivation; never retained across store snapshots. */
-export function createWorkspaceResolver(sessions: Session[]): (session: Session) => string[] {
+/** Effective ownership WITH provenance (see {@link WorkspaceOwnership}). */
+export function resolveWorkspaceOwnership(session: Session, sessions: Session[]): WorkspaceOwnership {
+  return createOwnershipResolver(sessions)(session);
+}
+
+/**
+ * One index and path cache per derivation; never retained across store
+ * snapshots. The single chain walk: descendants inherit the root's membership;
+ * a dangling manager or a cycle is 'indeterminate'.
+ */
+export function createOwnershipResolver(sessions: Session[]): (session: Session) => WorkspaceOwnership {
   const byId = new Map(sessions.map((item) => [item.id, item]));
-  const cache = new Map<Session, string[]>();
+  const cache = new Map<Session, WorkspaceOwnership>();
   return (session) => {
     const path: Session[] = [];
     const seen = new Set<string>();
     let current: Session | undefined = session;
-    let result: string[] = [];
+    let result: WorkspaceOwnership = { kind: 'indeterminate' };
     while (current) {
       const known = cache.get(current);
       if (known) { result = known; break; }
-      if (seen.has(current.id)) break;
+      if (seen.has(current.id)) { result = { kind: 'indeterminate' }; break; }
       seen.add(current.id);
       path.push(current);
-      if (!current.managedBy) { result = (current.workspaceIds ?? []).slice(0, 1); break; }
+      if (!current.managedBy) {
+        const [id] = current.workspaceIds ?? [];
+        result = id ? { kind: 'workspace', id } : { kind: 'none' };
+        break;
+      }
       current = byId.get(current.managedBy);
     }
     path.forEach(item => cache.set(item, result));
     return result;
+  };
+}
+
+/**
+ * Ids-only view of {@link createOwnershipResolver}: a determinate root's
+ * workspace id, or `[]` for anything else (ungrouped OR an unprovable chain —
+ * the historical, fail-closed behavior the session-list scope relies on).
+ */
+export function createWorkspaceResolver(sessions: Session[]): (session: Session) => string[] {
+  const resolveOwnership = createOwnershipResolver(sessions);
+  return (session) => {
+    const ownership = resolveOwnership(session);
+    return ownership.kind === 'workspace' ? [ownership.id] : [];
   };
 }
 

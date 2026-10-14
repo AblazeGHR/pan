@@ -251,7 +251,8 @@ def _caller_identity() -> dict | None:
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     if not sid:
         return None
-    result = _api("GET", f"/api/sessions/{sid}")
+    # Authorization/source identity does not need the caller's conversation.
+    result = _api("GET", f"/api/sessions/{sid}?view=metadata")
     if not isinstance(result, dict) or result.get("error") or "id" not in result:
         return None
     result = dict(result)
@@ -266,7 +267,10 @@ def _caller_identity() -> dict | None:
     return result
 
 
-def _check_access(session_id: str, claim: bool = False) -> dict | None:
+_CALLER_UNSET = object()
+
+
+def _check_access(session_id: str, claim: bool = False, *, caller=_CALLER_UNSET) -> dict | None:
     """Enforce managed-session isolation on a target session.
 
     Rules:
@@ -280,8 +284,11 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
     - Otherwise → permission denied (ok:false + error).
 
     Returns None when allowed, or an error dict when denied.
+    Send callers may reuse their identity snapshot within this one tool call;
+    identity and permissions are never cached across calls.
     """
-    caller = _caller_identity()
+    if caller is _CALLER_UNSET:
+        caller = _caller_identity()
     if not caller:
         return None
     if session_id == caller.get("id"):
@@ -1639,10 +1646,10 @@ def agent_send(session_id: str, text: str = "") -> dict:
     完整编排流程见 /pan skill。
     """
     text = _agent_message_prefix(text)
-    denied = _check_access(session_id, claim=True)
+    caller = _caller_identity()
+    denied = _check_access(session_id, claim=True, caller=caller)
     if denied:
         return denied
-    caller = _caller_identity()
     body = {"sessionId": session_id, "text": text, "source": "agent"}
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
@@ -2575,10 +2582,10 @@ def worker_send(worker_id: str | None = None, text: str = "",
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
-        denied = _check_access(target_sid, claim=True)
+        caller = _caller_identity()
+        denied = _check_access(target_sid, claim=True, caller=caller)
         if denied:
             return denied
-        caller = _caller_identity()
         body = {"workerId": worker_id, "text": text, "source": "agent"}
         if caller and caller.get("id"):
             body["sourceSessionId"] = caller["id"]
