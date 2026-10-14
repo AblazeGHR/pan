@@ -1,0 +1,42 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+___________________ test_missing_environment_blocks_submit ____________________
+tests\test_cbc_hook_channel.py:28: in test_missing_environment_blocks_submit
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:37: in main
+    ???
+<frozen os>:709: in __getitem__
+    ???
+E   KeyError: 'PAN_CBC_HOOK_URL'
+_______ test_invalid_input_blocks_without_traceback_or_private_data[{] ________
+tests\test_cbc_hook_channel.py:20: in test_invalid_input_blocks_without_traceback_or_private_data
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:11: in main
+    ???
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\__init__.py:298: in load
+    return loads(fp.read(),
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py:361: in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+_______ test_invalid_input_blocks_without_traceback_or_private_data[[]] _______
+tests\test_cbc_hook_channel.py:20: in test_invalid_input_blocks_without_traceback_or_private_data
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:37: in main
+    ???
+<frozen os>:709: in __getitem__
+    ???
+E   KeyError: 'PAN_CBC_HOOK_URL'
+=========================== short test summary info ===========================
+FAILED tests/test_cbc_hook_channel.py::test_missing_environment_blocks_submit
+FAILED tests/test_cbc_hook_channel.py::test_invalid_input_blocks_without_traceback_or_private_data[{]
+FAILED tests/test_cbc_hook_channel.py::test_invalid_input_blocks_without_traceback_or_private_data[[]]

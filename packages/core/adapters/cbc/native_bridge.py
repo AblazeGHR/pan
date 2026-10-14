@@ -27,6 +27,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from packages.core.adapters.codex.control_owner import ControlOwner, ControlRejected
+from packages.core.adapters.cbc.native_hook import HOOK_REJECTIONS
 
 
 class NativeBridge:
@@ -221,18 +222,8 @@ class NativeBridge:
             return {}
 
 
-def run(cli_argv, cwd, session_id):
-    from packages.core.terminal.backend import ConPtyBackend
-    output_lock = threading.Lock()
-
-    def emit(event):
-        with output_lock:
-            sys.stdout.write(json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n")
-            sys.stdout.flush()
-
-    token = secrets.token_urlsafe(32)
-    bridge = None
-
+def hook_handler(get_bridge, token):
+    """Bind one listener to one capability and resident kernel."""
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -247,6 +238,7 @@ def run(cli_argv, cwd, session_id):
                 if not 0 < length <= 1024 * 1024:
                     raise ValueError("Invalid hook size")
                 event = json.loads(self.rfile.read(length))
+                bridge = get_bridge()
                 if not isinstance(event, dict) or bridge is None:
                     raise ValueError("Invalid hook")
                 result = bridge.hook(event)
@@ -255,12 +247,32 @@ def run(cli_argv, cwd, session_id):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
-            except (ValueError, TypeError, ControlRejected):
-                self.send_error(409)
+            except (ValueError, TypeError, ControlRejected) as error:
+                code = HOOK_REJECTIONS.get(str(error), "invalid_hook") if isinstance(error, ControlRejected) else "invalid_hook"
+                data = json.dumps({"error": code}).encode()
+                self.send_response(409)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+    return Handler
+
+
+def run(cli_argv, cwd, session_id):
+    from packages.core.terminal.backend import ConPtyBackend
+    output_lock = threading.Lock()
+
+    def emit(event):
+        with output_lock:
+            sys.stdout.write(json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n")
+            sys.stdout.flush()
+
+    token = secrets.token_urlsafe(32)
+    bridge = None
 
     stop = threading.Event()
     with ExitStack() as cleanup:
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), hook_handler(lambda: bridge, token))
         server.daemon_threads = True
         cleanup.callback(server.server_close)
         directory = cleanup.enter_context(tempfile.TemporaryDirectory(prefix="pan-cbc-bridge-"))
