@@ -4,11 +4,12 @@
 // Boots the REAL Pan server (real FastAPI HTTP + real WebSocket broadcast, the
 // real scheduler/job registry) from the established browser fixture
 // (e2e/server.py) on a free OS-assigned port — never 8767/8768 — and loads the
-// production bundle at /react/ with NO mock mode, so the app's real global WS
-// open hydration and real job.* broadcasts drive the badge. Shell-action
-// scheduled tasks run the deterministic sleeper below, giving a controlled
-// real running window: the badge must follow created/updated/deleted events
-// while the user stays on the Chat route.
+// production bundle at /react/ with NO mock mode. The user stays on the Chat
+// route for the WHOLE run and never opens the Jobs page: socket-open REST
+// hydration, real job.created / job.deleted broadcasts, and the recovery
+// loop's terminal job.updated broadcast (a detached background runner can
+// only persist the terminal state) must all update the badge off-page, with
+// zero navigation and zero frontend polling.
 import assert from 'node:assert/strict';
 import { accessSync } from 'node:fs';
 import { createWriteStream } from 'node:fs';
@@ -144,7 +145,6 @@ try {
   };
   const groupBox = () => page.locator('div[aria-label^="界面入口，第"]').boundingBox();
   const jobsLink = page.getByRole('link', { name: 'Jobs' });
-  const chatLink = page.getByRole('link', { name: 'Chat' });
 
   // 1. Global hydration: the badge shows 2 on the Chat route — /jobs was
   // never visited, so only the real WS-open -> GET /api/jobs chain can know.
@@ -160,67 +160,24 @@ try {
   assert.ok(badgeBoxRunning.y + badgeBoxRunning.height <= linkBoxRunning.y + linkBoxRunning.height + 1,
     'badge must stay inside the entry box (reserved slot, not clipped)');
 
-  // 2. One list, one source: the Jobs page shows the same real jobs.
-  await jobsLink.click();
-  try {
-    await page.waitForURL('**/jobs', { timeout: 10000 });
-  } catch (e) {
-    const state = await page.evaluate(() => ({
-      url: location.href,
-      body: document.body.innerText.slice(0, 400),
-      dialogs: document.querySelectorAll('[role="dialog"]').length,
-    })).catch((err) => `evaluate failed: ${err.message}`);
-    console.log('NAV-DEBUG', JSON.stringify(state));
-    throw e;
-  }
-  await page.getByText('Badge Job A').waitFor({ state: 'visible', timeout: 10000 });
-  assert.ok(await page.getByText('Badge Job B').isVisible(), 'Badge Job B listed');
-  await chatLink.click();
-  try {
-    await page.waitForURL((url) => ['/', '/react', '/react/'].includes(url.pathname), { timeout: 10000 });
-  } catch (e) {
-    const state = await page.evaluate(() => ({
-      url: location.href,
-      body: document.body.innerText.slice(0, 300),
-      dialogs: document.querySelectorAll('[role="dialog"]').length,
-    })).catch((err) => `evaluate failed: ${err.message}`);
-    console.log('BACK-DEBUG', JSON.stringify(state), 'pageErrors=', JSON.stringify(pageErrors));
-    throw e;
-  }
-  await poll(badgeText, (text) => text === '2', 'badge persists back on the Chat route');
-
-  // 3. Off-page real WS update: a real job.created broadcast bumps 2 -> 3
-  // with no navigation of any kind.
+  // 2. The user NEVER leaves the Chat route for the rest of the run: every
+  // count change below arrives through the real WebSocket broadcasts alone.
+  // 2a. Real job.created broadcast bumps 2 -> 3 with no navigation.
   const jobC = await startRunningJob('Badge Job C', 6);
   await poll(badgeText, (text) => text === '3', 'badge shows 3 after the real job.created broadcast');
 
-  // 4. Real deletion broadcast: job.deleted must decrement off-page.
+  // 2b. THE FIX UNDER TEST: C's real process finishes (~6s). The detached
+  // runner only persists the terminal state; the server's existing recovery
+  // loop observes it and broadcasts job.updated, so the badge must decrement
+  // BY ITSELF while the user stays on Chat — no Jobs visit, no polling.
+  await poll(badgeText, (text) => text === '2',
+    'badge self-decrements when the real job completes (recovery-loop broadcast)', 20000);
+
+  // 3. Real deletion broadcast: job.deleted must decrement off-page.
   assert.equal((await fetch(`${base}/api/jobs/${jobA}`, { method: 'DELETE' })).status, 200, 'delete A');
-  await poll(badgeText, (text) => text === '2', 'badge decrements after a real job.deleted broadcast');
+  await poll(badgeText, (text) => text === '1', 'badge decrements after a real job.deleted broadcast');
 
-  // 5. C's real process finishes (~6s). A detached background runner records
-  // completion in the registry WITHOUT a WS emit (backend semantics), so the
-  // badge keeps its last WS-known value until the next authoritative read.
-  // Re-entering the Jobs page (real REST refresh) must converge it to only
-  // B running — the completed C is neither resurrected nor double-counted.
-  await sleep(7000);
-  await jobsLink.click();
-  try {
-    await page.waitForURL('**/jobs', { timeout: 10000 });
-  } catch (e) {
-    throw e;
-  }
-  await page.getByText('Badge Job C').waitFor({ state: 'visible', timeout: 10000 });
-  await poll(badgeText, (text) => text === '1', 'REST refresh converges the badge to the completed state');
-  await chatLink.click();
-  try {
-    await page.waitForURL((url) => ['/', '/react', '/react/'].includes(url.pathname), { timeout: 10000 });
-  } catch (e) {
-    throw e;
-  }
-  await poll(badgeText, (text) => text === '1', 'badge stays 1 back on the Chat route');
-
-  // 6. Real deletion down to zero: the badge must hide, with zero layout shift.
+  // 4. Real deletion down to zero: the badge must hide, with zero layout shift.
   assert.equal((await fetch(`${base}/api/jobs/${jobB}`, { method: 'DELETE' })).status, 200, 'delete B');
   await poll(badgeText, (text) => text === null, 'badge hides at zero running jobs');
   const navBoxZero = await groupBox();
@@ -229,13 +186,15 @@ try {
   const linkBoxZero = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
   assert.equal(linkBoxZero.height, linkBoxRunning.height, 'entry height is stable at 0');
 
-  // 7. A fresh page load re-hydrates through the real open handler: seed one
+  // 5. A fresh page load re-hydrates through the real open handler: seed one
   // running job again, reload, and the badge must come back on the Chat route.
   await startRunningJob('Badge Job D', 30);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('div[aria-label^="界面入口，第"]').waitFor({ state: 'visible', timeout: 20000 });
   await poll(badgeText, (text) => text === '1', 'badge re-hydrates after a fresh page load');
 
+  assert.equal(new URL(page.url()).pathname.includes('/jobs'), false,
+    'the whole acceptance must stay off the Jobs route');
   assert.deepEqual(pageErrors, [], 'page errors');
   await context.close();
   console.log('ALL PASS', JSON.stringify({ port, jobsCwd }));

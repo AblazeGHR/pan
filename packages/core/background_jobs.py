@@ -3136,6 +3136,38 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
     return changed
 
 
+def _emit_unbroadcast_terminal(job: dict, root: str | Path) -> dict | None:
+    """独立 Runner 落盘终态的首次服务端观测：持久化广播标记，返回待广播视图。
+
+    分离 runner 只写注册表（自身没有 WS 通道，独立进程所有权不变），全局
+    job store 的离页实时性依赖恢复循环在这里观测到终态后，复用 scheduler
+    事件通道补发一次 job.updated。幂等键是 terminalEventId；先持久化
+    terminalEventEmittedFor 再由调用方发布——发布前崩溃丢失的一次事件由
+    服务重连的 REST 水合收敛，反向顺序则会每个 tick 重复广播。
+    scheduled 子任务不在 /api/jobs 列表内且由父任务 finalize 负责广播，
+    这里跳过，避免 GUI upsert 引入列表外作业。
+    """
+    if job.get("scheduledParentJobId"):
+        return None
+    event_id = job.get("terminalEventId") or f"{job['jobId']}:terminal"
+    if job.get("terminalEventEmittedFor") == event_id:
+        return None
+    with _lock, _job_lock(job["jobId"], root):
+        current = _load_path(_job_path(job["jobId"], root))
+        if not current:
+            return None
+        current_event_id = (current.get("terminalEventId")
+                            or f"{current['jobId']}:terminal")
+        if (current.get("status") not in {"completed", "failed", "cancelled"}
+                or current.get("terminalEventEmittedFor") == current_event_id):
+            return None
+        current["terminalEventEmittedFor"] = current_event_id
+        # 纯簿记字段：不触碰 updatedAt，否则会把 retention 的完成年龄刷新，
+        # 让本应清理的终态记录逃过清理（广播也因此丢失）。
+        _atomic_write(_job_path(current["jobId"], root), current)
+        return job_public_view(current)
+
+
 async def recover_notifications() -> int:
     from packages.jobs import pan_bridge
     try:
@@ -3161,8 +3193,16 @@ async def recover_notifications() -> int:
             if job.get("kind") in {SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND,
                                     SESSION_BROADCAST_KIND, SCHEDULED_TASK_KIND}:
                 continue
-            if (job.get("status") not in {"completed", "failed", "cancelled"}
-                    or job.get("notificationState") in {"delivered", "not_applicable"}):
+            if job.get("status") not in {"completed", "failed", "cancelled"}:
+                continue
+            broadcast = _emit_unbroadcast_terminal(job, root)
+            if broadcast is not None:
+                _scheduled_task_emit({
+                    "type": "job.updated",
+                    "jobId": broadcast["jobId"],
+                    "job": broadcast,
+                })
+            if (job.get("notificationState") in {"delivered", "not_applicable"}):
                 continue
             # Hold the cross-process job lock through projection and terminal
             # notification marking; enqueue_notice is idempotent after a crash.

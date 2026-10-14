@@ -451,3 +451,79 @@ def test_reconcile_keeps_job_when_runner_identity_is_alive(monkeypatch, tmp_path
     monkeypatch.setattr(jobs, "_owns_process", lambda value: object())
     assert jobs.reconcile_running() == 0
     assert jobs.get("job_alive")["status"] == "running"
+
+
+def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
+    """独立 runner 落盘终态后，恢复循环首次观测即补发一次 job.updated。"""
+    _session(tmp_path)
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
+    from packages.core import background_runner
+    assert background_runner.main() == 0
+    assert jobs.get(job["jobId"])["status"] == "completed"
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    assert asyncio.run(jobs.recover_notifications()) == 1
+    assert len(events) == 1
+    assert events[0]["type"] == "job.updated"
+    assert events[0]["jobId"] == job["jobId"]
+    assert events[0]["job"]["status"] == "completed"
+    assert events[0]["job"]["exitCode"] == 0
+    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
+            == f"{job['jobId']}:terminal")
+    # 幂等：第二次恢复循环不得重复广播同一终态。
+    assert asyncio.run(jobs.recover_notifications()) == 0
+    assert len(events) == 1
+
+
+def test_terminal_broadcast_marker_persists_before_emit(monkeypatch, tmp_path):
+    """先持久化标记再发布：广播通道故障也只尝试一次，不得逐 tick 重放。"""
+    _session(tmp_path)
+
+    def raising_hook(event):
+        raise RuntimeError("broadcast down")
+
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", raising_hook)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
+    from packages.core import background_runner
+    assert background_runner.main() == 0
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    asyncio.run(jobs.recover_notifications())
+    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
+            == f"{job['jobId']}:terminal")
+
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event",
+                        lambda event: events.append(event))
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+
+
+def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
+    """scheduled 子进程作业不在 /api/jobs 列表内：不得经 upsert 进入 GUI store。"""
+    _session(tmp_path)
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    jobs.runner_update(job["jobId"], status="completed", exitCode=0,
+                       scheduledParentJobId="sch_parent")
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+    assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
