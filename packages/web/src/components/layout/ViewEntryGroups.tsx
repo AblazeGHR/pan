@@ -109,22 +109,26 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
           aria-hidden={index !== group} className="grid w-full min-w-0 shrink-0 grid-cols-3">
           {page.map((entry, slot) => entry ? <NavLink key={entry.to} to={entry.to} end={entry.end}
             aria-label={entry.label} draggable={false}
-            className={({ isActive }) => `min-w-0 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+            className={({ isActive }) => `min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors ${
               isActive ? 'bg-accent/20 text-accent font-medium' : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'}`}>
-            <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
-            {/* Running Job 数徽标：复用 Session 队列数徽标样式（accent 蓝、0 时不渲染、
-                99+ 封顶）。内联在入口内且不带指针处理，不影响点击、分组滑动与布局；
-                入口裁切容器为 overflow-hidden，徽标不溢出入口盒。 */}
-            {entry.to === '/jobs' && runningJobCount > 0 && (
-              <span
-                className="session-queue-badge"
-                data-testid="jobs-running-badge"
-                aria-hidden="true"
-                title={`${runningJobCount} job(s) running`}
-              >
-                {runningJobCount > 99 ? '99+' : runningJobCount}
-              </span>
-            )}
+            <span className="flex min-w-0 items-center justify-center gap-1">
+              <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
+            </span>
+            {/* 入口下方独立预留槽位：所有入口同构等高，徽标出现/消失只发生在
+                固定槽位内，0 时同样占位因此永不位移。Running Job 数徽标复用
+                Session 队列数徽标样式（accent 蓝、0 时不渲染、99+ 封顶），
+                无自身指针处理，点击穿透到入口，分组滑动不受影响。 */}
+            <span className="flex h-3.5 w-full items-center justify-center" aria-hidden="true">
+              {entry.to === '/jobs' && runningJobCount > 0 && (
+                <span
+                  className="session-queue-badge"
+                  data-testid="jobs-running-badge"
+                  title={`${runningJobCount} job(s) running`}
+                >
+                  {runningJobCount > 99 ? '99+' : runningJobCount}
+                </span>
+              )}
+            </span>
           </NavLink> : <div key={slot} aria-hidden="true" />)}
         </div>)}
       </div>

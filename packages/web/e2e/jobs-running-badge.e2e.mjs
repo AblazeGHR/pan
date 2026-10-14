@@ -155,15 +155,34 @@ try {
       await openApp({ width: 1280, height: 900 });
     await page.locator('div[aria-label^="界面入口，第"]').waitFor({ state: 'visible', timeout: 15000 });
 
-    // Zero running: the badge must not exist at all.
+    // Zero running: the badge must not exist at all. Measure the layout in
+    // this state: the badge slot is reserved, so nothing may shift later.
     await setJobsPayload(page, [settledJob('c1', 'completed')]);
     await jobsLink(page).click();
     await page.waitForURL('**/jobs', { timeout: 5000 });
     await waitForBadge(page, null, 'no running jobs: badge must be hidden');
+    const groupBox = () => page.locator('div[aria-label^="界面入口，第"]').boundingBox();
+    const jobsLinkBox = () => page.getByRole('link', { name: 'Jobs' }).boundingBox();
+    const navBoxZero = await groupBox();
+    const linkBoxZero = await jobsLinkBox();
 
     // Two running: the badge shows the count on the Jobs entry.
     await setJobsPayload(page, [runningJob('r1'), runningJob('r2'), settledJob('c1', 'completed')]);
     await reenterJobs(page, '2', 'two running jobs must show 2');
+
+    // Real layout: the badge sits BELOW the entry label, inside the entry box
+    // (reserved slot, nothing clipped), and nothing shifts versus zero.
+    const labelBox = await page.getByRole('link', { name: 'Jobs' }).locator('span').first().boundingBox();
+    const badgeBox = await badge(page).boundingBox();
+    const linkBox = await jobsLinkBox();
+    assert.ok(badgeBox.y >= labelBox.y + labelBox.height - 1,
+      `badge must sit below the entry label (badge.y=${badgeBox.y}, label bottom=${labelBox.y + labelBox.height})`);
+    assert.ok(badgeBox.y + badgeBox.height <= linkBox.y + linkBox.height + 1,
+      'badge must stay inside the entry box (reserved slot, not clipped)');
+    const navBoxShown = await groupBox();
+    assert.equal(navBoxShown.height, navBoxZero.height, 'nav height must not shift when the badge appears');
+    const linkBoxShown = await jobsLinkBox();
+    assert.equal(linkBoxShown.height, linkBoxZero.height, 'entry height must not shift when the badge appears');
 
     // Reuse of the Session queue badge style: accent-blue round pill.
     const style = await badge(page).evaluate((el) => {
@@ -250,6 +269,19 @@ try {
     await page.waitForURL('**/jobs', { timeout: 5000 });
     await waitForBadge(page, '2', 'mobile drawer badge shows the running count');
 
+    // Real mobile layout: badge below the label inside the entry box, and the
+    // drawer entry height identical to the badge-hidden state.
+    const drawerGroupBox = () => page.locator('div[aria-label^="界面入口，第"]').boundingBox();
+    const mobileLabelBox = await page.getByRole('link', { name: 'Jobs' }).locator('span').first().boundingBox();
+    const mobileBadgeBox = await badge(page).boundingBox();
+    const mobileLinkBox = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
+    assert.ok(mobileBadgeBox.y >= mobileLabelBox.y + mobileLabelBox.height - 1,
+      'mobile badge must sit below the entry label');
+    assert.ok(mobileBadgeBox.y + mobileBadgeBox.height <= mobileLinkBox.y + mobileLinkBox.height + 1,
+      'mobile badge must stay inside the entry box');
+    const mobileNavShown = await drawerGroupBox();
+    const mobileLinkShown = mobileLinkBox;
+
     // Left swipe reaches the Terminal group without navigating.
     await swipeEntryRow(page, -(390 * 0.6), Math.round(390 * 0.03));
     assert.match(await groupLabel(page), /第 2 组/, 'mobile left swipe enters the Terminal group');
@@ -268,13 +300,18 @@ try {
     await page.waitForURL('**/jobs', { timeout: 5000 });
     await waitForBadge(page, '2', 'badge visible on the Jobs page inside the drawer');
 
-    // Zero running hides the badge on mobile too.
+    // Zero running hides the badge on mobile too — with zero layout shift.
     await setJobsPayload(page, [settledJob('c1', 'completed')]);
     await chatLink(page).click();
     await page.waitForURL((url) => url.pathname === '/', { timeout: 5000 });
     await jobsLink(page).click();
     await page.waitForURL('**/jobs', { timeout: 5000 });
     await waitForBadge(page, null, 'mobile: zero running jobs hides the badge');
+    assert.equal((await drawerGroupBox()).height, mobileNavShown.height,
+      'mobile: nav height must not shift between badge shown and hidden');
+    const mobileLinkZero = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
+    assert.equal(mobileLinkZero.height, mobileLinkShown.height,
+      'mobile: entry height is stable at 0');
 
     assert.deepEqual(protectedRequests, [], 'mobile: protected ports were requested');
     assert.deepEqual(pageErrors, [], 'mobile: page errors');

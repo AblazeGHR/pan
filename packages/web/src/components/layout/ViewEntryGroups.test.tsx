@@ -50,7 +50,7 @@ describe('ViewEntryGroups Jobs running badge', () => {
     expect(screen.getByRole('link', { name: 'Jobs' })).toBeTruthy();
   });
 
-  it('shows the running count on the Jobs entry without breaking its accessible name', () => {
+  it('shows the running count in the reserved slot below the Jobs entry label', () => {
     useJobStore.setState({
       jobs: [job(), job({ jobId: 'j2', status: 'running' }), job({ jobId: 'j3', status: 'completed' })],
     });
@@ -58,9 +58,21 @@ describe('ViewEntryGroups Jobs running badge', () => {
     const badge = screen.getByTestId('jobs-running-badge');
     expect(badge.textContent).toBe('2');
     expect(badge.getAttribute('title')).toBe('2 job(s) running');
-    // The entry keeps its name and remains a normal navigation link.
+    // The badge sits inside the Jobs link's dedicated slot row that follows
+    // the icon+label content row (entry-below placement, never inline).
+    const slot = badge.parentElement!;
+    expect(slot.getAttribute('aria-hidden')).toBe('true');
+    expect(slot.className).toContain('h-3.5');
     const link = screen.getByRole('link', { name: 'Jobs' });
-    expect(link.contains(badge)).toBe(true);
+    expect(slot.parentElement).toBe(link);
+    expect(link.firstElementChild!.textContent).toContain('Jobs');
+    // Every entry reserves the same slot row so the row height never changes
+    // when the badge appears or disappears.
+    for (const name of ['Chat', 'Editor', 'Jobs']) {
+      const entry = screen.getByRole('link', { name });
+      expect(entry.children).toHaveLength(2);
+      expect(entry.children[1]!.className).toContain('h-3.5');
+    }
     fireEvent.click(link);
     expect(screen.getByText('jobs route marker')).toBeTruthy();
   });

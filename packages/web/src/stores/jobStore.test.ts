@@ -12,6 +12,9 @@ vi.mock('@/services/api', async (importOriginal) => {
   };
 });
 
+type PinStatus = 'available' | 'unavailable';
+type PinCallback = (status: PinStatus) => void;
+
 const job = (overrides: Partial<Job> = {}): Job => ({
   jobId: 'job-1',
   kind: 'session-message',
@@ -29,7 +32,24 @@ const job = (overrides: Partial<Job> = {}): Job => ({
 
 const resetStore = () => useJobStore.setState({
   jobs: [], loaded: false, loading: false, error: null, pinMetadataUnavailable: false,
+  loadSeq: 0, mutationSeq: 0,
 });
+
+/** A manually resolved fetchJobs response, for deterministic race ordering. */
+function gatedJobs() {
+  const gates = [
+    { resolve: undefined as undefined | ((jobs: Job[]) => void), pin: undefined as PinCallback | undefined },
+    { resolve: undefined as undefined | ((jobs: Job[]) => void), pin: undefined as PinCallback | undefined },
+  ];
+  let call = 0;
+  vi.mocked(api.fetchJobs).mockImplementation((onPinStatus) => {
+    const gate = gates[call]!;
+    gate.pin = onPinStatus;
+    call += 1;
+    return new Promise<Job[]>((resolve) => { gate.resolve = resolve; });
+  });
+  return gates;
+}
 
 describe('jobStore', () => {
   beforeEach(() => {
@@ -120,5 +140,88 @@ describe('jobStore', () => {
 
     useJobStore.getState().removeJob('b');
     expect(selectRunningJobCount(useJobStore.getState())).toBe(0);
+  });
+
+  it('discards a REST snapshot that resolves after a WS mutation landed', async () => {
+    const gates = gatedJobs();
+    const loadPromise = useJobStore.getState().loadJobs();
+
+    // job.updated lands while the load is in flight (useWebSocket -> store).
+    useJobStore.getState().upsertJob(job({ jobId: 'live', status: 'running' }));
+    gates[0]!.resolve!([job({ jobId: 'stale-snapshot', status: 'completed' })]);
+    await loadPromise;
+
+    const state = useJobStore.getState();
+    // The snapshot predates the event: adopting it would overwrite the
+    // newer running state, so it is discarded and the mutation survives.
+    expect(state.jobs.map((j) => j.jobId)).toEqual(['live']);
+    expect(state.loaded).toBe(false);
+    // The request is finished: it must release its loading claim.
+    expect(state.loading).toBe(false);
+  });
+
+  it('does not resurrect a job deleted while a load was pending', async () => {
+    useJobStore.setState({ jobs: [job({ jobId: 'a' }), job({ jobId: 'b' })], loaded: true });
+    const gates = gatedJobs();
+    const loadPromise = useJobStore.getState().loadJobs();
+
+    useJobStore.getState().removeJob('a');
+    gates[0]!.resolve!([job({ jobId: 'a' }), job({ jobId: 'b' })]);
+    await loadPromise;
+
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual(['b']);
+    expect(useJobStore.getState().loading).toBe(false);
+  });
+
+  it('lets the newer load win when two loads resolve out of order', async () => {
+    const gates = gatedJobs();
+    const first = useJobStore.getState().loadJobs();
+    const second = useJobStore.getState().loadJobs();
+
+    gates[1]!.resolve!([job({ jobId: 'new', status: 'running' })]);
+    await second;
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual(['new']);
+
+    gates[0]!.resolve!([job({ jobId: 'old' })]);
+    await first;
+    // The older request's snapshot must not overwrite the newer one.
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual(['new']);
+    expect(useJobStore.getState().loading).toBe(false);
+  });
+
+  it('ignores a stale pin-metadata callback from a superseded load', async () => {
+    const gates = gatedJobs();
+    const first = useJobStore.getState().loadJobs();
+    const second = useJobStore.getState().loadJobs();
+
+    gates[0]!.pin?.('unavailable');
+    expect(useJobStore.getState().pinMetadataUnavailable).toBe(false);
+    gates[1]!.pin?.('unavailable');
+    expect(useJobStore.getState().pinMetadataUnavailable).toBe(true);
+
+    gates[1]!.resolve!([]);
+    await second;
+    gates[0]!.resolve!([job({ jobId: 'late' })]);
+    await first;
+    // The late stale snapshot neither applies nor resets the pin state.
+    expect(useJobStore.getState().jobs.map((j) => j.jobId)).toEqual([]);
+    expect(useJobStore.getState().pinMetadataUnavailable).toBe(true);
+  });
+
+  it('still applies a load that started after the mutation it observes', async () => {
+    // Green path for the gating: a mutation BEFORE the load starts is part of
+    // the snapshot's baseline and must not cause a discard.
+    useJobStore.getState().upsertJob(job({ jobId: 'pre-existing', status: 'running' }));
+    vi.mocked(api.fetchJobs).mockImplementation(async (onPinStatus) => {
+      onPinStatus?.('available');
+      return [job({ jobId: 'pre-existing', status: 'completed' })];
+    });
+
+    await useJobStore.getState().loadJobs();
+
+    const state = useJobStore.getState();
+    expect(state.jobs.map((j) => j.jobId)).toEqual(['pre-existing']);
+    expect(state.loaded).toBe(true);
+    expect(state.loading).toBe(false);
   });
 });
