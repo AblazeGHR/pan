@@ -30,6 +30,11 @@ from packages.core.adapters.codex.control_owner import ControlOwner, ControlReje
 from packages.core.adapters.cbc.native_hook import HOOK_REJECTIONS
 
 
+# CBC's command hook uses JavaScript String.trim(), not Python's wider
+# Unicode strip set. Only trim the receipt projection; keep original PTY bytes.
+_CBC_TRIM_CHARS = "\u0009\u000b\u000c\u0020\u00a0\ufeff\u000a\u000d\u2028\u2029\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000"
+
+
 class NativeBridge:
     def __init__(self, backend, emit, session_id):
         self.backend, self.emit, self.session_id = backend, emit, session_id
@@ -64,7 +69,7 @@ class NativeBridge:
             self.emit({"type": "pan.native_input_state", "uncertain": False})
 
     def submit(self, text):
-        if not isinstance(text, str) or not text or "\x1b" in text:
+        if not isinstance(text, str) or not text.strip(_CBC_TRIM_CHARS) or "\x1b" in text:
             raise ControlRejected("Invalid CBC prompt")
         try:
             encoded = text.encode("utf-8")
@@ -169,7 +174,7 @@ class NativeBridge:
                 if self.turn is not None and self.turn != run:
                     raise ControlRejected("Another CBC turn is active")
                 if self.pending_origin == "pan":
-                    if event.get("prompt") != self.pending_prompt:
+                    if event.get("prompt") != self.pending_prompt.strip(_CBC_TRIM_CHARS):
                         raise ControlRejected("CBC prompt receipt does not match its input")
                     self.pending_prompt = self.pending_origin = None
                 else:

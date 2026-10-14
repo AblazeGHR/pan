@@ -30,6 +30,73 @@ def test_missing_environment_blocks_submit(monkeypatch, capsys):
     assert "missing bridge environment" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("prompt", ["  managed  ", "\r\nmanaged\r\n", "\ufeffmanaged\u00a0", "\u2028managed\u2029"])
+def test_cli_trimmed_prompt_receipt_preserves_managed_owner(monkeypatch, prompt):
+    writes, emitted = [], []
+    bridge = native_bridge.NativeBridge(SimpleNamespace(write=lambda data: writes.append(data) or len(data)), emitted.append, "dedicated")
+    monkeypatch.setattr(native_bridge.time, "sleep", lambda _: None)
+    bridge.hook({"hook_event_name": "SessionStart", "session_id": "dedicated"})
+    bridge.submit(prompt)
+    bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": "managed"})
+    assert bridge.turn == "run-1" and bridge.pending_prompt is None
+    assert len(writes) == 2
+    assert not any(e["type"] == "pan.native_turn_started" for e in emitted)
+    assert not bridge.input_uncertain
+    assert writes[0] == b"\x1b[200~" + prompt.encode() + b"\x1b[201~"
+
+
+@pytest.mark.parametrize("prompt", [" ", "\r\n", "\ufeff\u00a0", "\u2028\u2029"])
+def test_cli_empty_prompt_rejected_before_write(monkeypatch, prompt):
+    writes = []
+    bridge = native_bridge.NativeBridge(SimpleNamespace(write=lambda data: writes.append(data) or len(data)), lambda _: None, "dedicated")
+    bridge.hook({"hook_event_name": "SessionStart", "session_id": "dedicated"})
+    with pytest.raises(native_bridge.ControlRejected, match="Invalid CBC prompt"):
+        bridge.submit(prompt)
+    assert not writes and bridge.pending_prompt is None and not bridge.input_uncertain
+
+
+@pytest.mark.parametrize("receipt", ["man aged", "man\naged", "managed", "\u0085managed "])
+def test_trim_projection_does_not_accept_different_content(monkeypatch, receipt):
+    bridge = native_bridge.NativeBridge(SimpleNamespace(write=lambda data: len(data)), lambda _: None, "dedicated")
+    monkeypatch.setattr(native_bridge.time, "sleep", lambda _: None)
+    bridge.hook({"hook_event_name": "SessionStart", "session_id": "dedicated"})
+    bridge.submit(" \u0085managed ")
+    with pytest.raises(native_bridge.ControlRejected, match="does not match"):
+        bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": receipt})
+    assert bridge.turn is None and bridge.pending_prompt == " \u0085managed "
+
+
+def test_installed_cli_method_facts_cross_real_hook_http(monkeypatch):
+    corpus = json.loads((Path(__file__).resolve().parents[1] / "artifacts/cbc-hook-channel-20261014/installed-prompt-method.json").read_text(encoding="utf-8-sig"))
+    emitted = []
+    bridge = native_bridge.NativeBridge(SimpleNamespace(write=lambda data: len(data)), emitted.append, "dedicated")
+    monkeypatch.setattr(native_bridge.time, "sleep", lambda _: None)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), native_bridge.hook_handler(lambda: bridge, "fixture-capability"))
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    env = isolated_env(f"http://127.0.0.1:{server.server_port}/hook", "fixture-capability")
+    assert server.server_port not in (8767, 8768)
+    bridge.hook({"hook_event_name": "SessionStart", "session_id": "dedicated"})
+    try:
+        for index, (prompt, fact) in enumerate(zip(corpus["inputs"], corpus["facts"], strict=True)):
+            bridge.submit(prompt)
+            # The installed method's hook manager normally adds generation
+            # context. Supply a deterministic identity without a model kernel.
+            fact = {**fact, "generation_id": f"fixture-{index}"}
+            result = hook_process(env, fact)
+            assert result.returncode == 0, result.stderr
+            assert bridge.turn == fact["generation_id"] and bridge.pending_prompt is None
+            stop = {"session_id": "dedicated", "generation_id": fact["generation_id"]}
+            assert hook_process(env, {**stop, "hook_event_name": "Stop", "last_assistant_message": "done"}).returncode == 0
+            assert hook_process(env, {**stop, "hook_event_name": "FinalStop", "final_stop_reason": "completed"}).returncode == 0
+        assert len([e for e in emitted if e["type"] == "result"]) == len(corpus["inputs"])
+        assert not any(e["type"] == "pan.native_turn_started" for e in emitted)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(3)
+
+
 @pytest.mark.parametrize("error,reason", [
     (TimeoutError("private-capability"), "timed out"),
     (ValueError("private-capability"), "invalid bridge request or response"),
