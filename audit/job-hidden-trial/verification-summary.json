@@ -90,6 +90,56 @@
    "time": "0.595",
    "timestamp": "2026-10-15T00:38:06.426087+08:00",
    "hostname": "ablaze"
+  },
+  "cleanup-first.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "4",
+   "skipped": "0",
+   "tests": "11",
+   "time": "0.520",
+   "timestamp": "2026-10-15T01:08:10.182225+08:00",
+   "hostname": "ablaze"
+  },
+  "cleanup-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "60",
+   "time": "11.644",
+   "timestamp": "2026-10-15T01:08:36.328976+08:00",
+   "hostname": "ablaze"
+  },
+  "cleanup-regression.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "88",
+   "time": "17.188",
+   "timestamp": "2026-10-15T01:09:35.736229+08:00",
+   "hostname": "ablaze"
+  },
+  "cleanup-faults-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "14",
+   "time": "0.521",
+   "timestamp": "2026-10-15T01:10:35.841340+08:00",
+   "hostname": "ablaze"
+  },
+  "cleanup-production-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "27",
+   "time": "5.693",
+   "timestamp": "2026-10-15T01:11:11.808918+08:00",
+   "hostname": "ablaze"
   }
  },
  "productionReceiptCases": 13,

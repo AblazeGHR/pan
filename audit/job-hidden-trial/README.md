@@ -36,3 +36,13 @@
 生成 compact 生产事实时使用测试专用 `PAN_TEST_JOB_TRIAL_EVIDENCE` 环境变量，避免 conftest 正确清除应用 PAN_* 设置；它不是产品配置。
 
 原研究 branch/worktree/08589480 和全部 DB/observer/DLL 证据未改历史、未删文件，没有搬入本候选。交付 diff 不含运行 DB、observer 日志、debugger/DLL/alpha/geometry，不新增第三方依赖。等待 MA 验收后决定 main→practical 试用，TA 不合并、不 push、不重启。
+
+## MA 清理复审增量（基于 76ddd8d8）
+
+仅修改 owned cleanup 和诊断，不扩大窗口策略。CleanupStack 用 ExitStack 排队每项释放，逐项捕获失败并用 CleanupError 保留原始异常、各清理异常及 traceback。Job close、guard stop、thread/process close、desktop close 不再互相跳过；guard.stop 返回 False 明确视为停止未确认。失败 handle 不清零。外层 desktop close、构造阶段 cleanup 不遮蔽 spawn 原始异常；错误在 independent 任务日志／legacy error 中保留。independent 清理失败落 UNKNOWN，无成功 outbox；未确认的旧树终止仍保持 UNKNOWN，并记录诊断。
+
+资源保护范围延伸到 token.close：若 CreateProcess 已取得 retained handles 后 token 关闭失败，未恢复进程仍被终止，thread/process 都尝试释放。legacy 将创建 thread handle 立即保存到对象，close 统一释放。正常生命周期／可见路径语义保留。
+
+故障注入覆盖 Job close、guard stop、desktop close 单项或联合失败、停止返回 False、legacy 进程／线程 CloseHandle 失败、spawn 原始错误与 cleanup 错误同时诊断；两入口 token.close 创建后失败使用真实 suspended owned 进程，检查 FILETIME、retained handle DEAD 和 marker 未执行；真实 independent run 的清理失败检查 UNKNOWN、日志、无成功 outbox。native injected close/stop 在测试中先真实释放再抛错，避免制造泄漏；真正未释放的句柄失败用合成 handle 测试，不能称真实 API 失败后资源已释放。
+
+首轮 cleanup-first.xml 的 11 tests/4 failures 本地保留：普通嵌套 ExitStack 没有满足全部错误同时可诊断，随后引入显式错误汇总，没有削弱断言。最终 cleanup-production-final.xml：27 passed/0 skipped（14 故障注入 + 13 原真实生产入口复验）；cleanup-regression.xml：88 passed/0 skipped；cleanup-final.xml：60 passed/0 skipped。批次重叠不累计。已有 timeout config/Pydantic warnings 保留。XML 本地保留，批次事实见 verification-summary.json。原研究树仍 08589480 clean，未进行服务操作／main 或 practical 整合。

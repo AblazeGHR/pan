@@ -6,6 +6,7 @@ import subprocess
 from packages.core import background_jobs as jobs
 from packages.jobs.window import command_window_options
 import os
+import traceback
 from contextlib import nullcontext
 from packages.jobs.desktop import DesktopCommand
 
@@ -47,8 +48,8 @@ def main() -> int:
             status = "completed" if return_code == 0 else "failed"
             jobs.runner_update(args.job_id, status=status, exitCode=return_code)
         return return_code
-    except Exception as exc:
-        jobs.runner_update(args.job_id, status="failed", error=str(exc))
+    except Exception:
+        jobs.runner_update(args.job_id, status="failed", error=traceback.format_exc())
         return 1
 
 

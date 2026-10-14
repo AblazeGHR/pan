@@ -11,6 +11,7 @@ from ctypes import wintypes
 import secrets
 import os
 import subprocess
+from packages.jobs.cleanup import CleanupStack, close_resources, stop_window_guard
 from pathlib import Path
 
 
@@ -50,32 +51,32 @@ class DesktopCommand:
         from packages.jobs.window_guard import OwnedWindowGuard, descendant_pids, owned_descendant_handle
         self.desktop = HiddenDesktop()
         self.handle = 0
+        self.thread_handle = 0
         self.pid = None
-        self.window_guard = OwnedWindowGuard(
-            lambda: descendant_pids(self.pid) if self.pid else (),
-            owned_handle=lambda pid: owned_descendant_handle(self.pid, self.handle, pid))
-        # Started before creation so a window shown immediately by the root is seen.
-        if not self.window_guard.start():
-            self.window_guard.stop()
-            self.desktop.close()
-            raise OSError("owned window guard failed before legacy command creation")
-        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel = self.kernel
-        kernel.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p,
-            ctypes.c_void_p, wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
-            ctypes.POINTER(_STARTUPINFOW), ctypes.POINTER(_PROCESS_INFORMATION)]
-        kernel.CreateProcessW.restype = wintypes.BOOL
-        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-        kernel.CloseHandle.restype = wintypes.BOOL
-        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        kernel.WaitForSingleObject.restype = wintypes.DWORD
-        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
-        kernel.GetExitCodeProcess.restype = wintypes.BOOL
-        kernel.ResumeThread.argtypes = [wintypes.HANDLE]
-        kernel.ResumeThread.restype = wintypes.DWORD
-        command = (f'{subprocess.list2cmdline([os.environ.get("ComSpec") or str(Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe")])} /c "{argv}"'
-                   if shell else subprocess.list2cmdline(argv))
+        self.window_guard = None
         try:
+            self.window_guard = OwnedWindowGuard(
+                lambda: descendant_pids(self.pid) if self.pid else (),
+                owned_handle=lambda pid: owned_descendant_handle(self.pid, self.handle, pid))
+            # Started before creation so a window shown immediately by the root is seen.
+            if not self.window_guard.start():
+                raise OSError("owned window guard failed before legacy command creation")
+            self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel = self.kernel
+            kernel.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p,
+                ctypes.c_void_p, wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
+                ctypes.POINTER(_STARTUPINFOW), ctypes.POINTER(_PROCESS_INFORMATION)]
+            kernel.CreateProcessW.restype = wintypes.BOOL
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.CloseHandle.restype = wintypes.BOOL
+            kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel.WaitForSingleObject.restype = wintypes.DWORD
+            kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            kernel.GetExitCodeProcess.restype = wintypes.BOOL
+            kernel.ResumeThread.argtypes = [wintypes.HANDLE]
+            kernel.ResumeThread.restype = wintypes.DWORD
+            command = (f'{subprocess.list2cmdline([os.environ.get("ComSpec") or str(Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe")])} /c "{argv}"'
+                       if shell else subprocess.list2cmdline(argv))
             with open("NUL", "rb") as null_in:
                 handles = [msvcrt.get_osfhandle(null_in.fileno()), msvcrt.get_osfhandle(log.fileno())]
                 previous = [os.get_handle_inheritable(h) for h in handles]
@@ -89,25 +90,26 @@ class DesktopCommand:
                     startup.hStdInput, startup.hStdOutput, startup.hStdError = handles[0], handles[1], handles[1]
                     from packages.jobs.restricted_token import HiddenJobToken
                     hidden_token = HiddenJobToken()
-                    try:
+                    with CleanupStack() as token_cleanup:
+                        token_cleanup.callback(hidden_token.close)
                         process, thread, pid = hidden_token.create_process(
                             command, cwd, None, startup, 0x08000004)
-                    finally:
-                        hidden_token.close()
-                    self.handle, self.pid = process, pid
-                    try:
-                        if kernel.ResumeThread(thread) != 1:
-                            raise RuntimeError("legacy command resume count was not exactly one")
-                    finally:
-                        if not kernel.CloseHandle(thread): raise ctypes.WinError(ctypes.get_last_error())
+                        self.handle, self.pid = process, pid
+                        self.thread_handle = thread
+                    if kernel.ResumeThread(thread) != 1:
+                        raise RuntimeError("legacy command resume count was not exactly one")
                 finally:
                     for h, flag in zip(handles, previous): os.set_handle_inheritable(h, flag)
         except BaseException:
-            if self.handle:
-                kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
-                kernel.TerminateProcess(self.handle, 1)
-            self.close()
-            raise
+            with CleanupStack() as cleanup:
+                cleanup.callback(self.close)
+                if self.handle:
+                    self.kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+                    def terminate():
+                        if not self.kernel.TerminateProcess(self.handle, 1):
+                            raise ctypes.WinError(ctypes.get_last_error())
+                    cleanup.callback(terminate)
+                raise
 
     def wait(self, timeout=None):
         result = self.kernel.WaitForSingleObject(self.handle, 0xFFFFFFFF if timeout is None else int(timeout * 1000))
@@ -119,13 +121,21 @@ class DesktopCommand:
         return code.value
 
     def close(self):
-        try:
+        def close_process():
             if self.handle:
-                if not self.kernel.CloseHandle(self.handle): raise ctypes.WinError(ctypes.get_last_error())
+                if not self.kernel.CloseHandle(self.handle):
+                    raise ctypes.WinError(ctypes.get_last_error())
                 self.handle = 0
-        finally:
-            self.window_guard.stop()
-            self.desktop.close()
+        def close_thread():
+            if self.thread_handle:
+                if not self.kernel.CloseHandle(self.thread_handle):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                self.thread_handle = 0
+        close_resources(
+            close_process,
+            close_thread,
+            lambda: stop_window_guard(self.window_guard) if self.window_guard is not None else None,
+            self.desktop.close)
 
     def __enter__(self): return self
     def __exit__(self, *_): self.close()

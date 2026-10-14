@@ -9,6 +9,8 @@ import sqlite3
 import subprocess
 import sys
 import time
+import traceback
+from packages.jobs.cleanup import CleanupStack, stop_window_guard
 from pathlib import Path
 from ctypes import wintypes
 from packages.jobs.window import windows_creation_flags
@@ -89,11 +91,10 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
     """Create suspended, assign and prove a kill-on-close Job, then resume once."""
     from packages.jobs.desktop import HiddenDesktop
     desktop = HiddenDesktop() if payload.get("hideWindow", True) else None
-    try:
-        return _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop)
-    finally:
+    with CleanupStack() as cleanup:
         if desktop is not None:
-            desktop.close()
+            cleanup.callback(desktop.close)
+        return _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop)
 
 
 def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop):
@@ -117,129 +118,131 @@ def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, de
     window_guard = None
     assigned = resumed_ok = False
     with log_path.open("ab", buffering=0) as log, open("NUL", "rb") as null_in:
-        std_handles = [int(msvcrt.get_osfhandle(null_in.fileno())),
-                       int(msvcrt.get_osfhandle(log.fileno()))]
-        for handle in std_handles:
-            if not kernel.SetHandleInformation(wintypes.HANDLE(handle), 1, 1):
-                raise OSError("could not make task output handles inheritable")
-        startup = _STARTUPINFOW()
-        startup.cb = ctypes.sizeof(startup)
-        startup.lpDesktop = desktop.path if desktop is not None else None
-        startup.dwFlags = 0x00000100  # STARTF_USESTDHANDLES
-        startup.dwFlags |= 0x00000001  # STARTF_USESHOWWINDOW
-        startup.wShowWindow = 0 if payload.get("hideWindow", True) else 1
-        startup.hStdInput = std_handles[0]
-        startup.hStdOutput = std_handles[1]
-        startup.hStdError = std_handles[1]
-        command_text = subprocess.list2cmdline(payload["argv"])
-        command = ctypes.create_unicode_buffer(command_text)
-        env_block = "\0".join(f"{key}={value}" for key, value in sorted(env.items(), key=lambda pair: pair[0].upper())) + "\0\0"
-        env_buffer = ctypes.create_unicode_buffer(env_block)
-        creation_flags = 0x00000004 | 0x00000200 | windows_creation_flags(payload.get("hideWindow", True)) | 0x00000400
-        if desktop is not None:
-            # Hidden path: a per-job duplicate of the runner token whose DefaultDacl
-            # denies the current user PROCESS_SET_INFORMATION. That keeps an ordinary
-            # console on the private desktop instead of handing it to the user's
-            # default terminal, whose window is not ours to touch. A token or
-            # creation failure is an explicit failure: there is deliberately no
-            # fallback to the plain launch, which could show a console to the user.
-            from packages.jobs.restricted_token import HiddenJobToken
-            try:
-                hidden_token = HiddenJobToken()
-                try:
-                    process_handle, thread_handle, pid = hidden_token.create_process(
-                        command_text, payload["cwd"], env_buffer, startup, creation_flags)
-                finally:
-                    hidden_token.close()
-            except OSError as error:
-                code = int(getattr(error, "winerror", 0) or 1)
-                log.write(f"Hidden Job token/process creation failed (winerror={code}): {error}\n".encode("utf-8"))
-                return "failed", -code, None, None
-        else:
-            created = kernel.CreateProcessW(None, command, None, None, True, creation_flags,
-                ctypes.cast(env_buffer, ctypes.c_void_p), payload["cwd"],
-                ctypes.byref(startup), ctypes.byref(process_info))
-            if not created:
-                return "failed", -int(ctypes.get_last_error()), None, None
-            process_handle, thread_handle = int(process_info.hProcess), int(process_info.hThread)
-            pid = int(process_info.dwProcessId)
-        try:
-            creation = read_creation_filetime(process_handle)
-            if creation is None: raise RuntimeError("task creation FILETIME unavailable")
-            guard = JobObjectGuard(kill_on_close=True)
-            guard.assign(process_handle)
-            assigned = True
-            if not guard.is_member(process_handle) or (guard.active_processes() or 0) < 1:
-                raise RuntimeError("task membership in owned Job Object was not proven")
+        with CleanupStack() as cleanup:
+            cleanup.callback(lambda: close_handle_checked(process_handle) if process_handle else None)
+            cleanup.callback(lambda: close_handle_checked(thread_handle) if thread_handle else None)
+            cleanup.callback(lambda: stop_window_guard(window_guard) if window_guard is not None else None)
+            cleanup.callback(lambda: guard.close() if guard is not None and guard.handle_open else None)
+            def terminate_unresumed():
+                if process_handle and not resumed_ok and not assigned:
+                    if not kernel.TerminateProcess(wintypes.HANDLE(process_handle), 1):
+                        raise ctypes.WinError(ctypes.get_last_error())
+            cleanup.callback(terminate_unresumed)
+            std_handles = [int(msvcrt.get_osfhandle(null_in.fileno())),
+                           int(msvcrt.get_osfhandle(log.fileno()))]
+            for handle in std_handles:
+                if not kernel.SetHandleInformation(wintypes.HANDLE(handle), 1, 1):
+                    raise OSError("could not make task output handles inheritable")
+            startup = _STARTUPINFOW()
+            startup.cb = ctypes.sizeof(startup)
+            startup.lpDesktop = desktop.path if desktop is not None else None
+            startup.dwFlags = 0x00000100  # STARTF_USESTDHANDLES
+            startup.dwFlags |= 0x00000001  # STARTF_USESHOWWINDOW
+            startup.wShowWindow = 0 if payload.get("hideWindow", True) else 1
+            startup.hStdInput = std_handles[0]
+            startup.hStdOutput = std_handles[1]
+            startup.hStdError = std_handles[1]
+            command_text = subprocess.list2cmdline(payload["argv"])
+            command = ctypes.create_unicode_buffer(command_text)
+            env_block = "\0".join(f"{key}={value}" for key, value in sorted(env.items(), key=lambda pair: pair[0].upper())) + "\0\0"
+            env_buffer = ctypes.create_unicode_buffer(env_block)
+            creation_flags = 0x00000004 | 0x00000200 | windows_creation_flags(payload.get("hideWindow", True)) | 0x00000400
             if desktop is not None:
-                from packages.jobs.window_guard import OwnedWindowGuard
-                def owned_handle(window_pid):
-                    # Probe the current process through a retained handle, then prove
-                    # membership in this exact Job. No historical PID cache is used.
-                    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-                    kernel.OpenProcess.restype = wintypes.HANDLE
-                    # IsProcessInJob requires PROCESS_QUERY_INFORMATION (0x400).
-                    handle = kernel.OpenProcess(0x400, False, window_pid)
-                    if not handle:
-                        return None
-                    try:
-                        if read_creation_filetime(handle) is not None and guard.is_member(handle):
-                            return int(handle)  # Callback retains this handle through window mutation.
-                    except Exception:
-                        close_handle_checked(handle)
-                        raise
-                    close_handle_checked(handle)
-                    return None
-                window_guard = OwnedWindowGuard(guard.member_pids, owned_handle=owned_handle)
-                if not window_guard.start():
-                    raise RuntimeError("owned window guard failed before task resume")
-            with _connect(root) as db:
-                changed = db.execute("UPDATE jobs SET status='running',task_pid=?,task_filetime=?,updated=? WHERE id=? AND status='starting' AND runner_claim=?",
-                    (pid, str(creation), time.time(), job_id, claim)).rowcount
-            if changed != 1: raise RuntimeError("runner claim lost before task resume")
-            resumed = int(kernel.ResumeThread(wintypes.HANDLE(thread_handle)))
-            if resumed != 1: raise RuntimeError("task resume count was not exactly one")
-            resumed_ok = True
-            while True:
-                state = wait_state(process_handle)
-                if state is ProcessStatus.DEAD: break
-                if state is ProcessStatus.UNKNOWN:
-                    return "UNKNOWN", None, pid, str(creation)
-                with _connect(root) as db:
-                    cancel = db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
-                if cancel and cancel[0]:
-                    try:
-                        _, remaining = guard.terminate_tree(pid, timeout=5.0)
-                    except Exception:
-                        return "UNKNOWN", None, pid, str(creation)
-                    if remaining:
-                        return "UNKNOWN", None, pid, str(creation)
-                    exit_code = informational_exit_code(process_handle)
-                    return "cancelled", exit_code, pid, str(creation)
-                time.sleep(.05)
-            exit_code = informational_exit_code(process_handle)
-            if not _owned_job_empty(guard):
-                # Direct command ended but owned descendants remain; close-on-close will contain them.
-                return "UNKNOWN", exit_code, pid, str(creation)
-            return ("completed" if exit_code == 0 else "failed"), exit_code, pid, str(creation)
-        except Exception:
-            if assigned and guard is not None and guard.handle_open:
-                try: guard.terminate_tree(pid, timeout=5.0)
-                except Exception: pass
-            elif process_handle and not resumed_ok:
-                # Not resumed: no user command could have run. Terminate through the
-                # exact retained CreateProcess handle so an assign failure cannot orphan it.
+                # Hidden path: a per-job duplicate of the runner token whose DefaultDacl
+                # denies the current user PROCESS_SET_INFORMATION. That keeps an ordinary
+                # console on the private desktop instead of handing it to the user's
+                # default terminal, whose window is not ours to touch. A token or
+                # creation failure is an explicit failure: there is deliberately no
+                # fallback to the plain launch, which could show a console to the user.
+                from packages.jobs.restricted_token import HiddenJobToken
                 try:
-                    kernel.TerminateProcess(wintypes.HANDLE(process_handle), 1)
-                except Exception: pass
-            return "UNKNOWN", None, pid, _identity(pid)
-        finally:
-            if guard is not None and guard.handle_open:
-                guard.close()
-            if window_guard is not None:
-                window_guard.stop()
-            if thread_handle: close_handle_checked(thread_handle)
-            if process_handle: close_handle_checked(process_handle)
+                    hidden_token = HiddenJobToken()
+                    with CleanupStack() as token_cleanup:
+                        token_cleanup.callback(hidden_token.close)
+                        process_handle, thread_handle, pid = hidden_token.create_process(
+                            command_text, payload["cwd"], env_buffer, startup, creation_flags)
+                except OSError as error:
+                    code = int(getattr(error, "winerror", 0) or 1)
+                    log.write(f"Hidden Job token/process creation failed (winerror={code})\n".encode("utf-8"))
+                    log.write(traceback.format_exc().encode("utf-8"))
+                    return "failed", -code, None, None
+            else:
+                created = kernel.CreateProcessW(None, command, None, None, True, creation_flags,
+                    ctypes.cast(env_buffer, ctypes.c_void_p), payload["cwd"],
+                    ctypes.byref(startup), ctypes.byref(process_info))
+                if not created:
+                    return "failed", -int(ctypes.get_last_error()), None, None
+                process_handle, thread_handle = int(process_info.hProcess), int(process_info.hThread)
+                pid = int(process_info.dwProcessId)
+            try:
+                creation = read_creation_filetime(process_handle)
+                if creation is None: raise RuntimeError("task creation FILETIME unavailable")
+                guard = JobObjectGuard(kill_on_close=True)
+                guard.assign(process_handle)
+                assigned = True
+                if not guard.is_member(process_handle) or (guard.active_processes() or 0) < 1:
+                    raise RuntimeError("task membership in owned Job Object was not proven")
+                if desktop is not None:
+                    from packages.jobs.window_guard import OwnedWindowGuard
+                    def owned_handle(window_pid):
+                        # Probe the current process through a retained handle, then prove
+                        # membership in this exact Job. No historical PID cache is used.
+                        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+                        kernel.OpenProcess.restype = wintypes.HANDLE
+                        # IsProcessInJob requires PROCESS_QUERY_INFORMATION (0x400).
+                        handle = kernel.OpenProcess(0x400, False, window_pid)
+                        if not handle:
+                            return None
+                        try:
+                            if read_creation_filetime(handle) is not None and guard.is_member(handle):
+                                return int(handle)  # Callback retains this handle through window mutation.
+                        except Exception:
+                            close_handle_checked(handle)
+                            raise
+                        close_handle_checked(handle)
+                        return None
+                    window_guard = OwnedWindowGuard(guard.member_pids, owned_handle=owned_handle)
+                    if not window_guard.start():
+                        raise RuntimeError("owned window guard failed before task resume")
+                with _connect(root) as db:
+                    changed = db.execute("UPDATE jobs SET status='running',task_pid=?,task_filetime=?,updated=? WHERE id=? AND status='starting' AND runner_claim=?",
+                        (pid, str(creation), time.time(), job_id, claim)).rowcount
+                if changed != 1: raise RuntimeError("runner claim lost before task resume")
+                resumed = int(kernel.ResumeThread(wintypes.HANDLE(thread_handle)))
+                if resumed != 1: raise RuntimeError("task resume count was not exactly one")
+                resumed_ok = True
+                while True:
+                    state = wait_state(process_handle)
+                    if state is ProcessStatus.DEAD: break
+                    if state is ProcessStatus.UNKNOWN:
+                        return "UNKNOWN", None, pid, str(creation)
+                    with _connect(root) as db:
+                        cancel = db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
+                    if cancel and cancel[0]:
+                        try:
+                            _, remaining = guard.terminate_tree(pid, timeout=5.0)
+                        except Exception:
+                            log.write(traceback.format_exc().encode("utf-8"))
+                            return "UNKNOWN", None, pid, str(creation)
+                        if remaining:
+                            log.write(b"Owned tree termination unconfirmed: descendants remain.\n")
+                            return "UNKNOWN", None, pid, str(creation)
+                        exit_code = informational_exit_code(process_handle)
+                        return "cancelled", exit_code, pid, str(creation)
+                    time.sleep(.05)
+                exit_code = informational_exit_code(process_handle)
+                if not _owned_job_empty(guard):
+                    # Direct command ended but owned descendants remain; close-on-close will contain them.
+                    return "UNKNOWN", exit_code, pid, str(creation)
+                return ("completed" if exit_code == 0 else "failed"), exit_code, pid, str(creation)
+            except Exception:
+                log.write(traceback.format_exc().encode("utf-8"))
+                if assigned and guard is not None and guard.handle_open:
+                    try: guard.terminate_tree(pid, timeout=5.0)
+                    except Exception:
+                        log.write(traceback.format_exc().encode("utf-8"))
+                return "UNKNOWN", None, pid, _identity(pid)
+
 def run(root, job_id):
     root = str(Path(root).resolve())
     with _connect(root) as db:
@@ -293,6 +296,8 @@ def run(root, job_id):
                 if final_status not in ("UNKNOWN", "cancelled"):
                     final_status = "completed" if exit_code == 0 else "failed"
     except Exception:
+        with log_path.open("ab", buffering=0) as log:
+            log.write(traceback.format_exc().encode("utf-8"))
         final_status = "UNKNOWN"
         exit_code = exit_code if exit_code is not None else -1
 
