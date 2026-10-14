@@ -1,0 +1,2 @@
+# Detailed pytest receipts stay locally available; only compact summary enters Git.
+*.xml

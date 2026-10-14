@@ -32,6 +32,31 @@ def _session(tmp_path, sid="ses_target"):
     return s
 
 
+def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
+                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
+    monkeypatch.setattr(jobs, "_owns_process", lambda fact: Mock(pid=fact["pid"]))
+    def killed(proc):
+        assert jobs.get(job["jobId"])["cancelRequestedAt"]
+        jobs.runner_update(job["jobId"], status="failed", exitCode=15)
+    monkeypatch.setattr(jobs, "_kill_tree", killed)
+    result = jobs.cancel(job["jobId"])
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+    assert result["terminalEventId"] == job["jobId"] + ":terminal"
+
+
+def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tmp_path):
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "cancelRequestedAt": 1})
+    result = jobs.runner_update(job["jobId"], status="completed", exitCode=0)
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+
+
 def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     _session(tmp_path)
     _session(tmp_path, "ses_creator")

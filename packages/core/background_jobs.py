@@ -2885,6 +2885,14 @@ def cancel(job_id: str) -> dict:
         raise ValueError("cannot safely cancel: task PID identity is unavailable or reused")
     if not proc and not runner:
         raise ValueError("cannot safely cancel: Runner PID identity is unavailable")
+    # Publish accepted cancellation before killing. The runner can otherwise
+    # observe the termination exit code and commit failed before cancel commits.
+    with _lock, _job_lock(job_id):
+        current = _load_path(_job_path(job_id))
+        if not current: raise ValueError("job not found")
+        if current.get("status") in {"completed", "failed", "cancelled"}: return current
+        current["cancelRequestedAt"] = time.time()
+        _atomic_write(_job_path(job_id), current)
     if proc:
         _kill_tree(proc)
     if runner and getattr(runner, "pid", None) != getattr(proc, "pid", None):
@@ -3090,7 +3098,17 @@ def runner_update(job_id: str, **changes: Any) -> dict:
         changes.setdefault("terminalEventId", f"{job_id}:terminal")
         changes["notificationState"] = "pending"
     changes["updatedAt"] = time.time()
-    return _update(job_id, changes)
+    with _lock, _job_lock(job_id):
+        current = _load_path(_job_path(job_id))
+        if not current: raise ValueError("job not found")
+        if current.get("cancelRequestedAt") and changes.get("status") in {"completed", "failed"}:
+            # The runner may finish before the cancelling caller commits (or
+            # that caller may disappear). Do not leave an active pending record.
+            changes.update(status="cancelled", exitCode=None)
+        if current.get("status") == "cancelled": changes.pop("status", None)
+        current.update(changes)
+        _atomic_write(_job_path(job_id), current)
+        return current
 
 
 def reconcile_running(registry_root: str | Path | None = None) -> int:

@@ -1,0 +1,98 @@
+{
+ "baseMain": "393ee688c62c9dfd2e1fab5e4ae5ed2247f23a57",
+ "batches": {
+  "cancel-fixed.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "2",
+   "time": "0.742",
+   "timestamp": "2026-10-15T00:25:08.590621+08:00",
+   "hostname": "ablaze"
+  },
+  "cancel-policy-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "60",
+   "time": "5.148",
+   "timestamp": "2026-10-15T00:48:06.000031+08:00",
+   "hostname": "ablaze"
+  },
+  "production-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "14",
+   "time": "5.005",
+   "timestamp": "2026-10-15T00:34:37.942867+08:00",
+   "hostname": "ablaze"
+  },
+  "production-receipts-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "13",
+   "time": "5.233",
+   "timestamp": "2026-10-15T00:45:26.894953+08:00",
+   "hostname": "ablaze"
+  },
+  "production-receipts.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "13",
+   "time": "5.569",
+   "timestamp": "2026-10-15T00:40:36.303613+08:00",
+   "hostname": "ablaze"
+  },
+  "production.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "1",
+   "skipped": "0",
+   "tests": "9",
+   "time": "15.821",
+   "timestamp": "2026-10-15T00:21:32.464853+08:00",
+   "hostname": "ablaze"
+  },
+  "regression-final.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "121",
+   "time": "25.394",
+   "timestamp": "2026-10-15T00:26:52.613612+08:00",
+   "hostname": "ablaze"
+  },
+  "regression.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "4",
+   "skipped": "0",
+   "tests": "112",
+   "time": "23.198",
+   "timestamp": "2026-10-15T00:10:53.988729+08:00",
+   "hostname": "ablaze"
+  },
+  "shell.xml": {
+   "name": "pytest",
+   "errors": "0",
+   "failures": "0",
+   "skipped": "0",
+   "tests": "1",
+   "time": "0.595",
+   "timestamp": "2026-10-15T00:38:06.426087+08:00",
+   "hostname": "ablaze"
+  }
+ },
+ "productionReceiptCases": 13,
+ "sourceResearch": "08589480847130e8e04ecbb3341c06595ca614ae",
+ "caveat": "Overlap batches are not added; legacy crash survivors were cleaned by test harness, not product kernel containment; desktop/proxy metadata is not zero-frame pixel proof."
+}
