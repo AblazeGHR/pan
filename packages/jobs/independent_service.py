@@ -171,7 +171,9 @@ class JobStore:
                   "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
                   "close_fds": True}
         if os.name == "nt":
-            kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+            # Preserve a windowless console through Python venv redirectors.
+            # DETACHED_PROCESS is not inherited by their flags=0 child launch.
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         else:
             kwargs["start_new_session"] = True
         try:

@@ -730,7 +730,11 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
         },
     }
     if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0)
+        # A venv redirector starts the real Python with flags=0. DETACHED_PROCESS
+        # is not inherited and would let that child allocate a Terminal window.
+        # NO_WINDOW creates a windowless console that the redirector child inherits.
+        # This runner is always headless; the task's hideWindow policy is separate.
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     else:
         kwargs["start_new_session"] = True
     try:
