@@ -1,5 +1,7 @@
 # Hidden Job 异常生命周期预防性加固
 
+MA venv 复审退回后的补充结论见 [REVIEW-venv-owner.md](REVIEW-venv-owner.md)。下述 171/76 项是原交付批次，不代表当时已覆盖生产 venv 的 PID publication 用例；该用例原断言有误，现已用实际 task ancestry/FILETIME 加强验证，双解释器各 94 项通过。原提交、红批次和原始记录保留。
+
 基线 `6b1d7ad92c3b20048a0d3897e5a38adc328cbf24`；branch `fix/job-lifecycle-prevention-20261016`；worktree `D:/project/pan-worktrees/job-lifecycle-prevention-20261016`。不是把一般担忧当作孤儿已发生：以下先复现、再窄修。原研究树仍为 08589480，内容／历史未改动。TA 不移动 main/practical、不 push、不重启或探测用户服务／保护端口。
 
 ## 已有覆盖、实测缺陷和产品改动

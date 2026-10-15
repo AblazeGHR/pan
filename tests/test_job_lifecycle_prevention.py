@@ -41,7 +41,9 @@ def retain(pid, filetime=None):
 
 def kill(handle):
  k=ctypes.WinDLL('kernel32',use_last_error=True);k.TerminateProcess.argtypes=[w.HANDLE,w.UINT]
- assert k.TerminateProcess(handle,1)
+ if not k.TerminateProcess(handle,1):
+  error=ctypes.get_last_error()
+  assert until(lambda:wait_state(handle) is ProcessStatus.DEAD), f'Owned termination unconfirmed (winerror={error})'
 
 
 @pytest.mark.parametrize('kind',['legacy','independent'])
@@ -55,7 +57,7 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
  helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
  repo=Path(__file__).resolve().parents[1]
  monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
- runtime=sys.executable
+ runtime=sys._base_executable
  if launch_mode!='base':
   import venv
   venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
@@ -69,19 +71,24 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
  argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
  store=JobStore(root) if kind=='independent' else None
  job=store.create({'argv':argv,'cwd':str(tmp_path),'targetSessionId':'owned'}) if store else legacy.start('owned',argv,str(tmp_path))
- child=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
+ child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
  try:
   assert until(gate.exists)
   row=json.loads(gate.read_text())
   if fault=='post-create':child=retain(row['pid'],row['creationFiletime'])
   assert read_creation_filetime(int(runner._handle))==runner_ft
-  inner=None
+  inner=retain(row['runnerPid'],row['runnerFiletime'])
+  if store and fault=='post-create':
+   store.recover()
+   alive_fact=store.get(job['jobId'])
+   assert alive_fact['status'] in ('starting','running')
+   assert alive_fact['runnerPid']==row['runnerPid']
+   assert int(alive_fact['runnerFiletime'])==row['runnerFiletime']
   if launch_mode=='venv-inner':
-   inner=retain(row['runnerPid'],row['runnerFiletime'])
-   try:kill(inner)
-   finally:close_handle_checked(inner)
+   kill(inner)
   else:kill(int(runner._handle))
   runner.wait(timeout=5)
+  assert until(lambda:wait_state(inner) is ProcessStatus.DEAD), 'Actual Python runner survived redirector death'
   if store:
    restarted=JobStore(root);restarted.recover();fact=restarted.get(job['jobId'])
    assert fact['status']=='UNKNOWN'
@@ -95,11 +102,15 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
   dead=child is None or until(lambda:wait_state(child) is ProcessStatus.DEAD,1)
   target=os.environ.get('PAN_TEST_LIFECYCLE_EVIDENCE')
   if target:
-   with Path(target).open('a',encoding='utf8') as f:f.write(json.dumps(dict(kind=kind,fault=fault,launchMode=launch_mode,runnerPid=runner.pid,runnerFiletime=str(runner_ft),child=row if child else None,retainedChildDead=dead,registryStatus=fact['status'],markerExecuted=marker.exists()))+'\n')
+   with Path(target).open('a',encoding='utf8') as f:f.write(json.dumps(dict(kind=kind,fault=fault,launchMode=launch_mode,runnerPid=runner.pid,runnerFiletime=str(runner_ft),actualRunnerPid=row['runnerPid'],actualRunnerFiletime=str(row['runnerFiletime']),actualRunnerDead=wait_state(inner) is ProcessStatus.DEAD,child=row if child else None,retainedChildDead=dead,registryStatus=fact['status'],markerExecuted=marker.exists()))+'\n')
   assert not marker.exists()
   assert dead,'Owned suspended child survived runner death before caller receives CreateProcess result'
   if child:assert until(lambda:desktop_gone(row['desktop']))
  finally:
+  if inner:
+   if wait_state(inner) is not ProcessStatus.DEAD:kill(inner)
+   assert until(lambda:wait_state(inner) is ProcessStatus.DEAD)
+   close_handle_checked(inner)
   if child:
    if wait_state(child) is not ProcessStatus.DEAD:kill(child)
    assert until(lambda:wait_state(child) is ProcessStatus.DEAD)
@@ -279,34 +290,74 @@ def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_pa
         if runner: close_handle_checked(runner)
 
 
-def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch):
+@pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+    import psutil
+    runtime = sys._base_executable
+    if runtime_profile == 'venv':
+        runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
+        if not runtime and sys.prefix != sys.base_prefix:
+            runtime = sys.executable
+        if not runtime:
+            import venv
+            venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
+            runtime = str(tmp_path / 'venv/Scripts/python.exe')
+    assert Path(runtime).is_file()
     root = tmp_path / 'registry'
     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
     helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
     tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
-    host = subprocess.Popen([sys.executable, str(helper.resolve()), 'legacy', str(root),
-                             str(tree.resolve()), str(tmp_path), 'post-spawn'],
+    host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
+                             str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
                             creationflags=subprocess.CREATE_NO_WINDOW,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     host_ft = read_creation_filetime(int(host._handle))
     runner = None
+    redirector = None
     handles = []
     try:
         assert until(lambda: (tmp_path / 'tree-0.json').exists())
         spawn = json.loads((tmp_path / 'spawn.json').read_text())
-        runner = retain(spawn['pid'], spawn['creationFiletime'])
+        redirector = retain(spawn['pid'], spawn['creationFiletime'])
         rows = [json.loads((tmp_path / f'tree-{i}.json').read_text()) for i in (2, 1, 0)]
         handles = [retain(row['pid'], row['creationFiletime']) for row in rows]
+        claimed = legacy.get(spawn['jobId'])
+        runner = retain(claimed['runnerPid'], int(claimed['runnerFiletime']))
+        witness = rows[0]['runnerAncestors'][-1]
+        assert witness['pid'] == claimed['runnerPid']
+        assert witness['creationFiletime'] == int(claimed['runnerFiletime'])
+        assert Path(witness['executable']).resolve() == Path(sys._base_executable).resolve()
+        assert abs(read_creation_filetime(runner)/10_000_000-11644473600-claimed['runnerProcessCreatedAt']) < .000001
+        if runtime_profile == 'base':
+            assert claimed['runnerPid'] == spawn['pid']
+            assert int(claimed['runnerFiletime']) == spawn['creationFiletime']
+        else:
+            assert claimed['runnerPid'] != spawn['pid']
+            assert psutil.Process(claimed['runnerPid']).ppid() == spawn['pid']
+            assert Path(psutil.Process(spawn['pid']).exe()).resolve() == Path(runtime).resolve()
+        assert legacy._owns_process({'pid': claimed['runnerPid'],
+                                    'processCreatedAt': claimed['runnerProcessCreatedAt'] + 1000}) is None
         assert read_creation_filetime(int(host._handle)) == host_ft
         kill(int(host._handle)); host.wait(timeout=5)
         assert legacy.reconcile_running(root) == 0, 'Live owned runner lost because parent never published its PID'
         fact = legacy.get(spawn['jobId'])
         assert fact['status'] == 'running'
-        assert fact['runnerPid'] == spawn['pid']
+        assert fact['runnerPid'] == claimed['runnerPid']
+        assert fact['runnerFiletime'] == claimed['runnerFiletime']
+        assert legacy.reconcile_running(root) == 0
+        assert all(wait_state(h) is ProcessStatus.ALIVE for h in [runner, redirector, *handles])
         legacy.cancel(spawn['jobId'])
         assert until(lambda: all(wait_state(h) is ProcessStatus.DEAD for h in handles))
         assert until(lambda: wait_state(runner) is ProcessStatus.DEAD)
+        assert until(lambda: wait_state(redirector) is ProcessStatus.DEAD)
+        assert until(lambda: desktop_gone(rows[0]['desktop']))
         assert legacy.get(spawn['jobId'])['status'] == 'cancelled'
+        target = os.environ.get('PAN_TEST_LIFECYCLE_EVIDENCE')
+        if target:
+            with Path(target).open('a', encoding='utf8') as f:
+                f.write(json.dumps(dict(fault='controller-post-spawn', runtimeProfile=runtime_profile,
+                                       runtime=runtime, spawn=spawn, claim=claimed, task=rows[0],
+                                       registryStatus='cancelled', retainedAllDead=True, desktopGone=True)) + '\n')
     finally:
         if host.poll() is None: kill(int(host._handle)); host.wait(timeout=5)
         host._handle.Close()
@@ -315,4 +366,10 @@ def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publicatio
             if wait_state(handle) is not ProcessStatus.DEAD: kill(handle)
             assert until(lambda: wait_state(handle) is ProcessStatus.DEAD)
             close_handle_checked(handle)
-        if runner: close_handle_checked(runner)
+        if runner:
+            assert until(lambda: wait_state(runner) is ProcessStatus.DEAD)
+            close_handle_checked(runner)
+        if redirector:
+            if wait_state(redirector) is not ProcessStatus.DEAD: kill(redirector)
+            assert until(lambda: wait_state(redirector) is ProcessStatus.DEAD)
+            close_handle_checked(redirector)
