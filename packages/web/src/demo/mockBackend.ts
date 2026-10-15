@@ -617,6 +617,9 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     if (!session) {
       return { ok: false, error: { code: 'session_not_found', message: 'Session not found' } };
     }
+    if (!session.managedBy) {
+      return { ok: false, error: { code: 'no_report_target', message: '该 Session 没有 manager，无法汇报' } };
+    }
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     const messageId = values.messageId;
     const taskId = values.taskId;
@@ -677,11 +680,13 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
         return { ok: false, error: { code: 'no_task_result', message: '该运行的终态结果不可用，无法汇报' } };
       }
       const matchTaskId = typeof match.taskId === 'string' && match.taskId ? match.taskId : null;
-      // Compare taskId strictly INCLUDING null: a client saying "plain run"
-      // (taskId null) that resolves a task run describes a different run.
-      const conflict = deliveredTaskId !== matchTaskId
-        || (deliveredTaskSeq !== null && typeof match.taskSeq === 'number'
-          && match.taskSeq !== deliveredTaskSeq);
+      const matchTaskSeq = typeof match.taskSeq === 'number' ? match.taskSeq : null;
+      // Mirror the merged server exactly: a NON-null submitted identity must
+      // describe the same run as the cursor (a mismatch — including a terminal
+      // that lacks the field — is run_mismatch), while taskId null keeps its
+      // "plain run / not provided" meaning and is not compared.
+      const conflict = (deliveredTaskId !== null && deliveredTaskId !== matchTaskId)
+        || (deliveredTaskSeq !== null && matchTaskSeq !== deliveredTaskSeq);
       if (conflict) {
         attempt.outcome = 'rejected';
         return { ok: false, error: { code: 'run_mismatch', message: '运行身份与 resultCursor 不一致，无法汇报' } };

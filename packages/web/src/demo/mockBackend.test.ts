@@ -169,13 +169,30 @@ describe('mock manual-report route (plain runs + run identity)', () => {
     expect(window.__panMockManualReportLog!.deliveries.length).toBe(0);
   });
 
-  it('rejects a cursor that contradicts the provided run identity', async () => {
-    const sessionId = seed(rows, [plainTerminal({ taskId: 't-1', taskSeq: 3, resultCursor: 9 })]);
-    await expect(reportTaskManually(sessionId, null, null, 'pan:a1', 9))
+  it('mirrors the merged conflict semantics for a cursor with other identities', async () => {
+    // taskId null means "plain run / not provided" and is not compared; the
+    // cursor decides (exactly like the merged server).
+    const nullId = seed(rows, [plainTerminal({ taskId: 't-1', taskSeq: 3, resultCursor: 9 })]);
+    const resolved = await reportTaskManually(nullId, null, null, 'pan:a1', 9);
+    expect(resolved.ok).toBe(true);
+    // A non-null taskId or taskSeq that describes another run is refused.
+    await expect(reportTaskManually(nullId, 't-other', null, 'pan:a1', 9))
       .rejects.toThrow(/不一致/);
-    await expect(reportTaskManually(sessionId, 't-1', 5, 'pan:a1', 9))
+    await expect(reportTaskManually(nullId, 't-1', 5, 'pan:a1', 9))
       .rejects.toThrow(/不一致/);
-    expect(window.__panMockManualReportLog!.deliveries.length).toBe(0);
+    // A terminal lacking taskSeq plus a submitted taskSeq is a mismatch too —
+    // never resolved to whichever side happens to match.
+    const noSeq = seed(rows, [plainTerminal({ taskId: null, taskSeq: null, resultCursor: 9 })]);
+    await expect(reportTaskManually(noSeq, null, 5, 'pan:a1', 9))
+      .rejects.toThrow(/不一致/);
+  });
+
+  it('refuses a report when the session has no manager', async () => {
+    const sessionId = seed(rows, [plainTerminal()]);
+    const session = mockSessions.find((item) => item.id === 'mock-alpha')!;
+    delete (session as { managedBy?: string }).managedBy;
+    await expect(reportTaskManually(sessionId, null, 1, 'pan:a1'))
+      .rejects.toThrow(/没有 manager/);
   });
 
   it('resolves a legacy terminal without resultCursor through the taskSeq-equal cursor', async () => {
