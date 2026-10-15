@@ -25,6 +25,9 @@ Identity contract (the whole point of this module):
   Session's block or an arbitrary invented id.
 * Bookmarks are per-Session by construction (one sidecar file per Session)
   and never shared, merged or inferred across Sessions.
+* Bookmarked content is user messages and assistant text blocks.  Tool and
+  thinking rows resolve (their identities are durable) but are rejected as
+  targets: they are conversation machinery, not bookmarked content.
 
 Durability and concurrency:
 
@@ -123,9 +126,10 @@ class BookmarkTooMany(Exception):
 class BookmarkTargetUnresolved(Exception):
     """The requested message identity is not a verifiable bookmark target.
 
-    ``code`` is ``invalid_message_id`` (not a durable Pan identity) or
-    ``message_not_found`` (well-formed but absent, ambiguous or not a
-    searchable body row in this Session's history).
+    ``code`` is ``invalid_message_id`` (not a durable Pan identity),
+    ``message_not_found`` (well-formed but absent or ambiguous in this
+    Session's history) or ``message_not_bookmarkable`` (resolves, but the row
+    is not bookmarked content — tool/thinking/system machinery).
     """
 
     def __init__(self, code: str, message: str):
@@ -491,10 +495,15 @@ def resolve_bookmark_target(session_id: str, message_id: str) -> dict:
             if not matches else "Message identity is ambiguous in this session's history",
         )
     row = matches[0]
-    if not sessions._is_searchable_history_body(row):
+    # Bookmarked content is user messages and assistant text blocks.  Thinking
+    # and tool rows are conversation machinery, not bookmarked content: their
+    # identities stay durable and resolvable, but they are not targets, so the
+    # API rejects them instead of letting the UI imply otherwise.
+    if (not sessions._is_searchable_history_body(row)
+            or row.get("role") not in ("user", "assistant")):
         raise BookmarkTargetUnresolved(
-            "message_not_found",
-            "Only conversation body blocks can be bookmarked",
+            "message_not_bookmarkable",
+            "Only user messages and assistant text blocks can be bookmarked",
         )
     return {
         "messageId": message_id,

@@ -136,26 +136,25 @@
   color: var(--color-text-secondary, #b6bcc4);
 }
 
-.bookmark-rail-labels li[data-bookmarked='true'] {
-  color: var(--color-accent, #4f8cc9);
-}
-
 .bookmark-rail-labels .bookmark-rail-note {
   color: var(--color-text-tertiary, #9aa0a8);
   font-size: 10px;
 }
 
-/* Bookmarked marker: bookmark icon replaces the kind glyph; the kind slug
-   (color/position/preview) is preserved.  Scoped away from
-   is-viewport-target so the shared active-tag highlight keeps its inverted
-   color when this mock marker is clicked. */
-.message-navigation-marker.is-bookmarked:not(.is-viewport-target) {
+/* Bookmarked marker decoration follows the user rule: an EXISTING tag keeps
+   its own kind color/style and only swaps its icon to a bookmark.  A NEW
+   bookmark tag (block without a nav tag) keeps its own bookmark styling. */
+.message-navigation-marker-bookmark {
+  --navigation-marker-highlight: var(--color-accent, #4f8cc9);
   color: var(--color-accent, #4f8cc9);
+  background: color-mix(in srgb, var(--color-accent, #4f8cc9) 16%, var(--color-bg-secondary));
+  border-color: color-mix(in srgb, var(--color-accent, #4f8cc9) 48%, var(--color-border-default));
 }
 
 /* A block's leftmost vertical line.  In production this is a CSS border with
    no hit target of its own; the mock turns it into a clickable strip, which
-   is the interaction phase 2 must add. */
+   is the interaction phase 2 must add.  The strip is the only body-level
+   bookmark affordance: no blue bar is painted over the role rail. */
 .bookmark-row {
   position: relative;
 }
@@ -180,15 +179,6 @@
 
 .bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 45%, transparent);
-}
-
-/* Bookmarked body blocks keep the role bar and gain an inset accent echo of
-   the existing search-target pattern. */
-.bookmark-row[data-bookmark-state='on'] .msg.assistant,
-.bookmark-row[data-bookmark-state='on'] .msg.user,
-.bookmark-row[data-bookmark-state='on'] .thinking,
-.bookmark-row[data-bookmark-state='on'] .tool-group {
-  box-shadow: inset 3px 0 0 var(--color-accent, #4f8cc9);
 }
 
 /* New bookmark tag for blocks that have no navigation tag. */

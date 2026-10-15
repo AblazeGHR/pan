@@ -135,6 +135,30 @@ try {
     (await page.locator('[data-bookmark-tag]').count()) === 0 &&
     (await railLabels(page)).length === 5);
 
+  // 4b. Scope: tool and thinking blocks have no bookmark entry at all.
+  check('tool and thinking rows have no bookmark strip/menu entry',
+    (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa03"]').count()) === 0 &&
+    (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa04"]').count()) === 0);
+
+  // 4c. An existing tag keeps its kind color; only the icon changes.  The
+  //     body adds no blue bar; the leftmost strip stays the only trigger.
+  const workerMarker = page.locator('[data-rail-marker="pan:1111111111111111111111111111aa05"]');
+  const workerColorBefore = await workerMarker.evaluate((element) => getComputedStyle(element).color);
+  await openMenu(page, 'pan:1111111111111111111111111111aa05');
+  await page.locator('[data-bookmark-action="add"]').click();
+  const workerColorAfter = await workerMarker.evaluate((element) => getComputedStyle(element).color);
+  check('existing tag keeps its kind color when bookmarked (icon only)',
+    workerColorBefore === workerColorAfter, `${workerColorBefore} -> ${workerColorAfter}`);
+  const bodyShadow = await page.locator('[data-message-id="pan:1111111111111111111111111111aa05"] .msg.assistant')
+    .evaluate((element) => getComputedStyle(element).boxShadow);
+  check('bookmarked body adds no blue bar over the role rail', bodyShadow === 'none', bodyShadow);
+  const stripBackground = await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa05"]')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  check('leftmost strip keeps the trigger-position display',
+    stripBackground !== 'rgba(0, 0, 0, 0)', stripBackground);
+  await openMenu(page, 'pan:1111111111111111111111111111aa05');
+  await page.locator('[data-bookmark-action="remove"]').click();
+
   await page.screenshot({ path: path.join(shotsDir, 'desktop-dark-initial.png') });
 
   // Re-add one of each for the screenshots.

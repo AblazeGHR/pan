@@ -137,6 +137,20 @@ def test_put_conflict_attaches_current_envelope(client):
     assert ok.json()['changed'] is True
 
 
+def test_put_rejects_tool_and_thinking_targets(client):
+    session, ids = _session_with_blocks('http roles')
+    for message_id in (ids[2], ids[3]):     # tool, thinking
+        response = client.put(f'/api/sessions/{session.id}/bookmarks/{message_id}')
+        assert response.status_code == 200
+        body = response.json()
+        assert body['error']['code'] == 'message_not_bookmarkable', message_id
+        assert 'assistant text blocks' in body['error']['message']
+    assert client.get(f'/api/sessions/{session.id}/bookmarks').json()['bookmarks'] == {}
+    # User and assistant text stay bookmarked content.
+    assert client.put(f'/api/sessions/{session.id}/bookmarks/{ids[0]}').json()['changed'] is True
+    assert client.put(f'/api/sessions/{session.id}/bookmarks/{ids[1]}').json()['changed'] is True
+
+
 def test_invalid_bodies_are_rejected(client):
     session, ids = _session_with_blocks('http invalid')
     for body in ({'baseRevision': '1'}, {'baseRevision': -1}, {'baseRevision': True}):

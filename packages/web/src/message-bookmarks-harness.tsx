@@ -264,9 +264,9 @@ function buildMarkers(session: MockSession, envelope: Envelope): Marker[] {
   return markers;
 }
 
-function BlockRow({ block, bookmarked, menuOpen, onOpenMenu }:
-  { block: MockBlock; bookmarked: boolean; menuOpen: boolean;
-    onOpenMenu: (block: MockBlock) => void }) {
+function BlockRow({ block, bookmarked, bookmarkable, menuOpen, onOpenMenu }:
+  { block: MockBlock; bookmarked: boolean; bookmarkable: boolean;
+    menuOpen: boolean; onOpenMenu: (block: MockBlock) => void }) {
   const sourceTag = block.navKind === 'worker' ? 'ta-report'
     : block.navKind === 'system' ? 'system'
     : block.navKind === 'maAssign' ? 'ma-assign' : null;
@@ -280,14 +280,19 @@ function BlockRow({ block, bookmarked, menuOpen, onOpenMenu }:
       data-bookmark-state={bookmarked ? 'on' : 'off'}
       data-nav-kind={block.navKind ?? 'none'}
     >
-      <button
-        type="button"
-        className="bookmark-rail-strip"
-        data-bookmark-strip={block.messageId}
-        aria-label={`Bookmark menu: ${block.preview}`}
-        aria-expanded={menuOpen}
-        onClick={() => onOpenMenu(block)}
-      />
+      {/* The clickable leftmost line is the bookmark entry for bookmarked
+          content only: user messages and assistant text blocks.  Tool and
+          thinking rows have no bookmark entry, matching the backend scope. */}
+      {bookmarkable ? (
+        <button
+          type="button"
+          className="bookmark-rail-strip"
+          data-bookmark-strip={block.messageId}
+          aria-label={`Bookmark menu: ${block.preview}`}
+          aria-expanded={menuOpen}
+          onClick={() => onOpenMenu(block)}
+        />
+      ) : null}
       {sourceTag ? (
         <span className="worker-report-label" data-source-tag={sourceTag}>
           {SOURCE_TAG_LABELS[sourceTag]}
@@ -496,6 +501,7 @@ function Harness() {
               key={block.messageId}
               block={block}
               bookmarked={block.messageId in envelope.bookmarks}
+              bookmarkable={block.role === 'user' || block.role === 'assistant'}
               menuOpen={menuBlockId === block.messageId}
               onOpenMenu={openMenu}
             />
@@ -573,10 +579,15 @@ function Harness() {
               <li>后端已就绪：<code>GET/PUT/DELETE /api/sessions/:id/bookmarks[/:message_id]</code>，
                 身份仅接受可在该 Session history 中解析的 <code>pan:</code> messageId；
                 history/navigation 响应行带 <code>bookmarked</code> 投影；变更广播 <code>bookmarks.changed</code>。</li>
-              <li>正文块最左竖线（当前是 CSS border，无点击目标）增加命中区，点击弹出
-                Add/Remove bookmark 菜单（本 mock 的 strip 即该交互）。</li>
-              <li>导航栏 marker：已有 tag 的块改书签图标 + “<code>&lt;Type&gt; (Bookmark)</code>”后缀，
-                保留原类型/定位/顺序/预览；无 tag 的块新增书签 marker，按消息顺序插入。</li>
+              <li>可加书签范围：用户消息与 assistant 正文块；tool / thinking
+                块不加书签（后端同样拒绝，错误码
+                <code>message_not_bookmarkable</code>）。</li>
+              <li>正文块最左竖线（当前是 CSS border，无点击目标）增加命中区，
+                点击弹出 Add/Remove bookmark 菜单（本 mock 的 strip 即该交互）；
+                正文不新增蓝色条，最左 strip 只是触发位。</li>
+              <li>导航栏 marker：已有 tag 的块改用书签图标并加
+                “<code>&lt;Type&gt; (Bookmark)</code>”后缀，颜色/样式沿用原
+                tag；无 tag 的块新增书签 marker，按消息顺序插入，保持书签样式。</li>
               <li>流式中（未收敛、无持久 messageId）的块不可添加书签；删除或 reimport
                 后身份失效的书签保留在侧车文件中、不出现在投影里，并在 GET 的
                 <code>dangling</code> 中列出。</li>

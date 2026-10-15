@@ -170,13 +170,36 @@ def test_ambiguous_history_is_refused_not_guessed():
 def test_non_body_rows_are_not_bookmarkable():
     session = store.create('system rows', adapter='cbc')
     store.append_history(session, {'role': 'user', 'content': 'hello'})
+    store.append_history(session, {'role': 'assistant', 'content': 'reply'})
     store.append_history(session, {'role': 'system', 'content': 'notice'})
     store.append_history(session, {'role': 'user', 'content': 'queued', 'source': 'system_prompt'})
+    store.append_history(session, {'role': 'tool', 'content': 'Read(x)'})
+    store.append_history(session, {'role': 'thinking', 'content': 'reasoning'})
     store.save_full(session)
-    ids = [row.get('messageId') for row in session.history]
-    assert ids[0] and ids[0].startswith('pan:')
-    assert ids[1] is None and ids[2] is None
-    assert bookmarks.resolve_bookmark_target(session.id, ids[0])['role'] == 'user'
+    rows = session.history
+    assert store.is_pan_message_id(rows[0].get('messageId'))
+    assert store.is_pan_message_id(rows[1].get('messageId'))
+    # Machinery rows are durable and resolvable, but not bookmark content.
+    for index in (2, 3, 4, 5):
+        resolved = rows[index].get('messageId')
+        if resolved is None:
+            continue
+        with pytest.raises(bookmarks.BookmarkTargetUnresolved) as error:
+            bookmarks.add_bookmark(session.id, resolved)
+        assert error.value.code == 'message_not_bookmarkable'
+    assert bookmarks.resolve_bookmark_target(session.id, rows[0]['messageId'])['role'] == 'user'
+    assert bookmarks.resolve_bookmark_target(session.id, rows[1]['messageId'])['role'] == 'assistant'
+
+
+def test_tool_and_thinking_are_rejected_with_a_distinct_code():
+    session, ids = _session_with_blocks('roles')
+    for message_id in (ids[2], ids[3]):     # tool, thinking
+        with pytest.raises(bookmarks.BookmarkTargetUnresolved) as error:
+            bookmarks.add_bookmark(session.id, message_id)
+        assert error.value.code == 'message_not_bookmarkable'
+        assert 'assistant text blocks' in str(error.value)
+    assert bookmarks.add_bookmark(session.id, ids[0])['changed'] is True
+    assert bookmarks.add_bookmark(session.id, ids[1])['changed'] is True
 
 
 # ------------------------------------------------------- corruption and CAS
