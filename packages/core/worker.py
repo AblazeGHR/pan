@@ -4667,16 +4667,25 @@ _TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
 
 
 def manual_report_key(session_id: str, task_id: str | None,
-                      task_seq: int | None) -> str:
-    """Deterministic idempotency key for one explicit task report.
+                      task_seq: int | None,
+                      result_cursor: int | None = None) -> str:
+    """Deterministic idempotency key for one explicit run report.
 
-    Keyed on the provable task **run** identity only (session + taskId +
-    taskSeq), never on a client-supplied message id: an arbitrary or repeated
-    message id must not be able to turn one task into several deliveries, while
-    distinct runs of one task id still stay distinct.
+    Keyed on the provable **run** identity only (session + taskId + taskSeq,
+    falling back to the durable result cursor for a run without a taskSeq),
+    never on a client-supplied message id: an arbitrary or repeated message id
+    must not be able to turn one run into several deliveries, while distinct
+    runs of one task id still stay distinct.  Callers derive it from the
+    resolved terminal row, so one run reached through either identity path
+    (taskSeq or resultCursor) keeps exactly one key.
     """
     task_part = task_id if task_id else "-"
-    seq_part = str(task_seq) if task_seq is not None else "-"
+    if task_seq is not None:
+        seq_part = str(task_seq)
+    elif result_cursor is not None:
+        seq_part = f"rc:{result_cursor}"
+    else:
+        seq_part = "-"
     return f"manual:{session_id}:{task_part}:{seq_part}"
 
 
@@ -4770,6 +4779,66 @@ def durable_terminal_for_task(s, task_id: str | None,
     return rows[-1]
 
 
+def _cursor_value(row: dict) -> int | None:
+    """Raw durable result cursor of a terminal row, or None when absent."""
+    raw = row.get("resultCursor")
+    if isinstance(raw, bool):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def durable_terminal_by_cursor(s, result_cursor) -> dict | None:
+    """Durable terminal record identified by its result cursor, or None.
+
+    The result cursor is the durable, monotonic position of one terminal row
+    in the bounded replay window — the run identity the session identity view
+    exposes for runs without a formal taskId (plain conversations, native
+    turns).  An exact raw ``resultCursor`` match wins; legacy rows without the
+    field fall back to the same compatibility cursor the web layer orders by
+    (``taskSeq``), so every exposed identity stays resolvable.  When several
+    rows share a compatibility cursor the match is ambiguous and this returns
+    None: the caller must refuse instead of guessing.  The legacy
+    ``last_result`` view is the final fallback.
+    """
+    if isinstance(result_cursor, bool) or not isinstance(result_cursor, int):
+        return None
+    if result_cursor < 0:
+        return None
+    cursor = result_cursor
+    rows = [
+        dict(item) for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+        and item.get("status") in _TERMINAL_RESULT_STATUSES
+        and _cursor_value(item) == cursor
+    ]
+    if len(rows) == 1:
+        return rows[0]
+    if len(rows) > 1:
+        return None  # duplicate raw cursors: never guess
+    compat = [
+        dict(item) for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+        and item.get("status") in _TERMINAL_RESULT_STATUSES
+        and _cursor_value(item) is None
+        and _terminal_row_cursor(item) == cursor
+    ]
+    if len(compat) == 1:
+        return compat[0]
+    if len(compat) > 1:
+        return None  # ambiguous compatibility cursor: never guess
+    last = getattr(s, "last_result", None)
+    if (isinstance(last, dict)
+            and last.get("status") in _TERMINAL_RESULT_STATUSES
+            and (_cursor_value(last) == cursor
+                 or (_cursor_value(last) is None
+                     and _terminal_row_cursor(last) == cursor))):
+        return dict(last)
+    return None
+
+
 def _find_manual_report_receipt(manager, key: str) -> dict | None:
     """Locate a delivered manual report by key: durable receipt first, then a
     still-pending queue row (the receipt is written before the broadcast)."""
@@ -4797,27 +4866,37 @@ def _remember_manual_report_receipt(manager, key: str, record: dict) -> None:
 
 async def enqueue_manual_report(session_id: str, task_id: str | None,
                                 task_seq: int | None,
-                                message_id: str) -> tuple[dict | None, dict | None]:
+                                message_id: str,
+                                result_cursor: int | None = None,
+                                ) -> tuple[dict | None, dict | None]:
     """Deliver one explicit browser-requested completion report to the manager.
 
     与 ``_enqueue_report`` 的关系：**路由目标与内容语义完全相同**（manager 的
     落盘队列 queue_pending + 同一报告 item 形状 + 同一唤醒/广播路径），但：
 
-    - **按任务解析终态**：内容取自该任务在**持久终态索引**
+    - **按运行解析终态**：内容取自该运行在**持久终态索引**
       （``terminal_results``，旧会话回退 ``last_result``）中的记录，而不是
-      “当前最新终态”。因此更早完成的任务同样可汇报，最新任务在跑也不会
-      使旧任务的汇报失效；索引里找不到该任务的终态 → 明确失败
-      （``no_task_result``），绝不拿别的任务的结果顶替。
-    - **校验消息与任务的持久关联**：``messageId`` 必须正是该任务运行终态的
+      “当前最新终态”。因此更早完成的运行同样可汇报，最新运行在跑也不会
+      使旧运行的汇报失效；索引里找不到该运行的终态 → 明确失败
+      （``no_task_result``），绝不拿别的运行的结果顶替。
+    - **任何已完成运行均可汇报**：正式 assign 任务与无 taskId 的普通对话/
+      原生轮次走同一路径。无 taskId 时调用方必须以该运行的 ``taskSeq`` 或持久
+      ``resultCursor`` 绑定具体运行（两者都经会话身份视图 ``terminalResults``
+      暴露，服务端正文权威）。三种运行身份都不提供 → 明确失败
+      （``no_run_identity``），绝不退化为“汇报最新终态”；``resultCursor``
+      与 ``taskId``/``taskSeq`` 同时提供却描述不同运行 → 明确失败
+      （``run_mismatch``），不猜向任何一边。
+    - **校验消息与运行的持久关联**：``messageId`` 必须正是该运行终态的
       **末块**（由终态行记录的 history epoch/revision 推出边界后取边界内最后
       一条 assistant 行）。无法证明该关联时明确失败（``block_unproven`` /
       ``block_mismatch``），不用“最新”近似，也不接受任意消息 id。
     - **不读取也不修改 report_subscriptions**：manager 退订
       （``report_unsubscribe`` / report-to-manager 关闭）后，显式手动汇报依然
       送达；本函数也绝不临时开订阅。
-    - **幂等以任务运行身份为准**：key 只由 (sessionId, taskId, taskSeq)
-      决定，客户端 messageId 只作为审计字段，不能改变去重结果；同一任务运行
-      反复点击/换 messageId/未确认重试都只送达一次，不同运行各自独立。
+    - **幂等以运行身份为准**：key 由解析后的终态行推导（sessionId, taskId,
+      taskSeq；该行无 taskSeq 时用其持久 resultCursor），客户端 messageId 只
+      作为审计字段，不能改变去重结果；同一运行反复点击/换 messageId/换身份
+      路径/未确认重试都只送达一次，不同运行各自独立。
     - 落盘失败整体回滚 → 明确失败，可安全重试；候选的 apply、写入与失败回滚
       全部在**同一个持久化 ticket** 内执行（旧状态在 ticket 执行时捕获，不覆
       盖期间其他 writer 的提交），因此已在执行/已排队的 manager writer 都不
@@ -4858,11 +4937,34 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "no_report_target",
                       "message": "manager 会话不存在，无法汇报",
                       "retryable": False}
-    terminal = durable_terminal_for_task(s, task_id, task_seq)
-    if terminal is None:
-        return None, {"code": "no_task_result",
-                      "message": "该任务的终态结果不可用，无法汇报",
+    if task_id is None and task_seq is None and result_cursor is None:
+        return None, {"code": "no_run_identity",
+                      "message": "汇报必须绑定具体完成运行（taskId/taskSeq/resultCursor 之一），无法推断",
                       "retryable": False}
+    if result_cursor is not None:
+        # The durable cursor is the strongest run identity: it pins one exact
+        # terminal row.  Any additionally submitted identity must describe the
+        # same run, otherwise the request is refused — never resolved to
+        # whichever side happens to match.
+        terminal = durable_terminal_by_cursor(s, result_cursor)
+        if terminal is None:
+            return None, {"code": "no_task_result",
+                          "message": "该 resultCursor 对应的终态结果不可用，无法汇报",
+                          "retryable": False}
+        if task_seq is not None and terminal.get("taskSeq") != task_seq:
+            return None, {"code": "run_mismatch",
+                          "message": "taskSeq 与 resultCursor 描述的不是同一次运行，无法汇报",
+                          "retryable": False}
+        if task_id is not None and terminal.get("taskId") != task_id:
+            return None, {"code": "run_mismatch",
+                          "message": "taskId 与 resultCursor 描述的不是同一次运行，无法汇报",
+                          "retryable": False}
+    else:
+        terminal = durable_terminal_for_task(s, task_id, task_seq)
+        if terminal is None:
+            return None, {"code": "no_task_result",
+                          "message": "该任务的终态结果不可用，无法汇报",
+                          "retryable": False}
     tail_block = task_tail_block_id(s, terminal)
     if tail_block is None:
         return None, {"code": "block_unproven",
@@ -4874,7 +4976,8 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
                       "retryable": False}
     run_task_id = terminal.get("taskId")
     run_task_seq = terminal.get("taskSeq")
-    key = manual_report_key(session_id, run_task_id, run_task_seq)
+    key = manual_report_key(session_id, run_task_id, run_task_seq,
+                            terminal.get("resultCursor"))
     async with queue_lock(manager.id):
         existing = _find_manual_report_receipt(manager, key)
         if existing is not None:
@@ -6741,6 +6844,20 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     return None
 
 
+def _user_kill_report_enabled() -> bool:
+    """用户主动 Kill 是否向 manager 报告 error（App Settings → Behavior）。
+
+    config.json:
+        "ui": { "reportWorkerKillErrors": false }
+
+    缺省该键（旧配置）→ 视为关闭（默认 false）。该开关只抑制用户显式
+    Kill（``report_abnormal=True``）触发的 zombie/error 报告；异常死亡与
+    watchdog 报告不经此函数，始终按原语义上报。
+    """
+    ui = load_config().get("ui") or {}
+    return bool(ui.get("reportWorkerKillErrors", False))
+
+
 async def _kill_worker_unlocked(
     worker_id: str, *, recover: bool = False,
     report_abnormal: bool = False,
@@ -6768,7 +6885,7 @@ async def _kill_worker_unlocked(
 
     abnormal = w.status in {"running", "queued"}
 
-    if report_abnormal and abnormal:
+    if report_abnormal and abnormal and _user_kill_report_enabled():
         await _enqueue_zombie_report(w, "worker killed")
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was stopped")
