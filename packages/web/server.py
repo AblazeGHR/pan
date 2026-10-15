@@ -8571,7 +8571,7 @@ async def api_session_queue_steer(session_id: str, item_id: str, data: dict):
     if error:
         return _queue_error("queue_steer_failed", error, s)
     async with worker.queue_lock(session_id):
-        return {"ok": True, **_queue_snapshot_locked(s)}
+        return {"ok": True, "outcome": "accepted", "consumption": "unconfirmed", **_queue_snapshot_locked(s)}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
@@ -10993,7 +10993,7 @@ async def api_send(data: dict):
     workerId / sessionId 皆可寻址（编排对象是 agent，进程是顺带的）。
     sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
     （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
-    分发。force=true 时对活 worker 先 restart 再投递（worker_send_force 语义）。
+    分发。force=true 按能力即时 Steer 优先；idle 普通 handoff，无能力才 restart。
     source=agent 的消息在入队时继承目标 Session.active_task_id 作为 report
     配对上下文；该值不参加 assign 幂等，source=user 不继承。
     隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
@@ -12725,14 +12725,15 @@ async def api_session_worker_control(session_id: str, data: dict):
 
 @app.post("/api/worker/{worker_id}/steer")
 async def api_worker_steer(worker_id: str, data: dict):
-    """Inject text into a running native turn (Claude stream / Codex)."""
+    """Admit text into a running native turn; admission does not prove consumption."""
     err = await worker.steer_worker(
         worker_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
     )
     if err:
-        return {"error": err}
-    return {"workerId": worker_id, "status": "steer sent"}
+        return {"error": err, "outcome": "unknown" if (
+            err.startswith("Steer outcome unknown") or "awaiting" in err.lower()) else "rejected"}
+    return {"workerId": worker_id, "status": "steer sent", "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/sessions/{session_id}/worker/steer")
@@ -12742,10 +12743,12 @@ async def api_session_worker_steer(session_id: str, data: dict):
         data.get("messageId") if isinstance(data, dict) else None,
     )
     if isinstance(result, str):
-        return {"error": result}
+        return {"error": result, "outcome": "unknown" if (
+            result.startswith("Steer outcome unknown") or "awaiting" in result.lower()) else "rejected"}
     if result is None:
         return {"error": "Worker not found"}
-    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent",
+            "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/worker/{worker_id}/claude-permission")

@@ -1,0 +1,11 @@
+*
+!.gitignore
+!README.md
+!*.py
+!protocol_fixture.mjs
+!fixture-result.json
+!verified-cli-evidence.json
+!recovered-tui-evidence.json
+!skill-sync-manifest.json
+!production-evidence.json
+!validation.json

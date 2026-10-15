@@ -1642,7 +1642,12 @@ export async function steerSessionWorker(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/steer`,
     { method: 'POST', body: JSON.stringify({ text, ...(messageId ? { messageId } : {}) }) },
   );
-  if (data.error) throw new SubmissionRejectedError(data.error);
+  if (data.error) {
+    if (data.outcome === 'unknown' || /outcome unknown|awaiting.*receipt/i.test(data.error)) {
+      throw new Error(data.error);
+    }
+    throw new SubmissionRejectedError(data.error);
+  }
   return data;
 }
 

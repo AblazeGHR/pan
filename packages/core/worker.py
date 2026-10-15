@@ -306,6 +306,8 @@ class Worker:
     generation: int = 0
     _interrupt_guard_task: asyncio.Task | None = None
     _steer_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
+    _steer_contexts: dict[str, dict] = field(default_factory=dict)
+    _steer_run_id: str | None = None
     _direct_steer_pending: bool = False
 
 
@@ -1907,6 +1909,7 @@ async def _flush_history_now(
 
 async def _read_stdout(w: Worker):
     adapter = w.adapter
+    receipt_runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
     s = None  # bound even if stdout yields no parseable event (EOF check below)
     # 分块读取 stdout（read 65536 + 按换行切分），避免大 tool result 单行在
     # Windows asyncio 管道上挂起（Pan 卡死根因）；大行截断占位（_iter_stdout_lines）。
@@ -1919,6 +1922,15 @@ async def _read_stdout(w: Worker):
         event = adapter.parse_event(line_str)
         if event is None:
             continue
+        if _route_steer_receipt(w, event, runtime=receipt_runtime):
+            continue
+        if (getattr(adapter, "steer_requires_run_id", False) and not w._terminal_handled
+                and w.status == "running" and _control_runtime_matches(w.worker_id, receipt_runtime)):
+            sid = (_session(w).cli_session_id if _session(w) is not None else None)
+            run = event.get("_requestId")
+            if (sid and event.get("session_id") == sid and isinstance(run, str) and run
+                    and w._steer_run_id is None):
+                w._steer_run_id = run
         if w.status == "restarting":
             # Retirement is published only after the turn's result/report and
             # queue cleanup. Buffered old frames must not reopen that boundary.
@@ -3221,6 +3233,7 @@ def _is_pauseable_agent_report(item) -> bool:
 def _queue_item_locked(item) -> bool:
     return isinstance(item, dict) and bool(
         item.get("queueLockManual") or item.get("queueLockAutoReport")
+        or item.get("forceSendHeld")
         or item.get("queueSteerPending") or item.get("selfConsumeUncertain")
     )
 
@@ -4987,6 +5000,11 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     """
     if _shutdown_started:
         return
+    retiring = find_worker_by_session(session_id)
+    if retiring is not None and retiring.pending_restart:
+        _maybe_restart_pending(retiring)
+        if retiring.status == "restarting":
+            return
     if getattr(_get_session_shallow(session_id), "queue_paused", False):
         return
     mw = find_worker_by_session(session_id)
@@ -5672,7 +5690,7 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
     have not entered it remain retractable and are requeued by the caller.
     """
     async with queue_lock(s.id):
-        if w.status == "restarting":
+        if w.status == "restarting" or (w.pending_restart and not w._current_handoff_acked):
             raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
         if getattr(s, "queue_paused", False):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
@@ -5707,6 +5725,10 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
                             s.queue_delivery_ledger[identity] = original
                     raise
             await _sess._persist_async_outcome(s.id, apply_attempt, outcome)
+        # self-consume attempt persistence can yield after running preparation.
+        # A newly accepted retirement intent still wins before actual handoff.
+        if w.status == "restarting" or (w.pending_restart and not w._current_handoff_acked):
+            raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
         result = await operation()
         if on_handoff is not None:
             await on_handoff()
@@ -5767,6 +5789,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
             w._current_task_last_assistant_text = None
             w._current_task_assistant_ids.clear()
             w._terminal_handled = False
+            w._steer_run_id = None
             written = w.process.stdin.write(w._current_serialized)
             if written is not None and written != len(w._current_serialized):
                 raise OSError("short stdin write")
@@ -7618,6 +7641,66 @@ async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
     await _bcast({"type": "session.updated", "sessionId": w.session_id})
 
 
+def steer_delivery_route(w: Worker | None, s) -> str:
+    """Capability-driven urgent delivery; lifecycle intent always wins idle work."""
+    if w is None:
+        return "queue"
+    if w.status == "restarting" or (w.pending_restart and w.status != "running"):
+        return "queue"
+    capable = (resolve_execution_mode(w.adapter, s) == "stream"
+               and getattr(w.adapter, "supports_native_steer", False))
+    if w.pending_restart and not capable:
+        return "queue"
+    if capable:
+        return "steer" if w.status == "running" else "queue"
+    if any(queue_item_edit_locked(s, item_id)
+           for item_id in list(getattr(s, "queue_edit_locks", {}))):
+        return "queue"
+    return "restart"
+
+
+def _steer_origin(w: Worker) -> dict:
+    s = _session(w)
+    return {"runId": w._steer_run_id, "cliSessionId": s.cli_session_id if s else None,
+            "workerId": w.worker_id, "workerGeneration": w.generation,
+            "taskSeq": w._current_seq, "executionSeq": w._execution_seq,
+            "taskId": w._current_task_id, "status": "accepted", "consumption": "unconfirmed"}
+
+
+def _prepare_steer_control(w: Worker, text: str, request_id: str, origin=None) -> dict:
+    control = {"type": "steer", "text": text, "requestId": request_id}
+    if getattr(w.adapter, "steer_requires_run_id", False):
+        origin = origin or _steer_origin(w)
+        if not origin.get("runId") or not origin.get("cliSessionId"):
+            raise ValueError("CBC Steer requires a confirmed active CLI session/run")
+        control.update(sessionId=origin["cliSessionId"], expectedRequestId=origin["runId"])
+    return control
+
+
+def _route_steer_receipt(w: Worker, event: dict, *, runtime=None) -> bool:
+    normalize = getattr(w.adapter, "normalize_steer_receipt", None)
+    receipt = (event if event.get("type") == "pan.steer_receipt" else
+               normalize(event) if normalize is not None else None)
+    if receipt is None:
+        return False
+    request = receipt.get("requestId")
+    future = w._steer_receipts.get(request)
+    context = w._steer_contexts.get(request)
+    if future is not None and not future.done():
+        if context is not None:
+            expected = context["runtime"]
+            source = runtime or (w, w.generation, w.process, getattr(w.process, "stdin", None))
+            if (source[0] is not expected[0] or source[1] != expected[1]
+                    or source[2] is not expected[2] or source[3] is not expected[3]):
+                return True  # A replacement reader cannot acknowledge the old pipe.
+            if (getattr(w.adapter, "steer_requires_run_id", False)
+                    and receipt.get("outcome") == "accepted"
+                    and receipt.get("cliSessionId") != context["origin"].get("cliSessionId")):
+                receipt = {"ok": False, "outcome": "unknown", "error": "CBC Steer Session receipt mismatch"}
+        future.set_result(receipt)
+    return True  # Duplicate/unowned control receipts never become chat history.
+
+
 def _control_runtime_matches(worker_id: str, runtime) -> bool:
     owner, generation, process, stdin = runtime
     return (workers.get(worker_id) is owner
@@ -7642,6 +7725,9 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
             return "Steer requires a running Worker"
         if not getattr(w.adapter, "supports_native_steer", False):
             return "Adapter does not support native Steer"
+        if (getattr(w.adapter, "steer_requires_run_id", False)
+                and (w._terminal_handled or control.get("expectedRequestId") != w._steer_run_id)):
+            return "CBC turn changed before Steer handoff"
     if not isinstance(control, dict) or control.get("type") not in {
         "interrupt", "steer", "compact", "approval_response", "user_input_response", "permission_response",
         "elicitation_response", "terminal_input", "terminal_terminate",
@@ -7668,7 +7754,13 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
         # Encoding/permission handling must not retarget an earlier request.
         if not _control_runtime_matches(worker_id, runtime):
             return "Worker changed before control handoff"
-        stdin.write(wire)
+        if (control.get("type") == "steer" and getattr(w.adapter, "steer_requires_run_id", False)
+                and (w.status != "running" or w._terminal_handled or w.native_control_mode != "pan"
+                     or control.get("expectedRequestId") != w._steer_run_id)):
+            return "CBC turn changed before Steer handoff"
+        written = stdin.write(wire)
+        if isinstance(written, int) and written != len(wire):
+            raise OSError("partial control write")
         if drain:
             await stdin.drain()
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
@@ -7697,6 +7789,10 @@ async def send_control_message(worker_id: str, control: dict, *, _expected_runti
             async with queue_lock(s.id):
                 if not _control_runtime_matches(worker_id, runtime):
                     return "Worker changed before control handoff"
+                if s.readonly_session:
+                    return READONLY_SESSION_ERROR
+                if s.queue_paused:
+                    return "Pause everything blocks Steer"
                 if any(queue_item_edit_locked(s, item_id)
                        for item_id in list(getattr(s, "queue_edit_locks", {}))):
                     return "Cannot Steer while a queued message is being edited"
@@ -7736,41 +7832,85 @@ async def steer_worker(worker_id: str, text: str,
     ):
         return "Invalid Steer message id"
     w = workers.get(worker_id)
-    if w is None or w.status != "running":
+    if w is None:
         return "Steer requires a running Worker"
-    if not getattr(w.adapter, "supports_native_steer", False):
-        return "Adapter does not support native Steer"
     s = _session(w)
+    prior = s.adapter_config.get("_steer_requests", {}).get(message_id) if s else None
+    if prior and prior.get("sessionId") == s.id:
+        if prior.get("bodyHash") != hashlib.sha256(text.encode()).hexdigest():
+            return "Steer message id already belongs to different text"
+        return None if prior.get("status") == "accepted" else "Steer outcome unknown: original request retained; do not resend"
     if s is not None and message_id and any(
             row.get("clientMessageId") == message_id or row.get("messageId") == message_id
             for row in s.history if isinstance(row, dict)):
         return None
+    if w.status != "running":
+        return "Steer requires a running Worker"
+    if not getattr(w.adapter, "supports_native_steer", False):
+        return "Adapter does not support native Steer"
     if w._direct_steer_pending:
         return "Previous Steer is awaiting a provider receipt; do not resend"
+    if s is not None and getattr(w.adapter, "steer_requires_run_id", False) and any(
+            entry.get("sessionId") == s.id and entry.get("status") == "unknown"
+            for entry in s.adapter_config.get("_steer_requests", {}).values() if isinstance(entry, dict)):
+        return "Steer outcome unknown: previous request retained; do not resend"
+    origin = _steer_origin(w) if getattr(w.adapter, "steer_requires_run_id", False) else None
+    ledger = None
+    request_id = uuid.uuid4().hex
+    runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
+    if origin is not None:
+        if s is None or s.readonly_session:
+            return READONLY_SESSION_ERROR if s else "Session not found"
+        ledger = s.adapter_config.setdefault("_steer_requests", {})
+        identity = message_id or "steer:" + request_id
+        try:
+            w.adapter.encode_control_message(_prepare_steer_control(w, text, request_id, origin))
+        except (ValueError, TypeError, RuntimeError):
+            return "CBC Steer requires a confirmed active CLI session/run and supported stream protocol"
     w._direct_steer_pending = True
-    async def complete_late(error):
+    if ledger is not None:
+        durable = _sess.DurableOutcome()
+        def reserve_direct():
+            ledger[identity] = {"sessionId": s.id, "requestId": request_id, "status": "unknown",
+                                "bodyHash": hashlib.sha256(text.encode()).hexdigest(), "origin": origin}
+            _sess._save_body(s)
+        try:
+            await _sess._persist_async_outcome(s.id, reserve_direct, durable)
+        except BaseException:
+            # No sender exists yet, so cancellation/save failure proves no handoff.
+            ledger.pop(identity, None)
+            w._direct_steer_pending = False
+            await asyncio.shield(_persist_queue_steer_state(w, s))
+            raise
+    async def settle_direct(error):
         if error and error.startswith("Steer outcome unknown"):
             return
         w._direct_steer_pending = False
         if error is None:
-            await _record_direct_steer(w, text, message_id)
-    err = await _send_steer_with_receipt(w, text, on_late_receipt=complete_late)
-    if err:
-        if not err.startswith("Steer outcome unknown"):
-            w._direct_steer_pending = False
-        return err
-    w._direct_steer_pending = False
-    await _record_direct_steer(w, text, message_id)
-    return None
+            await _record_direct_steer(w, text, message_id, origin=origin,
+                                       ledger_id=identity if ledger is not None else None)
+        elif ledger is not None:
+            ledger.pop(identity, None)  # Confirmed pre-handoff/provider rejection only.
+            await _persist_queue_steer_state(w, s)
+    async def complete_late(error):
+        await settle_direct(error)
+    err = await _send_steer_with_receipt(w, text, on_late_receipt=complete_late,
+                                        origin=origin, request_id=request_id, runtime=runtime)
+    await settle_direct(err)
+    return err
 
 
-async def _record_direct_steer(w: Worker, text: str, message_id: str | None):
+async def _record_direct_steer(w: Worker, text: str, message_id: str | None, *, origin=None, ledger_id=None):
     s = _session(w)
     if s is not None:
         if message_id and any(row.get("clientMessageId") == message_id or row.get("messageId") == message_id
                               for row in s.history if isinstance(row, dict)):
             return
         history_row = {"role": "user", "content": text, "source": "user"}
+        if origin is not None:
+            history_row["steer"] = dict(origin)
+        if ledger_id is not None:
+            s.adapter_config["_steer_requests"][ledger_id]["status"] = "accepted"
         if message_id:
             history_row["messageId"] = message_id
         _sess.append_history(s, history_row)
@@ -7792,9 +7932,10 @@ async def _record_direct_steer(w: Worker, text: str, message_id: str | None):
                       "queueItemIds": [], "messages": [history_row]})
 
 
-async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None) -> str | None:
+async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None,
+                                   origin=None, request_id=None, runtime=None) -> str | None:
     """Codex confirms turn/steer; Claude's documented boundary is stdin drain."""
-    request_id = uuid.uuid4().hex
+    request_id = request_id or uuid.uuid4().hex
     future = asyncio.get_running_loop().create_future()
     wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
     if wants_receipt:
@@ -7802,7 +7943,8 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
     late_receipt = False
     sender = None
     # Bind before the sender task gets its first scheduling opportunity.
-    runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
+    runtime = runtime or (w, w.generation, w.process, getattr(w.process, "stdin", None))
+    w._steer_contexts[request_id] = {"runtime": runtime, "origin": origin or _steer_origin(w)}
 
     def retain_late_receipt():
         nonlocal late_receipt
@@ -7811,6 +7953,7 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         late_receipt = True
         def settle_late(done):
             w._steer_receipts.pop(request_id, None)
+            w._steer_contexts.pop(request_id, None)
             if not done.cancelled():
                 status, detail = _steer_receipt_result(done.result())
                 error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
@@ -7819,7 +7962,12 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         future.add_done_callback(settle_late)
 
     try:
-        control = {"type": "steer", "text": text, "requestId": request_id}
+        try:
+            if not _control_runtime_matches(w.worker_id, runtime):
+                return "Worker changed before control handoff"
+            control = _prepare_steer_control(w, text, request_id, origin)
+        except ValueError as exc:
+            return str(exc)
         if not _process_alive(w):
             return "Worker process is not running"
         if not wants_receipt:
@@ -7854,6 +8002,7 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
             await asyncio.gather(sender, return_exceptions=True)
         if not late_receipt:
             w._steer_receipts.pop(request_id, None)
+            w._steer_contexts.pop(request_id, None)
 
 
 def _queue_origin_metadata(items: list[dict]) -> dict:
@@ -7862,7 +8011,7 @@ def _queue_origin_metadata(items: list[dict]) -> dict:
     for item in items:
         envelope = copy.deepcopy(item)
         for key in ("reservedBy", "reservedGeneration", "reservedAt", "queueSteerPending", "queueSteerRequestId",
-                    "queueSteerWorkerId", "queueSteerGeneration"):
+                    "queueSteerWorkerId", "queueSteerGeneration", "queueSteerOrigin", "forceSendHeld"):
             envelope.pop(key, None)
         if isinstance(envelope.get("parts"), list):
             envelope["parts"] = public_message_parts(envelope["parts"])
@@ -8011,7 +8160,10 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 return "Queue item revision conflict"
             if s.queue_paused:
                 return "Pause everything blocks queue Steer"
-            if not queue_item_eligible(s, item):
+            eligible_item = dict(item) if item.get("forceSend") else item
+            if item.get("forceSend"):
+                eligible_item.pop("forceSendHeld", None)
+            if not queue_item_eligible(s, eligible_item):
                 return "Queue item is locked or awaiting Steer confirmation"
             if any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks)):
                 return "Cannot Steer while a queued message is being edited"
@@ -8040,9 +8192,12 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             # Encode before reserving: encoding failure proves no provider write.
             request_id = uuid.uuid4().hex
             process, generation = w.process, w.generation
+            stdin = getattr(process, "stdin", None)
+            runtime = (w, generation, process, stdin)
+            origin = _steer_origin(w) if getattr(w.adapter, "steer_requires_run_id", False) else None
             try:
-                wire = w.adapter.encode_control_message({
-                    "type": "steer", "text": native_text, "requestId": request_id}) + b"\n"
+                wire = w.adapter.encode_control_message(
+                    _prepare_steer_control(w, native_text, request_id, origin)) + b"\n"
             except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 return f"Steer encoding failed before handoff: {exc}"
             # Apply, write and failed rollback inside the same writer ticket.
@@ -8055,6 +8210,8 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     item["queueSteerRequestId"] = request_id
                     item["queueSteerWorkerId"] = w.worker_id
                     item["queueSteerGeneration"] = generation
+                    if origin is not None:
+                        item["queueSteerOrigin"] = origin
                     s.queue_revision += 1
                     _sess._save_body(s)
                 except BaseException:
@@ -8073,6 +8230,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 item.pop("queueSteerRequestId", None)
                 item.pop("queueSteerWorkerId", None)
                 item.pop("queueSteerGeneration", None)
+                item.pop("queueSteerOrigin", None)
                 s.queue_revision += 1
                 cleanup = _own_queue_steer_task(_persist_queue_steer_state(w, s))
                 while not cleanup.done():
@@ -8081,13 +8239,15 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     except asyncio.CancelledError:
                         continue
                 raise
-            if (w.native_control_mode != "pan" or workers.get(w.worker_id) is not w or w.generation != generation
-                    or w.process is not process or w.status != "running"
-                    or process is None or process.returncode is not None or process.stdin is None):
+            if (w.native_control_mode != "pan" or not _control_runtime_matches(w.worker_id, runtime)
+                    or w.status != "running" or (origin is not None and
+                    (w._terminal_handled or w._steer_run_id != origin["runId"]))
+                    or process is None or process.returncode is not None or stdin is None):
                 item.pop("queueSteerPending", None)
                 item.pop("queueSteerRequestId", None)
                 item.pop("queueSteerWorkerId", None)
                 item.pop("queueSteerGeneration", None)
+                item.pop("queueSteerOrigin", None)
                 s.queue_revision += 1
                 await _persist_queue_steer_state(w, s)
                 return "Worker turn ended before Steer handoff"
@@ -8095,9 +8255,11 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
             if wants_receipt:
                 w._steer_receipts[request_id] = future
+                w._steer_contexts[request_id] = {"runtime": runtime, "origin": origin or _steer_origin(w)}
                 def settle_receipt(done):
                     if w._steer_receipts.get(request_id) is done:
                         w._steer_receipts.pop(request_id, None)
+                    w._steer_contexts.pop(request_id, None)
                     if not done.cancelled():
                         disposition, detail = _steer_receipt_result(done.result())
                         _own_queue_steer_task(_settle_queue_steer(
@@ -8109,20 +8271,22 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             write_error = None
             outcome["status"] = "unknown"
             try:
-                process.stdin.write(wire)
+                written = stdin.write(wire)
+                if isinstance(written, int) and written != len(wire):
+                    raise OSError("partial Steer control write")
             except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 write_error = str(exc)
             owner = _own_queue_steer_task(_finish_queue_steer(
                 w, s, item, history_text, request_id, generation, process,
-                future if wants_receipt else None, write_error, outcome=outcome))
+                future if wants_receipt else None, write_error, outcome=outcome, stdin=stdin))
     # No lifecycle or queue lock is held while drain/RPC/broadcast is awaited.
     return await asyncio.shield(owner)
 
 
-async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error, *, outcome=None):
+async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error, *, outcome=None, stdin=None):
     await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
                              "queueRevision": s.queue_revision})
-    drain = asyncio.create_task(process.stdin.drain()) if write_error is None else None
+    drain = asyncio.create_task((stdin if stdin is not None else process.stdin).drain()) if write_error is None else None
     error = "Steer outcome unknown: control write/drain failed"
     disposition = "unknown"
     deadline = asyncio.get_running_loop().time() + 30
@@ -8166,6 +8330,7 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
                 item.pop("queueSteerRequestId", None)
                 item.pop("queueSteerWorkerId", None)
                 item.pop("queueSteerGeneration", None)
+                item.pop("queueSteerOrigin", None)
             item["lastSteerError"] = error
             s.queue_revision += 1
             await _persist_queue_steer_state(w, s)
@@ -8173,14 +8338,20 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
                     and w.generation == generation):
                 _wake_after_queue_unit(w, s)
         else:
+            origin = item.get("queueSteerOrigin")
             item.pop("queueSteerPending", None)
             item.pop("queueSteerRequestId", None)
             item.pop("queueSteerWorkerId", None)
             item.pop("queueSteerGeneration", None)
+            item.pop("queueSteerOrigin", None)
             row = _queue_history_row([item], history_text)
+            if origin is not None:
+                row["steer"] = dict(origin)
             _sess.append_history(s, row)
             # Provider accepted: never requeue on a later persistence failure.
             _set_delivery_state(s, item, _DELIVERY_SENT)
+            if origin is not None:
+                s.queue_delivery_ledger[_queue_item_id(item)]["steer"] = dict(origin)
             s.queue_revision += 1
             _remove_queue_items_by_identity(s, [item])
             await _persist_queue_steer_state(w, s)
@@ -8754,7 +8925,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     worker（CLI 进程）是顺带的。
 
     - 有活 worker（含 oneshot 注册，process 为 None）→ 常规投递；
-      force=True 先 restart 再投递（worker_send_force 语义）。
+      force=True 按能力即时 Steer；idle 普通 handoff；无能力才 restart+send。
     - 无活 worker（从未 spawn / 进程已死）→ **不报错**：消息入该 session 的
       持久队列 queue_pending（type=task），由全局 watchdog（queue_pending
       非空 && 无活 worker → create_worker）spawn 后经 _recover_pending_signals
@@ -8781,6 +8952,16 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         getattr(target, "active_task_id", None)
         if source_type == "agent" else None
     )
+    if force and client_message_id:
+        existing = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
+        if existing is not None:
+            pending = next((row for row in target.queue_pending if _queue_item_id(row) == _queue_item_id(existing)), None)
+            if _delivery_state(existing) == _DELIVERY_SENT:
+                return {"status": "accepted", "outcome": "accepted", "consumption": "unconfirmed",
+                        "sessionId": session_id, "queueItemId": _queue_item_id(existing), "duplicate": True}
+            if pending and pending.get("forceSend") and (pending.get("queueSteerPending") or not pending.get("lastSteerError")):
+                return {"status": "unknown", "outcome": "unknown", "retryable": False,
+                        "sessionId": session_id, "queueItemId": _queue_item_id(existing), "duplicate": True}
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
     if not alive or getattr(target, "queue_paused", False):
@@ -8804,7 +8985,40 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         return {"status": "queued", "workerId": live.worker_id if live else None,
                 "sessionId": session_id, "queuePaused": paused,
                 "pendingSpawn": recovery is not None}
-    if force:
+    route = steer_delivery_route(w, target) if force else "queue"
+    if force and route == "steer":
+        async with queue_lock(session_id):
+            prior = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
+            item = None
+            if prior is not None:
+                state = _delivery_state(prior)
+                pending = next((row for row in target.queue_pending if _queue_item_id(row) == _queue_item_id(prior)), None)
+                if (pending and pending.get("forceSend") and pending.get("lastSteerError")
+                        and not pending.get("queueSteerPending") and pending.get("text") == text):
+                    item = pending  # An explicit retry after proved rejection retains the original item.
+                else:
+                    status = "accepted" if state == _DELIVERY_SENT else "unknown"
+                    return {"status": status, "outcome": status, "consumption": "unconfirmed",
+                            "queueItemId": _queue_item_id(prior), "sessionId": session_id,
+                            "workerId": w.worker_id, "duplicate": True}
+            if item is None:
+                item, error = await _persist_task_item(target, text, source_type, None,
+                    inherited_task_id, client_message_id, source_sid, idempotent_task_id=False, locked=True)
+                if error:
+                    return {"status": "rejected", "outcome": "rejected", "result": error}
+            # The lock prevents ordinary FIFO from racing this immediate attempt.
+            item["forceSend"] = True
+            item["forceSendHeld"] = True
+            if prior is None:
+                item.pop("queueLockManual", None)  # Replace only the just-created transaction hold.
+            await _save_receipt(target)
+        disposition = {}
+        error = await steer_queue_item(session_id, _queue_item_id(item), item.get("revision", 1), outcome=disposition)
+        status = disposition.get("status", "unknown") if error else "accepted"
+        return {"status": status, "outcome": status, "consumption": "unconfirmed",
+                "workerId": w.worker_id, "sessionId": session_id, "queueItemId": _queue_item_id(item),
+                **({"result": error, "retryable": status == "rejected"} if error else {})}
+    if force and route == "restart":
         restarted = await restart_or_start_worker(session_id)
         if isinstance(restarted, str):
             return {"status": "error", "result": restarted}
@@ -8849,8 +9063,15 @@ def find_worker_by_session(session_id: str) -> Worker | None:
 async def steer_session_worker(session_id: str, text: str,
                                message_id: str | None = None) -> Worker | str | None:
     """Steer the session's live worker without exposing its runtime id."""
-    if _get_session_shallow(session_id) is None:
+    session = _get_session_shallow(session_id)
+    if session is None:
         return f"Session {session_id} not found"
+    prior = session.adapter_config.get("_steer_requests", {}).get(message_id)
+    if prior and prior.get("sessionId") == session_id and prior.get("status") != "accepted":
+        return "Steer outcome unknown: original request retained; do not resend"
+    if any(entry.get("sessionId") == session_id and entry.get("status") == "unknown"
+           for entry in session.adapter_config.get("_steer_requests", {}).values() if isinstance(entry, dict)):
+        return "Steer outcome unknown: previous request retained; do not resend"
     lock = await _session_spawn_lock(session_id)
     async with lock:
         w = find_alive_worker_by_session(session_id)
