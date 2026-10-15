@@ -14,6 +14,10 @@ Seeded fixtures (all children are managed by ses_mr_mgr):
     ses_mr_legacy_ambig  two such rows in one Session (compat cursor 0 twice)
     ses_mr_legacy_mixed  one such legacy row beside a REAL plain run (stored
                          taskSeq/resultCursor 1) — old and new blocks together
+    ses_mr_cursor_zero   a raw resultCursor 0 row beside a derived-0 legacy row
+                         (raw 0 is unreachable in production; this fixture
+                         probes the resolver's exact-first precedence and the
+                         UI's uniform withholding for indistinguishable views)
     ses_mr_task          formal assign run (taskId + taskSeq)
     ses_mr_broken        managed_by points at a missing manager session
 
@@ -160,6 +164,13 @@ def _seed() -> dict:
                     with_seq=False, with_cursor=False, user_text="旧块提问"),
         _append_run(s, task_id=None, task_seq=1, answers=["新块回答"],
                     result_cursor=1, user_text="新块提问"),
+    ))
+    _child("MR Cursor Zero", manager.id, lambda s: (
+        _append_run(s, task_id=None, task_seq=0, answers=["派生零回答"],
+                    with_seq=False, with_cursor=False, user_text="派生零提问"),
+        _append_run(s, task_id=None, task_seq=0, answers=["原始零回答"],
+                    with_seq=False, with_cursor=True, result_cursor=0,
+                    user_text="原始零提问"),
     ))
 
     (RUNTIME / "fixtures.json").write_text(json.dumps(fixtures, indent=2), encoding="utf-8")

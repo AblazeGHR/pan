@@ -423,6 +423,21 @@ describe('plain conversation runs (no taskId)', () => {
     expect(findManualReportTargets(messages, session([derived]), proofFor(messages)).size).toBe(0);
   });
 
+  it('hides every entry when two legacy rows derive the same compat cursor', () => {
+    // The review scenario: two old done runs in one Session, neither with a
+    // stored identity — both views derive rc:0, so no entry may exist for
+    // either (the server would refuse the ambiguous 0 anyway).
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      browser('u-2'), assistant('a-2'),
+    ];
+    const terminals = [
+      plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 0 }),
+      plainTerminal(messages[3]!, messages, { taskSeq: null, resultCursor: 0 }),
+    ];
+    expect(findManualReportTargets(messages, session(terminals), proofFor(messages)).size).toBe(0);
+  });
+
   it('still binds a real stored cursor and a real sequence', () => {
     const messages = [browser('u-1'), assistant('a-1')];
     const realCursor = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 1 });

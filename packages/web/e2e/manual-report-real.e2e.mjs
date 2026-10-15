@@ -100,6 +100,13 @@ async function check(name, fn) {
   }
 }
 
+/** One row's messageId from the fixture history on disk (0-based line). */
+const childRowId = async (childId, index) => {
+  const raw = await fs.readFile(path.join(runtime, 'sessions', `${childId}.history.jsonl`), 'utf8');
+  const rows = raw.trim().split('\n').map((line) => JSON.parse(line));
+  return rows[index].messageId;
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** The manager's durable receipts, read from its real session file on disk. */
@@ -642,6 +649,90 @@ try {
     const delivered = Object.values(receipts).filter((receipt) => receipt.messageId === newTail);
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].taskSeq, 1, 'the delivered run is the stored one');
+  });
+
+  await check('raw cursor 0 beside a derived 0: the resolver is exact-first, the UI withholds both', async () => {
+    await selectSession('MR Cursor Zero', '派生零提问');
+    const czChild = child('MR Cursor Zero');
+    // Both rows are indistinguishable in the view ({resultCursor: 0}), so the
+    // UI offers no entry for either — raw-zero reachability is unprovable.
+    const entries = await reportEntries();
+    assert.deepEqual(entries, [], `indistinguishable zero identities must not open entries: ${JSON.stringify(entries)}`);
+    // The real resolver's exact-first branch still pins the raw-zero row.
+    const legacyTail = await childRowId(czChild, 2);
+    const rawTail = await childRowId(czChild, 5);
+    const delivered = await reportOverHttp(czChild, {
+      messageId: rawTail, taskId: null, taskSeq: null, resultCursor: 0,
+    });
+    assert.equal(delivered.ok, true, JSON.stringify(delivered));
+    const receipts = await waitForReceipts(managerId, 6);
+    const receipt = Object.values(receipts).find((candidate) => candidate.messageId === rawTail);
+    assert.ok(receipt, `the raw-zero run must deliver its own block: ${JSON.stringify(receipts)}`);
+    assert.equal(receipt.taskId ?? null, null);
+    assert.equal(receipt.taskSeq ?? null, null);
+    // The legacy block submitted against cursor 0 resolves the raw row and is
+    // refused as a block mismatch — never bound to the wrong run.
+    const mismatched = await reportOverHttp(czChild, {
+      messageId: legacyTail, taskId: null, taskSeq: null, resultCursor: 0,
+    });
+    assert.equal(mismatched.ok, false, JSON.stringify(mismatched));
+    assert.equal(mismatched.error?.code, 'block_mismatch', JSON.stringify(mismatched));
+    // Stored identities are untouched by the gate: sequence and cursor-only
+    // entries behaved identically earlier in this suite.
+  });
+
+  await check('legacy dedup across eviction: the surviving receipt answers for another run', async () => {
+    const legacyChild = child('MR Legacy Done');
+    const receiptsBefore = await managerReceipts(managerId);
+    const priorKey = `manual:${legacyChild}:-:-`;
+    const priorMessageId = receiptsBefore[priorKey]?.messageId;
+    assert.ok(priorMessageId, 'the earlier legacy delivery must exist for this scenario');
+    // Simulate the bounded-window eviction production reaches: the delivered
+    // run's terminal leaves the window while its durable receipt survives, and
+    // a NEW legacy run (B) with no stored identity appears in the same Session.
+    const sessionFile = path.join(runtime, 'sessions', `${legacyChild}.json`);
+    const data = JSON.parse(await fs.readFile(sessionFile, 'utf8'));
+    const mkId = (suffix) => `pan:${'e'.repeat(30)}${suffix}`;
+    const stamp = new Date().toISOString();
+    const bRows = [
+      { role: 'user', content: '淘汰提问', messageId: mkId('b1'), source: 'user', ts: stamp },
+      { role: 'assistant', content: '淘汰回答', messageId: mkId('b2'), ts: stamp },
+      { role: 'assistant', content: '淘汰回答', messageId: mkId('b3'), ts: stamp },
+    ];
+    // The session FILE is snake_case (Session(**data) dataclass fields) —
+    // camelCase here crashed the whole store load.
+    data.history = [...(data.history ?? []), ...bRows];
+    data.history_revision = data.history.length;
+    data.terminal_results = [{
+      status: 'done', result: '淘汰回答', taskId: null, workerId: 'worker-1',
+      terminalKey: 'seq:0', historyEpoch: data.history_epoch, historyRevision: data.history.length,
+    }];
+    await fs.writeFile(sessionFile, JSON.stringify(data, null, 2), 'utf8');
+    const jsonl = path.join(runtime, 'sessions', `${legacyChild}.history.jsonl`);
+    const existing = await fs.readFile(jsonl, 'utf8');
+    await fs.writeFile(jsonl, existing + bRows.map((row) => `${JSON.stringify(row)}
+`).join(''), 'utf8');
+    // The server caches loaded Sessions; restart so it re-reads the file.
+    await stopServer();
+    const reopened = await startServer();
+    activeBase = reopened;
+    const probe = await reportOverHttp(legacyChild, {
+      messageId: mkId('b3'), taskId: null, taskSeq: null, resultCursor: 0,
+    });
+    // Reproduced hazard: B resolves uniquely, but the server's key derived from
+    // the resolved row's OWN (absent) fields collides with A's surviving
+    // receipt, so B reports as already delivered and is never enqueued.
+    assert.equal(probe.ok, true, JSON.stringify(probe));
+    assert.equal(probe.alreadyReported, true, JSON.stringify(probe));
+    const receiptsAfter = await managerReceipts(managerId);
+    assert.deepEqual(Object.keys(receiptsAfter).sort(), Object.keys(receiptsBefore).sort(),
+      'no new receipt may appear for the collided run');
+    assert.equal(receiptsAfter[priorKey]?.messageId, priorMessageId,
+      'the surviving receipt still records the earlier run');
+    // The UI never reaches this path: derived-compat rows offer no entry.
+    await gotoApp(activeBase);
+    await selectSession('MR Legacy Done', '淘汰提问');
+    assert.deepEqual(await reportEntries(), []);
   });
 
   assert.deepEqual(panRequests, [], `no Pan-port traffic is allowed: ${JSON.stringify(panRequests)}`);
