@@ -187,6 +187,31 @@ describe('mock manual-report route (plain runs + run identity)', () => {
       .rejects.toThrow(/不一致/);
   });
 
+  it('drops a non-positive cursor as not provided (merged narrow fix)', async () => {
+    const sessionId = seed(rows, [plainTerminal()]);
+    // Cursor 0 alone: not an identity at all.
+    await expect(reportTaskManually(sessionId, null, null, 'pan:a1', 0))
+      .rejects.toThrow(/缺少运行身份/);
+    // A raw zero cursor is not a stored identity either (production allocates
+    // positive cursors only).
+    seed(rows, [plainTerminal({ taskSeq: null, resultCursor: 0 })]);
+    await expect(reportTaskManually(sessionId, null, null, 'pan:a1', 0))
+      .rejects.toThrow(/缺少运行身份/);
+    // With a legal taskSeq present, the non-positive cursor is ignored and the
+    // stored sequence decides (fixture terminal carries taskSeq 1).
+    seed(rows, [plainTerminal()]);
+    const delivered = await reportTaskManually(sessionId, null, 1, 'pan:a1', 0);
+    expect(delivered.ok).toBe(true);
+  });
+
+  it('refuses an identity-less resolved terminal', async () => {
+    // A done row with neither taskSeq nor a positive cursor must never become
+    // deliverable, even if some path resolved it.
+    const sessionId = seed(rows, [plainTerminal({ taskSeq: null, resultCursor: undefined })]);
+    await expect(reportTaskManually(sessionId, null, null, 'pan:a1', 1))
+      .rejects.toThrow(/终态结果不可用|没有可证明/);
+  });
+
   it('refuses a report when the session has no manager', async () => {
     const sessionId = seed(rows, [plainTerminal()]);
     const session = mockSessions.find((item) => item.id === 'mock-alpha')!;

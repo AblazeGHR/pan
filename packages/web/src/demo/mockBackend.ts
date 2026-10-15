@@ -660,21 +660,26 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       attempt.outcome = 'dropped';
       throw new TypeError('Failed to fetch');
     }
-    // Resolve the run's durable terminal the way the server does, never by
-    // "newest": resultCursor is exact-first (legacy rows without the field
-    // fall back to a taskSeq-equal cursor), then taskSeq, then a taskId's
-    // latest run.  No identity at all is a definite refusal.
+    // Resolve the run's durable terminal the way the merged server does,
+    // never by "newest": only a POSITIVE resultCursor is a durable identity
+    // (production allocates max+1); a non-positive cursor is dropped as "not
+    // provided" so a legal taskSeq/taskId still decides.  The compat path
+    // requires a STORED taskSeq - an identity-less row can never be matched.
     const candidates = (session.terminalResults ?? []).filter(
       (terminal): terminal is NonNullable<typeof terminal> => !!terminal,
     );
+    const effectiveCursor = deliveredResultCursor !== null && deliveredResultCursor > 0
+      ? deliveredResultCursor : null;
+    attempt.resultCursor = effectiveCursor;
     let run: (typeof candidates)[number] | undefined;
-    if (deliveredResultCursor !== null) {
-      const exact = candidates.filter((terminal) => terminal.resultCursor === deliveredResultCursor);
-      const legacy = exact.length === 0
+    if (effectiveCursor !== null) {
+      const exact = candidates.filter((terminal) => terminal.resultCursor === effectiveCursor);
+      const compat = exact.length === 0
         ? candidates.filter((terminal) => terminal.resultCursor === undefined
-          && terminal.taskSeq === deliveredResultCursor)
+          && typeof terminal.taskSeq === 'number'
+          && terminal.taskSeq === effectiveCursor)
         : [];
-      const match = exact.length === 1 ? exact[0] : legacy.length === 1 ? legacy[0] : undefined;
+      const match = exact.length === 1 ? exact[0] : compat.length === 1 ? compat[0] : undefined;
       if (!match) {
         attempt.outcome = 'rejected';
         return { ok: false, error: { code: 'no_task_result', message: '该运行的终态结果不可用，无法汇报' } };
@@ -705,6 +710,16 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       attempt.outcome = 'rejected';
       return { ok: false, error: { code: 'no_task_result', message: '该运行的终态结果不可用，无法汇报' } };
     }
+    // Delivery precondition: the resolved terminal must carry a provable
+    // durable identity (taskId, stored taskSeq, or a positive raw cursor).
+    const runTaskId = typeof run.taskId === 'string' && run.taskId ? run.taskId : null;
+    const runTaskSeq = typeof run.taskSeq === 'number' ? run.taskSeq : null;
+    const runCursor = typeof run.resultCursor === 'number' && run.resultCursor > 0
+      ? run.resultCursor : null;
+    if (!runTaskId && runTaskSeq === null && runCursor === null) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'no_run_identity', message: '该终态没有可证明的持久运行身份，无法汇报' } };
+    }
     // Mirror the server's durable tail-block proof: within an unchanged history
     // epoch the run's final row offset is total - (revision - boundary).
     const history = session.history ?? [];
@@ -733,8 +748,8 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     // Dedup is keyed on the resolved run identity only: a client message id
     // can never turn one run into several deliveries, and a cursor-only plain
     // run keys by its durable cursor exactly like the server does.
-    const resolvedTaskId = typeof run.taskId === 'string' && run.taskId ? run.taskId : null;
-    const runKey = run.taskSeq ?? (typeof run.resultCursor === 'number' ? `rc:${run.resultCursor}` : '-');
+    const resolvedTaskId = runTaskId;
+    const runKey = runTaskSeq ?? (runCursor !== null ? `rc:${runCursor}` : '-');
     const key = `manual:${sessionId}:${resolvedTaskId ?? '-'}:${runKey}`;
     const alreadyReported = mockManualReports.some((report) => report.key === key);
     if (!alreadyReported) {
