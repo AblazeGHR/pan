@@ -1,0 +1,408 @@
+/* Real-chain E2E: manual report of any completed run.
+ *
+ * Real isolated FastAPI backend (e2e/manual-report-real.server.py) on an
+ * owned dynamic port, real on-disk fixtures, real /ws, and the production
+ * frontend bundle served by that server (/react/).  No frontend mock is
+ * installed: the browser talks to the real routes, and every assertion about
+ * what was delivered is read back from the manager's real receipt file on
+ * disk (manual_report_receipts), never from a test-invented surface.
+ *
+ * Covers: plain run (taskId:null + taskSeq), cursor-only identity, a
+ * completion the identity view excludes (no entry), real routed body
+ * identity vs the fixture's own tail row, double-click / replay run-level
+ * dedup across a real server restart, formal-task regression, real failure
+ * feedback (missing manager), dynamic port (never 8767/8768).
+ */
+/* global console, process, fetch, setTimeout */
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
+import net from 'node:net';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from '@playwright/test';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const webRoot = path.resolve(here, '..');
+const root = path.resolve(webRoot, '..', '..');
+const python = process.env.PAN_E2E_PYTHON || 'D:/project/Pan/.venv/Scripts/python.exe';
+const runtime = path.join(webRoot, 'test-results', 'manual-report-real');
+await fs.rm(runtime, { recursive: true, force: true });
+await fs.mkdir(runtime, { recursive: true });
+
+const GUTTER = 'button[data-message-bookmark-gutter]';
+const MENU = '[data-message-block-menu]';
+const REPORT_ITEM = `${MENU} [data-manual-report]`;
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+let server;
+let serverLog = '';
+async function startServer() {
+  const port = await freePort();
+  assert.ok(port !== 8767 && port !== 8768, `owned port must not be a Pan port (got ${port})`);
+  server = spawn(python, [path.join(here, 'manual-report-real.server.py')], {
+    cwd: root,
+    windowsHide: true,
+    env: { ...process.env, PAN_PORT: String(port), PAN_E2E_RUNTIME: runtime },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  server.stdout.on('data', (chunk) => { serverLog += chunk; });
+  server.stderr.on('data', (chunk) => { serverLog += chunk; });
+  const base = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    try {
+      const res = await fetch(`${base}/api/sessions`);
+      if (res.ok) return base;
+    } catch {
+      // starting
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`real backend did not become ready\n--- server log ---\n${serverLog.slice(-4000)}`);
+}
+
+async function stopServer() {
+  if (!server) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5000))]);
+  server = null;
+}
+
+const results = [];
+async function check(name, fn) {
+  try {
+    await fn();
+    results.push({ name, ok: true });
+    console.log(`[PASS] ${name}`);
+  } catch (error) {
+    results.push({ name, ok: false, error: String(error?.message || error) });
+    console.log(`[FAIL] ${name}: ${error?.message || error}`);
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The manager's durable receipts, read from its real session file on disk. */
+const managerReceipts = async (managerId) => {
+  const raw = await fs.readFile(path.join(runtime, 'sessions', `${managerId}.json`), 'utf8');
+  return (JSON.parse(raw).manual_report_receipts ?? {});
+};
+const waitForReceipts = async (managerId, expectedCount) => {
+  let receipts = {};
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    receipts = await managerReceipts(managerId);
+    if (Object.keys(receipts).length >= expectedCount) return receipts;
+    await sleep(150);
+  }
+  return receipts;
+};
+/** The run's tail row messageId, straight from the fixture history on disk. */
+const childTailId = async (childId) => {
+  const raw = await fs.readFile(path.join(runtime, 'sessions', `${childId}.history.jsonl`), 'utf8');
+  const rows = raw.trim().split('\n').map((line) => JSON.parse(line));
+  return rows[rows.length - 1].messageId;
+};
+
+let browser;
+try {
+  const base = await startServer();
+  const fixtures = JSON.parse(await fs.readFile(path.join(runtime, 'fixtures.json'), 'utf8'));
+  const managerId = fixtures.managerId;
+  const child = (name) => fixtures.children[name];
+  console.log(`[real-e2e] backend on ${base}; manager ${managerId}`);
+
+  browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  const panRequests = [];
+  const pageErrors = [];
+  const page = await context.newPage();
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('request', (request) => {
+    if (/:(8767|8768)(\/|$)/.test(request.url())) panRequests.push(request.url());
+  });
+
+  const gotoApp = async (target = base) => {
+    await page.goto(`${target}/react/?panE2E=1`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible', timeout: 15000 });
+  };
+  /** Select a Session and prove the switch actually landed by waiting for one
+   *  of its own rows: an unverified switch left the previous transcript in
+   *  place and produced empty scans that looked like missing entries. */
+  const selectSessionOn = async (targetPage, name, expectText) => {
+    await targetPage.locator('[data-session-card-id]').filter({ hasText: name }).first().click();
+    if (expectText) {
+      await targetPage.locator('.message-row', { hasText: expectText }).first()
+        .waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    }
+    await targetPage.waitForTimeout(400);
+  };
+  const selectSession = (name, expectText) => selectSessionOn(page, name, expectText);
+  const reportEntries = async () => {
+    const found = [];
+    await page.locator(GUTTER).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    for (const gutter of await page.locator(GUTTER).all()) {
+      await gutter.click();
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      for (const item of await page.locator(REPORT_ITEM).all()) {
+        found.push({ key: await item.getAttribute('data-manual-report'), text: (await item.textContent()) ?? '' });
+      }
+      await page.keyboard.press('Escape');
+    }
+    return found;
+  };
+  const openReportMenuOn = async (targetPage, key) => {
+    await targetPage.locator(GUTTER).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    for (const gutter of await targetPage.locator(GUTTER).all()) {
+      await gutter.click();
+      await targetPage.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      const item = targetPage.locator(`${REPORT_ITEM}[data-manual-report="${key}"]`);
+      if (await item.count()) return item.first();
+      await targetPage.keyboard.press('Escape');
+    }
+    throw new Error(`no report entry for ${key}`);
+  };
+  const openReportMenu = (key) => openReportMenuOn(page, key);
+  /** The bindings ride the WS resync snapshot (the REST list/detail carry no
+   *  terminal identities), so a freshly opened page may need a moment before
+   *  the report entry exists: retry until it does. */
+  const waitForItemOn = async (targetPage, key) => {
+    let last;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        return await openReportMenuOn(targetPage, key);
+      } catch (error) {
+        last = error;
+        await targetPage.keyboard.press('Escape').catch(() => {});
+        await targetPage.waitForTimeout(250);
+      }
+    }
+    // Diagnostics: what does the page actually offer instead of the entry?
+    const dump = await targetPage.evaluate(() => ({
+      gutters: document.querySelectorAll('button[data-message-bookmark-gutter]').length,
+      rows: [...document.querySelectorAll('.message-row')].map((row) => (row.textContent ?? '').slice(0, 18)),
+      toasts: [...document.querySelectorAll('[role="alert"]')].map((node) => (node.textContent ?? '').slice(0, 40)),
+    })).catch(() => null);
+    throw new Error(`no report entry for ${key} (${JSON.stringify(dump)}; last: ${last instanceof Error ? last.message : last})`);
+  };
+  const clickReport = async (key) => {
+    // A slow history load can still show the previous Session's rows: retry
+    // the whole find-and-click path instead of racing the switch.
+    let lastError;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        const item = await openReportMenu(key);
+        assert.equal(await item.isDisabled(), false, `entry ${key} must be actionable`);
+        await item.click();
+        return;
+      } catch (error) {
+        lastError = error;
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(250);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(`clickReport ${key} failed`);
+  };
+  const waitForState = async (key, pattern) => {
+    let last = '';
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        const item = await openReportMenu(key);
+        const text = (await item.textContent()) ?? '';
+        const state = { text, disabled: await item.isDisabled(), title: await item.getAttribute('title') };
+        await page.keyboard.press('Escape');
+        if (pattern.test(text)) return state;
+        last = text;
+      } catch (error) {
+        last = String(error?.message || error);
+        await page.keyboard.press('Escape').catch(() => {});
+      }
+      await page.waitForTimeout(150);
+    }
+    throw new Error(`entry ${key} never reached ${pattern} (last: ${last})`);
+  };
+
+  await gotoApp();
+
+  await check('plain run: taskId null + taskSeq delivers the run identity to disk', async () => {
+    await selectSession('MR Plain Seq', 'plain message 1');
+    const key = `${child('MR Plain Seq')}:-:1`;
+    await clickReport(key);
+    await waitForState(key, /已汇报/);
+    const receipts = await waitForReceipts(managerId, 1);
+    const receipt = receipts[`manual:${key}`];
+    assert.ok(receipt, `receipt missing: ${JSON.stringify(receipts)}`);
+    assert.equal(receipt.taskId ?? null, null, 'plain run delivers taskId null');
+    assert.equal(receipt.taskSeq, 1);
+    assert.equal(receipt.messageId, await childTailId(child('MR Plain Seq')),
+      'the delivered block must be the fixture run\'s own tail row');
+    assert.equal(Object.keys(receipts).length, 1);
+  });
+
+  await check('cursor-only run: resultCursor alone delivers and keys by rc:7', async () => {
+    await selectSession('MR Plain Cursor', 'plain message 7');
+    const key = `${child('MR Plain Cursor')}:-:rc:7`;
+    await clickReport(key);
+    await waitForState(key, /已汇报/);
+    const receipts = await waitForReceipts(managerId, 2);
+    const receipt = receipts[`manual:${key}`];
+    assert.ok(receipt, `rc-keyed receipt missing: ${JSON.stringify(receipts)}`);
+    assert.equal(receipt.taskId ?? null, null);
+    assert.equal(receipt.taskSeq ?? null, null, 'a cursor-only run carries no taskSeq');
+    assert.equal(receipt.messageId, await childTailId(child('MR Plain Cursor')));
+    assert.equal(Object.keys(receipts).length, 2);
+  });
+
+  await check('no exposed terminal: an excluded completion offers no entry', async () => {
+    await selectSession('MR Interrupted Run', 'plain message 9');
+    const entries = await reportEntries();
+    assert.deepEqual(entries, [], `no entry may exist for an unexposed completion: ${JSON.stringify(entries)}`);
+  });
+
+  await check('formal task run: the existing taskId identity still reports', async () => {
+    await selectSession('MR Formal Task', 'do mr-task');
+    const key = `${child('MR Formal Task')}:mr-task:3`;
+    await clickReport(key);
+    await waitForState(key, /已汇报/);
+    const receipts = await waitForReceipts(managerId, 3);
+    const receipt = receipts[`manual:${key}`];
+    assert.ok(receipt, `formal receipt missing: ${JSON.stringify(receipts)}`);
+    assert.equal(receipt.taskId, 'mr-task');
+    assert.equal(receipt.taskSeq, 3);
+    assert.equal(receipt.messageId, await childTailId(child('MR Formal Task')));
+  });
+
+  await check('failing target: a missing manager surfaces as a real retry state', async () => {
+    await selectSession('MR Broken Manager', 'plain message 2');
+    const key = `${child('MR Broken Manager')}:-:2`;
+    await clickReport(key);
+    const state = await waitForState(key, /重试汇报/);
+    assert.match(state.title ?? '', /manager|无法汇报/);
+    // The failure is a definite rejection: retrying changes nothing.
+    await clickReport(key);
+    await waitForState(key, /重试汇报/);
+    const receipts = await managerReceipts(managerId);
+    assert.equal(Object.keys(receipts).length, 3, 'failed attempts must never deliver');
+    assert.ok(!Object.keys(receipts).some((receiptKey) => receiptKey.includes(child('MR Broken Manager'))));
+  });
+
+  await check('double click: extra clicks after the sent state deliver nothing new', async () => {
+    const freshBrowser = await chromium.launch({ headless: true });
+    try {
+      const freshContext = await freshBrowser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+      const fresh = await freshContext.newPage();
+      await fresh.goto(`${base}/react/?panE2E=1`, { waitUntil: 'domcontentloaded' });
+      await fresh.locator('[data-session-card-id]').first().waitFor({ state: 'visible', timeout: 15000 });
+      await selectSessionOn(fresh, 'MR Plain Seq', 'plain message 1');
+      const key = `${child('MR Plain Seq')}:-:1`;
+      const before = (await managerReceipts(managerId))[`manual:${key}`]?.at;
+      await waitForItemOn(fresh, key);
+      await fresh.keyboard.press('Escape');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const item = await waitForItemOn(fresh, key);
+        if (!(await item.isDisabled())) {
+          await item.click({ timeout: 5000 }).catch(async () => {
+            await fresh.keyboard.press('Escape').catch(() => {});
+          });
+        }
+        await fresh.keyboard.press('Escape');
+        await fresh.waitForTimeout(250);
+      }
+      const receipts = await managerReceipts(managerId);
+      assert.equal(Object.keys(receipts).length, 3);
+      assert.equal(receipts[`manual:${key}`]?.at, before, 'the receipt must not be rewritten');
+    } finally {
+      await freshBrowser.close();
+    }
+  });
+
+  await check('receipts persist on real disk with their routed identities', async () => {
+    const receipts = await managerReceipts(managerId);
+    assert.deepEqual(
+      Object.keys(receipts).sort(),
+      [
+        `manual:${child('MR Plain Cursor')}:-:rc:7`,
+        `manual:${child('MR Plain Seq')}:-:1`,
+        `manual:${child('MR Formal Task')}:mr-task:3`,
+      ].sort(),
+    );
+  });
+
+  await check('restart replay: the same durable receipt answers, no second delivery', async () => {
+    const key = `${child('MR Plain Seq')}:-:1`;
+    const at = (await managerReceipts(managerId))[`manual:${key}`]?.at;
+    await stopServer();
+    const restarted = await startServer();
+    // Same runtime, same Sessions: the receipt must still be the same one.
+    const fixturesAfter = JSON.parse(await fs.readFile(path.join(runtime, 'fixtures.json'), 'utf8'));
+    assert.equal(fixturesAfter.managerId, managerId, 'restart must reuse the same fixture generation');
+    assert.equal(fixturesAfter.children['MR Plain Seq'], child('MR Plain Seq'));
+    // A fresh browser against the restarted service: the report entry (its
+    // binding comes from the surviving terminal on disk) must replay against
+    // the SAME receipt instead of minting a second delivery.  A brand-new
+    // browser process avoids a renderer crash observed on reused pages here;
+    // one retry absorbs the residual renderer flake.
+    let replayError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      replayError = undefined;
+      const freshBrowser = await chromium.launch({ headless: true });
+      try {
+        const freshContext = await freshBrowser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+        const fresh = await freshContext.newPage();
+        fresh.on('crash', () => console.log('[real-e2e] renderer crashed during the restart replay'));
+        await fresh.goto(`${restarted}/react/?panE2E=1`, { waitUntil: 'domcontentloaded' });
+        await fresh.locator('[data-session-card-id]').first().waitFor({ state: 'visible', timeout: 15000 });
+        await selectSessionOn(fresh, 'MR Plain Seq', 'plain message 1');
+        let item = await waitForItemOn(fresh, key);
+        assert.equal(await item.isDisabled(), false, 'after a restart the entry is unsent locally');
+        await item.click({ timeout: 5000 }).catch(async () => {
+          await fresh.keyboard.press('Escape').catch(() => {});
+          item = await waitForItemOn(fresh, key);
+          await item.click({ timeout: 5000 });
+        });
+        for (let poll = 0; poll < 60; poll += 1) {
+          item = await waitForItemOn(fresh, key);
+          const text = (await item.textContent()) ?? '';
+          await fresh.keyboard.press('Escape');
+          if (/已汇报/.test(text)) break;
+          await fresh.waitForTimeout(200);
+        }
+        replayError = undefined;
+      } catch (error) {
+        replayError = error;
+      } finally {
+        await freshBrowser.close();
+      }
+      if (replayError === undefined) break;
+    }
+    if (replayError !== undefined) throw replayError;
+    await sleep(800);
+    const receipts = await managerReceipts(managerId);
+    assert.equal(Object.keys(receipts).length, 3, `a replay must not add receipts: ${JSON.stringify(receipts)}`);
+    assert.equal(receipts[`manual:${key}`]?.at, at, 'the replay must resolve to the surviving receipt');
+  });
+
+  assert.deepEqual(panRequests, [], `no Pan-port traffic is allowed: ${JSON.stringify(panRequests)}`);
+  console.log('[real-e2e] no 8767/8768 traffic');
+  await fs.writeFile(path.join(runtime, 'results.json'), JSON.stringify({ base, managerId, results }, null, 2));
+} finally {
+  if (browser) await browser.close();
+  await stopServer();
+}
+
+const failed = results.filter((result) => !result.ok);
+if (failed.length > 0) {
+  console.error(`${failed.length} real-chain manual-report check(s) failed`);
+  process.exit(1);
+}
+console.log(`All ${results.length} real-chain manual-report checks passed`);
