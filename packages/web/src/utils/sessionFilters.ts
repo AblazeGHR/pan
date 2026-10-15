@@ -269,7 +269,7 @@ export function workspaceMatchesSpecialFilters(
   return true;
 }
 
-/** Which workspace-rail rows stay visible under the shared search/filters. */
+/** Which workspace-rail rows stay visible under its name query and shared filters. */
 export interface WorkspaceRowVisibility {
   /** Real workspace rows to render, in store order. */
   workspaces: Workspace[];
@@ -280,15 +280,15 @@ export interface WorkspaceRowVisibility {
 }
 
 /**
- * Compute the workspace-rail row visibility for the shared Session search box
- * and special filters (no second input, no stored state — pure derivation):
+ * Compute workspace-rail visibility from its own name query and shared status filters:
  *
  * - A real workspace row shows when its NAME matches the keyword AND the
  *   workspace satisfies every active status filter ({@link
  *   workspaceMatchesSpecialFilters}: per-filter any() over the ACTUAL effective
  *   members, then AND — never derived from the keyword-filtered Session list).
- * - A virtual scope row shows when its own session content matches: 'all'
- *   covers every session, 'ungrouped' only sessions without membership.
+ * - Virtual scopes ignore the workspace keyword (they have no workspace name).
+ *   Their existing per-Session status matching stays unchanged: 'all' covers
+ *   every session, 'ungrouped' only sessions without membership.
  * - Collapsed, or with no keyword and no status filter active, every row
  *   keeps its original visibility.
  *
@@ -324,7 +324,6 @@ export function computeWorkspaceRowVisibility(
       ),
   );
   const sessionMatches = (session: Session) =>
-    matchesSessionSearch(session, options.searchQuery) &&
     matchesSpecialFilters(session, sessions, options.specialFilters);
   return {
     workspaces: visibleWorkspaces,

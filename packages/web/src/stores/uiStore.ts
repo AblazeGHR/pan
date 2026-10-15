@@ -342,6 +342,8 @@ interface UIStore {
   mobileSidebarOpen: boolean;
   groupBy: GroupMode;
   searchQuery: string;
+  /** Independent, non-persisted workspace name query; survives panel unmounts. */
+  workspaceSearchQuery: string;
   sortBy: SortMode;
   /** Whether session drag/reorder affordances are enabled. Persisted. */
   dragEnabled: boolean;
@@ -397,6 +399,7 @@ interface UIStore {
   setGroupBy: (mode: GroupMode) => void;
   cycleGroupBy: () => void;
   setSearchQuery: (q: string) => void;
+  setWorkspaceSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
   /** Cycle recent → name → custom → recent (sidebar Sort button). */
   cycleSortBy: () => void;
@@ -449,6 +452,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   mobileSidebarOpen: false,
   groupBy: loadGroupBy(),
   searchQuery: '',
+  workspaceSearchQuery: '',
   sortBy: loadSortBy(),
   dragEnabled: loadDragEnabled(),
   customOrder: loadCustomOrder(),
@@ -606,6 +610,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     persistGroupBy(next);
   },
 
+  setWorkspaceSearchQuery: (q) => set({ workspaceSearchQuery: q }),
   setSearchQuery: (q) => {
     set({ searchQuery: q });
   },

@@ -1,0 +1,72 @@
+{
+  "base": "4a4872ec5fe284b10b354a4780e1a745f54834f5",
+  "incidentJob": "job_9aeab412187c8bfd5822a95e",
+  "screenshot": {
+    "path": "D:\\project\\Pan\\data\\attachments\\ses_aa02ab3cd00ae7d2-949b3f3b6b8a\\upload_39bdff27f6be4202b62ce17126b8bc41.png",
+    "sha256": "952763decffc9c522955e93ff0767ed43f6ebf64bce9c47d960c8899f4e29fbd"
+  },
+  "incidentIdentities": [
+    {
+      "pid": 27440,
+      "filetime": "134365050269149958"
+    },
+    {
+      "pid": 34272,
+      "filetime": "134365051723859101"
+    },
+    {
+      "pid": 9172,
+      "filetime": "134365051723939674"
+    },
+    {
+      "pid": 33868,
+      "filetime": "134365051732627518"
+    },
+    {
+      "pid": 11304,
+      "filetime": "134365051725218522"
+    }
+  ],
+  "batches": {
+    "baseline.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "1",
+      "time": "2.562",
+      "timestamp": "2026-10-15T10:37:58.700763+08:00",
+      "hostname": "ablaze"
+    },
+    "fixed.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "3",
+      "skipped": "0",
+      "tests": "3",
+      "time": "2.057",
+      "timestamp": "2026-10-15T10:38:12.207701+08:00",
+      "hostname": "ablaze"
+    },
+    "regression.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "138",
+      "time": "28.066",
+      "timestamp": "2026-10-15T10:38:38.418704+08:00",
+      "hostname": "ablaze"
+    },
+    "venv-final.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "4",
+      "time": "2.042",
+      "timestamp": "2026-10-15T10:39:59.860058+08:00",
+      "hostname": "ablaze"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+dns:
+  nameserver-policy:
+    +.edu.cn: system
+  fake-ip-filter+:
+    - +.edu.cn

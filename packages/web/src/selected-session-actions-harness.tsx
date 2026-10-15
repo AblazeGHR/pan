@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import './index.css';
@@ -19,8 +20,11 @@ const sessions = ['a', 'b', 'c'].map((id) => ({
   unreadDoneReadGeneration: 1,
   unreadDoneCount: 3,
   msgBridgeEnabled: false,
+  // a and c carry a live worker; b has none (Kill/Delayed restart boundaries).
+  ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle' }),
 }));
 useSessionStore.setState({ sessions, multiSelectMode: true, selectedIds: new Set(['a', 'b']) });
+useWorkerStore.setState({ workers: {}, delayedRestarts: {} });
 useWorkspaceStore.setState({
   loaded: true,
   workspaces: [
@@ -39,10 +43,16 @@ useUIStore.setState({
 Object.assign(window, {
   selectTargets: (ids: string[]) => useSessionStore.setState({ selectedIds: new Set(ids) }),
   setManager: (id: string, manager: string | null) => useSessionStore.getState().updateSession(id, { managedBy: manager }),
+  setWorker: (id: string, workerId: string | null, status: string | null) =>
+    useSessionStore.getState().updateSession(id, { workerId, workerStatus: status }),
+  applyDelayedRestart: (intent: Record<string, unknown>) =>
+    useWorkerStore.getState().applyDelayedRestart(intent as never),
+  delayedRestartState: () => useWorkerStore.getState().delayedRestarts,
   clearToasts: () => useUIStore.setState({ toastQueue: [] }),
   sessionState: () => useSessionStore.getState().sessions,
   resetScenario: () => {
     useSessionStore.setState({ sessions, multiSelectMode: true, selectedIds: new Set(['a', 'b']) });
+    useWorkerStore.setState({ workers: {}, delayedRestarts: {} });
     useUIStore.setState({ toastQueue: [] });
   },
 });

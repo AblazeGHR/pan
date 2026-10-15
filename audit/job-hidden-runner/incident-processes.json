@@ -1,0 +1,58 @@
+[
+  {
+    "ProcessId": 27440,
+    "ParentProcessId": 19596,
+    "CreationDate": "2026-10-15T10:30:26.914995+08:00",
+    "ExecutablePath": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "CommandLine": "D:\\project\\Pan\\.venv\\Scripts\\python.exe D:\\project\\Pan\\main.py --pan-root-marker=D:\\project\\Pan --pan-port-marker=8768"
+  },
+  {
+    "ProcessId": 34272,
+    "ParentProcessId": 27440,
+    "CreationDate": "2026-10-15T10:32:52.38591+08:00",
+    "ExecutablePath": "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+    "CommandLine": "D:\\project\\Pan\\.venv\\Scripts\\python.exe -m packages.core.background_runner --job-id job_9aeab412187c8bfd5822a95e"
+  },
+  {
+    "ProcessId": 9172,
+    "ParentProcessId": 34272,
+    "CreationDate": "2026-10-15T10:32:52.393967+08:00",
+    "ExecutablePath": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "CommandLine": "D:\\project\\Pan\\.venv\\Scripts\\python.exe -m packages.core.background_runner --job-id job_9aeab412187c8bfd5822a95e"
+  },
+  {
+    "ProcessId": 7836,
+    "ParentProcessId": 9172,
+    "CreationDate": "2026-10-15T10:32:52.399204+08:00",
+    "ExecutablePath": "C:\\Windows\\system32\\conhost.exe",
+    "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+  },
+  {
+    "ProcessId": 9792,
+    "ParentProcessId": 2068,
+    "CreationDate": "2026-10-15T10:32:52.425213+08:00",
+    "ExecutablePath": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.24.12741.0_x64__8wekyb3d8bbwe\\OpenConsole.exe",
+    "CommandLine": "\"C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.24.12741.0_x64__8wekyb3d8bbwe\\OpenConsole.exe\" -Embedding"
+  },
+  {
+    "ProcessId": 11304,
+    "ParentProcessId": 2068,
+    "CreationDate": "2026-10-15T10:32:52.521852+08:00",
+    "ExecutablePath": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.24.12741.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe",
+    "CommandLine": "\"C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.24.12741.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe\" -Embedding"
+  },
+  {
+    "ProcessId": 33868,
+    "ParentProcessId": 9172,
+    "CreationDate": "2026-10-15T10:32:53.262751+08:00",
+    "ExecutablePath": "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+    "CommandLine": "D:/project/Pan/.venv/Scripts/python.exe D:/project/pan-ci-evidence/release-ci-032-20261013/run_job_trial.py 4a4872ec5fe284b10b354a4780e1a745f54834f5 D:/project/pan-ci-evidence/release-ci-032-20261013/codex"
+  },
+  {
+    "ProcessId": 34408,
+    "ParentProcessId": 33868,
+    "CreationDate": "2026-10-15T10:32:53.268499+08:00",
+    "ExecutablePath": "C:\\Windows\\system32\\conhost.exe",
+    "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+  }
+]

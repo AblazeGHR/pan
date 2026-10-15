@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -34,7 +35,6 @@ import {
   Plus,
   Settings,
   Import,
-  Search,
   ArrowUpDown,
   Layers,
   ListFilter,
@@ -469,27 +469,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
           {/* Search + tools bar */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border-muted bg-bg-secondary">
-            <div className="relative flex-1">
-              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Filter..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-6 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 px-1 text-text-tertiary hover:text-text-primary"
-                  aria-label="Clear session search"
-                  title="Clear session search"
-                >
-                  ×
-                </button>
-              )}
-            </div>
+            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter..." label="session" />
             <div className="relative">
               <button
                 onClick={() => setShowFilterMenu((v) => !v)}

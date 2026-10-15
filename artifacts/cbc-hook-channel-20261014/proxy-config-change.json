@@ -1,0 +1,20 @@
+[
+  {
+    "file": "override/edu-cn-direct-dns-20261010.yaml",
+    "beforeSHA256": "d3fadfcbffe3a412507b39667806f4fcd0bde124ad571cef7879063431751ec6",
+    "afterSHA256": "37e1b89d0920d27c659617058cc2d23ed6e9968a49b996b25775dc0a24c89315",
+    "changedFields": [
+      "dns.direct-nameserver",
+      "dns.direct-nameserver-follow-policy"
+    ]
+  },
+  {
+    "file": "work/config.yaml",
+    "beforeSHA256": "7ca361bca573f7c9a75033797b2053ab91892f41a5c07c99c0ef616a28171d7e",
+    "afterSHA256": "78e8a1799197af938b499d55ae784ccf9a40ecbd8ddd7c30051b8ce00a01bd2b",
+    "changedFields": [
+      "dns.direct-nameserver",
+      "dns.direct-nameserver-follow-policy"
+    ]
+  }
+]

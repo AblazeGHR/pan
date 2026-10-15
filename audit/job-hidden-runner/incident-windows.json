@@ -1,0 +1,122 @@
+{
+  "windows": [
+    {
+      "hwnd": 656846,
+      "pid": 11304,
+      "filetime": "134365051725218522",
+      "tid": 11368,
+      "desktop": "Default",
+      "inputDesktop": "Default",
+      "title": "C:\\Windows\\system32\\cmd.exe ",
+      "windowClass": "CASCADIA_HOSTING_WINDOW_CLASS",
+      "visible": true,
+      "rect": [
+        434,
+        494,
+        1578,
+        1123
+      ]
+    },
+    {
+      "hwnd": 1116072,
+      "pid": 11304,
+      "filetime": "134365051725218522",
+      "tid": 11368,
+      "desktop": "Default",
+      "inputDesktop": "Default",
+      "title": "DDE Server Window",
+      "windowClass": "OleDdeWndClass",
+      "visible": false,
+      "rect": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "hwnd": 199210,
+      "pid": 11304,
+      "filetime": "134365051725218522",
+      "tid": 11368,
+      "desktop": "Default",
+      "inputDesktop": "Default",
+      "title": "Windows Terminal",
+      "windowClass": "Windows Terminal 42298674014a9d98",
+      "visible": false,
+      "rect": [
+        0,
+        0,
+        135,
+        37
+      ]
+    },
+    {
+      "hwnd": 133634,
+      "pid": 11304,
+      "filetime": "134365051725218522",
+      "tid": 11368,
+      "desktop": "Default",
+      "inputDesktop": "Default",
+      "title": "MSCTFIME UI",
+      "windowClass": "MSCTFIME UI",
+      "visible": false,
+      "rect": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "hwnd": 263242,
+      "pid": 11304,
+      "filetime": "134365051725218522",
+      "tid": 11368,
+      "desktop": "Default",
+      "inputDesktop": "Default",
+      "title": "Default IME",
+      "windowClass": "IME",
+      "visible": false,
+      "rect": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "threads": [
+    {
+      "pid": 34272,
+      "threads": [
+        {
+          "tid": 30148,
+          "desktop": null
+        }
+      ]
+    },
+    {
+      "pid": 9172,
+      "threads": [
+        {
+          "tid": 14644,
+          "desktop": "Default"
+        },
+        {
+          "tid": 34292,
+          "desktop": "Default"
+        }
+      ]
+    },
+    {
+      "pid": 33868,
+      "threads": [
+        {
+          "tid": 34340,
+          "desktop": null
+        }
+      ]
+    }
+  ]
+}

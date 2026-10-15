@@ -5,6 +5,10 @@ import argparse
 import subprocess
 from packages.core import background_jobs as jobs
 from packages.jobs.window import command_window_options
+import os
+import traceback
+from contextlib import nullcontext
+from packages.jobs.desktop import DesktopCommand
 
 
 def main() -> int:
@@ -20,7 +24,11 @@ def main() -> int:
         with open(job["logPath"], "ab", buffering=0) as log:
             options = command_window_options(job.get("hideWindow", True))
             shell_command = job.get("shellCommand")
-            if isinstance(shell_command, str):
+            hidden_desktop = os.name == "nt" and job.get("hideWindow", True)
+            if hidden_desktop:
+                proc = DesktopCommand(shell_command if isinstance(shell_command, str) else job["argv"],
+                                      job["cwd"], log, shell=isinstance(shell_command, str))
+            elif isinstance(shell_command, str):
                 proc = subprocess.Popen(
                     shell_command, cwd=job["cwd"], shell=True,
                     stdout=log, stderr=subprocess.STDOUT,
@@ -32,15 +40,16 @@ def main() -> int:
                     stderr=subprocess.STDOUT,
                     stdin=subprocess.DEVNULL, **options,
                 )
-            jobs.runner_update(args.job_id, status="running", pid=proc.pid, processCreatedAt=jobs._process_create_time(proc.pid))
-            return_code = proc.wait()
+            with proc if hidden_desktop else nullcontext():
+                jobs.runner_update(args.job_id, status="running", pid=proc.pid, processCreatedAt=jobs._process_create_time(proc.pid))
+                return_code = proc.wait()
         current = jobs.get(args.job_id)
         if not current or current.get("status") != "cancelled":
             status = "completed" if return_code == 0 else "failed"
             jobs.runner_update(args.job_id, status=status, exitCode=return_code)
         return return_code
-    except Exception as exc:
-        jobs.runner_update(args.job_id, status="failed", error=str(exc))
+    except Exception:
+        jobs.runner_update(args.job_id, status="failed", error=traceback.format_exc())
         return 1
 
 

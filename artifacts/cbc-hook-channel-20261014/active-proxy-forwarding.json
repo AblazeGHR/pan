@@ -1,0 +1,23 @@
+[
+  {
+    "time": "2026-10-14T23:34:06.525756100+08:00",
+    "sourcePort": "52584",
+    "host": "copilot.tencent.com",
+    "rule": "DomainSuffix/tencent.com",
+    "outbound": "DIRECT"
+  },
+  {
+    "time": "2026-10-14T23:34:08.822194200+08:00",
+    "sourcePort": "52587",
+    "host": "copilot.tencent.com",
+    "rule": "DomainSuffix/tencent.com",
+    "outbound": "DIRECT"
+  },
+  {
+    "time": "2026-10-14T23:34:10.991570100+08:00",
+    "sourcePort": "52991",
+    "host": "copilot.tencent.com",
+    "rule": "DomainSuffix/tencent.com",
+    "outbound": "DIRECT"
+  }
+]
