@@ -21,6 +21,9 @@ def main() -> int:
     if job.get("status") == "cancelled":
         return 0
     try:
+        if os.name == "nt" and job.get("hideWindow", True):
+            if not jobs.claim_hidden_runner(args.job_id):
+                return 3
         with open(job["logPath"], "ab", buffering=0) as log:
             options = command_window_options(job.get("hideWindow", True))
             shell_command = job.get("shellCommand")

@@ -53,6 +53,7 @@ def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, t
     monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
     monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
     monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+    monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
     monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
     monkeypatch.setattr(runner.subprocess, "Popen", spawn)
     monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
