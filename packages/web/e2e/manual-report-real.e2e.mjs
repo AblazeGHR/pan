@@ -11,9 +11,15 @@
  * completion the identity view excludes (no entry), real routed body
  * identity vs the fixture's own tail row, double-click / replay run-level
  * dedup across a real server restart, formal-task regression, real failure
- * feedback (missing manager), dynamic port (never 8767/8768).
+ * feedback (missing manager), gutter-menu bookmark add/remove persisted on
+ * disk and recovered by a reload, dynamic port (never 8767/8768).
+ *
+ * Boundary kept (not an overclaim): the frontend binds a run's tail only when
+ * the run's covered boundary row is that assistant block.  A run whose final
+ * rows are tool/thinking blocks stays unbound — fewer entries, never a wrong
+ * one.  So NOT every completed run is guaranteed an entry in the UI.
  */
-/* global console, process, fetch, setTimeout */
+/* global console, document, process, fetch, setTimeout */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -269,10 +275,16 @@ try {
     assert.deepEqual(entries, [], `no entry may exist for an unexposed completion: ${JSON.stringify(entries)}`);
   });
 
-  await check('formal task run: the existing taskId identity still reports', async () => {
+  await check('formal task run: the existing taskId identity still reports (race click included)', async () => {
     await selectSession('MR Formal Task', 'do mr-task');
     const key = `${child('MR Formal Task')}:mr-task:3`;
     await clickReport(key);
+    // The real race window: re-open the menu immediately and click again if it
+    // still offers the action.  The store's single-flight and the server-side
+    // run receipt must keep this to exactly one delivery.
+    const racing = await openReportMenu(key).catch(() => null);
+    if (racing && !(await racing.isDisabled())) await racing.click();
+    await page.keyboard.press('Escape');
     await waitForState(key, /已汇报/);
     const receipts = await waitForReceipts(managerId, 3);
     const receipt = receipts[`manual:${key}`];
@@ -280,6 +292,81 @@ try {
     assert.equal(receipt.taskId, 'mr-task');
     assert.equal(receipt.taskSeq, 3);
     assert.equal(receipt.messageId, await childTailId(child('MR Formal Task')));
+    assert.equal(
+      Object.keys(receipts).filter((receiptKey) => receiptKey === `manual:${key}`).length, 1,
+      'a racing second click must not mint a second receipt',
+    );
+  });
+
+  await check('gutter bookmark: add and remove persist on disk and survive a reload', async () => {
+    const seqChild = child('MR Plain Seq');
+    const sidecar = path.join(runtime, 'session-bookmarks', `${seqChild}.json`);
+    await fs.rm(sidecar, { force: true });
+    await selectSession('MR Plain Seq', 'plain message 1');
+
+    // Pick the row whose menu offers ONLY the bookmark action (the run's
+    // intermediate answer row — no report binding), and remember its
+    // messageId from the gutter itself.
+    let bookmarkedId = null;
+    for (const gutter of await page.locator(GUTTER).all()) {
+      const messageId = await gutter.getAttribute('data-message-bookmark-gutter');
+      await gutter.click();
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      const bookmarkItem = page.locator(`${MENU} [data-bookmark-action]`);
+      const reportItem = page.locator(REPORT_ITEM);
+      if (await bookmarkItem.count() && !(await reportItem.count())) {
+        assert.match((await bookmarkItem.textContent()) ?? '', /Add bookmark/);
+        await bookmarkItem.click();
+        bookmarkedId = messageId;
+        break;
+      }
+      await page.keyboard.press('Escape');
+    }
+    assert.ok(bookmarkedId, 'no bookmark-only row was offered');
+
+    // The real sidecar file on disk carries the row's own identity.
+    let envelope = null;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try {
+        envelope = JSON.parse(await fs.readFile(sidecar, 'utf8'));
+        break;
+      } catch {
+        await sleep(150);
+      }
+    }
+    assert.ok(envelope, `bookmark sidecar missing at ${sidecar}`);
+    assert.equal(envelope.revision, 1);
+    assert.deepEqual(Object.keys(envelope.bookmarks), [bookmarkedId]);
+    assert.equal(envelope.bookmarks[bookmarkedId].messageId, bookmarkedId);
+
+    // A reload recovers the state from the real endpoints: the row shows the
+    // body tag and its menu offers removal.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await selectSession('MR Plain Seq', 'plain message 1');
+    assert.ok(await page.locator('[data-message-bookmark-tag]').count() >= 1,
+      'the reloaded row must show the persisted bookmark tag');
+    let removeItem = null;
+    for (const gutter of await page.locator(GUTTER).all()) {
+      if ((await gutter.getAttribute('data-message-bookmark-gutter')) !== bookmarkedId) continue;
+      await gutter.click();
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      removeItem = page.locator(`${MENU} [data-bookmark-action="remove"]`);
+      break;
+    }
+    assert.ok(removeItem && await removeItem.count(), 'the persisted bookmark must offer removal');
+    await removeItem.click();
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      envelope = JSON.parse(await fs.readFile(sidecar, 'utf8'));
+      if (envelope.revision >= 2) break;
+      await sleep(150);
+    }
+    assert.equal(envelope.revision, 2);
+    assert.deepEqual(envelope.bookmarks, {});
+
+    // And the removal is what a fresh load sees too.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await selectSession('MR Plain Seq', 'plain message 1');
+    assert.equal(await page.locator('[data-message-bookmark-tag]').count(), 0);
   });
 
   await check('failing target: a missing manager surfaces as a real retry state', async () => {
