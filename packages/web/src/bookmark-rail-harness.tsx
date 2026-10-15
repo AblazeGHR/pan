@@ -36,7 +36,10 @@ useSessionStore.setState({
 });
 useBookmarkStore.setState({
   sessions: {
-    [sessionId]: { revision: 1, marks: {}, loaded: true, pending: {}, error: null },
+    [sessionId]: {
+      authoritativeRevision: 1, authoritativeMarks: {}, marks: {},
+      loaded: true, transactions: {}, error: null,
+    },
   },
 });
 useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
@@ -51,12 +54,14 @@ declare global {
 
 window.__markBookmark = (messageId, value) => {
   const current = useBookmarkStore.getState().sessions[sessionId];
+  const marks = { ...(current?.authoritativeMarks ?? {}), [messageId]: value };
   useBookmarkStore.setState({
     sessions: {
       [sessionId]: {
-        revision: (current?.revision ?? 0) + 1,
-        marks: { ...(current?.marks ?? {}), [messageId]: value },
-        loaded: true, pending: {}, error: null,
+        authoritativeRevision: (current?.authoritativeRevision ?? 0) + 1,
+        authoritativeMarks: marks,
+        marks,
+        loaded: true, transactions: {}, error: null,
       },
     },
   });

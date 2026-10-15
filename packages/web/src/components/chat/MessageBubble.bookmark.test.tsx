@@ -38,7 +38,10 @@ function openMenu(container: HTMLElement): void {
 function markBookmarked(messageId: string, value = true) {
   act(() => {
     useBookmarkStore.setState({
-      sessions: { ses_bm: { revision: 1, marks: { [messageId]: value }, loaded: true, pending: {}, error: null } },
+      sessions: { ses_bm: {
+        authoritativeRevision: 1, authoritativeMarks: { [messageId]: value },
+        marks: { [messageId]: value }, loaded: true, transactions: {}, error: null,
+      } },
     });
   });
 }

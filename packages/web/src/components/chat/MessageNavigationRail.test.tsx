@@ -837,7 +837,8 @@ describe('bookmark rail decoration and tag filter', () => {
     act(() => {
       useBookmarkStore.setState({
         sessions: { 'bookmark-overlay': {
-          revision: 1, marks: { 'canonical-1': true }, loaded: true, pending: {}, error: null,
+          authoritativeRevision: 1, authoritativeMarks: { 'canonical-1': true },
+          marks: { 'canonical-1': true }, loaded: true, transactions: {}, error: null,
         } },
       });
     });
@@ -847,8 +848,9 @@ describe('bookmark rail decoration and tag filter', () => {
     act(() => {
       useBookmarkStore.setState({
         sessions: { 'bookmark-overlay': {
-          revision: 2, marks: { 'canonical-0': false, 'canonical-1': true },
-          loaded: true, pending: {}, error: null,
+          authoritativeRevision: 2, authoritativeMarks: { 'canonical-0': false, 'canonical-1': true },
+          marks: { 'canonical-0': false, 'canonical-1': true },
+          loaded: true, transactions: {}, error: null,
         } },
       });
     });
