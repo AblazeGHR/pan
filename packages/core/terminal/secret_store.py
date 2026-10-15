@@ -510,7 +510,7 @@ class SecretStore:
             return
         import hashlib
 
-        key = os.path.normcase(str(self.secret_path(terminal_id).resolve()))
+        key = self._resolved_path_key(self.secret_path(terminal_id))
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
         try:
             with _win.named_mutex(f"PanTerminalSecret_{digest}", timeout=SECRET_LOCK_TIMEOUT):
@@ -611,13 +611,26 @@ class SecretStore:
                     f"object grants another principal ({sid!r}): {path.name}"
                 )
 
+    @staticmethod
+    def _resolved_path_key(path: Path) -> str:
+        resolved = os.path.normcase(str(path.resolve()))
+        # Windows resolve can retain the extended prefix during concurrent
+        # directory creation. Normalize only equivalent DOS/UNC spellings;
+        # preserve all other namespaces and the resolved target itself.
+        if resolved.startswith('\\\\?\\unc\\'):
+            return '\\\\' + resolved[8:]
+        if resolved.startswith('\\\\?\\') and len(resolved) > 6 and resolved[5:7] == ':\\':
+            return resolved[4:]
+        return resolved
+
     def _guard_path(self, path: Path) -> None:
         """拒绝 reparse（symlink/junction）与越界父目录。"""
         secrets_dir = self.secrets_dir
         if _win.is_reparse_point(str(secrets_dir)):
             raise SecretSecurityError("secrets directory is a reparse point")
-        parent = os.path.normcase(str(Path(path).parent.resolve()))
-        if parent != os.path.normcase(str(secrets_dir.resolve())):
+        parent = self._resolved_path_key(Path(path).parent)
+        expected = self._resolved_path_key(secrets_dir)
+        if parent != expected:
             raise SecretSecurityError("secret path escapes the secrets directory")
         if _win.is_reparse_point(str(path)):
             raise SecretSecurityError(f"secret path is a reparse point: {path.name}")
