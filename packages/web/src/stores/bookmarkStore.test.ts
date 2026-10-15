@@ -26,6 +26,22 @@ function sessionState(id: string) {
   return state;
 }
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+};
+const envelope = (revision: number, ids: string[]) => ({
+  sessionId: 'ses_a', revision, updatedAt: '2026-10-16T00:00:00',
+  bookmarks: Object.fromEntries(ids.map((id) => [id, entry(id)])), dangling: [],
+});
+const mutation = (revision: number, ids: string[], changed = true) => ({
+  ok: true, sessionId: 'ses_a', messageId: ids[ids.length - 1] ?? '', bookmarked: true,
+  changed, revision, updatedAt: '2026-10-16T00:00:00',
+  bookmarks: Object.fromEntries(ids.map((id) => [id, entry(id)])),
+});
+
 beforeEach(() => {
   api.fetchSessionBookmarks.mockReset();
   api.addSessionBookmark.mockReset();
@@ -53,6 +69,7 @@ describe('bookmark store', () => {
   });
 
   it('applies an add optimistically and confirms on success', async () => {
+    api.addSessionBookmark.mockResolvedValue(mutation(1, [ID_A]));
     await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
     expect(api.addSessionBookmark).toHaveBeenCalledWith('ses_a', ID_A);
@@ -69,6 +86,7 @@ describe('bookmark store', () => {
   });
 
   it('treats repeating the current state as a no-op without a request', async () => {
+    api.addSessionBookmark.mockResolvedValue(mutation(1, [ID_A]));
     await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
     api.addSessionBookmark.mockClear();
     expect(await useBookmarkStore.getState().addBookmark('ses_a', ID_A)).toBe(true);
@@ -91,20 +109,22 @@ describe('bookmark store', () => {
   });
 
   it('applies a bookmarks.changed broadcast from any client', async () => {
-    await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(5, [ID_A]));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
     useBookmarkStore.getState().applyBookmarkEvent({
-      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 9,
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 6,
       action: 'removed', messageIds: [ID_A],
     });
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
-    expect(sessionState('ses_a').authoritativeRevision).toBe(9);
+    expect(sessionState('ses_a').appliedThrough).toBe(6);
 
     useBookmarkStore.getState().applyBookmarkEvent({
-      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 10,
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 7,
       action: 'added', messageIds: [ID_A, ID_B],
     });
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(true);
+    expect(sessionState('ses_a').appliedThrough).toBe(7);
     // Another session's state is untouched by this session's broadcast.
     expect(useBookmarkStore.getState().isBookmarked('ses_b', ID_B)).toBe(false);
   });
@@ -115,13 +135,13 @@ describe('bookmark store', () => {
     const pending = useBookmarkStore.getState().addBookmark('ses_a', ID_A);
     expect(sessionState('ses_a').transactions[ID_A]?.desired).toBe(true);
     useBookmarkStore.getState().applyBookmarkEvent({
-      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 2,
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 1,
       action: 'added', messageIds: [ID_A],
     });
     // The broadcast proves server truth but cannot prove it is this request's
     // ack: the transaction stays in flight until its own response lands.
     expect(sessionState('ses_a').transactions[ID_A]).toBeDefined();
-    release({ ok: true, changed: true });
+    release(mutation(1, [ID_A]));
     await pending;
     expect(sessionState('ses_a').transactions[ID_A]).toBeUndefined();
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
@@ -173,33 +193,22 @@ describe('bookmark failure feedback', () => {
 });
 
 describe('concurrency gates (review-driven)', () => {
-  const deferred = <T,>() => {
-    let resolve!: (value: T) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-    return { promise, resolve, reject };
-  };
-  const envelope = (revision: number, ids: string[]) => ({
-    sessionId: 'ses_a', revision, updatedAt: '2026-10-16T00:00:00',
-    bookmarks: Object.fromEntries(ids.map((id) => [id, entry(id)])), dangling: [],
-  });
-  const mutation = (revision: number, ids: string[], changed = true) => ({
-    ok: true, sessionId: 'ses_a', messageId: ids[ids.length - 1] ?? '', bookmarked: true,
-    changed, revision, updatedAt: '2026-10-16T00:00:00',
-    bookmarks: Object.fromEntries(ids.map((id) => [id, entry(id)])),
-  });
-
   it('a late GET must not clobber a newer broadcast', async () => {
+    // Baseline at rev 1; a forced re-read is in flight when rev 2 (adding
+    // ID_A) is broadcast.  The late rev-1 snapshot must FOLD per-id instead
+    // of clobbering the newer delta.
+    api.fetchSessionBookmarks.mockResolvedValueOnce(envelope(1, []));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
     const gate = deferred<ReturnType<typeof envelope>>();
     api.fetchSessionBookmarks.mockReturnValue(gate.promise);
-    const load = useBookmarkStore.getState().loadBookmarks('ses_a');
+    const load = useBookmarkStore.getState().loadBookmarks('ses_a', true);
     useBookmarkStore.getState().applyBookmarkEvent({
-      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 5, action: 'added', messageIds: [ID_A],
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 2, action: 'added', messageIds: [ID_A],
     });
-    gate.resolve(envelope(2, []));
+    gate.resolve(envelope(1, []));
     await load;
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
-    expect(sessionState('ses_a').authoritativeRevision).toBe(5);
+    expect(sessionState('ses_a').appliedThrough).toBe(2);
     expect(sessionState('ses_a').loaded).toBe(true);
   });
 
@@ -212,10 +221,12 @@ describe('concurrency gates (review-driven)', () => {
     gate.resolve(envelope(1, []));
     await load;
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
-    expect(sessionState('ses_a').authoritativeRevision).toBe(4);
+    expect(sessionState('ses_a').appliedThrough).toBe(4);
   });
 
-  it('an out-of-order broadcast must not roll back newer state', () => {
+  it('an out-of-order broadcast must not roll back newer state', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(4, []));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
     useBookmarkStore.getState().applyBookmarkEvent({
       type: 'bookmarks.changed', sessionId: 'ses_a', revision: 5, action: 'added', messageIds: [ID_A],
     });
@@ -223,10 +234,12 @@ describe('concurrency gates (review-driven)', () => {
       type: 'bookmarks.changed', sessionId: 'ses_a', revision: 4, action: 'removed', messageIds: [ID_A],
     });
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
-    expect(sessionState('ses_a').authoritativeRevision).toBe(5);
+    expect(sessionState('ses_a').appliedThrough).toBe(5);
   });
 
   it('a stale request failure must not roll back a newer broadcast', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(5, []));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
     const gate = deferred<ReturnType<typeof mutation>>();
     api.addSessionBookmark.mockReturnValue(gate.promise);
     const add = useBookmarkStore.getState().addBookmark('ses_a', ID_A);
@@ -237,6 +250,70 @@ describe('concurrency gates (review-driven)', () => {
     expect(await add).toBe(false);
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
     expect(sessionState('ses_a').error).toBe('stale failure');
+  });
+
+  it('a stale snapshot must fold in, never drop the bookmarks only it knows', async () => {
+    // MA gate: the initial GET (rev 0, carrying old bookmark X) is in flight
+    // while a WS rev 1 adds Y; the late snapshot must fold X in (X and Y both
+    // present) instead of being discarded wholesale.
+    const gate = deferred<ReturnType<typeof envelope>>();
+    api.fetchSessionBookmarks.mockReturnValue(gate.promise);
+    const load = useBookmarkStore.getState().loadBookmarks('ses_a');
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 1, action: 'added', messageIds: [ID_A],
+    });
+    gate.resolve(envelope(0, [ID_B]));
+    await load;
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(true);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+  });
+
+  it('an out-of-order delta is a gap: buffered and reconciled by a real refetch', async () => {
+    // MA gate: WS rev 2 (adds B) arrives before rev 1 (adds A) and before any
+    // baseline snapshot.  rev 2 sits above the watermark (2 > 0 + 1): it is a
+    // GAP, so it buffers and asks for ONE coalesced real refetch — never
+    // dropped, never applied blind.  The late rev 1 applies contiguously and
+    // its drain releases the buffered rev 2, so A and B both stand.
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(2, [ID_A, ID_B]));
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 2, action: 'added', messageIds: [ID_B],
+    });
+    expect(api.fetchSessionBookmarks).toHaveBeenCalledTimes(1);
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 1, action: 'added', messageIds: [ID_A],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(true);
+    expect(sessionState('ses_a').appliedThrough).toBe(2);
+    // The coalesced refetch folds as a complete snapshot at rev 2; nothing
+    // is rolled back and no further refetch is issued.
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(true);
+    expect(api.fetchSessionBookmarks).toHaveBeenCalledTimes(1);
+  });
+
+  it('an out-of-contract success without a revision never overrides newer WS state', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(0, []));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
+    api.fetchSessionBookmarks.mockClear();
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(2, []));
+    const gate = deferred<ReturnType<typeof mutation>>();
+    api.addSessionBookmark.mockReturnValue(gate.promise);
+    const add = useBookmarkStore.getState().addBookmark('ses_a', ID_A);
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 1, action: 'removed', messageIds: [ID_A],
+    });
+    gate.resolve({ ok: true, changed: true } as never);   // no revision envelope
+    expect(await add).toBe(true);
+    // The unversioned success must not invent authority: the newer WS value
+    // stands and a real reconciliation was requested.
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    expect(sessionState('ses_a').transactions[ID_A]).toBeUndefined();
+    expect(api.fetchSessionBookmarks).toHaveBeenCalledTimes(1);
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    // The reconciliation folds the real snapshot (rev 2) without rollback.
+    expect(sessionState('ses_a').appliedThrough).toBe(2);
   });
 
   it('a broadcast never settles an in-flight transaction; the response does', async () => {
@@ -255,16 +332,20 @@ describe('concurrency gates (review-driven)', () => {
   });
 
   it('a stale success envelope is content-skipped but still settles its own transaction', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(5, []));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
     const gate = deferred<ReturnType<typeof mutation>>();
     api.addSessionBookmark.mockReturnValue(gate.promise);
     const add = useBookmarkStore.getState().addBookmark('ses_a', ID_A);
     useBookmarkStore.getState().applyBookmarkEvent({
-      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 9, action: 'removed', messageIds: [ID_A],
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 6, action: 'removed', messageIds: [ID_A],
     });
     gate.resolve(mutation(4, [ID_A]));   // older than the broadcast
     expect(await add).toBe(true);
     expect(sessionState('ses_a').transactions[ID_A]).toBeUndefined();
+    // The rev-4 envelope loses per-id against the rev-6 evidence: the stale
+    // success cannot resurrect ID_A.
     expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
-    expect(sessionState('ses_a').authoritativeRevision).toBe(9);
+    expect(sessionState('ses_a').appliedThrough).toBe(6);
   });
 });

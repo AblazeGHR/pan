@@ -2,29 +2,32 @@
  * Per-Session message bookmarks: the client mirror of the durable sidecar
  * store (`packages/core/session_bookmarks.py`).
  *
- * Design constraints this file exists to satisfy:
+ * Concurrency model (all three layers are load-bearing):
  *
- *  - **The server is authoritative; the UI never waits for it.** A mutation
- *    is visible optimistically and the request is a background follower.
- *  - **Authoritative snapshot + per-item overlay.**  `authoritativeMarks` /
- *    `authoritativeRevision` only ever change from server evidence (a
- *    response envelope or a `bookmarks.changed` broadcast); optimistic local
- *    intent lives in `transactions`.  The consumer-facing `marks` is derived
- *    from the two, so a failed or stale operation can never roll back a
- *    newer server state — removing its overlay entry is the whole rollback.
- *  - **Revisions order every source.**  A load or broadcast older than the
- *    authoritative revision is content-skipped (it still marks the load as
- *    loaded).  Response envelopes reconcile through their real revision, so
- *    a slow response cannot resurrect a stale view.
- *  - **Per-item transaction identity.**  Each in-flight mutation carries a
- *    token; only its own settlement (response or failure) may retire it, so
- *    a stale callback cannot release a newer transaction.  A broadcast never
- *    settles a local transaction: it cannot prove it is that request's ACK.
- *  - **Dual-client convergence over the existing WS channel.**  Commits from
- *    any client arrive as ordered `bookmarks.changed` events and update the
- *    authoritative snapshot without polling.
- *  - **Per-Session isolation.**  State is keyed by session id; a bookmark
- *    never addresses another Session's row.
+ *  - **A full snapshot and an incremental delta are different evidence.**
+ *    `fetchSessionBookmarks` returns the COMPLETE set at its revision;
+ *    `bookmarks.changed` carries ONE ordered delta.  The authoritative set is
+ *    a snapshot folded with the deltas that followed it, so a slow snapshot
+ *    whose revision is older than applied deltas is FOLDED (per-id evidence
+ *    revision decides who wins) instead of being discarded — it can carry
+ *    bookmarks no delta has mentioned yet.
+ *  - **Deltas apply in contiguous revision order.**  `appliedThrough` is the
+ *    highest revision such that every delta up to it is accounted for.  A
+ *    delta at `appliedThrough + 1` applies directly; an older one is already
+ *    included (ignore); a NEWER one is a GAP: it is buffered (bounded) and
+ *    one coalesced REAL refetch reconciles the missing evidence — never
+ *    unbounded polling, never a dropped delta.
+ *  - **Optimistic local intent lives in per-message transactions** (token +
+ *    desired), overlaid on the authoritative set.  Only a transaction's own
+ *    response or failure retires it (a broadcast cannot prove it is that
+ *    request's ack), so stale callbacks cannot release newer transactions and
+ *    a failure rolls back nothing but its own overlay.
+ *  - **A response without a revision is out of contract**: it never invents
+ *    authority; it retires its transaction and requests the same real
+ *    reconciliation.
+ *
+ * Per-Session isolation: all state is keyed by session id and a bookmark
+ * never addresses another Session's row.
  */
 
 import { create } from 'zustand';
@@ -40,11 +43,23 @@ export interface BookmarkTransaction {
   desired: boolean;
 }
 
+export interface PendingBookmarkEvent {
+  revision: number;
+  action: 'added' | 'removed';
+  messageIds: string[];
+}
+
+const PENDING_EVENT_LIMIT = 50;
+
 export interface SessionBookmarkState {
-  /** Last authoritative envelope revision (response or broadcast). */
-  authoritativeRevision: number;
-  /** Marks that server evidence proves (never optimistic). */
+  /** Highest revision such that every delta up to it is accounted for. */
+  appliedThrough: number;
+  /** Authoritative marks (snapshot folded with contiguous deltas). */
   authoritativeMarks: Record<string, boolean>;
+  /** Per-id revision of the evidence that last set its authoritative value. */
+  authoritativeTouched: Record<string, number>;
+  /** Gapped deltas waiting for the missing evidence (bounded). */
+  pendingEvents: PendingBookmarkEvent[];
   /** Consumer-facing view: authoritative marks overlaid with in-flight
    *  transaction intents.  Derived on every write; never set independently. */
   marks: Record<string, boolean>;
@@ -64,6 +79,11 @@ export interface BookmarkChangedEvent {
   messageIds: string[];
 }
 
+interface BookmarkEnvelope {
+  revision: number;
+  bookmarks: Record<string, { messageId: string; createdAt: string }>;
+}
+
 const EMPTY_MARKS: Record<string, boolean> = {};
 
 interface BookmarkStore {
@@ -74,13 +94,14 @@ interface BookmarkStore {
   addBookmark: (sessionId: string, messageId: string) => Promise<boolean>;
   removeBookmark: (sessionId: string, messageId: string) => Promise<boolean>;
   /** Apply one `bookmarks.changed` broadcast (any client, including self).
-   *  Ordered by revision; never settles local transactions. */
+   *  Contiguity-ordered; never settles local transactions. */
   applyBookmarkEvent: (event: BookmarkChangedEvent) => void;
   isBookmarked: (sessionId: string, messageId: string) => boolean;
   clearError: (sessionId: string) => void;
 }
 
 const loadsInFlight = new Map<string, Promise<void>>();
+const reconcilesInFlight = new Map<string, Promise<void>>();
 let transactionSeq = 0;
 
 /** A durable Pan message identity — the only bookmark-addressable form the
@@ -92,8 +113,10 @@ export function isPanMessageId(messageId: unknown): messageId is string {
 
 function emptyState(): SessionBookmarkState {
   return {
-    authoritativeRevision: 0,
+    appliedThrough: 0,
     authoritativeMarks: EMPTY_MARKS,
+    authoritativeTouched: {},
+    pendingEvents: [],
     marks: EMPTY_MARKS,
     loaded: false,
     transactions: {},
@@ -128,6 +151,115 @@ function withoutTransaction(transactions: Record<string, BookmarkTransaction>, m
   return next;
 }
 
+type Authoritative = Pick<SessionBookmarkState, 'authoritativeMarks' | 'authoritativeTouched'>;
+
+/** Fold a COMPLETE snapshot into the authoritative set.  Per-id evidence
+ *  revisions decide: anything a newer delta owns is preserved, everything
+ *  else takes the snapshot's value (including its absences). */
+function foldSnapshot(current: Authoritative, envelope: BookmarkEnvelope, revision: number): Authoritative {
+  const bookmarked = new Set(Object.keys(envelope.bookmarks ?? {}));
+  const marks = { ...current.authoritativeMarks };
+  const touched = { ...current.authoritativeTouched };
+  for (const id of bookmarked) {
+    if ((touched[id] ?? -1) > revision) continue;      // a newer delta owns this id
+    marks[id] = true;
+    touched[id] = revision;
+  }
+  for (const id of Object.keys(marks)) {
+    if (bookmarked.has(id)) continue;
+    if ((touched[id] ?? -1) > revision) continue;      // a newer delta owns this id
+    delete marks[id];                                  // the snapshot at `revision` lacks it
+    touched[id] = revision;
+  }
+  return { authoritativeMarks: marks, authoritativeTouched: touched };
+}
+
+/** Apply one contiguous delta to the authoritative set. */
+function applyDelta(current: Authoritative, event: PendingBookmarkEvent, revision: number): Authoritative {
+  const marks = { ...current.authoritativeMarks };
+  const touched = { ...current.authoritativeTouched };
+  for (const id of event.messageIds) {
+    if (typeof id !== 'string' || !id) continue;
+    if (event.action === 'added') marks[id] = true;
+    else delete marks[id];
+    touched[id] = revision;
+  }
+  return { authoritativeMarks: marks, authoritativeTouched: touched };
+}
+
+/** Drain buffered deltas that have become contiguous; keep the still-gapped
+ *  ones and drop whatever the watermark already covers. */
+function drainPending(start: Authoritative & { appliedThrough: number; pendingEvents: PendingBookmarkEvent[] }) {
+  let { authoritativeMarks: marks, authoritativeTouched: touched, appliedThrough } = start;
+  let pendingEvents = start.pendingEvents;
+  let advanced = true;
+  while (advanced) {
+    advanced = false;
+    const next = pendingEvents.find((event) => event.revision === appliedThrough + 1);
+    if (next) {
+      ({ authoritativeMarks: marks, authoritativeTouched: touched } =
+        applyDelta({ authoritativeMarks: marks, authoritativeTouched: touched }, next, next.revision));
+      appliedThrough = next.revision;
+      pendingEvents = pendingEvents.filter((event) => event !== next);
+      advanced = true;
+    }
+  }
+  pendingEvents = pendingEvents.filter((event) => event.revision > appliedThrough);
+  return { authoritativeMarks: marks, authoritativeTouched: touched, appliedThrough, pendingEvents };
+}
+
+function bufferPending(pendingEvents: PendingBookmarkEvent[], event: PendingBookmarkEvent): PendingBookmarkEvent[] {
+  if (pendingEvents.some((existing) => existing.revision === event.revision)) return pendingEvents;
+  const next = [...pendingEvents, event].sort((a, b) => a.revision - b.revision);
+  return next.slice(-PENDING_EVENT_LIMIT);
+}
+
+/** Fold one snapshot response into the store state (shared by the cold load,
+ *  the reconciliation refetch and versioned mutation responses). */
+function foldSnapshotInto(sessionId: string, envelope: BookmarkEnvelope, fallbackError: string | null = null) {
+  return (state: BookmarkStore): Partial<BookmarkStore> => {
+    const latest = sessionState(state, sessionId);
+    const revision = typeof envelope.revision === 'number' ? envelope.revision : 0;
+    const folded = foldSnapshot(latest, envelope, revision);
+    const drained = drainPending({
+      ...folded,
+      appliedThrough: Math.max(latest.appliedThrough, revision),
+      pendingEvents: latest.pendingEvents,
+    });
+    return {
+      sessions: {
+        ...state.sessions,
+        [sessionId]: {
+          ...latest,
+          ...drained,
+          loaded: true,
+          error: fallbackError,
+          marks: deriveMarks(drained.authoritativeMarks, latest.transactions),
+        },
+      },
+    };
+  };
+}
+
+/** One coalesced REAL refetch per Session; never polls.  Triggered only by a
+ *  detected gap or an out-of-contract response. */
+function reconcile(sessionId: string): Promise<void> {
+  const inFlight = reconcilesInFlight.get(sessionId);
+  if (inFlight) return inFlight;
+  const request = (async () => {
+    try {
+      const envelope = await fetchSessionBookmarks(sessionId);
+      useBookmarkStore.setState(foldSnapshotInto(sessionId, envelope, null));
+    } catch {
+      // The gap stays buffered; a later trigger retries.  No polling.
+    } finally {
+      reconcilesInFlight.delete(sessionId);
+    }
+  })();
+  reconcilesInFlight.set(sessionId, request);
+  return request;
+}
+
 export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
   sessions: {},
 
@@ -139,30 +271,7 @@ export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
     const request = (async () => {
       try {
         const envelope = await fetchSessionBookmarks(sessionId);
-        const marks: Record<string, boolean> = {};
-        for (const messageId of Object.keys(envelope.bookmarks)) marks[messageId] = true;
-        set((state) => {
-          const latest = sessionState(state, sessionId);
-          // A load older than what server evidence already proved is
-          // content-skipped: it must never roll back a newer broadcast or a
-          // committed mutation.  It still counts as "we reached the store".
-          const fresh = envelope.revision >= latest.authoritativeRevision;
-          const authoritativeMarks = fresh ? marks : latest.authoritativeMarks;
-          return {
-            sessions: {
-              ...state.sessions,
-              [sessionId]: {
-                ...latest,
-                loaded: true,
-                error: null,
-                ...(fresh ? { authoritativeRevision: envelope.revision, authoritativeMarks } : {}),
-                // Transactions are never touched by a load: only their own
-                // request settles them.
-                marks: deriveMarks(authoritativeMarks, latest.transactions),
-              },
-            },
-          };
-        });
+        set(foldSnapshotInto(sessionId, envelope, null));
       } catch (error) {
         set((state) => ({
           sessions: {
@@ -189,29 +298,52 @@ export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
     if (!event?.sessionId || (event.action !== 'added' && event.action !== 'removed')) return;
     if (!Array.isArray(event.messageIds)) return;
     const revision = typeof event.revision === 'number' ? event.revision : 0;
-    const bookmarked = event.action === 'added';
+    const delta: PendingBookmarkEvent = {
+      revision, action: event.action,
+      messageIds: event.messageIds.filter((id): id is string => typeof id === 'string' && !!id),
+    };
+    let needsReconcile = false;
     set((state) => {
       const current = sessionState(state, event.sessionId);
-      // Out-of-order broadcast: an older revision can only be stale state.
-      if (revision < current.authoritativeRevision) return {};
-      const authoritativeMarks = { ...current.authoritativeMarks };
-      for (const messageId of event.messageIds) {
-        if (typeof messageId === 'string' && messageId) authoritativeMarks[messageId] = bookmarked;
+      if (revision <= current.appliedThrough) {
+        // Already accounted for (duplicates and same-id stale events land
+        // here): re-applying could revert newer evidence for the same row.
+        return {};
       }
+      if (revision > current.appliedThrough + 1) {
+        // A GAP: the missing revisions are unknown.  Buffer this delta and
+        // ask for one real refetch; never drop it, never poll.
+        needsReconcile = true;
+        return {
+          sessions: {
+            ...state.sessions,
+            [event.sessionId]: {
+              ...current,
+              pendingEvents: bufferPending(current.pendingEvents, delta),
+            },
+          },
+        };
+      }
+      const applied = applyDelta(current, delta, revision);
+      const drained = drainPending({
+        ...applied,
+        appliedThrough: revision,
+        pendingEvents: current.pendingEvents,
+      });
       return {
         sessions: {
           ...state.sessions,
           [event.sessionId]: {
             ...current,
-            authoritativeRevision: Math.max(current.authoritativeRevision, revision),
-            authoritativeMarks,
+            ...drained,
             // A broadcast updates server truth but never settles our own
             // in-flight transaction: it cannot prove it is that request's ack.
-            marks: deriveMarks(authoritativeMarks, current.transactions),
+            marks: deriveMarks(drained.authoritativeMarks, current.transactions),
           },
         },
       };
     });
+    if (needsReconcile) void reconcile(event.sessionId);
   },
 
   isBookmarked: (sessionId, messageId) => effectiveMark(sessionState(get(), sessionId), messageId),
@@ -288,43 +420,31 @@ async function mutate(
     return false;
   }
 
-  // Success: reconcile through the response's REAL envelope revision rather
-  // than discarding it — the response is the authoritative snapshot at commit
-  // time.  A later broadcast may already have advanced past it, in which case
-  // the older envelope is content-skipped but this transaction is settled.
+  // Success: settle OUR transaction (token-guarded, so a stale callback can
+  // never release a newer one).  A versioned response folds in as a real
+  // snapshot; an out-of-contract response without a revision never invents
+  // authority — it just asks for the same real reconciliation.
   set((state) => {
     const latest = sessionState(state, sessionId);
     if (latest.transactions[messageId]?.token !== token) return {};
     const transactions = withoutTransaction(latest.transactions, messageId);
-    const revision = typeof envelope.revision === 'number' ? envelope.revision : null;
-    let authoritativeRevision = latest.authoritativeRevision;
-    let authoritativeMarks = latest.authoritativeMarks;
-    if (revision !== null && revision >= latest.authoritativeRevision
-        && envelope.bookmarks && typeof envelope.bookmarks === 'object') {
-      const marks: Record<string, boolean> = {};
-      for (const id of Object.keys(envelope.bookmarks)) marks[id] = true;
-      authoritativeRevision = revision;
-      authoritativeMarks = marks;
-    } else if (revision === null) {
-      // A response without an envelope (out-of-contract): the success itself
-      // proves this row's committed state, so fold the intent into the
-      // authoritative map.  A KNOWN-but-stale revision never does this — the
-      // newer broadcast it lost to stays authoritative.
-      authoritativeMarks = { ...latest.authoritativeMarks, [messageId]: add };
-    }
     return {
       sessions: {
         ...state.sessions,
         [sessionId]: {
           ...latest,
           transactions,
-          authoritativeRevision,
-          authoritativeMarks,
-          marks: deriveMarks(authoritativeMarks, transactions),
+          marks: deriveMarks(latest.authoritativeMarks, transactions),
         },
       },
     };
   });
+  const revision = typeof envelope.revision === 'number' ? envelope.revision : null;
+  if (revision !== null) {
+    set(foldSnapshotInto(sessionId, envelope as BookmarkEnvelope, null));
+  } else {
+    void reconcile(sessionId);
+  }
   return true;
 }
 
