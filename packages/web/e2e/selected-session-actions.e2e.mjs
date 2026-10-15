@@ -47,6 +47,12 @@ try {
     let failWorkspace = true;
     let delayJob;
     let holdJob = false;
+    // Lifecycle stand-in controls (never routes to a real service).
+    let failKill = false;
+    let holdRestart = false;
+    let restartGate = null;
+    let releaseRestart = null;
+    let delayedRevision = 0;
     let sessions = ['a', 'b', 'c'].map((id) => ({
       id,
       name: `Session ${id}`,
@@ -58,6 +64,8 @@ try {
       unreadDoneReadGeneration: 1,
       unreadDoneCount: 3,
       msgBridgeEnabled: false,
+      // a and c carry a live worker; b has none (Kill/Delayed restart boundaries).
+      ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle' }),
     }));
     page.on('pageerror', (error) => evidence.errors.push(error.message));
     await page.route('**/*', async (route) => {
@@ -104,6 +112,40 @@ try {
           session.id === id ? { ...session, workspaceIds: body.workspaceIds } : session,
         );
         return reply({ ok: true, session: sessions.find((session) => session.id === id) });
+      }
+      if (url.pathname.endsWith('/worker/restart')) {
+        const id = url.pathname.split('/')[3];
+        if (holdRestart && restartGate) await restartGate;
+        sessions = sessions.map((session) =>
+          session.id === id
+            ? { ...session, workerId: `worker-${id}-new`, workerStatus: 'idle' }
+            : session,
+        );
+        return reply({ workerId: `worker-${id}-new`, sessionId: id, status: 'idle' });
+      }
+      if (url.pathname.endsWith('/worker/kill')) {
+        const id = url.pathname.split('/')[3];
+        if (id === 'a' && failKill) return reply({ error: 'Kill rejected' });
+        sessions = sessions.map((session) =>
+          session.id === id ? { ...session, workerId: null, workerStatus: null } : session,
+        );
+        return reply({ workerId: null, sessionId: id, status: 'offline' });
+      }
+      if (url.pathname.endsWith('/worker/delayed-restart')) {
+        const id = url.pathname.split('/')[3];
+        const session = sessions.find((item) => item.id === id);
+        const action = session?.workerId ? 'restart' : 'start';
+        return reply({
+          delayedRestart: {
+            sessionId: id,
+            workerId: session?.workerId ?? null,
+            generation: session?.workerId ? 1 : null,
+            revision: ++delayedRevision,
+            action,
+            status: session?.workerId ? 'pending' : 'restarting',
+            error: null,
+          },
+        });
       }
       if (url.pathname === '/api/jobs') {
         if (holdJob)
@@ -204,6 +246,124 @@ try {
         .length,
       2,
     );
+    // ── Lifecycle actions (Delayed restart / Restart / Kill) ──
+    const lifecycleRequests = (suffix) =>
+      evidence.requests
+        .filter((request) => request.width === width && request.path.endsWith(suffix))
+        .map((request) => request.path.split('/')[3]);
+    const confirmKill = async (decision) => {
+      const message = new Promise((resolve) => {
+        page.once('dialog', (dialog) => {
+          resolve(dialog.message());
+          void (decision === 'accept' ? dialog.accept() : dialog.dismiss());
+        });
+      });
+      await page.getByRole('menuitem', { name: 'Kill', exact: true }).click();
+      return message;
+    };
+
+    // Delayed restart: reuses the idle-boundary intent; an offline Session
+    // reports the start action, and a pending intent blocks re-requesting
+    // until it settles.
+    await page.evaluate(() => { window.selectTargets(['a', 'b']); window.clearToasts(); });
+    await open('Delayed restart');
+    await page
+      .getByRole('status')
+      .filter({ hasText: '2 succeeded, 0 failed: Session a: Delayed restart scheduled; Session b: Delayed start scheduled' })
+      .waitFor();
+    await page.getByRole('button', { name: /Actions/ }).click();
+    const delayedItem = page.getByRole('menuitem', { name: 'Delayed restart', exact: true });
+    await expect(delayedItem).toBeDisabled();
+    assert.equal(
+      await delayedItem.getAttribute('title'),
+      'A selected Session already has a delayed restart pending',
+    );
+    await page.evaluate(() => {
+      const state = window.delayedRestartState();
+      window.applyDelayedRestart({ ...state.a, status: 'completed', revision: state.a.revision + 1 });
+      window.applyDelayedRestart({ ...state.b, status: 'failed', revision: state.b.revision + 1 });
+    });
+    await expect(delayedItem).toBeEnabled();
+    await delayedItem.click();
+    await page
+      .getByRole('status')
+      .filter({ hasText: '2 succeeded, 0 failed: Session a: Delayed restart scheduled; Session b: Delayed start scheduled' })
+      .waitFor();
+    assert.deepEqual(lifecycleRequests('/worker/delayed-restart'), ['a', 'b', 'a', 'b']);
+
+    // Restart: click-time snapshot survives a selection switch, the in-flight
+    // action blocks duplicate submission, and both targets are requested once.
+    await page.evaluate(() => { window.selectTargets(['a', 'b']); window.clearToasts(); });
+    holdRestart = true;
+    restartGate = new Promise((resolve) => {
+      releaseRestart = resolve;
+    });
+    await open('Restart');
+    await expect(page.getByRole('button', { name: /Actions/ })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel selection' })).toBeDisabled();
+    await page.evaluate(() => window.selectTargets(['c']));
+    assert.equal(lifecycleRequests('/worker/restart').length, 2);
+    holdRestart = false;
+    releaseRestart();
+    await page.getByRole('status').filter({ hasText: '2 succeeded, 0 failed' }).waitFor();
+    assert.deepEqual(lifecycleRequests('/worker/restart'), ['a', 'b']);
+
+    // Kill: dismissal performs no request; acceptance requests every
+    // worker-backed target of the snapshot.
+    await page.evaluate(() => { window.selectTargets(['a', 'c']); window.clearToasts(); });
+    await page.getByRole('button', { name: /Actions/ }).click();
+    assert.equal(await confirmKill('dismiss'), 'Kill workers for 2 selected session(s)?');
+    assert.deepEqual(lifecycleRequests('/worker/kill'), []);
+    assert.equal(await page.getByRole('menuitem', { name: 'Kill', exact: true }).count(), 1);
+    assert.equal(await confirmKill('accept'), 'Kill workers for 2 selected session(s)?');
+    await page
+      .getByRole('status')
+      .filter({ hasText: '2 succeeded, 0 failed: Session a: Kill sent; Session c: Kill sent' })
+      .waitFor();
+    assert.deepEqual(lifecycleRequests('/worker/kill'), ['a', 'c']);
+
+    // Kill is unavailable while no target has a live worker.
+    await page.evaluate(() => { window.selectTargets(['a', 'c']); window.clearToasts(); });
+    await page.getByRole('button', { name: /Actions/ }).click();
+    const killItem = page.getByRole('menuitem', { name: 'Kill', exact: true });
+    await expect(killItem).toBeDisabled();
+    assert.equal(await killItem.getAttribute('title'), 'No selected Session has a live worker to kill');
+    await page.keyboard.press('Escape');
+
+    // Mixed selection: the worker-less target is an honest no-op, not a request.
+    await page.evaluate(() => { window.selectTargets(['a', 'b']); window.clearToasts(); });
+    await page.getByRole('button', { name: /Actions/ }).click();
+    assert.equal(await confirmKill('accept'), 'Kill workers for 2 selected session(s)?');
+    await page
+      .getByRole('status')
+      .filter({ hasText: '2 succeeded, 0 failed: Session a: No worker (already offline); Session b: Kill sent' })
+      .waitFor();
+    assert.deepEqual(lifecycleRequests('/worker/kill'), ['a', 'c', 'b']);
+
+    // Kill partial failure is reported per target and the retry succeeds.
+    await page.evaluate(() => {
+      window.setWorker('a', 'worker-a', 'idle');
+      window.setWorker('b', 'worker-b', 'idle');
+      window.selectTargets(['a', 'b']);
+      window.clearToasts();
+    });
+    await page.getByRole('button', { name: /Actions/ }).click();
+    failKill = true;
+    assert.equal(await confirmKill('accept'), 'Kill workers for 2 selected session(s)?');
+    await page.getByRole('status').filter({ hasText: '1 succeeded, 1 failed: Session a: Kill rejected' }).waitFor();
+    failKill = false;
+    await page.evaluate(() => {
+      window.setWorker('a', 'worker-a', 'idle');
+      window.setWorker('b', 'worker-b', 'idle');
+    });
+    await page.getByRole('button', { name: /Actions/ }).click();
+    assert.equal(await confirmKill('accept'), 'Kill workers for 2 selected session(s)?');
+    await page
+      .getByRole('status')
+      .filter({ hasText: '2 succeeded, 0 failed: Session a: Kill sent; Session b: Kill sent' })
+      .waitFor();
+    assert.deepEqual(lifecycleRequests('/worker/kill'), ['a', 'c', 'b', 'a', 'b', 'a', 'b']);
+
     await page.getByRole('button', { name: /Actions/ }).click();
     await page.evaluate(() => window.clearToasts());
     await page.screenshot({
@@ -224,6 +384,9 @@ try {
         'workspace snapshot / manager detach cancellation / partial failure / retry',
         'broadcast snapshot / save failure / retry / duplicate guard / pending escape',
         'weekly controls / cancel',
+        'delayed restart intent / start-vs-restart action / pending block / settle retry',
+        'restart snapshot switch / in-flight duplicate guard',
+        'kill confirmation dismissal / worker-backed request / no-worker no-op / disabled boundary / partial failure retry',
         'menu viewport / escape',
       ],
     });

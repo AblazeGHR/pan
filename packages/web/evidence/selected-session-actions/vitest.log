@@ -1,29 +1,27 @@
 
- RUN  v2.1.9 D:/project/pan-worktrees/selected-session-actions-20261011/packages/web/src
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/select-lifecycle-actions-20261015/packages/web/src[39m
 
- ✓ components/session/selectedSessionActions.test.ts (3 tests) 6ms
- ✓ stores/workspaceStore.test.ts (16 tests) 20ms
- ✓ stores/sessionStore.doneIndicator.test.ts (7 tests) 13ms
- ✓ components/session/SessionItem.test.tsx (7 tests) 139ms
- ✓ components/jobs/NewJobForm.selected-broadcast.test.tsx (3 tests) 263ms
- ✓ components/layout/WorkspaceManagerChangeConfirmationModal.test.tsx (3 tests) 178ms
- ✓ components/jobs/NewJobForm.window.test.tsx (1 test) 264ms
- ✓ components/jobs/NewJobForm.resume-legal-running.test.tsx (2 tests) 252ms
- ✓ components/jobs/NewJobForm.scheduled-qq.test.tsx (3 tests) 761ms
-   ✓ NewJobForm scheduled QQ message template > loads each bot contact list and creates a targetless scheduled QQ Job 370ms
- ✓ components/session/SessionWorkspaceDrop.test.tsx (15 tests) 1147ms
-stderr | components/layout/Sidebar.test.tsx > Sidebar session navigation from Jobs > opens the clicked session in Chat from Jobs, including when it is already selected
-[sessionStore] selectSession fresh-history fetch failed jobs-session
+ [32m✓[39m stores/workerStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m components/session/selectedSessionActions.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m components/session/SessionItem.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+[90mstderr[2m | components/session/SessionList.selectMode.test.tsx[2m > [22m[2mSessionList select-mode interactions[2m > [22m[2mclicking the card body opens the session instead of changing selection
+[22m[39m[sessionStore] selectSession fresh-history fetch failed a
+
+ [32m✓[39m components/session/SelectedSessionActions.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[90m 117[2mms[22m[39m
+ [32m✓[39m components/session/SessionList.selectMode.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+ [32m✓[39m components/session/SessionMenu.test.tsx [2m([22m[2m19 tests[22m[2m)[22m[90m 270[2mms[22m[39m
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mopens the clicked session in Chat from Jobs, including when it is already selected
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
 [sessionStore] selectSession fresh-history fetch failed jobs-session
 
-stderr | components/layout/Sidebar.test.tsx > Sidebar session navigation from Jobs > closes an open mobile Sidebar after navigating from Jobs to Chat
-[sessionStore] selectSession fresh-history fetch failed jobs-session
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mcloses an open mobile Sidebar after navigating from Jobs to Chat
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
 
- ✓ components/layout/Sidebar.test.tsx (20 tests) 1735ms
-   ✓ Sidebar Session search controls > renders the CWD root as a collapsible section labelled CWD 340ms
+ [32m✓[39m components/layout/Sidebar.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 1515[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar Session search controls[2m > [22mrenders the CWD root as a collapsible section labelled CWD [33m329[2mms[22m[39m
 
- Test Files  11 passed (11)
-      Tests  80 passed (80)
-   Start at  11:36:15
-   Duration  5.87s (transform 2.33s, setup 417ms, collect 9.84s, tests 4.78s, environment 14.60s, prepare 2.48s)
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m79 passed[39m[22m[90m (79)[39m
+[2m   Start at [22m 11:26:15
+[2m   Duration [22m 4.38s[2m (transform 781ms, setup 120ms, collect 3.55s, tests 2.09s, environment 6.39s, prepare 1.15s)[22m
 
