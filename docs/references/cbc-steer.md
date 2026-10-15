@@ -38,6 +38,14 @@ draft for resubmission. Rejection can release the transaction; a late accepted
 receipt settles only its original transaction. The existing queue HTTP and
 provider receipt boundaries remain 10 and 30 seconds.
 
+Direct controls propagate a structured outcome from write/admission through
+late settlement and HTTP to the composer. Error text is diagnostic only:
+neither wording nor provider detail can release an unknown transaction or
+turn a confirmed rejection into unknown. Force-send also rejects reuse of a
+client message ID with different text, including a reservation race under
+the queue lock; it cannot report the original message as the new body's
+acceptance.
+
 Queue pause, manual locks and edit leases remain authoritative. `self_queue`
 uses the same queue Steer path for an active stream Worker; its legacy
 `status: consumed` means the **Pan queue item** was consumed, while the nested

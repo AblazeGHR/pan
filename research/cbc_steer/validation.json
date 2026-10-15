@@ -68,5 +68,26 @@
     "summary": "production-evidence.json",
     "result": "same-run admission/history/terminal checks passed; marker compliance failed",
     "newModelCallsDuringVerification": 0
+  },
+  "maAcceptanceFollowup": {
+    "redCases": 5,
+    "backendControlAndRouting": {
+      "result": "passed",
+      "tests": 172
+    },
+    "frontend": {
+      "result": "passed",
+      "tests": 93
+    },
+    "newModelCalls": 0,
+    "priorMarkerComplianceFailurePreserved": true,
+    "queueAndApiBoundaries": {
+      "result": "passed",
+      "tests": 36,
+      "seconds": [
+        10,
+        30
+      ]
+    }
   }
 }

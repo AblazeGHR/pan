@@ -1643,7 +1643,7 @@ export async function steerSessionWorker(
     { method: 'POST', body: JSON.stringify({ text, ...(messageId ? { messageId } : {}) }) },
   );
   if (data.error) {
-    if (data.outcome === 'unknown' || /outcome unknown|awaiting.*receipt/i.test(data.error)) {
+    if (data.outcome !== 'rejected') {
       throw new Error(data.error);
     }
     throw new SubmissionRejectedError(data.error);

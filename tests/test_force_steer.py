@@ -44,6 +44,9 @@ def test_capable_force_immediately_attempts_steer_without_restart(monkeypatch, o
         stdin.write.side_effect = write
         result = await worker.send_session(s.id, 'urgent correction', force=True, client_message_id='force-one')
         assert result['status'] == outcome and result['consumption'] == 'unconfirmed'
+        conflict = await worker.send_session(s.id, 'different correction', force=True, client_message_id='force-one')
+        assert conflict['status'] == 'rejected' and conflict['outcome'] == 'rejected'
+        assert conflict['queueItemId'] == result['queueItemId']
         assert stdin.write.call_count == 1
         restart.assert_not_called()
         if outcome == 'accepted':
@@ -119,3 +122,27 @@ def test_mcp_force_entries_delegate_capability_choice_to_backend(monkeypatch, al
     assert method == 'POST' and route == '/api/send'
     assert body['force'] is True and body['sessionId'] == 'target'
     assert body['sourceSessionId'] == 'sender' and body['clientMessageId'] == 'force-stable'
+
+
+def test_force_body_conflict_is_rechecked_inside_queue_lock(monkeypatch):
+    async def run():
+        s, w, stdin = live()
+        async with worker.queue_lock(s.id):
+            original, error = await worker._persist_task_item(s, 'original text', 'user', None,
+                None, 'racing-key', None, idempotent_task_id=False)
+        assert error is None
+        lookup = worker._find_queue_item_by_idempotency
+        first = True
+        def racing_lookup(*args, **kwargs):
+            nonlocal first
+            if first:
+                first = False
+                return None  # Another request reserves the ID before lock acquisition.
+            return lookup(*args, **kwargs)
+        monkeypatch.setattr(worker, '_find_queue_item_by_idempotency', racing_lookup)
+        response = await worker.send_session(s.id, 'different text', source='user',
+            force=True, client_message_id='racing-key')
+        assert response['status'] == 'rejected' and response['queueItemId'] == original['queueItemId']
+        assert len(s.queue_pending) == 1 and s.queue_pending[0]['text'] == 'original text'
+        stdin.write.assert_not_called()
+    asyncio.run(run())

@@ -12741,27 +12741,29 @@ async def api_session_worker_control(session_id: str, data: dict):
 @app.post("/api/worker/{worker_id}/steer")
 async def api_worker_steer(worker_id: str, data: dict):
     """Admit text into a running native turn; admission does not prove consumption."""
+    outcome = {}
     err = await worker.steer_worker(
         worker_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if err:
-        return {"error": err, "outcome": "unknown" if (
-            err.startswith("Steer outcome unknown") or "awaiting" in err.lower()) else "rejected"}
+        return {"error": err, "outcome": outcome.get('status', 'unknown')}
     return {"workerId": worker_id, "status": "steer sent", "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/sessions/{session_id}/worker/steer")
 async def api_session_worker_steer(session_id: str, data: dict):
+    outcome = {}
     result = await worker.steer_session_worker(
         session_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if isinstance(result, str):
-        return {"error": result, "outcome": "unknown" if (
-            result.startswith("Steer outcome unknown") or "awaiting" in result.lower()) else "rejected"}
+        return {"error": result, "outcome": outcome.get('status', 'unknown')}
     if result is None:
-        return {"error": "Worker not found"}
+        return {"error": "Worker not found", "outcome": outcome.get('status', 'rejected')}
     return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent",
             "outcome": "accepted", "consumption": "unconfirmed"}
 

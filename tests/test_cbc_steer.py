@@ -301,3 +301,108 @@ def test_replacement_reader_cannot_settle_original_pipe_receipt():
         assert await pending is None
         assert s.history[-1]['steer']['workerGeneration'] == 4
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('status,detail', [('unknown', 'provider detail without status words'),
+    ('rejected', 'Steer outcome unknown: awaiting receipt but definitively rejected')])
+def test_direct_outcome_is_structured_independent_of_provider_prose(status, detail):
+    async def scenario():
+        s, w, stdin = live()
+        def write(data):
+            request = json.loads(data)['request_id']
+            worker._route_steer_receipt(w, {'type': 'pan.steer_receipt', 'requestId': request,
+                'ok': False, 'outcome': status, 'error': detail})
+        stdin.write.side_effect = write
+        outcome = {}
+        error = await worker.steer_worker(w.worker_id, 'change', 'steer:structured', outcome=outcome)
+        assert error and outcome['status'] == status
+        assert w._direct_steer_pending == (status == 'unknown')
+        assert bool(s.adapter_config['_steer_requests']) == (status == 'unknown')
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('endpoint', ['worker', 'session'])
+@pytest.mark.parametrize('status,detail', [('unknown', 'opaque provider detail'),
+    ('rejected', 'Steer outcome unknown: awaiting receipt')])
+def test_http_direct_uses_structured_outcome(monkeypatch, endpoint, status, detail):
+    from packages.web import server
+    async def scenario():
+        s, w, stdin = live()
+        def write(data):
+            worker._route_steer_receipt(w, {'type': 'pan.steer_receipt',
+                'requestId': json.loads(data)['request_id'], 'ok': False,
+                'outcome': status, 'error': detail})
+        stdin.write.side_effect = write
+        body = {'text': 'change', 'messageId': 'steer:http-typed'}
+        result = await (server.api_worker_steer(w.worker_id, body) if endpoint == 'worker'
+                        else server.api_session_worker_steer(s.id, body))
+        assert result['outcome'] == status
+        assert w._direct_steer_pending == (status == 'unknown')
+    asyncio.run(scenario())
+
+
+def test_unknown_internal_detail_without_prefix_cannot_release_direct_gate(monkeypatch):
+    async def scenario():
+        s, w, stdin = live()
+        async def uncertain(*args, outcome, **kwargs):
+            outcome['status'] = 'unknown'
+            return 'opaque detail'
+        monkeypatch.setattr(worker, '_send_steer_with_receipt', uncertain)
+        outcome = {}
+        assert await worker.steer_worker(w.worker_id, 'change', 'steer:opaque', outcome=outcome) == 'opaque detail'
+        assert outcome['status'] == 'unknown' and w._direct_steer_pending
+        assert s.adapter_config['_steer_requests']['steer:opaque']['status'] == 'unknown'
+        stdin.write.assert_not_called()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('status', ['accepted', 'rejected'])
+def test_true_late_direct_receipt_settles_only_original_transaction(monkeypatch, status):
+    async def scenario():
+        s, w, stdin = live(); settled = asyncio.Event()
+        original = worker._persist_queue_steer_state
+        async def persisted(*args, **kwargs):
+            result = await original(*args, **kwargs)
+            settled.set()
+            return result
+        monkeypatch.setattr(worker, '_persist_queue_steer_state', persisted)
+        record = worker._record_direct_steer
+        async def recorded(*args, **kwargs):
+            result = await record(*args, **kwargs)
+            settled.set()
+            return result
+        monkeypatch.setattr(worker, '_record_direct_steer', recorded)
+        runtime = (w, w.generation, w.process, stdin)
+        stdin.write.side_effect = lambda data: setattr(w.process, 'returncode', 0)
+        outcome = {}
+        assert await worker.steer_worker(w.worker_id, 'old input', 'steer:truly-late', outcome=outcome)
+        assert outcome['status'] == 'unknown' and w._direct_steer_pending
+        request = json.loads(stdin.write.call_args.args[0])['request_id']
+        w._steer_run_id = 'new-run'; w._current_seq = 8; w._current_task_id = 'new-task'
+        worker._route_steer_receipt(w, {'type': 'pan.steer_receipt', 'requestId': request,
+            'ok': status == 'accepted', 'outcome': status,
+            'cliSessionId': 'native-session', 'error': None if status == 'accepted' else
+            'Steer outcome unknown: awaiting receipt'}, runtime=runtime)
+        await asyncio.wait_for(settled.wait(), 1)
+        assert not w._direct_steer_pending
+        if status == 'accepted':
+            assert s.history[-1]['steer']['runId'] == 'original-run'
+            assert s.history[-1]['steer']['taskSeq'] == 7
+        else:
+            assert not s.history and not s.adapter_config['_steer_requests']
+        assert w._current_task_id == 'new-task'
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('broken', [False, True])
+def test_claude_drain_boundary_exposes_structured_outcome(broken):
+    from packages.core.adapters.claude.adapter import ClaudeAdapter
+    async def scenario():
+        s, w, stdin = live(); w.adapter = ClaudeAdapter()
+        if broken: stdin.drain.side_effect = BrokenPipeError('opaque failure')
+        outcome = {}
+        error = await worker.steer_worker(w.worker_id, 'change', outcome=outcome)
+        assert outcome['status'] == ('unknown' if broken else 'accepted')
+        assert bool(error) == broken and w._direct_steer_pending == broken
+        assert bool(s.history) != broken
+    asyncio.run(scenario())

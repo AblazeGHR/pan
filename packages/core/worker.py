@@ -7827,7 +7827,10 @@ def _control_runtime_matches(worker_id: str, runtime) -> bool:
 
 
 async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain: bool = True,
-                                         _expected_runtime=None) -> str | None:
+                                         _expected_runtime=None, outcome=None) -> str | None:
+    if outcome is None:
+        outcome = {}
+    outcome['status'] = 'rejected'
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -7875,6 +7878,7 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
                 and (w.status != "running" or w._terminal_handled or w.native_control_mode != "pan"
                      or control.get("expectedRequestId") != w._steer_run_id)):
             return "CBC turn changed before Steer handoff"
+        outcome['status'] = 'unknown'  # Once attempted, prose cannot prove no handoff.
         written = stdin.write(wire)
         if isinstance(written, int) and written != len(wire):
             raise OSError("partial control write")
@@ -7882,10 +7886,11 @@ async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain
             await stdin.drain()
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
         return "Worker control write failed"
+    outcome['status'] = 'accepted'
     return None
 
 
-async def send_control_message(worker_id: str, control: dict, *, _expected_runtime=None) -> str | None:
+async def send_control_message(worker_id: str, control: dict, *, _expected_runtime=None, outcome=None) -> str | None:
     """Send an out-of-band control, serializing Steer against queue edits.
 
     Native adapters may use this for controls that are not user turns, such
@@ -7893,6 +7898,9 @@ async def send_control_message(worker_id: str, control: dict, *, _expected_runti
     wire encoding; workers without that optional capability keep existing
     behavior.
     """
+    if outcome is None:
+        outcome = {}
+    outcome['status'] = 'rejected'
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -7916,22 +7924,24 @@ async def send_control_message(worker_id: str, control: dict, *, _expected_runti
                 # Keep the lease check and stdin write in one critical section
                 # so direct API/programmatic Steer cannot race edit acquisition.
                 error = await _send_control_message_unlocked(
-                    worker_id, control, drain=False, _expected_runtime=runtime)
+                    worker_id, control, drain=False, _expected_runtime=runtime, outcome=outcome)
                 if error:
                     return error
                 stdin = runtime[3]
             # Backpressure is after the synchronous handoff. New queue appends
             # and edit acquisition need not wait for this control's drain.
             try:
+                outcome['status'] = 'unknown'
                 await stdin.drain()
             except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
                 return "Worker control write failed"
+            outcome['status'] = 'accepted'
             return None
-    return await _send_control_message_unlocked(worker_id, control, _expected_runtime=runtime)
+    return await _send_control_message_unlocked(worker_id, control, _expected_runtime=runtime, outcome=outcome)
 
 
 async def steer_worker(worker_id: str, text: str,
-                       message_id: str | None = None) -> str | None:
+                       message_id: str | None = None, *, outcome=None) -> str | None:
     """Inject a follow-up instruction into a native running turn.
 
     Codex app-server's ``turn/steer`` changes the native thread, but it does
@@ -7939,6 +7949,9 @@ async def steer_worker(worker_id: str, text: str,
     only after the control write succeeds so Pan history stays aligned with
     the native conversation.
     """
+    if outcome is None:
+        outcome = {}
+    outcome['status'] = 'rejected'
     text = str(text or "").strip()
     if not text:
         return "Steer text is required"
@@ -7956,20 +7969,24 @@ async def steer_worker(worker_id: str, text: str,
     if prior and prior.get("sessionId") == s.id:
         if prior.get("bodyHash") != hashlib.sha256(text.encode()).hexdigest():
             return "Steer message id already belongs to different text"
-        return None if prior.get("status") == "accepted" else "Steer outcome unknown: original request retained; do not resend"
+        outcome['status'] = 'accepted' if prior.get('status') == 'accepted' else 'unknown'
+        return None if outcome['status'] == 'accepted' else "Steer outcome unknown: original request retained; do not resend"
     if s is not None and message_id and any(
             row.get("clientMessageId") == message_id or row.get("messageId") == message_id
             for row in s.history if isinstance(row, dict)):
+        outcome['status'] = 'accepted'
         return None
     if w.status != "running":
         return "Steer requires a running Worker"
     if not getattr(w.adapter, "supports_native_steer", False):
         return "Adapter does not support native Steer"
     if w._direct_steer_pending:
+        outcome['status'] = 'unknown'
         return "Previous Steer is awaiting a provider receipt; do not resend"
     if s is not None and getattr(w.adapter, "steer_requires_run_id", False) and any(
             entry.get("sessionId") == s.id and entry.get("status") == "unknown"
             for entry in s.adapter_config.get("_steer_requests", {}).values() if isinstance(entry, dict)):
+        outcome['status'] = 'unknown'
         return "Steer outcome unknown: previous request retained; do not resend"
     origin = _steer_origin(w) if getattr(w.adapter, "steer_requires_run_id", False) else None
     ledger = None
@@ -7999,21 +8016,21 @@ async def steer_worker(worker_id: str, text: str,
             w._direct_steer_pending = False
             await asyncio.shield(_persist_queue_steer_state(w, s))
             raise
-    async def settle_direct(error):
-        if error and error.startswith("Steer outcome unknown"):
+    async def settle_direct(status, error):
+        if status == 'unknown':
             return
         w._direct_steer_pending = False
-        if error is None:
+        if status == 'accepted':
             await _record_direct_steer(w, text, message_id, origin=origin,
                                        ledger_id=identity if ledger is not None else None)
         elif ledger is not None:
             ledger.pop(identity, None)  # Confirmed pre-handoff/provider rejection only.
             await _persist_queue_steer_state(w, s)
-    async def complete_late(error):
-        await settle_direct(error)
+    async def complete_late(status, error):
+        await settle_direct(status, error)
     err = await _send_steer_with_receipt(w, text, on_late_receipt=complete_late,
-                                        origin=origin, request_id=request_id, runtime=runtime)
-    await settle_direct(err)
+                                        origin=origin, request_id=request_id, runtime=runtime, outcome=outcome)
+    await settle_direct(outcome['status'], err)
     return err
 
 
@@ -8050,8 +8067,12 @@ async def _record_direct_steer(w: Worker, text: str, message_id: str | None, *, 
 
 
 async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None,
-                                   origin=None, request_id=None, runtime=None) -> str | None:
+                                   origin=None, request_id=None, runtime=None, outcome=None) -> str | None:
     """Codex confirms turn/steer; Claude's documented boundary is stdin drain."""
+    if outcome is None:
+        outcome = {}
+    outcome['status'] = 'rejected'
+    send_outcome = {}
     request_id = request_id or uuid.uuid4().hex
     future = asyncio.get_running_loop().create_future()
     wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
@@ -8074,7 +8095,7 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
             if not done.cancelled():
                 status, detail = _steer_receipt_result(done.result())
                 error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
-                task = asyncio.create_task(on_late_receipt(error))
+                task = asyncio.create_task(on_late_receipt(status, error))
                 task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
         future.add_done_callback(settle_late)
 
@@ -8088,10 +8109,11 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
         if not _process_alive(w):
             return "Worker process is not running"
         if not wants_receipt:
-            error = await send_control_message(w.worker_id, control, _expected_runtime=runtime)
+            error = await send_control_message(w.worker_id, control, _expected_runtime=runtime, outcome=send_outcome)
+            outcome['status'] = send_outcome.get('status', 'unknown')
             return ("Steer outcome unknown: control write/drain failed"
-                    if error == "Worker control write failed" else error)
-        sender = asyncio.create_task(send_control_message(w.worker_id, control, _expected_runtime=runtime))
+                    if outcome['status'] == 'unknown' else error)
+        sender = asyncio.create_task(send_control_message(w.worker_id, control, _expected_runtime=runtime, outcome=send_outcome))
         # Never infer acceptance from stdout activity, completion or stdin write.
         # A missing receipt is ambiguous and must not be retried automatically.
         deadline = time.monotonic() + 30
@@ -8101,14 +8123,18 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
                                return_when=asyncio.FIRST_COMPLETED)
             if future.done():
                 status, detail = _steer_receipt_result(future.result())
+                outcome['status'] = status
                 return ("Steer outcome unknown: " + str(detail) if status == "unknown" else detail)
             if sender.done():
                 error = sender.result()
-                if error and error != "Worker control write failed":
+                if error and send_outcome.get('status') == 'rejected':
+                    outcome['status'] = 'rejected'
                     return error
         retain_late_receipt()
+        outcome['status'] = 'unknown'
         return "Steer outcome unknown: provider receipt missing; do not resend"
     except asyncio.CancelledError:
+        outcome['status'] = 'unknown'
         if wants_receipt:
             retain_late_receipt()
         raise
@@ -9069,9 +9095,18 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         getattr(target, "active_task_id", None)
         if source_type == "agent" else None
     )
+    def force_body_conflict(item):
+        if item.get('text') != text:
+            return {'status': 'rejected', 'outcome': 'rejected', 'retryable': False,
+                    'sessionId': session_id, 'queueItemId': _queue_item_id(item),
+                    'result': 'Force message id already belongs to different text'}
+        return None
     if force and client_message_id:
         existing = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
         if existing is not None:
+            conflict = force_body_conflict(existing)
+            if conflict:
+                return conflict
             pending = next((row for row in target.queue_pending if _queue_item_id(row) == _queue_item_id(existing)), None)
             if _delivery_state(existing) == _DELIVERY_SENT:
                 return {"status": "accepted", "outcome": "accepted", "consumption": "unconfirmed",
@@ -9108,6 +9143,9 @@ async def send_session(session_id: str, text: str, source: str = "agent",
             prior = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
             item = None
             if prior is not None:
+                conflict = force_body_conflict(prior)
+                if conflict:
+                    return conflict
                 state = _delivery_state(prior)
                 pending = next((row for row in target.queue_pending if _queue_item_id(row) == _queue_item_id(prior)), None)
                 if (pending and pending.get("forceSend") and pending.get("lastSteerError")
@@ -9178,23 +9216,28 @@ def find_worker_by_session(session_id: str) -> Worker | None:
 
 
 async def steer_session_worker(session_id: str, text: str,
-                               message_id: str | None = None) -> Worker | str | None:
+                               message_id: str | None = None, *, outcome=None) -> Worker | str | None:
     """Steer the session's live worker without exposing its runtime id."""
+    if outcome is None:
+        outcome = {}
+    outcome['status'] = 'rejected'
     session = _get_session_shallow(session_id)
     if session is None:
         return f"Session {session_id} not found"
     prior = session.adapter_config.get("_steer_requests", {}).get(message_id)
     if prior and prior.get("sessionId") == session_id and prior.get("status") != "accepted":
+        outcome['status'] = 'unknown'
         return "Steer outcome unknown: original request retained; do not resend"
     if any(entry.get("sessionId") == session_id and entry.get("status") == "unknown"
            for entry in session.adapter_config.get("_steer_requests", {}).values() if isinstance(entry, dict)):
+        outcome['status'] = 'unknown'
         return "Steer outcome unknown: previous request retained; do not resend"
     lock = await _session_spawn_lock(session_id)
     async with lock:
         w = find_alive_worker_by_session(session_id)
         if w is None:
             return None
-        error = await steer_worker(w.worker_id, text, message_id)
+        error = await steer_worker(w.worker_id, text, message_id, outcome=outcome)
         return error or w
 
 

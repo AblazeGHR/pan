@@ -48,7 +48,7 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
     live.status = "running"
     timeline: list[str] = []
 
-    async def fake_control(worker_id, control, *, _expected_runtime):
+    async def fake_control(worker_id, control, *, _expected_runtime, outcome):
         assert worker_id == live.worker_id
         assert _expected_runtime == (live, live.generation, live.process, live.process.stdin)
         assert control["type"] == "steer"

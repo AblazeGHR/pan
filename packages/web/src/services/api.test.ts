@@ -159,10 +159,17 @@ describe('worker control business errors', () => {
   it('keeps an unknown Steer outcome distinct from a rejection so the draft cannot be resent', async () => {
     const { SubmissionRejectedError } = await import('./api');
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200,
-      json: async () => ({ error: 'Steer outcome unknown: receipt missing', outcome: 'unknown' }) })));
+      json: async () => ({ error: 'opaque provider detail', outcome: 'unknown' }) })));
     const error = await steerSessionWorker('s1', 'continue', 'steer:unknown').catch(error => error);
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(SubmissionRejectedError);
+  });
+
+  it('uses rejected status even when its detail contains unknown or awaiting words', async () => {
+    const { SubmissionRejectedError } = await import('./api');
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200,
+      json: async () => ({ error: 'Steer outcome unknown: awaiting receipt', outcome: 'rejected' }) })));
+    await expect(steerSessionWorker('s1', 'change')).rejects.toBeInstanceOf(SubmissionRejectedError);
   });
 
   it('queue mutations reject HTTP 200 responses that carry an error body', async () => {
