@@ -188,3 +188,13 @@ executor probe does not run the TUI event loop. MA should review and integrate
 the narrow source repair, while retaining the user-facing authenticated-TUI
 acceptance item. Completion does not authorize this TA to restart that runtime,
 move main/practical, push, or restore CBC model testing.
+
+Final integration refresh: main/practical advanced concurrently to `a36ed92f`
+(an independent background-runner repair). This TA merged it into the task
+branch without conflict as `ce0b157448ad2f4c89cb523d05bf9506e412bced`, preserving
+source fix `6d0e72a35b006579e78467c7f0b9f5e535715fdd`. The same full batch was
+rerun on that integrated code: **237 passed, 0 failed/errors/skipped, 58.800 s**,
+in `utf8-final-regression.xml/.log`. The six installed-chain cases retain their
+port, PID, retirement and owner/generation properties in this final JUnit.
+The earlier six recorded hook PIDs were also independently confirmed absent.
+No background-runner source was edited by this TA.
