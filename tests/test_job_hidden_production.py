@@ -184,7 +184,7 @@ def test_production_shutdown_recovery_then_cancel(isolated_registry, tmp_path, k
         for handle in handles: close_handle_checked(handle)
 
 
-def test_legacy_runner_crash_keeps_existing_weaker_lifecycle(isolated_registry, tmp_path):
+def test_legacy_runner_crash_recovery_and_cleanup(isolated_registry, tmp_path):
     job, get, cancel, _ = launch("legacy", isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
     handles = []; runner_handle = None
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -204,10 +204,9 @@ def test_legacy_runner_crash_keeps_existing_weaker_lifecycle(isolated_registry, 
         assert kernel.TerminateProcess(runner_handle, 1)
         until(lambda: wait_state(runner_handle) is ProcessStatus.DEAD)
         assert legacy.reconcile_running(isolated_registry) == 1 and get()["status"] == "failed"
-        # Preserves the legacy contract: no kernel Job crash containment. Do not
-        # claim recovery killed survivors. The harness cleans exact owned handles.
-        assert all(wait_state(handle) is ProcessStatus.ALIVE for handle in handles)
-        receipt("legacy-runner-crash-boundary", {"jobId": job["jobId"], "status": get()["status"], "rows": brief(rows), "survivorsAfterRunnerCrash": True, "cleanupOwner": "test harness exact retained handles"})
+        # Hidden legacy tasks now enter the runner-owned kernel Job at creation.
+        until(lambda: all(wait_state(handle) is ProcessStatus.DEAD for handle in handles), 8)
+        receipt("legacy-runner-crash-contained", {"jobId": job["jobId"], "status": get()["status"], "rows": brief(rows), "retainedDead": True, "cleanupOwner": "runner-owned kernel Job"})
     finally:
         for handle in handles:
             if wait_state(handle) is not ProcessStatus.DEAD: assert kernel.TerminateProcess(handle, 1)

@@ -115,6 +115,13 @@ export interface AppSettings {
   showTaskAgent: boolean;
   /** Show QQ-injected info (e.g. messages with the `@@@@by qq` prefix). */
   showQQ: boolean;
+  /**
+   * Report an error to the Manager when the user explicitly stops a
+   * running or queued Worker (App Settings → Behavior). Off by default;
+   * real crashes, abnormal exits, and watchdog reports are unaffected
+   * either way.
+   */
+  reportWorkerKillErrors: boolean;
   /** Show the Codex terminal input popup when a process is waiting for stdin. */
   showCodexTerminalInput: boolean;
   /** Combine adjacent tool and thinking display blocks under one disclosure. */
@@ -159,6 +166,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showMetaAgent: true,
   showTaskAgent: true,
   showQQ: true,
+  reportWorkerKillErrors: false,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
@@ -218,6 +226,10 @@ export function sanitizeSettings(
       typeof parsed.showQQ === 'boolean'
         ? parsed.showQQ
         : DEFAULT_SETTINGS.showQQ,
+    reportWorkerKillErrors:
+      typeof parsed.reportWorkerKillErrors === 'boolean'
+        ? parsed.reportWorkerKillErrors
+        : DEFAULT_SETTINGS.reportWorkerKillErrors,
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
         ? parsed.showCodexTerminalInput
@@ -276,6 +288,12 @@ interface AppSettingsStore extends AppSettings {
    * wrote the settings; a failure rejects and leaves the store unchanged.
    */
   saveUnreadRecording: (v: UnreadRecordingScope[]) => Promise<void>;
+  /**
+   * Persist the user-kill error report switch. Resolves only after the
+   * server wrote the settings; a failure rejects and leaves the store
+   * unchanged.
+   */
+  saveReportWorkerKillErrors: (v: boolean) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -440,6 +458,12 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
           `Settings saved, but ${failed} Session(s) could not be aligned yet — use Reapply settings to retry.`,
         );
       }
+    },
+
+    saveReportWorkerKillErrors: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ reportWorkerKillErrors: value });
+      set({ reportWorkerKillErrors: sanitizeSettings(response).reportWorkerKillErrors });
     },
 
     setCodexWarningToast: (v) => {

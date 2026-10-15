@@ -101,6 +101,7 @@ def test_legacy_close_process_thread_guard_desktop_attempted():
     from packages.jobs.desktop import DesktopCommand
     calls = []
     command = DesktopCommand.__new__(DesktopCommand)
+    command.job_guard = None
     command.handle, command.thread_handle = 10, 11
     command.kernel = SimpleNamespace(CloseHandle=lambda h: calls.append(h) or True)
     command.window_guard = SimpleNamespace(stop=failure(calls, 'guard'))
@@ -118,6 +119,7 @@ def test_failed_legacy_handle_closes_retain_unconfirmed_handles_and_attempt_rest
     from packages.jobs.cleanup import CleanupError
     calls = []
     command = DesktopCommand.__new__(DesktopCommand)
+    command.job_guard = None
     command.handle, command.thread_handle = 10, 11
     command.kernel = SimpleNamespace(CloseHandle=lambda h: calls.append(h) or False)
     command.window_guard = SimpleNamespace(stop=lambda: calls.append('guard') or False)

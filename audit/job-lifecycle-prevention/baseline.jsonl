@@ -1,0 +1,4 @@
+{"kind": "legacy", "fault": "pre-import", "runnerPid": 41464, "runnerFiletime": "134365547567692511", "child": null, "retainedChildDead": true, "registryStatus": "failed", "markerExecuted": false}
+{"kind": "independent", "fault": "pre-import", "runnerPid": 35916, "runnerFiletime": "134365547569228144", "child": null, "retainedChildDead": true, "registryStatus": "UNKNOWN", "markerExecuted": false}
+{"kind": "legacy", "fault": "post-create", "runnerPid": 37180, "runnerFiletime": "134365547570775077", "child": {"pid": 34548, "creationFiletime": 134365547574834595}, "retainedChildDead": false, "registryStatus": "failed", "markerExecuted": false}
+{"kind": "independent", "fault": "post-create", "runnerPid": 40132, "runnerFiletime": "134365547586572808", "child": {"pid": 37808, "creationFiletime": 134365547587866163}, "retainedChildDead": false, "registryStatus": "UNKNOWN", "markerExecuted": false}

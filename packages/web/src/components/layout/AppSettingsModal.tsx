@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
 import { LanSettings } from './LanSettings';
-import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, ToggleLeft, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
@@ -135,10 +135,11 @@ function MainLifecycleRunningChoice({
   );
 }
 
-type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter' | 'plugin' | 'data';
+type SettingsTab = 'general' | 'preferences' | 'behavior' | 'appearance' | 'notifications' | 'adapter' | 'plugin' | 'data';
 const SETTINGS_TABS: SettingsTab[] = [
   'general',
   'preferences',
+  'behavior',
   'appearance',
   'notifications',
   'adapter',
@@ -438,6 +439,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showTaskAgent,
     showQQ,
     showCodexTerminalInput,
+    reportWorkerKillErrors,
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
@@ -459,6 +461,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setCodexWarningToast,
     setConfirmCrossWorkspaceManagement,
     setConfirmAgentSystemQueueEdit,
+    saveReportWorkerKillErrors,
     resetSettings,
   } = useAppSettingsStore();
 
@@ -502,6 +505,25 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [dataRetentionError, setDataRetentionError] = useState<string | null>(null);
   const [dataRetentionSaving, setDataRetentionSaving] = useState(false);
   const [dataRetentionSaveError, setDataRetentionSaveError] = useState<string | null>(null);
+
+  // Behavior → user-kill error reports. Persisted through the global ui
+  // settings; a failed PUT rejects and leaves the store on the last saved
+  // value, which the switch then honestly keeps showing.
+  const [killReportSaving, setKillReportSaving] = useState(false);
+  const [killReportError, setKillReportError] = useState<string | null>(null);
+
+  const toggleReportWorkerKillErrors = useCallback(async (value: boolean) => {
+    if (killReportSaving) return;
+    setKillReportSaving(true);
+    setKillReportError(null);
+    try {
+      await saveReportWorkerKillErrors(value);
+    } catch (error) {
+      setKillReportError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setKillReportSaving(false);
+    }
+  }, [killReportSaving, saveReportWorkerKillErrors]);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -1239,6 +1261,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           <button
             type="button"
             role="tab"
+            id="app-settings-tab-behavior"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'behavior'}
+            tabIndex={activeTab === 'behavior' ? 0 : -1}
+            onClick={() => setActiveTab('behavior')}
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'behavior'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <ToggleLeft size={14} />
+            Behavior
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="app-settings-tab-appearance"
             aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'appearance'}
@@ -1612,6 +1651,31 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </div>
               </section>
             </>
+          ) : activeTab === 'behavior' ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                Worker stop reports
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <SwitchRow
+                  label="Report errors when stopping a running worker"
+                  hint="Applies when you stop a running or queued worker yourself."
+                  checked={reportWorkerKillErrors}
+                  onChange={(v) => void toggleReportWorkerKillErrors(v)}
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                Off by default. While off, stopping a worker yourself never queues an error
+                report for its Manager. Real crashes, abnormal exits, and watchdog timeouts
+                are still reported. The stop itself, task cleanup, and queue state are
+                unaffected either way.
+              </p>
+              {killReportError && (
+                <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                  {killReportError}
+                </div>
+              )}
+            </section>
           ) : activeTab === 'plugin' ? (
             <QqPluginsPanel />
           ) : activeTab === 'data' ? (

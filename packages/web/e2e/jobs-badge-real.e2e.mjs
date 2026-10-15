@@ -144,7 +144,6 @@ try {
     }
   };
   const groupBox = () => page.locator('div[aria-label^="界面入口，第"]').boundingBox();
-  const jobsLink = page.getByRole('link', { name: 'Jobs' });
 
   // 1. Global hydration: the badge shows 2 on the Chat route — /jobs was
   // never visited, so only the real WS-open -> GET /api/jobs chain can know.
@@ -152,13 +151,28 @@ try {
   await poll(badgeText, (text) => text === '2', 'badge shows 2 after real socket-open hydration');
   const navBoxRunning = await groupBox();
   const linkBoxRunning = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
-  const labelBoxRunning = await jobsLink.locator('span').first().boundingBox();
   const badgeBoxRunning = await badge.boundingBox();
-  // Below the label, inside the entry box (reserved slot, nothing clipped).
-  assert.ok(badgeBoxRunning.y >= labelBoxRunning.y + labelBoxRunning.height - 1,
-    'badge must sit below the entry label');
+  // Floating overlay pinned to the entry's bottom-right corner: inside the
+  // entry box, never clipped, flush with its right and bottom edges.
+  assert.ok(badgeBoxRunning.x >= linkBoxRunning.x - 1,
+    'badge must stay inside the entry box (not clipped on the left)');
+  assert.ok(badgeBoxRunning.y >= linkBoxRunning.y - 1,
+    'badge must stay inside the entry box (not clipped on the top)');
+  assert.ok(badgeBoxRunning.x + badgeBoxRunning.width <= linkBoxRunning.x + linkBoxRunning.width + 1,
+    'badge must stay inside the entry box (not clipped on the right)');
   assert.ok(badgeBoxRunning.y + badgeBoxRunning.height <= linkBoxRunning.y + linkBoxRunning.height + 1,
-    'badge must stay inside the entry box (reserved slot, not clipped)');
+    'badge must stay inside the entry box (not clipped on the bottom)');
+  assert.ok(Math.abs(badgeBoxRunning.x + badgeBoxRunning.width - (linkBoxRunning.x + linkBoxRunning.width)) <= 1,
+    'badge right edge must be flush with the entry right edge (bottom-right corner)');
+  assert.ok(Math.abs(badgeBoxRunning.y + badgeBoxRunning.height - (linkBoxRunning.y + linkBoxRunning.height)) <= 1,
+    'badge bottom edge must be flush with the entry bottom edge (bottom-right corner)');
+  // The overlay occupies no layout space: the Jobs entry keeps the sibling
+  // entry's exact box (no stretch, no extra height).
+  const chatBoxRunning = await page.getByRole('link', { name: 'Chat' }).boundingBox();
+  assert.equal(linkBoxRunning.height, chatBoxRunning.height,
+    'Jobs entry must keep the sibling entry height (overlay takes no space)');
+  assert.equal(linkBoxRunning.width, chatBoxRunning.width,
+    'Jobs entry must keep the sibling entry width (overlay takes no space)');
 
   // 2. The user NEVER leaves the Chat route for the rest of the run: every
   // count change below arrives through the real WebSocket broadcasts alone.
@@ -182,9 +196,10 @@ try {
   await poll(badgeText, (text) => text === null, 'badge hides at zero running jobs');
   const navBoxZero = await groupBox();
   assert.equal(navBoxZero.height, navBoxRunning.height,
-    'nav height must not shift between badge hidden and shown (reserved slot)');
+    'nav height must not shift between badge hidden and shown (floating overlay)');
   const linkBoxZero = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
   assert.equal(linkBoxZero.height, linkBoxRunning.height, 'entry height is stable at 0');
+  assert.equal(linkBoxZero.width, linkBoxRunning.width, 'entry width is stable at 0');
 
   // 5. A fresh page load re-hydrates through the real open handler: seed one
   // running job again, reload, and the badge must come back on the Chat route.

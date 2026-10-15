@@ -2921,13 +2921,18 @@ def cancel(job_id: str) -> dict:
 
 def _kill_tree(proc: Any) -> None:
     """Best-effort descendant-first termination for an owned process."""
+    import psutil
+
     try:
         children = proc.children(recursive=True)
-        for child in reversed(children):
-            child.kill()
-        proc.kill()
-    except (OSError, AttributeError):
-        pass
+    except (OSError, AttributeError, psutil.NoSuchProcess):
+        children = []
+    for owned in [*reversed(children), proc]:
+        try:
+            owned.kill()
+        except (OSError, AttributeError, psutil.NoSuchProcess):
+            # Exit races are expected; still attempt every other owned member.
+            pass
 
 
 def retry(job_id: str) -> dict:
@@ -3099,6 +3104,37 @@ def find_service_job(request_id: str, registry_root: str | Path | None = None) -
     return None
 
 
+def claim_hidden_runner(job_id: str) -> bool:
+    """Publish the real Python owner before hidden task creation, exactly once.
+
+    The spawning controller can die before persisting Popen's redirector PID.
+    The runner therefore owns this claim; recovery never starts a replacement.
+    """
+    from packages.core.terminal.identity import probe_process, ProcessStatus
+    pid = os.getpid()
+    probe = probe_process(pid)
+    if probe.status is not ProcessStatus.ALIVE or probe.identity is None:
+        raise OSError("hidden runner creation identity unavailable")
+    filetime = probe.identity.created_at_filetime
+    with _lock, _job_lock(job_id):
+        path = _job_path(job_id)
+        current = _load_path(path)
+        if (not current or current.get("status") not in {"starting", "running"}
+                or current.get("runnerClaim")):
+            return False
+        if current.get("cancelRequestedAt"):
+            current.update(status="cancelled", exitCode=None,
+                           terminalEventId=f"{job_id}:terminal", notificationState="pending")
+            current["updatedAt"] = time.time()
+            _atomic_write(path, current)
+            return False
+        current.update(runnerPid=pid, runnerFiletime=str(filetime),
+                       runnerProcessCreatedAt=filetime / 10_000_000 - 11644473600,
+                       runnerClaim=secrets.token_hex(16), updatedAt=time.time())
+        _atomic_write(path, current)
+        return True
+
+
 def runner_update(job_id: str, **changes: Any) -> dict:
     job = get(job_id)
     if not job:
@@ -3143,24 +3179,33 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
         runner = _owns_process({"pid": runner_pid, "processCreatedAt": runner_created})
         if runner is not None:
             continue
-        reason = "runner identity missing, unavailable, dead, or PID reused"
-        if job.get("scheduledParentJobId"):
-            task_process = _owns_process({
-                "pid": job.get("pid"),
-                "processCreatedAt": job.get("processCreatedAt"),
-            })
-            if task_process is not None:
-                _kill_tree(task_process)
-                try:
-                    task_process.wait(timeout=2.0)
-                except Exception:
-                    pass
-                reason = "Runner disappeared; terminated the verified scheduled shell process"
-        _update(job["jobId"], {"status": "failed", "error": "orphaned: " + reason,
-                                "terminalEventId": f"{job['jobId']}:terminal",
-                                "notificationState": "pending", "updatedAt": time.time()},
-                registry_root=registry_root)
-        changed += 1
+        with _lock, _job_lock(job["jobId"], registry_root):
+            path = _job_path(job["jobId"], registry_root)
+            current = _load_path(path)
+            if (not current or current.get("status") not in {"starting", "running"}
+                    or current.get("runnerPid") != runner_pid
+                    or current.get("runnerProcessCreatedAt") != runner_created):
+                # A runner may commit its terminal fact during the liveness probe.
+                # Do not replace that fact (or a different owner generation).
+                continue
+            reason = "runner identity missing, unavailable, dead, or PID reused"
+            if job.get("scheduledParentJobId"):
+                task_process = _owns_process({
+                    "pid": job.get("pid"),
+                    "processCreatedAt": job.get("processCreatedAt"),
+                })
+                if task_process is not None:
+                    _kill_tree(task_process)
+                    try:
+                        task_process.wait(timeout=2.0)
+                    except Exception:
+                        pass
+                    reason = "Runner disappeared; terminated the verified scheduled shell process"
+            current.update(status="failed", error="orphaned: " + reason,
+                           terminalEventId=f"{job['jobId']}:terminal",
+                           notificationState="pending", updatedAt=time.time())
+            _atomic_write(path, current)
+            changed += 1
     return changed
 
 

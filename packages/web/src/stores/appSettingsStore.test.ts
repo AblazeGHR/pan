@@ -38,6 +38,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
+    expect(s.reportWorkerKillErrors).toBe(false);
     expect(s.showCodexTerminalInput).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
     expect(s.keepScrollOnSessionSwitch).toBe(false);
@@ -189,6 +190,30 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setConfirmCrossWorkspaceManagement(false);
     expect(useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement).toBe(false);
     expect(mockedUpdate).toHaveBeenCalledWith({ notifications: { confirmCrossWorkspaceManagement: false } });
+  });
+
+  it('sanitizes reportWorkerKillErrors and defaults old settings to off', () => {
+    expect(sanitizeSettings({}).reportWorkerKillErrors).toBe(false);
+    expect(sanitizeSettings({ reportWorkerKillErrors: 'yes' }).reportWorkerKillErrors).toBe(false);
+    expect(sanitizeSettings({ reportWorkerKillErrors: true }).reportWorkerKillErrors).toBe(true);
+  });
+
+  it('saveReportWorkerKillErrors persists and applies the server echo', async () => {
+    mockedUpdate.mockResolvedValue({ reportWorkerKillErrors: true });
+
+    await useAppSettingsStore.getState().saveReportWorkerKillErrors(true);
+
+    expect(mockedUpdate).toHaveBeenCalledWith({ reportWorkerKillErrors: true });
+    expect(useAppSettingsStore.getState().reportWorkerKillErrors).toBe(true);
+  });
+
+  it('saveReportWorkerKillErrors rejects and leaves the store unchanged on failure', async () => {
+    mockedUpdate.mockRejectedValueOnce(new Error('config is read-only'));
+
+    await expect(useAppSettingsStore.getState().saveReportWorkerKillErrors(true))
+      .rejects.toThrow('config is read-only');
+
+    expect(useAppSettingsStore.getState().reportWorkerKillErrors).toBe(false);
   });
 
   it('resets all settings to defaults and writes them back', () => {
