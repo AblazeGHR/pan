@@ -3143,12 +3143,13 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
 
 
 async def _scheduled_task_emit_strict(event: dict) -> bool:
-    """可靠发射：返回是否已成功递交广播通道（失败由调用方保持可重试）。
+    """可靠发射：返回事件是否已成功入队广播通道（失败由调用方保持可重试）。
 
     on_event_strict（scheduler emit_strict）优先；未注册时退回 on_event 的
-    尽力而为语义（回调异常 = 失败）。job.updated 是状态 upsert，客户端对
-    重复事件幂等：成功后、标记持久化前崩溃导致的重发是允许的收敛路径，
-    因此这里绝不以牺牲送达换取严格一次。
+    尽力而为语义（回调异常 = 失败）。入队成功即算数：每连接 socket 发送
+    按 broadcast 的隔离契约不 await，断线客户端由重连 REST 水合收敛。
+    job.updated 是状态 upsert，客户端对重复事件幂等：成功后、标记持久化
+    前崩溃导致的重发是允许的收敛路径，因此这里绝不以牺牲送达换取严格一次。
     """
     strict = _scheduled_task_hooks.get("on_event_strict")
     callback = strict if callable(strict) else _scheduled_task_hooks.get("on_event")

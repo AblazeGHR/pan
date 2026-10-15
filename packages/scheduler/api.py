@@ -230,13 +230,16 @@ def _emit(event: dict) -> None:
 
 
 async def emit_strict(event: dict) -> bool:
-    """严格发射契约：返回是否已成功递交 WS 广播通道。
+    """严格发射契约：返回事件是否已成功入队 WS 广播通道。
 
     _emit 是 fire-and-forget（吞异常、无返回值），无法向需要可靠成功信号的
     调用方（Job 终态补发）表达失败。本契约：无通道 / 同步异常 / awaitable
-    异常 = False；其余 = True（已递交所有已连接客户端，此后为传输层尽力
-    语义，断线由重连 REST 水合收敛）。job.updated 是状态 upsert，客户端对
-    重复事件幂等，成功后崩溃导致的重发是允许的收敛路径。
+    异常 = False；其余 = True。True 的精确含义：投影管线与对每个已连接
+    客户端 channel 的 enqueue 已在本轮 await 内全部完成（含一次事件循环
+    让步）；每连接 sender 的 socket 写入按设计不 await（见 server.broadcast
+    的隔离契约），传输层尽力，断线由重连 REST 水合收敛。job.updated 是
+    状态 upsert，客户端对重复事件幂等，成功后崩溃导致的重发是允许的
+    收敛路径。
     """
     fn = _state.get("broadcast")
     if not callable(fn):
