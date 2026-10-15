@@ -1,37 +1,35 @@
-# Selected Session actions — TA evidence
+# Selected Session lifecycle actions — TA evidence
 
-Baseline: `6919bf98c6adf08fbc7fd78c77ec714e6628a085`.
-Branch: `feature/selected-session-actions-20261011`.
-Workspace: `D:/project/pan-worktrees/selected-session-actions-20261011`.
+Baseline: `4a4872ec` (`fix(jobs): attempt all hidden cleanup and preserve failure diagnostics`).
+Branch: `feature/select-lifecycle-actions-20261015`.
+Workspace: `D:/project/pan-worktrees/select-lifecycle-actions-20261015`.
 
-The Sidebar selection toolbar now opens Workspace / Read all / 群发 / Bell on / Bell off from one compact menu. Selection and deletion controls remain. Click-time IDs, names and unread generations are captured and never read back from later selection during an operation. In-flight actions guard duplicate clicks and prevent cancelling selection while persistence is unresolved. Dialog cancellation before submission performs no mutation. Failed broadcast submission retains text and schedule for retry.
+The Session multi-select "Actions" menu now also offers **Restart**, **Delayed restart** and **Kill**, named exactly like the single-Session Worker menu in `SettingsPopover` (`⟳ Restart`, `◷ Delayed restart`, `✕ Kill`). The three actions reuse the existing lifecycle semantics through `workerStore` (`restart` / `delayedRestart` / `killCurrent` → `restartOrStartWorker` / `requestDelayedRestart` / `killSessionWorker`); no new lifecycle implementation was added and the backend was not changed.
 
-Shared production changes: Sidebar.tsx, SelectedSessionActions.tsx, selectedSessionActions.ts, and NewJobForm.tsx. NewJobForm has an optional fixed broadcast target entry point, keeps existing once-at/delay, interval and weekly schedule serialization, and does not set source identity. It is loaded lazily. Workspace actions call the existing workspaceStore.moveSessions, including its management subtree and cross-workspace confirmation semantics. Read all uses the existing unread ACK API and store version reconciliation. Bell directions call the existing atomic msg-bridge API, including expected-state checks. No WorkspaceRail, JobsView ordering, backend scheduler, dependency or lock changes.
+Shared production changes: `SelectedSessionActions.tsx` (menu items, confirm, disabled rules), `selectedSessionActions.ts` (action union, click-time worker snapshot, per-target details, honest partial results), plus the browser harness and the isolated Chromium script. Existing rules are preserved: the click-time snapshot (ids/names/worker view) never follows a later selection; the in-flight busy guard blocks duplicate submission and keeps the selection bar blocked; per-target results report partial success/failure honestly and every failure is retryable; Kill keeps the single-Session confirmation (`Kill workers for N selected session(s)?`) and is unavailable while no target has a live worker; Delayed restart is unavailable while any target already has a pending/restarting intent (the existing idle-boundary intent/cancel mechanism, not a client-side delay timer) and re-enables once the intent settles.
 
 ## Measured
 
-- `vitest.log`: 11 files, 80 tests passed, zero skips. Covers Sidebar selection/deletion/navigation, fixed broadcast targets and all schedule contracts, existing Job templates, workspace tree movement/confirmation, SessionItem, unread done indicators and target-level partial failure. Existing Sidebar test fixtures log failed fresh-history fetches; the assertions pass.
-- `eslint.log`: changed production files, new tests/harness and Chromium script passed ESLint.
-- `build.log`: TypeScript + Vite production build passed; 64 compressed assets verified. Vite retains its large-chunk advisory.
-- `results.json`: raw intercepted API requests and Chromium results at 1280 / 390 / 320 pixels. Three isolated browser contexts, dynamic loopback Vite port, fixture-only API, zero page errors. External font requests are fulfilled locally, protected ports 8767/8768 are rejected before forwarding.
-- `chromium.log`: assertions for partial ACK failure and generation race; Bell default validation/off connection request; workspace target snapshot, manager-detach cancellation with zero workspace writes, partial save failure and retry; broadcast target snapshot, save failure preserving content, retry, duplicate guard, Escape during submission, cancellation without submission; menu Escape and viewport geometry; stable mobile dialog geometry.
-- `*-menu.png` / `*-broadcast.png`: stable desktop/mobile screenshots, visually reviewed at 320px.
-- `dependency-hashes.log`: package.json and pnpm-lock.yaml hashes match the prepared shared dependency source. Dependencies were neither installed nor changed.
+- `vitest.log`: 7 files, 79 tests passed, zero skips. Covers the three lifecycle actions through the worker-store path, click-time snapshot/worker view, Kill confirmation gate, worker-less no-op, per-target partial failure and retry, vanished target, delayed-restart pending/terminal gating and start-vs-restart reporting, busy propagation, plus Sidebar selection controls, select-mode interactions, SessionItem/SessionMenu and the workerStore lifecycle contracts.
+- `eslint.log`: changed production files, new tests/harness and the Chromium script passed ESLint.
+- `build.log`: TypeScript + Vite production build passed; 66 compressed assets verified. Vite retains its large-chunk advisory.
+- `results.json`: raw intercepted API requests and Chromium results at 1280 / 390 / 320 pixels. Three isolated browser contexts, dynamic loopback Vite port (52220), fixture-only API, zero page errors. External font requests are fulfilled locally, protected ports 8767/8768 are rejected before forwarding.
+- `chromium.log`: delayed-restart intent reuse with start-vs-restart action reporting, pending block and post-settle retry; restart click-time snapshot across a selection switch with the in-flight duplicate guard; Kill confirmation dismissal (zero requests), worker-backed requests, the worker-less honest no-op, the no-live-worker disabled boundary, and per-target partial failure with retry — plus the pre-existing read/bell/workspace/broadcast/menu cases.
+- `*-menu.png` / `*-broadcast.png`: stable desktop/mobile screenshots.
+- `dependency-hashes.log`: manifest/lock unchanged; the missing `@xterm` gap was closed by an independent frozen install inside the worktree after safely removing the prep junction (canonical untouched).
 
-Reproduce from packages/web with the prepared validation junction:
+Reproduce from packages/web:
 
 ```powershell
-pnpm exec vitest run src/components/layout/Sidebar.test.tsx src/components/jobs/NewJobForm.window.test.tsx src/components/jobs/NewJobForm.scheduled-qq.test.tsx src/components/jobs/NewJobForm.resume-legal-running.test.tsx src/components/jobs/NewJobForm.selected-broadcast.test.tsx src/components/session/selectedSessionActions.test.ts src/stores/workspaceStore.test.ts src/components/session/SessionWorkspaceDrop.test.tsx src/components/layout/WorkspaceManagerChangeConfirmationModal.test.tsx src/components/session/SessionItem.test.tsx src/stores/sessionStore.doneIndicator.test.ts
+pnpm exec vitest run src/components/layout/Sidebar.test.tsx src/components/session/selectedSessionActions.test.ts src/components/session/SelectedSessionActions.test.tsx src/components/session/SessionList.selectMode.test.tsx src/stores/workerStore.test.ts src/components/session/SessionItem.test.tsx src/components/session/SessionMenu.test.tsx
 pnpm run build
 node e2e/selected-session-actions.e2e.mjs
 ```
 
 ## Code inference and unverified layers
 
-Current backend msg-bridge implementation validates Notification completion defaults and QQ bot/contact availability before enabling, and clears QQ subscriptions/report targets/outbox plus browser/system notification connections when disabling. The frontend reuses that API; the browser test injects matching responses. Actual QQ connectivity, notification delivery, scheduled Job execution at due time, the production App mobile wrapper, live backend persistence and MA/main integration were not exercised.
+The browser test drives the real menu, snapshot, busy and toast paths against a controllable API stand-in; it does not exercise a live Pan service, real Worker processes, WebSocket intent broadcasts, or backend persistence. The delayed-restart gating reads the worker-store intent map kept fresh by `worker.delayed_restart` events (the single-Session popover additionally refreshes on open; the batch menu intentionally reads the shared store without per-open GETs). Kill decides worker presence from the same effective-worker rule as the single-Session menu (durable workerId+status, or a live worker-store entry); a worker that appears after the snapshot is not retargeted, matching the documented click-time contract. Restart or start is decided atomically by the session-level backend endpoint, so per-target feedback says "Restarted or started" exactly like the single-Session toast.
 
-Workspace error feedback reports the current store membership matching the target, rather than claiming that all selected targets moved. After a transport error, the server may have committed an unacknowledged operation; the UI asks the user to review membership before retrying. Existing moveSessions refresh recovery is retained.
+Intermediate verification failures were corrected before final logs: the e2e fixture initially lacked the worker fields (delayed restart reported the start action for a worker-backed Session), the kill failure stand-in used HTTP 409 (transport error shape) instead of the backend's 200 `{error}` application rejection, and test mocks carried an `ok` field absent from `ApiGenericResponse`. No assertions, thresholds or test identities were removed or skipped. The pre-existing `TopBar.test.tsx` "Terminal TUI" failure reproduces on the clean baseline and is unrelated.
 
-Intermediate verification failures were corrected before final logs: external font isolation; fixture error response shape matching the existing API; an immediate disabled-state assertion changed to Playwright's retrying disabled assertion; missing fixture Workspace order/toastQueue fields; a JSX closing brace omitted during formatting. No assertions, thresholds or test identities were removed or skipped.
-
-No real service was started/restarted or requested, native user data was untouched, no OSJob was created, and no main/practical advance or push was performed. Pan skill was read. No AGENTS.md was present in the worktree or its drive/project/worktree ancestors.
+No real service was started/restarted or requested, no real user Worker was operated, native user data was untouched, and no main/practical advance or push was performed.
