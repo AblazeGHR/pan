@@ -86,7 +86,9 @@ def post_toast() -> dict:
 
 
 def main() -> int:
-    ACCESS_LOG.write_text("", encoding="utf-8")
+    # Append: an earlier click already recorded in this log must survive a
+    # re-run of the acceptance helper.
+    ACCESS_LOG.touch(exist_ok=True)
     toast = post_toast()
     info = {"port": PORT, "url": URL, "aumid": AUMID, "toast": toast,
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}

@@ -85,7 +85,8 @@
   端到端闭环，且点击发生在发送进程退出之后（toast.ps1 展示完即退出，无 helper 存活）。
 - **待补的最后一项人工动作（已给用户具体步骤）**：浏览器完全关闭状态下、从通知中心**面板**点击
   历史 Pan 通知（面板持久条目 + 浏览器冷启动）；探针服务 64177 与通知中心条目在验证期间保持
-  可用，点击将追加到同一访问日志。探针与生产 toast 在面板中显示的应用名待用户回报。
+  可用，点击将追加到同一访问日志（helper 复跑只追加、不清空既有证据）。探针与生产 toast 在
+  面板中显示的应用名待用户回报。
 
 ## 5. 安全边界与注册对象（最小化）
 
@@ -96,7 +97,10 @@
   `windows_toast.clear_app_notifications()` 清空本应用在通知中心的条目。
 - **探针遗留（验证结束后清理，见 §7）**：`HKCU\Software\Classes\AppUserModelId\Pan.NotificationsProbe`
   （仅 DisplayName 字符串，探针专用 AUMID；生产代码不使用该键）；被 Defender 删除的
-  `PanProbe.lnk` 已不存在。清理 = 删除该键 + `History.Clear('Pan.NotificationsProbe')`。
+  `PanProbe.lnk` 已不存在。清理 = 删除该键 + `History.Clear('Pan.NotificationsProbe')`，一条命令：
+  `powershell -ExecutionPolicy Bypass -File audit/notification-center/probe/cleanup-probes.ps1`
+  （只清探针 AUMID；不触碰全局通知设置、DND 或其他应用的条目）。生产演示条目可用
+  `windows_toast.clear_app_notifications()` 清除；通知中心的处理器记录由 Windows 平台管理。
 - 未改动：全局通知权限、DND/专注助手、用户 Terminal、系统安全配置、`pan://` 协议（从未注册成功）。
 
 ## 6. 未验证 / 边界（如实声明）
