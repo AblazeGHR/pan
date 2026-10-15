@@ -10,14 +10,21 @@ notification center. Verified on Windows 11 26100 (audit/notification-center/):
   the exact toast XML we sent.
 - The click target is an action button whose ``arguments`` is the full
   loopback deep link (``http://127.0.0.1:<port>/react/?session=<id>``) with
-  ``activationType="protocol"``: http(s) activation is handled by the
-  installed default browser, so clicking works even after the sender process
-  exited and the browser was closed. The URL is always built by
+  ``activationType="protocol"``: http(s) activation is dispatched by the
+  system to the installed default browser and does not run through this
+  process, so a click keeps working after the sender process exited (verified
+  by a real click; see the audit report). Cold-starting a fully closed browser
+  goes through the same system http-handler path, but that variant is NOT yet
+  verified on this machine - treat it as expected behavior, not as proven.
+  The URL is always built by
   ``notifications.completion_deep_link`` from validated parts (loopback only,
   opaque session id, no userinfo/query/fragment).
 - ``Tag``/``Group`` give replace-by-target semantics: one notification per
   completion session (a re-completion replaces the previous entry) and one per
   reminder content hash, so repeats do not stack up in the notification center.
+  Tags stay deterministic and collision-resistant: values over 64 characters
+  append a digest of the FULL input, so two long session ids can never collapse
+  onto one shared truncated prefix.
 - The sender is an inbox PowerShell process (no third-party dependencies) that
   shows the toast and exits immediately; there is no long-lived helper and no
   message loop per notification.
@@ -34,6 +41,7 @@ of the encoded command; the command never contains raw user text.
 from __future__ import annotations
 
 import base64
+import hashlib
 import re
 import shutil
 import subprocess
@@ -69,11 +77,22 @@ def _xml_escape(text: str) -> str:
 
 
 def bounded_tag(value: str | None) -> str | None:
-    """Deterministically bound a tag; Windows' per-app tag limit is not
-    documented for unpackaged apps, and identical inputs must keep collapsing."""
+    """Deterministically bound a tag to at most 64 characters.
+
+    Windows' per-app tag limit is not documented for unpackaged apps, but a
+    plain prefix cut is not safe: two session ids sharing their first 53
+    characters would truncate to one identical completion tag, and the second
+    completion would silently replace the first notification (wrong target
+    binding). Over-long values therefore append a SHA-1 digest of the FULL
+    input: identical inputs always collapse (replace-per-session still works)
+    while distinct inputs stay distinct up to the digest width.
+    """
     if value is None:
         return None
-    return value if len(value) <= 64 else value[:64]
+    if len(value) <= 64:
+        return value
+    digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
+    return f"{value[:40]}-{digest}"
 
 
 def build_toast_xml(title: object, body: object, *,

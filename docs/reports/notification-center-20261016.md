@@ -38,8 +38,9 @@
      应用"对话框（实验中真实出现，已放弃该路线）。
    - toast 主体点击：`<toast>` 元素没有 `activationType` 属性（schema 核实），无 COM 激活器时
      主体点击不产生激活；因此以**动作按钮**为主点击面。
-   - **选定**：按钮携带 http loopback URL → 默认浏览器。零协议注册、无"找不到应用"失败面、
-     浏览器关闭可冷启动。
+   - **选定**：按钮携带 http loopback URL → 由系统 http 处理器交给默认浏览器打开。零协议注册、
+     无"找不到应用"失败面；发送进程退出后的点击已真实验证（§4）。浏览器完全关闭时的冷启动走
+     同一系统路径，属预期行为、**尚未实测**（§4/§6），不得当作已证结论引用。
 3. **AV 事件（真实）**：早期的探针快捷方式 `PanProbe.lnk`（目标为
    `powershell.exe -ExecutionPolicy Bypass -File ...` 形态）被 Defender 判为
    `TrojanDownloader/LNK.Agent.g` 并删除（误报，用户提供截图证实）。据此定下硬约束：
@@ -56,8 +57,9 @@
 ## 3. 实现范围
 
 - 新增 `packages/core/windows_toast.py`：toast XML 构建（XML 转义 + 非法控制字符剔除）、
-  tag/group 去重（长度有界）、`-EncodedCommand` 发送脚本（含 `Setting` 禁用检测与失败 JSON）、
-  `clear_app_notifications()` 资源清理入口。
+  tag/group 去重（tag >64 字符时后缀**完整输入**的 SHA-1 摘要，长 session ID 不可能因前缀截断
+  共享同一 tag，保持"同目标替换、异目标独立"）、`-EncodedCommand` 发送脚本（含 `Setting` 禁用
+  检测与失败 JSON）、`clear_app_notifications()` 资源清理入口。
 - `packages/core/notifications.py`：删除 NotifyIcon 脚本与 helper 消息循环；Windows 默认发送器
   委托 `windows_toast.show_toast`；完成通知携带 `completion-<session>` tag + `Pan-completions`
   group 与深链；提醒携带 `reminder-<sha1>` tag + `Pan-reminders` group；两参数可注入 sender

@@ -45,12 +45,37 @@ def test_toast_xml_without_launch_has_no_click_target():
     assert "<actions>" not in xml
 
 
-def test_bounded_tag_keeps_short_values_and_truncates_long_ones():
+def test_bounded_tag_keeps_short_values_and_bounds_long_ones():
     assert windows_toast.bounded_tag(None) is None
     assert windows_toast.bounded_tag("completion-ses_ab") == "completion-ses_ab"
+    exact = "completion-" + "x" * 53  # exactly 64 chars: unchanged
+    assert len(exact) == 64
+    assert windows_toast.bounded_tag(exact) == exact
     long = "completion-" + "x" * 80
     bounded = windows_toast.bounded_tag(long)
-    assert len(bounded) == 64 and bounded == long[:64]
+    assert len(bounded) <= 64
+    assert bounded.startswith("completion-" + "x" * 29)  # 40-char prefix kept
+    assert windows_toast.bounded_tag(long) == bounded  # deterministic
+
+
+def test_bounded_tag_long_session_ids_cannot_collide_on_shared_prefix():
+    # The reviewed case: session ids sharing their first 53 characters. A plain
+    # prefix cut would give both completions ONE identical tag, and the second
+    # completion would silently replace the first notification (wrong target).
+    sid_a = "x" * 53 + "A"
+    sid_b = "x" * 53 + "B"
+    tag_a_raw = f"completion-{sid_a}"
+    tag_b_raw = f"completion-{sid_b}"
+    assert tag_a_raw[:64] == tag_b_raw[:64]  # documents the old collision
+    tag_a = windows_toast.bounded_tag(tag_a_raw)
+    tag_b = windows_toast.bounded_tag(tag_b_raw)
+    assert tag_a != tag_b
+    assert len(tag_a) <= 64 and len(tag_b) <= 64
+    assert windows_toast.bounded_tag(tag_a_raw) == tag_a  # stable across calls
+    # Maximum-length allowlist ids (64 chars) stay distinct the same way.
+    max_a = windows_toast.bounded_tag("completion-" + "y" * 63 + "A")
+    max_b = windows_toast.bounded_tag("completion-" + "y" * 63 + "B")
+    assert max_a != max_b and len(max_a) <= 64
 
 
 def test_show_script_carries_payload_only_as_base64_and_has_no_message_loop():
