@@ -578,45 +578,70 @@ try {
     assert.equal(receipts[`manual:${key}`]?.at, at, 'the replay must resolve to the surviving receipt');
   });
 
-  await check('legacy done without any identity: the derived compat cursor is real and provable', async () => {
+  const reportOverHttp = async (sessionId, body) => {
+    const res = await fetch(`${activeBase}/api/sessions/${sessionId}/manual-report`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    assert.equal(res.status, 200);
+    return res.json();
+  };
+
+  await check('derived compat cursor (single legacy done): no UI entry, resolver still unique over HTTP', async () => {
     await gotoApp(activeBase);
     await selectSession('MR Legacy Done', '遗留提问');
     const legacyChild = child('MR Legacy Done');
-    // The view-derived compat identity is asserted from the DOM: the entry's
-    // own key must be rc:0, never a guessed or synthesized id.
+    // Production allocates real cursors as max(existing)+1, so the view's 0 is
+    // the derived compat value and cannot prove unique ownership: no entry.
     const entries = await reportEntries();
-    assert.deepEqual(entries.map((entry) => entry.key), [`${legacyChild}:-:rc:0`],
-      `unexpected legacy entries: ${JSON.stringify(entries)}`);
-    const key = `${legacyChild}:-:rc:0`;
-    await clickReport(key);
-    await waitForState(key, /已汇报/);
-    const receipts = await waitForReceipts(managerId, 4);
+    assert.deepEqual(entries, [],
+      `a derived compat cursor must not open an entry: ${JSON.stringify(entries)}`);
+    // The real resolver, probed directly over HTTP, still resolves the single
+    // compat row — capability retained, UI conservative.
     const tailId = await childTailId(legacyChild);
-    // Observed real behaviour: the receipt is keyed from the RESOLVED row's own
-    // fields, and a row with neither taskSeq nor a raw resultCursor resolves to
-    // the '-'/'-' key (the compat cursor is a BINDING identity, not a stored
-    // one).  Claim the receipt by the delivered block instead of assuming.
-    const receipt = Object.values(receipts)
-      .find((candidate) => candidate.messageId === tailId);
-    assert.ok(receipt, `compat-identity receipt missing: ${JSON.stringify(receipts)}`);
-    assert.equal(receipt.taskId ?? null, null);
-    assert.equal(receipt.taskSeq ?? null, null, 'a legacy row carries no taskSeq on disk');
+    const probe = await reportOverHttp(legacyChild, {
+      messageId: tailId, taskId: null, taskSeq: null, resultCursor: 0,
+    });
+    assert.equal(probe.ok, true, JSON.stringify(probe));
+    const receipts = await waitForReceipts(managerId, 4);
+    assert.equal(Object.values(receipts).filter((receipt) => receipt.messageId === tailId).length, 1,
+      `the unique compat resolution must deliver exactly once: ${JSON.stringify(receipts)}`);
   });
 
-  await check('legacy done, two ambiguous rows: the entry exists but the real server refuses', async () => {
+  await check('two legacy done rows: no UI entries, the real resolver refuses the ambiguous 0', async () => {
     await selectSession('MR Legacy Ambiguous', '歧义提问一');
     const legacyChild = child('MR Legacy Ambiguous');
     const entries = await reportEntries();
-    assert.equal(entries.length, 2, `two legacy runs, two entries: ${JSON.stringify(entries)}`);
-    assert.deepEqual([...new Set(entries.map((entry) => entry.key))], [`${legacyChild}:-:rc:0`],
-      'both entries carry the same derived compat key');
-    const key = `${legacyChild}:-:rc:0`;
-    await clickReport(key);
-    const state = await waitForState(key, /重试汇报/);
-    assert.match(state.title ?? '', /终态结果不可用|无法汇报/);
+    assert.deepEqual(entries, [],
+      `ambiguous compat rows must not open entries: ${JSON.stringify(entries)}`);
+    const before = Object.keys(await managerReceipts(managerId)).length;
+    const probe = await reportOverHttp(legacyChild, {
+      messageId: await childTailId(legacyChild), taskId: null, taskSeq: null, resultCursor: 0,
+    });
+    assert.equal(probe.ok, false, JSON.stringify(probe));
+    assert.equal(probe.error?.code, 'no_task_result', JSON.stringify(probe));
     const receipts = await managerReceipts(managerId);
-    assert.ok(!Object.keys(receipts).some((receiptKey) => receiptKey.includes(legacyChild)),
-      'an ambiguous identity must never deliver');
+    assert.equal(Object.keys(receipts).length, before, 'an ambiguous identity must not add receipts');
+    assert.ok(!Object.keys(receipts).some((receiptKey) => receiptKey.includes(legacyChild)));
+  });
+
+  await check('legacy row beside a real run: only the stored-identity block opens an entry', async () => {
+    await selectSession('MR Legacy Mixed', '旧块提问');
+    const mixedChild = child('MR Legacy Mixed');
+    const entries = await reportEntries();
+    assert.deepEqual(entries.map((entry) => entry.key), [`${mixedChild}:-:1`],
+      `only the stored-identity run may open an entry: ${JSON.stringify(entries)}`);
+    // The new block's stored identity routes and delivers the new run only.
+    const newTail = await childTailId(mixedChild);
+    const probe = await reportOverHttp(mixedChild, {
+      messageId: newTail, taskId: null, taskSeq: 1, resultCursor: 1,
+    });
+    assert.equal(probe.ok, true, JSON.stringify(probe));
+    const receipts = await waitForReceipts(managerId, 5);
+    const delivered = Object.values(receipts).filter((receipt) => receipt.messageId === newTail);
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].taskSeq, 1, 'the delivered run is the stored one');
   });
 
   assert.deepEqual(panRequests, [], `no Pan-port traffic is allowed: ${JSON.stringify(panRequests)}`);
