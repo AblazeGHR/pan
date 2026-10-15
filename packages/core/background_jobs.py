@@ -2915,13 +2915,18 @@ def cancel(job_id: str) -> dict:
 
 def _kill_tree(proc: Any) -> None:
     """Best-effort descendant-first termination for an owned process."""
+    import psutil
+
     try:
         children = proc.children(recursive=True)
-        for child in reversed(children):
-            child.kill()
-        proc.kill()
-    except (OSError, AttributeError):
-        pass
+    except (OSError, AttributeError, psutil.NoSuchProcess):
+        children = []
+    for owned in [*reversed(children), proc]:
+        try:
+            owned.kill()
+        except (OSError, AttributeError, psutil.NoSuchProcess):
+            # Exit races are expected; still attempt every other owned member.
+            pass
 
 
 def retry(job_id: str) -> dict:

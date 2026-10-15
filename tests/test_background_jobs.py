@@ -57,6 +57,34 @@ def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tm
     assert result["status"] == "cancelled" and result["exitCode"] is None
 
 
+def test_cancel_survives_runner_disappearing_during_tree_lookup(monkeypatch, tmp_path):
+    import psutil
+
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
+                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
+    task, runner = Mock(pid=123), Mock(pid=456)
+    task.children.return_value = []
+    runner.children.side_effect = psutil.NoSuchProcess(456)
+    monkeypatch.setattr(jobs, "_owns_process", lambda fact: task if fact["pid"] == 123 else runner)
+    result = jobs.cancel(job["jobId"])
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+    task.kill.assert_called_once_with()
+
+
+def test_tree_cleanup_continues_after_one_descendant_disappears():
+    import psutil
+
+    parent, survivor, disappeared = Mock(), Mock(), Mock()
+    parent.children.return_value = [survivor, disappeared]
+    disappeared.kill.side_effect = psutil.NoSuchProcess(123)
+    jobs._kill_tree(parent)
+    survivor.kill.assert_called_once_with()
+    parent.kill.assert_called_once_with()
+
+
 def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     _session(tmp_path)
     _session(tmp_path, "ses_creator")

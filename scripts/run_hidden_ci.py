@@ -100,6 +100,7 @@ def main():
                                            '--junitxml=' + str(out / ('notion-' + leg + '.xml')),
                                            '--basetemp=' + str(out / ('notion-tmp-' + leg))])
         paths = ['tests/test_job_runner_venv.py', 'tests/test_job_window_guard.py',
+                 'tests/test_job_hidden_production.py', 'tests/test_background_jobs.py',
                  'tests/test_session_import.py::test_mcp_import_cbc_builds_body_and_autoclaims',
                  'tests/test_session_import.py::test_mcp_import_reimport_precheck_denies_unmanaged'] if a.focused else ['tests/', 'packages/qq']
         run('pytest-' + leg, [python, str(root / 'scripts/run_tests_isolated.py'), '--', python,
