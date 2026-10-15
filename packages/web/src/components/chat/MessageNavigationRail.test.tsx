@@ -6,6 +6,7 @@ import { MessageNavigationRail } from './MessageNavigationRail';
 import { MessageNavigationDock } from './MessageNavigationDock';
 import { createPortal } from 'react-dom';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useBookmarkStore } from '@/stores/bookmarkStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { fetchSessionNavigation } from '@/services/api';
 import type { Message } from '@/types';
@@ -779,5 +780,105 @@ describe('clicked navigation tag reuses the nearest-tag highlight', () => {
     act(() => { seedRows(1000, 400, 200, 'click-highlight-other'); });
     await act(async () => { await Promise.resolve(); });
     expect(selected(view.container)).toBe('500');
+  });
+});
+
+describe('bookmark rail decoration and tag filter', () => {
+  const seedBookmarkRows = (id = 'bookmark-deco') => {
+    const rows = Array.from({ length: 10 }, (_, i): Message => ({
+      role: i === 0 ? 'user' : 'assistant',
+      content: `row ${i}`,
+      messageId: `canonical-${i}`,
+    }));
+    rows.forEach((message, i) => messageOrdering.markDurableRow(message, i));
+    rows[0]!.bookmarked = true;          // existing user tag, bookmarked
+    rows[1]!.bookmarked = true;          // plain assistant block, bookmarked
+    useSessionStore.setState({
+      currentSessionId: id,
+      sessions: [{ id, historyTotal: 10 } as never],
+      currentMessages: rows,
+      sessionTranscripts: {},
+    });
+    mockedHistory.mockResolvedValue(historyPage(rows, 10, 0));
+    return rows;
+  };
+
+  it('decorates an existing tag and adds a bookmark tag without duplication', async () => {
+    seedBookmarkRows();
+    const view = render(<MessageNavigationRail
+      chatRef={{ current: { getViewportHistoryRange: () => ({ start: 0, end: 9 }) } as never }} />);
+    await act(async () => { await Promise.resolve(); });
+
+    const userMarker = view.container.querySelector<HTMLElement>('[data-kind="user"]')!;
+    expect(userMarker.getAttribute('data-bookmarked')).toBe('true');
+    expect(userMarker.getAttribute('aria-label')).toContain('User (Bookmark)');
+    expect(userMarker.querySelector('.message-navigation-marker-bookmark-badge')).not.toBeNull();
+
+    // The bookmarked plain assistant block gets its own bookmark tag in
+    // message order; nothing else is added.
+    const rendered = markers(view.container);
+    expect(rendered.map((marker) => marker.dataset.kind)).toEqual(['user', 'bookmark']);
+    expect(rendered[1]!.getAttribute('data-message-id')).toBe('canonical-1');
+    expect(rendered[1]!.getAttribute('aria-label')).toContain('Bookmark');
+    // No duplicate tag for the user block: exactly one marker per bookmarked row.
+    expect(view.container.querySelectorAll('[data-message-id="canonical-0"]')).toHaveLength(1);
+  });
+
+  it('applies the store overlay to the loaded window without a refetch', async () => {
+    const rows = seedBookmarkRows('bookmark-overlay');
+    rows[1]!.bookmarked = false;         // only the user row is bookmarked initially
+    useSessionStore.setState({ currentMessages: rows });
+    const view = render(<MessageNavigationRail
+      chatRef={{ current: { getViewportHistoryRange: () => ({ start: 0, end: 9 }) } as never }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(markers(view.container).map((marker) => marker.dataset.kind)).toEqual(['user']);
+
+    // An optimistic/dual-client mark for the plain block appears immediately.
+    act(() => {
+      useBookmarkStore.setState({
+        sessions: { 'bookmark-overlay': {
+          revision: 1, marks: { 'canonical-1': true }, loaded: true, pending: {}, error: null,
+        } },
+      });
+    });
+    await act(async () => { await Promise.resolve(); });
+    expect(markers(view.container).map((marker) => marker.dataset.kind)).toEqual(['user', 'bookmark']);
+    // Removing the user bookmark through the overlay undecorates the tag.
+    act(() => {
+      useBookmarkStore.setState({
+        sessions: { 'bookmark-overlay': {
+          revision: 2, marks: { 'canonical-0': false, 'canonical-1': true },
+          loaded: true, pending: {}, error: null,
+        } },
+      });
+    });
+    await act(async () => { await Promise.resolve(); });
+    const userMarker = view.container.querySelector<HTMLElement>('[data-kind="user"]')!;
+    expect(userMarker.getAttribute('data-bookmarked')).toBe('false');
+    expect(userMarker.getAttribute('aria-label')).not.toContain('(Bookmark)');
+    expect(userMarker.querySelector('.message-navigation-marker-bookmark-badge')).toBeNull();
+  });
+
+  it('filters kinds with OR semantics and clears back to everything', async () => {
+    seedBookmarkRows('bookmark-filter');
+    const view = render(<MessageNavigationRail
+      chatRef={{ current: { getViewportHistoryRange: () => ({ start: 0, end: 9 }) } as never }} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(markers(view.container)).toHaveLength(2);
+
+    fireEvent.click(view.getByRole('button', { name: 'Filter navigation tags by type' }));
+    const menu = document.querySelector('[data-navigation-filter-menu]')!;
+    expect(menu).not.toBeNull();
+    expect(document.querySelectorAll('[data-navigation-filter-kind]')).toHaveLength(6);
+    fireEvent.click(document.querySelector('[data-navigation-filter-kind="bookmark"]')!);
+    expect(markers(view.container).map((marker) => marker.dataset.kind)).toEqual(['bookmark']);
+    expect(view.container.querySelector('.message-navigation-rail')?.getAttribute('data-visible-targets')).toBe('1');
+    fireEvent.click(document.querySelector('[data-navigation-filter-kind="user"]')!);
+    expect(markers(view.container).map((marker) => marker.dataset.kind)).toEqual(['user', 'bookmark']);
+    fireEvent.click(document.querySelector('[data-navigation-filter-clear]')!);
+    expect(markers(view.container)).toHaveLength(2);
+    expect(document.querySelector('[data-navigation-filter-clear]')?.hasAttribute('disabled')).toBe(true);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('[data-navigation-filter-menu]')).toBeNull();
   });
 });

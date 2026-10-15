@@ -613,6 +613,104 @@ body {
   letter-spacing: .01em;
 }
 
+/* ── Message block menu (bookmark + manual report) ──
+   The row's left gutter is the only body-level hit target: from the leftmost
+   edge to the block's colored vertical line.  Its width tracks the row
+   padding (`px-3 sm:px-6 lg:px-8`) exactly; the e2e geometry check fails if
+   those classes change without this rule.  Content, role rail and role glyph
+   are never repainted. */
+.chat-message-bookmark-gutter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+  transition: background-color .15s ease;
+}
+
+.chat-message-bookmark-gutter:hover,
+.chat-message-bookmark-gutter[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.message-row[data-bookmarked='true'] .chat-message-bookmark-gutter {
+  background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+@media (min-width: 640px) {
+  .chat-message-bookmark-gutter { width: 24px; }
+}
+
+@media (min-width: 1024px) {
+  .chat-message-bookmark-gutter { width: 32px; }
+}
+
+/* Every bookmarked block carries this tag below it. */
+.chat-message-bookmark-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: 0 0 3px 2px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 48%, var(--color-border-default));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 13%, var(--color-bg-secondary));
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.message-block-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 150px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  padding: 4px 0;
+}
+
+.message-block-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.message-block-menu button:hover {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.message-block-menu button:disabled {
+  color: var(--color-text-tertiary);
+  cursor: default;
+}
+
+.message-block-menu button:disabled:hover {
+  background: transparent;
+}
+
+.message-block-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-default);
+}
+
 /* TUI user/assistant rows: full width, 3px role bar (user green, assistant
    gray). Restored verbatim from before the Bubble restyle so the default view
    keeps its original geometry. */
@@ -1246,6 +1344,159 @@ body {
   border-color: var(--navigation-marker-highlight);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--navigation-marker-highlight) 75%, transparent),
     0 0 8px color-mix(in srgb, var(--navigation-marker-highlight) 45%, transparent);
+}
+
+/* A block without its own nav tag that is bookmarked gains a bookmark tag:
+   same compact geometry, its own accent color. */
+.message-navigation-marker-bookmark {
+  --navigation-marker-highlight: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-secondary));
+  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border-default));
+}
+
+/* A bookmarked existing tag keeps its kind color/style and composites the
+   bookmark badge over its own glyph at the bottom-right corner.  Unified
+   color: the badge inherits the marker's currentColor. */
+.message-navigation-marker-composite {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-navigation-marker-bookmark-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  background: var(--color-bg-secondary);
+  border-radius: 999px;
+  padding: 1px;
+}
+
+/* Rail tag-type filter: a small toggle at the top of the rail opens a
+   multi-select menu (checked kinds shown, OR; empty = no filter). */
+.message-navigation-filter-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 6px auto 0;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.message-navigation-filter-toggle:hover,
+.message-navigation-filter-toggle.is-active {
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border-default));
+}
+
+.message-navigation-filter-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-bg-primary);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+}
+
+.message-navigation-filter-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  padding: 4px 0;
+}
+
+.message-navigation-filter-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.message-navigation-filter-menu button:hover {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.message-navigation-filter-menu button:disabled {
+  color: var(--color-text-tertiary);
+  cursor: default;
+}
+
+.message-navigation-filter-menu button:disabled:hover {
+  background: transparent;
+}
+
+.message-navigation-filter-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 3px;
+  color: var(--color-accent);
+}
+
+.message-navigation-filter-box.is-on {
+  border-color: var(--color-accent);
+}
+
+.message-navigation-filter-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  color: var(--color-text-secondary);
+}
+
+.message-navigation-filter-glyph-user { color: var(--color-accent); }
+.message-navigation-filter-glyph-worker { color: var(--color-success); }
+.message-navigation-filter-glyph-ma-assign,
+.message-navigation-filter-glyph-ma-msg { color: var(--color-warning); }
+.message-navigation-filter-glyph-bookmark { color: var(--color-accent); }
+
+.message-navigation-filter-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-default);
+}
+
+.message-navigation-filter-hint {
+  margin: 2px 0 0;
+  padding: 0 12px 2px;
+  font-size: 10px;
+  color: var(--color-text-tertiary);
 }
 
 .message-navigation-tooltip {
