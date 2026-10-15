@@ -46,6 +46,9 @@ _UI_DEFAULTS = {
     "showMetaAgent": True,
     "showTaskAgent": True,
     "showQQ": True,
+    # App Settings → Behavior: user-kill error reports default off (old
+    # configs without the key fall back to the same False).
+    "reportWorkerKillErrors": False,
     "notifications": {
         "codexWarningToast": True,
         "completionBridge": {
@@ -139,6 +142,21 @@ def test_put_default_new_session_workspace_setting_persists(tmp_path, monkeypatc
     assert _read(p)["ui"]["defaultNewSessionToCurrentWorkspace"] is False
     assert _read(p)["ui"]["showQQ"] is True
     assert asyncio.run(srv.api_get_settings_ui())["defaultNewSessionToCurrentWorkspace"] is False
+
+
+def test_put_ui_report_worker_kill_errors_persists(tmp_path, monkeypatch):
+    """Behavior 开关可持久化，且旧配置缺省为关闭。"""
+    p = _use_temp_config(tmp_path, monkeypatch)
+    _write(p, {"port": 1234})  # old config without the key
+
+    # Absent key → default off.
+    assert asyncio.run(srv.api_get_settings_ui())["reportWorkerKillErrors"] is False
+
+    r = asyncio.run(srv.api_put_settings_ui({"reportWorkerKillErrors": True}))
+    assert r["reportWorkerKillErrors"] is True
+    assert _read(p)["ui"]["reportWorkerKillErrors"] is True
+    assert _read(p)["port"] == 1234  # untouched
+    assert asyncio.run(srv.api_get_settings_ui())["reportWorkerKillErrors"] is True
 
 
 def test_put_ui_full_replacement(tmp_path, monkeypatch):

@@ -6718,6 +6718,20 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     return None
 
 
+def _user_kill_report_enabled() -> bool:
+    """用户主动 Kill 是否向 manager 报告 error（App Settings → Behavior）。
+
+    config.json:
+        "ui": { "reportWorkerKillErrors": false }
+
+    缺省该键（旧配置）→ 视为关闭（默认 false）。该开关只抑制用户显式
+    Kill（``report_abnormal=True``）触发的 zombie/error 报告；异常死亡与
+    watchdog 报告不经此函数，始终按原语义上报。
+    """
+    ui = load_config().get("ui") or {}
+    return bool(ui.get("reportWorkerKillErrors", False))
+
+
 async def _kill_worker_unlocked(
     worker_id: str, *, recover: bool = False,
     report_abnormal: bool = False,
@@ -6745,7 +6759,7 @@ async def _kill_worker_unlocked(
 
     abnormal = w.status in {"running", "queued"}
 
-    if report_abnormal and abnormal:
+    if report_abnormal and abnormal and _user_kill_report_enabled():
         await _enqueue_zombie_report(w, "worker killed")
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was stopped")
