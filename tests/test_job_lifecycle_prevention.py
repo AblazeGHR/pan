@@ -4,10 +4,18 @@ from ctypes import wintypes as w
 import json, os, subprocess, sys, time
 from pathlib import Path
 import pytest
+import site
 from packages.core import background_jobs as legacy
 from packages.jobs.independent_service import JobStore, ServiceError
 from packages.core.terminal.identity import read_creation_filetime, wait_state, ProcessStatus, close_handle_checked
 pytestmark=pytest.mark.skipif(os.name!='nt',reason='Windows kernel Job lifecycle')
+
+
+@pytest.fixture(autouse=True)
+def parent_test_dependencies(monkeypatch):
+ # Base interpreters do not inherit the venv running pytest. Keep preparation
+ # local to these test children; never install into the base interpreter.
+ monkeypatch.setenv('PYTHONPATH', os.pathsep.join([str(Path(__file__).resolve().parents[1]), *site.getsitepackages()]))
 
 
 def until(check, timeout=5):
@@ -61,11 +69,13 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
  if launch_mode!='base':
   import venv
   venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+  (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
   runtime=str(tmp_path/'venv/Scripts/python.exe')
  original_popen=subprocess.Popen; runners=[]
  def spawn(command,**kwargs):
   job_id=command[command.index('--job-id')+1]
   command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+  command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
   proc=original_popen(command,**kwargs);runners.append(proc);return proc
  monkeypatch.setattr(subprocess,'Popen',spawn)
  argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']

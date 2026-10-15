@@ -8,10 +8,15 @@ k.GetProcessTimes.argtypes=[w.HANDLE,ctypes.POINTER(w.FILETIME),ctypes.POINTER(w
 created,exited,kernel,user=(w.FILETIME() for _ in range(4))
 assert k.GetProcessTimes(k.GetCurrentProcess(),ctypes.byref(created),ctypes.byref(exited),ctypes.byref(kernel),ctypes.byref(user))
 identity={'runnerPid':os.getpid(),'runnerFiletime':(created.dwHighDateTime<<32)|created.dwLowDateTime}
-p=argparse.ArgumentParser();p.add_argument('--kind');p.add_argument('--fault');p.add_argument('--evidence');p.add_argument('--root');p.add_argument('--job-id');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--kind');p.add_argument('--fault');p.add_argument('--evidence');p.add_argument('--root');p.add_argument('--job-id');p.add_argument('--site-packages',action='append',default=[]);a=p.parse_args()
+import site
+for directory in a.site_packages:site.addsitedir(directory)
+def publish(row):
+ target=Path(a.evidence);temporary=target.with_suffix('.tmp')
+ temporary.write_text(json.dumps(row));os.replace(temporary,target)
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 if a.fault=='pre-import':
- Path(a.evidence).write_text(json.dumps(identity))
+ publish(identity)
  while True:time.sleep(.05)
 from packages.jobs.restricted_token import HiddenJobToken
 from packages.core.terminal.identity import read_creation_filetime
@@ -19,7 +24,7 @@ if a.fault=='post-create':
  original=HiddenJobToken.create_process
  def create(self,*args):
   result=original(self,*args)
-  Path(a.evidence).write_text(json.dumps({**identity,'pid':result[2],'creationFiletime':read_creation_filetime(result[0]),'desktop':getattr(args[3],'StartupInfo',args[3]).lpDesktop}))
+  publish({**identity,'pid':result[2],'creationFiletime':read_creation_filetime(result[0]),'desktop':getattr(args[3],'StartupInfo',args[3]).lpDesktop})
   while True:time.sleep(.05)
  HiddenJobToken.create_process=create
 if a.fault=='wait-error':
@@ -29,7 +34,7 @@ if a.fault=='wait-error':
   while not (root/'tree-0.json').exists():
    assert time.monotonic()<deadline
    time.sleep(.01)
-  Path(a.evidence).write_text(json.dumps(identity))
+  publish(identity)
   while not (root/'fault-release').exists():
    assert time.monotonic()<deadline
    time.sleep(.01)
