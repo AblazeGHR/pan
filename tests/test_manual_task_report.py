@@ -2040,6 +2040,233 @@ def test_session_summary_plain_identity_is_accepted_by_report_route(monkeypatch)
     _cleanup()
 
 
+# ── derived zero / identity-less terminals (narrow fix) ──
+
+def _append_identityless_done(s, content, *, raw_cursor=None) -> dict:
+    """Append a legacy done run that carries NO provable durable identity.
+
+    ``taskId`` and ``taskSeq`` are absent; when ``raw_cursor`` is None the row
+    has no ``resultCursor`` field either, so the identity view's derived
+    compatibility cursor is 0 — a value production never allocates.  Such rows
+    must never become a reportable run through the derived 0.
+    """
+    _sess.append_history(s, {"role": "user", "content": f"legacy {content}",
+                             "source": "user"})
+    _sess.append_history(s, {"role": "assistant", "content": content})
+    _sess.append_history(s, {"role": "assistant", "content": content})
+    record = {
+        "status": "done",
+        "result": content,
+        "taskId": None,
+        "workerId": "worker-1",
+        "terminalKey": "seq:0",
+        "historyEpoch": s.history_epoch,
+        "historyRevision": s.history_revision,
+    }
+    if raw_cursor is not None:
+        record["resultCursor"] = raw_cursor
+    s.terminal_results = list(s.terminal_results) + [record]
+    s.last_result = dict(record)
+    record["tail_id"] = s.history[-1]["messageId"]
+    return record
+
+
+def test_manual_report_identity_less_done_by_derived_cursor_zero_is_refused(monkeypatch, _no_real_recovery_spawn):
+    """A sole legacy done row without taskId/taskSeq/resultCursor is not a
+    provable run: cursor 0 (the derived compat value) must not resolve it as a
+    deliverable run, and no degenerate ``-:-`` receipt may be written."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    legacy = _append_identityless_done(s, "旧回答")
+    mgr = _setup_session("ses_mgr")
+
+    result, error = asyncio.run(_report_plain(
+        result_cursor=0, message_id=legacy["tail_id"]))
+    assert result is None
+    assert error["code"] == "no_run_identity"
+    assert error["retryable"] is False
+    assert mgr.queue_pending == []
+    assert mgr.manual_report_receipts == {}, \
+        "an identity-less row must not mint a degenerate receipt"
+    _cleanup()
+
+
+def test_durable_terminal_by_cursor_never_derives_zero_identity():
+    """The compatibility cursor derives only from a stored taskSeq: a row with
+    no stored identity is never matched by cursor 0, while the legacy taskSeq
+    compatibility itself keeps resolving."""
+    _cleanup()
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    _append_identityless_done(s, "旧回答")
+    assert worker.durable_terminal_by_cursor(s, 0) is None, \
+        "derived 0 must not bind an identity-less row"
+    # Legacy last_result without any stored identity: same refusal.
+    s2 = _setup_session("ses_child_2", managed_by="ses_mgr")
+    _append_identityless_done(s2, "旧回答")
+    s2.terminal_results = []
+    assert worker.durable_terminal_by_cursor(s2, 0) is None
+    # A legacy row WITH a stored taskSeq still resolves through the compat
+    # cursor the identity view exposes for it.
+    s3 = _setup_session("ses_child_3", managed_by="ses_mgr")
+    _sess.append_history(s3, {"role": "assistant", "content": "legacy seven"})
+    s3.terminal_results = [{
+        "status": "done", "result": "legacy seven", "taskId": None,
+        "taskSeq": 7, "terminalKey": "seq:7",
+    }]
+    s3.last_result = dict(s3.terminal_results[0])
+    row = worker.durable_terminal_by_cursor(s3, 7)
+    assert row is not None and row["result"] == "legacy seven"
+    assert worker.durable_terminal_by_cursor(s3, 0) is None
+    _cleanup()
+
+
+def test_manual_report_evicted_identity_less_run_cannot_swallow_a_new_one(monkeypatch, _no_real_recovery_spawn):
+    """The cross-time hazard: run A was delivered under the degenerate
+    ``-:-`` key in the past; A is evicted and a NEW identity-less run B is the
+    only surviving row.  B must be refused as identity-less — never answered
+    ``alreadyReported`` from A's surviving receipt."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    b = _append_identityless_done(s, "淘汰回答")
+    mgr = _setup_session("ses_mgr")
+    # The surviving receipt of the past delivery of A (as a real store keeps it).
+    mgr.manual_report_receipts["manual:ses_child:-:-"] = {
+        "sessionId": "ses_child", "taskId": None, "taskSeq": None,
+        "messageId": "pan:evicted-a-tail", "queueItemId": "q_evicted_a",
+        "at": 0.0,
+    }
+
+    result, error = asyncio.run(_report_plain(
+        result_cursor=0, message_id=b["tail_id"]))
+    assert result is None, \
+        "the new identity-less run must not be answered from the old receipt"
+    assert error["code"] == "no_run_identity"
+    assert error["retryable"] is False
+    assert mgr.queue_pending == [], "nothing may be enqueued for B"
+    assert mgr.manual_report_receipts["manual:ses_child:-:-"]["messageId"] \
+        == "pan:evicted-a-tail", "the surviving receipt must stay untouched"
+    _cleanup()
+
+
+def test_manual_report_derived_zero_and_raw_zero_are_refused(monkeypatch, _no_real_recovery_spawn):
+    """Derived 0 stays refused with several identity-less rows, and a raw
+    resultCursor 0 is not a legal identity either (production only allocates
+    positive cursors): every zero-cursor request is no_run_identity."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    # Several identity-less rows: still refused (previously no_task_result /
+    # delivery under a fabricated pin would both be wrong here).
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    first = _append_identityless_done(s, "旧回答一")
+    _append_identityless_done(s, "旧回答二")
+    mgr = _setup_session("ses_mgr")
+    result, error = asyncio.run(_report_plain(
+        result_cursor=0, message_id=first["tail_id"]))
+    assert result is None and error["code"] == "no_run_identity"
+
+    # A raw-0 row (the exact-first branch of the old resolver): 0 is still not
+    # a legal identity, and the resolver itself must not pin it.
+    s2 = _setup_session("ses_child_2", managed_by="ses_mgr")
+    raw = _append_identityless_done(s2, "零游标回答", raw_cursor=0)
+    assert worker.durable_terminal_by_cursor(s2, 0) is None
+    result, error = asyncio.run(_report_plain(
+        sid="ses_child_2", result_cursor=0, message_id=raw["tail_id"]))
+    assert result is None and error["code"] == "no_run_identity"
+    assert mgr.queue_pending == []
+    _cleanup()
+
+
+def test_manual_report_legal_run_identities_are_untouched(monkeypatch, _no_real_recovery_spawn):
+    """The gate must not over-tighten: legal taskSeq, positive resultCursor
+    and the legacy taskId-only contract all keep resolving and delivering."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_child", managed_by="ses_mgr")
+    plain = _append_plain_run(s, 1, ["legal answer"])
+    legacy_seq = _append_identityless_done(s, "legacy seq answer")
+    # Give the legacy-seq row its stored taskSeq identity (no raw cursor).
+    legacy_seq["taskSeq"] = 7
+    s.terminal_results[-1]["taskSeq"] = 7
+    s.last_result["taskSeq"] = 7
+    formal = _append_run(s, "task-legacy", None, ["formal legacy"])
+    mgr = _setup_session("ses_mgr")
+
+    async def scenario():
+        by_seq = await _report_plain(task_seq=1, message_id=plain["tail_id"])
+        by_cursor = await _report_plain(
+            result_cursor=plain["resultCursor"], message_id=plain["tail_id"])
+        legacy = await _report_plain(task_seq=7, message_id=legacy_seq["tail_id"])
+        task_only = await worker.enqueue_manual_report(
+            "ses_child", "task-legacy", None, formal["tail_id"])
+        return by_seq, by_cursor, legacy, task_only
+
+    by_seq, by_cursor, legacy, task_only = asyncio.run(scenario())
+    assert by_seq[1] is None and by_seq[0]["alreadyReported"] is False
+    assert by_cursor[1] is None and by_cursor[0]["alreadyReported"] is True
+    assert legacy[1] is None and legacy[0]["alreadyReported"] is False
+    assert task_only[1] is None and task_only[0]["alreadyReported"] is False
+    assert [item["result"] for item in mgr.queue_pending] == [
+        "legal answer", "legacy seq answer", "formal legacy"]
+    assert mgr.manual_report_receipts[
+        worker.manual_report_key("ses_child", None, 7)]["taskSeq"] == 7
+    assert mgr.manual_report_receipts[
+        worker.manual_report_key("ses_child", "task-legacy", None)]["taskId"] \
+        == "task-legacy"
+    _cleanup()
+
+
+def test_manual_report_real_http_derived_zero_refused_and_receipt_persists(monkeypatch, _no_real_recovery_spawn):
+    """Real HTTP through the ASGI route with real durable writes: the derived-0
+    request is refused as identity-less, a legal plain run is delivered, its
+    receipt survives a cold reload, and the replay dedups across identity
+    paths."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import packages.web.server as server
+    _cleanup()
+    s, records = _plain_child([(1, ["legal answer"])])
+    legal_tail = records[0]["tail_id"]
+    legacy = _append_identityless_done(s, "legacy answer")
+    _setup_session("ses_mgr")
+
+    app = FastAPI()
+    app.add_api_route("/api/sessions/{session_id}/manual-report",
+                      server.api_session_manual_report, methods=["POST"])
+    asyncio.run(_sess.save_async(_sess.get("ses_child")))
+    with TestClient(app) as client:
+        refused = client.post("/api/sessions/ses_child/manual-report",
+                              json={"resultCursor": 0,
+                                    "messageId": legacy["tail_id"]})
+        assert refused.status_code == 200
+        body = refused.json()
+        assert body["ok"] is False, f"derived 0 must be refused over HTTP: {body}"
+        assert body["error"]["code"] == "no_run_identity"
+        assert body.get("retryable") is False
+
+        delivered = client.post("/api/sessions/ses_child/manual-report",
+                                json={"taskId": None, "taskSeq": 1,
+                                      "messageId": legal_tail})
+        assert delivered.json()["ok"] is True
+
+        on_disk = json.loads(
+            (_sess.SESSION_DIR / "ses_mgr.json").read_text(encoding="utf-8"))
+        assert worker.manual_report_key("ses_child", None, 1) \
+            in on_disk["manual_report_receipts"]
+        assert "manual:ses_child:-:-" not in on_disk["manual_report_receipts"], \
+            "no degenerate receipt may reach the disk"
+
+        # Cold reload: the receipt is durable and the cursor-path replay dedups.
+        _sess._cache.clear()
+        replay = client.post("/api/sessions/ses_child/manual-report",
+                             json={"resultCursor": records[0]["resultCursor"],
+                                   "messageId": legal_tail})
+        assert replay.json()["ok"] is True
+        assert replay.json()["alreadyReported"] is True
+    _cleanup()
+
+
 if __name__ == "__main__":
     for name, value in sorted(globals().items()):
         if name.startswith("test_") and callable(value):

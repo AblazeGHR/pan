@@ -4796,16 +4796,19 @@ def durable_terminal_by_cursor(s, result_cursor) -> dict | None:
     The result cursor is the durable, monotonic position of one terminal row
     in the bounded replay window — the run identity the session identity view
     exposes for runs without a formal taskId (plain conversations, native
-    turns).  An exact raw ``resultCursor`` match wins; legacy rows without the
-    field fall back to the same compatibility cursor the web layer orders by
-    (``taskSeq``), so every exposed identity stays resolvable.  When several
-    rows share a compatibility cursor the match is ambiguous and this returns
-    None: the caller must refuse instead of guessing.  The legacy
-    ``last_result`` view is the final fallback.
+    turns).  Only **positive** cursors identify a run: production allocates
+    them as max(existing)+1, so the identity view's 0 for an identity-less row
+    is a derived compat value and never a binding.  An exact raw
+    ``resultCursor`` match wins; legacy rows without the field fall back to a
+    compatibility cursor derived ONLY from a stored ``taskSeq`` — a row with no
+    stored taskSeq is never matched, so no cursor can fabricate an identity for
+    it.  When several rows share a compatibility cursor the match is ambiguous
+    and this returns None: the caller must refuse instead of guessing.  The
+    legacy ``last_result`` view is the final fallback, under the same rules.
     """
     if isinstance(result_cursor, bool) or not isinstance(result_cursor, int):
         return None
-    if result_cursor < 0:
+    if result_cursor <= 0:
         return None
     cursor = result_cursor
     rows = [
@@ -4823,6 +4826,7 @@ def durable_terminal_by_cursor(s, result_cursor) -> dict | None:
         if isinstance(item, dict)
         and item.get("status") in _TERMINAL_RESULT_STATUSES
         and _cursor_value(item) is None
+        and item.get("taskSeq") is not None
         and _terminal_row_cursor(item) == cursor
     ]
     if len(compat) == 1:
@@ -4834,6 +4838,7 @@ def durable_terminal_by_cursor(s, result_cursor) -> dict | None:
             and last.get("status") in _TERMINAL_RESULT_STATUSES
             and (_cursor_value(last) == cursor
                  or (_cursor_value(last) is None
+                     and last.get("taskSeq") is not None
                      and _terminal_row_cursor(last) == cursor))):
         return dict(last)
     return None
@@ -4882,8 +4887,13 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
     - **任何已完成运行均可汇报**：正式 assign 任务与无 taskId 的普通对话/
       原生轮次走同一路径。无 taskId 时调用方必须以该运行的 ``taskSeq`` 或持久
       ``resultCursor`` 绑定具体运行（两者都经会话身份视图 ``terminalResults``
-      暴露，服务端正文权威）。三种运行身份都不提供 → 明确失败
-      （``no_run_identity``），绝不退化为“汇报最新终态”；``resultCursor``
+      暴露，服务端正文权威）。只有**可证明的持久运行身份**才构成绑定：非空
+      taskId、已存储的 taskSeq、或**正** resultCursor（生产只分配正游标；身份
+      视图给无身份旧行显示的 0 是派生兼容值）。三者都不提供 → 明确失败
+      （``no_run_identity``），绝不退化为“汇报最新终态”；≤0 的 resultCursor
+      按未提供处理（不能引用任何可证明运行，丢弃不会误绑）；解析出的终态若
+      无任何可证明身份 → 同样 ``no_run_identity`` 明确拒绝，不允许派生 0 把
+      无身份旧行解析成可投递运行（跨时间回执会因此串运行）。``resultCursor``
       与 ``taskId``/``taskSeq`` 同时提供却描述不同运行 → 明确失败
       （``run_mismatch``），不猜向任何一边。
     - **校验消息与运行的持久关联**：``messageId`` 必须正是该运行终态的
@@ -4937,6 +4947,14 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "no_report_target",
                       "message": "manager 会话不存在，无法汇报",
                       "retryable": False}
+    # A cursor at or below zero is not a durable run identity: production only
+    # allocates positive cursors, and the identity view's derived 0 for an
+    # identity-less row must never be submitted as a binding.  Dropping it
+    # cannot mis-bind (it references no provable run), so a request that also
+    # carries a legal identity still resolves through that identity.
+    if (isinstance(result_cursor, bool) or not isinstance(result_cursor, int)
+            or result_cursor <= 0):
+        result_cursor = None
     if task_id is None and task_seq is None and result_cursor is None:
         return None, {"code": "no_run_identity",
                       "message": "汇报必须绑定具体完成运行（taskId/taskSeq/resultCursor 之一），无法推断",
@@ -4965,6 +4983,18 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             return None, {"code": "no_task_result",
                           "message": "该任务的终态结果不可用，无法汇报",
                           "retryable": False}
+    run_task_id = terminal.get("taskId")
+    run_task_seq = terminal.get("taskSeq")
+    run_cursor = _cursor_value(terminal)
+    # Provable durable run identity is the delivery precondition: a terminal
+    # row with no taskId, no taskSeq and no positive raw cursor (legacy rows
+    # the identity view can only show as derived 0) must never become a
+    # deliverable run — its degenerate key would collide across runs.
+    if (not run_task_id and run_task_seq is None
+            and not (isinstance(run_cursor, int) and run_cursor > 0)):
+        return None, {"code": "no_run_identity",
+                      "message": "该终态没有可证明的持久运行身份，无法汇报",
+                      "retryable": False}
     tail_block = task_tail_block_id(s, terminal)
     if tail_block is None:
         return None, {"code": "block_unproven",
@@ -4974,10 +5004,7 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         return None, {"code": "block_mismatch",
                       "message": "提交的消息不是该任务的末块，无法汇报",
                       "retryable": False}
-    run_task_id = terminal.get("taskId")
-    run_task_seq = terminal.get("taskSeq")
-    key = manual_report_key(session_id, run_task_id, run_task_seq,
-                            terminal.get("resultCursor"))
+    key = manual_report_key(session_id, run_task_id, run_task_seq, run_cursor)
     async with queue_lock(manager.id):
         existing = _find_manual_report_receipt(manager, key)
         if existing is not None:
