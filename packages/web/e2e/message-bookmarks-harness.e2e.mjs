@@ -101,8 +101,10 @@ try {
   check('existing User tag gains the Bookmark suffix in place',
     JSON.stringify(labels.map((entry) => entry.label)) ===
       JSON.stringify(['User (Bookmark)', 'TA report', 'MA assign', 'System', 'MA msg']), JSON.stringify(labels));
-  check('no duplicate tag was added for the user block',
-    (await page.locator(`[data-message-id="${SESSION_A_USER}"] [data-bookmark-tag]`).count()) === 0);
+  check('no duplicate RAIL tag was added for the user block',
+    (await railLabels(page)).length === 5);
+  check('every bookmarked block carries the body bookmark tag',
+    (await page.locator(`[data-message-id="${SESSION_A_USER}"] [data-bookmark-tag]`).count()) === 1);
   check('mock annotates the 用户（书签）mapping',
     (await page.locator('[data-testid="rail-labels"]').textContent())?.includes('对应用户（书签）'));
 
@@ -140,22 +142,67 @@ try {
     (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa03"]').count()) === 0 &&
     (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa04"]').count()) === 0);
 
-  // 4c. An existing tag keeps its kind color; only the icon changes.  The
-  //     body adds no blue bar; the leftmost strip stays the only trigger.
+  // 4a. The whole content block is the hit area: clicking the content (far
+  //     from the left line) opens the same menu.
+  await page.locator(`[data-message-id="${SESSION_A_PLAIN}"] .msg.assistant`)
+    .click({ position: { x: 240, y: 8 } });
+  await page.locator('[data-bookmark-menu]').waitFor({ state: 'visible' });
+  check('clicking the content area (not the left line) opens the menu',
+    (await page.locator('[data-bookmark-action]').count()) === 1);
+  await page.keyboard.press('Escape');
+
+  // 4c. An existing tag keeps its kind color and gains a composite bookmark
+  //     icon (original glyph + bottom-right badge); the body adds no blue
+  //     bar; the leftmost trigger display stays on the strip ::before.
   const workerMarker = page.locator('[data-rail-marker="pan:1111111111111111111111111111aa05"]');
   const workerColorBefore = await workerMarker.evaluate((element) => getComputedStyle(element).color);
   await openMenu(page, 'pan:1111111111111111111111111111aa05');
   await page.locator('[data-bookmark-action="add"]').click();
   const workerColorAfter = await workerMarker.evaluate((element) => getComputedStyle(element).color);
-  check('existing tag keeps its kind color when bookmarked (icon only)',
+  check('existing tag keeps its kind color when bookmarked',
     workerColorBefore === workerColorAfter, `${workerColorBefore} -> ${workerColorAfter}`);
+  const composite = await page.evaluate((id) => {
+    const marker = document.querySelector(`[data-rail-marker="${id}"]`);
+    const badge = marker?.querySelector('.bookmark-icon-badge');
+    const glyph = marker?.querySelector('.message-navigation-marker-tag');
+    if (!marker || !badge || !glyph) return null;
+    const glyphBox = glyph.getBoundingClientRect();
+    const badgeBox = badge.getBoundingClientRect();
+    return {
+      glyphText: glyph.textContent,
+      // The badge overlays the original icon's bottom-right corner.
+      overlapsGlyph: badgeBox.left < glyphBox.right && badgeBox.top < glyphBox.bottom,
+      anchoredBottomRight: badgeBox.right >= glyphBox.right - 2 && badgeBox.bottom >= glyphBox.bottom - 2,
+      badgeColor: getComputedStyle(badge).color,
+      markerColor: getComputedStyle(marker).color,
+    };
+  }, 'pan:1111111111111111111111111111aa05');
+  check('bookmarked existing tag composites a bookmark badge over its own glyph',
+    composite !== null && composite.glyphText === 'Re' && composite.overlapsGlyph
+      && composite.anchoredBottomRight && composite.badgeColor === composite.markerColor,
+    JSON.stringify(composite));
   const bodyShadow = await page.locator('[data-message-id="pan:1111111111111111111111111111aa05"] .msg.assistant')
     .evaluate((element) => getComputedStyle(element).boxShadow);
   check('bookmarked body adds no blue bar over the role rail', bodyShadow === 'none', bodyShadow);
-  const stripBackground = await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa05"]')
-    .evaluate((element) => getComputedStyle(element).backgroundColor);
-  check('leftmost strip keeps the trigger-position display',
-    stripBackground !== 'rgba(0, 0, 0, 0)', stripBackground);
+  const triggerBackground = await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa05"]')
+    .evaluate((element) => getComputedStyle(element, '::before').backgroundColor);
+  check('leftmost trigger display stays on the strip ::before',
+    triggerBackground !== 'rgba(0, 0, 0, 0)', triggerBackground);
+
+  // 4d. The manual report button is consolidated into the same menu for
+  //     reportable blocks, next to the bookmark action.
+  await openMenu(page, 'pan:1111111111111111111111111111aa05');
+  const reportItem = page.locator('[data-manual-report="pan:1111111111111111111111111111aa05"]');
+  check('reportable block menu carries the manual report action',
+    (await reportItem.count()) === 1 && (await reportItem.textContent())?.includes('手动汇报'));
+  await reportItem.click();
+  check('reporting marks the block (mock demo state)',
+    (await page.locator('[data-manual-reported="true"]').count()) === 1);
+  await openMenu(page, 'pan:1111111111111111111111111111aa05');
+  check('reported block keeps a disabled 已汇报 menu entry',
+    await reportItem.evaluate((element) => element.disabled)
+      && (await reportItem.textContent())?.includes('已汇报'));
+  await page.keyboard.press('Escape');
   await openMenu(page, 'pan:1111111111111111111111111111aa05');
   await page.locator('[data-bookmark-action="remove"]').click();
 

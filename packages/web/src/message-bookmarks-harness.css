@@ -151,20 +151,18 @@
   border-color: color-mix(in srgb, var(--color-accent, #4f8cc9) 48%, var(--color-border-default));
 }
 
-/* A block's leftmost vertical line.  In production this is a CSS border with
-   no hit target of its own; the mock turns it into a clickable strip, which
-   is the interaction phase 2 must add.  The strip is the only body-level
-   bookmark affordance: no blue bar is painted over the role rail. */
-.bookmark-row {
+/* The hit area is the whole visible content block: the strip lives inside
+   the content element and covers it from just right of the vertical line to
+   the right edge.  The blue trigger display stays at the leftmost position
+   as the strip's ::before, so the body never grows a blue bar of its own. */
+.bookmark-row .msg.user,
+.bookmark-row .msg.assistant {
   position: relative;
 }
 
 .bookmark-rail-strip {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 14px;
+  inset: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -172,12 +170,24 @@
   z-index: 1;
 }
 
-.bookmark-rail-strip:hover,
-.bookmark-rail-strip[aria-expanded='true'] {
+.bookmark-rail-strip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: transparent;
+  transition: background .15s ease;
+  pointer-events: none;
+}
+
+.bookmark-rail-strip:hover::before,
+.bookmark-rail-strip[aria-expanded='true']::before {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 22%, transparent);
 }
 
-.bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip {
+.bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip::before {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 45%, transparent);
 }
 
@@ -198,6 +208,44 @@
   line-height: 1.35;
 }
 
+/* Manual-report demo state (the button moved into the block menu). */
+.bookmark-reported {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin: 0 0 3px 2px;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-success, #3fb950) 48%, var(--color-border-default, #2a2e35));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-success, #3fb950) 13%, var(--color-bg-secondary, #15181d));
+  color: var(--color-success, #3fb950);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+/* Composite bookmark decoration for an existing nav tag: original glyph with
+   a bookmark badge overlaid at the bottom-right, unified color. */
+.bookmark-icon-composite {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.bookmark-icon-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -5px;
+  color: inherit;
+  background: var(--color-bg-secondary, #15181d);
+  border-radius: 999px;
+  padding: 1px;
+  box-sizing: content-box;
+}
+
 /* Small anchor menu, styled after SessionMenu. */
 .bookmark-menu {
   position: fixed;
@@ -208,6 +256,12 @@
   border-radius: 6px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
   padding: 4px 0;
+}
+
+.bookmark-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-default, #2a2e35);
 }
 
 .bookmark-menu button {
@@ -226,6 +280,15 @@
 
 .bookmark-menu button:hover {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 20%, transparent);
+}
+
+.bookmark-menu button:disabled {
+  color: var(--color-text-tertiary, #9aa0a8);
+  cursor: default;
+}
+
+.bookmark-menu button:disabled:hover {
+  background: transparent;
 }
 
 .bookmark-readout ul {

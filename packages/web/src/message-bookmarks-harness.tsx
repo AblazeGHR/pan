@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Bookmark, BookmarkMinus, BookmarkPlus, ListTree, UserRound } from 'lucide-react';
+import { Bookmark, BookmarkMinus, BookmarkPlus, Check, ListTree, Send, UserRound } from 'lucide-react';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import './index.css';
 import './message-bookmarks-harness.css';
@@ -33,6 +33,8 @@ interface MockBlock {
   /** Existing message-navigation tag; null means the block has no nav tag. */
   navKind: NavKind | null;
   preview: string;
+  /** The real manual report binds to a task's tail block; the mock marks one. */
+  reportable?: boolean;
 }
 
 interface MockSession {
@@ -144,7 +146,7 @@ const SESSION_A: MockSession = {
       navKind: null, preview: 'Read(src/main.rs)' },
     { messageId: 'pan:1111111111111111111111111111aa05', role: 'assistant',
       content: '定位完成：越界发生在批量重命名的边界条件上。当待重命名列表在迭代中变化时，索引未重新校验。补丁已附在这个 block 之后。',
-      navKind: 'worker', preview: '定位完成：越界发生在批量重命名' },
+      navKind: 'worker', preview: '定位完成：越界发生在批量重命名', reportable: true },
     { messageId: 'pan:1111111111111111111111111111aa06', role: 'user',
       content: 'MA assign: 复盘本次定位过程，整理成可检索的 notes',
       navKind: 'maAssign', preview: 'MA assign: 复盘本次定位过程' },
@@ -214,11 +216,18 @@ function MarkerGlyph({ kind }: { kind: MarkerKind }) {
   return <span className="message-navigation-marker-tag">{KIND_META[kind].glyph}</span>;
 }
 
-/** A bookmark-decorated tag shows the bookmark icon; the kind glyph returns
-    only after the bookmark is removed. */
+/** A bookmark-decorated existing tag composites the bookmark over its own
+    glyph: original icon + bottom-right bookmark badge, unified color.  A new
+    bookmark tag (no original glyph) is just the bookmark icon. */
 function MarkerIcon({ kind, bookmarked }: { kind: MarkerKind; bookmarked: boolean }) {
-  if (bookmarked) return <Bookmark size={13} strokeWidth={2.4} />;
-  return <MarkerGlyph kind={kind} />;
+  if (kind === 'bookmark') return <Bookmark size={13} strokeWidth={2.4} />;
+  if (!bookmarked) return <MarkerGlyph kind={kind} />;
+  return (
+    <span className="bookmark-icon-composite" data-composite="true">
+      <MarkerGlyph kind={kind} />
+      <Bookmark className="bookmark-icon-badge" size={9} strokeWidth={2.8} />
+    </span>
+  );
 }
 
 interface Marker {
@@ -264,15 +273,29 @@ function buildMarkers(session: MockSession, envelope: Envelope): Marker[] {
   return markers;
 }
 
-function BlockRow({ block, bookmarked, bookmarkable, menuOpen, onOpenMenu }:
+function BlockRow({ block, bookmarked, bookmarkable, menuOpen, reported, onOpenMenu }:
   { block: MockBlock; bookmarked: boolean; bookmarkable: boolean;
-    menuOpen: boolean; onOpenMenu: (block: MockBlock) => void }) {
+    menuOpen: boolean; reported: boolean;
+    onOpenMenu: (block: MockBlock, point: { clientX: number; clientY: number }) => void }) {
   const sourceTag = block.navKind === 'worker' ? 'ta-report'
     : block.navKind === 'system' ? 'system'
     : block.navKind === 'maAssign' ? 'ma-assign' : null;
   const rowClass = block.role === 'user' ? 'message-row message-row-user'
     : block.role === 'system' ? 'system-message'
     : 'message-row message-row-assistant';
+  // The clickable area is the whole visible content block, from just right of
+  // the vertical line to the right edge; the blue trigger display stays at
+  // the leftmost position (see the strip ::before in the harness CSS).
+  const strip = bookmarkable ? (
+    <button
+      type="button"
+      className="bookmark-rail-strip"
+      data-bookmark-strip={block.messageId}
+      aria-label={`Bookmark menu: ${block.preview}`}
+      aria-expanded={menuOpen}
+      onClick={(event) => onOpenMenu(block, { clientX: event.clientX, clientY: event.clientY })}
+    />
+  ) : null;
   return (
     <div
       className={`${rowClass} ${sourceTag ? 'message-row-worker-report' : ''} bookmark-row px-3 sm:px-6 lg:px-8`}
@@ -280,19 +303,6 @@ function BlockRow({ block, bookmarked, bookmarkable, menuOpen, onOpenMenu }:
       data-bookmark-state={bookmarked ? 'on' : 'off'}
       data-nav-kind={block.navKind ?? 'none'}
     >
-      {/* The clickable leftmost line is the bookmark entry for bookmarked
-          content only: user messages and assistant text blocks.  Tool and
-          thinking rows have no bookmark entry, matching the backend scope. */}
-      {bookmarkable ? (
-        <button
-          type="button"
-          className="bookmark-rail-strip"
-          data-bookmark-strip={block.messageId}
-          aria-label={`Bookmark menu: ${block.preview}`}
-          aria-expanded={menuOpen}
-          onClick={() => onOpenMenu(block)}
-        />
-      ) : null}
       {sourceTag ? (
         <span className="worker-report-label" data-source-tag={sourceTag}>
           {SOURCE_TAG_LABELS[sourceTag]}
@@ -303,17 +313,30 @@ function BlockRow({ block, bookmarked, bookmarkable, menuOpen, onOpenMenu }:
           {block.content}
         </span>
       ) : block.role === 'user' ? (
-        <div className="msg user text-sm">{block.content}</div>
+        <div className="msg user text-sm">
+          {strip}
+          {block.content}
+        </div>
       ) : block.role === 'thinking' ? (
         <div className="thinking text-sm">{block.content}</div>
       ) : block.role === 'tool' ? (
         <div className="tool-group text-sm">{block.content}</div>
       ) : (
-        <div className="msg assistant text-sm leading-relaxed">{block.content}</div>
+        <div className="msg assistant text-sm leading-relaxed">
+          {strip}
+          {block.content}
+        </div>
       )}
-      {bookmarked && !block.navKind ? (
-        <span className="bookmark-tag" data-bookmark-tag="new">
+      {/* Every bookmarked block carries the body bookmark tag below it; the
+          rail keeps its own (decorated or new) tag without duplication. */}
+      {bookmarked ? (
+        <span className="bookmark-tag" data-bookmark-tag="body">
           <Bookmark size={11} /> Bookmark
+        </span>
+      ) : null}
+      {block.reportable && reported ? (
+        <span className="bookmark-reported" data-manual-reported="true">
+          <Check size={11} /> 已汇报
         </span>
       ) : null}
     </div>
@@ -347,6 +370,7 @@ function Harness() {
   // locked; a session switch never carries it over.
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
   const activeFromJumpRef = useRef(false);
+  const [reportedIds, setReportedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [, setTick] = useState(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -379,16 +403,14 @@ function Harness() {
   const markers = useMemo(() => buildMarkers(session, envelope), [session, envelope]);
   const isMobile = layout === 'mobile' || (layout === 'auto' && autoMobile.isMobile);
 
-  const openMenu = useCallback((block: MockBlock) => {
-    const strip = stageRef.current?.querySelector<HTMLElement>(
-      `[data-bookmark-strip="${block.messageId}"]`);
-    const rect = strip?.getBoundingClientRect();
-    const top = rect ? rect.top : 80;
-    const left = rect
-      ? Math.min(rect.right + 8, Math.max(8, window.innerWidth - 170))
-      : 80;
+  const openMenu = useCallback((block: MockBlock, point: { clientX: number; clientY: number }) => {
+    // The hit area is the whole content block, so the menu anchors at the
+    // click point instead of a fixed left-edge strip position.
     setMenuBlockId(block.messageId);
-    setMenuPos({ top, left });
+    setMenuPos({
+      top: Math.min(point.clientY + 8, Math.max(8, window.innerHeight - 130)),
+      left: Math.min(point.clientX + 8, Math.max(8, window.innerWidth - 180)),
+    });
   }, []);
 
   useEffect(() => {
@@ -503,6 +525,7 @@ function Harness() {
               bookmarked={block.messageId in envelope.bookmarks}
               bookmarkable={block.role === 'user' || block.role === 'assistant'}
               menuOpen={menuBlockId === block.messageId}
+              reported={reportedIds.has(block.messageId)}
               onOpenMenu={openMenu}
             />
           ))}
@@ -582,12 +605,14 @@ function Harness() {
               <li>可加书签范围：用户消息与 assistant 正文块；tool / thinking
                 块不加书签（后端同样拒绝，错误码
                 <code>message_not_bookmarkable</code>）。</li>
-              <li>正文块最左竖线（当前是 CSS border，无点击目标）增加命中区，
-                点击弹出 Add/Remove bookmark 菜单（本 mock 的 strip 即该交互）；
-                正文不新增蓝色条，最左 strip 只是触发位。</li>
-              <li>导航栏 marker：已有 tag 的块改用书签图标并加
-                “<code>&lt;Type&gt; (Bookmark)</code>”后缀，颜色/样式沿用原
-                tag；无 tag 的块新增书签 marker，按消息顺序插入，保持书签样式。</li>
+              <li>交互区域：正文内容块整块可点（竖线右侧到右缘），点击弹出
+                Add/Remove bookmark 菜单；最左侧竖线位置只保留蓝色触发显示，正文不加蓝条。</li>
+              <li>书签标识：所有书签块在下方显示 Bookmark tag；导航栏已有 tag 改用
+                合成图标（原图标 + 右下角书签角标，颜色沿用原 tag）并加
+                “<code>&lt;Type&gt; (Bookmark)</code>”后缀，不新增重复 tag；无 tag 的块
+                新增书签 marker，按消息顺序插入。</li>
+              <li>手动汇报：原正文 meta 行的手动汇报按钮收纳进可汇报块的同一 menu，
+                与书签操作并列（mock 为演示态；phase 2 与生产菜单同步落地）。</li>
               <li>流式中（未收敛、无持久 messageId）的块不可添加书签；删除或 reimport
                 后身份失效的书签保留在侧车文件中、不出现在投影里，并在 GET 的
                 <code>dangling</code> 中列出。</li>
@@ -613,6 +638,27 @@ function Harness() {
             {menuBookmarked ? <BookmarkMinus size={12} /> : <BookmarkPlus size={12} />}
             {menuBookmarked ? 'Remove bookmark' : 'Add bookmark'}
           </button>
+          {/* The manual report button moves out of the message meta row into
+              this menu for blocks that can be reported (mock demo state; the
+              real reporting happens in phase 2 with the production menu). */}
+          {menuBlock.reportable ? (
+            <>
+              <div className="bookmark-menu-divider" role="separator" />
+              <button
+                type="button"
+                role="menuitem"
+                data-manual-report={menuBlock.messageId}
+                disabled={reportedIds.has(menuBlock.messageId)}
+                onClick={() => {
+                  setReportedIds((previous) => new Set(previous).add(menuBlock.messageId));
+                  setMenuBlockId(null);
+                }}
+              >
+                {reportedIds.has(menuBlock.messageId) ? <Check size={12} /> : <Send size={12} />}
+                {reportedIds.has(menuBlock.messageId) ? '已汇报' : '手动汇报'}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
