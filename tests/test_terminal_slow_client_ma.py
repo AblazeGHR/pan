@@ -63,11 +63,13 @@ def test_real_slow_observer_does_not_stall_fast_connection_or_shell(tmp_path):
                 terminal_id = created.json()["result"]["terminal_id"]
                 original = service.get(terminal_id)
                 script, done = tmp_path / "produce.py", tmp_path / "done"
-                script.write_text("import sys,time\nfrom pathlib import Path\n"
+                script.write_text("import os,sys,time\nfrom pathlib import Path\n"
                                   "for i in range(60000):\n print(f'{i:06d}|'+('x'*80))\n"
                                   " if i%100==0: sys.stdout.flush(); time.sleep(.01)\n"
                                   "print('PRESSURE_FINAL_MARKER');sys.stdout.flush()\n"
-                                  "Path(sys.argv[1]).write_text('done')\n", encoding="utf-8")
+                                  "temporary=Path(sys.argv[1]+'.tmp')\n"
+                                  "temporary.write_text('done')\n"
+                                  "os.replace(temporary,sys.argv[1])\n", encoding="utf-8")
                 url = f"ws://127.0.0.1:{port}/ws/terminal/{terminal_id}"
                 async with websockets.connect(url, origin=origin, max_queue=1) as slow, \
                            websockets.connect(url, origin=origin) as fast:

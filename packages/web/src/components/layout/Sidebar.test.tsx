@@ -113,6 +113,8 @@ describe('Sidebar Session search controls', () => {
       </MemoryRouter>,
     );
 
+    // Finish React.lazy's actual module work before querying its rendered root.
+    await act(async () => { await vi.dynamicImportSettled(); });
     expect(await screen.findByText('CWD')).toBeTruthy();
     expect(screen.getByText('D:/project')).toBeTruthy();
     const cwdHeader = screen.getByTestId('editor-root-header');

@@ -71,6 +71,26 @@ def store(tmp_path) -> secret_store.SecretStore:
     return secret_store.SecretStore(tmp_path / "data")
 
 
+@windows_only
+@pytest.mark.parametrize('extended_first', [False, True])
+def test_guard_path_accepts_equivalent_extended_resolve_names(store, monkeypatch, extended_first):
+    # Python 3.14 resolve can alternate names while another process creates
+    # the directory. Both spellings refer to the identical resolved directory.
+    ordinary = store.secrets_dir.absolute()
+    extended = Path('\\\\?\\' + str(ordinary))
+    names = iter([extended, ordinary] if extended_first else [ordinary, extended])
+    monkeypatch.setattr(Path, 'resolve', lambda self: next(names))
+    store._guard_path(store.bootstrap_path('term_probe'))
+
+
+@windows_only
+def test_guard_path_still_rejects_different_resolved_parent(store, monkeypatch):
+    names = iter([store.root / 'elsewhere', store.secrets_dir])
+    monkeypatch.setattr(Path, 'resolve', lambda self: next(names))
+    with pytest.raises(secret_store.SecretSecurityError, match='escapes'):
+        store._guard_path(store.bootstrap_path('term_probe'))
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # DPAPI 往返 / 密文与明文
 # ══════════════════════════════════════════════════════════════════════════
