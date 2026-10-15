@@ -281,6 +281,11 @@ class Worker:
     # runtime guard prevents a second result/report for the same active turn;
     # the durable usage job below provides the restart-side idempotency cursor.
     _current_task_last_assistant_text: str | None = None
+    # Run identity (task seq) that produced ``_current_task_last_assistant_text``.
+    # Error reports may only attach the text when it provably belongs to the run
+    # being reported, so a stale capture from a previous turn can never leak into
+    # a queued item or a later run.
+    _current_task_last_assistant_seq: int | None = None
     _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
     _current_serialized: bytes | None = None
@@ -1782,6 +1787,8 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
     await _enqueue_report(
         w.session_id, terminal["status"], terminal["result"],
         terminal["taskId"], w.worker_id,
+        diagnostic=_error_report_diagnostic(
+            w, terminal["status"], terminal.get("taskSeq")),
     )
     _finish_terminal_bookkeeping(w, terminal)
 
@@ -1983,6 +1990,7 @@ async def _read_stdout(w: Worker):
                     w._claimed_queue_index = None
                     w._current_task_assistant_ids.clear()
                     w._current_task_last_assistant_text = ""
+                    w._current_task_last_assistant_seq = None
                     w.status = "running"
                     await _sess.save_async(s)
                     await _record_legal_worker_state(w, "running", "native/turn-started")
@@ -2063,6 +2071,7 @@ async def _read_stdout(w: Worker):
                         w._current_task_assistant_ids.add(b["messageId"])
                         if isinstance(b.get("content"), str) and b["content"].strip():
                             w._current_task_last_assistant_text = b["content"]
+                            w._current_task_last_assistant_seq = w._current_seq
                 # A1 防抖：append 只标记 dirty，由防抖任务批量落盘（不逐块全量 save）
                 _mark_history_dirty(w)
 
@@ -2105,8 +2114,12 @@ async def _read_stdout(w: Worker):
             # paired with this turn's queue item, never with a global/previous
             # task id.
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
+            # error 报告从本 run 的已知捕获附最后一条有用消息（result 空时
+            # 保住 429 原因/重置时间，result 已有错误时保留上下文）。
             await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
-                                  terminal["taskId"], w.worker_id)
+                                  terminal["taskId"], w.worker_id,
+                                  diagnostic=_error_report_diagnostic(
+                                      w, terminal["status"], terminal.get("taskSeq")))
             was_native = w._native_external_turn_active
             w._native_external_turn_active = False
             _finish_terminal_bookkeeping(w, terminal)
@@ -2961,6 +2974,21 @@ def _format_report_batch(reports: list[dict]) -> str:
         lines += [
             "result:",
             _field_value(r.get("result")),
+        ]
+        # error 报告的最后消息上下文（仅 error 出口写入这些字段；旧/成功/取消
+        # 报告行没有它们，正文逐字节不变）。缺失时明确标注，避免 MA 把
+        # 「本轮无消息」误读成「诊断丢失」。
+        if "lastMessage" in r or "lastMessageRole" in r:
+            last_message = r.get("lastMessage")
+            if isinstance(last_message, str) and last_message.strip():
+                lines.append(
+                    f"lastMessageRole: {_field_value(r.get('lastMessageRole'))}")
+                lines += ["lastMessage:", last_message]
+                if r.get("lastMessageTruncated"):
+                    lines.append("lastMessageTruncated: true")
+            else:
+                lines.append("lastMessage: (no diagnostics available)")
+        lines += [
             f"sessionId: {_field_value(r.get('sessionId'))}",
             f"taskId: {_field_value(r.get('taskId'))}",
             f"workerId: {_field_value(r.get('workerId'))}",
@@ -4192,6 +4220,10 @@ def _delivery_key(item: dict) -> str:
         "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
         "queueItemId", "receiptAt", "deliveredAt", "deletedAt",
         "position", "revision",
+        # Last-message context is a derived annotation of the same report, not
+        # report identity: adding/upgrading it must not change the receipt key
+        # of a report that a previous version already delivered.
+        "lastMessage", "lastMessageRole", "lastMessageTruncated",
     }
     if item.get("type") == "task":
         return f"task:{_queue_item_id(item)}"
@@ -4218,6 +4250,9 @@ def _delivery_key_matches(key: str, item: dict) -> bool:
     legacy_bookkeeping = {
         "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
         "deliveryAttempts", "nextAttemptAt", "lastDeliveryError", "queueItemId",
+        # Rows written before the last-message context existed never hashed
+        # these derived fields.
+        "lastMessage", "lastMessageRole", "lastMessageTruncated",
     }
     identity = {k: v for k, v in item.items() if k not in legacy_bookkeeping}
     if "dispatchState" in identity:
@@ -4584,9 +4619,66 @@ async def _claim_pending_task_locked(w: Worker, task_id: str | None) -> dict | N
     return item
 
 
+_REPORT_LAST_MESSAGE_MAX_CHARS = 1200
+
+
+def _error_report_diagnostic(
+    w: Worker, status: str, run_seq: int | None = None,
+) -> dict | None:
+    """Diagnostic fields for an error completion report, or None when N/A.
+
+    An error terminal can carry an empty (or only generic) ``result`` while the
+    run's final assistant message held the real diagnosis — e.g. an explicit 429
+    with the reset time.  Capture that text for the report so the manager can
+    see why the turn failed.
+
+    Provenance is the run, never a guess: the text is only read from the
+    worker's in-memory per-task capture (set from this run's assistant blocks
+    and cleared when a task hand-off starts), plus the recorded task seq, so a
+    stale message from a previous turn can never attach to this report.
+
+    ``run_seq`` identifies the run whose terminal is being reported.  Callers
+    without a run identity (zombie paths) pass None: the capture is then only
+    accepted while the worker is actually running the turn that produced it; a
+    queued item or an idle worker has no message of its own.
+
+    Returns None for non-error statuses (done/cancelled stay untouched) and a
+    field dict otherwise — with explicit ``None`` text when no message was
+    captured, so the rendered report can state that no diagnostics are
+    available instead of silently looking like a lost one.
+    """
+    if status != "error":
+        return None
+    text = w._current_task_last_assistant_text
+    seq = w._current_task_last_assistant_seq
+    if run_seq is None:
+        run_seq = w._current_seq if w.status == "running" else None
+    if not (isinstance(text, str) and text.strip()
+            and seq is not None and run_seq is not None and seq == run_seq):
+        return {
+            "lastMessageRole": None,
+            "lastMessage": None,
+            "lastMessageTruncated": False,
+        }
+    text = text.strip()
+    truncated = len(text) > _REPORT_LAST_MESSAGE_MAX_CHARS
+    if truncated:
+        # Keep both ends: the reason usually leads and the reset time trails.
+        half = _REPORT_LAST_MESSAGE_MAX_CHARS // 2
+        text = (f"{text[:half].rstrip()}\n"
+                f"...[truncated {len(text)} chars]...\n"
+                f"{text[-half:].lstrip()}")
+    return {
+        "lastMessageRole": "assistant",
+        "lastMessage": text,
+        "lastMessageTruncated": truncated,
+    }
+
+
 async def _enqueue_report(session_id: str, status: str, result: str,
                           task_id: str | None, worker_id: str,
-                          report_type: str | None = None):
+                          report_type: str | None = None,
+                          diagnostic: dict | None = None):
     """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
     manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
 
@@ -4596,6 +4688,9 @@ async def _enqueue_report(session_id: str, status: str, result: str,
 
     report_type：附加的语义标记（如 "zombie"）。非 None 时在报告 dict 里写入
     "type" 字段，供 manager 区分异常死亡与正常完成。
+
+    diagnostic：``_error_report_diagnostic`` 的返回值。非 None 时把最后消息
+    上下文写进报告行（仅 error 出口传入；成功/取消路径不改变正文）。
 
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
@@ -4630,6 +4725,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     item["queueItemId"] = item["id"]
     if report_type is not None:
         item["type"] = report_type
+    if diagnostic is not None:
+        item.update(diagnostic)
     async with queue_lock(manager.id):
         if (getattr(manager, "agent_reports_paused", False)
                 and _is_pauseable_agent_report(item)):
@@ -5252,7 +5349,8 @@ async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
     w._zombie_reported = True
     task_id = w._current_task_id
     await _enqueue_report(w.session_id, "error", f"worker died: {reason}",
-                          task_id, w.worker_id, report_type="zombie")
+                          task_id, w.worker_id, report_type="zombie",
+                          diagnostic=_error_report_diagnostic(w, "error"))
     # A hand-off-complete task has no queue row to recover.  Clear its
     # persisted context after emitting the exact zombie report; an unfinished
     # queue row remains the active retry context for the replacement Worker.
@@ -5765,6 +5863,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         # to this queue item's taskSeq.
         async def write_input():
             w._current_task_last_assistant_text = None
+            w._current_task_last_assistant_seq = None
             w._current_task_assistant_ids.clear()
             w._terminal_handled = False
             written = w.process.stdin.write(w._current_serialized)
@@ -5895,6 +5994,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     if w.status == "restarting" or (w.pending_restart and w.status in {"idle", "queued"}):
         return
     w._current_task_last_assistant_text = None
+    w._current_task_last_assistant_seq = None
     w._current_task_assistant_ids.clear()
     w._terminal_handled = False
     standalone_items = []
@@ -6161,6 +6261,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             w._current_task_assistant_ids.add(block["messageId"])
             if isinstance(block.get("content"), str) and block["content"].strip():
                 w._current_task_last_assistant_text = block["content"]
+                w._current_task_last_assistant_seq = w._current_seq
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
     if result_event is not None and adapter.is_result_error(result_event):
@@ -6213,7 +6314,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     await _publish_terminal_events(w, terminal, s)
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
     await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
-                          terminal["taskId"], w.worker_id)
+                          terminal["taskId"], w.worker_id,
+                          diagnostic=_error_report_diagnostic(
+                              w, terminal["status"], terminal.get("taskSeq")))
     _finish_terminal_bookkeeping(w, terminal)
 
 
