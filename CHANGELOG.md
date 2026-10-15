@@ -14,6 +14,7 @@
 ### Changed
 
 - **React-only 前端**：退役并归档 Vanilla 前端，根路径固定跳转 `/react/`；移除 `/vanilla` 路由和 `frontend` 配置，React 构建缺失时返回 503。
+- **Windows 系统通知升级为真实 toast**：完成通知与提醒改用 WinRT toast 并录入 Windows 通知中心（Action Center）持久保留；点击「打开会话」按钮由默认浏览器打开对应 Session 深链，发送进程退出后仍可点击。替换原 NotifyIcon balloon（不进入通知中心、仅 60 秒内可点）。同一 Session 的完成通知按 Tag 替换、重复提醒按内容去重；不注册自定义协议或快捷方式。
 
 ## [0.3.0] - 2026-09-03
 

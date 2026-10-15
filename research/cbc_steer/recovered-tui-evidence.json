@@ -1,0 +1,35 @@
+{
+  "recovered": true,
+  "sessionId": "3338ac56-cc78-4e5f-9eef-3b646241d5dc",
+  "conversationRequestId": "01a14070e9b876f4bd80a450fbbdaf39",
+  "cliVersion": "2.164.0",
+  "rootPidFromDedicatedLog": 43444,
+  "rootCreationFiletime": null,
+  "sameRunConsumed": true,
+  "startsNewUserRequest": false,
+  "persistentSteerMessageId": "01a14070-fa46-7f84-beb1-17f6d3d99985",
+  "persistentAssistantMessageId": "01a14071-3643-7b67-95ff-3b3bb683d3b3",
+  "finalAssistantText": "TUI_STEER_CONSUMED_73",
+  "nativeHistoryPath": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\research\\cbc_steer\\tui-isolated-7b0d8ed5c8\\profile\\projects\\d-project-pan-worktrees-cbc-steer-20261016-research-cbc_steer-tui-isolated-7b0d8ed5c8-cwd\\3338ac56-cc78-4e5f-9eef-3b646241d5dc.jsonl",
+  "originalJobStatus": "failed",
+  "failure": "BackendCloseError: root retained handle not yet confirmed dead when close was called",
+  "lostEvidence": [
+    "retained root FILETIME summary",
+    "observer hook event summary",
+    "terminal raw output"
+  ],
+  "dedicatedLogObservedPids": [
+    16260,
+    24008,
+    36888,
+    37400,
+    37696,
+    40788,
+    43444,
+    46188
+  ],
+  "currentlyLiveObservedPids": [],
+  "rootCurrentlyAbsent": true,
+  "modelRerun": false,
+  "cleanupClaim": "original stack proves terminate_tree returned no remaining members before close; no successful close report was persisted"
+}

@@ -28,7 +28,7 @@ Tools exposed:
     - agent_task: Send a task to an agent (auto-spawns if no live worker)
     - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
     - agent_send: Send a message to an agent (queued; no live worker → pending queue)
-    - agent_send_force: Force-push to an agent (restart + send; no live worker → queue)
+    - agent_send_force: Urgent delivery (capability-routed Steer first, otherwise restart; no worker → queue)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
     - notification_send: Send a Pan system notification to self or managed session
@@ -1628,7 +1628,7 @@ def agent_send(session_id: str, text: str = "") -> dict:
     **仅用于非即时发送**：消息入队排队，目标空闲（当前任务完成后）才处理，
     不打断进行中的任务。
     若消息需要立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
-    → 必须用 `agent_send_force`（restart+send）。
+    → 必须用 `agent_send_force`（按能力 Steer 优先；无能力才 restart+send）。
 
     无活 worker 时**不报错**——消息入该 agent 的持久队列（返回含
     pendingSpawn=true），由全局 watchdog 自动 spawn worker 后分发
@@ -1683,46 +1683,35 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
 
 @mcp.tool()
-def agent_send_force(session_id: str, text: str = "") -> dict:
-    """Force-push a message to an agent: restart the worker, then send.
+def agent_send_force(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
+    """Urgent instruction/correction: capability-routed Steer first, otherwise restart+send.
 
-    强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
-    agent_send 消息无法送达时的兜底。先终止并重新 spawn worker 进程，
-    再发送消息，保证消息能送达。
-    需要打断或立即送达的时效性消息（操作约束、方向变更、紧急指令）直接用它；
-    仅补充信息、可排队等待的用 `agent_send`。
-
-    无活 worker 时**不报错**——restart 无从谈起，消息入该 agent 的持久队列，
-    由全局 watchdog 自动 spawn 后分发。
-
-    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。重启后的
-    入队同样继承目标 Session 的活动 taskId；该值只用于 report 配对，不新增
-    业务编号。
+    需要即时响应、运行中补充或纠正时用本工具；普通 agent_send 只用于允许
+    等当前任务结束的消息。支持 Steer 的 active stream 即时尝试原生 admission，
+    idle 时普通 consumer handoff，无能力才 restart+send。无 Worker 时持久入队。
+    delayed restart、Pause everything、锁和编辑租约优先；不能保证绕过这些门禁。
+    accepted 仅为 CLI 接受，不代表模型已消费；queued/rejected/unknown 如实返回。
+    rejected/unknown 不自动降级 restart。unknown 禁止重发；client_message_id
+    可稳定标识同一事务，重试不得换 ID。自动附加 ////by agent，保留原 task 归属。
 
     Args:
         session_id: Agent（= session）ID
         text: Task text / prompt
-
-    调用链：隔离检查 → 有活 worker 时 restart 端点 + POST /api/task；无活
-    worker 时 POST /api/send 入队。restart 或 send 任一失败均返回含后端
-    error 信息的错误 dict，不吞错。
+        client_message_id: Stable transaction ID; reuse for reconciliation, never replay unknown input.
     完整编排流程见 /pan skill。
     """
     text = _agent_message_prefix(text)
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    # The session route atomically chooses restart vs start.  workerId is
-    # deliberately not resolved here; it is a backend runtime detail.
-    result = _api("POST", f"/api/sessions/{session_id}/worker/restart")
-    if not isinstance(result, dict) or result.get("error"):
-        return result
     caller = _caller_identity()
     body = {"sessionId": session_id, "text": text, "source": "agent",
-            "inheritTaskId": True}
+            "force": True}
+    if client_message_id is not None:
+        body["clientMessageId"] = client_message_id
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
-    return _api("POST", "/api/task", body)
+    return _api("POST", "/api/send", body)
 
 
 @mcp.tool()
@@ -2600,11 +2589,11 @@ def worker_send(worker_id: str | None = None, text: str = "",
 
 @mcp.tool()
 def worker_send_force(worker_id: str | None = None, text: str = "",
-                      session_id: str | None = None) -> dict:
+                      session_id: str | None = None, client_message_id: str | None = None) -> dict:
     """DEPRECATED alias — prefer agent_send_force(session_id, text).
 
     Compat alias of `agent_send_force` for session_id calls (delegates to
-    the same implementation: restart + send; no live worker → pending
+    the same implementation: capability-routed Steer first; no live worker → pending
     queue). The legacy `worker_id` addressing path is kept here only.
     Identity prefix (////by agent) identical to `agent_send_force`.
 
@@ -2613,29 +2602,17 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
         session_id: Session ID (delegates to agent_send_force)
         text: Task text / prompt
 
+        client_message_id: Stable force-send transaction ID; do not resend unknown outcomes.
+
     完整编排流程见 /pan skill。
     """
     if worker_id:
-        # 遗留路径：worker_id 寻址，行为不变
-        text = _agent_message_prefix(text)
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
-        denied = _check_access(target_sid, claim=True)
-        if denied:
-            return denied
-        # 1) 重启 worker 进程（失败直接返回后端错误）
-        result = _api("POST", f"/api/worker/{worker_id}/restart")
-        if not isinstance(result, dict) or result.get("error"):
-            return result
-        # 2) 发送消息（与 agent_send 相同）
-        caller = _caller_identity()
-        body = {"workerId": worker_id, "text": text, "source": "agent"}
-        if caller and caller.get("id"):
-            body["sourceSessionId"] = caller["id"]
-        return _api("POST", "/api/task", body)
+        return agent_send_force(target_sid, text, client_message_id)
     if session_id:
-        return agent_send_force(session_id=session_id, text=text)
+        return agent_send_force(session_id=session_id, text=text, client_message_id=client_message_id)
     return {"ok": False, "error": {
         "code": "missing_params",
         "message": "session_id or worker_id is required"}}

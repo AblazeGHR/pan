@@ -1,0 +1,129 @@
+{
+  "reviewedCommit": "8f68b76d5734ce661b1aaf9369e248d26a98392a",
+  "productSourceChanged": false,
+  "batches": {
+    "venv-review-red": {
+      "xml": "venv-review-red.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "2",
+      "skipped": "0",
+      "tests": "76",
+      "time": "12.270",
+      "timestamp": "2026-10-16T00:36:28.652656+08:00",
+      "hostname": "ablaze",
+      "failuresObserved": [
+        {
+          "test": "test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-independent]",
+          "message": "AssertionError: assert 'starting' == 'UNKNOWN'\n  \n  - UNKNOWN\n  + starting"
+        },
+        {
+          "test": "test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication",
+          "message": "AssertionError: assert 0\n +  where 0 = <_FuncPtr object at 0x0000020AA04E09B0>(1252, 1)\n +    where <_FuncPtr object at 0x0000020AA04E09B0> = <WinDLL 'kernel32', handle 7ffa1b9b0000 at 0x20aa04a6d50>.TerminateProcess"
+        }
+      ]
+    },
+    "venv-review-focused": {
+      "xml": "venv-review-focused.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "22",
+      "time": "10.563",
+      "timestamp": "2026-10-16T00:38:37.127711+08:00",
+      "hostname": "ablaze",
+      "failuresObserved": []
+    },
+    "venv-review-green": {
+      "xml": "venv-review-green.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "94",
+      "time": "26.167",
+      "timestamp": "2026-10-16T00:39:37.529746+08:00",
+      "hostname": "ablaze",
+      "failuresObserved": [],
+      "invocationArgv": [
+        "D:/project/Pan/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan/.venv/Scripts/python.exe",
+        "-c",
+        "import os,pytest; os.environ['PAN_TEST_LIFECYCLE_VENV']='D:/project/Pan/.venv/Scripts/python.exe'; os.environ['PAN_TEST_LIFECYCLE_EVIDENCE']='audit/job-lifecycle-prevention/venv-review-green.jsonl'; raise SystemExit(pytest.main(['tests/test_job_lifecycle_prevention.py', 'tests/test_background_jobs.py', 'tests/test_job_cleanup_failures.py', 'tests/test_job_hidden_production.py', 'tests/test_job_runner_venv.py', '-q', '--tb=short', '--junitxml=audit/job-lifecycle-prevention/venv-review-green.xml']))"
+      ],
+      "ownedReceipts": 20,
+      "publicationOwners": [
+        {
+          "runtime": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "profile": "base",
+          "spawnPid": 36300,
+          "spawnFiletime": "134365559848456073",
+          "actualRunnerPid": 36300,
+          "actualRunnerFiletime": "134365559848456073",
+          "cancelled": true,
+          "retainedAllDead": true,
+          "desktopGone": true
+        },
+        {
+          "runtime": "D:/project/Pan/.venv/Scripts/python.exe",
+          "profile": "venv",
+          "spawnPid": 44872,
+          "spawnFiletime": "134365559856409140",
+          "actualRunnerPid": 42100,
+          "actualRunnerFiletime": "134365559856640298",
+          "cancelled": true,
+          "retainedAllDead": true,
+          "desktopGone": true
+        }
+      ]
+    },
+    "base-review-green": {
+      "xml": "base-review-green.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "94",
+      "time": "24.971",
+      "timestamp": "2026-10-16T00:40:10.629328+08:00",
+      "hostname": "ablaze",
+      "failuresObserved": [],
+      "invocationArgv": [
+        "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+        "-c",
+        "import os,pytest; os.environ['PAN_TEST_LIFECYCLE_VENV']='D:/project/Pan/.venv/Scripts/python.exe'; os.environ['PAN_TEST_LIFECYCLE_EVIDENCE']='audit/job-lifecycle-prevention/base-review-green.jsonl'; raise SystemExit(pytest.main(['tests/test_job_lifecycle_prevention.py', 'tests/test_background_jobs.py', 'tests/test_job_cleanup_failures.py', 'tests/test_job_hidden_production.py', 'tests/test_job_runner_venv.py', '-q', '--tb=short', '--junitxml=audit/job-lifecycle-prevention/base-review-green.xml']))"
+      ],
+      "ownedReceipts": 20,
+      "publicationOwners": [
+        {
+          "runtime": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+          "profile": "base",
+          "spawnPid": 44760,
+          "spawnFiletime": "134365560186049167",
+          "actualRunnerPid": 44760,
+          "actualRunnerFiletime": "134365560186049167",
+          "cancelled": true,
+          "retainedAllDead": true,
+          "desktopGone": true
+        },
+        {
+          "runtime": "D:/project/Pan/.venv/Scripts/python.exe",
+          "profile": "venv",
+          "spawnPid": 38764,
+          "spawnFiletime": "134365560195001445",
+          "actualRunnerPid": 13664,
+          "actualRunnerFiletime": "134365560195267686",
+          "cancelled": true,
+          "retainedAllDead": true,
+          "desktopGone": true
+        }
+      ]
+    }
+  }
+}

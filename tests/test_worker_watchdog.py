@@ -19,6 +19,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import worker, session as _sess
+from packages.core import config as _config
 from packages.core.adapters import CbcAdapter
 
 
@@ -26,6 +27,18 @@ def _cleanup():
     worker.workers.clear()
     _sess._cache.clear()
     worker.set_broadcaster(None)
+
+
+def _use_kill_report_config(monkeypatch, tmp_path, ui):
+    """Point the config module at a temp config.json carrying ``ui``.
+
+    ``ui`` is written verbatim, so a missing ``reportWorkerKillErrors`` key
+    exercises the old-config (default-off) path through the real
+    ``load_config()`` deep merge.
+    """
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps({"ui": ui}), encoding="utf-8")
+    monkeypatch.setattr(_config, "CONFIG_FILE", cfg_path)
 
 
 def _setup_session(sid="ses_test"):
@@ -425,10 +438,11 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     _cleanup()
 
 
-def test_explicit_kill_running_worker_reports_inflight_task(monkeypatch):
+def test_explicit_kill_running_worker_reports_inflight_task(monkeypatch, tmp_path):
     """An explicit kill must leave one durable report for the active task."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _use_kill_report_config(monkeypatch, tmp_path, {"reportWorkerKillErrors": True})
 
     async def no_wake(_session_id):
         return None
@@ -465,10 +479,11 @@ def test_explicit_kill_running_worker_reports_inflight_task(monkeypatch):
     _cleanup()
 
 
-def test_explicit_kill_does_not_duplicate_existing_zombie_report(monkeypatch):
+def test_explicit_kill_does_not_duplicate_existing_zombie_report(monkeypatch, tmp_path):
     """A watchdog report followed by explicit cleanup remains single-shot."""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _use_kill_report_config(monkeypatch, tmp_path, {"reportWorkerKillErrors": True})
 
     async def no_wake(_session_id):
         return None
@@ -510,6 +525,134 @@ def test_explicit_kill_idle_worker_keeps_no_zombie_report(monkeypatch):
     asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
 
     assert mgr.queue_pending == []
+    _cleanup()
+
+
+def test_explicit_kill_default_config_no_zombie_report(monkeypatch, tmp_path):
+    """旧配置缺省开关 → 用户 Kill 不报 zombie；kill 执行与任务清理不变。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _use_kill_report_config(monkeypatch, tmp_path, {})  # 缺 reportWorkerKillErrors 键
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="running")
+    w._current_task_id = "task-killed"
+    worker._task_status["task-killed"] = {
+        "status": "pending", "workerId": w.worker_id,
+    }
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    result = asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
+
+    assert result is None
+    assert mgr.queue_pending == []  # 无用户 Kill 报告
+    assert w.worker_id not in worker.workers  # kill 仍真实执行
+    assert worker._task_status["task-killed"]["status"] == "error"  # 任务清理不变
+    _cleanup()
+
+
+def test_explicit_kill_report_disabled_no_zombie_report(monkeypatch, tmp_path):
+    """显式关闭 → 用户 Kill running/queued Worker 均不报 zombie。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _use_kill_report_config(monkeypatch, tmp_path, {"reportWorkerKillErrors": False})
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="queued")
+    w._current_task_id = "task-queued"
+    worker._task_status["task-queued"] = {
+        "status": "pending", "workerId": w.worker_id,
+    }
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
+
+    assert mgr.queue_pending == []
+    _cleanup()
+
+
+def test_explicit_kill_report_enabled_reports_zombie(monkeypatch, tmp_path):
+    """显式开启 → 用户 Kill 恢复 zombie 报告（现行为）。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _use_kill_report_config(monkeypatch, tmp_path, {"reportWorkerKillErrors": True})
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="running")
+    w._current_task_id = "task-killed"
+    worker._task_status["task-killed"] = {
+        "status": "pending", "workerId": w.worker_id,
+    }
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
+
+    assert len(mgr.queue_pending) == 1
+    assert mgr.queue_pending[0]["type"] == "zombie"
+    assert mgr.queue_pending[0]["result"] == "worker died: worker killed"
+    _cleanup()
+
+
+def test_user_kill_switch_off_leaves_abnormal_death_reports(monkeypatch, tmp_path):
+    """开关关闭只抑制用户 Kill 报告；异常死亡（EOF 路径）仍按原语义上报。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _use_kill_report_config(monkeypatch, tmp_path, {"reportWorkerKillErrors": False})
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="running")
+
+    asyncio.run(worker._enqueue_zombie_report(w, "process exited (returncode=1)"))
+
+    assert len(mgr.queue_pending) == 1
+    assert mgr.queue_pending[0]["result"] == "worker died: process exited (returncode=1)"
+    _cleanup()
+
+
+def test_session_kill_entry_respects_report_switch(monkeypatch, tmp_path):
+    """session kill 入口（web session kill / MCP agent_kill 共用）遵循开关。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _use_kill_report_config(monkeypatch, tmp_path, {})  # 缺省 → 关
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="queued")
+    w._current_task_id = "task-queued"
+    worker._task_status["task-queued"] = {
+        "status": "pending", "workerId": w.worker_id,
+    }
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    result = asyncio.run(worker.kill_session_worker("ses_child", report_abnormal=True))
+
+    assert result is w  # 成功时返回被 kill 的 Worker（无错误串）
+    assert mgr.queue_pending == []
+    assert w.worker_id not in worker.workers
+    assert worker._task_status["task-queued"]["status"] == "error"
     _cleanup()
 
 

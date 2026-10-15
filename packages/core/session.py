@@ -3531,6 +3531,7 @@ def handoff_session(
         new_permission_mode = permission_mode or a.permission_mode
         new_adapter_config = copy.deepcopy(a.adapter_config)
         new_adapter_config.pop("cli_session_id", None)  # B 是全新会话，不继承 A 的 CLI 上下文
+        new_adapter_config.pop("_steer_requests", None)  # Receipts belong only to the original Session/run.
         new_pan_access = copy.deepcopy(dict(a.pan_access))
         new_character_id = a.character_id
         new_template = a.session_template

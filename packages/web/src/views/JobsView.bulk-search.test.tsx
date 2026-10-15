@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import JobsView from './JobsView';
+import { useJobStore } from '@/stores/jobStore';
 import type { Job, JobKind } from '@/types/jobs';
 
 const api = vi.hoisted(() => ({
@@ -164,6 +165,10 @@ describe('JobsView search, status filters, and bulk actions', () => {
   afterEach(() => {
     cleanup();
     wsHandlers.clear();
+    // The job list now lives in the shared store; isolate it per test.
+    useJobStore.setState({
+      jobs: [], loaded: false, loading: false, error: null, pinMetadataUnavailable: false,
+    });
   });
 
   it('keeps a pin through lifecycle events and restores ordinary ordering after unpin', async () => {
@@ -176,7 +181,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(names()).toEqual(['Pinned reminder', 'Running process']);
     const { pinned: ignored, ...eventJob } = pinned;
     expect(ignored).toBe(true);
-    act(() => wsHandlers.get('job.updated')?.({ job: { ...eventJob, updatedAt: 99 } }));
+    act(() => useJobStore.getState().upsertJob({ ...eventJob, updatedAt: 99 }));
     expect(screen.getByLabelText('Pinned')).toBeTruthy();
     expect(names()).toEqual(['Pinned reminder', 'Running process']);
     fireEvent.click(screen.getAllByRole('button', { name: 'Job actions' })[0]!);
@@ -215,7 +220,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     await screen.findByText('Cached pin');
     expect(screen.getAllByLabelText('Pinned')).toHaveLength(2);
     await screen.findAllByLabelText('Pinned');
-    act(() => wsHandlers.get('job.updated')?.({ job: { ...pinned, pinned: null, pinMetadataStatus: 'unavailable' } }));
+    act(() => useJobStore.getState().upsertJob({ ...pinned, pinned: null, pinMetadataStatus: 'unavailable' }));
     expect(screen.queryByLabelText('Pinned')).toBeNull();
     expect(screen.getByRole('status').textContent).toContain('Pin states are unknown');
   });
@@ -606,8 +611,8 @@ describe('JobsView search, status filters, and bulk actions', () => {
     selectAllVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Delete selected (3)' }));
 
-    await waitFor(() => expect(wsHandlers.has('job.deleted')).toBe(true));
-    act(() => wsHandlers.get('job.deleted')?.({ jobId: 'delete-ws' }));
+    // A deletion elsewhere arrives through the shared store (global WS wiring).
+    act(() => useJobStore.getState().removeJob('delete-ws'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete selected jobs' });
     expect(dialog.textContent).toContain('Delete 2 selected jobs?');
 

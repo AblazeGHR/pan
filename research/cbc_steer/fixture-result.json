@@ -1,0 +1,35 @@
+{
+  "fixture": true,
+  "accepted": {
+    "session_id": "fixture-session",
+    "steered": true
+  },
+  "stale": {
+    "session_id": "fixture-session",
+    "steered": false,
+    "reason": "stale"
+  },
+  "idle": {
+    "session_id": "fixture-session",
+    "steered": false,
+    "reason": "idle"
+  },
+  "acpAccepted": {
+    "steered": true,
+    "ownerRequestId": "run-A"
+  },
+  "serverAccepted": {
+    "steered": true,
+    "runId": "run-A",
+    "messageIds": [
+      "server-fixture-id"
+    ]
+  },
+  "pushCountAfterDuplicate": 2,
+  "checks": 29,
+  "bufferStaleDiscard": true,
+  "injectionBuild": true,
+  "historyAfterAdmissionOnly": true,
+  "sameSessionObject": true,
+  "modelsCalled": 0
+}

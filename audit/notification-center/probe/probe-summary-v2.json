@@ -1,0 +1,26 @@
+{
+  "aumid": "Pan.NotificationsProbe",
+  "port": 63711,
+  "toastXml": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<toast launch=\"http://127.0.0.1:63711/react/?session=ses_probe_click\">\n  <visual>\n    <binding template=\"ToastGeneric\">\n      <text>Pan: E2E probe session completed</text>\n      <text>NCTEST click the button; browser should open the loopback URL</text>\n    </binding>\n  </visual>\n  <actions>\n    <action activationType=\"protocol\" arguments=\"http://127.0.0.1:63711/react/?session=ses_probe_click\" content=\"Open session\"/>\n  </actions>\n</toast>\n",
+  "toast": {
+    "returncode": 0,
+    "stdout": "{\"ok\":true,\"method\":\"winrt.toast\"}",
+    "stderr": ""
+  },
+  "dbRow": {
+    "Order": 4012,
+    "Id": 41050,
+    "Tag": "e2e-ses_probe_click",
+    "Group": "Pan-completions",
+    "ArrivalTime": 134365586153541411,
+    "ExpiryTime": 134368178153541411,
+    "PayloadType": "Xml",
+    "AumId": "Pan.NotificationsProbe",
+    "HandlerType": "app:desktop",
+    "WNSId": "NonImmersivePackage",
+    "payloadText": "<?xml version=\"1.0\"?><toast launch=\"http://127.0.0.1:63711/react/?session=ses_probe_click\">\r\n  <visual>\r\n    <binding template=\"ToastGeneric\">\r\n      <text>Pan: E2E probe session completed</text>\r\n      <text>NCTEST click the button; browser should open the loopback URL</text>\r\n    </binding>\r\n  </visual>\r\n  <actions>\r\n    <action activationType=\"protocol\" arguments=\"http://127.0.0.1:63711/react/?session=ses_probe_click\" content=\"Open session\"/>\r\n  </actions>\r\n</toast>",
+    "arrivalLocal": "2026-10-16T01:23:35.354142+08:00"
+  },
+  "recorded": true,
+  "serverAccess": []
+}

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useJobStore } from '@/stores/jobStore';
 import { wsClient } from '@/services/ws';
 import { scheduleEntries } from '@/types/jobs';
 import {
@@ -28,7 +29,6 @@ import {
   fetchJob,
   fetchJobKinds,
   fetchJobRuns,
-  fetchJobs,
   patchJob,
   pinJob,
   runJobNow,
@@ -422,11 +422,16 @@ export default function JobsView() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
+  // The unified job store owns the list (shared with the nav running badge);
+  // this page only owns view state on top of it.
+  const jobs = useJobStore((s) => s.jobs);
+  const loading = useJobStore((s) => s.loading);
+  const error = useJobStore((s) => s.error);
+  const pinMetadataUnavailable = useJobStore((s) => s.pinMetadataUnavailable);
+  const loadJobs = useJobStore((s) => s.loadJobs);
+  const upsertJob = useJobStore((s) => s.upsertJob);
+  const removeJob = useJobStore((s) => s.removeJob);
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pinMetadataUnavailable, setPinMetadataUnavailable] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(() => new Set());
@@ -449,32 +454,9 @@ export default function JobsView() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
 
-  // Lifecycle broadcasts omit Pan-owned pin metadata; explicit pin events override it.
-  const upsert = useCallback((job: Job) => {
-    if (job.pinMetadataStatus) setPinMetadataUnavailable(job.pinMetadataStatus === 'unavailable');
-    setJobs((prev) =>
-      prev.some((j) => j.jobId === job.jobId)
-        ? prev.map((j) => (j.jobId === job.jobId ? {
-          ...job,
-          pinned: job.pinMetadataStatus === 'unavailable' ? null : job.pinned ?? j.pinned,
-          pinMetadataStatus: job.pinMetadataStatus ?? j.pinMetadataStatus,
-        } : j))
-        : [...prev, job],
-    );
-  }, []);
-
-  const loadJobs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setJobs(await fetchJobs((status) => setPinMetadataUnavailable(status === 'unavailable')));
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Fresh authoritative list whenever the page is entered. The store is also
+  // hydrated globally on socket open, so this is a refresh — not the only load
+  // — and it keeps working when the socket never connected.
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
@@ -489,40 +471,9 @@ export default function JobsView() {
     void loadSessions();
   }, [loadSessions]);
 
-  // WS：job.created/updated/deleted 驱动列表；fired/partial_failed 弹 toast。
+  // WS：job.created/updated/deleted 由 useWebSocket 统一写入 jobStore（导航徽标
+  // 共用同一份列表）；本页只保留 fired/partial_failed 的 toast 通知。
   useEffect(() => {
-    const offCreated = wsClient.on('job.created', (ev) => {
-      const job = (ev as unknown as { job?: Job }).job;
-      if (job) upsert(job);
-    });
-    const offUpdated = wsClient.on('job.updated', (ev) => {
-      const job = (ev as unknown as { job?: Job }).job;
-      if (job) upsert(job);
-    });
-    const offDeleted = wsClient.on('job.deleted', (ev) => {
-      const jobId = (ev as unknown as { jobId?: string }).jobId;
-      if (!jobId) return;
-      if (bulkActiveIdsRef.current.has(jobId)) bulkDeletedIdsRef.current.add(jobId);
-      setJobs((prev) => prev.filter((j) => j.jobId !== jobId));
-      setSelectedJobId((cur) => (cur === jobId ? null : cur));
-      setSelectedJobIds((prev) => {
-        if (!prev.has(jobId)) return prev;
-        const next = new Set(prev);
-        next.delete(jobId);
-        return next;
-      });
-      setBatchDeleteIds((prev) => {
-        if (!prev) return null;
-        const remaining = prev.filter((id) => id !== jobId);
-        return remaining.length > 0 ? remaining : null;
-      });
-      setBulkFeedback((prev) => {
-        if (!prev?.failed[jobId]) return prev;
-        const failed = { ...prev.failed };
-        delete failed[jobId];
-        return { ...prev, failed };
-      });
-    });
     const offFired = wsClient.on('scheduler.task.fired', (ev) => {
       const e = ev as unknown as {
         task?: { name?: string };
@@ -541,13 +492,44 @@ export default function JobsView() {
       );
     });
     return () => {
-      offCreated();
-      offUpdated();
-      offDeleted();
       offFired();
       offPartial();
     };
-  }, [showToast, upsert]);
+  }, [showToast]);
+
+  // Deletions now arrive through the shared store (global WS wiring, this
+  // page's own delete, or another client). Reconcile page-local selection
+  // state against the list so a removed job cannot leave a stale selection,
+  // bulk id or feedback entry behind.
+  const knownJobIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const previous = knownJobIdsRef.current;
+    const current = new Set(jobs.map((job) => job.jobId));
+    knownJobIdsRef.current = current;
+    if (!previous) return;
+    for (const jobId of previous) {
+      if (current.has(jobId)) continue;
+      if (bulkActiveIdsRef.current.has(jobId)) bulkDeletedIdsRef.current.add(jobId);
+      setSelectedJobId((cur) => (cur === jobId ? null : cur));
+      setSelectedJobIds((prev) => {
+        if (!prev.has(jobId)) return prev;
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+      setBatchDeleteIds((prev) => {
+        if (!prev) return null;
+        const remaining = prev.filter((id) => id !== jobId);
+        return remaining.length > 0 ? remaining : null;
+      });
+      setBulkFeedback((prev) => {
+        if (!prev?.failed[jobId]) return prev;
+        const failed = { ...prev.failed };
+        delete failed[jobId];
+        return { ...prev, failed };
+      });
+    }
+  }, [jobs]);
 
   // 详情 runs：随选中 job / limit 拉取。
   useEffect(() => {
@@ -711,7 +693,7 @@ export default function JobsView() {
           if (result.status === 'fulfilled') {
             succeeded += 1;
             succeededIds.add(job.jobId);
-            upsert(result.value);
+            upsertJob(result.value);
           } else if (!bulkDeletedIdsRef.current.has(job.jobId)) {
             failed[job.jobId] = { name: job.name, error: errMsg(result.reason) };
           }
@@ -729,7 +711,7 @@ export default function JobsView() {
           }
         });
         if (succeededIds.size > 0) {
-          setJobs((prev) => prev.filter((job) => !succeededIds.has(job.jobId)));
+          succeededIds.forEach((id) => removeJob(id));
           setSelectedJobId((current) => (current && succeededIds.has(current) ? null : current));
         }
       }
@@ -757,19 +739,19 @@ export default function JobsView() {
       setSelectedJobId(jobId);
       setRunsLimit(RUNS_PAGE);
       try {
-        upsert(await fetchJob(jobId));
+        upsertJob(await fetchJob(jobId));
       } catch {
         // keep the list copy if the detail fetch fails
       }
     },
-    [upsert],
+    [upsertJob],
   );
 
   const handleCreate = async (input: JobCreateInput) => {
     setSubmitting(true);
     try {
       const job = await createJob(input);
-      upsert(job);
+      upsertJob(job);
       setTab('list');
       showToast(`Created job "${job.name}"`);
     } catch (e) {
@@ -783,7 +765,7 @@ export default function JobsView() {
     setSubmitting(true);
     try {
       const job = await patchJob(jobId, patch);
-      upsert(job);
+      upsertJob(job);
       setEditJobId(null);
       showToast(`Saved job "${job.name}"`);
     } catch (e) {
@@ -796,7 +778,7 @@ export default function JobsView() {
   const handleRunNow = async (job: Job) => {
     if (bulkActionRef.current) return;
     try {
-      upsert(await runJobNow(job.jobId));
+      upsertJob(await runJobNow(job.jobId));
       showToast(`Ran job "${job.name}"`);
     } catch (e) {
       showToast(errMsg(e), 'error');
@@ -806,7 +788,7 @@ export default function JobsView() {
   const handleTogglePinned = async (job: Job) => {
     if (bulkActionRef.current || pinUnavailable) return;
     try {
-      upsert(await pinJob(job.jobId, !job.pinned));
+      upsertJob(await pinJob(job.jobId, !job.pinned));
     } catch (e) {
       showToast(`${errMsg(e)}. Refresh to read the current pin state.`, 'error');
       void loadJobs();
@@ -817,7 +799,7 @@ export default function JobsView() {
     if (bulkActionRef.current) return;
     const next = !job.paused;
     try {
-      upsert(await patchJob(job.jobId, { paused: next }));
+      upsertJob(await patchJob(job.jobId, { paused: next }));
       showToast(next ? `Paused job "${job.name}"` : `Resumed job "${job.name}"`);
     } catch (e) {
       showToast(errMsg(e), 'error');
@@ -833,7 +815,7 @@ export default function JobsView() {
       return spec;
     });
     try {
-      upsert(await patchJob(job.jobId, { schedule: specs }));
+      upsertJob(await patchJob(job.jobId, { schedule: specs }));
     } catch (e) {
       showToast(errMsg(e), 'error');
     }
@@ -852,7 +834,7 @@ export default function JobsView() {
       const job = await patchJob(changeTargetJob.jobId, {
         target: { sessionId: newTargetId.trim() || null },
       });
-      upsert(job);
+      upsertJob(job);
       setChangeTargetJobId(null);
       showToast(
         hadBacklog
@@ -868,7 +850,7 @@ export default function JobsView() {
     if (!deleteJob || bulkActionRef.current) return;
     try {
       await deleteJobApi(deleteJob.jobId);
-      setJobs((prev) => prev.filter((j) => j.jobId !== deleteJob.jobId));
+      removeJob(deleteJob.jobId);
       if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
       setDeleteJobId(null);
       showToast(`Deleted job "${deleteJob.name}"`);

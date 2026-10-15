@@ -42,8 +42,8 @@ class HiddenDesktop:
 class DesktopCommand:
     """Legacy runner's retained-handle command on an explicit private desktop.
 
-    This preserves its existing registry/cancellation semantics. Independent
-    jobs retain their stronger suspended-create/Job Object lifecycle instead.
+    Hidden commands enter a kill-on-close Job atomically at process creation.
+    Runner death contains descendants even before Python receives their handles.
     """
     def __init__(self, argv, cwd, log, *, shell=False):
         import msvcrt
@@ -54,6 +54,7 @@ class DesktopCommand:
         self.thread_handle = 0
         self.pid = None
         self.window_guard = None
+        self.job_guard = None
         try:
             self.window_guard = OwnedWindowGuard(
                 lambda: descendant_pids(self.pid) if self.pid else (),
@@ -89,13 +90,20 @@ class DesktopCommand:
                     startup.wShowWindow = 0
                     startup.hStdInput, startup.hStdOutput, startup.hStdError = handles[0], handles[1], handles[1]
                     from packages.jobs.restricted_token import HiddenJobToken
+                    from packages.core.terminal.guard import JobObjectGuard
+                    from packages.jobs.owned_process import job_startup_info, EXTENDED_STARTUPINFO_PRESENT
+                    self.job_guard = JobObjectGuard(kill_on_close=True)
                     hidden_token = HiddenJobToken()
                     with CleanupStack() as token_cleanup:
                         token_cleanup.callback(hidden_token.close)
-                        process, thread, pid = hidden_token.create_process(
-                            command, cwd, None, startup, 0x08000004)
-                        self.handle, self.pid = process, pid
-                        self.thread_handle = thread
+                        with job_startup_info(startup, self.job_guard) as owned_startup:
+                            process, thread, pid = hidden_token.create_process(
+                                command, cwd, None, owned_startup,
+                                0x08000004 | EXTENDED_STARTUPINFO_PRESENT)
+                            self.handle, self.pid = process, pid
+                            self.thread_handle = thread
+                    if not self.job_guard.is_member(self.handle):
+                        raise RuntimeError("legacy command membership in owned Job was not proven")
                     if kernel.ResumeThread(thread) != 1:
                         raise RuntimeError("legacy command resume count was not exactly one")
                 finally:
@@ -131,7 +139,16 @@ class DesktopCommand:
                 if not self.kernel.CloseHandle(self.thread_handle):
                     raise ctypes.WinError(ctypes.get_last_error())
                 self.thread_handle = 0
+        def close_job():
+            if self.job_guard is not None and self.job_guard.handle_open:
+                with CleanupStack() as cleanup:
+                    cleanup.callback(self.job_guard.close)
+                    if self.pid is not None:
+                        _, remaining = self.job_guard.terminate_tree(self.pid, timeout=5.0)
+                        if remaining:
+                            raise RuntimeError("owned legacy tree termination unconfirmed")
         close_resources(
+            close_job,
             close_process,
             close_thread,
             lambda: stop_window_guard(self.window_guard) if self.window_guard is not None else None,
