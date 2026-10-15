@@ -1,0 +1,93 @@
+{
+  "ok": true,
+  "ranAt": "2026-10-13T19:11:46.729Z",
+  "worktreeHead": "ea945b84cc5a093117f18ed70fd8d27684cf013b",
+  "python": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "port": 55809,
+  "runtime": "D:\\project\\pan-worktrees\\notification-workspace-jump-20261014\\packages\\web\\test-results\\notify-ws-1791918706702",
+  "results": [
+    {
+      "name": "cold ?session selects a workspace member AND its workspace",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_3f0138ab65474422"
+      }
+    },
+    {
+      "name": "managed child inherits its root workspace (not its own empty id)",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_d7e0142052b88a0c",
+        "inherited": true
+      }
+    },
+    {
+      "name": "ungrouped session selects the no-workspace scope, no workspace selected",
+      "ok": true,
+      "detail": {
+        "workspace": "ungrouped"
+      }
+    },
+    {
+      "name": "notification onclick selects the session AND its workspace from another view",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_3f0138ab65474422",
+        "selection": "ses_0dc4bfb7d9357b5e"
+      }
+    },
+    {
+      "name": "a user workspace switch (A -> B -> A) during a slow lookup wins",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_3f0138ab65474422",
+        "selection": null
+      }
+    },
+    {
+      "name": "cold ?session with an unavailable workspace list keeps the link, then recovers",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_3f0138ab65474422"
+      }
+    },
+    {
+      "name": "cold ?session whose target is deleted during the workspace wait is not applied",
+      "ok": true,
+      "detail": {
+        "selection": null
+      }
+    },
+    {
+      "name": "hot click with an unavailable workspace list applies nothing and reports honestly",
+      "ok": true,
+      "detail": {
+        "selection": "ses_563730593743fd49",
+        "workspace": "all"
+      }
+    },
+    {
+      "name": "mobile viewport: cold ?session selects session AND workspace",
+      "ok": true,
+      "detail": {
+        "workspace": "ws_3f0138ab65474422",
+        "viewport": "390x844"
+      }
+    },
+    {
+      "name": "no external requests and no page errors across the run",
+      "ok": true,
+      "detail": {
+        "foreignRequests": 0,
+        "blockedFontRequests": 10,
+        "pageErrors": 0
+      }
+    }
+  ],
+  "browserVersion": "153.0.8010.12",
+  "foreignRequests": [],
+  "blockedFontRequests": [
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "pageErrors": []
+}

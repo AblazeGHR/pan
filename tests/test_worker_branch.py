@@ -54,8 +54,9 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     live.process.stdin = MagicMock()
     worker.workers[live.worker_id] = live
 
-    async def fake_control(worker_id, control):
+    async def fake_control(worker_id, control, *, _expected_runtime):
         assert worker_id == live.worker_id
+        assert _expected_runtime == (live, live.generation, live.process, live.process.stdin)
         assert {k: v for k, v in control.items() if k != "requestId"} == {
             "type": "steer", "text": "focus here",
         }
@@ -246,8 +247,9 @@ def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
 
     live.process.returncode = None
 
-    async def acknowledge_control(worker_id, body):
+    async def acknowledge_control(worker_id, body, *, _expected_runtime):
         assert worker_id == live.worker_id
+        assert _expected_runtime == (live, live.generation, live.process, live.process.stdin)
         assert session.history == []
         live._steer_receipts[body["requestId"]].set_result(None)
 

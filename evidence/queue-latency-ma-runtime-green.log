@@ -1,0 +1,7 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\queue-send-latency-20261014
+edit-expiry-to-fifo-ms=93.8
+.send-during-steer-drain-ms=2.2
+.steer-receipt-to-ack-ms=2.2
+............queue-lock-to-unknown-ms=30015.0
+........
+22 passed in 30.88s

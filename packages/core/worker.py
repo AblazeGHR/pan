@@ -230,6 +230,7 @@ class Worker:
     native_control_error: str | None = None
     native_kernel_ready: bool = False
     _native_external_turn_active: bool = False
+    native_input_uncertain: bool = False
     _native_mode_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
     _native_mode_request_id: str | None = None  # Latest issued handoff, including a timed-out one.
     _native_mode_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -360,6 +361,7 @@ _recovery_required: set[str] = set()
 # backoff.  This is deliberately separate from pending_signal: the timer only
 # emits a generic wake-up and never stores queue payload.
 _queue_retry_tasks: dict[str, asyncio.Task] = {}
+_queue_retry_wakes: dict[str, asyncio.Event] = {}
 _queue_locks: dict[str, asyncio.Lock] = {}
 _unread_done_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_locks: dict[str, asyncio.Lock] = {}
@@ -1668,6 +1670,8 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_kernel_ready = False
     w.native_passthrough_enabled = None
     w._native_external_turn_active = False
+    if _runtime_stopped(w):
+        w.native_input_uncertain = False
     w.native_output.clear()
     w.native_output_total = 0
 
@@ -1942,6 +1946,14 @@ async def _read_stdout(w: Worker):
             w.native_output_total += len(chunk)
             if len(w.native_output) > 4 * 1024 * 1024:
                 del w.native_output[:len(w.native_output) - 4 * 1024 * 1024]
+            continue
+        if (event.get("type") == "pan.native_input_state"
+                and adapter.name == "cbc" and w.native_control_enabled):
+            w.native_input_uncertain = event.get("uncertain") is not False
+            continue
+        if (event.get("type") == "pan.native_ready"
+                and adapter.name == "cbc" and w.native_control_enabled):
+            w.native_kernel_ready = True
             continue
         if event.get("type") == "pan.native_error":
             w.native_control_error = "Native terminal operation failed"
@@ -3261,7 +3273,8 @@ def _native_handoff_blocked(s) -> bool:
     if type(s.adapter_config.get("native_control_next")) is bool:
         return True
     w = find_worker_by_session(s.id)
-    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active)
+    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active
+                             or getattr(w, "native_input_uncertain", False))
 
 
 def _has_sendable_queued_items(s) -> bool:
@@ -5322,9 +5335,12 @@ async def _watchdog(w: Worker):
             continue
 
         # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
-        if w.native_control_mode != "pan" or w._native_external_turn_active:
+        if (w.native_control_mode != "pan" or w._native_external_turn_active
+                or w.native_input_uncertain):
             # User-owned native turns and their resident kernel are not abandoned
             # Pan tasks. Browser detach/control handoff never reclaims them.
+            # Unknown input is not a timeout receipt: recover=True could resend
+            # already-accepted bytes. Retirement must remain an explicit action.
             continue
         if w.status == "running":
             # 任务运行时长 = 当前时间 - 任务开始处理时刻（_consumer_stream 进入 running 时记录）。
@@ -5489,44 +5505,52 @@ async def drain_recoveries(timeout: float = 10.0) -> int:
     return len(inflight)
 
 
+def _queue_wake_deadlines(session) -> list[float]:
+    """Finite queue gates need a wake when both retry and edit lease are due."""
+    now = time.time()
+    deadlines = []
+    for item in session.queue_pending or []:
+        if (not isinstance(item, dict) or _queue_item_kind(item) is None
+                or _delivery_state(item) != _DELIVERY_QUEUED or _queue_item_locked(item)):
+            continue
+        retry = item.get("nextAttemptAt")
+        due = retry if isinstance(retry, (int, float)) and retry > now else now
+        lease = _active_queue_edit_lock(session, _queue_item_id(item), now)
+        if lease is not None:
+            due = max(due, lease["expiresAt"])
+        if due > now:
+            deadlines.append(due)
+    return deadlines
+
+
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
-    """Wake a session once its earliest persisted retry becomes due."""
+    """Wake at a retry/lease deadline; queue mutations can re-arm the wait."""
     session = _get_session_shallow(session_id)
-    if session is None or getattr(session, "queue_paused", False) or not any(
-        isinstance(item, dict)
-        and _queue_item_kind(item) is not None
-        and _delivery_state(item) == _DELIVERY_QUEUED
-        and not _queue_item_locked(item)
-        and isinstance(item.get("nextAttemptAt"), (int, float))
-        and item.get("nextAttemptAt") > time.time()
-        for item in (session.queue_pending or [])
-    ):
+    if (session is None or getattr(session, "queue_paused", False)
+            or not _queue_wake_deadlines(session)):
         # Immediate queue items already have a queue_signal.  Only create a
-        # timer for an item that is actually waiting for persisted backoff;
+        # timer for an item actually waiting for backoff or an edit lease;
         # otherwise the timer would emit a duplicate wakeup on every spawn.
         return None
     existing = _queue_retry_tasks.get(session_id)
     if existing is not None and not existing.done():
+        _queue_retry_wakes[session_id].set()
         return existing
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return None
 
+    changed = asyncio.Event()
+    _queue_retry_wakes[session_id] = changed
+
     async def _wait_and_wake() -> None:
         while True:
+            changed.clear()
             s = _get_session_shallow(session_id)
             if s is None or getattr(s, "queue_paused", False):
                 return
-            future_times = [
-                item.get("nextAttemptAt") for item in (s.queue_pending or [])
-                if isinstance(item, dict)
-                and _queue_item_kind(item) is not None
-                and _delivery_state(item) == _DELIVERY_QUEUED
-                and not _queue_item_locked(item)
-                and isinstance(item.get("nextAttemptAt"), (int, float))
-                and item.get("nextAttemptAt") > time.time()
-            ]
+            future_times = _queue_wake_deadlines(s)
             if not future_times:
                 worker = find_alive_worker_by_session(session_id)
                 if (worker and worker.pending_signal is not None
@@ -5536,7 +5560,10 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
                     _schedule_session_recovery(session_id)
                 return
             delay = max(0.0, min(future_times) - time.time())
-            await asyncio.sleep(min(delay, 60.0))
+            try:
+                await asyncio.wait_for(changed.wait(), delay)
+            except asyncio.TimeoutError:
+                pass
 
     task = loop.create_task(_wait_and_wake(), name=f"pan-queue-retry-{session_id}")
     _queue_retry_tasks[session_id] = task
@@ -5544,6 +5571,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     def _finish(done: asyncio.Task) -> None:
         if _queue_retry_tasks.get(session_id) is done:
             _queue_retry_tasks.pop(session_id, None)
+            _queue_retry_wakes.pop(session_id, None)
         if not done.cancelled():
             try:
                 done.result()
@@ -5650,6 +5678,8 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
             raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
         if w.native_control_mode != "pan":
             raise _QueuePausedBeforeHandoff("Native control owns CLI hand-off")
+        if w.native_input_uncertain:
+            raise _QueuePausedBeforeHandoff("Native input acceptance is unknown")
         items = ([w._current_queue_item] if w._current_queue_item is not None
                  else w._current_report_items)
         if any(not queue_item_eligible(s, item, queued=False) for item in items):
@@ -6364,7 +6394,7 @@ async def _apply_pending_native_configuration(s) -> None:
     mutate the running adapter's transport configuration mid-turn.
     """
     desired = s.adapter_config.get("native_control_next")
-    if s.adapter != "codex" or type(desired) is not bool:
+    if s.adapter not in {"codex", "cbc"} or type(desired) is not bool:
         return
     before = dict(s.adapter_config)
     if desired:
@@ -6414,6 +6444,9 @@ async def _create_worker(session_id: str) -> Worker | str:
     await _apply_pending_native_configuration(s)
     try:
         adapter = get_adapter(s.adapter)
+        if s.adapter == "cbc" and s.adapter_config.get("native_control") is True:
+            from .adapters.cbc.native_adapter import CbcNativeAdapter
+            adapter = CbcNativeAdapter()
     except KeyError:
         # A legacy/corrupt session may outlive the adapter that created it.
         # Surface an actionable worker error instead of allowing a raw
@@ -6450,7 +6483,7 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               native_control_enabled=s.adapter == "codex" and s.adapter_config.get("native_control") is True,
+               native_control_enabled=s.adapter in {"codex", "cbc"} and s.adapter_config.get("native_control") is True,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
@@ -6559,6 +6592,16 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     return True
 
 
+def _confirm_native_input_retirement(w: Worker) -> bool:
+    if not w.native_input_uncertain:
+        return True
+    if not _runtime_stopped(w):
+        w.status = "error"
+        return False
+    w.native_input_uncertain = False
+    return True
+
+
 async def _cancel_worker_task(task: asyncio.Task | None) -> None:
     """Cancel a worker task and wait until its finally blocks have run.
 
@@ -6663,6 +6706,8 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     clear_native_runtime_state(w)
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "held", "pan/takeover")
     w.process = None
@@ -7152,6 +7197,8 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
     # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/restart-stop")
     w.process = None
@@ -7245,6 +7292,8 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if not _confirm_native_input_retirement(w):
+        return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/respawn-stop")
     w.process = None
@@ -7458,7 +7507,7 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
     kernel's authoritative generation. Never guess ownership after timeout.
     """
     w = workers.get(worker_id)
-    if w is None or w.adapter.name != "codex" or mode not in {"pan", "native"}:
+    if w is None or w.adapter.name not in {"codex", "cbc"} or mode not in {"pan", "native"}:
         return {"ok": False, "error": "Unsupported native control"}
     s = _session(w)
     if s is None or s.adapter_config.get("native_control") is not True:
@@ -7507,15 +7556,20 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     """Private native input/resize seam; receipt is emitted after the PTY write."""
     w = workers.get(worker_id)
     policy = control.get("type") == "native_passthrough"
-    if (w is None or w.adapter.name != "codex" or
+    cbc_interrupt = bool(w and w.adapter.name == "cbc" and w.native_control_enabled
+                         and control.get("type") == "interrupt")
+    if (w is None or w.adapter.name not in {"codex", "cbc"} or
             (policy and (not w.native_control_enabled or not w.native_kernel_ready)) or
-            (not policy and w.native_control_mode != "native")):
+            (cbc_interrupt and w.native_control_mode != "pan") or
+            (not policy and not cbc_interrupt and w.native_control_mode != "native")):
         return {"ok": False, "error": "Native control is not active"}
     if policy and (set(control) != {"type", "enabled"} or type(control.get("enabled")) is not bool):
         return {"ok": False, "error": "Invalid native policy"}
+    if policy and w.adapter.name != "codex":
+        return {"ok": False, "error": "Unsupported native policy"}
     if not policy and (type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation):
         return {"ok": False, "error": "Stale control generation"}
-    if control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
+    if not cbc_interrupt and control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
         return {"ok": False, "error": "Unsupported native operation"}
     if len(w._native_mode_receipts) >= 32:
         return {"ok": False, "error": "Native input busy"}
@@ -7526,7 +7580,8 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     async def send():
         async with queue_lock(w.session_id):
             if (w.generation != runtime_generation or w.status == "restarting"
-                    or (not policy and w.native_control_mode != "native") or w.process is None
+                    or (cbc_interrupt and w.native_control_mode != "pan")
+                    or (not policy and not cbc_interrupt and w.native_control_mode != "native") or w.process is None
                     or w.process.returncode is not None or w.process.stdin is None):
                 raise RuntimeError("Native worker is unavailable")
             w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")
@@ -7563,10 +7618,23 @@ async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
     await _bcast({"type": "session.updated", "sessionId": w.session_id})
 
 
-async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:
+def _control_runtime_matches(worker_id: str, runtime) -> bool:
+    owner, generation, process, stdin = runtime
+    return (workers.get(worker_id) is owner
+            and getattr(owner, "generation", None) == generation
+            and owner.process is process
+            and getattr(process, "stdin", None) is stdin)
+
+
+async def _send_control_message_unlocked(worker_id: str, control: dict, *, drain: bool = True,
+                                         _expected_runtime=None) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    runtime = _expected_runtime or (
+        w, getattr(w, "generation", None), w.process, getattr(w.process, "stdin", None))
+    if not _control_runtime_matches(worker_id, runtime):
+        return "Worker changed before control handoff"
     if w.native_control_mode != "pan":
         return "Pan controls are suspended during native control"
     if isinstance(control, dict) and control.get("type") == "steer":
@@ -7595,14 +7663,20 @@ async def _send_control_message_unlocked(worker_id: str, control: dict) -> str |
     if encode_control is None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
     try:
-        w.process.stdin.write(encode_control(control) + b"\n")
-        await w.process.stdin.drain()
+        stdin = runtime[3]
+        wire = encode_control(control) + b"\n"
+        # Encoding/permission handling must not retarget an earlier request.
+        if not _control_runtime_matches(worker_id, runtime):
+            return "Worker changed before control handoff"
+        stdin.write(wire)
+        if drain:
+            await stdin.drain()
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
         return "Worker control write failed"
     return None
 
 
-async def send_control_message(worker_id: str, control: dict) -> str | None:
+async def send_control_message(worker_id: str, control: dict, *, _expected_runtime=None) -> str | None:
     """Send an out-of-band control, serializing Steer against queue edits.
 
     Native adapters may use this for controls that are not user turns, such
@@ -7613,17 +7687,34 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    runtime = _expected_runtime or (
+        w, getattr(w, "generation", None), w.process, getattr(w.process, "stdin", None))
+    if not _control_runtime_matches(worker_id, runtime):
+        return "Worker changed before control handoff"
     if isinstance(control, dict) and control.get("type") == "steer":
         s = _session(w)
         if s is not None:
             async with queue_lock(s.id):
+                if not _control_runtime_matches(worker_id, runtime):
+                    return "Worker changed before control handoff"
                 if any(queue_item_edit_locked(s, item_id)
                        for item_id in list(getattr(s, "queue_edit_locks", {}))):
                     return "Cannot Steer while a queued message is being edited"
                 # Keep the lease check and stdin write in one critical section
                 # so direct API/programmatic Steer cannot race edit acquisition.
-                return await _send_control_message_unlocked(worker_id, control)
-    return await _send_control_message_unlocked(worker_id, control)
+                error = await _send_control_message_unlocked(
+                    worker_id, control, drain=False, _expected_runtime=runtime)
+                if error:
+                    return error
+                stdin = runtime[3]
+            # Backpressure is after the synchronous handoff. New queue appends
+            # and edit acquisition need not wait for this control's drain.
+            try:
+                await stdin.drain()
+            except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
+                return "Worker control write failed"
+            return None
+    return await _send_control_message_unlocked(worker_id, control, _expected_runtime=runtime)
 
 
 async def steer_worker(worker_id: str, text: str,
@@ -7658,6 +7749,8 @@ async def steer_worker(worker_id: str, text: str,
         return "Previous Steer is awaiting a provider receipt; do not resend"
     w._direct_steer_pending = True
     async def complete_late(error):
+        if error and error.startswith("Steer outcome unknown"):
+            return
         w._direct_steer_pending = False
         if error is None:
             await _record_direct_steer(w, text, message_id)
@@ -7707,33 +7800,58 @@ async def _send_steer_with_receipt(w: Worker, text: str, *, on_late_receipt=None
     if wants_receipt:
         w._steer_receipts[request_id] = future
     late_receipt = False
+    sender = None
+    # Bind before the sender task gets its first scheduling opportunity.
+    runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
+
+    def retain_late_receipt():
+        nonlocal late_receipt
+        if on_late_receipt is None:
+            return
+        late_receipt = True
+        def settle_late(done):
+            w._steer_receipts.pop(request_id, None)
+            if not done.cancelled():
+                status, detail = _steer_receipt_result(done.result())
+                error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
+                task = asyncio.create_task(on_late_receipt(error))
+                task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+        future.add_done_callback(settle_late)
+
     try:
-        error = await send_control_message(w.worker_id, {"type": "steer", "text": text,
-                                          "requestId": request_id})
-        if error == "Worker control write failed":
-            error = None if wants_receipt else "Steer outcome unknown: control write/drain failed"
-        if error or not wants_receipt:
-            return error
+        control = {"type": "steer", "text": text, "requestId": request_id}
+        if not _process_alive(w):
+            return "Worker process is not running"
+        if not wants_receipt:
+            error = await send_control_message(w.worker_id, control, _expected_runtime=runtime)
+            return ("Steer outcome unknown: control write/drain failed"
+                    if error == "Worker control write failed" else error)
+        sender = asyncio.create_task(send_control_message(w.worker_id, control, _expected_runtime=runtime))
         # Never infer acceptance from stdout activity, completion or stdin write.
         # A missing receipt is ambiguous and must not be retried automatically.
         deadline = time.monotonic() + 30
         while _process_alive(w) and time.monotonic() < deadline:
-            done, _ = await asyncio.wait({future}, timeout=1)
-            if done:
+            waiting = {future} | ({sender} if not sender.done() else set())
+            await asyncio.wait(waiting, timeout=min(1, max(0, deadline-time.monotonic())),
+                               return_when=asyncio.FIRST_COMPLETED)
+            if future.done():
                 status, detail = _steer_receipt_result(future.result())
                 return ("Steer outcome unknown: " + str(detail) if status == "unknown" else detail)
-        if on_late_receipt is not None:
-            late_receipt = True
-            def settle_late(done):
-                w._steer_receipts.pop(request_id, None)
-                if not done.cancelled():
-                    status, detail = _steer_receipt_result(done.result())
-                    error = "Steer outcome unknown: " + str(detail) if status == "unknown" else detail
-                    task = asyncio.create_task(on_late_receipt(error))
-                    task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
-            future.add_done_callback(settle_late)
+            if sender.done():
+                error = sender.result()
+                if error and error != "Worker control write failed":
+                    return error
+        retain_late_receipt()
         return "Steer outcome unknown: provider receipt missing; do not resend"
+    except asyncio.CancelledError:
+        if wants_receipt:
+            retain_late_receipt()
+        raise
     finally:
+        if sender is not None:
+            if not sender.done():
+                sender.cancel()
+            await asyncio.gather(sender, return_exceptions=True)
         if not late_receipt:
             w._steer_receipts.pop(request_id, None)
 
@@ -8080,6 +8198,12 @@ async def _interrupt_worker_unlocked(worker_id: str) -> str | None:
         return "Worker not found"
     if w.status != "running":
         return "Worker is not running"
+    if w.adapter.name == "cbc" and w.native_control_enabled:
+        receipt = await write_native_control(worker_id, {
+            "type": "interrupt", "generation": w.native_control_generation})
+        # Cancellation uncertainty must not secretly become kill/resume of
+        # the resident CBC kernel. FinalStop will establish its actual result.
+        return None if receipt.get("ok") is True else "CBC interruption was not confirmed"
     # Codex app-server can interrupt the active turn while preserving the
     # long-lived native thread and app-server process.  Fall back to the
     # established kill+resume path for adapters without this optional

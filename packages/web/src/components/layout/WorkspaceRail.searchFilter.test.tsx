@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionList } from '@/components/session/SessionList';
 import { WorkspaceRail } from '@/components/layout/WorkspaceRail';
@@ -54,7 +54,7 @@ function baseSessions(): Session[] {
   ];
 }
 
-function setupStore(sessions: Session[], overrides: { railExpanded?: boolean; searchQuery?: string } = {}) {
+function setupStore(sessions: Session[], overrides: { railExpanded?: boolean; workspaceSearchQuery?: string } = {}) {
   useSessionStore.setState({
     sessions,
     currentSessionId: null,
@@ -76,7 +76,8 @@ function setupStore(sessions: Session[], overrides: { railExpanded?: boolean; se
     dragEnabled: false,
     sortBy: 'recent',
     customOrder: [],
-    searchQuery: overrides.searchQuery ?? '',
+    searchQuery: '',
+    workspaceSearchQuery: overrides.workspaceSearchQuery ?? '',
     specialFilters: new Set(),
     hiddenSessionIds: new Set(),
     collapsedGroups: new Set(),
@@ -92,7 +93,7 @@ function renderRail() {
   );
 }
 
-/** Render the session list next to the rail to prove both share one search box. */
+/** Render the session list next to the rail to verify query isolation. */
 function renderListAndRail() {
   return render(
     <MemoryRouter>
@@ -114,7 +115,7 @@ function ungroupedRow(container: HTMLElement): Element | null {
   return container.querySelector('[data-testid="workspace-tab-ungrouped"]');
 }
 
-describe('Workspace rail shares the Session search box and status filters', () => {
+describe('Workspace rail owns its query and shares status filters', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.setSessionWorkspaces.mockResolvedValue(undefined);
@@ -123,27 +124,28 @@ describe('Workspace rail shares the Session search box and status filters', () =
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
-  it('matches Workspace names in the existing search box while expanded', () => {
+  it('matches Workspace names in the workspace search box while expanded', () => {
     setupStore(baseSessions());
     const { container } = renderRail();
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).not.toBeNull();
 
-    // Type into the shared search box (bound to uiStore.searchQuery).
-    act(() => useUIStore.setState({ searchQuery: 'alpha' }));
+    // Type into the workspace search box.
+    act(() => useUIStore.setState({ workspaceSearchQuery: 'alpha' }));
 
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).toBeNull();
-    // No session name matches 'alpha', so the virtual scopes have no content.
-    expect(allRow(container)).toBeNull();
-    expect(ungroupedRow(container)).toBeNull();
+    // Workspace keywords do not filter the virtual scopes.
+    expect(allRow(container)).not.toBeNull();
+    expect(ungroupedRow(container)).not.toBeNull();
   });
 
   it('keeps every row unfiltered while collapsed (original Session-only search)', () => {
-    setupStore(baseSessions(), { railExpanded: false, searchQuery: 'alpha' });
+    setupStore(baseSessions(), { railExpanded: false, workspaceSearchQuery: 'alpha' });
     const { container } = renderRail();
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).not.toBeNull();
@@ -151,12 +153,12 @@ describe('Workspace rail shares the Session search box and status filters', () =
     expect(ungroupedRow(container)).not.toBeNull();
   });
 
-  it('restores both lists synchronously when the search is cleared', () => {
-    setupStore(baseSessions(), { searchQuery: 'alpha' });
+  it('restores workspace rows when only the workspace query is cleared', () => {
+    setupStore(baseSessions(), { workspaceSearchQuery: 'alpha' });
     const { container } = renderRail();
     expect(row(container, 'ws-beta')).toBeNull();
 
-    act(() => useUIStore.getState().setSearchQuery(''));
+    act(() => useUIStore.getState().setWorkspaceSearchQuery(''));
 
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).not.toBeNull();
@@ -226,14 +228,14 @@ describe('Workspace rail shares the Session search box and status filters', () =
 
     // Name matches + a member actually runs → visible.
     act(() => {
-      useUIStore.setState({ searchQuery: 'alpha' });
+      useUIStore.setState({ workspaceSearchQuery: 'alpha', searchQuery: 'no-session-matches' });
       useUIStore.getState().toggleSpecialFilter('running');
     });
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).toBeNull();
 
     // Name matches but no member runs → hidden.
-    act(() => useUIStore.setState({ searchQuery: 'beta' }));
+    act(() => useUIStore.setState({ workspaceSearchQuery: 'beta' }));
     expect(row(container, 'ws-beta')).toBeNull();
     expect(row(container, 'ws-alpha')).toBeNull();
   });
@@ -261,8 +263,7 @@ describe('Workspace rail shares the Session search box and status filters', () =
   });
 
   it('aggregates actual member states — a keyword-hidden member still counts', () => {
-    // ws-alpha's only member is named 'zzz-runner' (keyword 'alpha' hides it
-    // from the Session list) but it IS running; the workspace name matches.
+    // Workspace name and member names differ; status still uses all members.
     const sessions = [
       makeSession('w-one', 'zzz-runner', { workspaceIds: ['ws-alpha'], workerStatus: 'running' }),
       makeSession('w-two', 'worker-two', { workspaceIds: ['ws-beta'], workerStatus: 'idle' }),
@@ -271,7 +272,7 @@ describe('Workspace rail shares the Session search box and status filters', () =
     const { container } = renderRail();
 
     act(() => {
-      useUIStore.setState({ searchQuery: 'alpha' });
+      useUIStore.setState({ workspaceSearchQuery: 'alpha', searchQuery: 'no-session-matches' });
       useUIStore.getState().toggleSpecialFilter('running');
     });
 
@@ -318,28 +319,50 @@ describe('Workspace rail shares the Session search box and status filters', () =
     expect(row(container, 'ws-alpha')).toBeNull();
   });
 
-  it('does not break the Session search while the rail also filters', () => {
-    setupStore(baseSessions());
-    const { container } = renderListAndRail();
-
-    // Both lists start complete.
-    expect(container.querySelector('[data-session-card-id="w-one"]')).not.toBeNull();
+  it('keeps both queries and clear actions independent with a real SessionList', () => {
+    const { container, getByRole } = renderListAndRail();
+    act(() => useUIStore.getState().setSearchQuery('worker-one'));
     expect(row(container, 'ws-alpha')).not.toBeNull();
     expect(row(container, 'ws-beta')).not.toBeNull();
-
-    act(() => useUIStore.setState({ searchQuery: 'worker-one' }));
-
-    // The Session list narrows by session fields; the rail narrows by name.
+    fireEvent.change(getByRole('textbox', { name: 'Search workspaces' }), { target: { value: 'beta' } });
+    expect(useUIStore.getState().searchQuery).toBe('worker-one');
+    expect(row(container, 'ws-alpha')).toBeNull();
+    expect(row(container, 'ws-beta')).not.toBeNull();
     expect(container.querySelector('[data-session-card-id="w-one"]')).not.toBeNull();
     expect(container.querySelector('[data-session-card-id="w-two"]')).toBeNull();
-    expect(row(container, 'ws-alpha')).toBeNull();
-    expect(row(container, 'ws-beta')).toBeNull();
-
-    // Clearing restores both lists.
     act(() => useUIStore.getState().setSearchQuery(''));
-    expect(container.querySelector('[data-session-card-id="w-one"]')).not.toBeNull();
+    expect(useUIStore.getState().workspaceSearchQuery).toBe('beta');
     expect(container.querySelector('[data-session-card-id="w-two"]')).not.toBeNull();
+    act(() => useUIStore.getState().setSearchQuery('worker-two'));
+    fireEvent.click(getByRole('button', { name: 'Clear workspace search' }));
+    expect(useUIStore.getState().searchQuery).toBe('worker-two');
     expect(row(container, 'ws-alpha')).not.toBeNull();
-    expect(row(container, 'ws-beta')).not.toBeNull();
+    expect(container.querySelector('[data-session-card-id="w-one"]')).toBeNull();
+  });
+
+  it.each([false, true])('retains the query through collapse and remount, mobile=%s', (mobile) => {
+    const view = render(<WorkspaceRail mobileDrawer={mobile} mobileExpanded />);
+    fireEvent.change(view.getByRole('textbox'), { target: { value: 'beta' } });
+    act(() => useUIStore.getState().setRailExpanded(false));
+    view.rerender(<WorkspaceRail mobileDrawer={mobile} mobileExpanded={false} />);
+    expect(view.queryByRole('textbox')).toBeNull();
+    expect(useUIStore.getState().workspaceSearchQuery).toBe('beta');
+    view.unmount();
+    act(() => useUIStore.getState().setRailExpanded(true));
+    const reopened = render(<WorkspaceRail mobileDrawer={mobile} mobileExpanded />);
+    expect((reopened.getByRole('textbox') as HTMLInputElement).value).toBe('beta');
+    expect(row(reopened.container, 'ws-alpha')).toBeNull();
+    expect(row(reopened.container, 'ws-beta')).not.toBeNull();
+  });
+
+  it('keeps input keys and focus from navigating or switching workspace', () => {
+    const onKeyDown = vi.fn();
+    const view = render(<div onKeyDown={onKeyDown}><WorkspaceRail /></div>);
+    const input = view.getByRole('textbox');
+    input.focus();
+    for (const key of ['Enter', 'ArrowDown', 'ArrowUp', 'Escape', 'k']) fireEvent.keyDown(input, { key, ctrlKey: true });
+    expect(onKeyDown).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
   });
 });

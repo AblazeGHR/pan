@@ -12,10 +12,10 @@ from packages.web import native_control_api as api
 
 
 @pytest.fixture
-def target(monkeypatch):
+def target(monkeypatch, request):
     app = FastAPI()
     app.include_router(api.router)
-    s = session.Session(id="ses-native-api", name="native", adapter="codex")
+    s = session.Session(id="ses-native-api", name="native", adapter=getattr(request, "param", "codex"))
     s.adapter_config["native_control"] = True
     w = SimpleNamespace(worker_id="w-native", generation=7, native_control_mode="native", native_control_generation=4,
         native_control_error=None, native_output=bytearray(b"abcdef"), native_output_total=10,
@@ -93,11 +93,12 @@ def test_default_and_other_adapters_reject_without_spawning(target, monkeypatch)
     s.adapter_config = {}
     assert request(app, "POST", "/mode", json={"mode": "native"}).status_code == 409
     s.adapter_config["native_control"] = True
-    s.adapter = "cbc"
+    s.adapter = "kimi"
     assert request(app, "GET").status_code == 409
     assert spawn.await_count == 0
 
 
+@pytest.mark.parametrize("target", ["codex", "cbc"], indirect=True)
 def test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate(target, monkeypatch):
     app, s, w = target
     s.adapter_config = {"native_control_next": True}
@@ -121,6 +122,7 @@ def test_invalid_modes_do_not_call_worker(target, monkeypatch, body):
     assert switch.await_count == 0
 
 
+@pytest.mark.parametrize("target", ["codex", "cbc"], indirect=True)
 def test_output_offsets_gap_and_no_private_transport(target):
     app, _, w = target
     result = request(app, "GET", "/output?cursor=0").json()["result"]
@@ -131,6 +133,7 @@ def test_output_offsets_gap_and_no_private_transport(target):
         assert request(app, "GET", "/output?cursor=" + cursor).status_code == 422
 
 
+@pytest.mark.parametrize("target", ["codex", "cbc"], indirect=True)
 def test_write_requires_current_worker_and_real_ack(target, monkeypatch):
     app, _, w = target
     write = AsyncMock(return_value={"ok": True})
@@ -148,6 +151,7 @@ def test_write_requires_current_worker_and_real_ack(target, monkeypatch):
     assert request(app, "POST", "/write", json=body).status_code == 409
 
 
+@pytest.mark.parametrize("target", ["codex", "cbc"], indirect=True)
 def test_native_spawn_fences_queue_before_consumer_is_created(target, monkeypatch):
     app, s, w = target
     monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda sid: None)
@@ -172,6 +176,7 @@ def test_origin_gate_runs_before_session_lookup(target, monkeypatch):
     assert request(target[0], "POST", "/mode", json={"mode": "native"}).status_code == 403
 
 
+@pytest.mark.parametrize("target", ["codex", "cbc"], indirect=True)
 def test_invalid_unicode_input_is_rejected_without_worker_write(target, monkeypatch):
     write = AsyncMock()
     monkeypatch.setattr(worker, "write_native_control", write)
@@ -180,7 +185,7 @@ def test_invalid_unicode_input_is_rejected_without_worker_write(target, monkeypa
     assert write.await_count == 0
 
 
-def test_creation_is_explicit_codex_only_and_old_session_data_stays_unchanged(monkeypatch):
+def test_creation_is_explicit_native_adapter_and_old_session_data_stays_unchanged(monkeypatch):
     from packages.web import server
     monkeypatch.setattr(server, "_ensure_manifest_fresh", lambda: None)
     for adapter in ("codex", "cbc", "kimi"):
@@ -192,6 +197,8 @@ def test_creation_is_explicit_codex_only_and_old_session_data_stays_unchanged(mo
         assert old.adapter_config == before
     params = server._build_session_params({"name": "native", "adapter": "codex", "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
     assert params["adapter_config"]["native_control"] is True
-    for adapter, value in (("cbc", True), ("codex", "true"), ("codex", 1)):
+    cbc = server._build_session_params({"name": "native-cbc", "adapter": "cbc", "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
+    assert cbc["adapter_config"]["native_control"] is True
+    for adapter, value in (("kimi", True), ("codex", "true"), ("codex", 1), ("cbc", "true")):
         with pytest.raises(ValueError):
             server._build_session_params({"name": "bad", "adapter": adapter, "nativeControl": value, "mcpServers": []}, resolve_workdir=False)

@@ -1,0 +1,54 @@
+[
+  {
+    "policy": "default",
+    "fixture_dns": true,
+    "owned_pid": 38540,
+    "proxy_port": 53859,
+    "controller_port": 53860,
+    "answers": [
+      {
+        "TTL": 60,
+        "data": "203.0.113.1",
+        "name": "copilot.tencent.com.",
+        "type": 1
+      }
+    ],
+    "head": [
+      {
+        "failure": "ConnectError",
+        "elapsed_ms": 5001.5
+      },
+      {
+        "failure": "ConnectError",
+        "elapsed_ms": 5017.1
+      }
+    ],
+    "retired": true
+  },
+  {
+    "policy": "direct_system",
+    "fixture_dns": true,
+    "owned_pid": 40760,
+    "proxy_port": 54055,
+    "controller_port": 54056,
+    "answers": [
+      {
+        "TTL": 60,
+        "data": "203.0.113.1",
+        "name": "copilot.tencent.com.",
+        "type": 1
+      }
+    ],
+    "head": [
+      {
+        "status": 404,
+        "elapsed_ms": 204.9
+      },
+      {
+        "status": 404,
+        "elapsed_ms": 107.0
+      }
+    ],
+    "retired": true
+  }
+]

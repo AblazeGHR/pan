@@ -1,0 +1,455 @@
+{
+  "taskId": "T-QUEUE-SEND-LATENCY-20261014/1",
+  "baseCommit": "1db8d9bd893be7f764619e12bcd2d09a5f3eba00",
+  "branch": "fix/queue-send-latency-20261014",
+  "frozenBaseline": {
+    "packages/core/worker.py": {
+      "rawSha256": "a1751464519f765fb23b592ae5744f28cf4e8404f0b7139d9bcabbcf7c6cf0c7",
+      "normalizedLfSha256": "2cb5b2fc85eda47b7fc6a1f26888d1229bdbec8a61e55053ededbeae2cb83f1a",
+      "matchesGitBlobAfterLfNormalization": true
+    },
+    "packages/mcp/server.py": {
+      "rawSha256": "a2460daacc2a35490d84abd7135eb931cd7ea9eb03e9f24988764cd588ead557",
+      "normalizedLfSha256": "ecc33ccf9cc7d8141c5de74cd78bdba79efc6bb911ec1ef84449355d49fff0e3",
+      "matchesGitBlobAfterLfNormalization": true
+    }
+  },
+  "finalTests": {
+    "tests": 346,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "modules": [
+      "test_queue_send_latency",
+      "test_unified_server_queue",
+      "test_self_queue",
+      "test_steer_history_consistency",
+      "test_session_queue_api",
+      "test_native_control_api",
+      "test_mcp_send_latency",
+      "test_mcp_isolation",
+      "test_mcp_integration",
+      "test_mcp_workspace_tools",
+      "test_scheduler_mcp",
+      "test_background_job_api",
+      "test_real_queue_http_e2e",
+      "test_delivery_semantics",
+      "test_queue_restart_hardening",
+      "test_codex_control_owner",
+      "test_cbc_native_bridge",
+      "test_codex_native_completion"
+    ],
+    "identitySha256": "77e19136b3ac4bb8a3ce9fb36aa2745e0a15fbf6bd92f41de22eb7f076b70305"
+  },
+  "commands": [
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--with",
+        "pytest",
+        "--with",
+        "pytest-timeout",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_queue_send_latency.py",
+        "tests/test_unified_server_queue.py",
+        "tests/test_self_queue.py",
+        "tests/test_steer_history_consistency.py",
+        "tests/test_session_queue_api.py",
+        "tests/test_native_control_api.py",
+        "tests/test_mcp_send_latency.py",
+        "tests/test_mcp_isolation.py",
+        "tests/test_mcp_integration.py",
+        "tests/test_mcp_workspace_tools.py",
+        "tests/test_scheduler_mcp.py",
+        "tests/test_background_job_api.py",
+        "tests/test_real_queue_http_e2e.py",
+        "tests/test_delivery_semantics.py",
+        "tests/test_queue_restart_hardening.py",
+        "tests/test_codex_control_owner.py",
+        "tests/test_cbc_native_bridge.py",
+        "tests/test_codex_native_completion.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--tb=short",
+        "--junitxml=evidence/queue-latency-review-tests.xml"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_queue_send_latency.py",
+        "--label",
+        "review-current",
+        "--rounds",
+        "12",
+        "--backlog",
+        "4",
+        "--history-filler",
+        "200"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_mcp_send_latency.py",
+        "--label",
+        "review-current",
+        "--history-rows",
+        "8000",
+        "--rounds",
+        "6"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_queue_control_latency.py",
+        "--label",
+        "review-current",
+        "--missing-receipt"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_queue_send_latency.py",
+        "--label",
+        "review-baseline",
+        "--rounds",
+        "12",
+        "--backlog",
+        "4",
+        "--history-filler",
+        "200"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_mcp_send_latency.py",
+        "--label",
+        "review-baseline",
+        "--history-rows",
+        "8000",
+        "--rounds",
+        "6"
+      ]
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\frozen-baseline-1db8d9bd",
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "E:/software/miniforge/python.exe",
+        "--with-requirements",
+        "minimal-requirements.txt",
+        "--",
+        "python",
+        "tools/probe_queue_control_latency.py",
+        "--label",
+        "review-baseline",
+        "--missing-receipt"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 2899,
+      "sha256": "eff405c00d5450ee0d8ccb9557985cf25c113704fd14b58092e7f0d9ff576c00",
+      "normalizedLfSha256": "d9e4ac2fab480e03f53e11ba8951b122a384a55b70577736807dc08a09c76eaa"
+    },
+    {
+      "path": "packages/core/worker.py",
+      "bytes": 415771,
+      "sha256": "b13e1835bd2482562d87b4ac5b244bf49503ab618870d6407313278217f82e4a",
+      "normalizedLfSha256": "f4504833dd3197388e5e2dc46e6dd1e9bc28ccf60ac50ee5012c805f29c2d507"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "bytes": 127602,
+      "sha256": "29711567c338fcb13bf85ce458c4fa1168b09b429cbd2aff617ac127d54ace6e",
+      "normalizedLfSha256": "10999319124b60f8856723cf6d1c4b4935453970be54f76a29e5701789ca6fbd"
+    },
+    {
+      "path": "tests/support/isolated_http_server.py",
+      "bytes": 5825,
+      "sha256": "b4f3af6b9918133c6590beb79143c7268ccb5ee44d9dc6e540617eca4bc5843a",
+      "normalizedLfSha256": "92016e7c61f8c15a0d4cd96b49d232485a801f6647b70ef9986bac63723ff5b4"
+    },
+    {
+      "path": "tests/support/fake_latency_cli.py",
+      "bytes": 1924,
+      "sha256": "c17417c24b85532eb2698916ac300d1c0377d2c79ad503077f6570d38ab02ca0",
+      "normalizedLfSha256": "c17417c24b85532eb2698916ac300d1c0377d2c79ad503077f6570d38ab02ca0"
+    },
+    {
+      "path": "tests/test_queue_send_latency.py",
+      "bytes": 9583,
+      "sha256": "1c21861f5646388ac3f47245e7ba0e32d752aee84af4daa28dda352233de8009",
+      "normalizedLfSha256": "1c21861f5646388ac3f47245e7ba0e32d752aee84af4daa28dda352233de8009"
+    },
+    {
+      "path": "tests/test_mcp_send_latency.py",
+      "bytes": 2835,
+      "sha256": "ca8e9b2eb9942a21204a4e082a2fbf2e1ad90ed27d97eabd8f9489340b50967a",
+      "normalizedLfSha256": "ca8e9b2eb9942a21204a4e082a2fbf2e1ad90ed27d97eabd8f9489340b50967a"
+    },
+    {
+      "path": "tools/probe_queue_send_latency.py",
+      "bytes": 16947,
+      "sha256": "853c55903743ca6fcf4d23cd435c81ef1bc9385ba98a33956283b8b9013085f5",
+      "normalizedLfSha256": "853c55903743ca6fcf4d23cd435c81ef1bc9385ba98a33956283b8b9013085f5"
+    },
+    {
+      "path": "tools/probe_queue_control_latency.py",
+      "bytes": 6933,
+      "sha256": "e3c12fea5876dbb2a95396f7769976d5056661bedbb46696349fca64a1b0801b",
+      "normalizedLfSha256": "e3c12fea5876dbb2a95396f7769976d5056661bedbb46696349fca64a1b0801b"
+    },
+    {
+      "path": "tools/probe_mcp_send_latency.py",
+      "bytes": 4769,
+      "sha256": "820f13ac02ff541c5d2b97d05f11b49b4d93bb41ca54d4e6f319bbc3ecda727a",
+      "normalizedLfSha256": "820f13ac02ff541c5d2b97d05f11b49b4d93bb41ca54d4e6f319bbc3ecda727a"
+    },
+    {
+      "path": "evidence/mcp-send-latency-after-mcp.json",
+      "bytes": 9822,
+      "sha256": "3f2870d019694d88de17a7c457c34126d84736347ba6ed864fdfcc5d5bffe6b8",
+      "normalizedLfSha256": "69e74bb3edac21add3e51a63c48eb6bd3bf05fc7ece1049668fe8f42614db2f8"
+    },
+    {
+      "path": "evidence/mcp-send-latency-baseline-final.json",
+      "bytes": 11504,
+      "sha256": "5f3b2bd859b6c3a078bca6abc37a7d650c9c33edb2e4f2af53178fe26a79072c",
+      "normalizedLfSha256": "fdb42b71b4d869455ba6a7487c7e1ff8ea100aade0506593d04132294607306e"
+    },
+    {
+      "path": "evidence/mcp-send-latency-before-mcp-r2.json",
+      "bytes": 11233,
+      "sha256": "e63ad44b312c7cac9a64a28c5bb8e86243ff2a428e696d186d58c68a97672e3e",
+      "normalizedLfSha256": "1e0f97129debeaa35b881f4ba028a47aac2484446e97c709d0529e51650b3081"
+    },
+    {
+      "path": "evidence/mcp-send-latency-final-mcp.json",
+      "bytes": 10050,
+      "sha256": "e6bd800b644e625302927f09664df450e0e0467277747aa28d391f0ba21cad82",
+      "normalizedLfSha256": "06663da6d6353de1e450a0ba2dbdf6b274a8dcdadccca93d1403839c08d6cdf7"
+    },
+    {
+      "path": "evidence/mcp-send-latency-green.xml",
+      "bytes": 13346,
+      "sha256": "71fcce1a95399a1bc84d230a69c4bb48eb0f7ab7b7d526a1640edcf116fe9697",
+      "normalizedLfSha256": "71fcce1a95399a1bc84d230a69c4bb48eb0f7ab7b7d526a1640edcf116fe9697"
+    },
+    {
+      "path": "evidence/queue-control-latency-after-r4.json",
+      "bytes": 2980,
+      "sha256": "96c58983dfb35c56ef6f5279d829b0b53623b808b9a7365950c8b16a3a4ac255",
+      "normalizedLfSha256": "2e607fce9047a54f21f2f932d1c6757981a247cbfa30425a037006b4bc21dc1f"
+    },
+    {
+      "path": "evidence/queue-control-latency-baseline.json",
+      "bytes": 3022,
+      "sha256": "9aace64b2d8de1424e789ccfadbfee2e9a063f644847c87d0ac7251befc703dd",
+      "normalizedLfSha256": "301dc911011f1dbe465bb8e8babe77b3f3b2532b9f8918a096580b5667d23963"
+    },
+    {
+      "path": "evidence/queue-control-latency-final.json",
+      "bytes": 3196,
+      "sha256": "c0d5b9dda91459d6f7e43221f09c018717ae62475ebe3670b1d278eb4f978c45",
+      "normalizedLfSha256": "bfd8cf6b90e361b416997b6bc473ed987497d9f97accae9dab1bd514f9000619"
+    },
+    {
+      "path": "evidence/queue-latency-final-tests.log",
+      "bytes": 1668,
+      "sha256": "bb522f88968598856ed6716bec3a3175769b8f34c586a85cbc38961158f17a09",
+      "normalizedLfSha256": "b86092ef49b4850bc47abdd63561bd3aeb8456bfa6e3536d7e2161f14e2e4304"
+    },
+    {
+      "path": "evidence/queue-latency-final-tests.xml",
+      "bytes": 44638,
+      "sha256": "86e0005c93744f4b3cbbf6ca0d74ad5b8782f7fc6f10555e49eddecfc9fc8deb",
+      "normalizedLfSha256": "86e0005c93744f4b3cbbf6ca0d74ad5b8782f7fc6f10555e49eddecfc9fc8deb"
+    },
+    {
+      "path": "evidence/queue-latency-guards.xml",
+      "bytes": 1901,
+      "sha256": "d84f642c8b4cd98c60de00311ab0dbcd78de4feac0e0e3caead7511094f91f09",
+      "normalizedLfSha256": "d84f642c8b4cd98c60de00311ab0dbcd78de4feac0e0e3caead7511094f91f09"
+    },
+    {
+      "path": "evidence/queue-latency-probe-after-timed.json",
+      "bytes": 19347,
+      "sha256": "cfcd89f3f80bfb97c2adaa4f05fc5afafc053bbcc0d559bae7c4924edbf47791",
+      "normalizedLfSha256": "0aede339c6aee00a2f67da93b1627f50c4deb49ca08e920195fb3ac5e35d1c9a"
+    },
+    {
+      "path": "evidence/queue-latency-probe-baseline-1db8d9bd.json",
+      "bytes": 9558,
+      "sha256": "deba991fb6867dd4ab9f7752610f79742fe68d6f19dc1aeb5d58eb64d7318654",
+      "normalizedLfSha256": "0f658eafc7df97cafb52bcd97ac5fbac6b931677dddbe6e16f993acfc450f89b"
+    },
+    {
+      "path": "evidence/queue-latency-probe-baseline-timed.json",
+      "bytes": 19494,
+      "sha256": "9e54a9d860f762a7c84a8b6cb2a69751dd5d6e97a6382ca319dd934e1d6e415f",
+      "normalizedLfSha256": "1e6d30b61017dac898c8bc67cd5eeac1a8d5be6be615ff4bd6b3cc8dd913833f"
+    },
+    {
+      "path": "evidence/queue-latency-runtime-regression.xml",
+      "bytes": 14999,
+      "sha256": "8b36eb2c824685d212f27eadecaa757e8cc4ec769e0ee6abb45b832ed01fd848",
+      "normalizedLfSha256": "8b36eb2c824685d212f27eadecaa757e8cc4ec769e0ee6abb45b832ed01fd848"
+    },
+    {
+      "path": "evidence/queue-send-latency-20261014.md",
+      "bytes": 9024,
+      "sha256": "16a7e4593a7fbb932290a537c7f6f0462c9d5525e6518518534651b9e7045713",
+      "normalizedLfSha256": "16a7e4593a7fbb932290a537c7f6f0462c9d5525e6518518534651b9e7045713"
+    },
+    {
+      "path": "evidence/queue-send-latency-green.xml",
+      "bytes": 15821,
+      "sha256": "5a9b0bb0077022760a53620c95f0de87b5bb62294e1457b732e6ea8ba341eac3",
+      "normalizedLfSha256": "5a9b0bb0077022760a53620c95f0de87b5bb62294e1457b732e6ea8ba341eac3"
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/control-baseline-cli.jsonl",
+      "bytes": 1972,
+      "sha256": "19aabe6ae5980ce2f5e58ec75c8f70217f1ecbf1d981f54a9ab7fb47cbebf940",
+      "normalizedLfSha256": "2afce7a179c1421da386ba95d0b68db7155bc0575bebc98c65e4176b7e5fdc79"
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/control-final-cli.jsonl",
+      "bytes": 1714,
+      "sha256": "9deeb1ee123c048271c2c2eb70c5ed6d36e34adabda410ab1e827a5804c2ae50",
+      "normalizedLfSha256": "6c34dffa014f6783f5c23eaa16ca8aba4d937abc5c5fcfc8db6eb5ccb3997c66"
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/mcp-baseline-cli.jsonl",
+      "bytes": 4220,
+      "sha256": "d71863538f80dda026548bc1c6a79977c792c372fe40901b93014e87ad99711d",
+      "normalizedLfSha256": "5578b0d07ace16fc19d75a7b30c78dcd1b8fc68c15b1ad0a4631062a91f6c5f7"
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/mcp-final-cli.jsonl",
+      "bytes": 3593,
+      "sha256": "73b0153abda76f99a1175ec32f33b98a01c513623ec2dfa2a9a930be9d5c6f1f",
+      "normalizedLfSha256": "d7b64592fdfbb765991d34a10d83e8b9f97421fc0603d658fcbfb632df78efb5"
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/queue-send-latency-red.xml.gz",
+      "bytes": 3012,
+      "sha256": "8b57de991520914fdd497c694690e5fdf46bd6b0751404f09f4e9eb2404b1dc2",
+      "uncompressedBytes": 18018,
+      "uncompressedSha256": "114ddb0c548b0640748b9935035489d23f84e7500d011a14fde205e8550b98d3",
+      "testIdentities": [
+        "tests.test_queue_send_latency::test_idle_consumer_wakes_when_edit_lease_expires_without_another_send",
+        "tests.test_queue_send_latency::test_send_ack_does_not_wait_for_direct_steer_stdin_drain",
+        "tests.test_queue_send_latency::test_direct_steer_acceptance_receipt_completes_before_stdin_drain"
+      ]
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/mcp-send-latency-red.xml.gz",
+      "bytes": 484,
+      "sha256": "72d62290981f9484e90a2b545692804548df359c5933d373ae7df01143aea9cf",
+      "uncompressedBytes": 2085,
+      "uncompressedSha256": "9c3557fbcf4ce15bc77297503bb58829d142ad13c1afd47177cb7d0950b16974",
+      "testIdentities": [
+        "tests.test_mcp_send_latency::test_send_reads_caller_metadata_once_and_keeps_source_identity[False]",
+        "tests.test_mcp_send_latency::test_send_reads_caller_metadata_once_and_keeps_source_identity[True]"
+      ]
+    },
+    {
+      "path": "evidence/queue-send-latency-artifacts/queue-latency-prewrite-rejection-red.xml.gz",
+      "bytes": 603,
+      "sha256": "3abc986e1bf6bd3d2c4600b8f087d2ddab50dd0f72161e1b8bdd96d84b7eb286",
+      "uncompressedBytes": 1494,
+      "uncompressedSha256": "0e69770ea8a7d2096a0a1a4a3c66984aab9684069f24fccaf17785620986d3a5",
+      "testIdentities": [
+        "tests.test_queue_send_latency::test_direct_steer_dead_process_is_a_prewrite_rejection"
+      ]
+    }
+  ]
+}

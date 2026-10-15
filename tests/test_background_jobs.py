@@ -32,6 +32,31 @@ def _session(tmp_path, sid="ses_target"):
     return s
 
 
+def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
+                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
+    monkeypatch.setattr(jobs, "_owns_process", lambda fact: Mock(pid=fact["pid"]))
+    def killed(proc):
+        assert jobs.get(job["jobId"])["cancelRequestedAt"]
+        jobs.runner_update(job["jobId"], status="failed", exitCode=15)
+    monkeypatch.setattr(jobs, "_kill_tree", killed)
+    result = jobs.cancel(job["jobId"])
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+    assert result["terminalEventId"] == job["jobId"] + ":terminal"
+
+
+def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tmp_path):
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "cancelRequestedAt": 1})
+    result = jobs.runner_update(job["jobId"], status="completed", exitCode=0)
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+
+
 def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     _session(tmp_path)
     _session(tmp_path, "ses_creator")
@@ -451,3 +476,159 @@ def test_reconcile_keeps_job_when_runner_identity_is_alive(monkeypatch, tmp_path
     monkeypatch.setattr(jobs, "_owns_process", lambda value: object())
     assert jobs.reconcile_running() == 0
     assert jobs.get("job_alive")["status"] == "running"
+
+
+def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
+    """独立 runner 落盘终态后，恢复循环首次观测即补发一次 job.updated。"""
+    _session(tmp_path)
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
+    from packages.core import background_runner
+    assert background_runner.main() == 0
+    assert jobs.get(job["jobId"])["status"] == "completed"
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    assert asyncio.run(jobs.recover_notifications()) == 1
+    assert len(events) == 1
+    assert events[0]["type"] == "job.updated"
+    assert events[0]["jobId"] == job["jobId"]
+    assert events[0]["job"]["status"] == "completed"
+    assert events[0]["job"]["exitCode"] == 0
+    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
+            == f"{job['jobId']}:terminal")
+    # 幂等：第二次恢复循环不得重复广播同一终态。
+    assert asyncio.run(jobs.recover_notifications()) == 0
+    assert len(events) == 1
+
+
+def test_terminal_broadcast_retries_after_channel_failure(monkeypatch, tmp_path):
+    """成功发布后才持久化标记：广播通道故障保持可重试，下一 tick 恢复即收敛。
+
+    job.updated 是状态 upsert，客户端对重复事件幂等，故绝不以牺牲送达换取
+    严格一次：首发失败不标记（否则一次失败会永久卡住旧徽标），通道恢复后
+    补发一次并标记，随后不再重复。
+    """
+    _session(tmp_path)
+
+    def raising_hook(event):
+        raise RuntimeError("broadcast down")
+
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", raising_hook)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
+    from packages.core import background_runner
+    assert background_runner.main() == 0
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    # 首发失败：恢复循环不得崩溃，且不得持久化标记（保持可重试）。
+    asyncio.run(jobs.recover_notifications())
+    assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
+
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event",
+                        lambda event: events.append(event))
+    # 通道恢复后的下一 tick：补发一次并标记。
+    asyncio.run(jobs.recover_notifications())
+    assert [event["type"] for event in events] == ["job.updated"]
+    assert events[0]["jobId"] == job["jobId"]
+    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
+            == f"{job['jobId']}:terminal")
+    # 之后不再重复（成功路径无每 tick 重复）。
+    asyncio.run(jobs.recover_notifications())
+    assert len(events) == 1
+
+
+def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
+    """scheduled 子进程作业不在 /api/jobs 列表内：不得经 upsert 进入 GUI store。"""
+    _session(tmp_path)
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    jobs.runner_update(job["jobId"], status="completed", exitCode=0,
+                       scheduledParentJobId="sch_parent")
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+    assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
+
+
+def test_independent_terminal_broadcast_uses_local_ledger_and_retries(monkeypatch, tmp_path):
+    """独立 Job 服务路径：远程终态补发 + 本地 ledger 幂等 + 失败可重试。
+
+    远程 runner 只写服务自己的注册表（进程所有权不变）；标记只落在本地
+    ledger（绝不写服务注册表）。scheduled 子任务被 /api/jobs 过滤且由父
+    任务 finalize 广播，非终态同理跳过。
+    """
+    from packages.jobs import pan_bridge
+
+    events = []
+
+    def failing_hook(event):
+        raise RuntimeError("broadcast down")
+
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", failing_hook)
+    remote_payload = {"jobs": [
+        {"jobId": "job_remote_done", "kind": "background-process",
+         "status": "completed", "name": "Remote done", "updatedAt": 1},
+        {"jobId": "job_remote_child", "kind": "background-process",
+         "status": "completed", "scheduledParentJobId": "sch_parent",
+         "name": "Remote child", "updatedAt": 1},
+        {"jobId": "job_remote_live", "kind": "background-process",
+         "status": "running", "name": "Remote live", "updatedAt": 1},
+    ]}
+
+    class Client:
+        def list(self):
+            return remote_payload
+        def events(self):
+            return {"events": []}
+        def ack(self, event_id):
+            return {}
+
+    monkeypatch.setattr(pan_bridge, "configured_client", Client)
+
+    async def notify(target, text, **kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(worker, "enqueue_notice", notify)
+    # 首发失败：无广播、无 ledger（保持可重试）。
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+    assert jobs._load_terminal_broadcast_ledger() == {}
+
+    events.clear()
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event",
+                        lambda event: events.append(event))
+    asyncio.run(jobs.recover_notifications())
+    # 仅补发远程终态的非子任务；scheduled 子任务与非终态跳过。
+    assert [event["jobId"] for event in events] == ["job_remote_done"]
+    assert events[0]["job"]["status"] == "completed"
+    ledger = jobs._load_terminal_broadcast_ledger()
+    assert ledger["job_remote_done"] == "completed:job_remote_done:terminal"
+    assert "job_remote_child" not in ledger
+    assert "job_remote_live" not in ledger
+    # 之后不再重复（成功路径无每 tick 重复）。
+    events.clear()
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+    # 服务 retention 删除的作业不再出现在远程列表：ledger 项当轮清掉，
+    # 文件不随终态作业数无限增长；也不得因此重新广播。
+    remote_payload["jobs"] = [item for item in remote_payload["jobs"]
+                              if item["jobId"] != "job_remote_done"]
+    asyncio.run(jobs.recover_notifications())
+    assert events == []
+    assert jobs._load_terminal_broadcast_ledger() == {}

@@ -87,6 +87,14 @@ def _emit(event: dict) -> None:
                 close()
 
 
+async def _emit_strict(event: dict) -> bool:
+    """统一循环严格发射：直连 scheduler_api.emit_strict，不经吞异常的
+    on_event 链，把成功/失败如实返回给需要重试语义的调用方。"""
+    from packages.scheduler.api import emit_strict
+
+    return await emit_strict(event)
+
+
 async def _consume(awaitable) -> None:
     try:
         await awaitable
@@ -104,6 +112,7 @@ def _ensure_registered() -> None:
         root_resolver=lambda: str(store.data_root()),
         config_resolver=lambda: scheduler_config(),
         on_event=_emit,
+        on_event_strict=_emit_strict,
     )
 
 

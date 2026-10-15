@@ -40,6 +40,10 @@ describe('matchesWorkspaceSearch', () => {
     expect(matchesWorkspaceSearch(makeWorkspace('ws_1', 'Alpha WS'), 'alphax')).toBe(false);
   });
 
+  it('does not match workspace IDs', () => {
+    expect(matchesWorkspaceSearch(makeWorkspace('secret-id', 'Alpha'), 'secret-id')).toBe(false);
+  });
+
   it('never matches a missing name for a non-empty query', () => {
     expect(matchesWorkspaceSearch({ id: 'ws_1' } as unknown as Workspace, 'alpha')).toBe(false);
   });
@@ -119,6 +123,31 @@ describe('workspaceMatchesSpecialFilters', () => {
     expect(workspaceMatchesSpecialFilters([unread, queued], members, new Set(['illegal', 'unread']))).toBe(false);
   });
 
+  it('preserves all 15 nonempty status combinations across inherited effective members', () => {
+    const members = [
+      makeSession('root', { workspaceIds: ['ws'], workerStatus: 'running' }),
+      makeSession('child-unread', { managedBy: 'root', unreadDoneCount: 1 }),
+      makeSession('child-queue', { managedBy: 'root', queuePendingCount: 1 }),
+      makeSession('child-illegal', { managedBy: 'root', workerStatus: 'idle', lastLegalWorkerState: 'running' }),
+    ];
+    const filters = ['running', 'unread', 'queue', 'illegal'] as const;
+    for (let mask = 1; mask < 16; mask += 1) {
+      const selected = new Set(filters.filter((_, index) => mask & (1 << index)));
+      const options = {
+        expanded: true, searchQuery: 'target', specialFilters: selected,
+        membersByWorkspace: new Map([['ws', members]]), ungroupedMembers: [],
+      };
+      expect(computeWorkspaceRowVisibility([makeWorkspace('ws', 'Target')], members, options).workspaces).toHaveLength(1);
+      for (let index = 0; index < filters.length; index += 1) {
+        if (!(mask & (1 << index))) continue;
+        const remaining = members.filter((_, memberIndex) => memberIndex !== index);
+        expect(computeWorkspaceRowVisibility([makeWorkspace('ws', 'Target')], members, {
+          ...options, membersByWorkspace: new Map([['ws', remaining]]),
+        }).workspaces).toHaveLength(0);
+      }
+    }
+  });
+
   it('aggregates ACTUAL member states — a session the keyword would hide still counts', () => {
     // 'zzz-not-matching' fails the keyword filter, but its real running state
     // must still aggregate to the workspace (never derive from the
@@ -172,15 +201,15 @@ describe('computeWorkspaceRowVisibility', () => {
     expect(visibility.showUngrouped).toBe(true);
   });
 
-  it('filters workspace rows by name while sharing the Session search box', () => {
+  it('filters workspace rows by name using its independent keyword', () => {
     const visibility = computeWorkspaceRowVisibility(workspaces, sessions, {
       ...baseOptions,
       searchQuery: 'alpha',
     });
     expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha']);
-    // No session name matches 'alpha', so the virtual scopes have no content.
-    expect(visibility.showAll).toBe(false);
-    expect(visibility.showUngrouped).toBe(false);
+    // Virtual scopes are unaffected by the workspace name query.
+    expect(visibility.showAll).toBe(true);
+    expect(visibility.showUngrouped).toBe(true);
   });
 
   it('filters workspace rows by the aggregated member status', () => {
@@ -247,8 +276,8 @@ describe('computeWorkspaceRowVisibility', () => {
     expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha']);
   });
 
-  it('shows a virtual scope only when its own content matches', () => {
-    // Ungrouped worker matches the keyword → 'ungrouped' shows, 'all' too.
+  it('does not match Session names with the workspace keyword', () => {
+    // A Session-only keyword matches no workspace; virtual scopes stay available.
     const visibility = computeWorkspaceRowVisibility(workspaces, sessions, {
       ...baseOptions,
       searchQuery: 'loose',
@@ -258,6 +287,21 @@ describe('computeWorkspaceRowVisibility', () => {
     expect(visibility.showAll).toBe(true);
   });
 
+  it('retains virtual scopes per-Session status AND rather than workspace aggregation', () => {
+    const members = [
+      makeSession('running', { workerStatus: 'running' }),
+      makeSession('unread', { unreadDoneCount: 1 }),
+    ];
+    const visibility = computeWorkspaceRowVisibility([alpha], members, {
+      ...baseOptions,
+      searchQuery: 'alpha', specialFilters: new Set(['running', 'unread']),
+      membersByWorkspace: new Map([['ws_alpha', members]]), ungroupedMembers: members,
+    });
+    expect(visibility.workspaces).toEqual([alpha]);
+    expect(visibility.showAll).toBe(false);
+    expect(visibility.showUngrouped).toBe(false);
+  });
+
   it('handles an empty workspace list', () => {
     const visibility = computeWorkspaceRowVisibility([], sessions, {
       ...baseOptions,
@@ -265,7 +309,7 @@ describe('computeWorkspaceRowVisibility', () => {
       specialFilters: new Set(['running']),
     });
     expect(visibility.workspaces).toEqual([]);
-    expect(visibility.showAll).toBe(false);
+    expect(visibility.showAll).toBe(true);
     expect(visibility.showUngrouped).toBe(false);
   });
 });

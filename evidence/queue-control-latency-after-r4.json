@@ -1,0 +1,99 @@
+{
+  "label": "after-r4",
+  "port": 49882,
+  "dataRoot": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-after-r4",
+  "leaseTtlMs": 150,
+  "drainGateMs": 350,
+  "fakeProvider": true,
+  "leaseExpiry": {
+    "headId": "q_2195225172264afa9b540d842518d761",
+    "tailId": "q_f791f6d483cd4461855ab5a92736c408",
+    "deliveredWithoutAnotherSend": true,
+    "expiryToFirstCliMs": 11.9
+  },
+  "directSteerDrain": {
+    "requestAt": 1791917628.9239612,
+    "ackAt": 1791917628.9315183,
+    "ackMs": 7.8,
+    "payload": {
+      "workerId": "worker-1",
+      "sessionId": "ses_ab1346a3bf35a528",
+      "status": "steer sent"
+    },
+    "receiptToAckMs": 4.6,
+    "concurrentSendAckMs": 16.1
+  },
+  "queueSteerLateReceipt": {
+    "httpAckMs": 10017.1,
+    "originalId": "q_5a968f880833436f97715337a2e846d4",
+    "pendingPayload": {
+      "ok": false,
+      "error": {
+        "code": "queue_steer_failed",
+        "message": "Steer awaiting provider receipt; item retained and blocked against duplicate delivery"
+      },
+      "items": [
+        {
+          "id": "q_6bdd01d9e2ca4a409372aec3ff34302e",
+          "queueItemId": "q_6bdd01d9e2ca4a409372aec3ff34302e",
+          "kind": "task",
+          "text": "during-steer",
+          "createdAt": 1791917628.942425,
+          "source": "user",
+          "meta": {
+            "seq": 5,
+            "taskId": null,
+            "revision": 1,
+            "dispatchState": "queued",
+            "locked": false,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": false,
+            "steerError": null
+          }
+        },
+        {
+          "id": "q_5a968f880833436f97715337a2e846d4",
+          "queueItemId": "q_5a968f880833436f97715337a2e846d4",
+          "kind": "task",
+          "text": "late-receipt",
+          "createdAt": 1791917629.2872932,
+          "source": "user",
+          "meta": {
+            "seq": 6,
+            "taskId": null,
+            "revision": 1,
+            "dispatchState": "queued",
+            "locked": true,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": true,
+            "steerError": null
+          }
+        }
+      ],
+      "queueRevision": 17,
+      "agentReportsPaused": false,
+      "queuePaused": false
+    },
+    "retainedUntilReceipt": true,
+    "lateReceiptDelivered": true
+  },
+  "directSteerMissingReceipt": {
+    "requestAt": 1791917639.3221905,
+    "ackAt": 1791917669.3315132,
+    "ackMs": 30009.1,
+    "payload": {
+      "error": "Steer outcome unknown: provider receipt missing; do not resend"
+    }
+  },
+  "blockedSecondSteer": {
+    "requestAt": 1791917669.3315132,
+    "ackAt": 1791917669.3325315,
+    "ackMs": 1.5,
+    "payload": {
+      "error": "Previous Steer is awaiting a provider receipt; do not resend"
+    }
+  },
+  "finalQueueCount": 0
+}

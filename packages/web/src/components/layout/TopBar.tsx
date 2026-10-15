@@ -274,7 +274,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
           {/* Desktop-only entry: on mobile the same contract (upgrade,
               pending idle, enter TUI, error retry) lives in Session Settings
               → More (SettingsPopover). */}
-          {!isMobile && currentSession.adapter === 'codex' && <button type="button"
+          {!isMobile && (currentSession.adapter === 'codex' || currentSession.adapter === 'cbc') && <button type="button"
             className="terminal-tui-entry ml-1 flex shrink-0 items-center justify-center gap-1 rounded border px-2 py-1 text-xs transition-colors md:min-h-0"
             data-terminal-status={terminalEntry.status}
             aria-label="Terminal TUI" aria-pressed={terminalEntry.active} disabled={terminalEntry.busy}

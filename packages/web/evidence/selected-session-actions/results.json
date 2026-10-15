@@ -1,5 +1,5 @@
 {
-  "port": 55784,
+  "port": 52220,
   "results": [
     {
       "width": 1280,
@@ -10,6 +10,9 @@
         "workspace snapshot / manager detach cancellation / partial failure / retry",
         "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
         "weekly controls / cancel",
+        "delayed restart intent / start-vs-restart action / pending block / settle retry",
+        "restart snapshot switch / in-flight duplicate guard",
+        "kill confirmation dismissal / worker-backed request / no-worker no-op / disabled boundary / partial failure retry",
         "menu viewport / escape"
       ]
     },
@@ -22,6 +25,9 @@
         "workspace snapshot / manager detach cancellation / partial failure / retry",
         "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
         "weekly controls / cancel",
+        "delayed restart intent / start-vs-restart action / pending block / settle retry",
+        "restart snapshot switch / in-flight duplicate guard",
+        "kill confirmation dismissal / worker-backed request / no-worker no-op / disabled boundary / partial failure retry",
         "menu viewport / escape"
       ]
     },
@@ -34,6 +40,9 @@
         "workspace snapshot / manager detach cancellation / partial failure / retry",
         "broadcast snapshot / save failure / retry / duplicate guard / pending escape",
         "weekly controls / cancel",
+        "delayed restart intent / start-vs-restart action / pending block / settle retry",
+        "restart snapshot switch / in-flight duplicate guard",
+        "kill confirmation dismissal / worker-backed request / no-worker no-op / disabled boundary / partial failure retry",
         "menu viewport / escape"
       ]
     }
@@ -173,6 +182,126 @@
       }
     },
     {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/c/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 1280,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
       "width": 390,
       "path": "/api/sessions/a/unread-done/ack",
       "method": "POST",
@@ -306,6 +435,126 @@
       }
     },
     {
+      "width": 390,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/c/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
       "width": 320,
       "path": "/api/sessions/a/unread-done/ack",
       "method": "POST",
@@ -437,6 +686,126 @@
           "delaySeconds": 60
         }
       }
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/delayed-restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/restart",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/c/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/a/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions/b/worker/kill",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
     }
   ],
   "errors": []

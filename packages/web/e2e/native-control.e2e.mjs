@@ -10,6 +10,7 @@ import net from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 
+const adapter = process.env.PAN_NATIVE_TEST_ADAPTER === 'cbc' ? 'cbc' : 'codex';
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 const port = await new Promise((resolve, reject) => {
   const probe = net.createServer(); probe.once('error', reject);
@@ -21,7 +22,7 @@ const server = await createServer({ configFile: false, root: path.join(cwd, 'src
 await server.listen();
 let browser;
 try {
-  const url = `http://127.0.0.1:${port}/native-control-harness.html`;
+  const url = `http://127.0.0.1:${port}/native-control-harness.html?adapter=${adapter}`;
   let ready = false;
   for (let n = 0; n < 80; n++) {
     try { ready = (await fetch(url)).ok; } catch { /* startup only */ }
@@ -90,7 +91,7 @@ try {
   // Existing stdio Session upgrade: confirm, preserve Pan UI while pending,
   // then enter TUI only after the server acknowledges idle conversion.
   enabled = false;
-  await page.goto(`${url}?standard=1`);
+  await page.goto(`${url}&standard=1`);
   page.once('dialog', (dialog) => dialog.dismiss());
   await tui.click();
   assert.deepEqual(configurations, []);
@@ -119,7 +120,7 @@ try {
   mode = 'pan'; rejectSwitch = false;
   await page.locator('[contenteditable="true"][data-placeholder]').waitFor({ state: 'visible' });
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, stdio_upgrade_waits_idle: true, page_errors: errors }));
+  console.log(JSON.stringify({ passed: true, adapter, browser: 'Chromium', real_components: true, api: 'intercepted fixture', native_input: true, visible_queue: true, refresh_keeps_control: true, pan_composer_restored: true, stdio_upgrade_waits_idle: true, page_errors: errors }));
 } finally {
   if (browser) await browser.close();
   await server.close();

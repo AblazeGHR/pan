@@ -9,19 +9,20 @@ from fastapi import FastAPI
 
 from packages.core import session, worker
 from packages.core.adapters import CodexAdapter
+from packages.core.adapters.cbc.adapter import CbcAdapter
 from packages.web import native_control_api as api
 
 
-@pytest.fixture
-def target(monkeypatch):
+@pytest.fixture(params=["codex", "cbc"])
+def target(monkeypatch, request):
     app = FastAPI()
     app.include_router(api.router)
-    s = session.Session(id="ses-convert", name="existing", adapter="codex")
+    s = session.Session(id="ses-convert", name="existing", adapter=request.param)
     s.cli_session_id = "same-thread"
     s.history = [{"role": "user", "content": "keep"}]
     s.queue_pending = [{"id": "keep-queue", "text": "later"}]
     session._cache[s.id] = s
-    w = worker.Worker(worker_id="w-convert", session_id=s.id, adapter=CodexAdapter(),
+    w = worker.Worker(worker_id="w-convert", session_id=s.id, adapter=CodexAdapter() if request.param == "codex" else CbcAdapter(),
                       status="running", process=SimpleNamespace(returncode=None), generation=2)
     monkeypatch.setattr(api, "_enter", lambda request: (None, None))
     monkeypatch.setattr(session, "get", lambda *args, **kwargs: s)
@@ -135,7 +136,7 @@ def test_native_busy_idle_projection_cannot_restart_early(target, monkeypatch):
 
 def test_other_adapter_readonly_and_security_gate_reject(target, monkeypatch):
     app, s, _ = target
-    s.adapter = "cbc"
+    s.adapter = "kimi"
     assert request(app, {"enabled": True}).status_code == 409
     s.adapter = "codex"; s.readonly_session = True
     assert request(app, {"enabled": True}).status_code == 409
@@ -200,8 +201,9 @@ def test_unstopped_runtime_keeps_pending_config_and_owner(target, monkeypatch):
     asyncio.run(run())
 
 
-def test_pending_configuration_survives_disk_reload(monkeypatch):
-    s = session.Session(id="ses-disk-convert", name="disk", adapter="codex")
+@pytest.mark.parametrize("adapter", ["codex", "cbc"])
+def test_pending_configuration_survives_disk_reload(monkeypatch, adapter):
+    s = session.Session(id="ses-disk-convert", name="disk", adapter=adapter)
     s.cli_session_id = "durable-thread"
     s.adapter_config["native_control_next"] = True
     s.queue_pending = [{"id": "durable-queue", "text": "keep"}]

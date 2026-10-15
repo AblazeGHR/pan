@@ -1,0 +1,12 @@
+{"kind": "init", "pid": 35416, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014", "at": 1791918452.3103209}
+{"kind": "init", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918452.4027646}
+{"kind": "received", "text": "warmup", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918452.4034371}
+{"kind": "received", "text": "lease-head", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918452.5943933}
+{"kind": "received", "text": "lease-tail", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918452.6066663}
+{"kind": "received", "text": "hold-A", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918452.6314135}
+{"kind": "control", "text": "blocked-control", "at": 1791918452.641572}
+{"kind": "receipt", "text": "blocked-control", "at": 1791918452.6430745}
+{"kind": "control", "text": "late-receipt", "at": 1791918453.009702}
+{"kind": "receipt", "text": "late-receipt", "at": 1791918463.0197427}
+{"kind": "control", "text": "missing-receipt", "at": 1791918463.0247812}
+{"kind": "received", "text": "during-steer", "pid": 39876, "cwd": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final\\workdirs\\real-fifo", "at": 1791918493.0407774}

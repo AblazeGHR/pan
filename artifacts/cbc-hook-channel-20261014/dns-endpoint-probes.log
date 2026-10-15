@@ -1,0 +1,2 @@
+{"round": 1, "results": [{"ip": "43.242.199.79", "tcp_ms": 65.1, "tls_ms": 126.7, "http": "HTTP/1.1 404 Not Found"}, {"ip": "43.141.70.102", "tcp_ms": 45.1, "tls_ms": 2968.2, "http": "HTTP/1.1 404 Not Found"}, {"ip": "43.141.132.124", "failure": "TimeoutError", "elapsed_ms": 3003.3}]}
+{"round": 2, "results": [{"ip": "43.242.199.79", "tcp_ms": 47.7, "tls_ms": 98.4, "http": "HTTP/1.1 404 Not Found"}, {"ip": "43.141.70.102", "tcp_ms": 562.0, "tls_ms": 953.6, "http": "HTTP/1.1 404 Not Found"}, {"ip": "43.141.132.124", "failure": "TimeoutError", "elapsed_ms": 3001.9}]}

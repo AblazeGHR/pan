@@ -1,0 +1,20 @@
+{
+  "bridge_pid": 42284,
+  "retired": true,
+  "submission_attempted": true,
+  "submit_hook_witness": null,
+  "owned_children_retired": true,
+  "event_types": [
+    "pan.native_busy",
+    "pan.native_input_state",
+    "pan.native_output",
+    "pan.native_ready",
+    "system"
+  ],
+  "terminal_bytes": 20827,
+  "markers": [
+    "login",
+    "log in",
+    "sign in"
+  ]
+}

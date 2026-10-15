@@ -19,7 +19,7 @@ def _target(request, session_id, *, require_enabled=True):
     s = session.get(session_id, load_history=False)
     if s is None:
         return None, fail(404, "session-not-found")
-    if s.readonly_session or s.adapter != "codex" or (require_enabled and s.adapter_config.get("native_control") is not True):
+    if s.readonly_session or s.adapter not in {"codex", "cbc"} or (require_enabled and s.adapter_config.get("native_control") is not True):
         return None, fail(409, "native-control-unavailable")
     return s, None
 
@@ -57,6 +57,8 @@ async def passthrough(request: Request, session_id: str):
     s, rejected = _target(request, session_id, require_enabled=False)
     if rejected is not None:
         return rejected
+    if s.adapter != "codex":
+        return fail(409, "native-passthrough-unavailable")
     try:
         body = await read_json_object(request, allow_empty=False)
     except (ValueError, TypeError, BodyError):

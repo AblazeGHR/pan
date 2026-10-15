@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.160" timestamp="2026-10-14T23:22:06.039438+08:00" hostname="ablaze"><testcase classname="tests.test_cbc_hook_channel" name="test_missing_environment_blocks_submit" time="0.007"><failure message="KeyError: 'PAN_CBC_HOOK_URL'">tests\test_cbc_hook_channel.py:28: in test_missing_environment_blocks_submit
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:37: in main
+    ???
+&lt;frozen os&gt;:709: in __getitem__
+    ???
+E   KeyError: 'PAN_CBC_HOOK_URL'</failure></testcase><testcase classname="tests.test_cbc_hook_channel" name="test_invalid_input_blocks_without_traceback_or_private_data[{]" time="0.003"><failure message="json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)">tests\test_cbc_hook_channel.py:20: in test_invalid_input_blocks_without_traceback_or_private_data
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:11: in main
+    ???
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\__init__.py:298: in load
+    return loads(fp.read(),
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py:361: in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)</failure></testcase><testcase classname="tests.test_cbc_hook_channel" name="test_invalid_input_blocks_without_traceback_or_private_data[[]]" time="0.002"><failure message="KeyError: 'PAN_CBC_HOOK_URL'">tests\test_cbc_hook_channel.py:20: in test_invalid_input_blocks_without_traceback_or_private_data
+    assert native_hook.main() == 2
+           ^^^^^^^^^^^^^^^^^^
+native_hook@097a356e.py:37: in main
+    ???
+&lt;frozen os&gt;:709: in __getitem__
+    ???
+E   KeyError: 'PAN_CBC_HOOK_URL'</failure></testcase></testsuite></testsuites>

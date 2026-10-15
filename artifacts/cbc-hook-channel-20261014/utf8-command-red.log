@@ -1,0 +1,17 @@
+.FF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_installed_command_executor_utf8_receipt_crosses_real_http[\u7ee7\u7eed] _
+tests\test_cbc_hook_channel.py:160: in test_installed_command_executor_utf8_receipt_crosses_real_http
+    assert receipt["exitCode"] == 0 and receipt["allowed"] is True, receipt
+E   AssertionError: {'bundleSHA256': '2d8e7c1aab61d62f983c85d9fc473c85a2d22afb0e13683920586ba69e82b4a3', 'exitCode': 2, 'allowed': False, 'stderr': 'CBC control channel unavailable: bridge rejected hook (prompt_mismatch)\r
+E     '}
+E   assert (2 == 0)
+_ test_installed_command_executor_utf8_receipt_crosses_real_http[\u4fee\u590d \U0001f9ea caf\xe9] _
+tests\test_cbc_hook_channel.py:160: in test_installed_command_executor_utf8_receipt_crosses_real_http
+    assert receipt["exitCode"] == 0 and receipt["allowed"] is True, receipt
+E   AssertionError: {'bundleSHA256': '2d8e7c1aab61d62f983c85d9fc473c85a2d22afb0e13683920586ba69e82b4a3', 'exitCode': 2, 'allowed': False, 'stderr': 'CBC control channel unavailable: invalid hook input\r
+E     '}
+E   assert (2 == 0)
+=========================== short test summary info ===========================
+FAILED tests/test_cbc_hook_channel.py::test_installed_command_executor_utf8_receipt_crosses_real_http[\u7ee7\u7eed]
+FAILED tests/test_cbc_hook_channel.py::test_installed_command_executor_utf8_receipt_crosses_real_http[\u4fee\u590d \U0001f9ea caf\xe9]

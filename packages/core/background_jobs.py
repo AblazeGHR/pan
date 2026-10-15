@@ -730,7 +730,11 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
         },
     }
     if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0)
+        # A venv redirector starts the real Python with flags=0. DETACHED_PROCESS
+        # is not inherited and would let that child allocate a Terminal window.
+        # NO_WINDOW creates a windowless console that the redirector child inherits.
+        # This runner is always headless; the task's hideWindow policy is separate.
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     else:
         kwargs["start_new_session"] = True
     try:
@@ -1352,16 +1356,20 @@ _scheduled_task_hooks: dict[str, Any] = {
     "root_resolver": None,
     "config_resolver": None,
     "on_event": None,
+    "on_event_strict": None,
     "qq_send": None,
 }
 _scheduled_task_stats: dict[str, Any] = {"dueScanned": 0, "lastTickAt": None}
 
 
 def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
-                             on_event=None, qq_send=None) -> None:
+                             on_event=None, on_event_strict=None, qq_send=None) -> None:
     """Register the scheduler plugin's registry root / config / event callback.
 
-    幂等：仅覆盖显式给出的可调用项，重复注册安全。
+    幂等：仅覆盖显式给出的可调用项，重复注册安全。on_event_strict 是带成功
+    契约的发射（scheduler emit_strict）：返回是否已成功递交广播，供终态补发
+    的重试语义使用；未注册时 _scheduled_task_emit_strict 退回 on_event 的
+    尽力而为语义。
     """
     if callable(root_resolver):
         _scheduled_task_hooks["root_resolver"] = root_resolver
@@ -1369,6 +1377,8 @@ def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
         _scheduled_task_hooks["config_resolver"] = config_resolver
     if on_event is not None:
         _scheduled_task_hooks["on_event"] = on_event
+    if on_event_strict is not None:
+        _scheduled_task_hooks["on_event_strict"] = on_event_strict
     if callable(qq_send):
         _scheduled_task_hooks["qq_send"] = qq_send
 
@@ -2885,6 +2895,14 @@ def cancel(job_id: str) -> dict:
         raise ValueError("cannot safely cancel: task PID identity is unavailable or reused")
     if not proc and not runner:
         raise ValueError("cannot safely cancel: Runner PID identity is unavailable")
+    # Publish accepted cancellation before killing. The runner can otherwise
+    # observe the termination exit code and commit failed before cancel commits.
+    with _lock, _job_lock(job_id):
+        current = _load_path(_job_path(job_id))
+        if not current: raise ValueError("job not found")
+        if current.get("status") in {"completed", "failed", "cancelled"}: return current
+        current["cancelRequestedAt"] = time.time()
+        _atomic_write(_job_path(job_id), current)
     if proc:
         _kill_tree(proc)
     if runner and getattr(runner, "pid", None) != getattr(proc, "pid", None):
@@ -3090,7 +3108,17 @@ def runner_update(job_id: str, **changes: Any) -> dict:
         changes.setdefault("terminalEventId", f"{job_id}:terminal")
         changes["notificationState"] = "pending"
     changes["updatedAt"] = time.time()
-    return _update(job_id, changes)
+    with _lock, _job_lock(job_id):
+        current = _load_path(_job_path(job_id))
+        if not current: raise ValueError("job not found")
+        if current.get("cancelRequestedAt") and changes.get("status") in {"completed", "failed"}:
+            # The runner may finish before the cancelling caller commits (or
+            # that caller may disappear). Do not leave an active pending record.
+            changes.update(status="cancelled", exitCode=None)
+        if current.get("status") == "cancelled": changes.pop("status", None)
+        current.update(changes)
+        _atomic_write(_job_path(job_id), current)
+        return current
 
 
 def reconcile_running(registry_root: str | Path | None = None) -> int:
@@ -3136,6 +3164,149 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
     return changed
 
 
+async def _scheduled_task_emit_strict(event: dict) -> bool:
+    """可靠发射：返回事件是否已成功入队广播通道（失败由调用方保持可重试）。
+
+    on_event_strict（scheduler emit_strict）优先；未注册时退回 on_event 的
+    尽力而为语义（回调异常 = 失败）。入队成功即算数：每连接 socket 发送
+    按 broadcast 的隔离契约不 await，断线客户端由重连 REST 水合收敛。
+    job.updated 是状态 upsert，客户端对重复事件幂等：成功后、标记持久化
+    前崩溃导致的重发是允许的收敛路径，因此这里绝不以牺牲送达换取严格一次。
+    """
+    strict = _scheduled_task_hooks.get("on_event_strict")
+    callback = strict if callable(strict) else _scheduled_task_hooks.get("on_event")
+    if not callable(callback):
+        return False
+    try:
+        result = callback(event)
+        if inspect.isawaitable(result):
+            result = await result
+        return result is not False
+    except Exception:
+        return False
+
+
+def _terminal_broadcast_candidate(job: dict, root: str | Path) -> dict | None:
+    """（legacy 路径）读取待补发终态的当前视图；只读，不做任何写入。
+
+    分离 runner 只把终态落盘（自身没有 WS 通道，独立进程所有权不变）；
+    恢复循环在此观测到未广播的终态后，由调用方以严格契约发布，成功后才
+    通过 _mark_terminal_broadcast 持久化幂等标记。发布前崩溃只会让下一
+    tick 重发同一状态（客户端幂等 upsert）；先标记后发布则可能因一次
+    广播失败而永久卡住旧状态，故顺序必须是发布成功 → 标记。
+    scheduled 子任务不在 /api/jobs 列表内且由父任务 finalize 负责广播，
+    这里跳过，避免 GUI upsert 引入列表外作业。
+    """
+    if job.get("scheduledParentJobId"):
+        return None
+    event_id = job.get("terminalEventId") or f"{job['jobId']}:terminal"
+    if job.get("terminalEventEmittedFor") == event_id:
+        return None
+    with _lock, _job_lock(job["jobId"], root):
+        current = _load_path(_job_path(job["jobId"], root))
+        if not current:
+            return None
+        current_event_id = (current.get("terminalEventId")
+                            or f"{current['jobId']}:terminal")
+        if (current.get("status") not in {"completed", "failed", "cancelled"}
+                or current.get("terminalEventEmittedFor") == current_event_id):
+            return None
+        return job_public_view(current)
+
+
+def _mark_terminal_broadcast(job_id: str, root: str | Path) -> None:
+    """成功发布后持久化幂等标记；纯簿记，不触碰 updatedAt（否则会把
+    retention 的完成年龄刷新，让本应清理的终态记录逃过清理）。"""
+    with _lock, _job_lock(job_id, root):
+        current = _load_path(_job_path(job_id, root))
+        if not current:
+            return
+        current_event_id = (current.get("terminalEventId")
+                            or f"{current['jobId']}:terminal")
+        if current.get("terminalEventEmittedFor") == current_event_id:
+            return
+        current["terminalEventEmittedFor"] = current_event_id
+        _atomic_write(_job_path(job_id, root), current)
+
+
+def _terminal_broadcast_ledger_path() -> Path:
+    return _root() / "jobs" / ".terminal-broadcast-ledger.json"
+
+
+def _load_terminal_broadcast_ledger() -> dict:
+    try:
+        data = json.loads(_terminal_broadcast_ledger_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("jobs"), dict):
+        return data["jobs"]
+    return data if isinstance(data, dict) else {}
+
+
+def _save_terminal_broadcast_ledger(ledger: dict) -> None:
+    path = _terminal_broadcast_ledger_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write(path, {"jobs": ledger})
+
+
+async def _broadcast_independent_terminals() -> None:
+    """（独立 Job 服务路径）远程注册表里的终态补发 job.updated。
+
+    独立服务的 runner 把终态写进服务自己的 SQLite 注册表并与 outbox 同
+    事务持久化（服务无 WS 通道，进程所有权不变）；GUI 列表由 /api/jobs 的
+    pan_bridge 远程合并提供，因此远程终态必须在此补发。幂等标记持久化在
+    本地 ledger（键 jobId，值 status:terminalEventId）——绝不写服务注册表。
+    发布失败不记 ledger，下一 tick 重试；成功后崩溃导致的重复 upsert 是
+    允许的收敛路径。ledger 只保留仍在远程列表中的作业：服务 retention
+    删除的作业不会重现，其项在当轮清掉，防止文件无限增长。scheduled
+    子任务被 /api/jobs 过滤且由父任务 finalize 广播，跳过。
+    """
+    from packages.jobs import pan_bridge
+    if pan_bridge.configured_client() is None:
+        return
+    try:
+        remote = await asyncio.to_thread(pan_bridge.request, "list")
+    except Exception:
+        return  # 服务不可用：本轮跳过，下一 tick 重试。
+    if not isinstance(remote, dict) or not isinstance(remote.get("jobs"), list):
+        return
+    ledger = _load_terminal_broadcast_ledger()
+    ledger_dirty = False
+    live: set[str] = set()
+    for item in remote["jobs"]:
+        # 畸形项只跳过：public_job 的 JobServiceUnavailable 不得冒泡——
+        # 那会连坐本轮 retention（恢复循环的其余部分不依赖这一项）。
+        if not isinstance(item, dict) or not isinstance(item.get("jobId"), str):
+            continue
+        job = pan_bridge.public_job(item)
+        live.add(job["jobId"])
+        if job.get("scheduledParentJobId"):
+            continue
+        if job.get("status") not in {"completed", "failed", "cancelled"}:
+            continue
+        job_id = job["jobId"]
+        fingerprint = (f"{job.get('status')}:"
+                       f"{job.get('terminalEventId') or f'{job_id}:terminal'}")
+        if ledger.get(job_id) == fingerprint:
+            continue
+        if await _scheduled_task_emit_strict({
+                "type": "job.updated",
+                "jobId": job_id,
+                "job": job_public_view(job)}):
+            ledger[job_id] = fingerprint
+            ledger_dirty = True
+    # 已被服务 retention 删除的作业不会再次出现：清掉其 ledger 项，
+    # 否则文件随终态作业数无限增长。误删的最坏结果是一次重复 upsert
+    # （客户端幂等），正是本设计已允许的收敛路径。
+    stale = [key for key in ledger if key not in live]
+    if stale:
+        for key in stale:
+            ledger.pop(key, None)
+        ledger_dirty = True
+    if ledger_dirty:
+        _save_terminal_broadcast_ledger(ledger)
+
+
 async def recover_notifications() -> int:
     from packages.jobs import pan_bridge
     try:
@@ -3161,8 +3332,15 @@ async def recover_notifications() -> int:
             if job.get("kind") in {SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND,
                                     SESSION_BROADCAST_KIND, SCHEDULED_TASK_KIND}:
                 continue
-            if (job.get("status") not in {"completed", "failed", "cancelled"}
-                    or job.get("notificationState") in {"delivered", "not_applicable"}):
+            if job.get("status") not in {"completed", "failed", "cancelled"}:
+                continue
+            broadcast = _terminal_broadcast_candidate(job, root)
+            if broadcast is not None and await _scheduled_task_emit_strict({
+                    "type": "job.updated",
+                    "jobId": broadcast["jobId"],
+                    "job": broadcast}):
+                _mark_terminal_broadcast(broadcast["jobId"], root)
+            if (job.get("notificationState") in {"delivered", "not_applicable"}):
                 continue
             # Hold the cross-process job lock through projection and terminal
             # notification marking; enqueue_notice is idempotent after a crash.
@@ -3199,6 +3377,8 @@ async def recover_notifications() -> int:
                     current["updatedAt"] = time.time()
                     _atomic_write(_job_path(current["jobId"], root), current)
                     delivered += 1
+    # 独立 Job 服务路径：远程注册表的终态补发（与 legacy 循环同一严格契约）。
+    await _broadcast_independent_terminals()
     try:
         retention_result = await asyncio.to_thread(
             run_completed_job_retention, emit_events=False)

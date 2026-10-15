@@ -80,7 +80,7 @@ export function useTerminalTuiEntry(
   { poll = false }: TerminalTuiEntryOptions = {},
 ): TerminalTuiEntry {
   const id = session?.id;
-  const isCodex = session?.adapter === 'codex';
+  const supportsNativeTui = session?.adapter === 'codex' || session?.adapter === 'cbc';
   const nativeState = useNativeControlStore((s) => (id ? s.sessions[id] : undefined));
   const nativeSwitching = useNativeControlStore((s) => (id ? s.switching[id] : false));
   const terminalView = useNativeControlStore((s) => (id ? s.terminalViews[id] : undefined));
@@ -89,7 +89,7 @@ export function useTerminalTuiEntry(
   const showToast = useUIStore((s) => s.showToast);
 
   useEffect(() => {
-    if (!poll || !id || !isCodex) return;
+    if (!poll || !id || !supportsNativeTui) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -115,16 +115,16 @@ export function useTerminalTuiEntry(
       stopped = true;
       clearTimeout(timer);
     };
-  }, [poll, id, isCodex]);
+  }, [poll, id, supportsNativeTui]);
 
   const enterNative = async () => {
-    if (!session || !isCodex) return;
+    if (!session || !supportsNativeTui) return;
     const intent = autoEnterIntent;
     try {
       if (!session.nativeControl) {
         if (
           !window.confirm(
-            'Upgrade this Codex Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.',
+            `Upgrade this ${session.adapter === 'cbc' ? 'CBC' : 'Codex'} Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.`,
           )
         )
           return;

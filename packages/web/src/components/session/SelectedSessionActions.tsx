@@ -1,10 +1,21 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, CheckCheck, ChevronDown, Folder, Send } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
+import {
+  Bell,
+  BellOff,
+  CheckCheck,
+  ChevronDown,
+  Folder,
+  RotateCw,
+  Send,
+  Timer,
+  XOctagon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import { createJob } from '@/services/api';
 import { effectiveWorkspaceIds } from '@/utils/sessionFilters';
 import type { JobCreateInput } from '@/types/jobs';
@@ -20,6 +31,16 @@ const NewJobForm = lazy(() =>
   import('@/components/jobs/NewJobForm').then((module) => ({ default: module.NewJobForm })),
 );
 
+interface MenuItem {
+  key: SelectedSessionAction | 'workspace' | 'broadcast';
+  label: string;
+  Icon: ComponentType<{ size?: number }>;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  danger?: boolean;
+}
+
 export function SelectedSessionActions({
   onBusyChange,
 }: {
@@ -27,6 +48,7 @@ export function SelectedSessionActions({
 }) {
   const selectedIds = useSessionStore((state) => state.selectedIds);
   const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const delayedRestarts = useWorkerStore((state) => state.delayedRestarts);
   const [targets, setTargets] = useState<SelectedSessionTarget[] | null>(null);
   const [panel, setPanel] = useState<'menu' | 'workspace' | 'broadcast' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,6 +161,81 @@ export function SelectedSessionActions({
     }
   };
 
+  // Lifecycle availability mirrors the single-Session Worker menu: Kill needs a
+  // live worker on at least one target, and a delayed restart already pending
+  // on any target must not be re-requested from here.
+  const killAvailable = Boolean(targets?.some((target) => target.hasWorker));
+  const delayedPending = Boolean(
+    targets?.some((target) => {
+      const status = delayedRestarts[target.id]?.status;
+      return status === 'pending' || status === 'restarting';
+    }),
+  );
+  const sessionMenuItems: MenuItem[] = [
+    {
+      key: 'workspace',
+      label: 'Workspace',
+      Icon: Folder,
+      onClick: () => {
+        setPanel('workspace');
+        if (!useWorkspaceStore.getState().loaded)
+          void useWorkspaceStore.getState().loadWorkspaces();
+      },
+    },
+    { key: 'read', label: 'Read all', Icon: CheckCheck, onClick: () => void run('read') },
+    { key: 'broadcast', label: '群发', Icon: Send, onClick: () => setPanel('broadcast') },
+    { key: 'bell-on', label: 'Bell on', Icon: Bell, onClick: () => void run('bell-on') },
+    { key: 'bell-off', label: 'Bell off', Icon: BellOff, onClick: () => void run('bell-off') },
+  ];
+  const lifecycleMenuItems: MenuItem[] = [
+    {
+      key: 'restart',
+      label: 'Restart',
+      Icon: RotateCw,
+      onClick: () => void run('restart'),
+      title: 'Restart each live worker, or start one when offline.',
+    },
+    {
+      key: 'delayed-restart',
+      label: 'Delayed restart',
+      Icon: Timer,
+      onClick: () => void run('delayed-restart'),
+      disabled: delayedPending,
+      title: delayedPending
+        ? 'A selected Session already has a delayed restart pending'
+        : 'Finish the current task, then restart before queued work. Starts a worker if offline.',
+    },
+    {
+      key: 'kill',
+      label: 'Kill',
+      Icon: XOctagon,
+      danger: true,
+      onClick: () => {
+        if (!confirm(`Kill workers for ${targets?.length ?? 0} selected session(s)?`)) return;
+        void run('kill');
+      },
+      disabled: !killAvailable,
+      title: killAvailable
+        ? 'Kill the live workers of the selected Sessions'
+        : 'No selected Session has a live worker to kill',
+    },
+  ];
+  const renderMenuItem = ({ key, label, Icon, onClick, disabled, title, danger }: MenuItem) => (
+    <button
+      key={key}
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${
+        danger ? 'text-danger' : 'text-text-primary'
+      }`}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+
   return (
     <div ref={menuRef} className="relative">
       <Button
@@ -171,33 +268,9 @@ export function SelectedSessionActions({
           >
             {targets?.length} selected targets
           </p>
-          {(
-            [
-              [
-                'Workspace',
-                Folder,
-                () => {
-                  setPanel('workspace');
-                  if (!useWorkspaceStore.getState().loaded)
-                    void useWorkspaceStore.getState().loadWorkspaces();
-                },
-              ],
-              ['Read all', CheckCheck, () => void run('read')],
-              ['群发', Send, () => setPanel('broadcast')],
-              ['Bell on', Bell, () => void run('bell-on')],
-              ['Bell off', BellOff, () => void run('bell-off')],
-            ] as const
-          ).map(([label, Icon, onClick]) => (
-            <button
-              key={label}
-              role="menuitem"
-              onClick={onClick}
-              className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
+          {sessionMenuItems.map(renderMenuItem)}
+          <div className="border-t border-border-muted my-1" role="separator" />
+          {lifecycleMenuItems.map(renderMenuItem)}
         </div>
       )}
       {(panel === 'workspace' || panel === 'broadcast') && targets && (

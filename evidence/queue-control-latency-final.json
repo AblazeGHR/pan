@@ -1,0 +1,103 @@
+{
+  "label": "final",
+  "port": 56071,
+  "dataRoot": "D:\\project\\pan-worktrees\\queue-send-latency-20261014\\evidence\\queue-control-latency-final",
+  "sourceSha256": {
+    "packages/core/worker.py": "b13e1835bd2482562d87b4ac5b244bf49503ab618870d6407313278217f82e4a",
+    "packages/mcp/server.py": "29711567c338fcb13bf85ce458c4fa1168b09b429cbd2aff617ac127d54ace6e"
+  },
+  "leaseTtlMs": 150,
+  "drainGateMs": 350,
+  "fakeProvider": true,
+  "leaseExpiry": {
+    "headId": "q_353b912765b44f769da8f9265c5151a1",
+    "tailId": "q_0ef8ecfd13bc4e0abc53fbeec8ae9faf",
+    "deliveredWithoutAnotherSend": true,
+    "expiryToFirstCliMs": 16.3
+  },
+  "directSteerDrain": {
+    "requestAt": 1791918452.6395671,
+    "ackAt": 1791918452.6465788,
+    "ackMs": 7.2,
+    "payload": {
+      "workerId": "worker-1",
+      "sessionId": "ses_9d0fffac7a8cebac",
+      "status": "steer sent"
+    },
+    "receiptToAckMs": 3.5,
+    "concurrentSendAckMs": 4.9
+  },
+  "queueSteerLateReceipt": {
+    "httpAckMs": 10007.7,
+    "originalId": "q_4a650998122844048bbe019604c6f4af",
+    "pendingPayload": {
+      "ok": false,
+      "error": {
+        "code": "queue_steer_failed",
+        "message": "Steer awaiting provider receipt; item retained and blocked against duplicate delivery"
+      },
+      "items": [
+        {
+          "id": "q_2150a79f71dd40f1ad295ea97060cb07",
+          "queueItemId": "q_2150a79f71dd40f1ad295ea97060cb07",
+          "kind": "task",
+          "text": "during-steer",
+          "createdAt": 1791918452.647582,
+          "source": "user",
+          "meta": {
+            "seq": 5,
+            "taskId": null,
+            "revision": 1,
+            "dispatchState": "queued",
+            "locked": false,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": false,
+            "steerError": null
+          }
+        },
+        {
+          "id": "q_4a650998122844048bbe019604c6f4af",
+          "queueItemId": "q_4a650998122844048bbe019604c6f4af",
+          "kind": "task",
+          "text": "late-receipt",
+          "createdAt": 1791918453.0014648,
+          "source": "user",
+          "meta": {
+            "seq": 6,
+            "taskId": null,
+            "revision": 1,
+            "dispatchState": "queued",
+            "locked": true,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": true,
+            "steerError": null
+          }
+        }
+      ],
+      "queueRevision": 17,
+      "agentReportsPaused": false,
+      "queuePaused": false
+    },
+    "retainedUntilReceipt": true,
+    "lateReceiptDelivered": true
+  },
+  "directSteerMissingReceipt": {
+    "requestAt": 1791918463.0242608,
+    "ackAt": 1791918493.028738,
+    "ackMs": 30004.8,
+    "payload": {
+      "error": "Steer outcome unknown: provider receipt missing; do not resend"
+    }
+  },
+  "blockedSecondSteer": {
+    "requestAt": 1791918493.028738,
+    "ackAt": 1791918493.0297534,
+    "ackMs": 1.5,
+    "payload": {
+      "error": "Previous Steer is awaiting a provider receipt; do not resend"
+    }
+  },
+  "finalQueueCount": 0
+}
