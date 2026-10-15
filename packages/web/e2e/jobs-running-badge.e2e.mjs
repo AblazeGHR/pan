@@ -156,7 +156,7 @@ try {
     await page.locator('div[aria-label^="界面入口，第"]').waitFor({ state: 'visible', timeout: 15000 });
 
     // Zero running: the badge must not exist at all. Measure the layout in
-    // this state: the badge slot is reserved, so nothing may shift later.
+    // this state: the badge is an out-of-flow overlay, so nothing can shift.
     await setJobsPayload(page, [settledJob('c1', 'completed')]);
     await jobsLink(page).click();
     await page.waitForURL('**/jobs', { timeout: 5000 });
@@ -170,19 +170,27 @@ try {
     await setJobsPayload(page, [runningJob('r1'), runningJob('r2'), settledJob('c1', 'completed')]);
     await reenterJobs(page, '2', 'two running jobs must show 2');
 
-    // Real layout: the badge sits BELOW the entry label, inside the entry box
-    // (reserved slot, nothing clipped), and nothing shifts versus zero.
-    const labelBox = await page.getByRole('link', { name: 'Jobs' }).locator('span').first().boundingBox();
+    // Real layout: the badge is a floating overlay pinned to the entry's
+    // bottom-right corner — inside the box, never clipped — and the entry
+    // box is unchanged versus zero and versus a sibling entry.
     const badgeBox = await badge(page).boundingBox();
     const linkBox = await jobsLinkBox();
-    assert.ok(badgeBox.y >= labelBox.y + labelBox.height - 1,
-      `badge must sit below the entry label (badge.y=${badgeBox.y}, label bottom=${labelBox.y + labelBox.height})`);
+    assert.ok(badgeBox.x + badgeBox.width <= linkBox.x + linkBox.width + 1,
+      `badge must stay inside the entry's right edge (badge right=${badgeBox.x + badgeBox.width}, link right=${linkBox.x + linkBox.width})`);
     assert.ok(badgeBox.y + badgeBox.height <= linkBox.y + linkBox.height + 1,
-      'badge must stay inside the entry box (reserved slot, not clipped)');
+      `badge must stay inside the entry's bottom edge (badge bottom=${badgeBox.y + badgeBox.height}, link bottom=${linkBox.y + linkBox.height})`);
+    assert.ok(Math.abs(badgeBox.x + badgeBox.width - (linkBox.x + linkBox.width)) <= 1,
+      'badge right edge must be flush with the entry right edge (bottom-right corner)');
+    assert.ok(Math.abs(badgeBox.y + badgeBox.height - (linkBox.y + linkBox.height)) <= 1,
+      'badge bottom edge must be flush with the entry bottom edge (bottom-right corner)');
     const navBoxShown = await groupBox();
     assert.equal(navBoxShown.height, navBoxZero.height, 'nav height must not shift when the badge appears');
     const linkBoxShown = await jobsLinkBox();
-    assert.equal(linkBoxShown.height, linkBoxZero.height, 'entry height must not shift when the badge appears');
+    assert.equal(linkBoxShown.height, linkBoxZero.height, 'entry height must not change when the badge appears');
+    assert.equal(linkBoxShown.width, linkBoxZero.width, 'entry width must not stretch when the badge appears');
+    const chatBox = await chatLink(page).boundingBox();
+    assert.equal(linkBoxShown.height, chatBox.height,
+      'Jobs entry must keep the sibling entry height (the overlay occupies no extra space)');
 
     // Reuse of the Session queue badge style: accent-blue round pill.
     const style = await badge(page).evaluate((el) => {
@@ -269,16 +277,20 @@ try {
     await page.waitForURL('**/jobs', { timeout: 5000 });
     await waitForBadge(page, '2', 'mobile drawer badge shows the running count');
 
-    // Real mobile layout: badge below the label inside the entry box, and the
-    // drawer entry height identical to the badge-hidden state.
+    // Real mobile layout: the badge is a floating overlay pinned to the
+    // entry's bottom-right corner — inside the box, flush with its right and
+    // bottom edges — and the entry box is unchanged versus the hidden state.
     const drawerGroupBox = () => page.locator('div[aria-label^="界面入口，第"]').boundingBox();
-    const mobileLabelBox = await page.getByRole('link', { name: 'Jobs' }).locator('span').first().boundingBox();
     const mobileBadgeBox = await badge(page).boundingBox();
     const mobileLinkBox = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
-    assert.ok(mobileBadgeBox.y >= mobileLabelBox.y + mobileLabelBox.height - 1,
-      'mobile badge must sit below the entry label');
+    assert.ok(mobileBadgeBox.x + mobileBadgeBox.width <= mobileLinkBox.x + mobileLinkBox.width + 1,
+      'mobile badge must stay inside the entry box (not clipped on the right)');
     assert.ok(mobileBadgeBox.y + mobileBadgeBox.height <= mobileLinkBox.y + mobileLinkBox.height + 1,
-      'mobile badge must stay inside the entry box');
+      'mobile badge must stay inside the entry box (not clipped on the bottom)');
+    assert.ok(Math.abs(mobileBadgeBox.x + mobileBadgeBox.width - (mobileLinkBox.x + mobileLinkBox.width)) <= 1,
+      'mobile badge right edge must be flush with the entry right edge');
+    assert.ok(Math.abs(mobileBadgeBox.y + mobileBadgeBox.height - (mobileLinkBox.y + mobileLinkBox.height)) <= 1,
+      'mobile badge bottom edge must be flush with the entry bottom edge');
     const mobileNavShown = await drawerGroupBox();
     const mobileLinkShown = mobileLinkBox;
 
@@ -312,6 +324,8 @@ try {
     const mobileLinkZero = await page.getByRole('link', { name: 'Jobs' }).boundingBox();
     assert.equal(mobileLinkZero.height, mobileLinkShown.height,
       'mobile: entry height is stable at 0');
+    assert.equal(mobileLinkZero.width, mobileLinkShown.width,
+      'mobile: entry width is stable at 0');
 
     assert.deepEqual(protectedRequests, [], 'mobile: protected ports were requested');
     assert.deepEqual(pageErrors, [], 'mobile: page errors');
