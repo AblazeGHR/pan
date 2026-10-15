@@ -1,0 +1,27 @@
+{
+  "session": "ses_da838a1c53ddfdff",
+  "conversation": "01a13487-c579-7be9-99bc-f7d625409062",
+  "persisted_failure_line": 1119,
+  "persisted_failure_time": "2026-10-14T23:11:47.273000+08:00",
+  "persisted_reason": "CBC control channel unavailable",
+  "original_cli_pid": 12572,
+  "original_hook_pid": 31840,
+  "original_hook_elapsed_ms": 166,
+  "screenshot_cli_pid": 29376,
+  "screenshot_native_service_port": 58269,
+  "screenshot_uploaded_local": "2026-10-15T10:36:53+08:00",
+  "screenshot_cli_session_start_local": "2026-10-15T10:36:17.735+08:00",
+  "next_user_input_local": "2026-10-15T10:40:38.950+08:00",
+  "screenshot_pid_and_port_retired_at_inspection": true,
+  "historical_owner_generation": "not captured",
+  "protocol_defect": "Node UTF-8 JSON pipe decoded by Python GBK text wrapper",
+  "observed_practical_python": {
+    "version": "3.14.5",
+    "stdin_encoding": "gbk",
+    "utf8_mode": 0,
+    "locale": "cp936"
+  },
+  "user_processes_modified": false,
+  "credentials_read": false,
+  "provider_rounds_started": false
+}

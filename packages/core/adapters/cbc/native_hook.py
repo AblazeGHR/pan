@@ -28,7 +28,11 @@ def failure(event, reason):
 
 def main() -> int:
     try:
-        event = json.load(sys.stdin)
+        # CBC writes JSON.stringify directly to a UTF-8 pipe. On Windows the
+        # Python text wrapper can default to GBK, silently corrupting Chinese
+        # prompts before the owning bridge compares their receipts.
+        raw = getattr(sys.stdin, "buffer", sys.stdin).read()
+        event = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
         if not isinstance(event, dict):
             raise ValueError
     except (ValueError, UnicodeError):

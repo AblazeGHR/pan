@@ -116,9 +116,12 @@ def test_transport_errors_are_sanitized_and_submit_stays_closed(monkeypatch, cap
 
 
 def hook_process(env, event, command=None):
-    return subprocess.run(command or [sys.executable, str(Path(native_hook.__file__))],
-        shell=command is not None, input=json.dumps(event), text=True,
+    result = subprocess.run(command or [sys.executable, str(Path(native_hook.__file__))],
+        shell=command is not None, input=json.dumps(event, ensure_ascii=False).encode("utf-8"),
         capture_output=True, env=env, timeout=15)
+    result.stdout = result.stdout.decode("utf-8")
+    result.stderr = result.stderr.decode("utf-8")
+    return result
 
 
 def isolated_env(url, token):
@@ -127,6 +130,31 @@ def isolated_env(url, token):
     env.update(PAN_CBC_HOOK_URL=url, PAN_CBC_HOOK_TOKEN=token,
         HTTP_PROXY="http://127.0.0.1:1", HTTPS_PROXY="http://127.0.0.1:1", ALL_PROXY="http://127.0.0.1:1")
     return env
+
+
+@pytest.mark.parametrize("prompt", ["continue", "继续", "修复 🧪 café"])
+def test_utf8_hook_input_ignores_windows_text_pipe_locale(monkeypatch, prompt):
+    event = {"hook_event_name": "UserPromptSubmit", "prompt": prompt}
+    raw = json.dumps(event, ensure_ascii=False).encode("utf-8")
+    pipe = io.TextIOWrapper(io.BytesIO(raw), encoding="gbk")
+    monkeypatch.setattr(native_hook.sys, "stdin", pipe)
+    monkeypatch.setenv("PAN_CBC_HOOK_URL", "http://127.0.0.1:1/hook")
+    monkeypatch.setenv("PAN_CBC_HOOK_TOKEN", "fixture-capability")
+    facts = []
+    def build(request):
+        facts.append(json.loads(request.data))
+        return io.StringIO("{}")
+    monkeypatch.setattr(native_hook.urllib.request, "build_opener",
+                        lambda *args: SimpleNamespace(open=lambda request, **kwargs: build(request)))
+    assert native_hook.main() == 0
+    assert facts == [event]
+
+
+def test_invalid_utf8_hook_input_still_blocks(monkeypatch, capsys):
+    pipe = io.TextIOWrapper(io.BytesIO(b'{"hook_event_name":"UserPromptSubmit","prompt":"\xff"}'), encoding="gbk")
+    monkeypatch.setattr(native_hook.sys, "stdin", pipe)
+    assert native_hook.main() == 2
+    assert capsys.readouterr().err == "CBC control channel unavailable: invalid hook input\n"
 
 
 def test_real_hook_http_lifecycle_and_rejections(monkeypatch):
