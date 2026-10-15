@@ -37,7 +37,8 @@ useSessionStore.setState({
 useBookmarkStore.setState({
   sessions: {
     [sessionId]: {
-      appliedThrough: 1, authoritativeMarks: {}, authoritativeTouched: {},
+      appliedThrough: 1, snapshotRevision: 1,
+      authoritativeMarks: {}, authoritativeTouched: {},
       pendingEvents: [], marks: {},
       loaded: true, transactions: {}, error: null,
     },
@@ -61,6 +62,7 @@ window.__markBookmark = (messageId, value) => {
     sessions: {
       [sessionId]: {
         appliedThrough: revision,
+        snapshotRevision: revision,
         authoritativeMarks: marks,
         authoritativeTouched: { ...(current?.authoritativeTouched ?? {}), [messageId]: revision },
         pendingEvents: current?.pendingEvents ?? [],

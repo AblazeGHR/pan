@@ -293,6 +293,60 @@ describe('concurrency gates (review-driven)', () => {
     expect(api.fetchSessionBookmarks).toHaveBeenCalledTimes(1);
   });
 
+  it('an old complete snapshot never resurrects what a newer complete snapshot proved absent', async () => {
+    // MA gate (round 3): a stale cold GET (rev 4, still carrying ID_B) is in
+    // flight while another-item mutation returns the COMPLETE rev-5 snapshot
+    // without ID_B.  That absence proof is real evidence: the late rev-4
+    // snapshot must not re-add ID_B even though no delta ever mentioned it.
+    const gate = deferred<ReturnType<typeof envelope>>();
+    api.fetchSessionBookmarks.mockReturnValue(gate.promise);
+    const load = useBookmarkStore.getState().loadBookmarks('ses_a');
+    api.addSessionBookmark.mockResolvedValue(mutation(5, [ID_A]));
+    await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
+    gate.resolve(envelope(4, [ID_B]));
+    await load;
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(false);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+    expect(sessionState('ses_a').snapshotRevision).toBe(5);
+  });
+
+  it('a delta removal tombstone survives a stale snapshot carrying the id', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(5, [ID_A]));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 6, action: 'removed', messageIds: [ID_A],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    // A complete snapshot older than the removal still lists ID_A: the
+    // tombstone wins, the stale truth may not revert it.
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(4, [ID_A]));
+    await useBookmarkStore.getState().loadBookmarks('ses_a', true);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    expect(sessionState('ses_a').appliedThrough).toBe(6);
+  });
+
+  it('a newer complete snapshot outruns old deltas: they neither add nor revert', async () => {
+    // A complete rev-5 snapshot lands (via the mutation response).  Old
+    // deltas (rev 2 adds ID_B, rev 3 removes ID_A) arriving later sit below
+    // the covered domain and must not invent or revert anything, while a
+    // genuinely newer delta (rev 6, contiguous) still applies.
+    api.addSessionBookmark.mockResolvedValue(mutation(5, [ID_A]));
+    await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 2, action: 'added', messageIds: [ID_B],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(false);
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 3, action: 'removed', messageIds: [ID_A],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_a', revision: 6, action: 'added', messageIds: [ID_B],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_B)).toBe(true);
+    expect(sessionState('ses_a').appliedThrough).toBe(6);
+  });
+
   it('an out-of-contract success without a revision never overrides newer WS state', async () => {
     api.fetchSessionBookmarks.mockResolvedValue(envelope(0, []));
     await useBookmarkStore.getState().loadBookmarks('ses_a');

@@ -10,13 +10,20 @@
  *    a snapshot folded with the deltas that followed it, so a slow snapshot
  *    whose revision is older than applied deltas is FOLDED (per-id evidence
  *    revision decides who wins) instead of being discarded — it can carry
- *    bookmarks no delta has mentioned yet.
+ *    bookmarks no delta has mentioned yet.  Two watermarks track the two
+ *    evidence domains: `appliedThrough` orders DELTAS, while
+ *    `snapshotRevision` marks the newest COMPLETE snapshot — its absence
+ *    domain covers every id it does not list, so an older complete snapshot
+ *    may never add an id the newer one has already proven absent (absence is
+ *    evidence too, and deletion tombstones survive).
  *  - **Deltas apply in contiguous revision order.**  `appliedThrough` is the
  *    highest revision such that every delta up to it is accounted for.  A
  *    delta at `appliedThrough + 1` applies directly; an older one is already
  *    included (ignore); a NEWER one is a GAP: it is buffered (bounded) and
  *    one coalesced REAL refetch reconciles the missing evidence — never
- *    unbounded polling, never a dropped delta.
+ *    unbounded polling, never a dropped delta.  Folding a complete snapshot
+ *    at revision R also raises `appliedThrough` to R (the snapshot subsumes
+ *    every delta up to it).
  *  - **Optimistic local intent lives in per-message transactions** (token +
  *    desired), overlaid on the authoritative set.  Only a transaction's own
  *    response or failure retires it (a broadcast cannot prove it is that
@@ -54,6 +61,11 @@ const PENDING_EVENT_LIMIT = 50;
 export interface SessionBookmarkState {
   /** Highest revision such that every delta up to it is accounted for. */
   appliedThrough: number;
+  /** Highest revision of a COMPLETE snapshot folded for this Session.  Its
+   *  absence domain covers every id it does not list, so a complete snapshot
+   *  older than this watermark must never add an id that revision has
+   *  already proven absent. */
+  snapshotRevision: number;
   /** Authoritative marks (snapshot folded with contiguous deltas). */
   authoritativeMarks: Record<string, boolean>;
   /** Per-id revision of the evidence that last set its authoritative value. */
@@ -114,6 +126,7 @@ export function isPanMessageId(messageId: unknown): messageId is string {
 function emptyState(): SessionBookmarkState {
   return {
     appliedThrough: 0,
+    snapshotRevision: 0,
     authoritativeMarks: EMPTY_MARKS,
     authoritativeTouched: {},
     pendingEvents: [],
@@ -152,26 +165,38 @@ function withoutTransaction(transactions: Record<string, BookmarkTransaction>, m
 }
 
 type Authoritative = Pick<SessionBookmarkState, 'authoritativeMarks' | 'authoritativeTouched'>;
+type FoldedState = Authoritative & Pick<SessionBookmarkState, 'snapshotRevision'>;
 
 /** Fold a COMPLETE snapshot into the authoritative set.  Per-id evidence
  *  revisions decide: anything a newer delta owns is preserved, everything
- *  else takes the snapshot's value (including its absences). */
-function foldSnapshot(current: Authoritative, envelope: BookmarkEnvelope, revision: number): Authoritative {
+ *  else takes the snapshot's value (including its absences).  An id this
+ *  client has never seen may only be ADDED when the snapshot is not older
+ *  than the newest complete snapshot already folded — that newer snapshot
+ *  has already proven every unknown id absent, and a stale snapshot must not
+ *  resurrect a deleted bookmark. */
+function foldSnapshot(current: FoldedState, envelope: BookmarkEnvelope, revision: number): FoldedState {
   const bookmarked = new Set(Object.keys(envelope.bookmarks ?? {}));
   const marks = { ...current.authoritativeMarks };
   const touched = { ...current.authoritativeTouched };
   for (const id of bookmarked) {
-    if ((touched[id] ?? -1) > revision) continue;      // a newer delta owns this id
+    const evidence = touched[id];
+    if (evidence !== undefined
+      ? evidence > revision                              // a newer delta owns this id
+      : revision < current.snapshotRevision) continue;   // absent in a newer complete snapshot
     marks[id] = true;
     touched[id] = revision;
   }
   for (const id of Object.keys(marks)) {
     if (bookmarked.has(id)) continue;
-    if ((touched[id] ?? -1) > revision) continue;      // a newer delta owns this id
-    delete marks[id];                                  // the snapshot at `revision` lacks it
+    if ((touched[id] ?? -1) > revision) continue;        // a newer delta owns this id
+    delete marks[id];                                    // the snapshot at `revision` lacks it
     touched[id] = revision;
   }
-  return { authoritativeMarks: marks, authoritativeTouched: touched };
+  return {
+    authoritativeMarks: marks,
+    authoritativeTouched: touched,
+    snapshotRevision: Math.max(current.snapshotRevision, revision),
+  };
 }
 
 /** Apply one contiguous delta to the authoritative set. */
@@ -188,9 +213,12 @@ function applyDelta(current: Authoritative, event: PendingBookmarkEvent, revisio
 }
 
 /** Drain buffered deltas that have become contiguous; keep the still-gapped
- *  ones and drop whatever the watermark already covers. */
-function drainPending(start: Authoritative & { appliedThrough: number; pendingEvents: PendingBookmarkEvent[] }) {
+ *  ones and drop whatever the watermark already covers.  Every applied delta
+ *  sits ABOVE `appliedThrough` (and therefore above `snapshotRevision`),
+ *  because contiguity only advances one revision at a time. */
+function drainPending(start: FoldedState & { appliedThrough: number; pendingEvents: PendingBookmarkEvent[] }): FoldedState & { appliedThrough: number; pendingEvents: PendingBookmarkEvent[] } {
   let { authoritativeMarks: marks, authoritativeTouched: touched, appliedThrough } = start;
+  const { snapshotRevision } = start;
   let pendingEvents = start.pendingEvents;
   let advanced = true;
   while (advanced) {
@@ -205,7 +233,7 @@ function drainPending(start: Authoritative & { appliedThrough: number; pendingEv
     }
   }
   pendingEvents = pendingEvents.filter((event) => event.revision > appliedThrough);
-  return { authoritativeMarks: marks, authoritativeTouched: touched, appliedThrough, pendingEvents };
+  return { authoritativeMarks: marks, authoritativeTouched: touched, appliedThrough, pendingEvents, snapshotRevision };
 }
 
 function bufferPending(pendingEvents: PendingBookmarkEvent[], event: PendingBookmarkEvent): PendingBookmarkEvent[] {
@@ -327,6 +355,7 @@ export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
       const applied = applyDelta(current, delta, revision);
       const drained = drainPending({
         ...applied,
+        snapshotRevision: current.snapshotRevision,
         appliedThrough: revision,
         pendingEvents: current.pendingEvents,
       });

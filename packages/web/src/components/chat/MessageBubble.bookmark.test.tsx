@@ -39,7 +39,8 @@ function markBookmarked(messageId: string, value = true) {
   act(() => {
     useBookmarkStore.setState({
       sessions: { ses_bm: {
-        appliedThrough: 1, authoritativeMarks: { [messageId]: value },
+        appliedThrough: 1, snapshotRevision: 1,
+        authoritativeMarks: { [messageId]: value },
         authoritativeTouched: { [messageId]: 1 }, pendingEvents: [],
         marks: { [messageId]: value }, loaded: true, transactions: {}, error: null,
       } },
