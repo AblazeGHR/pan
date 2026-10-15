@@ -13,7 +13,8 @@ Scope and limits:
   PID) are ever acted on. Foreign processes, the default-terminal broker and
   other users' windows are never touched or hidden.
 - An out-of-context event hook only receives events for windows created on the
-  calling thread's desktop, which is the input desktop. Windows an owned process
+  calling thread's desktop. The hook thread explicitly selects the input desktop
+  even when its runner inherited a private desktop. Windows an owned process
   creates on its private desktop are therefore untouched and keep their normal
   visibility there.
 - CREATE/SHOW notifications are asynchronous. When CREATE arrives early,
@@ -160,7 +161,8 @@ class OwnedWindowGuard:
     """Hide windows whose owning PID is reported as owned, on a worker thread."""
 
     def __init__(self, owned_pids, *, on_hide=None, refresh=0.05, verify_ms=40.0,
-                 pre_show_noactivate=True, shrink_on_create=True, owned_handle=None):
+                 pre_show_noactivate=True, shrink_on_create=True, owned_handle=None,
+                 desktop_name=None):
         self._owned_pids = owned_pids
         self._owned_handle = owned_handle
         self._on_hide = on_hide
@@ -174,6 +176,11 @@ class OwnedWindowGuard:
         self._ready = threading.Event()
         self.error: int | None = None
         self.records: list[dict] = []
+        # A named desktop supports isolated real-window verification. Production
+        # callers leave this unset so escapes to the user's input desktop are seen.
+        self._desktop_name = desktop_name
+        self.desktop_name = None
+        self.cleanup_error = None
 
     # -- ownership ---------------------------------------------------------
     def _owned(self) -> frozenset:
@@ -269,6 +276,47 @@ class OwnedWindowGuard:
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         self._user32 = user32
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        user32.OpenInputDesktop.argtypes = [w.DWORD, w.BOOL, w.DWORD]
+        user32.OpenInputDesktop.restype = w.HANDLE
+        user32.OpenDesktopW.argtypes = [w.LPCWSTR, w.DWORD, w.BOOL, w.DWORD]
+        user32.OpenDesktopW.restype = w.HANDLE
+        user32.SetThreadDesktop.argtypes = [w.HANDLE]
+        user32.SetThreadDesktop.restype = w.BOOL
+        user32.CloseDesktop.argtypes = [w.HANDLE]
+        user32.CloseDesktop.restype = w.BOOL
+        user32.GetThreadDesktop.argtypes = [w.DWORD]
+        user32.GetThreadDesktop.restype = w.HANDLE
+        kernel32.GetCurrentThreadId.restype = w.DWORD
+        original = user32.GetThreadDesktop(kernel32.GetCurrentThreadId())
+        user32.GetUserObjectInformationW.argtypes = [w.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                                    w.DWORD, ctypes.POINTER(w.DWORD)]
+        desktop = (user32.OpenDesktopW(self._desktop_name, 0, False, 0x00FF)
+                   if self._desktop_name is not None else user32.OpenInputDesktop(0, False, 0x00FF))
+        if not desktop:
+            self.error = ctypes.get_last_error()
+            self._ready.set()
+            return
+        try:
+            if not user32.SetThreadDesktop(desktop):
+                self.error = ctypes.get_last_error()
+                self._ready.set()
+                return
+            name = ctypes.create_unicode_buffer(256)
+            needed = w.DWORD()
+            if not user32.GetUserObjectInformationW(desktop, 2, name, ctypes.sizeof(name), ctypes.byref(needed)):
+                self.error = ctypes.get_last_error()
+                self._ready.set()
+                return
+            self.desktop_name = name.value
+            self._run_hook(user32, kernel32)
+        finally:
+            if not user32.SetThreadDesktop(original):
+                self.cleanup_error = ctypes.get_last_error()
+            if not user32.CloseDesktop(desktop):
+                self.cleanup_error = ctypes.get_last_error()
+
+    def _run_hook(self, user32, kernel32):
+        from ctypes import wintypes as w
         user32.SetWinEventHook.argtypes = [w.UINT, w.UINT, w.HMODULE, ctypes.c_void_p,
                                            w.DWORD, w.DWORD, w.UINT]
         user32.SetWinEventHook.restype = w.HANDLE
@@ -341,4 +389,4 @@ class OwnedWindowGuard:
         if self._thread.is_alive():
             return False
         self._thread = None
-        return True
+        return self.cleanup_error is None
