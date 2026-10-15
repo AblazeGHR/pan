@@ -11207,9 +11207,13 @@ async def api_session_manual_report(session_id: str, data: dict):
     **任何已完成运行均可汇报**，包括无 taskId 的普通对话/原生轮次：此时以该
     运行的 taskSeq 或持久 resultCursor 绑定具体运行（两者都经会话身份视图
     ``terminalResults`` 暴露；服务端正文权威，客户端只提交身份与末块
-    messageId）。三种运行身份都不提供 → ``no_run_identity`` 明确失败，绝不
-    汇报“最新终态”；resultCursor 与 taskId/taskSeq 矛盾 → ``run_mismatch``
-    明确失败；索引中找不到对应终态 → ``no_task_result``，绝不顶替。
+    messageId）。只有可证明的持久运行身份才构成绑定（非空 taskId / 已存储
+    taskSeq / 正 resultCursor）；三种身份都不提供、或提交的 resultCursor ≤ 0
+    且无其他身份 → ``no_run_identity`` 明确失败，绝不汇报“最新终态”，也绝
+    不允许身份视图给无身份旧行显示的派生 0 成为可投递绑定；终态解析出来但
+    行本身无可证明身份 → 同样``no_run_identity`` 拒绝。resultCursor 与
+    taskId/taskSeq 矛盾 → ``run_mismatch`` 明确失败；索引中找不到对应终态 →
+    ``no_task_result``，绝不顶替。
 
     幂等：服务端按运行身份 (sessionId, taskId, taskSeq；该行无 taskSeq 时用
     其持久 resultCursor) 推导确定性 key 去重，messageId 只证明归属、不参与
