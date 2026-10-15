@@ -37,7 +37,7 @@ describe('reportTaskManually store action', () => {
     await act(async () => {
       await useSessionStore.getState().reportTaskManually('ses_ta', TARGET);
     });
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2', undefined);
     expect(entry()).toMatchObject({ state: 'sent', queueItemId: 'q_1', taskId: 'task-2', taskSeq: 2 });
   });
 
@@ -48,7 +48,7 @@ describe('reportTaskManually store action', () => {
         taskId: 'task-2', taskSeq: null, messageId: 'pan:a2',
       });
     });
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', null, 'pan:a2');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', null, 'pan:a2', undefined);
     expect(entry('ses_ta:task-2:-')).toMatchObject({ state: 'sent', taskSeq: null });
   });
 
@@ -212,5 +212,47 @@ describe('terminal identity mirroring', () => {
     const session = useSessionStore.getState().sessions[0]!;
     expect(session.terminalResults).toHaveLength(1);
     expect(session.terminalResults?.[0]?.terminalKey).toBe('t2');
+  });
+});
+
+describe('plain conversation runs (no taskId)', () => {
+  const PLAIN = { taskId: null, taskSeq: 3, messageId: 'pan:p3', resultCursor: 3 } as const;
+
+  it('routes a plain run with taskId null and its result cursor', async () => {
+    reportMock.mockResolvedValue({ ok: true, queueItemId: 'q_p', managerId: 'ses_mgr', alreadyReported: false });
+    await act(async () => {
+      await useSessionStore.getState().reportTaskManually('ses_ta', PLAIN);
+    });
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', null, 3, 'pan:p3', 3);
+    expect(useSessionStore.getState().manualTaskReports['ses_ta:-:3']?.state).toBe('sent');
+  });
+
+  it('keys a cursor-only run by rc:<cursor> so plain runs never share one entry', async () => {
+    reportMock.mockResolvedValue({ ok: true, queueItemId: 'q_c', managerId: 'ses_mgr', alreadyReported: false });
+    await act(async () => {
+      await useSessionStore.getState().reportTaskManually('ses_ta', {
+        taskId: null, taskSeq: null, messageId: 'pan:c7', resultCursor: 7,
+      });
+    });
+    await act(async () => {
+      await useSessionStore.getState().reportTaskManually('ses_ta', {
+        taskId: null, taskSeq: null, messageId: 'pan:c9', resultCursor: 9,
+      });
+    });
+    expect(reportMock).toHaveBeenNthCalledWith(1, 'ses_ta', null, null, 'pan:c7', 7);
+    expect(reportMock).toHaveBeenNthCalledWith(2, 'ses_ta', null, null, 'pan:c9', 9);
+    const reports = useSessionStore.getState().manualTaskReports;
+    expect(reports['ses_ta:-:rc:7']?.state).toBe('sent');
+    expect(reports['ses_ta:-:rc:9']?.state).toBe('sent');
+  });
+
+  it('surfaces a definite no_run_identity rejection without marking sent', async () => {
+    reportMock.mockRejectedValue(new ManualReportRejectedError('缺少运行身份（taskSeq/resultCursor），无法汇报', false));
+    await act(async () => {
+      await useSessionStore.getState().reportTaskManually('ses_ta', {
+        taskId: null, taskSeq: null, messageId: 'pan:p3',
+      });
+    });
+    expect(useSessionStore.getState().manualTaskReports['ses_ta:-:-']?.state).toBe('failed');
   });
 });

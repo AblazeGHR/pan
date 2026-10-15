@@ -201,7 +201,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     });
     render(<ChatMessages />);
     clickReportFor('ses_ta:task-1:1');
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-1', 1, 'pan:a1');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-1', 1, 'pan:a1', 1);
   });
 
   it('adds the action only for tasks with a durable terminal', () => {
@@ -320,6 +320,6 @@ describe('ChatMessages per-task manual report wiring', () => {
     expect(buttonKeys()).toEqual(['ses_ta:task-1:1', 'ses_ta:task-2:2']);
 
     clickReportFor('ses_ta:task-2:2');
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2', 2);
   });
 });

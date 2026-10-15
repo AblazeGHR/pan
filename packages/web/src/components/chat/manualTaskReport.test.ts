@@ -326,3 +326,91 @@ describe('findManualReportTargets', () => {
     expect(findManualReportTargets(messages, session([terminal('task-1', 1, messages[1]!, messages)]), undefined).size).toBe(0);
   });
 });
+
+describe('plain conversation runs (no taskId)', () => {
+  const plainTerminal = (
+    tailRow: Message,
+    messages: Message[],
+    extra: Partial<TerminalIdentity> = {},
+  ): TerminalIdentity => {
+    const index = messages.findIndex((message) => message.messageId === tailRow.messageId);
+    return {
+      taskId: null,
+      taskSeq: index + 1,
+      resultCursor: index + 1,
+      terminalKey: `terminal:plain:${index + 1}`,
+      status: 'done',
+      historyEpoch: EPOCH,
+      historyRevision: index + 1,
+      ...extra,
+    };
+  };
+
+  it('binds a plain run tail by its durable taskSeq', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const targets = findManualReportTargets(messages, session([plainTerminal(messages[1]!, messages)]), proofFor(messages));
+    expect(targets.get('a-1')).toEqual({
+      sessionId: 'ses_ta',
+      taskId: null,
+      taskSeq: 2,
+      messageId: 'a-1',
+      resultCursor: 2,
+      terminalKey: 'terminal:plain:2',
+    });
+  });
+
+  it('binds a run whose terminal only carries a resultCursor', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const terminalOnly = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 9 });
+    const targets = findManualReportTargets(messages, session([terminalOnly]), proofFor(messages));
+    expect(targets.get('a-1')?.taskId).toBeNull();
+    expect(targets.get('a-1')?.taskSeq).toBeNull();
+    expect(targets.get('a-1')?.resultCursor).toBe(9);
+  });
+
+  it('offers no button when the terminal has no durable identity at all', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const identityless = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: undefined });
+    expect(findManualReportTargets(messages, session([identityless]), proofFor(messages)).size).toBe(0);
+  });
+
+  it('never matches a plain terminal to a task segment or a task terminal to a plain segment', () => {
+    const taskMessages = [assign('t-1', 'u-1'), assistant('a-1')];
+    // A plain terminal pointing at a task segment's tail must not bind.
+    expect(findManualReportTargets(taskMessages, session([plainTerminal(taskMessages[1]!, taskMessages)]), proofFor(taskMessages)).size).toBe(0);
+    // A task terminal pointing at a plain segment's tail must not bind either.
+    const plainMessages = [browser('u-1'), assistant('a-1')];
+    const mismatched = { ...terminal('t-1', 2, plainMessages[1]!, plainMessages), taskId: 't-1' };
+    expect(findManualReportTargets(plainMessages, session([mismatched]), proofFor(plainMessages)).size).toBe(0);
+  });
+
+  it('keeps an older plain run bound while a newer run is streaming', () => {
+    const messages = [browser('u-1'), assistant('a-1'), browser('u-2'), assistant('a-2', 'partial', { streaming: true })];
+    const targets = findManualReportTargets(messages, session([plainTerminal(messages[1]!, messages)]), proofFor(messages));
+    expect(targets.size).toBe(1);
+    expect(targets.get('a-1')?.taskId).toBeNull();
+  });
+
+  it('binds each of two plain runs to its own tail block', () => {
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      browser('u-2'), assistant('a-2'),
+    ];
+    const terminals = [plainTerminal(messages[1]!, messages), plainTerminal(messages[3]!, messages)];
+    const targets = findManualReportTargets(messages, session(terminals), proofFor(messages));
+    expect([...targets.keys()].sort()).toEqual(['a-1', 'a-2']);
+    expect(targets.get('a-1')?.taskSeq).toBe(2);
+    expect(targets.get('a-2')?.taskSeq).toBe(4);
+  });
+
+  it('keeps a plain run and a task run bound side by side', () => {
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      assign('t-1', 'u-2'), assistant('a-2'),
+    ];
+    const terminals = [plainTerminal(messages[1]!, messages), terminal('t-1', 1, messages[3]!, messages)];
+    const targets = findManualReportTargets(messages, session(terminals), proofFor(messages));
+    expect(targets.get('a-1')?.taskId).toBeNull();
+    expect(targets.get('a-2')?.taskId).toBe('t-1');
+  });
+});

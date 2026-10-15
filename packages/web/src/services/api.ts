@@ -1520,10 +1520,18 @@ export async function reportTaskManually(
   taskId: string | null,
   taskSeq: number | null,
   messageId: string,
+  resultCursor?: number,
 ): Promise<ApiSessionManualReportResponse> {
+  // The run identity travels verbatim: taskId/taskSeq for formal tasks, and
+  // the durable resultCursor for a plain run whose terminal has no taskSeq.
+  // This function never picks an identity on its own — an identity-less
+  // request is refused by the server (`no_run_identity`) instead of being
+  // turned into "report the latest terminal".
+  const requestBody: Record<string, unknown> = { taskId, taskSeq, messageId };
+  if (typeof resultCursor === 'number') requestBody.resultCursor = resultCursor;
   const data = await request<ApiSessionManualReportResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/manual-report`,
-    { method: 'POST', body: JSON.stringify({ taskId, taskSeq, messageId }) },
+    { method: 'POST', body: JSON.stringify(requestBody) },
   );
   if (data.ok !== true || typeof data.queueItemId !== 'string') {
     throw new ManualReportRejectedError(

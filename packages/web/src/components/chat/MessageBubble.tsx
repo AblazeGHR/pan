@@ -252,14 +252,19 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           data-manual-report={manualReportKey}
           disabled={manualReportEntry?.state === 'sending' || manualReportEntry?.state === 'sent'}
           title={openReportCopy.title}
-          onClick={() => {
-            setMenuAt(null);
-            void reportTaskManually(manualReportTarget.sessionId, {
-              taskId: manualReportTarget.taskId,
-              taskSeq: manualReportTarget.taskSeq,
-              messageId: manualReportTarget.messageId,
-            });
-          }}
+            onClick={() => {
+              setMenuAt(null);
+              void reportTaskManually(manualReportTarget.sessionId, {
+                taskId: manualReportTarget.taskId,
+                taskSeq: manualReportTarget.taskSeq,
+                messageId: manualReportTarget.messageId,
+                // The run's durable cursor travels with the identity: a plain
+                // run whose terminal has no taskSeq binds (and is reported)
+                // by its cursor alone.
+                ...(typeof manualReportTarget.resultCursor === 'number'
+                  ? { resultCursor: manualReportTarget.resultCursor } : {}),
+              });
+            }}
         >
           {manualReportEntry?.state === 'sent' ? <Check size={12} /> : <Send size={12} />}
           {manualReportEntry?.state ? openReportCopy.label : '手动汇报'}
