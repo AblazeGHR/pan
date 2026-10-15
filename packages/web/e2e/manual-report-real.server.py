@@ -9,6 +9,9 @@ Seeded fixtures (all children are managed by ses_mr_mgr):
     ses_mr_plain_cursor  plain run, resultCursor only (no taskSeq anywhere)
     ses_mr_interrupted   a run whose completion is NOT an exposed durable
                          terminal (status outside done/error/cancelled)
+    ses_mr_legacy_done   real LEGACY data: a done terminal with NEITHER
+                         taskSeq nor resultCursor (exactly one such row)
+    ses_mr_legacy_ambig  two such rows in one Session (compat cursor 0 twice)
     ses_mr_task          formal assign run (taskId + taskSeq)
     ses_mr_broken        managed_by points at a missing manager session
 
@@ -53,7 +56,8 @@ from packages.core import session as session_store
 from packages.core import workspace as workspace_store
 
 def _append_run(session, *, task_id, task_seq, answers, result_cursor=None,
-                with_seq=True, with_cursor=True, status="done") -> str | None:
+                with_seq=True, with_cursor=True, status="done",
+                user_text: str | None = None) -> str | None:
     """Append one run and its durable terminal, production-ordered.
 
     "No identity" honesty: the real identity view derives a compatibility
@@ -69,7 +73,7 @@ def _append_run(session, *, task_id, task_seq, answers, result_cursor=None,
         })
     else:
         session_store.append_history(session, {
-            "role": "user", "content": f"plain message {task_seq}",
+            "role": "user", "content": user_text or f"plain message {task_seq}",
             "source": "user",
         })
     for answer in answers:
@@ -136,6 +140,19 @@ def _seed() -> dict:
         s, task_id="mr-task", task_seq=3, answers=["正式任务回答"], result_cursor=3))
     _child("MR Broken Manager", "ses_mr_absent", lambda s: _append_run(
         s, task_id=None, task_seq=2, answers=["坏 manager 回答"], result_cursor=2))
+    # Legacy rows: no taskSeq and no resultCursor anywhere.  The identity view
+    # derives a compatibility cursor (raw resultCursor -> taskSeq -> 0), so the
+    # exactly-one case is addressable through the documented compat path while
+    # the two-row case is ambiguous and must be refused server-side.
+    _child("MR Legacy Done", manager.id, lambda s: _append_run(
+        s, task_id=None, task_seq=0, answers=["遗留回答"], with_seq=False,
+        with_cursor=False, user_text="遗留提问"))
+    _child("MR Legacy Ambiguous", manager.id, lambda s: (
+        _append_run(s, task_id=None, task_seq=0, answers=["歧义回答一"],
+                    with_seq=False, with_cursor=False, user_text="歧义提问一"),
+        _append_run(s, task_id=None, task_seq=0, answers=["歧义回答二"],
+                    with_seq=False, with_cursor=False, user_text="歧义提问二"),
+    ))
 
     (RUNTIME / "fixtures.json").write_text(json.dumps(fixtures, indent=2), encoding="utf-8")
     return fixtures

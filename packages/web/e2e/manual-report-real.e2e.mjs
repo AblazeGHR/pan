@@ -14,6 +14,9 @@
  * feedback (missing manager), gutter-menu bookmark add/remove persisted on
  * disk and recovered by a reload, dynamic port (never 8767/8768).
  *
+ * Run after `pnpm build`: the browser loads the production bundle served by
+ * the launcher, so the dist must be current for UI changes to be under test.
+ *
  * Boundary kept (not an overclaim): the frontend binds a run's tail only when
  * the run's covered boundary row is that assistant block.  A run whose final
  * rows are tool/thinking blocks stays unbound — fewer entries, never a wrong
@@ -126,6 +129,8 @@ try {
   const fixtures = JSON.parse(await fs.readFile(path.join(runtime, 'fixtures.json'), 'utf8'));
   const managerId = fixtures.managerId;
   const child = (name) => fixtures.children[name];
+  // The live backend base; the restart check repoints it.
+  let activeBase = base;
   console.log(`[real-e2e] backend on ${base}; manager ${managerId}`);
 
   browser = await chromium.launch({ headless: true });
@@ -158,7 +163,7 @@ try {
     const found = [];
     await page.locator(GUTTER).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
     for (const gutter of await page.locator(GUTTER).all()) {
-      await gutter.click();
+      if (!(await clickGutterOn(page, gutter))) continue;
       await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
       for (const item of await page.locator(REPORT_ITEM).all()) {
         found.push({ key: await item.getAttribute('data-manual-report'), text: (await item.textContent()) ?? '' });
@@ -167,10 +172,22 @@ try {
     }
     return found;
   };
+  /** Open one gutter's menu, skipping rows the workspace drawer handle
+   *  overlaps (that pre-existing handle sits on the chat's left edge for
+   *  vertically centred rows and intercepts the gutter's hit point). */
+  const clickGutterOn = async (targetPage, gutter) => {
+    try {
+      await gutter.click({ timeout: 2500 });
+      return true;
+    } catch {
+      await targetPage.keyboard.press('Escape').catch(() => {});
+      return false;
+    }
+  };
   const openReportMenuOn = async (targetPage, key) => {
     await targetPage.locator(GUTTER).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
     for (const gutter of await targetPage.locator(GUTTER).all()) {
-      await gutter.click();
+      if (!(await clickGutterOn(targetPage, gutter))) continue;
       await targetPage.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
       const item = targetPage.locator(`${REPORT_ITEM}[data-manual-report="${key}"]`);
       if (await item.count()) return item.first();
@@ -209,7 +226,7 @@ try {
       try {
         const item = await openReportMenu(key);
         assert.equal(await item.isDisabled(), false, `entry ${key} must be actionable`);
-        await item.click();
+        await item.click({ timeout: 5000 });
         return;
       } catch (error) {
         lastError = error;
@@ -310,7 +327,7 @@ try {
     let bookmarkedId = null;
     for (const gutter of await page.locator(GUTTER).all()) {
       const messageId = await gutter.getAttribute('data-message-bookmark-gutter');
-      await gutter.click();
+      if (!(await clickGutterOn(page, gutter))) continue;
       await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
       const bookmarkItem = page.locator(`${MENU} [data-bookmark-action]`);
       const reportItem = page.locator(REPORT_ITEM);
@@ -348,7 +365,7 @@ try {
     let removeItem = null;
     for (const gutter of await page.locator(GUTTER).all()) {
       if ((await gutter.getAttribute('data-message-bookmark-gutter')) !== bookmarkedId) continue;
-      await gutter.click();
+      if (!(await clickGutterOn(page, gutter))) continue;
       await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
       removeItem = page.locator(`${MENU} [data-bookmark-action="remove"]`);
       break;
@@ -367,6 +384,87 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await selectSession('MR Plain Seq', 'plain message 1');
     assert.equal(await page.locator('[data-message-bookmark-tag]').count(), 0);
+  });
+
+  await check('bookmark endpoint idempotency: repeating the state changes nothing on disk', async () => {
+    const seqChild = child('MR Plain Seq');
+    const sidecar = path.join(runtime, 'session-bookmarks', `${seqChild}.json`);
+    const before = JSON.parse(await fs.readFile(sidecar, 'utf8')).revision;
+    const call = (method, target) => fetch(
+      `${base}/api/sessions/${seqChild}/bookmarks/${encodeURIComponent(target)}`, { method });
+    const target = await childTailId(seqChild);
+
+    const first = await (await call('PUT', target)).json();
+    assert.equal(first.changed, true);
+    assert.equal(first.revision, before + 1);
+    const second = await (await call('PUT', target)).json();
+    assert.equal(second.changed, false, 'a repeated PUT must be a no-op');
+    assert.equal(second.revision, before + 1);
+    let envelope = JSON.parse(await fs.readFile(sidecar, 'utf8'));
+    assert.equal(envelope.revision, before + 1);
+
+    const removed = await (await call('DELETE', target)).json();
+    assert.equal(removed.changed, true);
+    assert.equal(removed.revision, before + 2);
+    const removedAgain = await (await call('DELETE', target)).json();
+    assert.equal(removedAgain.changed, false, 'a repeated DELETE must be a no-op');
+    assert.equal(removedAgain.revision, before + 2);
+    envelope = JSON.parse(await fs.readFile(sidecar, 'utf8'));
+    assert.equal(envelope.revision, before + 2);
+    assert.deepEqual(envelope.bookmarks, {});
+  });
+
+  await check('bookmark save failure: a real damaged sidecar surfaces, rolls back, is never overwritten', async () => {
+    const seqChild = child('MR Plain Seq');
+    const sidecar = path.join(runtime, 'session-bookmarks', `${seqChild}.json`);
+    const damaged = '{"version": 1, "revision": 9, "bookmarks": {"pan:';
+    await fs.writeFile(sidecar, damaged, 'utf8');
+    const freshBrowser = await chromium.launch({ headless: true });
+    try {
+      const freshContext = await freshBrowser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+      const fresh = await freshContext.newPage();
+      await fresh.goto(`${base}/react/?panE2E=1`, { waitUntil: 'domcontentloaded' });
+      await fresh.locator('[data-session-card-id]').first().waitFor({ state: 'visible', timeout: 15000 });
+      await selectSessionOn(fresh, 'MR Plain Seq', 'plain message 1');
+      // Add through the real UI on the bookmark-only row: the real endpoint
+      // must refuse with the unreadable-store error.
+      let attempted = false;
+      for (const gutter of await fresh.locator(GUTTER).all()) {
+        if (!(await clickGutterOn(fresh, gutter))) continue;
+        await fresh.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+        const bookmarkItem = fresh.locator(`${MENU} [data-bookmark-action="add"]`);
+        const reportItem = fresh.locator(REPORT_ITEM);
+        if (await bookmarkItem.count() && !(await reportItem.count())) {
+          await bookmarkItem.click();
+          attempted = true;
+          break;
+        }
+        await fresh.keyboard.press('Escape');
+      }
+      assert.ok(attempted, 'no bookmark-only row was offered');
+      const toastNode = fresh.locator('[role="alert"], [data-toast]').first();
+      await toastNode.waitFor({ state: 'visible', timeout: 8000 });
+      const toast = (await toastNode.textContent()) ?? '';
+      assert.match(toast, /could not be read|unreadable|不可读/i, `expected an unreadable-store toast, got: ${toast}`);
+      assert.equal(await fs.readFile(sidecar, 'utf8'), damaged,
+        'a refused save must not destroy the damaged sidecar');
+      // The row did not pretend success: the menu still offers the add.
+      let stillAddable = false;
+      for (const gutter of await fresh.locator(GUTTER).all()) {
+        if (!(await clickGutterOn(fresh, gutter))) continue;
+        await fresh.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+        if (await fresh.locator(`${MENU} [data-bookmark-action="add"]`).count()) stillAddable = true;
+        await fresh.keyboard.press('Escape');
+        if (stillAddable) break;
+      }
+      assert.ok(stillAddable, 'a failed save must roll back to the add state');
+    } finally {
+      await freshBrowser.close();
+    }
+    // Restore a clean sidecar so the remaining checks start deterministic.
+    await fs.writeFile(sidecar, JSON.stringify({
+      version: 1, revision: 0, bookmarks: {}, updatedAt: null,
+    }), 'utf8');
   });
 
   await check('failing target: a missing manager surfaces as a real retry state', async () => {
@@ -430,6 +528,7 @@ try {
     const at = (await managerReceipts(managerId))[`manual:${key}`]?.at;
     await stopServer();
     const restarted = await startServer();
+    activeBase = restarted;
     // Same runtime, same Sessions: the receipt must still be the same one.
     const fixturesAfter = JSON.parse(await fs.readFile(path.join(runtime, 'fixtures.json'), 'utf8'));
     assert.equal(fixturesAfter.managerId, managerId, 'restart must reuse the same fixture generation');
@@ -477,6 +576,47 @@ try {
     const receipts = await managerReceipts(managerId);
     assert.equal(Object.keys(receipts).length, 3, `a replay must not add receipts: ${JSON.stringify(receipts)}`);
     assert.equal(receipts[`manual:${key}`]?.at, at, 'the replay must resolve to the surviving receipt');
+  });
+
+  await check('legacy done without any identity: the derived compat cursor is real and provable', async () => {
+    await gotoApp(activeBase);
+    await selectSession('MR Legacy Done', '遗留提问');
+    const legacyChild = child('MR Legacy Done');
+    // The view-derived compat identity is asserted from the DOM: the entry's
+    // own key must be rc:0, never a guessed or synthesized id.
+    const entries = await reportEntries();
+    assert.deepEqual(entries.map((entry) => entry.key), [`${legacyChild}:-:rc:0`],
+      `unexpected legacy entries: ${JSON.stringify(entries)}`);
+    const key = `${legacyChild}:-:rc:0`;
+    await clickReport(key);
+    await waitForState(key, /已汇报/);
+    const receipts = await waitForReceipts(managerId, 4);
+    const tailId = await childTailId(legacyChild);
+    // Observed real behaviour: the receipt is keyed from the RESOLVED row's own
+    // fields, and a row with neither taskSeq nor a raw resultCursor resolves to
+    // the '-'/'-' key (the compat cursor is a BINDING identity, not a stored
+    // one).  Claim the receipt by the delivered block instead of assuming.
+    const receipt = Object.values(receipts)
+      .find((candidate) => candidate.messageId === tailId);
+    assert.ok(receipt, `compat-identity receipt missing: ${JSON.stringify(receipts)}`);
+    assert.equal(receipt.taskId ?? null, null);
+    assert.equal(receipt.taskSeq ?? null, null, 'a legacy row carries no taskSeq on disk');
+  });
+
+  await check('legacy done, two ambiguous rows: the entry exists but the real server refuses', async () => {
+    await selectSession('MR Legacy Ambiguous', '歧义提问一');
+    const legacyChild = child('MR Legacy Ambiguous');
+    const entries = await reportEntries();
+    assert.equal(entries.length, 2, `two legacy runs, two entries: ${JSON.stringify(entries)}`);
+    assert.deepEqual([...new Set(entries.map((entry) => entry.key))], [`${legacyChild}:-:rc:0`],
+      'both entries carry the same derived compat key');
+    const key = `${legacyChild}:-:rc:0`;
+    await clickReport(key);
+    const state = await waitForState(key, /重试汇报/);
+    assert.match(state.title ?? '', /终态结果不可用|无法汇报/);
+    const receipts = await managerReceipts(managerId);
+    assert.ok(!Object.keys(receipts).some((receiptKey) => receiptKey.includes(legacyChild)),
+      'an ambiguous identity must never deliver');
   });
 
   assert.deepEqual(panRequests, [], `no Pan-port traffic is allowed: ${JSON.stringify(panRequests)}`);
