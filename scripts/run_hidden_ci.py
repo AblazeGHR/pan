@@ -25,12 +25,14 @@ def main():
     p.add_argument('--toolchains', type=Path, required=True)
     p.add_argument('--sha', required=True)
     p.add_argument('--focused', action='store_true')
+    p.add_argument('--combined', action='store_true', help='targeted main-merge interaction checks; no visible payloads')
     p.add_argument('--detach-only', action='store_true', help='verify supplemental real-detach coverage before a full run')
     p.add_argument('--allow-dirty', action='store_true')
     p.add_argument('--baseline', type=Path, help='original full-CI evidence directory for identity/skip comparison')
     p.add_argument('--source-baseline', help='task starting SHA; distinguish earlier test renames from this repair')
     p.add_argument('--pnpm', default=shutil.which('pnpm.cmd'), help='absolute pnpm command path')
     a = p.parse_args()
+    targeted = a.focused or a.combined
     root, out = a.root.resolve(), a.out.resolve()
     assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip() == a.sha
     if not a.allow_dirty:
@@ -106,7 +108,7 @@ def main():
             continue
         run('python-' + leg, [python, '--version'])
         run('freeze-' + leg, [python, '-m', 'pip', 'freeze'])
-        if not a.focused:
+        if not targeted:
             run('notion-standalone-' + leg, [python, str(root / 'scripts/run_tests_isolated.py'), '--', python,
                                            '-m', 'pytest', 'tests/test_notion_auth.py', '-q', '-ra',
                                            '--junitxml=' + str(out / ('notion-' + leg + '.xml')),
@@ -115,10 +117,25 @@ def main():
                  'tests/test_job_hidden_production.py', 'tests/test_background_jobs.py',
                  'tests/test_session_import.py::test_mcp_import_cbc_builds_body_and_autoclaims',
                  'tests/test_session_import.py::test_mcp_import_reimport_precheck_denies_unmanaged'] if a.focused else ['tests/', 'packages/qq']
+        exclusions = []
+        if a.combined:
+            paths = ['tests/test_terminal_secret_store.py', 'tests/test_job_window_guard.py',
+                     'tests/test_job_runner_venv.py', 'tests/test_background_jobs.py',
+                     'tests/test_job_hidden_production.py', 'tests/test_job_lifecycle_prevention.py',
+                     'tests/test_job_cleanup_failures.py', 'tests/test_hidden_job_token.py',
+                     'tests/test_job_window_policy.py', 'tests/test_independent_job_service.py',
+                     'tests/test_independent_job_bridge.py', 'tests/test_test_isolation.py',
+                     'tests/test_session_import.py']
+            # Existing visible-mode OS positives are intentionally outside this
+            # targeted batch, per the user's no-visible-experiments boundary.
+            exclusions = ['--deselect=' + node for node in [
+                'tests/test_job_runner_venv.py::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]',
+                'tests/test_job_window_policy.py::test_real_windows_child_console_allocation[False]',
+                'tests/test_job_window_policy.py::test_owned_python_tree_window_visibility[False]']]
         run('pytest-' + leg, [python, str(root / 'scripts/run_tests_isolated.py'), '--', python,
-                             '-m', 'pytest', *paths, '-q', '-ra', '--junitxml=' + str(out / ('pytest-' + leg + '.xml')),
+                             '-m', 'pytest', *paths, *exclusions, '-q', '-ra', '--junitxml=' + str(out / ('pytest-' + leg + '.xml')),
                              '--basetemp=' + str(out / ('pytest-tmp-' + leg))])
-        if not a.focused:
+        if not targeted:
             # The regular phase intentionally forbids breakaway. This existing
             # test needs the original ancestor context to exercise real detach;
             # its own retained identities and finally blocks prove tree cleanup.
@@ -128,9 +145,13 @@ def main():
     web = root / 'packages/web'
     pnpm = a.pnpm
     assert pnpm and Path(pnpm).is_file()
-    run('vitest', [pnpm, 'exec', 'vitest', 'run', *(['src/components/layout/TopBar.test.tsx'] if a.focused else []),
+    frontend = ['src/components/layout/TopBar.test.tsx'] if a.focused else []
+    if a.combined:
+        frontend = ['src/components/layout/TopBar.test.tsx', 'src/components/layout/Sidebar.test.tsx',
+                    'src/components/layout/ViewEntryGroups.test.tsx', 'src/stores/jobStore.test.ts']
+    run('vitest', [pnpm, 'exec', 'vitest', 'run', *frontend,
                    '--cache=false', '--reporter=default', '--reporter=junit', '--outputFile=' + str(out / 'vitest.xml')], web)
-    if not a.focused:
+    if not targeted:
         for name, argv in [('tsc', [pnpm, 'exec', 'tsc', '-b']), ('build', [pnpm, 'run', 'build']),
                            ('lint-src', [pnpm, 'exec', 'eslint', 'src'])]:
             run(name, argv, web)
