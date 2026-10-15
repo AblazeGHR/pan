@@ -12,7 +12,8 @@
 - Windows hidden 启动失败会明确报错，不静默改走可见路径。
 - 按 PID 打开 hidden 进程的 `PROCESS_SET_INFORMATION` 或含该位的更大权限（如 `PROCESS_ALL_ACCESS`）可能被拒绝；外部优先级／亲和性管理、调试／诊断工具等需验证。DefaultDACL 也用于其他新建内核对象，不能把本批文件、event、mutex、section、pipe 测试推广为全部兼容。
 - GUI 的交互环境变成私有 desktop，需要人机交互的程序可能等待不可见对话框。cwd、日志、退出码和本批文件／IPC 访问已验证。
-- 独立 Job service 的 runner 崩溃由内核 Job Object 清理整树，恢复记 UNKNOWN 并拒绝重复执行同一已领取 Job。legacy 保留原较弱生命周期：runner 崩溃可能留下任务／子进程，registry 记 failed；试用不把它提升为同等 crash containment。
+- Windows hidden 任务在创建时加入 runner 持有的 kill-on-close Job Object（需要 Windows 10／Server 2016 或更新版本），不再依赖创建后 assign 的窗口；legacy 和 independent 的正常继承后代随 runner 死亡回收。属性不可用或分配失败会明确报错，不退回无保护启动。显式可见／非 Windows 路径保留原方式。
+- 独立 runner 崩溃在下一次 recovery 记 UNKNOWN，拒绝 retry 和重新领取同一 Job。legacy 在下一次 recovery 仍按原语义记 failed，这个状态本身不证明清理成功；其 hidden runner 在启动命令前以 PID／FILETIME 自行登记并领取一次，避免 controller 来不及登记、重复执行或终态重新启动。controller 未运行时，磁盘上的旧 running 需等 recovery 恢复后收敛。
 - 两条普通 argv 接口均没有原生任务 timeout 字段；需要外部期限策略调用取消接口。controller 的 recovery-loop shutdown 不取消持久 Job。
 
 没有默认 debugger、注入 DLL、alpha 透明化、屏幕外定位或新工具链要求。这些新版研究仍保留在 `research/job-descendant-hidden-20261013` 的 `08589480847130e8e04ecbb3341c06595ca614ae`，等待后续选择。

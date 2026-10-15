@@ -99,6 +99,7 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
 
 def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop):
     import msvcrt
+    from packages.jobs.owned_process import job_startup_info, EXTENDED_STARTUPINFO_PRESENT
     from packages.core.terminal.guard import JobObjectGuard
     from packages.core.terminal.identity import read_creation_filetime, wait_state, informational_exit_code, ProcessStatus, close_handle_checked
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -156,11 +157,14 @@ def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, de
                 # fallback to the plain launch, which could show a console to the user.
                 from packages.jobs.restricted_token import HiddenJobToken
                 try:
+                    guard = JobObjectGuard(kill_on_close=True)
                     hidden_token = HiddenJobToken()
                     with CleanupStack() as token_cleanup:
                         token_cleanup.callback(hidden_token.close)
-                        process_handle, thread_handle, pid = hidden_token.create_process(
-                            command_text, payload["cwd"], env_buffer, startup, creation_flags)
+                        with job_startup_info(startup, guard) as owned_startup:
+                            process_handle, thread_handle, pid = hidden_token.create_process(
+                                command_text, payload["cwd"], env_buffer, owned_startup,
+                                creation_flags | EXTENDED_STARTUPINFO_PRESENT)
                 except OSError as error:
                     code = int(getattr(error, "winerror", 0) or 1)
                     log.write(f"Hidden Job token/process creation failed (winerror={code})\n".encode("utf-8"))
@@ -177,8 +181,10 @@ def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, de
             try:
                 creation = read_creation_filetime(process_handle)
                 if creation is None: raise RuntimeError("task creation FILETIME unavailable")
-                guard = JobObjectGuard(kill_on_close=True)
-                guard.assign(process_handle)
+                if guard is None:
+                    # Explicit visible mode retains its previous launch contract.
+                    guard = JobObjectGuard(kill_on_close=True)
+                    guard.assign(process_handle)
                 assigned = True
                 if not guard.is_member(process_handle) or (guard.active_processes() or 0) < 1:
                     raise RuntimeError("task membership in owned Job Object was not proven")
