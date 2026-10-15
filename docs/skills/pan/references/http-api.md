@@ -15,13 +15,41 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原有幂等语义
 返回 pending/receipt，不重复执行。
 
-`POST /api/send`（以及 `agent_send_force` 重启后使用的兼容 task 路径）不生成新的
+`POST /api/send`（普通 send 和 `agent_send_force` 的统一入口）不生成新的
 业务编号。对来源为 Pan agent 的消息，入队时复制目标 Session 当时的
 `active_task_id`；没有活动任务就是 `taskId: null`。普通消息的 inherited taskId
 只用于完成 report 配对，不参加 assign 去重，所以连续 send 不会互相去重。正式
 任务完成/终止后，新的普通 send 不继承旧 taskId；已入队消息仍使用自己入队时的
 快照。Session 重启/恢复只从持久 queue 中的未完成正式 task 恢复活动上下文，绝不
 从 `lastResult` 或 history 猜测。
+
+### 即时 force / 原生 Steer
+
+`agent_send_force` 与兼容 `worker_send_force` 都向 `/api/send` 传
+`{"sessionId":"...","text":"...","source":"agent","force":true}`。
+可选 `clientMessageId` 是事务去重键；调用者身份由 MCP 附加为
+`sourceSessionId`。MCP 不先调用 restart，也不自行选择底层协议。
+
+- 支持 Steer 的 active stream 即时尝试原生 admission；idle/queued 使用普通
+  consumer handoff；无 Steer 能力才 restart+send；无 Worker 保留持久队列语义。
+- `status/outcome: accepted` 是 CLI 接受，`consumption: unconfirmed` 不是已消费。
+  `queued` 只表示等待交接；`rejected` 可显式重试；`unknown` 禁止自动重发或
+  降级 restart。原生拒绝后重试复用原 item，未知结果保留原事务并阻止投递。
+- Pause everything、手动/报告锁、编辑租约、owner/runtime/generation 与
+  delayed restart 优先级仍有效。force 不承诺绕过这些门禁；不要把 queued
+  告诉用户为已 Steer。已有 delayed intent 不被 force 或 self-consume 取消。
+- CBC stream 使用 `control_request.request.subtype=steer`，绑定 CLI session
+  和 `expected_request_id`。`steered:true` 仅为 admission。迟到回执只结算原
+  run/item，history 保留原归属，最终 result 仍属于原任务。
+- UI direct：`POST /api/sessions/{id}/worker/steer`，body 为 `text/messageId`；
+  queue：`POST /api/sessions/{id}/queue/{itemId}/steer`，只接受
+  `{"expectedRevision":N}`，正文/来源从原队列读取。保持 10 秒队列请求与
+  30 秒 provider receipt 边界。self_queue 复用同一能力路由；其 consumed
+  仅指 Pan 队列项，嵌套 `steer.consumption` 仍为 unconfirmed。
+
+CBC native TUI 与 Oneshot 不因此获得 stream 控制协议能力，不能盲发键盘
+或以 restart/resume 冒充同 run Steer。协议不识别/缺少 run 时明确拒绝或未知，
+不静默回退普通 prompt。
 
 单 Session/单 Worker/FIFO 下，新的 assign 入队即切换活动上下文；旧任务及其已经
 入队的普通消息仍按 FIFO 处理。`queueItemId` 只是内部技术 ID，不是业务 taskId；
@@ -59,10 +87,10 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）。等价 MCP 工具：`session_unclaim` |
-| `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`agent_send_force`（MCP，别名 worker_send_force）内部走此端点 |
-| `POST` | `/api/sessions/{id}/worker/delayed-restart` | — | 返回 `delayedRestart`：`sessionId`、捕获的 `workerId/generation`、单调 `revision`、`action:start/restart`、`status:pending/restarting/completed/failed/cancelled`、`error`。running 时等待当前任务的终态持久化、结果/报告与队列清理全部完成；有效 idle 边界先同步封住旧 Worker，再按既有配置 respawn，优先于队列续派。已 idle（含尚未交接的 queued）立即调度；无 Worker 与 Restart 一致，调度 start。重复请求/settings 自动重启合并为一个意图。held/takeover 拒绝，立即 kill/restart/force 取消旧代意图。意图仅在本次 Pan 进程内有效，不跨服务重启恢复。无新增 MCP 工具。 |
+| `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。force-send 经 `/api/send` 按能力路由，不直接调用此端点 |
+| `POST` | `/api/sessions/{id}/worker/delayed-restart` | — | 返回 `delayedRestart`：`sessionId`、捕获的 `workerId/generation`、单调 `revision`、`action:start/restart`、`status:pending/restarting/completed/failed/cancelled`、`error`。running 时等待当前任务的终态持久化、结果/报告与队列清理全部完成；有效 idle 边界先同步封住旧 Worker，再按既有配置 respawn，优先于队列续派。已 idle（含尚未交接的 queued）立即调度；无 Worker 与 Restart 一致，调度 start。重复请求/settings 自动重启合并为一个意图。held/takeover 拒绝，立即 kill/restart 取消旧代意图；force/self-consume 保留已有 delayed intent。意图仅在本次 Pan 进程内有效，不跨服务重启恢复。无新增 MCP 工具。 |
 | `GET` | `/api/sessions/{id}/worker/delayed-restart` | — | 返回当前 `delayedRestart` 或 `null`，旧 Worker 被移除后仍可读取失败/完成状态；Session 不存在返回 `error`。状态变化通过 `worker.delayed_restart` WS 事件发布；客户端按 revision 拒绝陈旧事件/响应。 |
-| `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入支持 native Steer 的 running Worker；Codex 等待实际 `turn/steer` RPC 回执，Claude 使用 streaming stdin/drain 交接边界。确认后记录 history；结果不明不能自动重发 |
+| `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入支持 native Steer 的 running Worker；CBC stream 等待 control_response admission（accepted 不代表已消费），Codex 等待实际 `turn/steer` RPC 回执，Claude 使用 streaming stdin/drain 交接边界。确认后记录 history；结果不明不能自动重发 |
 | `POST` | `/api/worker/{worker_id}/control` | `{"control": {"type": "terminal_input", "process_id": "...", "text": "..."}}` | 向运行中的 Codex 发送终端输入；`terminal_terminate` 可终止对应进程。也支持审批、用户输入、权限和 elicitation 控制 |
 | `PUT` | `/api/sessions/{id}/qq-report` | `{"target":"user:123@456", "enabled":true, "expectedEnabled":false}` | 独立 QQ 完成报告对象；支持 user/group、可选 @bot，返回 qqReportTargets/msgBridgeEnabled。readonly/CAS 拒绝，存盘后才成功；done 发本任务最后 assistant 正文，error 发与 TA→MA 相同的本次 result，一次发送无重试 |
 | `PUT` | `/api/sessions/{id}/msg-bridge` | `{"enabled":false, "expectedEnabled":true}` | 灭钟清空 QQ subscribe/report 与 system/browser；亮钟按 ui.notifications.completionBridge 多选默认开启（旧配置为 system-only）；QQ 默认联系人必须非空且点亮时校验可用性，失败不部分开启。任一 QQ subscribe/report 或 system/browser 开启时 summary.msgBridgeEnabled=true；WeChat/TA→MA 关系独立 |

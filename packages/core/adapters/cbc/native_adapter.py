@@ -12,9 +12,11 @@ from .adapter import CbcAdapter
 class CbcNativeAdapter(CbcAdapter):
     execution_modes = ["stream"]
     supports_native_interrupt = True
-    # Typing while a turn is running queues another CLI prompt. It is not a
-    # provider-confirmed Steer and must never be advertised as one.
+    # Native TUI can consume busy input in the current run, but PTY writes and
+    # hooks do not provide the stream control_request admission receipt.
     supports_native_steer = False
+    supports_steer_receipt = False
+    steer_requires_run_id = False
 
     def build_spawn_args(self, s, extra_args=None):
         sid = s.cli_session_id or ("pan-" + uuid.uuid4().hex)

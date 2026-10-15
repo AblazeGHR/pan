@@ -1,0 +1,47 @@
+{
+  "sourceJob": "job_7d3ed597f11e2ee1b40502ba",
+  "sourceResult": "research\\cbc_steer\\production-e8d7ab3d19\\result.json",
+  "cliVersion": "2.168.0",
+  "headlessSHA256": "13e6dd30a22d2f11857675193f909a2ccb935da67a067f580fcfe764e474ff60",
+  "model": "hy3",
+  "identityBefore": {
+    "pid": 15664,
+    "created_at_filetime": "134365586231722030",
+    "created_at": null,
+    "image": null
+  },
+  "identityAfter": {
+    "pid": 15664,
+    "created_at_filetime": "134365586231722030",
+    "created_at": null,
+    "image": null
+  },
+  "sessionId": "ses-cbc-steer-dfc1c5f4d293453ba4e555ba453d97cd",
+  "nativeSessionId": "0b921923-4645-449a-b980-7d416cac4392",
+  "runId": "01a140976ed17240b63b98eb024d7814",
+  "pathsAccepted": [
+    "direct-ui",
+    "queue-ui",
+    "self-queue-http",
+    "force-http"
+  ],
+  "nativeSameRunInjectedMessages": [
+    "01a14097-79b8-7878-9f46-d2a50b2ad4df",
+    "01a14097-7b21-7b0d-8548-6b1207f4b4e7",
+    "01a14097-7b61-729c-9bde-c9de5fb7e5d9",
+    "01a14097-7b80-7646-aeb9-6c2d1a2bbe5f"
+  ],
+  "nativeNewUserRequests": 1,
+  "finalResult": "BASELINE_19",
+  "panTerminalCount": 1,
+  "queueEmpty": true,
+  "originalItemLedgerBinding": true,
+  "nativeHistoryAndFinalSameRun": true,
+  "modelFollowedMarkerInstruction": false,
+  "cleanupError": null,
+  "processExitCode": 15,
+  "sourceProbeExitWasFailure": true,
+  "failureReason": "Marker compliance assertion failed; native same-run consumption independently verified",
+  "verification": "passed",
+  "verificationModelsCalled": 0
+}

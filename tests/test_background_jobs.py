@@ -57,6 +57,34 @@ def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tm
     assert result["status"] == "cancelled" and result["exitCode"] is None
 
 
+def test_cancel_survives_runner_disappearing_during_tree_lookup(monkeypatch, tmp_path):
+    import psutil
+
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
+                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
+    task, runner = Mock(pid=123), Mock(pid=456)
+    task.children.return_value = []
+    runner.children.side_effect = psutil.NoSuchProcess(456)
+    monkeypatch.setattr(jobs, "_owns_process", lambda fact: task if fact["pid"] == 123 else runner)
+    result = jobs.cancel(job["jobId"])
+    assert result["status"] == "cancelled" and result["exitCode"] is None
+    task.kill.assert_called_once_with()
+
+
+def test_tree_cleanup_continues_after_one_descendant_disappears():
+    import psutil
+
+    parent, survivor, disappeared = Mock(), Mock(), Mock()
+    parent.children.return_value = [survivor, disappeared]
+    disappeared.kill.side_effect = psutil.NoSuchProcess(123)
+    jobs._kill_tree(parent)
+    survivor.kill.assert_called_once_with()
+    parent.kill.assert_called_once_with()
+
+
 def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     _session(tmp_path)
     _session(tmp_path, "ses_creator")
@@ -632,3 +660,44 @@ def test_independent_terminal_broadcast_uses_local_ledger_and_retries(monkeypatc
     asyncio.run(jobs.recover_notifications())
     assert events == []
     assert jobs._load_terminal_broadcast_ledger() == {}
+
+@pytest.mark.parametrize('terminal', ['completed', 'failed', 'cancelled'])
+def test_reconcile_preserves_concurrent_runner_terminal(monkeypatch, tmp_path, terminal):
+    _session(tmp_path)
+    jobs._save({'jobId': 'job_reconcile_race', 'targetSessionId': 'ses_target',
+                'status': 'running', 'runnerPid': 11, 'runnerProcessCreatedAt': 2, 'createdAt': 1})
+    def disappears(_):
+        jobs._update('job_reconcile_race', {'status': terminal, 'exitCode': 0})
+        return None
+    monkeypatch.setattr(jobs, '_owns_process', disappears)
+    assert jobs.reconcile_running() == 0
+    assert jobs.get('job_reconcile_race')['status'] == terminal
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')
+def test_hidden_runner_claim_is_once_and_refuses_unknown(monkeypatch, tmp_path):
+    import os
+    from packages.core.terminal.identity import probe_process
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
+    job = jobs.start('ses_target', ['owned-command'], str(tmp_path))
+    assert jobs.claim_hidden_runner(job['jobId']) is True
+    fact = jobs.get(job['jobId'])
+    assert fact['runnerPid'] == os.getpid()
+    assert fact['runnerFiletime'] == str(probe_process(os.getpid()).identity.created_at_filetime)
+    assert jobs.claim_hidden_runner(job['jobId']) is False
+    assert jobs.get(job['jobId'])['runnerClaim'] == fact['runnerClaim']
+    jobs._update(job['jobId'], {'status': 'UNKNOWN', 'runnerClaim': None})
+    assert jobs.claim_hidden_runner(job['jobId']) is False
+    with pytest.raises(ValueError, match='not retryable'): jobs.retry(job['jobId'])
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')
+def test_hidden_runner_claim_finishes_already_accepted_cancel(monkeypatch, tmp_path):
+    _session(tmp_path)
+    monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
+    job = jobs.start('ses_target', ['owned-command'], str(tmp_path))
+    jobs._update(job['jobId'], {'cancelRequestedAt': 1})
+    assert jobs.claim_hidden_runner(job['jobId']) is False
+    result = jobs.get(job['jobId'])
+    assert result['status'] == 'cancelled'
+    assert result['notificationState'] == 'pending'

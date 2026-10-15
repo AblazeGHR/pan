@@ -1,0 +1,93 @@
+{
+  "backendLatest": {
+    "tests": 147,
+    "result": "passed",
+    "suites": [
+      "test_force_steer",
+      "test_cbc_steer",
+      "test_self_queue",
+      "test_steer_restart_priority",
+      "test_addressing_compat",
+      "test_codex_control_owner",
+      "test_native_control_api"
+    ]
+  },
+  "backendCompatibility": {
+    "tests": 138,
+    "result": "passed",
+    "suites": [
+      "test_queue_restart_hardening",
+      "test_worker_output_mode",
+      "test_cbc_native_bridge",
+      "test_cbc_hook_channel",
+      "test_cbc_oneshot_args",
+      "test_worker_oneshot_usage"
+    ]
+  },
+  "queueReceiptBoundaries": {
+    "tests": 87,
+    "result": "passed",
+    "job": "job_1b7ee0270870762f7a8e1ff5",
+    "seconds": [
+      10,
+      30
+    ]
+  },
+  "frontend": {
+    "tests": 92,
+    "result": "passed",
+    "files": [
+      "api.test.ts",
+      "InputRow.test.tsx",
+      "SendQueuePanel.pendingOnly.test.tsx"
+    ]
+  },
+  "build": {
+    "result": "passed",
+    "command": "pnpm run build",
+    "includes": [
+      "tsc -b",
+      "vite",
+      "compressed asset verification"
+    ],
+    "compressedAssets": 66
+  },
+  "dependencyEnvironment": {
+    "localJunction": "packages/web/node_modules",
+    "target": "D:/project/Pan/packages/web/node_modules",
+    "lockSHA256": "249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149",
+    "globalOrPracticalWrite": false
+  },
+  "finalCanonicalRegression": {
+    "result": "passed",
+    "tests": 149,
+    "python": "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "includesRealReceiptBoundaryWaits": true
+  },
+  "realProductionVerification": {
+    "summary": "production-evidence.json",
+    "result": "same-run admission/history/terminal checks passed; marker compliance failed",
+    "newModelCallsDuringVerification": 0
+  },
+  "maAcceptanceFollowup": {
+    "redCases": 5,
+    "backendControlAndRouting": {
+      "result": "passed",
+      "tests": 172
+    },
+    "frontend": {
+      "result": "passed",
+      "tests": 93
+    },
+    "newModelCalls": 0,
+    "priorMarkerComplianceFailurePreserved": true,
+    "queueAndApiBoundaries": {
+      "result": "passed",
+      "tests": 36,
+      "seconds": [
+        10,
+        30
+      ]
+    }
+  }
+}

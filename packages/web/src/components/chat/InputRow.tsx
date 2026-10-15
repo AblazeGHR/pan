@@ -814,6 +814,7 @@ export function InputRow() {
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
+  const steerCapability = useAdapterStore((s) => s.adapters.find(a => a.name === currentSession?.adapter)?.supportsSteer);
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   const applySettings = useAdapterStore((s) => s.applySettings);
   const loadSessions = useSessionStore((s) => s.loadSessions);
@@ -1786,7 +1787,9 @@ export function InputRow() {
         ? ''
         : (validEffortValues[0] ?? '');
   const canSteer =
-    currentSession?.adapter === 'codex' &&
+    (steerCapability ?? currentSession?.adapter === 'codex') &&
+    currentSession?.outputMode !== 'oneshot' &&
+    !(currentSession?.adapter === 'cbc' && currentSession.nativeControl) &&
     currentWorker?.status === 'running' &&
     !!currentWorker.id;
   // During the render between a Session id change and its restoration effect,
@@ -2577,7 +2580,7 @@ export function InputRow() {
                   aria-busy={pendingAction === 'steer'}
                   onClick={() => handleSteer(composerValueRef.current.text)}
                   className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
-                  title="Send an instruction to the running Codex turn"
+                  title="Ask the CLI to accept an instruction for the current task"
                 >
                   {pendingAction === 'steer' ? <Loader2 size={13} className="animate-spin" /> : <CornerUpRight size={13} />}
                   Steer

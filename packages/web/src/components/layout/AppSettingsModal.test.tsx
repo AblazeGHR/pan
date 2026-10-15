@@ -594,6 +594,7 @@ describe('AppSettingsModal', () => {
     expect(tabs.map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
       'General',
       'Preferences',
+      'Behavior',
       'Appearance',
       'Notification',
       'Adapter',
@@ -610,12 +611,12 @@ describe('AppSettingsModal', () => {
     expect(panel.className).not.toContain('overflow-x-auto');
 
     fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[7]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[7]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 7).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[7]!, { key: 'ArrowLeft' });
     expect(tabs[6]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[6]!.tabIndex).toBe(0);
-    expect(tabs.slice(0, 6).every((tab) => tab.tabIndex === -1)).toBe(true);
-    fireEvent.keyDown(tabs[6]!, { key: 'ArrowLeft' });
-    expect(tabs[5]!.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(tabs[5]!, { key: 'Home' });
+    fireEvent.keyDown(tabs[6]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-general');
   });
@@ -645,7 +646,7 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(panel.querySelector(
       '[aria-label="Keep Completed Jobs for days"]',
     )).not.toBeNull());
-    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(7);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(8);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
 
@@ -811,7 +812,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(8);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');
@@ -820,6 +821,11 @@ describe('AppSettingsModal', () => {
     expect(document.getElementById('app-settings-tab-preferences')?.getAttribute('aria-selected'))
       .toBe('true');
     fireEvent.keyDown(document.getElementById('app-settings-tab-preferences')!, {
+      key: 'ArrowRight',
+    });
+    expect(document.getElementById('app-settings-tab-behavior')?.getAttribute('aria-selected'))
+      .toBe('true');
+    fireEvent.keyDown(document.getElementById('app-settings-tab-behavior')!, {
       key: 'ArrowRight',
     });
 
@@ -911,6 +917,46 @@ describe('AppSettingsModal', () => {
       defaultNewSessionToCurrentWorkspace: false,
     });
     expect(workspaceSwitch.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('toggles the Behavior worker-kill report switch off by default and persists it', async () => {
+    updateUiSettingsMock.mockResolvedValue({ reportWorkerKillErrors: true });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-behavior')!);
+
+    expect(cardEl().textContent).toContain('Report errors when stopping a running worker');
+    const killReportSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) =>
+      element.textContent?.includes('Report errors when stopping a running worker'),
+    )!;
+    expect(killReportSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(killReportSwitch);
+
+    await waitFor(() =>
+      expect(useAppSettingsStore.getState().reportWorkerKillErrors).toBe(true),
+    );
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ reportWorkerKillErrors: true });
+    expect(killReportSwitch.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('shows Behavior save errors and keeps the last saved value', async () => {
+    updateUiSettingsMock.mockRejectedValueOnce(new Error('config is read-only'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-behavior')!);
+
+    const killReportSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) =>
+      element.textContent?.includes('Report errors when stopping a running worker'),
+    )!;
+    fireEvent.click(killReportSwitch);
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('config is read-only');
+    expect(useAppSettingsStore.getState().reportWorkerKillErrors).toBe(false);
+    expect(killReportSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
   it('toggles merged tool/thinking groups on the Appearance tab and persists the setting', () => {

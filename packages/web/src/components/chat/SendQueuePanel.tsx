@@ -114,7 +114,11 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
   const move = useQueueStore((state) => state.moveQueueItem);
   const clear = useQueueStore((state) => state.clear);
   const selectedAdapter = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.adapter);
-  const supportsSteer = useAdapterStore((state) => !nativeMode && state.adapters.some((adapter) => adapter.name === selectedAdapter && adapter.supportsSteer === true));
+  const selectedTransportAllowsSteer = useSessionStore((state) => {
+    const selected = state.sessions.find((session) => session.id === state.currentSessionId);
+    return selected?.outputMode !== 'oneshot' && !(selected?.adapter === 'cbc' && selected.nativeControl);
+  });
+  const supportsSteer = useAdapterStore((state) => !nativeMode && selectedTransportAllowsSteer && state.adapters.some((adapter) => adapter.name === selectedAdapter && adapter.supportsSteer === true));
   const runtimeWorker = useWorkerStore((state) => sessionId ? state.workers[sessionId] : undefined);
   const [steering, setSteering] = useState<Set<string>>(new Set());
   const requestSteer = async (item: AgentQueueItem) => {
@@ -124,7 +128,7 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
     setSteering((current) => new Set(current).add(key));
     try {
       await steerSessionQueueItem(sid, item.id, item.meta?.revision ?? 1);
-      useUIStore.getState().showToast('队列消息已通过 Steer 交接');
+      useUIStore.getState().showToast('CLI 已接受 Steer，等待当前任务处理');
     } catch (error) {
       useUIStore.getState().showToast(error instanceof Error ? error.message : String(error), 'error');
     } finally {

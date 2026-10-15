@@ -1,0 +1,28 @@
+{
+  "userLevelWritePerformed": false,
+  "syncAfterMAAcceptanceOnly": true,
+  "files": [
+    {
+      "source": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\docs\\skills\\pan\\SKILL.md",
+      "target": "C:\\Users\\14709\\.agents\\skills\\pan\\SKILL.md",
+      "sourceSHA256": "4242b91820f8961cc98b8d3133ad12e61c60850568a8dddee8ae2f35f4ddea4a",
+      "currentUserSHA256": "bd80ae946da450556334122c6cfa4d9f4696ae1a9683c9e2bb79c167917386e9",
+      "syncRequired": true
+    },
+    {
+      "source": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\docs\\skills\\pan\\references\\http-api.md",
+      "target": "C:\\Users\\14709\\.agents\\skills\\pan\\references\\http-api.md",
+      "sourceSHA256": "601a94b435210622ff9aa7caa8c4f043d21016fd103be9e23b23ee8b5d976a8a",
+      "currentUserSHA256": "0a64117d080def7eacb4fc6d4354271708ea7a71b48a51d2f3ea39f0ecfd770f",
+      "syncRequired": true
+    },
+    {
+      "source": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\docs\\skills\\pan\\references\\ws-protocol.md",
+      "target": "C:\\Users\\14709\\.agents\\skills\\pan\\references\\ws-protocol.md",
+      "sourceSHA256": "977534f1b0e7025786604bd96cef0809eb5301eb8379f31226cedf2578d52dcb",
+      "currentUserSHA256": "977534f1b0e7025786604bd96cef0809eb5301eb8379f31226cedf2578d52dcb",
+      "syncRequired": false
+    }
+  ],
+  "additionalLocalCopy": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\.codebuddy\\skills\\pan"
+}

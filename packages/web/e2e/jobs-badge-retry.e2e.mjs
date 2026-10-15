@@ -1,4 +1,4 @@
-/* global fetch, process, console */
+/* global fetch, URL, console */
 // Real-chain browser verification for the Jobs badge broadcast-retry path.
 //
 // Boots the REAL Pan server from jobs-badge-retry.server.py on a free
@@ -129,8 +129,8 @@ try {
 
   // Two real running jobs exist before the app boots: the global WS-open
   // hydration must surface them on the Chat route without visiting /jobs.
-  const jobA = await startRunningJob('Retry Job A', 60);
-  const jobB = await startRunningJob('Retry Job B', 60);
+  await startRunningJob('Retry Job A', 60);
+  await startRunningJob('Retry Job B', 60);
 
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -158,7 +158,7 @@ try {
   // 2. The user NEVER leaves the Chat route for the rest of the run: every
   // count change below arrives through the real WebSocket broadcasts alone.
   // 2a. Real job.created broadcast bumps 2 -> 3 with no navigation.
-  const jobC = await startRunningJob('Retry Job C', 6);
+  await startRunningJob('Retry Job C', 6);
   await poll(badgeText, (text) => text === '3', 'badge shows 3 after the real job.created broadcast');
 
   // 2b. THE FIX UNDER TEST: C's real process finishes (~6s). The detached
