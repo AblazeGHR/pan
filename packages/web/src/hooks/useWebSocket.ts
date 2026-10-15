@@ -5,6 +5,7 @@ import { useSessionStore, workerResultMarkerId, markCompletedLiveRows } from '@/
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useBookmarkStore } from '@/stores/bookmarkStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useJobStore } from '@/stores/jobStore';
@@ -846,6 +847,26 @@ export function useWebSocket() {
       applySessionEvent(e);
       scheduleRefreshSessions();
     }));
+    // Bookmark commits are broadcast to every dashboard client (including the
+    // mutating one, whose apply is an idempotent re-apply), so dual tabs
+    // converge without polling.  The projected `bookmarked` flag on later
+    // history/navigation reads stays consistent with this envelope.
+    unsubscribers.push(wsClient.on('bookmarks.changed', (e: StreamEvent) => {
+      const payload = e as StreamEvent & {
+        action?: 'added' | 'removed';
+        messageIds?: string[];
+        revision?: number;
+      };
+      if (payload.action !== 'added' && payload.action !== 'removed') return;
+      useBookmarkStore.getState().applyBookmarkEvent({
+        type: 'bookmarks.changed',
+        sessionId: payload.sessionId ?? '',
+        revision: typeof payload.revision === 'number' ? payload.revision : 0,
+        action: payload.action,
+        messageIds: Array.isArray(payload.messageIds) ? payload.messageIds : [],
+      });
+    }));
+
     unsubscribers.push(wsClient.on('session.updated', (e: StreamEvent) => {
       const before = useSessionStore.getState();
       const window = e.sessionId ? before.sessionTranscripts[e.sessionId]?.window : undefined;
