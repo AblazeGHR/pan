@@ -413,4 +413,21 @@ describe('plain conversation runs (no taskId)', () => {
     expect(targets.get('a-1')?.taskId).toBeNull();
     expect(targets.get('a-2')?.taskId).toBe('t-1');
   });
+
+  it('offers no entry for a derived compat cursor (taskSeq null, resultCursor 0)', () => {
+    // Production allocates real cursors as max(existing)+1 (worker.py), so a
+    // raw resultCursor of 0 is unreachable: the view's 0 is the derived compat
+    // value and cannot prove unique ownership.  Such a run gets no entry.
+    const messages = [browser('u-1'), assistant('a-1')];
+    const derived = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 0 });
+    expect(findManualReportTargets(messages, session([derived]), proofFor(messages)).size).toBe(0);
+  });
+
+  it('still binds a real stored cursor and a real sequence', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const realCursor = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 1 });
+    expect(findManualReportTargets(messages, session([realCursor]), proofFor(messages)).get('a-1')?.resultCursor).toBe(1);
+    const realSeq = plainTerminal(messages[1]!, messages, { resultCursor: 1 });
+    expect(findManualReportTargets(messages, session([realSeq]), proofFor(messages)).get('a-1')?.taskSeq).toBe(2);
+  });
 });

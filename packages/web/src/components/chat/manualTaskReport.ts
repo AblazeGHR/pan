@@ -153,10 +153,15 @@ export function findManualReportTargets(
     if (terminalTaskId !== taskId) return;
     const taskSeq = typeof terminal.taskSeq === 'number' ? terminal.taskSeq : null;
     const resultCursor = typeof terminal.resultCursor === 'number' ? terminal.resultCursor : null;
-    // A plain run has no taskId to key on: without a durable sequence or
-    // cursor the server would reject the report (no_run_identity), so no
-    // button is offered instead of sending an identity-less request.
-    if (taskId === null && taskSeq === null && resultCursor === null) return;
+    // A plain run needs a PROVABLE identity: a real sequence or a stored
+    // result cursor.  The identity view derives a compatibility cursor of 0
+    // for rows that carry neither (server `_result_cursor`), but production
+    // always allocates real cursors as max(existing)+1 (worker
+    // `_persist_terminal_state`), so a stored 0 is unreachable — a 0 in the
+    // view cannot prove unique ownership from the bounded window, so no entry
+    // is offered; the server keeps the capability for callers that do hold a
+    // stored identity.  Fewer entries, never a wrong one.
+    if (taskId === null && taskSeq === null && !(resultCursor !== null && resultCursor > 0)) return;
     targets.set(tail.messageId, {
       sessionId: session.id,
       taskId,
