@@ -2,12 +2,24 @@ import asyncio
 import time
 from datetime import datetime, timedelta, timezone
 import base64
+import re
 
 import pytest
 
-from packages.core import notifications, reminders, session
+from packages.core import notifications, reminders, session, windows_toast
 from packages.web import server as web_server
 from packages.mcp import server as mcp_server
+
+LITERAL_PATTERN = re.compile(r"FromBase64String\('([A-Za-z0-9+/=]*)'\)")
+
+
+def _decoded_script_parts(argv):
+    script = base64.b64decode(argv[-1]).decode("utf-16le")
+    literals = LITERAL_PATTERN.findall(script)
+    xml = base64.b64decode(literals[0]).decode("utf-8")
+    tag = base64.b64decode(literals[1]).decode("utf-8")
+    group = base64.b64decode(literals[2]).decode("utf-8")
+    return script, xml, tag, group
 
 
 def test_prefix_normalization_is_not_bypassable():
@@ -86,49 +98,75 @@ def test_nonblocking_completion_does_not_wait_for_slow_system_sender():
 
 def test_windows_sender_success_passes_normalized_args_without_real_notification(monkeypatch):
     monkeypatch.setattr(notifications.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(notifications.shutil, "which", lambda name: "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
-    completed = type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-    run = monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: completed)
+    monkeypatch.setattr(windows_toast, "_powershell_executable", lambda: "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+    completed = type("Completed", (), {"returncode": 0, "stdout": '{"ok":true,"method":"windows.toast"}', "stderr": ""})()
+    calls = []
+    monkeypatch.setattr(windows_toast.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)) or completed)
     result = notifications.default_system_sender("user title", "body")
-    assert result == {"ok": True, "method": "windows.powershell.notifyicon"}
+    assert result == {"ok": True, "method": "windows.toast"}
     # The mock above proves no real child process was launched; inspect a second
     # call to verify user data is carried only inside the encoded command.
-    calls = []
-    monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)) or completed)
     notifications.default_system_sender("Pan: user title", "$(bad); \"quoted\"")
     argv = calls[0][0][0]
     assert argv[-1] != "$(bad); \"quoted\""
     assert "$(bad)" not in argv[-1]
+    assert "-ExecutionPolicy" not in argv
 
 
-def test_windows_notifyicon_encoded_script_has_valid_preamble_and_payload_order():
+def test_windows_toast_encoded_script_has_valid_preamble_and_payload_order():
     title = "中文标题 $()"
     body = '中文正文；"quoted"；$(Get-Date);'
-    encoded = notifications._windows_notifyicon_command(title, body)
+    script = windows_toast.build_show_script(
+        windows_toast.TOAST_APP_ID,
+        windows_toast.build_toast_xml(title, body),
+        "completion-ses_x", "Pan-completions",
+    )
+    encoded = windows_toast.encode_command(script)
     decoded = base64.b64decode(encoded).decode("utf-16le")
 
     assert not decoded.startswith("param()")
-    assert decoded.index("$title =") < decoded.index("Add-Type -AssemblyName System.Windows.Forms")
-    assert decoded.index("$body =") < decoded.index("Add-Type -AssemblyName System.Windows.Forms")
-    assert "New-Object System.Windows.Forms.NotifyIcon" in decoded
-    assert "$notify.ShowBalloonTip(5000)" in decoded
-    assert "Start-Sleep -Seconds 6" in decoded
+    literals = LITERAL_PATTERN.findall(decoded)
+    xml = base64.b64decode(literals[0]).decode("utf-8")
+    assert title in xml
+    assert '中文正文；&quot;quoted&quot;；$(Get-Date);' in xml
+    assert "ToastNotificationManager" in decoded
+    assert "New-Object Windows.UI.Notifications.ToastNotification" in decoded
+    assert "$notifier.Show($toast)" in decoded
+    assert "NotifyIcon" not in decoded
+    assert "Start-Sleep" not in decoded
+    # Payload isolation: the raw title/body never appear in the script itself.
     assert title not in decoded
     assert body not in decoded
 
 
 def test_windows_sender_failure_and_non_windows_are_diagnostic(monkeypatch):
     monkeypatch.setattr(notifications.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(notifications.shutil, "which", lambda name: "powershell.exe")
+    monkeypatch.setattr(windows_toast, "_powershell_executable", lambda: "powershell.exe")
     failed = type("Completed", (), {"returncode": 7, "stdout": "", "stderr": "toast failed"})()
-    monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: failed)
+    monkeypatch.setattr(windows_toast.subprocess, "run", lambda *args, **kwargs: failed)
     result = notifications.default_system_sender("title", "body")
     assert result["code"] == "windows_system_notification_failed"
-    monkeypatch.setattr(notifications.shutil, "which", lambda name: None)
+    monkeypatch.setattr(windows_toast, "_powershell_executable", lambda: None)
     unavailable = notifications.default_system_sender("title", "body")
     assert unavailable["code"] == "windows_powershell_unavailable"
     monkeypatch.setattr(notifications.platform, "system", lambda: "Linux")
     assert notifications.default_system_sender("title", "body")["code"] == "unsupported_system_notification"
+
+
+def test_reminder_default_sender_uses_content_dedup_tag_and_group(monkeypatch):
+    monkeypatch.setattr(notifications.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(windows_toast, "_powershell_executable", lambda: "powershell.exe")
+    calls = []
+    completed = type("Completed", (), {"returncode": 0, "stdout": '{"ok":true}', "stderr": ""})()
+    monkeypatch.setattr(windows_toast.subprocess, "run", lambda *args, **kwargs: calls.append(args) or completed)
+    monkeypatch.setattr(notifications, "_system_sender", notifications.default_system_sender)
+    payload = notifications.dispatch_reminder("custom", "body")
+    assert payload["title"] == "Pan: custom"
+    assert payload["system"]["ok"] is True
+    script, xml, tag, group = _decoded_script_parts(calls[0][0])
+    assert tag == notifications.reminder_dedup_tag("Pan: custom", "body")
+    assert group == "Pan-reminders"
+    assert "launch=" not in xml and "<action" not in xml
 
 
 def test_session_patch_and_api_response_expose_notification_settings(tmp_path, monkeypatch):

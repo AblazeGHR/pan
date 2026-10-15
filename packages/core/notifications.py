@@ -3,16 +3,19 @@
 The browser side consumes the returned event; the system side is deliberately
 injectable so tests never launch a real OS notifier.  The default sender is
 diagnostic rather than silently successful when no supported sender is wired.
+
+Windows system delivery uses a real WinRT toast (packages/core/windows_toast)
+so completions are recorded in the notification center and stay clickable after
+the sender exited; the legacy NotifyIcon balloon (which never reached the
+notification center) is gone.
 """
 
 from __future__ import annotations
 
 import platform
-import base64
 import asyncio
-import shutil
-import subprocess
 import re
+import hashlib
 from urllib.parse import urlsplit
 from typing import Callable
 
@@ -36,54 +39,7 @@ def normalize_notification_settings(value: object) -> dict:
     }
 
 
-_WINDOWS_NOTIFYICON_SCRIPT = r'''
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-$notify = New-Object System.Windows.Forms.NotifyIcon
-$notify.Icon = [System.Drawing.SystemIcons]::Information
-$notify.BalloonTipTitle = $title
-$notify.BalloonTipText = $body
-$notify.Visible = $true
-$notify.ShowBalloonTip(5000)
-Start-Sleep -Seconds 6
-$notify.Dispose()
-'''.strip()
-
-# A bounded per-notification message loop, not an installed/background service.
-# A real Shell click is required before launching the URL. Each helper keeps
-# its own immutable target, including when several Sessions complete together.
-_WINDOWS_CLICK_SCRIPT = r'''
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-$notify = New-Object System.Windows.Forms.NotifyIcon
-$context = New-Object System.Windows.Forms.ApplicationContext
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 60000
-$script:clicked = $false
-$script:clickFailed = $false
-$timer.add_Tick({ $context.ExitThread() })
-$notify.add_BalloonTipClicked({
-    if ($script:clicked) { return }
-    $script:clicked = $true
-    try { Start-Process -FilePath $link -ErrorAction Stop | Out-Null }
-    catch { $script:clickFailed = $true; [Console]::Error.WriteLine('Pan notification URL launch failed') }
-    $context.ExitThread()
-})
-try {
-    $notify.Icon = [System.Drawing.SystemIcons]::Information
-    $notify.BalloonTipTitle = $title
-    $notify.BalloonTipText = $body
-    $notify.Visible = $true
-    $notify.ShowBalloonTip(5000)
-    $timer.Start()
-    [System.Windows.Forms.Application]::Run($context)
-} finally {
-    $timer.Dispose()
-    $notify.Dispose()
-    $context.Dispose()
-}
-if ($script:clickFailed) { exit 1 }
-'''.strip()
+_SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
 def completion_deep_link(session_id: object) -> str | None:
@@ -92,7 +48,7 @@ def completion_deep_link(session_id: object) -> str | None:
     Never use a browser-supplied origin, credentials, result text or arbitrary
     path as a Shell launch target. Invalid configuration disables only click.
     """
-    if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", session_id):
+    if not isinstance(session_id, str) or not _SESSION_ID_PATTERN.fullmatch(session_id):
         return None
     from packages.core.config import resolve_pan_api_url
     try:
@@ -109,73 +65,27 @@ def completion_deep_link(session_id: object) -> str | None:
         return None
 
 
-def _windows_notifyicon_command(title: str, body: str, deep_link: str | None = None) -> str:
-    """Build an encoded script with data carried only through base64 literals."""
-    title_b64 = base64.b64encode(normalize_title(title).encode("utf-8")).decode("ascii")
-    body_b64 = base64.b64encode(str(body or "").encode("utf-8")).decode("ascii")
-    script = (
-        f"$title = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{title_b64}'))\n"
-        f"$body = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{body_b64}'))\n"
-    )
-    if deep_link is not None:
-        link_b64 = base64.b64encode(deep_link.encode("utf-8")).decode("ascii")
-        script += f"$link = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{link_b64}'))\n"
-        script += _WINDOWS_CLICK_SCRIPT
-    else:
-        script += _WINDOWS_NOTIFYICON_SCRIPT
-    return base64.b64encode(script.encode("utf-16le")).decode("ascii")
-
-
-def _windows_system_sender(title: str, body: str, deep_link: str | None = None) -> dict:
-    """Use the inbox Windows PowerShell/.NET NotifyIcon implementation."""
-    executable = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
-    if not executable:
-        return {
-            "ok": False,
-            "code": "windows_powershell_unavailable",
-            "message": "PowerShell executable was not found",
-        }
+def _windows_system_sender(title: str, body: str, deep_link: str | None = None,
+                           *, tag: str | None = None, group: str | None = None) -> dict:
+    """Deliver one real Windows toast through the inbox WinRT path."""
+    from packages.core import windows_toast
     try:
-        completed = subprocess.run(
-            [executable, "-NoLogo", "-NoProfile", "-NonInteractive", "-STA",
-             "-ExecutionPolicy", "Bypass", "-EncodedCommand",
-             _windows_notifyicon_command(title, body, deep_link)],
-            capture_output=True,
-            text=True,
-            timeout=75 if deep_link else 15,
-            check=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        return windows_toast.show_toast(
+            normalize_title(title),
+            body,
+            launch_url=deep_link,
+            tag=tag,
+            group=group,
         )
-    except subprocess.TimeoutExpired:
-        return {
-            "ok": False,
-            "code": "windows_system_notification_timeout",
-            "message": "PowerShell NotifyIcon sender timed out",
-        }
-    except OSError as exc:
-        return {
-            "ok": False,
-            "code": "windows_system_notification_launch_failed",
-            "message": str(exc),
-        }
-    if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "process exited without diagnostics").strip()
-        return {
-            "ok": False,
-            "code": "windows_system_notification_failed",
-            "message": f"PowerShell NotifyIcon exited with code {completed.returncode}: {detail}",
-        }
-    response = {"ok": True, "method": "windows.powershell.notifyicon"}
-    if deep_link:
-        # Process completion is not proof of OS display or a user click.
-        response.update({"delivery": "unknown", "clickWindowSeconds": 60})
-    return response
+    except Exception as exc:  # notification failure must stay diagnostic
+        return {"ok": False, "code": "windows_system_notification_failed", "message": str(exc)}
 
 
-def default_system_sender(title: str, body: str, *, deep_link: str | None = None) -> dict:
-    """Send via Windows inbox PowerShell, or report a diagnostic capability error."""
+def default_system_sender(title: str, body: str, *, deep_link: str | None = None,
+                          tag: str | None = None, group: str | None = None) -> dict:
+    """Send via the inbox Windows toast path, or report a capability error."""
     if platform.system() == "Windows":
-        return _windows_system_sender(title, body, deep_link)
+        return _windows_system_sender(title, body, deep_link, tag=tag, group=group)
     return {
         "ok": False,
         "code": "unsupported_system_notification",
@@ -191,10 +101,25 @@ def set_system_sender(sender: Callable[[str, str], dict]) -> None:
     _system_sender = sender
 
 
+def reminder_dedup_tag(title: str, body: str) -> str:
+    """Replace-by-content tag: identical reminders collapse in the center."""
+    digest = hashlib.sha1(f"{title}\n{body}".encode("utf-8")).hexdigest()[:16]
+    return f"reminder-{digest}"
+
+
 def _send_completion_system(title: str, body: str, session_id: object) -> dict:
     # Preserve the existing injectable two-argument sender contract.
     if _system_sender is default_system_sender:
-        return default_system_sender(title, body, deep_link=completion_deep_link(session_id))
+        deep_link = completion_deep_link(session_id)
+        tag = None
+        if isinstance(session_id, str) and _SESSION_ID_PATTERN.fullmatch(session_id):
+            # One notification per session: a re-completion replaces the old
+            # entry instead of stacking duplicates in the notification center.
+            tag = f"completion-{session_id}"
+        return default_system_sender(
+            title, body,
+            deep_link=deep_link, tag=tag, group="Pan-completions",
+        )
     return _system_sender(title, body)
 
 
@@ -249,7 +174,13 @@ def dispatch_reminder(title: object, body: object) -> dict:
     normalized = normalize_title(title)
     text = str(body or "")
     try:
-        system = _system_sender(normalized, text)
+        if _system_sender is default_system_sender:
+            system = default_system_sender(
+                normalized, text,
+                tag=reminder_dedup_tag(normalized, text), group="Pan-reminders",
+            )
+        else:
+            system = _system_sender(normalized, text)
     except Exception as exc:
         system = {"ok": False, "code": "system_notification_failed", "message": str(exc)}
     return {"title": normalized, "body": text, "system": system}

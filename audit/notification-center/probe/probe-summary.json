@@ -1,0 +1,27 @@
+{
+  "aumid": "Pan.NotificationsProbe",
+  "protocol": "pan-probe",
+  "shortcut": "C:\\Users\\14709\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\PanProbe\\PanProbe.lnk",
+  "identity": {
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "D:\\project\\pan-worktrees\\windows-notification-center-20261016\\audit\\notification-center\\probe\\identity.ps1 : 使用“6”个参数调用\n“Create”时发生异常:“Property store open failed”\n    + CategoryInfo          : NotSpecified: (:) [identity.ps1], MethodInvocationException\n    + FullyQualifiedErrorId : COMException,identity.ps1"
+  },
+  "toast_xml": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<toast launch=\"pan-probe://open?target=http%3A%2F%2F127.0.0.1%3A56688%2Freact%2F%3Fsession%3Dses_probe01\">\n  <visual>\n    <binding template=\"ToastGeneric\">\n      <text>Pan: Probe session completed</text>\n      <text>probe body — special chars &lt;&amp;&gt; &quot;quotes&quot; \\ backslash 中文</text>\n    </binding>\n  </visual>\n  <actions>\n    <action activationType=\"protocol\" arguments=\"pan-probe://open?target=http%3A%2F%2F127.0.0.1%3A56688%2Freact%2F%3Fsession%3Dses_probe01\" content=\"打开会话\"/>\n  </actions>\n</toast>\n",
+  "toast": {
+    "returncode": 0,
+    "stdout": "{\"ok\":true,\"method\":\"winrt.toast\"}",
+    "stderr": ""
+  },
+  "screenshot": {
+    "returncode": 0,
+    "stdout": "{\"ok\":true,\"screenshot\":\"D:\\project\\pan-worktrees\\windows-notification-center-20261016\\audit\\notification-center\\probe\\action-center.png\"}",
+    "stderr": "",
+    "file": "D:\\project\\pan-worktrees\\windows-notification-center-20261016\\audit\\notification-center\\probe\\action-center.png",
+    "exists": true
+  },
+  "activations": [],
+  "server_access": [],
+  "port": 56688,
+  "launch_uri": "pan-probe://open?target=http%3A%2F%2F127.0.0.1%3A56688%2Freact%2F%3Fsession%3Dses_probe01"
+}
