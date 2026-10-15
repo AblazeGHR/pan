@@ -1,0 +1,31 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+____ test_cli_trimmed_prompt_receipt_preserves_managed_owner[  managed  ] _____
+tests\test_cbc_hook_channel.py:40: in test_cli_trimmed_prompt_receipt_preserves_managed_owner
+    bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": "managed"})
+packages\core\adapters\cbc\native_bridge.py:173: in hook
+    raise ControlRejected("CBC prompt receipt does not match its input")
+E   packages.core.adapters.codex.control_owner.ControlRejected: CBC prompt receipt does not match its input
+__ test_cli_trimmed_prompt_receipt_preserves_managed_owner[\r\nmanaged\r\n] ___
+tests\test_cbc_hook_channel.py:40: in test_cli_trimmed_prompt_receipt_preserves_managed_owner
+    bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": "managed"})
+packages\core\adapters\cbc\native_bridge.py:173: in hook
+    raise ControlRejected("CBC prompt receipt does not match its input")
+E   packages.core.adapters.codex.control_owner.ControlRejected: CBC prompt receipt does not match its input
+_ test_cli_trimmed_prompt_receipt_preserves_managed_owner[\ufeffmanaged\xa0] __
+tests\test_cbc_hook_channel.py:40: in test_cli_trimmed_prompt_receipt_preserves_managed_owner
+    bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": "managed"})
+packages\core\adapters\cbc\native_bridge.py:173: in hook
+    raise ControlRejected("CBC prompt receipt does not match its input")
+E   packages.core.adapters.codex.control_owner.ControlRejected: CBC prompt receipt does not match its input
+_ test_cli_trimmed_prompt_receipt_preserves_managed_owner[\u2028managed\u2029] _
+tests\test_cbc_hook_channel.py:40: in test_cli_trimmed_prompt_receipt_preserves_managed_owner
+    bridge.hook({"hook_event_name": "UserPromptSubmit", "session_id": "dedicated", "generation_id": "run-1", "prompt": "managed"})
+packages\core\adapters\cbc\native_bridge.py:173: in hook
+    raise ControlRejected("CBC prompt receipt does not match its input")
+E   packages.core.adapters.codex.control_owner.ControlRejected: CBC prompt receipt does not match its input
+=========================== short test summary info ===========================
+FAILED tests/test_cbc_hook_channel.py::test_cli_trimmed_prompt_receipt_preserves_managed_owner[  managed  ]
+FAILED tests/test_cbc_hook_channel.py::test_cli_trimmed_prompt_receipt_preserves_managed_owner[\r\nmanaged\r\n]
+FAILED tests/test_cbc_hook_channel.py::test_cli_trimmed_prompt_receipt_preserves_managed_owner[\ufeffmanaged\xa0]
+FAILED tests/test_cbc_hook_channel.py::test_cli_trimmed_prompt_receipt_preserves_managed_owner[\u2028managed\u2029]

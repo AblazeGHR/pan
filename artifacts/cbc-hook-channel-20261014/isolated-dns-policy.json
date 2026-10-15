@@ -1,0 +1,64 @@
+[
+  {
+    "system_policy": false,
+    "owned_pid": 36112,
+    "proxy_port": 57260,
+    "controller_port": 57261,
+    "answers": [
+      {
+        "TTL": 46,
+        "data": "copilot.tencent.com.3optvxjiib3w.share.dnse5.com.",
+        "name": "copilot.tencent.com.",
+        "type": 5
+      },
+      {
+        "TTL": 14,
+        "data": "43.242.199.79",
+        "name": "copilot.tencent.com.3optvxjiib3w.share.dnse5.com.",
+        "type": 1
+      }
+    ],
+    "head": [
+      {
+        "status": 404,
+        "elapsed_ms": 169.3
+      },
+      {
+        "status": 404,
+        "elapsed_ms": 102.1
+      }
+    ],
+    "retired": true
+  },
+  {
+    "system_policy": true,
+    "owned_pid": 5324,
+    "proxy_port": 57282,
+    "controller_port": 57283,
+    "answers": [
+      {
+        "TTL": 41,
+        "data": "copilot.tencent.com.3optvxjiib3w.share.dnse5.com.",
+        "name": "copilot.tencent.com.",
+        "type": 5
+      },
+      {
+        "TTL": 41,
+        "data": "43.242.199.79",
+        "name": "copilot.tencent.com.3optvxjiib3w.share.dnse5.com.",
+        "type": 1
+      }
+    ],
+    "head": [
+      {
+        "status": 404,
+        "elapsed_ms": 209.4
+      },
+      {
+        "status": 404,
+        "elapsed_ms": 114.8
+      }
+    ],
+    "retired": true
+  }
+]

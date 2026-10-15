@@ -1,0 +1,133 @@
+{
+  "systemProxy": {
+    "enabled": true,
+    "server": "127.0.0.1:7890",
+    "loopbackBypass": true
+  },
+  "activeTun": false,
+  "CBCConnection": {
+    "pid": 35740,
+    "sourcePort": 58288,
+    "remoteAddress": "127.0.0.1",
+    "remotePort": 7890,
+    "rule": "DomainSuffix/tencent.com",
+    "chains": [
+      "DIRECT"
+    ]
+  },
+  "systemDNS": {
+    "servers": [
+      "172.18.1.92",
+      "172.18.1.93"
+    ],
+    "answer": [
+      "43.242.199.79"
+    ]
+  },
+  "activeProxyDNS": {
+    "answer": [
+      "43.141.70.102",
+      "43.141.132.124"
+    ]
+  },
+  "failedDirectConnections": [
+    {
+      "time": "2026-10-14T02:19:39.464733200+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    },
+    {
+      "time": "2026-10-14T02:22:31.993073500+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    },
+    {
+      "time": "2026-10-14T22:57:12.439095700+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    },
+    {
+      "time": "2026-10-14T22:58:01.681448400+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    },
+    {
+      "time": "2026-10-14T23:04:23.085750400+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    },
+    {
+      "time": "2026-10-14T23:19:26.972667600+08:00",
+      "rule": "DomainSuffix/tencent.com",
+      "outbound": "DIRECT",
+      "failedIPs": [
+        "43.141.70.102",
+        "43.141.132.124"
+      ]
+    }
+  ],
+  "installedCBC": {
+    "version": "2.164.0",
+    "bundleSHA256": "2d8e7c1aab61d62f983c85d9fc473c85a2d22afb0e13683920586ba69e82b4a3"
+  },
+  "baseSettingsDNS": {
+    "nameserver": [
+      "https://doh.pub/dns-query",
+      "https://dns.alidns.com/dns-query"
+    ],
+    "default-nameserver": [
+      "tls://223.5.5.5"
+    ],
+    "direct-nameserver": [],
+    "nameserver-policy": null,
+    "respect-rules": false,
+    "fake-ip-filter": [
+      "*",
+      "+.lan",
+      "+.local",
+      "time.*.com",
+      "ntp.*.com",
+      "+.market.xiaomi.com",
+      "+.argotunnel.com"
+    ]
+  },
+  "effectiveDNSBefore": {
+    "nameserver": [
+      "https://zone.rlose.com:39933/api-query",
+      "https://radar.rlose.com/api-query"
+    ],
+    "nameserver-policy": {
+      "+.edu.cn": "system"
+    },
+    "direct-nameserver": null
+  },
+  "effectiveDNSAfter": {
+    "nameserver-policy": {
+      "+.edu.cn": "system"
+    },
+    "direct-nameserver": [
+      "system"
+    ],
+    "direct-nameserver-follow-policy": false
+  }
+}

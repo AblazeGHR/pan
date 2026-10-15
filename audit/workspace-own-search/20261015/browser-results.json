@@ -1,0 +1,54 @@
+{
+  "browser": "153.0.8010.12",
+  "baseURL": "http://127.0.0.1:43654",
+  "results": [
+    {
+      "name": "desktop independent queries clear collapse focus and layout",
+      "status": "passed",
+      "started": "2026-10-15T03:21:56.913Z",
+      "screenshot": "desktop-independent-queries-clear-collapse-focus-and-layout.png"
+    },
+    {
+      "name": "running filter applies to workspaces and follows live session updates",
+      "status": "passed",
+      "started": "2026-10-15T03:22:02.057Z",
+      "screenshot": "running-filter-applies-to-workspaces-and-follows-live-session-updates.png"
+    },
+    {
+      "name": "unread filter uses the authoritative unread projection",
+      "status": "passed",
+      "started": "2026-10-15T03:22:03.767Z",
+      "screenshot": "unread-filter-uses-the-authoritative-unread-projection.png"
+    },
+    {
+      "name": "queued messages filter reflects the real queue projection",
+      "status": "passed",
+      "started": "2026-10-15T03:22:05.363Z",
+      "screenshot": "queued-messages-filter-reflects-the-real-queue-projection.png"
+    },
+    {
+      "name": "illegal filter matches only workspaces with an illegal member",
+      "status": "passed",
+      "started": "2026-10-15T03:22:07.019Z",
+      "screenshot": "illegal-filter-matches-only-workspaces-with-an-illegal-member.png"
+    },
+    {
+      "name": "keyword and status filters combine with the original semantics",
+      "status": "passed",
+      "started": "2026-10-15T03:22:09.172Z",
+      "screenshot": "keyword-and-status-filters-combine-with-the-original-semantics.png"
+    },
+    {
+      "name": "mobile drawer independent queries clear collapse focus and layout",
+      "status": "passed",
+      "started": "2026-10-15T03:22:10.842Z",
+      "screenshot": "mobile-drawer-independent-queries-clear-collapse-focus-and-layout.png"
+    },
+    {
+      "name": "different members satisfy different status filters",
+      "status": "passed",
+      "started": "2026-10-15T03:22:12.783Z",
+      "screenshot": "different-members-satisfy-different-status-filters.png"
+    }
+  ]
+}

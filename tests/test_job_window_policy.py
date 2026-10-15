@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import sys
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 from pathlib import Path
 
 import pytest
@@ -46,13 +46,26 @@ def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, t
         job["shellCommand"] = "echo owned"
     if hidden is not None:
         job["hideWindow"] = hidden
-    spawn = Mock(return_value=Mock(pid=123, wait=Mock(return_value=0)))
+    process = MagicMock(pid=123, wait=Mock(return_value=0))
+    process.__enter__.return_value = process
+    spawn = Mock(return_value=process)
+    desktop_spawn = Mock(return_value=process)
+    monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
     monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
     monkeypatch.setattr(runner.jobs, "runner_update", Mock())
     monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
     monkeypatch.setattr(runner.subprocess, "Popen", spawn)
     monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
     assert runner.main() == 0
+    if os.name == "nt" and hidden is not False:
+        spawn.assert_not_called()
+        assert desktop_spawn.call_args.args[0] == (job["shellCommand"] if shell else job["argv"])
+        assert desktop_spawn.call_args.args[1] == job["cwd"]
+        assert desktop_spawn.call_args.kwargs["shell"] is shell
+        process.close.assert_not_called()  # __exit__ owns cleanup.
+        process.__exit__.assert_called_once()
+        return
+    desktop_spawn.assert_not_called()
     kwargs = spawn.call_args.kwargs
     assert kwargs["stdin"] == subprocess.DEVNULL
     if os.name == "nt":

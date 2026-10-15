@@ -1,0 +1,8 @@
+# Proposed persistent Clash Party global DNS override.
+# Retain the existing edu.cn policy; use system DNS at every DIRECT exit.
+dns:
+  nameserver-policy:
+    '+.edu.cn': system
+  direct-nameserver:
+    - system
+  direct-nameserver-follow-policy: false

@@ -29,6 +29,7 @@ describe('Sidebar Session search controls', () => {
     useUIStore.setState({
       sidebarCollapsed: false,
       searchQuery: '',
+      workspaceSearchQuery: '',
       specialFilters: new Set(),
       groupBy: 'none',
       sortBy: 'recent',
@@ -43,6 +44,19 @@ describe('Sidebar Session search controls', () => {
       </MemoryRouter>,
     );
   }
+
+  it('typing and clearing Session search leaves the workspace query untouched', () => {
+    useUIStore.setState({ workspaceSearchQuery: 'Alpha WS' });
+    renderSidebar();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search sessions' }), {
+      target: { value: 'worker-one' },
+    });
+    expect(useUIStore.getState().searchQuery).toBe('worker-one');
+    expect(useUIStore.getState().workspaceSearchQuery).toBe('Alpha WS');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear session search' }));
+    expect(useUIStore.getState().searchQuery).toBe('');
+    expect(useUIStore.getState().workspaceSearchQuery).toBe('Alpha WS');
+  });
 
   it('shows an accessible clear button only when the query is non-empty', () => {
     renderSidebar();

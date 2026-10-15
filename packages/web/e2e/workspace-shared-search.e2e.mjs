@@ -1,5 +1,5 @@
-/* global console, localStorage, process */
-// Real-browser E2E for the shared Workspace search/filter (Workspace rail).
+/* global console, localStorage, process, document, innerWidth */
+// Real-browser E2E for the independent Workspace search and shared status filters (Workspace rail).
 // Runs against the isolated e2e/server.py instance: real FastAPI routes, real
 // /ws broadcast path, real React build, disposable session fixtures. Workspace
 // membership, durable unread cursors and real queue rows are seeded through
@@ -196,7 +196,7 @@ function ungroupedRow(page) {
 }
 
 function searchInput(page) {
-  return page.locator('input[placeholder="Filter..."]');
+  return page.getByRole('textbox', { name: 'Search workspaces' });
 }
 
 async function expandRail(page) {
@@ -255,58 +255,52 @@ async function seedWorkspaceFixtures(page) {
   await page.waitForTimeout(400);
 }
 
-// ── Case 1: expanded rail matches Workspace names; clearing restores both lists ──
-
-await runCase('expanded rail matches workspace names and clear restores both lists', DESKTOP, async (page) => {
-  await seedWorkspaceFixtures(page);
-  await expandRail(page);
-
+// Desktop and mobile exercise actual typing, independent clearing, focus and layout.
+async function verifyIndependentSearch(page, mobile) {
+  const sessionSearch = page.getByRole('textbox', { name: 'Search sessions' });
+  const workspaceSearch = searchInput(page);
+  await sessionSearch.fill('bravo session');
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
   await workspaceRow(page, wsBeta).waitFor({ state: 'visible' });
-  await allRow(page).waitFor({ state: 'visible' });
-  await ungroupedRow(page).waitFor({ state: 'visible' });
-
-  // The existing Session search box now also matches Workspace names.
-  await searchInput(page).fill('alpha ws');
+  await workspaceSearch.pressSequentially('alpha ws');
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
   await expectHidden(workspaceRow(page, wsBeta));
-  await expectHidden(allRow(page));
-  await expectHidden(ungroupedRow(page));
-  // The Session list still applies the same keyword (nothing matches it).
-  await expectHidden(page.locator('[data-session-card-id]').first());
-
-  // Clearing restores both lists synchronously.
-  await page.locator('button[aria-label="Clear session search"]').click();
-  await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
+  assert.equal(await sessionSearch.inputValue(), 'bravo session');
+  await page.locator(`[data-session-card-id="${bravoId}"]`).waitFor({ state: 'visible' });
+  await expectHidden(page.locator(`[data-session-card-id="${alphaId}"]`));
+  await allRow(page).waitFor({ state: 'visible' });
+  await ungroupedRow(page).waitFor({ state: 'visible' });
+  for (const key of ['Enter', 'ArrowDown', 'ArrowUp', 'Control+k', 'Control+1', 'Control+2', 'Control+b', 'Escape']) {
+    await workspaceSearch.press(key);
+    assert.equal(await workspaceSearch.evaluate((input) => input === document.activeElement), true);
+  }
+  const inputBox = await workspaceSearch.boundingBox();
+  const allBox = await allRow(page).boundingBox();
+  assert.ok(inputBox && allBox && inputBox.y + inputBox.height <= allBox.y);
+  assert.ok(inputBox.x >= 0 && inputBox.x + inputBox.width <= (mobile ? MOBILE.width : DESKTOP.width));
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole('button', { name: 'Clear session search', exact: true }).click();
+  assert.equal(await workspaceSearch.inputValue(), 'alpha ws');
+  await page.locator(`[data-session-card-id="${alphaId}"]`).waitFor({ state: 'visible' });
+  await sessionSearch.fill('bravo session');
+  if (mobile) await page.getByRole('button', { name: '收起工作区面板', exact: true }).click();
+  else await page.locator('button[title="收起"]').click();
+  assert.equal(await workspaceSearch.count(), 0);
+  if (mobile) await page.getByRole('button', { name: '展开工作区', exact: true }).click();
+  else await expandRail(page);
+  assert.equal(await workspaceSearch.inputValue(), 'alpha ws');
+  await expectHidden(workspaceRow(page, wsBeta));
+  await page.getByRole('button', { name: 'Clear workspace search', exact: true }).click();
+  assert.equal(await sessionSearch.inputValue(), 'bravo session');
   await workspaceRow(page, wsBeta).waitFor({ state: 'visible' });
-  await allRow(page).waitFor({ state: 'visible' });
-  await ungroupedRow(page).waitFor({ state: 'visible' });
-  await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
-});
+  await expectHidden(page.locator(`[data-session-card-id="${alphaId}"]`));
+  await workspaceSearch.fill('alpha ws'); // screenshot records the new input/layout
+}
 
-// ── Case 2: collapsed rail keeps the original Session-only search ──
-
-await runCase('collapsed rail keeps original rows and session search', DESKTOP, async (page) => {
+await runCase('desktop independent queries clear collapse focus and layout', DESKTOP, async (page) => {
   await seedWorkspaceFixtures(page);
-  // Rail starts collapsed (localStorage cleared): every row stays in the DOM
-  // and only the Session list narrows.
-  await expectRowCount(workspaceRow(page, wsAlpha), 1);
-  await expectRowCount(workspaceRow(page, wsBeta), 1);
-  await expectRowCount(allRow(page), 1);
-  await expectRowCount(ungroupedRow(page), 1);
-
-  await searchInput(page).fill('alpha session');
-  await expectRowCount(workspaceRow(page, wsAlpha), 1);
-  await expectRowCount(workspaceRow(page, wsBeta), 1);
-  await page.locator('[data-session-card-id]').filter({ hasText: 'Alpha Session' }).first().waitFor({ state: 'visible' });
-  await expectHidden(page.locator('[data-session-card-id]').filter({ hasText: 'Bravo Session' }).first());
-
-  // Expanding mid-search narrows the rail rows too: neither workspace NAME
-  // contains 'alpha session', but the 'all' scope keeps matching content.
   await expandRail(page);
-  await expectHidden(workspaceRow(page, wsBeta));
-  await expectHidden(workspaceRow(page, wsAlpha));
-  await allRow(page).waitFor({ state: 'visible' });
+  await verifyIndependentSearch(page, false);
 });
 
 // ── Case 3: running filter + live Session state changes ──
@@ -400,7 +394,7 @@ await runCase('queued messages filter reflects the real queue projection', DESKT
 
   await clearSpecialFilters(page);
   await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
-  await setQueuePaused(page, dragId, false);
+  // Keep fixture queues paused until the isolated server is stopped.
 });
 
 // ── Case 6: illegal filter (legal running, actual not running) ──
@@ -480,25 +474,14 @@ await runCase('keyword and status filters combine with the original semantics', 
   await clearWorkerStatus(page, alphaId);
 });
 
-// ── Case 8: the mobile drawer rail shares the same search box ──
+// ── Case 8: the mobile drawer uses the same independent queries ──
 
-await runCase('mobile drawer rail shares the session search box', MOBILE, async (page) => {
+await runCase('mobile drawer independent queries clear collapse focus and layout', MOBILE, async (page) => {
   await seedWorkspaceFixtures(page);
-  await page.locator('button[aria-label="打开侧边栏"]').click();
-  const mobileHandle = page.locator('button[aria-label="展开工作区"]').first();
-  await mobileHandle.waitFor({ state: 'visible' });
-  await mobileHandle.click();
+  await page.getByRole('button', { name: '打开侧边栏', exact: true }).click();
+  await page.getByRole('button', { name: '展开工作区', exact: true }).click();
   await page.getByTestId('mobile-workspace-rail-expanded').waitFor({ state: 'visible' });
-
-  await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
-  await workspaceRow(page, wsBeta).waitFor({ state: 'visible' });
-
-  await searchInput(page).fill('beta ws');
-  await workspaceRow(page, wsBeta).waitFor({ state: 'visible' });
-  await expectHidden(workspaceRow(page, wsAlpha));
-
-  await page.locator('button[aria-label="Clear session search"]').click();
-  await workspaceRow(page, wsAlpha).waitFor({ state: 'visible' });
+  await verifyIndependentSearch(page, true);
 });
 
 // ── Case 9: different members satisfy different status filters (AND at the Workspace level) ──
@@ -561,7 +544,7 @@ await runCase('different members satisfy different status filters', DESKTOP, asy
   await expectHidden(workspaceRow(page, deltaId));
 
   await clearSpecialFilters(page);
-  await setQueuePaused(page, queuedId, false);
+  // Keep fixture queues paused until the isolated server is stopped.
   await clearWorkerStatus(page, runningId);
   await clearWorkerStatus(page, controlId);
 });
@@ -570,11 +553,6 @@ await runCase('different members satisfy different status filters', DESKTOP, asy
 
 async function expectHidden(locator) {
   await locator.waitFor({ state: 'hidden', timeout: 5000 });
-}
-
-async function expectRowCount(locator, count) {
-  await locator.first().waitFor({ state: 'attached' });
-  assert.equal(await locator.count(), count, `expected ${count} rows, got ${await locator.count()}`);
 }
 
 await browser.close();
