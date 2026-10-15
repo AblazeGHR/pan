@@ -29,6 +29,7 @@ import {
   fetchSessionBookmarks,
   removeSessionBookmark,
 } from '@/services/api';
+import { useUIStore } from '@/stores/uiStore';
 
 export interface SessionBookmarkState {
   /** Server revision of the last observed envelope (observability only). */
@@ -237,6 +238,12 @@ async function mutate(
         },
       };
     });
+    // A failed save must be visible, not a silent rollback: the entry snaps
+    // back and the reason is surfaced through the shared toast.
+    useUIStore.getState().showToast(
+      error instanceof Error ? error.message : '书签保存失败',
+      'error',
+    );
     return false;
   }
 }

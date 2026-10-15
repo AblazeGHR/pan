@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/services/api', () => api);
 
 import { useBookmarkStore } from './bookmarkStore';
+import { useUIStore } from './uiStore';
 
 const ID_A = 'pan:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01';
 const ID_A2 = 'pan:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02';
@@ -148,5 +149,22 @@ describe('bookmark store', () => {
       action: 'nonsense' as 'added', messageIds: [ID_A],
     });
     expect(useBookmarkStore.getState().sessions).toEqual({});
+  });
+});
+
+describe('bookmark failure feedback', () => {
+  it('rolls back and surfaces the error through the shared toast', async () => {
+    const showToast = vi.fn();
+    const original = useUIStore.getState().showToast;
+    useUIStore.setState({ showToast });
+    try {
+      api.addSessionBookmark.mockRejectedValue(new Error('书签存储不可读，请检查数据目录'));
+      const ok = await useBookmarkStore.getState().addBookmark('ses_a', ID_A);
+      expect(ok).toBe(false);
+      expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+      expect(showToast).toHaveBeenCalledWith('书签存储不可读，请检查数据目录', 'error');
+    } finally {
+      useUIStore.setState({ showToast: original });
+    }
   });
 });
