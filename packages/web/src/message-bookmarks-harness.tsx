@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Bookmark, BookmarkMinus, BookmarkPlus, Check, ListTree, Send, UserRound } from 'lucide-react';
+import { Bookmark, BookmarkMinus, BookmarkPlus, Check, ListTree, Send, SlidersHorizontal, UserRound } from 'lucide-react';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import './index.css';
 import './message-bookmarks-harness.css';
@@ -375,6 +375,7 @@ function Harness() {
   const [railOpen, setRailOpen] = useState(false);
   const [menuBlockId, setMenuBlockId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [filterMenuPos, setFilterMenuPos] = useState<{ top: number; left: number } | null>(null);
   // Mirrors the production navigation-tag click rule: the clicked tag becomes
   // the active tag with the exact nearest-tag highlight style
   // (is-viewport-target), and real user input releases it so it is never
@@ -382,6 +383,10 @@ function Harness() {
   const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
   const activeFromJumpRef = useRef(false);
   const [reportedIds, setReportedIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Rail tag-type filter: multi-select, OR semantics; an empty selection
+  // means "no filter" (all kinds shown).
+  const [kindFilter, setKindFilter] = useState<ReadonlySet<MarkerKind>>(() => new Set());
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [, setTick] = useState(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -412,6 +417,9 @@ function Harness() {
   const session = SESSIONS.find((item) => item.id === sessionId) ?? SESSION_A;
   const envelope = readEnvelope(sessionId);
   const markers = useMemo(() => buildMarkers(session, envelope), [session, envelope]);
+  const visibleMarkers = useMemo(
+    () => (kindFilter.size === 0 ? markers : markers.filter((marker) => kindFilter.has(marker.kind))),
+    [markers, kindFilter]);
   const isMobile = layout === 'mobile' || (layout === 'auto' && autoMobile.isMobile);
 
   const openMenu = useCallback((block: MockBlock, point: { clientX: number; clientY: number }) => {
@@ -458,6 +466,33 @@ function Harness() {
       window.removeEventListener('wheel', release, true);
       window.removeEventListener('keydown', release, true);
     };
+  }, []);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const close = () => setFilterMenuOpen(false);
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element
+          && (target.closest('[data-filter-menu]') || target.closest('[data-filter-toggle]'))) return;
+      close();
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [filterMenuOpen]);
+
+  const toggleKind = useCallback((kind: MarkerKind) => {
+    setKindFilter((previous) => {
+      const next = new Set(previous);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
   }, []);
 
   const jumpToMarker = useCallback((messageId: string) => {
@@ -554,10 +589,32 @@ function Harness() {
 
         <aside className={`bookmark-rail-column ${railOpen ? 'is-open' : ''}`} data-testid="bookmark-rail">
           <section className="bookmark-rail-panel">
-            <h2>消息导航栏（镜像生产 DOM/类名）</h2>
+            <div className="bookmark-rail-panel-head">
+              <h2>消息导航栏（镜像生产 DOM/类名）</h2>
+              {/* Rail tag-type filter: multi-select with OR semantics. */}
+              <button
+                type="button"
+                className={`bookmark-filter-btn${kindFilter.size > 0 ? ' is-active' : ''}`}
+                data-filter-toggle
+                aria-expanded={filterMenuOpen}
+                aria-label="Filter navigation tags by type"
+                title="按 tag 类型筛选（多选为 OR）"
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setFilterMenuPos({
+                    top: Math.min(rect.bottom + 4, Math.max(8, window.innerHeight - 260)),
+                    left: Math.max(8, Math.min(rect.left, window.innerWidth - 190)),
+                  });
+                  setFilterMenuOpen((open) => !open);
+                }}
+              >
+                <SlidersHorizontal size={12} />
+                {kindFilter.size > 0 ? <span className="bookmark-filter-count">{kindFilter.size}</span> : null}
+              </button>
+            </div>
             <div className="message-navigation-rail" aria-label="快速定位" data-bookmark-rail>
               <div className="message-navigation-list">
-                {markers.map((marker) => (
+                {visibleMarkers.map((marker) => (
                   <div className="message-navigation-marker-wrap" key={marker.key}
                     style={{ height: 27, display: 'flex', alignItems: 'center' }}>
                     <button
@@ -574,7 +631,7 @@ function Harness() {
                     </button>
                   </div>
                 ))}
-                {markers.length === 0 ? <span className="message-navigation-empty">·</span> : null}
+                {visibleMarkers.length === 0 ? <span className="message-navigation-empty">·</span> : null}
               </div>
             </div>
             <p className="bookmark-rail-note" data-jump-highlight-note>
@@ -582,7 +639,7 @@ function Harness() {
               反色 + 放大高亮（is-viewport-target）；滚动或点击任意处即释放，不锁死。
             </p>
             <ul className="bookmark-rail-labels" data-testid="rail-labels">
-              {markers.map((marker) => (
+              {visibleMarkers.map((marker) => (
                 <li key={marker.key} data-rail-label={marker.label} data-bookmarked={marker.bookmarked ? 'true' : 'false'}>
                   <MarkerIcon kind={marker.kind} bookmarked={marker.bookmarked} />
                   <span>{marker.label}</span>
@@ -624,6 +681,8 @@ function Harness() {
                 新增书签 marker，按消息顺序插入。</li>
               <li>手动汇报：原正文 meta 行的手动汇报按钮收纳进可汇报块的同一 menu，
                 与书签操作并列（mock 为演示态；phase 2 与生产菜单同步落地）。</li>
+              <li>导航栏筛选：rail 顶端筛选按钮按 tag 类型多选筛选，OR 语义，
+                全部取消=不筛选（本 mock 演示交互；生产接线待授权）。</li>
               <li>流式中（未收敛、无持久 messageId）的块不可添加书签；删除或 reimport
                 后身份失效的书签保留在侧车文件中、不出现在投影里，并在 GET 的
                 <code>dangling</code> 中列出。</li>
@@ -631,6 +690,43 @@ function Harness() {
           </section>
         </aside>
       </div>
+
+      {filterMenuOpen && filterMenuPos ? (
+        <div
+          className="bookmark-menu bookmark-filter-menu"
+          data-filter-menu
+          role="menu"
+          aria-label="Filter navigation tags by type"
+          style={{ top: filterMenuPos.top, left: filterMenuPos.left }}
+        >
+          {(Object.keys(KIND_META) as MarkerKind[]).map((kind) => {
+            const selected = kindFilter.has(kind);
+            return (
+              <button
+                key={kind}
+                type="button"
+                role="menuitemcheckbox"
+                data-filter-kind={kind}
+                aria-checked={selected}
+                onClick={() => toggleKind(kind)}
+              >
+                <span className={`bookmark-filter-box${selected ? ' is-on' : ''}`}>
+                  {selected ? <Check size={11} /> : null}
+                </span>
+                <MarkerGlyph kind={kind} />
+                <span>{KIND_META[kind].label}</span>
+              </button>
+            );
+          })}
+          <div className="bookmark-menu-divider" role="separator" />
+          <button type="button" role="menuitem" data-filter-clear
+            disabled={kindFilter.size === 0}
+            onClick={() => setKindFilter(new Set())}>
+            清除筛选
+          </button>
+          <p className="bookmark-filter-hint">勾选即显示该类型（多选 OR）；全部取消 = 不筛选</p>
+        </div>
+      ) : null}
 
       {menuBlock && menuPos ? (
         <div

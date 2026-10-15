@@ -89,6 +89,35 @@ try {
   check('initial state has no body bookmark tag',
     (await page.locator('[data-bookmark-tag]').count()) === 0);
 
+  // 1b. Rail tag-type filter: checked kinds are shown (whitelist), multi-select
+  //     with OR semantics; an empty selection means no filter.
+  await page.locator('[data-filter-toggle]').click();
+  await page.locator('[data-filter-menu]').waitFor({ state: 'visible' });
+  check('filter menu lists every tag kind',
+    (await page.locator('[data-filter-kind]').count()) === 6);
+  await page.locator('[data-filter-kind="user"]').click();
+  check('checked kind is the only shown kind',
+    JSON.stringify((await railLabels(page)).map((entry) => entry.label)) === JSON.stringify(['User']),
+    JSON.stringify(await railLabels(page)));
+  check('filter toggle shows the active selection count',
+    (await page.locator('[data-filter-toggle] .bookmark-filter-count').textContent()) === '1');
+  await page.locator('[data-filter-kind="system"]').click();
+  const filteredLabels = (await railLabels(page)).map((entry) => entry.label).sort();
+  check('multi-select combines with OR',
+    JSON.stringify(filteredLabels) === JSON.stringify(['System', 'User']),
+    JSON.stringify(filteredLabels));
+  await page.locator('[data-filter-kind="user"]').click();
+  check('toggling a kind off removes just that kind',
+    JSON.stringify((await railLabels(page)).map((entry) => entry.label)) === JSON.stringify(['System']),
+    JSON.stringify(await railLabels(page)));
+  await page.locator('[data-filter-clear]').click();
+  check('clearing the filter restores every tag',
+    (await page.locator('[data-rail-marker]').count()) === 5
+      && (await page.locator('[data-filter-toggle] .bookmark-filter-count').count()) === 0);
+  await page.keyboard.press('Escape');
+  check('filter menu closes on Escape',
+    (await page.locator('[data-filter-menu]').count()) === 0);
+
   // 2. Existing User tag: decorate, never duplicate.
   await openMenu(page, SESSION_A_USER);
   const addItem = page.locator('[data-bookmark-action="add"]');
