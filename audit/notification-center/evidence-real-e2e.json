@@ -1,0 +1,48 @@
+{
+  "sessionId": "ses_e2e20261016aa",
+  "clickPort": 64177,
+  "expectedDeepLink": "http://127.0.0.1:64177/react/?session=ses_e2e20261016aa",
+  "completionEvent": {
+    "title": "Pan: E2E 生产路径 completed",
+    "body": "结果：<修复完成> & \"引号\" 中文正文 \\ 反斜杠 $(not-evaluated)",
+    "browser": false,
+    "system": {
+      "ok": true,
+      "method": "windows.toast",
+      "setting": "Enabled",
+      "delivery": "unknown"
+    }
+  },
+  "reminderEvent": {
+    "title": "Pan: 提醒验证 reminder-e2e",
+    "body": "提醒正文 <&> 中文",
+    "system": {
+      "ok": true,
+      "method": "windows.toast",
+      "setting": "Enabled"
+    }
+  },
+  "completionRow": {
+    "Order": 4014,
+    "Tag": "completion-ses_e2e20261016aa",
+    "Group": "Pan-completions",
+    "ArrivalTime": 134365591244505107,
+    "Payload": "<?xml version=\"1.0\"?><toast launch=\"http://127.0.0.1:64177/react/?session=ses_e2e20261016aa\"><visual><binding template=\"ToastGeneric\"><text>Pan: E2E 生产路径 completed</text><text>结果：&lt;修复完成&gt; &amp; \"引号\" 中文正文 \\ 反斜杠 $(not-evaluated)</text></binding></visual><actions><action activationType=\"protocol\" arguments=\"http://127.0.0.1:64177/react/?session=ses_e2e20261016aa\" content=\"打开会话\"/></actions></toast>",
+    "AumId": "Pan.Desktop.Notifications",
+    "HandlerType": "app:desktop",
+    "WNSId": "NonImmersivePackage",
+    "arrivalLocal": "2026-10-16T01:32:04.450510+08:00"
+  },
+  "reminderRow": {
+    "Order": 4015,
+    "Tag": "reminder-a5c89b0210a4f539",
+    "Group": "Pan-reminders",
+    "ArrivalTime": 134365591248673382,
+    "Payload": "<?xml version=\"1.0\"?><toast><visual><binding template=\"ToastGeneric\"><text>Pan: 提醒验证 reminder-e2e</text><text>提醒正文 &lt;&amp;&gt; 中文</text></binding></visual></toast>",
+    "AumId": "Pan.Desktop.Notifications",
+    "HandlerType": "app:desktop",
+    "WNSId": "NonImmersivePackage",
+    "arrivalLocal": "2026-10-16T01:32:04.867338+08:00"
+  },
+  "ok": true
+}

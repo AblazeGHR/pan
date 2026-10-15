@@ -1,0 +1,8 @@
+# Live Wpn database copies and full-desktop screenshots may contain unrelated
+# user notifications / desktop content; keep them out of git. Evidence for the
+# Pan rows is extracted into ../evidence-*.json files instead.
+probe/wpndb-snapshot/
+probe/action-center.png
+probe/action-center-test.png
+probe/action-center-window.png
+probe/wpndb-snapshot*/
