@@ -11,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
@@ -83,9 +84,8 @@ export function WorkspaceRail({
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const showToast = useUIStore((s) => s.showToast);
-  // The rail shares the Session search box and the special filters: while the
-  // panel is expanded they also narrow the workspace rows (no second input).
-  const searchQuery = useUIStore((s) => s.searchQuery);
+  const workspaceSearchQuery = useUIStore((s) => s.workspaceSearchQuery);
+  const setWorkspaceSearchQuery = useUIStore((s) => s.setWorkspaceSearchQuery);
   const specialFilters = useUIStore((s) => s.specialFilters);
 
   const [editing, setEditing] = useState<{ id: string | '__new__'; value: string } | null>(null);
@@ -116,7 +116,7 @@ export function WorkspaceRail({
     const resolveWorkspace = createWorkspaceResolver(sessions);
     const stats = new Map<string, { count: number; workerStatus: string | null; unread: boolean }>();
     // Effective member sessions per workspace (manager inheritance applied) —
-    // the single source the shared search/status row filtering aggregates over.
+    // the complete source used for shared status aggregation.
     const members = new Map<string, Session[]>();
     const ungroupedMembers: Session[] = [];
     let ungroupedCount = 0;
@@ -150,19 +150,17 @@ export function WorkspaceRail({
     return { stats, members, ungroupedMembers, ungroupedCount, ungroupedUnread, anyUnread };
   }, [sessions]);
 
-  // Shared with the Session list: the same searchQuery + specialFilters narrow
-  // the rail rows while the panel is expanded. Derived per render (no stored
-  // state), so Session state changes reflect immediately.
+  // Only status filters are shared; aggregate over the full effective membership.
   const rowVisibility = useMemo(
     () =>
       computeWorkspaceRowVisibility(workspaces, sessions, {
         expanded: isExpanded,
-        searchQuery,
+        searchQuery: workspaceSearchQuery,
         specialFilters,
         membersByWorkspace: memberStats.members,
         ungroupedMembers: memberStats.ungroupedMembers,
       }),
-    [isExpanded, workspaces, sessions, searchQuery, specialFilters, memberStats],
+    [isExpanded, workspaces, sessions, workspaceSearchQuery, specialFilters, memberStats],
   );
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
@@ -490,6 +488,12 @@ export function WorkspaceRail({
             </>
           )}
         </div>
+
+        {isExpanded && (
+          <div className="flex border-b border-border-muted px-2 py-1.5">
+            <SearchInput value={workspaceSearchQuery} onChange={setWorkspaceSearchQuery} placeholder="Search workspaces" label="workspace" />
+          </div>
+        )}
 
         <div ref={tabScrollRef} data-testid="workspace-tab-scroll" className="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {rowVisibility.showAll && (
