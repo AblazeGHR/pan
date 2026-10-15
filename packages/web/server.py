@@ -8571,7 +8571,7 @@ async def api_session_queue_steer(session_id: str, item_id: str, data: dict):
     if error:
         return _queue_error("queue_steer_failed", error, s)
     async with worker.queue_lock(session_id):
-        return {"ok": True, **_queue_snapshot_locked(s)}
+        return {"ok": True, "outcome": "accepted", "consumption": "unconfirmed", **_queue_snapshot_locked(s)}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
@@ -10993,7 +10993,7 @@ async def api_send(data: dict):
     workerId / sessionId 皆可寻址（编排对象是 agent，进程是顺带的）。
     sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
     （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
-    分发。force=true 时对活 worker 先 restart 再投递（worker_send_force 语义）。
+    分发。force=true 按能力即时 Steer 优先；idle 普通 handoff，无能力才 restart。
     source=agent 的消息在入队时继承目标 Session.active_task_id 作为 report
     配对上下文；该值不参加 assign 幂等，source=user 不继承。
     隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
@@ -11193,23 +11193,33 @@ async def api_set_reports_to_manager(session_id: str, data: dict):
 
 @app.post("/api/sessions/{session_id}/manual-report")
 async def api_session_manual_report(session_id: str, data: dict):
-    """显式手动汇报：把指定任务的完成报告送达其 manager。
+    """显式手动汇报：把指定完成运行的报告送达其 manager。
 
-    Body: {"taskId": <str|null>, "taskSeq": <int|null>, "messageId": <str>}
+    Body: {"taskId": <str|null>, "taskSeq": <int|null>,
+           "resultCursor": <int|null>, "messageId": <str>}
 
     与自动汇报的关系：复用同一路由目标（manager 落盘队列 queue_pending）、
-    同一 item 形状与唤醒/广播路径；内容按**任务身份**取自服务端持久终态
-    索引（任意已完成任务，不限于最新终态），调用方只提交身份、不提交正文。
+    同一 item 形状与唤醒/广播路径；内容按**运行身份**取自服务端持久终态
+    索引（任意已完成运行，不限于最新终态），调用方只提交身份、不提交正文。
     与订阅完全解耦——manager 已 report_unsubscribe 时手动汇报依然送达，且本
     端点不修改订阅、不临时开订阅。
 
-    幂等：服务端按 (sessionId, taskId/taskSeq, messageId) 推导确定性 key 去重；
-    重复点击/并发/未确认后的重试都不会二次入队，不同任务各自独立。
-    在持久终态索引中找不到该任务的终态 → 明确失败，绝不顶替为别的任务。
+    **任何已完成运行均可汇报**，包括无 taskId 的普通对话/原生轮次：此时以该
+    运行的 taskSeq 或持久 resultCursor 绑定具体运行（两者都经会话身份视图
+    ``terminalResults`` 暴露；服务端正文权威，客户端只提交身份与末块
+    messageId）。三种运行身份都不提供 → ``no_run_identity`` 明确失败，绝不
+    汇报“最新终态”；resultCursor 与 taskId/taskSeq 矛盾 → ``run_mismatch``
+    明确失败；索引中找不到对应终态 → ``no_task_result``，绝不顶替。
+
+    幂等：服务端按运行身份 (sessionId, taskId, taskSeq；该行无 taskSeq 时用
+    其持久 resultCursor) 推导确定性 key 去重，messageId 只证明归属、不参与
+    去重；重复点击/并发/换身份路径/未确认后的重试都不会二次入队，不同运行各
+    自独立。
     """
     message_id = data.get("messageId")
     task_id = data.get("taskId")
     task_seq = data.get("taskSeq")
+    result_cursor = data.get("resultCursor")
     if not isinstance(message_id, str) or not message_id.strip() or len(message_id) > 200:
         return {"ok": False, "error": {"code": "invalid_message_id",
                                        "message": "messageId (non-empty string) is required"}}
@@ -11221,11 +11231,16 @@ async def api_session_manual_report(session_id: str, data: dict):
                                  or task_seq < 0):
         return {"ok": False, "error": {"code": "invalid_task_seq",
                                        "message": "taskSeq must be a non-negative integer or null"}}
+    if result_cursor is not None and (isinstance(result_cursor, bool)
+                                      or not isinstance(result_cursor, int)
+                                      or result_cursor < 0):
+        return {"ok": False, "error": {"code": "invalid_result_cursor",
+                                       "message": "resultCursor must be a non-negative integer or null"}}
     if sess.get(session_id) is None:
         return {"ok": False, "error": {"code": "session_not_found",
                                        "message": f"Session {session_id} not found"}}
     result, error = await worker.enqueue_manual_report(
-        session_id, task_id, task_seq, message_id)
+        session_id, task_id, task_seq, message_id, result_cursor)
     if error is not None:
         return {"ok": False, "error": error,
                 "retryable": bool(error.get("retryable"))}
@@ -12725,27 +12740,32 @@ async def api_session_worker_control(session_id: str, data: dict):
 
 @app.post("/api/worker/{worker_id}/steer")
 async def api_worker_steer(worker_id: str, data: dict):
-    """Inject text into a running native turn (Claude stream / Codex)."""
+    """Admit text into a running native turn; admission does not prove consumption."""
+    outcome = {}
     err = await worker.steer_worker(
         worker_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if err:
-        return {"error": err}
-    return {"workerId": worker_id, "status": "steer sent"}
+        return {"error": err, "outcome": outcome.get('status', 'unknown')}
+    return {"workerId": worker_id, "status": "steer sent", "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/sessions/{session_id}/worker/steer")
 async def api_session_worker_steer(session_id: str, data: dict):
+    outcome = {}
     result = await worker.steer_session_worker(
         session_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if isinstance(result, str):
-        return {"error": result}
+        return {"error": result, "outcome": outcome.get('status', 'unknown')}
     if result is None:
-        return {"error": "Worker not found"}
-    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent"}
+        return {"error": "Worker not found", "outcome": outcome.get('status', 'rejected')}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent",
+            "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/worker/{worker_id}/claude-permission")

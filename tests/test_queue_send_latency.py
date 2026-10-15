@@ -36,6 +36,9 @@ def live_session(adapter=None, *, status="idle"):
                       adapter=adapter or CbcAdapter(), status=status,
                       process=SimpleNamespace(returncode=None, stdin=stdin),
                       pending_signal=asyncio.Queue())
+    if isinstance(w.adapter, CbcAdapter):
+        s.cli_session_id = "cbc-latency-session"
+        w._steer_run_id = "cbc-latency-run"
     worker.workers[w.worker_id] = w
     return s, w, stdin
 
@@ -81,8 +84,6 @@ def test_idle_consumer_wakes_when_edit_lease_expires_without_another_send(monkey
 def test_send_ack_does_not_wait_for_direct_steer_stdin_drain():
     async def run():
         adapter = CbcAdapter()
-        adapter.supports_native_steer = True
-        adapter.encode_control_message = lambda value: json.dumps(value).encode()
         s, w, stdin = live_session(adapter, status="running")
         entered, release = asyncio.Event(), asyncio.Event()
 
@@ -108,6 +109,11 @@ def test_send_ack_does_not_wait_for_direct_steer_stdin_drain():
             assert len(stdin.write.call_args_list) == 1
         finally:
             release.set()
+            if stdin.write.call_args is not None:
+                control = json.loads(stdin.write.call_args.args[0])
+                worker._route_steer_receipt(w, {"type": "control_response", "response": {
+                    "subtype": "success", "request_id": control["request_id"],
+                    "response": {"steered": True, "session_id": s.cli_session_id}}})
             await asyncio.gather(steer, *([enqueue] if enqueue else []))
 
     asyncio.run(run())

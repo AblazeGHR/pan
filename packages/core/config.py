@@ -215,6 +215,9 @@ DEFAULT_CONFIG: dict = {
         "showTaskAgent": True,
         # 是否显示 QQ（@@@@by qq）注入消息
         "showQQ": True,
+        # 用户主动 Kill running/queued Worker 时是否向 manager 报告 error
+        # （App Settings → Behavior；缺省/旧配置视为关闭）
+        "reportWorkerKillErrors": False,
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,

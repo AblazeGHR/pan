@@ -40,6 +40,93 @@ def setup():
     return s, item
 
 
+class FutureSteerAdapter:
+    """A new adapter needs only the existing capability/control contract."""
+    name = "future-steer-provider"
+    execution_modes = ["stream"]
+    supports_native_steer = True
+    supports_steer_receipt = True
+
+    def encode_control_message(self, control):
+        return json.dumps(control).encode()
+
+
+@pytest.mark.parametrize("disposition", ["accepted", "rejected", "unknown"])
+def test_future_adapter_capability_routes_self_consume_to_steer_without_restart(monkeypatch, disposition):
+    async def run():
+        s, item = setup()
+        s.adapter = FutureSteerAdapter.name
+        stdin = Mock(drain=AsyncMock())
+        w = worker.Worker(worker_id="future-worker", session_id=s.id, adapter=FutureSteerAdapter(),
+                          status="running", process=SimpleNamespace(returncode=None, stdin=stdin))
+        worker.workers[w.worker_id] = w
+        restart = AsyncMock(side_effect=AssertionError("Steer must not fall back to restart"))
+        monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+        monkeypatch.setattr(worker, "create_worker", restart)
+        def write(data):
+            control = json.loads(data)
+            assert control["type"] == "steer" and control["text"] == item["text"]
+            worker._route_steer_receipt(w, {"type": "pan.steer_receipt", "requestId": control["requestId"],
+                "ok": disposition == "accepted", "outcome": disposition,
+                "error": None if disposition == "accepted" else "fixture disposition"})
+        stdin.write.side_effect = write
+        result = await self_queue.consume(s.id, item["id"])
+        assert result["ok"] is (disposition == "accepted")
+        assert stdin.write.call_count == 1
+        restart.assert_not_called()
+        if disposition == "accepted":
+            assert s.queue_delivery_ledger[item["id"]]["deliveryState"] == "sent_to_cli"
+            assert (await self_queue.consume(s.id, item["id"]))["alreadyConsumed"]
+        elif disposition == "rejected":
+            assert result["status"] == "rejected" and item in s.queue_pending
+        else:
+            assert item["queueSteerPending"]
+            assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("status", ["idle", "queued"])
+def test_future_steer_adapter_without_active_run_prioritizes_original_consumer_item(monkeypatch, status):
+    async def run():
+        s, item = setup(); s.adapter = FutureSteerAdapter.name
+        earlier = {**item, "id": "earlier", "queueItemId": "earlier"}
+        s.queue_pending.insert(0, earlier)
+        w = worker.Worker(worker_id="future-worker", session_id=s.id, adapter=FutureSteerAdapter(),
+                          status=status, process=SimpleNamespace(returncode=None), pending_signal=asyncio.Queue())
+        worker.workers[w.worker_id] = w
+        restart = AsyncMock(side_effect=AssertionError("idle capable adapter uses consumer"))
+        monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+        steer = AsyncMock(side_effect=AssertionError("no active run to Steer"))
+        monkeypatch.setattr(worker, "steer_queue_item", steer)
+        wake = AsyncMock()
+        monkeypatch.setattr(worker, "_wake_worker", wake)
+        assert (await self_queue.consume(s.id, item["id"]))["status"] == "pending"
+        assert s.queue_pending == [item, earlier] and item["selfConsumeRequested"]
+        wake.assert_awaited_once_with(s.id)
+        restart.assert_not_called(); steer.assert_not_called()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("gate", ["queueLockManual", "queueLockAutoReport", "pause", "edit"])
+def test_future_steer_adapter_hidden_queue_items_never_dispatch(monkeypatch, gate):
+    async def run():
+        s, item = setup(); s.adapter = FutureSteerAdapter.name
+        w = worker.Worker(worker_id="future-worker", session_id=s.id, adapter=FutureSteerAdapter(),
+                          status="running", process=SimpleNamespace(returncode=None))
+        worker.workers[w.worker_id] = w
+        if gate == "pause": s.queue_paused = True
+        elif gate == "edit": worker.acquire_queue_edit_lock(s, item["id"], "editor")
+        else: item[gate] = True
+        dispatch = AsyncMock(side_effect=AssertionError("hidden queue item dispatched"))
+        monkeypatch.setattr(worker, "steer_queue_item", dispatch)
+        monkeypatch.setattr(worker, "restart_or_start_worker", dispatch)
+        monkeypatch.setattr(worker, "create_worker", dispatch)
+        assert await self_queue.read(s.id) == {"ok": True, "items": []}
+        assert await self_queue.consume(s.id, item["id"]) == self_queue.UNAVAILABLE
+        dispatch.assert_not_called()
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("field", ["queueLockManual", "queueLockAutoReport", "queueSteerPending",
                                    "selfConsumeUncertain", "pause", "edit"])
 def test_hidden_guessed_stale_ids_and_restore(field):

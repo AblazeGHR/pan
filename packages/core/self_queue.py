@@ -33,7 +33,7 @@ def _eligible(s, item):
     return True
 
 
-async def _confirmed(s, *, already=False):
+async def _confirmed(s, *, already=False, receipt=None):
     # An in-memory sent marker alone is insufficient after a failed writer.
     outcome = sess.DurableOutcome()
     try:
@@ -43,7 +43,12 @@ async def _confirmed(s, *, already=False):
             raise
     except Exception:
         return {"ok": False, "status": "unconfirmed", "retryable": False}
-    return {"ok": True, "status": "consumed", "alreadyConsumed": already}
+    result = {"ok": True, "status": "consumed", "alreadyConsumed": already}
+    # "consumed" here is removal of the original Pan queue item. Native
+    # admission is separate from the model's later safe-point consumption.
+    if receipt and isinstance(receipt.get("steer"), dict):
+        result["steer"] = copy.deepcopy(receipt["steer"])
+    return result
 
 
 async def read(session_id: str) -> dict:
@@ -110,7 +115,7 @@ async def _consume(session_id: str, item_id: str) -> dict:
         if item is None:
             receipt = worker._ledger_record(s, item_id)
             if receipt and worker._delivery_state(receipt) == worker._DELIVERY_SENT:
-                return await _confirmed(s, already=True)
+                return await _confirmed(s, already=True, receipt=receipt)
             return dict(UNAVAILABLE)
         if s.readonly_session:
             return dict(UNAVAILABLE)
@@ -121,9 +126,8 @@ async def _consume(session_id: str, item_id: str) -> dict:
             return {"ok": False, "status": "pending", "retryable": False}
         w = worker.find_alive_worker_by_session(session_id)
         worker_id, generation = (w.worker_id, w.generation) if w is not None else (None, None)
-        native = (w is not None and w.status == "running"
-                  and worker.resolve_execution_mode(w.adapter, s) == "stream"
-                  and getattr(w.adapter, "supports_native_steer", False))
+        route = worker.steer_delivery_route(w, s)
+        native = route == "steer"
         revision = item.get("revision", 1)
         if not native:
             # Candidate apply/save/rollback belong to ONE ordered ticket. A
@@ -172,7 +176,12 @@ async def _consume(session_id: str, item_id: str) -> dict:
             return {"ok": False, "status": "unconfirmed", "retryable": False}
     else:
         # No queue lock across process exit, spawn lock acquisition or restart.
-        if (w is not None and w.status in {"idle", "queued"}
+        if w is not None and w.pending_restart:
+            # An accepted delayed intent owns retirement even for adapters
+            # without Steer. Never replace it with an immediate restart.
+            await worker._wake_worker(session_id)
+            result = w
+        elif (w is not None and w.status in {"idle", "queued"}
                 and worker.resolve_execution_mode(w.adapter, s) == "stream"
                 and getattr(w.adapter, "supports_native_steer", False)):
             # There is no active turn to interrupt. The existing consumer also
@@ -188,7 +197,7 @@ async def _consume(session_id: str, item_id: str) -> dict:
     async with worker.queue_lock(session_id):
         receipt = worker._ledger_record(s, item_id)
         if receipt and worker._delivery_state(receipt) == worker._DELIVERY_SENT:
-            return await _confirmed(s)
+            return await _confirmed(s, receipt=receipt)
         if s.readonly_session or not worker.queue_item_eligible(s, item, queued=False):
             return dict(UNAVAILABLE)
     return {"ok": False, "status": "pending", "retryable": False}

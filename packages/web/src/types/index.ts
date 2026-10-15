@@ -585,6 +585,8 @@ export interface ApiCodexRefreshOfficialModelsResponse {
 
 export interface ApiGenericResponse {
   error?: string;
+  outcome?: 'accepted' | 'rejected' | 'unknown';
+  consumption?: 'unconfirmed';
   workerId?: string;
   sessionId?: string;
   status?: string;

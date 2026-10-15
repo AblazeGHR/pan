@@ -50,7 +50,7 @@ describe('ViewEntryGroups Jobs running badge', () => {
     expect(screen.getByRole('link', { name: 'Jobs' })).toBeTruthy();
   });
 
-  it('shows the running count in the reserved slot below the Jobs entry label', () => {
+  it('floats the count at the bottom-right corner over the Jobs entry', () => {
     useJobStore.setState({
       jobs: [job(), job({ jobId: 'j2', status: 'running' }), job({ jobId: 'j3', status: 'completed' })],
     });
@@ -58,22 +58,31 @@ describe('ViewEntryGroups Jobs running badge', () => {
     const badge = screen.getByTestId('jobs-running-badge');
     expect(badge.textContent).toBe('2');
     expect(badge.getAttribute('title')).toBe('2 job(s) running');
-    // The badge sits inside the Jobs link's dedicated slot row that follows
-    // the icon+label content row (entry-below placement, never inline).
-    const slot = badge.parentElement!;
-    expect(slot.getAttribute('aria-hidden')).toBe('true');
-    expect(slot.className).toContain('h-3.5');
+    // Floating overlay: absolutely positioned at the entry's bottom-right
+    // corner, so it never occupies layout space nor resizes the entry.
+    expect(badge.getAttribute('aria-hidden')).toBe('true');
+    expect(badge.className).toContain('absolute');
+    expect(badge.className).toContain('bottom-0');
+    expect(badge.className).toContain('right-0');
     const link = screen.getByRole('link', { name: 'Jobs' });
-    expect(slot.parentElement).toBe(link);
+    expect(badge.parentElement).toBe(link);
+    expect(link.className).toContain('relative');
+    // No reserved slot: the entry keeps its original single content row, and
+    // the other entries keep the identical structure (no extra space).
     expect(link.firstElementChild!.textContent).toContain('Jobs');
-    // Every entry reserves the same slot row so the row height never changes
-    // when the badge appears or disappears.
-    for (const name of ['Chat', 'Editor', 'Jobs']) {
+    for (const name of ['Chat', 'Editor']) {
       const entry = screen.getByRole('link', { name });
-      expect(entry.children).toHaveLength(2);
-      expect(entry.children[1]!.className).toContain('h-3.5');
+      expect(entry.children).toHaveLength(1);
+      expect(entry.querySelector('[data-testid="jobs-running-badge"]')).toBeNull();
     }
     fireEvent.click(link);
+    expect(screen.getByText('jobs route marker')).toBeTruthy();
+  });
+
+  it('navigates when the floating badge itself is clicked', () => {
+    useJobStore.setState({ jobs: [job()] });
+    renderNav();
+    fireEvent.click(screen.getByTestId('jobs-running-badge'));
     expect(screen.getByText('jobs route marker')).toBeTruthy();
   });
 
