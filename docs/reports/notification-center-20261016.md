@@ -83,25 +83,39 @@
   `GET /react/?session=ses_user_click` 及随后的 favicon 请求，User-Agent 为默认浏览器 Edge。
   这证明：toast 实际展示（banner）→ 动作按钮点击 → 默认浏览器打开烘入的 loopback 深链 URL 的
   端到端闭环，且点击发生在发送进程退出之后（toast.ps1 展示完即退出，无 helper 存活）。
-- **待补的最后一项人工动作（已给用户具体步骤）**：浏览器完全关闭状态下、从通知中心**面板**点击
-  历史 Pan 通知（面板持久条目 + 浏览器冷启动）；探针服务 64177 与通知中心条目在验证期间保持
-  可用，点击将追加到同一访问日志（helper 复跑只追加、不清空既有证据）。探针与生产 toast 在
-  面板中显示的应用名待用户回报。
+- **仍未验证（明确）**：浏览器完全关闭状态下、从通知中心**面板**点击历史 Pan 通知
+  （面板持久条目 + 浏览器冷启动）。本次未操作用户浏览器；验收 listener 已按 MA 指令停止
+  （§8）。如需补验：重新运行 `E:/software/miniforge/python.exe audit/notification-center/probe/user_check.py 64177`
+  （只追加日志、不清既有证据）会产生一条新的验收 toast（同 Tag 替换），再执行上述点击。探针与
+  生产 toast 在面板中显示的应用名亦待用户回报。
 
-## 5. 安全边界与注册对象（最小化）
+## 5. 安全边界与注册对象（生产 vs 探针，含矛盾澄清）
 
-- **正式实现不创建任何持久注册对象**：无快捷方式、无协议注册、无 AUMID 注册表键、
-  无 COM/服务/自启。唯一写入是发送时的 PowerShell 子进程（`CREATE_NO_WINDOW`，20 秒超时）。
-- 平台侧自动生成的 `NotificationHandler`（app:desktop/NonImmersivePackage）与
-  `HandlerSettings` 由 Windows 通知平台管理，等同任何已收过通知的应用；可用
-  `windows_toast.clear_app_notifications()` 清空本应用在通知中心的条目。
-- **探针遗留（验证结束后清理，见 §7）**：`HKCU\Software\Classes\AppUserModelId\Pan.NotificationsProbe`
-  （仅 DisplayName 字符串，探针专用 AUMID；生产代码不使用该键）；被 Defender 删除的
-  `PanProbe.lnk` 已不存在。清理 = 删除该键 + `History.Clear('Pan.NotificationsProbe')`，一条命令：
-  `powershell -ExecutionPolicy Bypass -File audit/notification-center/probe/cleanup-probes.ps1`
-  （只清探针 AUMID；不触碰全局通知设置、DND 或其他应用的条目）。生产演示条目可用
-  `windows_toast.clear_app_notifications()` 清除；通知中心的处理器记录由 Windows 平台管理。
-- 未改动：全局通知权限、DND/专注助手、用户 Terminal、系统安全配置、`pan://` 协议（从未注册成功）。
+**生产发送路径不写任何用户注册表/持久注册对象**（经只读核对）：
+
+- 代码面：`packages/**` 全量检索 `winreg`/`CreateSubKey`/`SetValue`/`New-ItemProperty`/
+  `reg add`/`AppUserModelId` 无任何注册表写入；`windows_toast.py` 只做 XML 构建 + 启动一次
+  PowerShell 子进程（`Create_NO_WINDOW`，20 秒超时）调用 inbox WinRT API。
+- 系统面（清理前实测）：`HKCU\Software\Classes\AppUserModelId\Pan.Desktop.Notifications`
+  **不存在**（生产从不注册）；`HKCU\Software\Classes\pan`、`HKCU\Software\Classes\pan-probe`
+  均不存在（协议路线从未注册成功，且已放弃）；`Start Menu\Programs\PanProbe` 目录不存在
+  （Defender 删除 .lnk 后由本任务移除空目录）。
+- 报告 §1 所称"零持久注册对象"指**生产路径**；与 cleanup 涉及的对象不矛盾——cleanup 清理的是
+  探索阶段的**探针遗留**，两者来源与归属如下表（均已按 MA 指令清除，见 §8）。
+
+| 对象（精确路径） | 来源 | 归属与处置 |
+|---|---|---|
+| `HKCU\Software\Classes\AppUserModelId\Pan.NotificationsProbe`（仅 `DisplayName="Pan Probe"`） | 探针脚本 `audit/notification-center/probe/reg-aumid.ps1`（01:19 运行，脚本已提交可溯源） | 探针遗留，**已删除**；授权依据：原任务书允许用户级、非管理员、应用可管理的真实 OS 通知实验并要求报告对象；该键在报告 §5 与交付消息中披露，非静默、非全局（HKCU、单键） |
+| 通知中心 `Pan.NotificationsProbe` 条目（usercheck/probe 系列 Tag） | 探针 `toast.ps1`/`user_check.py` 投递 | 探针遗留，**已清除**（`History.Clear('Pan.NotificationsProbe')`） |
+| `...\AppUserModelId` 容器键 | **预先存在**（含 Lenovo/vivo/doubao/Windows.SystemToast.AccountHealth 等 17 个他人键） | 非我方创建，**未删除**（清理脚本仅在空容器时才会移除） |
+| 通知中心 `Pan.Desktop.Notifications` 条目 | 生产路径真实 E2E（演示内容） | **保留**（按 MA 指令保留生产通知） |
+| WPN `NotificationHandler`（app:desktop/NonImmersivePackage）数据库行 | Windows 通知平台在首次 toast 时自动建立 | 平台管理，无文档化删除 API；不属于注册表对象 |
+| `pan://` 协议 / `.lnk` 快捷方式 / COM 激活器 | 从未建成（协议未注册；.lnk 建后被 Defender 误删且方案放弃） | 无残留 |
+| 通知中心条目系统级保留 | Windows 管理（ExpiryTime 实测 ≈ 到达 +3 天） | 不干预 |
+
+- 未改动：全局通知权限、DND/专注助手、用户 Terminal、系统安全配置；未创建任何 HKLM/全机对象。
+- `windows_toast.clear_app_notifications()` 为生产资源清理入口（清 `Pan.Desktop.Notifications`
+  条目），本次未调用（保留生产通知）。
 
 ## 6. 未验证 / 边界（如实声明）
 
@@ -133,3 +147,22 @@
   与桌面截图**不入库**（见 `audit/notification-center/.gitignore`），仅提取 Pan 行作为证据。
 - 对应用户截图事件的两处遗留：未注册协议时的"获取打开此链接的应用"对话框（方案已放弃，
   不再触发）；Defender 误删的 `PanProbe.lnk`（已由系统删除且方案不再创建 .lnk）。
+
+## 8. owned 服务收尾与探针资源清理（MA 指令，2026-10-16 01:53）
+
+只读核对 → 精确停止 → 可确认清理，全程未新建通知/注册对象：
+
+- **listener 归属核对（停止前，只读）**：64177 监听 PID=4628，
+  `E:\software\miniforge\python.exe user_check.py 64177`，
+  StartTime `2026-10-16T01:24:52.536814+08:00`（raw FILETIME `134365586925368140`，
+  与验收 toast 发布时刻一致）→ 确认为本任务自有进程。
+- **停止与核验**：通过自有后台任务句柄停止（非依赖回合结束）；停止后核验
+  `Get-NetTCPConnection 64177` 无监听、PID 4628 不存在、无 `user_check.py` 残留进程。
+- **探针资源清理**（`cleanup-probes.ps1`，只清 `Pan.NotificationsProbe`）：
+  registryKeyRemoved=true（`HKCU\...\AppUserModelId\Pan.NotificationsProbe`），
+  notificationsCleared=true；清理后只读复验：探针通知 0 行、容器 17 个他人键完好、
+  `Pan.Desktop.Notifications` 生产条目 2 行保留、生产 AUMID 注册表键仍不存在。
+- **未做**：未删除容器键、未清生产通知、未动其他应用数据、未关闭用户浏览器、未改动任何
+  全局通知设置；清理期间未产生新通知或新注册对象。
+- 访问日志（`user-check-access.jsonl`）在停止前检查无新增点击；既有 2 行（真实点击+页面加载）
+  已提交。
