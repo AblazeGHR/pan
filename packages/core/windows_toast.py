@@ -22,9 +22,10 @@ notification center. Verified on Windows 11 26100 (audit/notification-center/):
 - ``Tag``/``Group`` give replace-by-target semantics: one notification per
   completion session (a re-completion replaces the previous entry) and one per
   reminder content hash, so repeats do not stack up in the notification center.
-  Tags stay deterministic and collision-resistant: values over 64 characters
-  append a digest of the FULL input, so two long session ids can never collapse
-  onto one shared truncated prefix.
+  Tags stay deterministic: values over 64 characters append a digest of the
+  FULL input, which removes the deterministic collision two long session ids
+  would otherwise get from a shared truncated prefix; the digest itself
+  retains only a theoretical collision probability.
 - The sender is an inbox PowerShell process (no third-party dependencies) that
   shows the toast and exits immediately; there is no long-lived helper and no
   message loop per notification.
