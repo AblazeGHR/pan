@@ -1,7 +1,9 @@
 import type { Message } from '@/types';
-import { memo, useMemo } from 'react';
-import { Check, Undo2 } from 'lucide-react';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Bookmark, BookmarkMinus, BookmarkPlus, Check, Send, Undo2 } from 'lucide-react';
 import { useSessionStore, manualTaskReportKey } from '@/stores/sessionStore';
+import { isPanMessageId, useBookmarkStore } from '@/stores/bookmarkStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
@@ -133,29 +135,38 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     manualReportKey ? s.manualTaskReports[manualReportKey] : undefined
   ));
   const reportTaskManually = useSessionStore((s) => s.reportTaskManually);
-  const manualReportAction = manualReportKey && manualReportTarget ? (() => {
-    const copy = manualReportCopy(manualReportEntry?.state, manualReportEntry?.error);
-    const disabled = manualReportEntry?.state === 'sending' || manualReportEntry?.state === 'sent';
-    return (
-      <button
-        type="button"
-        data-manual-report={manualReportKey}
-        disabled={disabled}
-        onClick={() => {
-          void reportTaskManually(manualReportTarget.sessionId, {
-            taskId: manualReportTarget.taskId,
-            taskSeq: manualReportTarget.taskSeq,
-            messageId: manualReportTarget.messageId,
-          });
-        }}
-        className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary disabled:opacity-50"
-        title={copy.title}
-      >
-        {manualReportEntry?.state === 'sent' ? <Check size={13} /> : null}
-        {copy.label}
-      </button>
-    );
-  })() : null;
+  // ── Bookmark state and the shared block menu ──
+  // The bookmark entry exists only for converged, durable, bookmarkable rows:
+  // a streaming or unpersisted row has no addressable identity yet, and tool /
+  // thinking / system rows are not bookmark content (the backend rejects them
+  // with `message_not_bookmarkable`).  The store overlay wins over the
+  // projected flag while a mutation is fresher.
+  const sessionId = useSessionStore((s) => s.currentSessionId);
+  const liftedBookmarked = useBookmarkStore((s) => Boolean(
+    sessionId && message.messageId ? s.sessions[sessionId]?.marks[message.messageId] : undefined));
+  const bookmarked = liftedBookmarked || Boolean(message.bookmarked);
+  const addBookmark = useBookmarkStore((s) => s.addBookmark);
+  const removeBookmark = useBookmarkStore((s) => s.removeBookmark);
+  const bookmarkable = (role === 'user' || role === 'assistant')
+    && !message.streaming
+    && isPanMessageId(message.messageId);
+  const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(null);
+  useEffect(() => {
+    if (!menuAt) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuAt(null); };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-message-block-menu]')) return;
+      setMenuAt(null);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [menuAt]);
+  const openReportCopy = manualReportCopy(manualReportEntry?.state, manualReportEntry?.error);
   const openRewind = useSessionStore((s) => s.openRewind);
   const sessionBusy = useSessionStore((s) => ['running', 'queued'].includes(
     s.sessions.find((session) => session.id === s.currentSessionId)?.workerStatus ?? '',
@@ -170,6 +181,92 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
         title={sessionBusy ? '任务运行中，无法撤回' : '从此消息撤回并分叉'}>
         <Undo2 size={13} /> 撤回
       </button>
+  ) : null;
+  // The row's left gutter is the only body-level hit target: from the
+  // leftmost edge to the block's colored vertical line (CSS keeps its width
+  // in step with the row padding).  Content, role rail and role glyph stay
+  // untouched — no added bar.  It appears when the row has any action:
+  // bookmarkable content, or a bound manual report (whose tail block may
+  // carry a non-pan canonical id).
+  // The report entry belongs to the assistant tail text block only (the
+  // binding contract; user rows never carried it), while the bookmark entry
+  // belongs to any bookmarkable row.
+  const hasManualReport = role === 'assistant' && Boolean(manualReportKey && manualReportTarget);
+  const showGutter = bookmarkable || hasManualReport;
+  const bookmarkGutter = showGutter ? (
+    <button
+      type="button"
+      className="chat-message-bookmark-gutter"
+      data-message-bookmark-gutter={message.messageId}
+      aria-label="Message actions"
+      aria-expanded={menuAt !== null}
+      onClick={(event) => {
+        setMenuAt({
+          top: Math.min(event.clientY + 8, Math.max(8, window.innerHeight - 132)),
+          left: Math.min(event.clientX + 8, Math.max(8, window.innerWidth - 184)),
+        });
+      }}
+    />
+  ) : null;
+  // Every bookmarked block carries the body bookmark tag below it.
+  const bookmarkTag = bookmarked ? (
+    <span className="chat-message-bookmark-tag" data-message-bookmark-tag="">
+      <Bookmark size={11} /> Bookmark
+    </span>
+  ) : null;
+  // One shared block menu: bookmark add/remove, plus 手动汇报 for the task's
+  // tail block (the button used to live in the message meta row).
+  const blockMenu = menuAt ? createPortal(
+    <div
+      className="message-block-menu"
+      data-message-block-menu
+      role="menu"
+      style={{ top: menuAt.top, left: menuAt.left }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {bookmarkable ? (
+        <button
+          type="button"
+          role="menuitem"
+          data-bookmark-action={bookmarked ? 'remove' : 'add'}
+          onClick={() => {
+            setMenuAt(null);
+            if (sessionId && message.messageId) {
+              void (bookmarked
+                ? removeBookmark(sessionId, message.messageId)
+                : addBookmark(sessionId, message.messageId));
+            }
+          }}
+        >
+          {bookmarked ? <BookmarkMinus size={12} /> : <BookmarkPlus size={12} />}
+          {bookmarked ? 'Remove bookmark' : 'Add bookmark'}
+        </button>
+      ) : null}
+      {bookmarkable && hasManualReport ? (
+        <div className="message-block-menu-divider" role="separator" />
+      ) : null}
+      {hasManualReport && manualReportKey && manualReportTarget ? (
+        <button
+          type="button"
+          role="menuitem"
+          data-manual-report={manualReportKey}
+          disabled={manualReportEntry?.state === 'sending' || manualReportEntry?.state === 'sent'}
+          title={openReportCopy.title}
+          onClick={() => {
+            setMenuAt(null);
+            void reportTaskManually(manualReportTarget.sessionId, {
+              taskId: manualReportTarget.taskId,
+              taskSeq: manualReportTarget.taskSeq,
+              messageId: manualReportTarget.messageId,
+            });
+          }}
+        >
+          {manualReportEntry?.state === 'sent' ? <Check size={12} /> : <Send size={12} />}
+          {manualReportEntry?.state ? openReportCopy.label : '手动汇报'}
+        </button>
+      ) : null}
+    </div>,
+    document.body,
   ) : null;
 
   // Thinking blocks get their own component
@@ -204,7 +301,11 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
   // its full width without changing the measured wrapper's layout.
   if (role === 'user') {
     return (
-      <div className={`message-row message-row-user ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
+      <div
+        className={`message-row message-row-user relative ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}
+        data-bookmarked={bookmarked ? 'true' : 'false'}
+      >
+        {bookmarkGutter}
         {sourceBadge}
         <div className="msg user text-sm">
           {rawViewEnabled ? (
@@ -217,17 +318,23 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
             />
           )}
         </div>
+        {bookmarkTag}
         <div className="mt-0.5 flex items-center justify-end gap-2 self-end" data-message-meta="">
           {actions}
           <MessageTimestamp ts={message.ts} />
         </div>
+        {blockMenu}
       </div>
     );
   }
 
   // Assistant messages — no bubble, left-aligned, full-width markdown flow
   return (
-    <div className={`message-row message-row-assistant ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}>
+    <div
+      className={`message-row message-row-assistant relative ${sourceTag ? 'message-row-worker-report' : ''} ${mt} px-3 sm:px-6 lg:px-8`}
+      data-bookmarked={bookmarked ? 'true' : 'false'}
+    >
+      {bookmarkGutter}
       {sourceBadge}
       <div className="msg assistant text-sm leading-relaxed">
         {rawViewEnabled ? (
@@ -239,17 +346,9 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           />
         )}
       </div>
-      {manualReportAction ? (
-        // Same action-area pattern as the user rows: actions first, timestamp
-        // last, one horizontal meta row. Rows without the action keep the
-        // bare timestamp so their layout is unchanged.
-        <div className="mt-0.5 flex items-center justify-end gap-2 self-end" data-message-meta="">
-          {manualReportAction}
-          <MessageTimestamp ts={message.ts} />
-        </div>
-      ) : (
-        <MessageTimestamp ts={message.ts} className="mt-0.5" />
-      )}
+      {bookmarkTag}
+      <MessageTimestamp ts={message.ts} className="mt-0.5" />
+      {blockMenu}
     </div>
   );
 }, (previous, next) => {
