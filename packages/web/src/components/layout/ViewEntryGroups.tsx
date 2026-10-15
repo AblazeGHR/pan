@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Code, ListChecks, MessageSquare, TerminalSquare } from 'lucide-react';
+import { useJobStore, selectRunningJobCount } from '@/stores/jobStore';
+import '@/components/session/sessionQuickActions.css';
 
 // All view entries belong here; every three entries form one page.
 const entries = [
@@ -14,6 +16,9 @@ const groups = Array.from({ length: Math.ceil(entries.length / 3) }, (_, group) 
 
 export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   const { pathname } = useLocation();
+  // Running jobs across ALL jobs (never a page filter), from the unified store
+  // that the global WS pipeline keeps fresh on every route.
+  const runningJobCount = useJobStore(selectRunningJobCount);
   const routeGroup = Math.max(0, Math.floor(entries.findIndex((entry) =>
     entry.end ? pathname === entry.to : pathname === entry.to || pathname.startsWith(`${entry.to}/`)) / 3));
   const [selection, setSelection] = useState({ pathname, group: routeGroup });
@@ -104,9 +109,25 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
           aria-hidden={index !== group} className="grid w-full min-w-0 shrink-0 grid-cols-3">
           {page.map((entry, slot) => entry ? <NavLink key={entry.to} to={entry.to} end={entry.end}
             aria-label={entry.label} draggable={false}
-            className={({ isActive }) => `min-w-0 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+            className={({ isActive }) => `relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors ${
               isActive ? 'bg-accent/20 text-accent font-medium' : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'}`}>
-            <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
+            <span className="flex min-w-0 items-center justify-center gap-1">
+              <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
+            </span>
+            {/* Running Job 数徽标：absolute 浮层挂在入口右下角，浮在原有组件
+                之上，不占布局空间、不改变入口尺寸与宽度（0 时不渲染同样零
+                位移）。复用 Session 队列数徽标样式（accent 蓝、99+ 封顶），
+                无自身指针处理，点击穿透到入口，分组滑动不受影响。 */}
+            {entry.to === '/jobs' && runningJobCount > 0 && (
+              <span
+                className="session-queue-badge absolute bottom-0 right-0"
+                data-testid="jobs-running-badge"
+                aria-hidden="true"
+                title={`${runningJobCount} job(s) running`}
+              >
+                {runningJobCount > 99 ? '99+' : runningJobCount}
+              </span>
+            )}
           </NavLink> : <div key={slot} aria-hidden="true" />)}
         </div>)}
       </div>

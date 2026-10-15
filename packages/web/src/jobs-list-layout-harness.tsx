@@ -1,16 +1,17 @@
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
-import { wsClient } from './services/ws';
+import { useJobStore } from './stores/jobStore';
 import JobsView from './views/JobsView';
 import './index.css';
 
 type JobDeletedEvent = { type: 'job.deleted'; jobId: string };
-type TestDispatchClient = { dispatch: (event: JobDeletedEvent) => void };
 
 (
   window as Window & { __dispatchJobsEvent?: (event: JobDeletedEvent) => void }
 ).__dispatchJobsEvent = (event) => {
-  (wsClient as unknown as TestDispatchClient).dispatch(event);
+  // The unified job store is the single list source (the app feeds it from the
+  // global WS pipeline); deleting through it reproduces the real row removal.
+  useJobStore.getState().removeJob(event.jobId);
 };
 
 const jobs = Array.from({ length: 48 }, (_, index) => {
