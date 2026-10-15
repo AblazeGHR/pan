@@ -14,7 +14,7 @@
  * what teaches those components about bookmarks; every mirrored element
  * carries the same class names and data attributes as production.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Bookmark, BookmarkMinus, BookmarkPlus, Check, ListTree, Send, UserRound } from 'lucide-react';
 import { useMediaQuery } from './hooks/useMediaQuery';
@@ -283,26 +283,43 @@ function BlockRow({ block, bookmarked, bookmarkable, menuOpen, reported, onOpenM
   const rowClass = block.role === 'user' ? 'message-row message-row-user'
     : block.role === 'system' ? 'system-message'
     : 'message-row message-row-assistant';
-  // The clickable area is the whole visible content block, from just right of
-  // the vertical line to the right edge; the blue trigger display stays at
-  // the leftmost position (see the strip ::before in the harness CSS).
-  const strip = bookmarkable ? (
-    <button
-      type="button"
-      className="bookmark-rail-strip"
-      data-bookmark-strip={block.messageId}
-      aria-label={`Bookmark menu: ${block.preview}`}
-      aria-expanded={menuOpen}
-      onClick={(event) => onOpenMenu(block, { clientX: event.clientX, clientY: event.clientY })}
-    />
-  ) : null;
+  // The hit area is the row's left gutter: from the leftmost edge to the
+  // block's colored vertical line.  Its width is the row's left padding,
+  // measured so responsive breakpoints stay exact.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [gutterWidth, setGutterWidth] = useState(0);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const measure = () => setGutterWidth(parseFloat(getComputedStyle(row).paddingLeft) || 0);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
   return (
     <div
+      ref={rowRef}
       className={`${rowClass} ${sourceTag ? 'message-row-worker-report' : ''} bookmark-row px-3 sm:px-6 lg:px-8`}
       data-message-id={block.messageId}
       data-bookmark-state={bookmarked ? 'on' : 'off'}
       data-nav-kind={block.navKind ?? 'none'}
     >
+      {bookmarkable ? (
+        <button
+          type="button"
+          className="bookmark-rail-strip"
+          data-bookmark-strip={block.messageId}
+          style={{ width: gutterWidth || undefined }}
+          aria-label={`Bookmark menu: ${block.preview}`}
+          aria-expanded={menuOpen}
+          onClick={(event) => onOpenMenu(block, { clientX: event.clientX, clientY: event.clientY })}
+        />
+      ) : null}
       {sourceTag ? (
         <span className="worker-report-label" data-source-tag={sourceTag}>
           {SOURCE_TAG_LABELS[sourceTag]}
@@ -313,19 +330,13 @@ function BlockRow({ block, bookmarked, bookmarkable, menuOpen, reported, onOpenM
           {block.content}
         </span>
       ) : block.role === 'user' ? (
-        <div className="msg user text-sm">
-          {strip}
-          {block.content}
-        </div>
+        <div className="msg user text-sm">{block.content}</div>
       ) : block.role === 'thinking' ? (
         <div className="thinking text-sm">{block.content}</div>
       ) : block.role === 'tool' ? (
         <div className="tool-group text-sm">{block.content}</div>
       ) : (
-        <div className="msg assistant text-sm leading-relaxed">
-          {strip}
-          {block.content}
-        </div>
+        <div className="msg assistant text-sm leading-relaxed">{block.content}</div>
       )}
       {/* Every bookmarked block carries the body bookmark tag below it; the
           rail keeps its own (decorated or new) tag without duplication. */}
@@ -605,8 +616,8 @@ function Harness() {
               <li>可加书签范围：用户消息与 assistant 正文块；tool / thinking
                 块不加书签（后端同样拒绝，错误码
                 <code>message_not_bookmarkable</code>）。</li>
-              <li>交互区域：正文内容块整块可点（竖线右侧到右缘），点击弹出
-                Add/Remove bookmark 菜单；最左侧竖线位置只保留蓝色触发显示，正文不加蓝条。</li>
+              <li>交互区域：每行最左侧到块的有色竖线之间的整条边距带（图中黄色区域），
+                点击弹出 Add/Remove bookmark 菜单；蓝色触发显示只在这条带里，正文不加蓝条。</li>
               <li>书签标识：所有书签块在下方显示 Bookmark tag；导航栏已有 tag 改用
                 合成图标（原图标 + 右下角书签角标，颜色沿用原 tag）并加
                 “<code>&lt;Type&gt; (Bookmark)</code>”后缀，不新增重复 tag；无 tag 的块

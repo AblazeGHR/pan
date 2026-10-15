@@ -151,43 +151,35 @@
   border-color: color-mix(in srgb, var(--color-accent, #4f8cc9) 48%, var(--color-border-default));
 }
 
-/* The hit area is the whole visible content block: the strip lives inside
-   the content element and covers it from just right of the vertical line to
-   the right edge.  The blue trigger display stays at the leftmost position
-   as the strip's ::before, so the body never grows a blue bar of its own. */
-.bookmark-row .msg.user,
-.bookmark-row .msg.assistant {
+/* The hit area is the row's left gutter: from the leftmost edge to the
+   block's colored vertical line (the strip width is the measured row
+   padding).  In production this gutter has no hit target of its own; the
+   mock turns it into the clickable strip, which is the interaction phase 2
+   must add.  The blue trigger display is this gutter only — the body and
+   the role rail never grow a blue bar. */
+.bookmark-row {
   position: relative;
 }
 
 .bookmark-rail-strip {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   z-index: 1;
-}
-
-.bookmark-rail-strip::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 14px;
-  background: transparent;
   transition: background .15s ease;
-  pointer-events: none;
 }
 
-.bookmark-rail-strip:hover::before,
-.bookmark-rail-strip[aria-expanded='true']::before {
+.bookmark-rail-strip:hover,
+.bookmark-rail-strip[aria-expanded='true'] {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 22%, transparent);
 }
 
-.bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip::before {
+.bookmark-row[data-bookmark-state='on'] .bookmark-rail-strip {
   background: color-mix(in srgb, var(--color-accent, #4f8cc9) 45%, transparent);
 }
 

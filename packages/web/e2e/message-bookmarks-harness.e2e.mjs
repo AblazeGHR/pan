@@ -142,14 +142,31 @@ try {
     (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa03"]').count()) === 0 &&
     (await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa04"]').count()) === 0);
 
-  // 4a. The whole content block is the hit area: clicking the content (far
-  //     from the left line) opens the same menu.
-  await page.locator(`[data-message-id="${SESSION_A_PLAIN}"] .msg.assistant`)
-    .click({ position: { x: 240, y: 8 } });
-  await page.locator('[data-bookmark-menu]').waitFor({ state: 'visible' });
-  check('clicking the content area (not the left line) opens the menu',
+  // 4a. The hit area is the left gutter up to the colored vertical line:
+  //     clicking the gutter opens the menu; clicking the content does not.
+  await openMenu(page, SESSION_A_PLAIN);
+  check('clicking the left gutter (up to the colored line) opens the menu',
     (await page.locator('[data-bookmark-action]').count()) === 1);
   await page.keyboard.press('Escape');
+  const geometry = await page.evaluate((id) => {
+    const row = document.querySelector(`[data-message-id="${id}"]`);
+    const strip = row?.querySelector('[data-bookmark-strip]');
+    const msg = row?.querySelector('.msg');
+    if (!row || !strip || !msg) return null;
+    const rowBox = row.getBoundingClientRect();
+    const stripBox = strip.getBoundingClientRect();
+    const msgBox = msg.getBoundingClientRect();
+    return {
+      leftAtEdge: Math.abs(stripBox.left - rowBox.left) <= 1,
+      rightAtLine: Math.abs(stripBox.right - msgBox.left) <= 1,
+    };
+  }, SESSION_A_PLAIN);
+  check('strip spans from the left edge to the colored vertical line',
+    geometry !== null && geometry.leftAtEdge && geometry.rightAtLine, JSON.stringify(geometry));
+  await page.locator(`[data-message-id="${SESSION_A_PLAIN}"] .msg.assistant`)
+    .click({ position: { x: 240, y: 8 } });
+  check('clicking the content itself does not open the menu',
+    (await page.locator('[data-bookmark-menu]').count()) === 0);
 
   // 4c. An existing tag keeps its kind color and gains a composite bookmark
   //     icon (original glyph + bottom-right badge); the body adds no blue
@@ -185,8 +202,8 @@ try {
     .evaluate((element) => getComputedStyle(element).boxShadow);
   check('bookmarked body adds no blue bar over the role rail', bodyShadow === 'none', bodyShadow);
   const triggerBackground = await page.locator('[data-bookmark-strip="pan:1111111111111111111111111111aa05"]')
-    .evaluate((element) => getComputedStyle(element, '::before').backgroundColor);
-  check('leftmost trigger display stays on the strip ::before',
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  check('leftmost gutter keeps the trigger-position display',
     triggerBackground !== 'rgba(0, 0, 0, 0)', triggerBackground);
 
   // 4d. The manual report button is consolidated into the same menu for
