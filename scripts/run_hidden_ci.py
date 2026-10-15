@@ -25,6 +25,7 @@ def main():
     p.add_argument('--toolchains', type=Path, required=True)
     p.add_argument('--sha', required=True)
     p.add_argument('--focused', action='store_true')
+    p.add_argument('--detach-only', action='store_true', help='verify supplemental real-detach coverage before a full run')
     p.add_argument('--allow-dirty', action='store_true')
     p.add_argument('--baseline', type=Path, help='original full-CI evidence directory for identity/skip comparison')
     p.add_argument('--source-baseline', help='task starting SHA; distinguish earlier test renames from this repair')
@@ -55,7 +56,7 @@ def main():
     from packages.core.terminal.guard import JobObjectGuard
     from packages.core.terminal.identity import read_creation_filetime
 
-    def run(name, argv, cwd=root):
+    def run(name, argv, cwd=root, contain_tree=True):
         start = time.time()
         with (out / (name + '.log')).open('w', encoding='utf-8') as log:
             log.write(json.dumps(dict(sha=a.sha, argv=argv, cwd=str(cwd), started=start)) + '\n')
@@ -66,7 +67,8 @@ def main():
                 proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
                                         creationflags=subprocess.CREATE_NO_WINDOW | 4)
                 identity = read_creation_filetime(int(proc._handle))
-                guard.assign(int(proc._handle))
+                if contain_tree:
+                    guard.assign(int(proc._handle))
                 log.write(json.dumps(dict(pid=proc.pid, filetime=str(identity), started=start)) + '\n')
                 log.flush()
                 resume = ctypes.WinDLL('ntdll').NtResumeProcess
@@ -92,6 +94,16 @@ def main():
 
     for leg in ['312', '314']:
         python = str(a.toolchains / ('venv' + leg) / 'Scripts/python.exe')
+        def real_detach():
+            run('detach-' + leg, [python, str(root / 'scripts/run_tests_isolated.py'), '--', python,
+                                 '-m', 'pytest', 'tests/test_terminal_durable_ma.py::test_detached_shell_survives_real_service_host_exit_and_reconnect',
+                                 '-q', '-ra', '--junitxml=' + str(out / ('detach-' + leg + '.xml')),
+                                 '--basetemp=' + str(out / ('detach-tmp-' + leg))], contain_tree=False)
+            cases = list(ET.parse(out / ('detach-' + leg + '.xml')).getroot().iter('testcase'))
+            assert len(cases) == 1 and not any(cases[0].find(tag) is not None for tag in ('skipped', 'failure', 'error'))
+        if a.detach_only:
+            real_detach()
+            continue
         run('python-' + leg, [python, '--version'])
         run('freeze-' + leg, [python, '-m', 'pip', 'freeze'])
         if not a.focused:
@@ -106,6 +118,13 @@ def main():
         run('pytest-' + leg, [python, str(root / 'scripts/run_tests_isolated.py'), '--', python,
                              '-m', 'pytest', *paths, '-q', '-ra', '--junitxml=' + str(out / ('pytest-' + leg + '.xml')),
                              '--basetemp=' + str(out / ('pytest-tmp-' + leg))])
+        if not a.focused:
+            # The regular phase intentionally forbids breakaway. This existing
+            # test needs the original ancestor context to exercise real detach;
+            # its own retained identities and finally blocks prove tree cleanup.
+            real_detach()
+    if a.detach_only:
+        return int(any(r['exitCode'] for r in results))
     web = root / 'packages/web'
     pnpm = a.pnpm
     assert pnpm and Path(pnpm).is_file()
@@ -134,6 +153,8 @@ def main():
                 ['git', 'diff', '--name-only', a.source_baseline, a.sha], cwd=root, text=True).splitlines())
             preexisting_files = before_task - this_task
         for name, current in identities.items():
+            if name.startswith('detach-'):
+                continue
             before_path = a.baseline / (name + '.xml')
             assert before_path.is_file(), before_path
             before = list(ET.parse(before_path).getroot().iter('testcase'))
@@ -145,6 +166,14 @@ def main():
             comparison[name] = dict(before=len(before), after=len(current),
                                     removed=list((old_ids-new_ids).elements()), added=list((new_ids-old_ids).elements()),
                                     removedSkips=list((old_skips-new_skips).elements()), addedSkips=list((new_skips-old_skips).elements()))
+            covered_skips = []
+            if name.startswith('pytest-'):
+                supplement = list(ET.parse(out / ('detach-' + name.split('-')[1] + '.xml')).getroot().iter('testcase'))
+                passed = {c.get('classname', '') + '::' + c.get('name', '') for c in supplement
+                          if not any(c.find(tag) is not None for tag in ('skipped', 'failure', 'error'))}
+                covered_skips = [item for item in comparison[name]['addedSkips'] if item[0] in passed]
+            comparison[name]['coveredByRealDetachRun'] = covered_skips
+            comparison[name]['uncoveredAddedSkips'] = list((Counter(map(tuple, comparison[name]['addedSkips'])) - Counter(map(tuple, covered_skips))).elements())
             removed = comparison[name]['removed']
             preexisting = [identity for identity in removed
                            if 'packages/web/src/' + identity.split('::', 1)[0] in preexisting_files]
@@ -154,7 +183,7 @@ def main():
     assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip() == a.sha
     (out / 'final-status.txt').write_text(subprocess.check_output(
         ['git', 'status', '--porcelain'], cwd=root, text=True), encoding='utf-8')
-    return int(any(r['exitCode'] for r in results) or any(c['unexpectedRemoved'] or c['addedSkips'] for c in comparison.values()))
+    return int(any(r['exitCode'] for r in results) or any(c['unexpectedRemoved'] or c['uncoveredAddedSkips'] for c in comparison.values()))
 
 
 if __name__ == '__main__':
