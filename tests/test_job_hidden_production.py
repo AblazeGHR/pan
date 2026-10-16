@@ -126,7 +126,8 @@ def test_production_stdout_exit_and_bidirectional_file_ipc(isolated_registry, tm
 from pathlib import Path
 print('owned stdout',flush=True)
 print('owned stderr',file=sys.stderr,flush=True)
-Path('request.txt').write_text('child-request')
+Path('request.tmp').write_text('child-request')
+os.replace('request.tmp', 'request.txt')
 end=time.monotonic()+8
 while not Path('reply.txt').exists():
  assert time.monotonic()<end
@@ -139,7 +140,8 @@ sys.exit(7)
     try:
         until(lambda: (cwd / "request.txt").exists())
         assert (cwd / "request.txt").read_text() == "child-request"
-        (cwd / "reply.txt").write_text("parent-reply")
+        (cwd / "reply.tmp").write_text("parent-reply")
+        os.replace(cwd / "reply.tmp", cwd / "reply.txt")
         until(lambda: get()["status"] not in ("starting", "running"))
         assert get()["status"] == "failed" and get()["exitCode"] == 7
         assert json.loads((cwd / "cwd.json").read_text()) == str(cwd)

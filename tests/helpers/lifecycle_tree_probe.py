@@ -27,7 +27,8 @@ if '--runner-ancestry' in sys.argv:
   assert len(ancestors)<4, 'Owned runner not found in task ancestry'
   parent=parent.parent()
  row['runnerAncestors']=ancestors
-(root/f'tree-{depth}.json').write_text(json.dumps(row))
+temporary=root/f'tree-{depth}.tmp'
+temporary.write_text(json.dumps(row));os.replace(temporary,root/f'tree-{depth}.json')
 if depth:subprocess.Popen([sys.executable,__file__,str(root),str(depth-1)],creationflags=subprocess.CREATE_NO_WINDOW)
 if depth==2:
  deadline=time.monotonic()+30

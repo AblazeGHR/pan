@@ -72,9 +72,14 @@ describe('TopBar compact worker presentation', () => {
     expect(screen.getByRole('button', { name: 'Switch to TUI view' }).getAttribute('aria-pressed')).toBe('true');
   });
   it('does not offer Terminal TUI for other adapters', () => {
-    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'cbc' })) }));
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'kimi' })) }));
     render(<TopBar />);
     expect(screen.queryByRole('button', { name: 'Terminal TUI' })).toBeNull();
+  });
+  it('offers the Terminal TUI upgrade for CBC Sessions', () => {
+    useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'cbc', nativeControl: false })) }));
+    render(<TopBar />);
+    expect(screen.getByRole('button', { name: 'Terminal TUI' }).getAttribute('data-terminal-status')).toBe('upgrade');
   });
   it('native entry is distinct and clears all View selections without changing the saved preference', async () => {
     const sid = 'session-123456789';

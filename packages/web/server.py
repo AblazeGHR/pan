@@ -48,6 +48,7 @@ import psutil
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import session_bookmarks
 from packages.core import session_drafts
 from packages.core import history_search_index
 from packages.core import history_search_scan
@@ -4472,6 +4473,11 @@ def _api_history(
     include_identity: bool = True,
 ) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
+    # One stamped sidecar read per projection (cached, lock-free fast path
+    # when the Session has no bookmark file).  Additive: only durable Pan
+    # identities can carry the flag, so legacy positional rows and old
+    # clients are unaffected.
+    bookmarks = session_bookmarks.bookmarked_message_ids(session_id)
     normalized: list[dict] = []
     for offset, message in enumerate(history):
         absolute_index = max(0, int(start or 0)) + offset
@@ -4496,6 +4502,11 @@ def _api_history(
             if not isinstance(wire_identity, str) or not wire_identity:
                 epoch = history_epoch or "legacy"
                 wire_identity = f"legacy:{session_id}:{epoch}:{absolute_index}"
+        if bookmarks and isinstance(wire_identity, str) and wire_identity in bookmarks:
+            # Project the bookmark flag only for identities the store can
+            # actually address; a dangling entry never matches a live row.
+            if isinstance(public_message, dict):
+                public_message["bookmarked"] = True
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             if isinstance(message, dict) and isinstance(message.get("parts"), list):
                 normalized.append({
@@ -6106,6 +6117,139 @@ async def api_put_session_draft(session_id: str, data: dict | None = None):
     # draft bodies in the session summary, and overwrite other clients'
     # composers with text they are not editing.
     return {"ok": True, **state}
+
+
+@app.get("/api/sessions/{session_id}/bookmarks")
+async def api_get_session_bookmarks(session_id: str):
+    """Read one Session's message bookmarks for a cold client load.
+
+    Deliberately separate from GET /api/sessions: bookmarks are loaded
+    lazily for the one selected Session, never scanned across Sessions.
+
+    A damaged or unreadable sidecar is reported as ``bookmarks_unreadable``,
+    never as an empty set: telling the client "no bookmarks" when a file
+    exists would make the next write destroy the entries it still holds.
+    ``dangling`` lists bookmarks whose target row no longer exists (for
+    example after an ambiguous reimport re-id); they are kept on disk and
+    excluded from projection rather than silently dropped or re-matched.
+    """
+    try:
+        envelope, dangling = await asyncio.gather(
+            asyncio.to_thread(session_bookmarks.read_bookmarks, session_id),
+            asyncio.to_thread(session_bookmarks.dangling_bookmarks, session_id),
+        )
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "bookmarks_read_failed", "message": str(exc) or "Could not read bookmarks"}}
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "revision": envelope["revision"],
+        "updatedAt": envelope["updatedAt"],
+        "bookmarks": envelope["bookmarks"],
+        "dangling": dangling,
+    }
+
+
+async def _mutate_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None, *, add: bool):
+    """Add or remove one bookmark; body is ``{"baseRevision": <int|null>}``.
+
+    Only durable Pan message identities (``pan:<uuid>``) are accepted.
+    Additions resolve the identity against this Session's own history first
+    (covering blocks pagination has not loaded), so a bookmark can never
+    address another Session's block, a positional ``legacy:``/``msg_`` id or
+    an invented uuid.  Removals operate on this Session's own store and stay
+    available for dangling entries.
+
+    ``baseRevision`` gives compare-and-set semantics for dual clients: it
+    must equal the revision the caller last read, or the write is rejected
+    with the current envelope attached.  Omitted/null applies
+    unconditionally; add and remove are idempotent, so a retry repeating the
+    desired state is a successful no-op that neither writes nor bumps the
+    revision.  The WS event is published only after the durable commit and
+    only when the state actually changed; a broadcast failure never fails
+    the already-committed write.
+    """
+    if data is not None and not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "bookmark body must be an object"}}
+    base_revision = (data or {}).get("baseRevision")
+    try:
+        if add:
+            result = await asyncio.to_thread(
+                session_bookmarks.add_bookmark, session_id, message_id, base_revision)
+        else:
+            result = await asyncio.to_thread(
+                session_bookmarks.remove_bookmark, session_id, message_id, base_revision)
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkTargetUnresolved as exc:
+        return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
+    except session_bookmarks.BookmarkConflict as exc:
+        # The caller is behind.  Hand back the authoritative envelope so it
+        # can re-read instead of overwriting on a stale base.
+        return {"ok": False, "error": {
+            "code": "bookmark_conflict", "message": "Bookmarks changed; reload before saving"},
+            **exc.current}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write:
+        # reporting this as "absent" is what would let a create-if-absent
+        # save destroy the bookmarks the file still holds.
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except session_bookmarks.BookmarkTooMany as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_too_many", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "bookmark_persist_failed",
+            "message": str(exc) or "Could not persist bookmark"}}
+    if result["changed"]:
+        try:
+            await broadcast({
+                "type": "bookmarks.changed",
+                "sessionId": session_id,
+                "revision": result["revision"],
+                "action": "added" if add else "removed",
+                "messageIds": [message_id],
+            })
+        except Exception as exc:  # noqa: BLE001 - the durable write already committed
+            _log(f"[bookmarks] broadcast failed for {session_id}: {type(exc).__name__}")
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "messageId": message_id,
+        "bookmarked": add,
+        "changed": result["changed"],
+        "revision": result["revision"],
+        "updatedAt": result["updatedAt"],
+        "bookmarks": result["bookmarks"],
+        "target": result["target"],
+    }
+
+
+@app.put("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_add_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None = None):
+    """Bookmark one message; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=True)
+
+
+@app.delete("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_remove_session_bookmark(session_id: str, message_id: str,
+                                      data: dict | None = None):
+    """Remove one bookmark; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=False)
 
 
 @app.post("/api/sessions/{session_id}/unread-done/ack")
@@ -8571,7 +8715,7 @@ async def api_session_queue_steer(session_id: str, item_id: str, data: dict):
     if error:
         return _queue_error("queue_steer_failed", error, s)
     async with worker.queue_lock(session_id):
-        return {"ok": True, **_queue_snapshot_locked(s)}
+        return {"ok": True, "outcome": "accepted", "consumption": "unconfirmed", **_queue_snapshot_locked(s)}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
@@ -10993,7 +11137,7 @@ async def api_send(data: dict):
     workerId / sessionId 皆可寻址（编排对象是 agent，进程是顺带的）。
     sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
     （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
-    分发。force=true 时对活 worker 先 restart 再投递（worker_send_force 语义）。
+    分发。force=true 按能力即时 Steer 优先；idle 普通 handoff，无能力才 restart。
     source=agent 的消息在入队时继承目标 Session.active_task_id 作为 report
     配对上下文；该值不参加 assign 幂等，source=user 不继承。
     隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
@@ -11193,23 +11337,37 @@ async def api_set_reports_to_manager(session_id: str, data: dict):
 
 @app.post("/api/sessions/{session_id}/manual-report")
 async def api_session_manual_report(session_id: str, data: dict):
-    """显式手动汇报：把指定任务的完成报告送达其 manager。
+    """显式手动汇报：把指定完成运行的报告送达其 manager。
 
-    Body: {"taskId": <str|null>, "taskSeq": <int|null>, "messageId": <str>}
+    Body: {"taskId": <str|null>, "taskSeq": <int|null>,
+           "resultCursor": <int|null>, "messageId": <str>}
 
     与自动汇报的关系：复用同一路由目标（manager 落盘队列 queue_pending）、
-    同一 item 形状与唤醒/广播路径；内容按**任务身份**取自服务端持久终态
-    索引（任意已完成任务，不限于最新终态），调用方只提交身份、不提交正文。
+    同一 item 形状与唤醒/广播路径；内容按**运行身份**取自服务端持久终态
+    索引（任意已完成运行，不限于最新终态），调用方只提交身份、不提交正文。
     与订阅完全解耦——manager 已 report_unsubscribe 时手动汇报依然送达，且本
     端点不修改订阅、不临时开订阅。
 
-    幂等：服务端按 (sessionId, taskId/taskSeq, messageId) 推导确定性 key 去重；
-    重复点击/并发/未确认后的重试都不会二次入队，不同任务各自独立。
-    在持久终态索引中找不到该任务的终态 → 明确失败，绝不顶替为别的任务。
+    **任何已完成运行均可汇报**，包括无 taskId 的普通对话/原生轮次：此时以该
+    运行的 taskSeq 或持久 resultCursor 绑定具体运行（两者都经会话身份视图
+    ``terminalResults`` 暴露；服务端正文权威，客户端只提交身份与末块
+    messageId）。只有可证明的持久运行身份才构成绑定（非空 taskId / 已存储
+    taskSeq / 正 resultCursor）；三种身份都不提供、或提交的 resultCursor ≤ 0
+    且无其他身份 → ``no_run_identity`` 明确失败，绝不汇报“最新终态”，也绝
+    不允许身份视图给无身份旧行显示的派生 0 成为可投递绑定；终态解析出来但
+    行本身无可证明身份 → 同样``no_run_identity`` 拒绝。resultCursor 与
+    taskId/taskSeq 矛盾 → ``run_mismatch`` 明确失败；索引中找不到对应终态 →
+    ``no_task_result``，绝不顶替。
+
+    幂等：服务端按运行身份 (sessionId, taskId, taskSeq；该行无 taskSeq 时用
+    其持久 resultCursor) 推导确定性 key 去重，messageId 只证明归属、不参与
+    去重；重复点击/并发/换身份路径/未确认后的重试都不会二次入队，不同运行各
+    自独立。
     """
     message_id = data.get("messageId")
     task_id = data.get("taskId")
     task_seq = data.get("taskSeq")
+    result_cursor = data.get("resultCursor")
     if not isinstance(message_id, str) or not message_id.strip() or len(message_id) > 200:
         return {"ok": False, "error": {"code": "invalid_message_id",
                                        "message": "messageId (non-empty string) is required"}}
@@ -11221,11 +11379,16 @@ async def api_session_manual_report(session_id: str, data: dict):
                                  or task_seq < 0):
         return {"ok": False, "error": {"code": "invalid_task_seq",
                                        "message": "taskSeq must be a non-negative integer or null"}}
+    if result_cursor is not None and (isinstance(result_cursor, bool)
+                                      or not isinstance(result_cursor, int)
+                                      or result_cursor < 0):
+        return {"ok": False, "error": {"code": "invalid_result_cursor",
+                                       "message": "resultCursor must be a non-negative integer or null"}}
     if sess.get(session_id) is None:
         return {"ok": False, "error": {"code": "session_not_found",
                                        "message": f"Session {session_id} not found"}}
     result, error = await worker.enqueue_manual_report(
-        session_id, task_id, task_seq, message_id)
+        session_id, task_id, task_seq, message_id, result_cursor)
     if error is not None:
         return {"ok": False, "error": error,
                 "retryable": bool(error.get("retryable"))}
@@ -12725,27 +12888,32 @@ async def api_session_worker_control(session_id: str, data: dict):
 
 @app.post("/api/worker/{worker_id}/steer")
 async def api_worker_steer(worker_id: str, data: dict):
-    """Inject text into a running native turn (Claude stream / Codex)."""
+    """Admit text into a running native turn; admission does not prove consumption."""
+    outcome = {}
     err = await worker.steer_worker(
         worker_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if err:
-        return {"error": err}
-    return {"workerId": worker_id, "status": "steer sent"}
+        return {"error": err, "outcome": outcome.get('status', 'unknown')}
+    return {"workerId": worker_id, "status": "steer sent", "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/sessions/{session_id}/worker/steer")
 async def api_session_worker_steer(session_id: str, data: dict):
+    outcome = {}
     result = await worker.steer_session_worker(
         session_id, data.get("text") if isinstance(data, dict) else "",
         data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
     )
     if isinstance(result, str):
-        return {"error": result}
+        return {"error": result, "outcome": outcome.get('status', 'unknown')}
     if result is None:
-        return {"error": "Worker not found"}
-    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent"}
+        return {"error": "Worker not found", "outcome": outcome.get('status', 'rejected')}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent",
+            "outcome": "accepted", "consumption": "unconfirmed"}
 
 
 @app.post("/api/worker/{worker_id}/claude-permission")

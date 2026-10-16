@@ -212,7 +212,7 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 **Unread recording** 默认 All sessions，可选 No sessions 或 Bell on/off、Pinned 等类别；Bell on 与 Bell off 互斥，Pinned 可与其中一个按并集组合；All sessions 与 No sessions 互斥，且都不能与类别同时选择。排除的 Session 保持零未读，重新纳入只统计新完成结果，不恢复旧未读。Session 菜单可单独启用记录；保存全局规则或 **Reapply settings** 会清除这些覆盖。
 
-Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏览器完全关闭后页面通知不可用。Windows System 完成通知有 **60 秒 helper 点击窗口**；从关闭状态打开默认浏览器仅有代码路径，真实 OS 点击未验证。这不是持久通知中心激活。Browser 与 System 是独立通道，没有“Browser 失败才发 System”选项；已派发通知或亮 Bell 不代表已送达。
+Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏览器完全关闭后页面通知不可用。Windows System 完成通知使用真实 Windows toast（WinRT）：通知会被录入 Windows 通知中心（Action Center）持久保留，点击通知上的「打开会话」按钮由系统 http 处理器（默认浏览器）打开对应 Session 深链——发送进程退出后按钮仍有效（冷启动已完全退出的浏览器尚未实测）。通知正文与结果文本不会进入 URL，只用本机 loopback 深链。同一 Session 的完成通知在通知中心内按目标替换，重复的提醒按内容去重；安装/卸载不注册自定义协议或快捷方式。Browser 与 System 是独立通道，没有“Browser 失败才发 System”选项；已派发通知或亮 Bell 不代表已送达。
 
 ### Tailscale 备用访问
 

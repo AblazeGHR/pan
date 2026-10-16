@@ -136,12 +136,33 @@ afterEach(() => {
   cleanup();
 });
 
-function reportButtons(): HTMLButtonElement[] {
-  return [...document.querySelectorAll<HTMLButtonElement>('button[data-manual-report]')];
+/** The report entry lives in the shared block menu now (opened from the
+ *  row's left gutter).  Scan the rows in DOM order, open each row's menu,
+ *  and collect the report binding it offers. */
+function buttonKeys(): string[] {
+  const keys: string[] = [];
+  for (const gutter of [...document.querySelectorAll<HTMLButtonElement>('[data-message-bookmark-gutter]')]) {
+    fireEvent.click(gutter);
+    const item = document.querySelector<HTMLElement>('[data-manual-report]');
+    if (item) keys.push(item.getAttribute('data-manual-report')!);
+    fireEvent.keyDown(window, { key: 'Escape' });
+  }
+  return keys;
 }
 
-function buttonKeys(): string[] {
-  return reportButtons().map((button) => button.getAttribute('data-manual-report')!);
+/** Open block menus in row order until one offers the requested binding, then
+ *  click it — the real user path for reporting one task. */
+function clickReportFor(key: string): void {
+  for (const gutter of [...document.querySelectorAll<HTMLButtonElement>('[data-message-bookmark-gutter]')]) {
+    fireEvent.click(gutter);
+    const item = document.querySelector<HTMLElement>('[data-manual-report]');
+    if (item?.getAttribute('data-manual-report') === key) {
+      fireEvent.click(item);
+      return;
+    }
+    fireEvent.keyDown(window, { key: 'Escape' });
+  }
+  throw new Error(`no report entry for ${key}`);
 }
 
 describe('ChatMessages per-task manual report wiring', () => {
@@ -179,10 +200,8 @@ describe('ChatMessages per-task manual report wiring', () => {
       terminalResults: [terminal('task-1', 1, 1), terminal('task-2', 2, 3), terminal('task-3', 3, 5)],
     });
     render(<ChatMessages />);
-    const older = reportButtons().find(
-      (button) => button.getAttribute('data-manual-report') === 'ses_ta:task-1:1')!;
-    fireEvent.click(older);
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-1', 1, 'pan:a1');
+    clickReportFor('ses_ta:task-1:1');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-1', 1, 'pan:a1', 1);
   });
 
   it('adds the action only for tasks with a durable terminal', () => {
@@ -300,7 +319,7 @@ describe('ChatMessages per-task manual report wiring', () => {
     view.rerender(<ChatMessages />);
     expect(buttonKeys()).toEqual(['ses_ta:task-1:1', 'ses_ta:task-2:2']);
 
-    fireEvent.click(reportButtons()[1]!);
-    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2');
+    clickReportFor('ses_ta:task-2:2');
+    expect(reportMock).toHaveBeenCalledWith('ses_ta', 'task-2', 2, 'pan:a2', 2);
   });
 });

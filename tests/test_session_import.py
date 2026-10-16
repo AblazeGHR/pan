@@ -512,7 +512,7 @@ class _FakeAPI:
 
     def __call__(self, method, path, body=None, timeout=30.0):
         self.calls.append((method, path, body, timeout))
-        if method == "GET" and path.startswith("/api/sessions/") and "?" not in path:
+        if method == "GET" and path == "/api/sessions/ses_ma?view=metadata":
             return dict(self.identity) if self.identity else {"error": "not found"}
         if method == "GET" and path == "/api/sessions?summary=1":
             return {"sessions": [dict(s) for s in self.summary]}
@@ -750,6 +750,7 @@ def test_mcp_import_cbc_builds_body_and_autoclaims(monkeypatch):
     assert r["reimportedExisting"] is False
     # auto-claim fired
     assert any(c[0] == "POST" and c[1] == "/api/claim" for c in fake.calls)
+    assert any(c[:2] == ("GET", "/api/sessions/ses_ma?view=metadata") for c in fake.calls)
     _cleanup()
 
 

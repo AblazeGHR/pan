@@ -1,0 +1,11 @@
+{
+  "port": 64177,
+  "url": "http://127.0.0.1:64177/react/?session=ses_user_click",
+  "aumid": "Pan.NotificationsProbe",
+  "toast": {
+    "returncode": 0,
+    "stdout": "{\"ok\":true,\"method\":\"winrt.toast\"}",
+    "stderr": ""
+  },
+  "started": "2026-10-16T01:24:52"
+}

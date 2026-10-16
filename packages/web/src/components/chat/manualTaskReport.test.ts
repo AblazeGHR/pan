@@ -326,3 +326,123 @@ describe('findManualReportTargets', () => {
     expect(findManualReportTargets(messages, session([terminal('task-1', 1, messages[1]!, messages)]), undefined).size).toBe(0);
   });
 });
+
+describe('plain conversation runs (no taskId)', () => {
+  const plainTerminal = (
+    tailRow: Message,
+    messages: Message[],
+    extra: Partial<TerminalIdentity> = {},
+  ): TerminalIdentity => {
+    const index = messages.findIndex((message) => message.messageId === tailRow.messageId);
+    return {
+      taskId: null,
+      taskSeq: index + 1,
+      resultCursor: index + 1,
+      terminalKey: `terminal:plain:${index + 1}`,
+      status: 'done',
+      historyEpoch: EPOCH,
+      historyRevision: index + 1,
+      ...extra,
+    };
+  };
+
+  it('binds a plain run tail by its durable taskSeq', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const targets = findManualReportTargets(messages, session([plainTerminal(messages[1]!, messages)]), proofFor(messages));
+    expect(targets.get('a-1')).toEqual({
+      sessionId: 'ses_ta',
+      taskId: null,
+      taskSeq: 2,
+      messageId: 'a-1',
+      resultCursor: 2,
+      terminalKey: 'terminal:plain:2',
+    });
+  });
+
+  it('binds a run whose terminal only carries a resultCursor', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const terminalOnly = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 9 });
+    const targets = findManualReportTargets(messages, session([terminalOnly]), proofFor(messages));
+    expect(targets.get('a-1')?.taskId).toBeNull();
+    expect(targets.get('a-1')?.taskSeq).toBeNull();
+    expect(targets.get('a-1')?.resultCursor).toBe(9);
+  });
+
+  it('offers no button when the terminal has no durable identity at all', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const identityless = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: undefined });
+    expect(findManualReportTargets(messages, session([identityless]), proofFor(messages)).size).toBe(0);
+  });
+
+  it('never matches a plain terminal to a task segment or a task terminal to a plain segment', () => {
+    const taskMessages = [assign('t-1', 'u-1'), assistant('a-1')];
+    // A plain terminal pointing at a task segment's tail must not bind.
+    expect(findManualReportTargets(taskMessages, session([plainTerminal(taskMessages[1]!, taskMessages)]), proofFor(taskMessages)).size).toBe(0);
+    // A task terminal pointing at a plain segment's tail must not bind either.
+    const plainMessages = [browser('u-1'), assistant('a-1')];
+    const mismatched = { ...terminal('t-1', 2, plainMessages[1]!, plainMessages), taskId: 't-1' };
+    expect(findManualReportTargets(plainMessages, session([mismatched]), proofFor(plainMessages)).size).toBe(0);
+  });
+
+  it('keeps an older plain run bound while a newer run is streaming', () => {
+    const messages = [browser('u-1'), assistant('a-1'), browser('u-2'), assistant('a-2', 'partial', { streaming: true })];
+    const targets = findManualReportTargets(messages, session([plainTerminal(messages[1]!, messages)]), proofFor(messages));
+    expect(targets.size).toBe(1);
+    expect(targets.get('a-1')?.taskId).toBeNull();
+  });
+
+  it('binds each of two plain runs to its own tail block', () => {
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      browser('u-2'), assistant('a-2'),
+    ];
+    const terminals = [plainTerminal(messages[1]!, messages), plainTerminal(messages[3]!, messages)];
+    const targets = findManualReportTargets(messages, session(terminals), proofFor(messages));
+    expect([...targets.keys()].sort()).toEqual(['a-1', 'a-2']);
+    expect(targets.get('a-1')?.taskSeq).toBe(2);
+    expect(targets.get('a-2')?.taskSeq).toBe(4);
+  });
+
+  it('keeps a plain run and a task run bound side by side', () => {
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      assign('t-1', 'u-2'), assistant('a-2'),
+    ];
+    const terminals = [plainTerminal(messages[1]!, messages), terminal('t-1', 1, messages[3]!, messages)];
+    const targets = findManualReportTargets(messages, session(terminals), proofFor(messages));
+    expect(targets.get('a-1')?.taskId).toBeNull();
+    expect(targets.get('a-2')?.taskId).toBe('t-1');
+  });
+
+  it('offers no entry for a derived compat cursor (taskSeq null, resultCursor 0)', () => {
+    // Production allocates real cursors as max(existing)+1 (worker.py), so a
+    // raw resultCursor of 0 is unreachable: the view's 0 is the derived compat
+    // value and cannot prove unique ownership.  Such a run gets no entry.
+    const messages = [browser('u-1'), assistant('a-1')];
+    const derived = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 0 });
+    expect(findManualReportTargets(messages, session([derived]), proofFor(messages)).size).toBe(0);
+  });
+
+  it('hides every entry when two legacy rows derive the same compat cursor', () => {
+    // The review scenario: two old done runs in one Session, neither with a
+    // stored identity — both views derive rc:0, so no entry may exist for
+    // either (the server would refuse the ambiguous 0 anyway).
+    const messages = [
+      browser('u-1'), assistant('a-1'),
+      browser('u-2'), assistant('a-2'),
+    ];
+    const terminals = [
+      plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 0 }),
+      plainTerminal(messages[3]!, messages, { taskSeq: null, resultCursor: 0 }),
+    ];
+    expect(findManualReportTargets(messages, session(terminals), proofFor(messages)).size).toBe(0);
+  });
+
+  it('still binds a real stored cursor and a real sequence', () => {
+    const messages = [browser('u-1'), assistant('a-1')];
+    const realCursor = plainTerminal(messages[1]!, messages, { taskSeq: null, resultCursor: 1 });
+    expect(findManualReportTargets(messages, session([realCursor]), proofFor(messages)).get('a-1')?.resultCursor).toBe(1);
+    const realSeq = plainTerminal(messages[1]!, messages, { resultCursor: 1 });
+    expect(findManualReportTargets(messages, session([realSeq]), proofFor(messages)).get('a-1')?.taskSeq).toBe(2);
+  });
+});

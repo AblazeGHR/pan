@@ -1131,6 +1131,89 @@ export async function putSessionDraft(
   return { revision: data.revision, draft: data.draft ?? null, updatedAt: data.updatedAt ?? null };
 }
 
+// ── Message bookmarks ──
+
+export interface ApiBookmarkEntry {
+  messageId: string;
+  createdAt: string;
+}
+
+export interface ApiSessionBookmarks {
+  sessionId: string;
+  revision: number;
+  updatedAt: string | null;
+  bookmarks: Record<string, ApiBookmarkEntry>;
+  /** Bookmarked ids whose target row no longer resolves in this Session's
+   *  history (for example after an ambiguous reimport re-id).  Kept on disk,
+   *  excluded from projection, reported here instead of silently dropped. */
+  dangling: string[];
+}
+
+export interface ApiBookmarkMutation {
+  sessionId: string;
+  messageId: string;
+  /** The resulting bookmark state for the target. */
+  bookmarked: boolean;
+  /** False when the request repeated the state already on disk (idempotent
+   *  no-op: no write, no revision bump, no broadcast). */
+  changed: boolean;
+  revision: number;
+  updatedAt: string | null;
+  bookmarks: Record<string, ApiBookmarkEntry>;
+}
+
+export class BookmarkRequestError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'BookmarkRequestError';
+    this.code = code;
+  }
+}
+
+function bookmarkEnvelope(
+  data: (ApiSessionBookmarks | ApiBookmarkMutation) & { ok?: boolean; error?: { code?: string; message?: string } },
+): void {
+  if (data.error) throw new BookmarkRequestError(data.error.code ?? 'bookmark_failed', data.error.message ?? 'Bookmark request failed');
+}
+
+/** Read one Session's bookmarks for a cold load.  A damaged sidecar is
+ *  reported as `bookmarks_unreadable`, never as an empty set. */
+export async function fetchSessionBookmarks(sessionId: string): Promise<ApiSessionBookmarks> {
+  const data = await request<ApiSessionBookmarks & { ok?: boolean; error?: { code?: string; message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/bookmarks`,
+  );
+  bookmarkEnvelope(data);
+  return {
+    sessionId: data.sessionId ?? sessionId,
+    revision: typeof data.revision === 'number' ? data.revision : 0,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+    bookmarks: data.bookmarks ?? {},
+    dangling: Array.isArray(data.dangling) ? data.dangling : [],
+  };
+}
+
+/** Bookmark one message.  Only durable Pan identities that resolve in this
+ *  Session's history are accepted; the call is idempotent. */
+export async function addSessionBookmark(sessionId: string, messageId: string): Promise<ApiBookmarkMutation> {
+  const data = await request<ApiBookmarkMutation & { ok?: boolean; error?: { code?: string; message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/bookmarks/${encodeURIComponent(messageId)}`,
+    { method: 'PUT', body: JSON.stringify({}) },
+  );
+  bookmarkEnvelope(data);
+  return data;
+}
+
+/** Remove one bookmark.  Idempotent; dangling entries stay removable. */
+export async function removeSessionBookmark(sessionId: string, messageId: string): Promise<ApiBookmarkMutation> {
+  const data = await request<ApiBookmarkMutation & { ok?: boolean; error?: { code?: string; message?: string } }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/bookmarks/${encodeURIComponent(messageId)}`,
+    { method: 'DELETE', body: JSON.stringify({}) },
+  );
+  bookmarkEnvelope(data);
+  return data;
+}
+
 /** Persist one shared Session pin toggle; pin metadata is separate from order. */
 export async function setSessionPinned(
   sessionId: string,
@@ -1437,10 +1520,18 @@ export async function reportTaskManually(
   taskId: string | null,
   taskSeq: number | null,
   messageId: string,
+  resultCursor?: number,
 ): Promise<ApiSessionManualReportResponse> {
+  // The run identity travels verbatim: taskId/taskSeq for formal tasks, and
+  // the durable resultCursor for a plain run whose terminal has no taskSeq.
+  // This function never picks an identity on its own — an identity-less
+  // request is refused by the server (`no_run_identity`) instead of being
+  // turned into "report the latest terminal".
+  const requestBody: Record<string, unknown> = { taskId, taskSeq, messageId };
+  if (typeof resultCursor === 'number') requestBody.resultCursor = resultCursor;
   const data = await request<ApiSessionManualReportResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/manual-report`,
-    { method: 'POST', body: JSON.stringify({ taskId, taskSeq, messageId }) },
+    { method: 'POST', body: JSON.stringify(requestBody) },
   );
   if (data.ok !== true || typeof data.queueItemId !== 'string') {
     throw new ManualReportRejectedError(
@@ -1642,7 +1733,12 @@ export async function steerSessionWorker(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/steer`,
     { method: 'POST', body: JSON.stringify({ text, ...(messageId ? { messageId } : {}) }) },
   );
-  if (data.error) throw new SubmissionRejectedError(data.error);
+  if (data.error) {
+    if (data.outcome !== 'rejected') {
+      throw new Error(data.error);
+    }
+    throw new SubmissionRejectedError(data.error);
+  }
   return data;
 }
 

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import site
 import time
 from types import SimpleNamespace
 import venv
@@ -12,7 +13,7 @@ pytestmark = pytest.mark.skipif(os.name != 'nt', reason='Windows venv console re
 
 
 @pytest.mark.parametrize('entry,hidden,exit_code', [('mcp', True, 0), ('mcp', False, 7), ('independent', True, 0), ('scheduled', True, 0)])
-def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, entry, hidden, exit_code):
+def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, request, entry, hidden, exit_code):
     from packages.core import background_jobs as jobs, config
     from packages.jobs.independent_service import JobStore
     from packages.jobs import independent_service
@@ -22,11 +23,16 @@ def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, en
     from fastapi.testclient import TestClient
     venv_root = tmp_path / 'venv'
     venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+    # system_site_packages inherits the base installation, not the venv which
+    # is running pytest. Reuse this test interpreter's installed dependencies
+    # explicitly, without installing anything or changing the selected Python.
+    (venv_root / 'Lib/site-packages/test-parent.pth').write_text(
+        '\n'.join(site.getsitepackages()) + '\n', encoding='utf-8')
     python = str(venv_root / 'Scripts/python.exe')
     observation = tmp_path / 'runner'; observation.mkdir()
     helper = Path(__file__).parent / 'helpers/runner_startup_probe.py'
-    site = venv_root / 'Lib/site-packages/sitecustomize.py'
-    site.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
+    customization = venv_root / 'Lib/site-packages/sitecustomize.py'
+    customization.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
     monkeypatch.setattr(config, 'load_config', lambda: {'python': python})
     monkeypatch.setattr(jobs._sessions, 'get', lambda sid: {'id': sid})
     root = tmp_path / 'registry'
@@ -37,10 +43,32 @@ def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, en
     import subprocess
     from packages.core.terminal.identity import read_creation_filetime
     captured = []
+    from packages.core.terminal.guard import JobObjectGuard
+    owner = JobObjectGuard()
+    def cleanup():
+        try:
+            _, remaining = owner.terminate_tree(None, timeout=5)
+            assert not remaining
+        finally:
+            assert owner.close()
+            for process, filetime in captured:
+                assert read_creation_filetime(int(process._handle)) == filetime
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=5)
+                process._handle.Close()
+    request.addfinalizer(cleanup)
     original_popen = subprocess.Popen
     def spawn(*args, **kwargs):
+        import ctypes
+        kwargs['creationflags'] = kwargs.get('creationflags', 0) | 4
         process = original_popen(*args, **kwargs)
         captured.append((process, read_creation_filetime(int(process._handle))))
+        owner.assign(int(process._handle))
+        resume = ctypes.WinDLL('ntdll').NtResumeProcess
+        resume.argtypes = [ctypes.c_void_p]
+        resume.restype = ctypes.c_long
+        assert resume(int(process._handle)) == 0
         return process
     monkeypatch.setattr(subprocess, 'Popen', spawn)
     output = tmp_path / 'payload.json' 
@@ -79,7 +107,6 @@ def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, en
     process, filetime = captured[0]
     assert read_creation_filetime(int(process._handle)) == filetime
     process.wait(timeout=5)
-    process._handle.Close()
     probes = [json.loads(p.read_text(encoding='utf8')) for p in observation.glob('*.json')]
     assert len(probes) == 1, probes
     evidence = dict(entry=entry, hidden=hidden, exitCode=exit_code, runnerWrapperPid=process.pid, runnerWrapperFiletime=str(filetime), probes=probes, status=fact['status'], log=Path(fact['logPath']).read_text(encoding='utf8'))

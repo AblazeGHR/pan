@@ -10,14 +10,16 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, UserRound } from 'lucide-react';
+import { Loader2, UserRound, Bookmark, Check, SlidersHorizontal } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
-import { canonicalRowsWithOffsets } from '@/stores/messageOrdering';
+import { useBookmarkStore } from '@/stores/bookmarkStore';
+import { canonicalRowsWithOffsets, type CanonicalRow } from '@/stores/messageOrdering';
 import { fetchSessionNavigation } from '@/services/api';
 import {
-    type QuickJumpKind,
+    type NavigationKind,
 } from './messageFilter';
+import type { Message } from '@/types';
 import { NavigationIndex, NAVIGATION_PAGE_SIZE, nearestNavigationTarget, type NavigationRange, type NavigationTarget } from './navigationIndex';
 import type { ChatMessagesHandle } from './ChatMessages';
 
@@ -55,7 +57,7 @@ type PreviewMode = 'hover' | 'scrub';
  * (reported for coordination) and light up unchanged once the classifier
  * emits them — the Rail never classifies by itself.
  */
-type RailNavigationKind = QuickJumpKind | 'maAssign' | 'maMsg';
+type RailNavigationKind = NavigationKind;
 
 interface NavigationKindMeta {
   /** Tooltip heading and marker aria label for this kind. */
@@ -72,6 +74,7 @@ const KIND_META: Record<RailNavigationKind, NavigationKindMeta> = {
   system: { label: 'System', tag: 'Sys', slug: 'system' },
   maAssign: { label: 'MA assign', tag: 'MA', slug: 'ma-assign' },
   maMsg: { label: 'MA msg', tag: 'MA', slug: 'ma-msg' },
+  bookmark: { label: 'Bookmark', slug: 'bookmark' },
 };
 
 function MarkerGlyph({ kind }: { kind: RailNavigationKind }) {
@@ -81,8 +84,43 @@ function MarkerGlyph({ kind }: { kind: RailNavigationKind }) {
     : <UserRound size={13} strokeWidth={2.4} />;
 }
 
+/** A bookmarked tag keeps its own kind color and composites the bookmark
+ *  badge over its glyph at the bottom-right corner; a bookmark-kind marker
+ *  (a block without its own nav tag) is just the bookmark icon. */
+function MarkerIcon({ kind, bookmarked }: { kind: RailNavigationKind; bookmarked: boolean }) {
+  if (kind === 'bookmark') return <Bookmark size={13} strokeWidth={2.4} />;
+  if (!bookmarked) return <MarkerGlyph kind={kind} />;
+  return (
+    <span className="message-navigation-marker-composite">
+      <MarkerGlyph kind={kind} />
+      <span className="message-navigation-marker-bookmark-badge" aria-hidden="true">
+        <Bookmark size={8} strokeWidth={3} />
+      </span>
+    </span>
+  );
+}
+
+/** The tooltip/aria label: a bookmarked existing tag appends the suffix.
+ *  The suffix follows the English UI convention of the other kinds
+ *  (`User (Bookmark)`, not `用户 (Bookmark)`); the mock annotates that this
+ *  corresponds to 用户（书签）.  An undecorated tag keeps its label. */
+function markerLabel(kind: RailNavigationKind, bookmarked: boolean): string {
+  if (kind === 'bookmark') return KIND_META.bookmark.label;
+  const base = kind === 'user' ? 'User' : KIND_META[kind].label;
+  return bookmarked ? `${base} (Bookmark)` : KIND_META[kind].label;
+}
+
 function nextPaint(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+/** Apply the freshest known bookmark marks to one loaded row.  The store
+ *  overlay wins over the row's projected flag while a mutation is newer. */
+function withBookmark(message: Message, marks: Record<string, boolean> | undefined): Message {
+  if (!marks || !message.messageId) return message;
+  const marked = marks[message.messageId];
+  if (marked === undefined || marked === Boolean(message.bookmarked)) return message;
+  return { ...message, bookmarked: marked };
 }
 
 export function MessageNavigationRail({
@@ -137,11 +175,32 @@ export function MessageNavigationRail({
   const [indexMetrics, setIndexMetrics] = useState({ requests: 0, durationMs: 0 });
   const indexTotal = context.index.total;
   const targetsByFromEnd = useMemo(() => new Map(targets.map(target => [target.fromEnd, target])), [targets]);
+  // The freshest known bookmark marks for the selected Session.  The rail
+  // decorates from the projection AND this overlay, so a mutation made in
+  // this tab (or broadcast from another) is visible before the next
+  // navigation fetch.
+  const bookmarkedMarks = useBookmarkStore((state) =>
+    (currentSessionId ? state.sessions[currentSessionId]?.marks : undefined));
+  // Rail tag-type filter: checked kinds are shown; multi-select is OR; an
+  // empty selection means no filter.  View preference only — never persisted,
+  // never sent anywhere, and the referenced offsets stay canonical.
+  const [kindFilter, setKindFilter] = useState<ReadonlySet<NavigationKind>>(() => new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterPos, setFilterPos] = useState<{ top: number; left: number } | null>(null);
+  const visibleTargets = useMemo(
+    () => (kindFilter.size === 0 ? targets : targets.filter((target) => kindFilter.has(target.kind))),
+    [targets, kindFilter]);
   const openEpochRef = useRef(0);
   const operationRef = useRef<{ controller: AbortController; context: typeof context } | null>(null);
   const pendingOpenRef = useRef<{ epoch: number; context: typeof context; range: NavigationRange | null } | null>(null);
   const observerCleanupRef = useRef<(() => void) | null>(null);
   const [viewportTarget, setViewportTarget] = useState<{ context: typeof context; epoch: number; offset: number } | null>(null);
+  // True while viewportTarget was set by a completed jump rather than by the
+  // nearest-tag location.  Both reuse the same marker state and CSS; the
+  // origin only decides whether real user input releases the highlight
+  // (jump: "you just jumped here") or leaves it to the location rules
+  // (nearest: the existing one-shot-per-expansion tracking).
+  const viewportFromJumpRef = useRef(false);
   const [retryEpoch, setRetryEpoch] = useState(0);
   const [listScroll, setListScroll] = useState(0);
   const rowHeight = isMobile ? 45 : 27;
@@ -177,6 +236,21 @@ export function MessageNavigationRail({
   useLayoutEffect(()=>{
     clearScrub(false); setJumpError(null);setActiveOffset(null);setJumpingOffset(null);
   },[context,clearScrub]);
+  useLayoutEffect(() => {
+    // Bookmark overlay: re-merge the loaded rows with the freshest marks so a
+    // bookmarked plain block gains its own rail tag (and a removed one loses
+    // it) without waiting for the next navigation fetch.  Rows pagination has
+    // not loaded keep their projection flags.
+    if (!context.sessionId || !bookmarkedMarks) return;
+    const state = useSessionStore.getState();
+    const transcript = state.sessionTranscripts[context.sessionId];
+    const rows: CanonicalRow[] = transcript
+      ? [...transcript.window.rows.entries()].map(([offset, message]) => ({ offset, message: withBookmark(message, bookmarkedMarks) }))
+      : canonicalRowsWithOffsets(state.currentMessages).map((row) => ({ ...row, message: withBookmark(row.message, bookmarkedMarks) }));
+    if (!rows.length) return;
+    context.index.addRows(rows);
+    setIndexView((value) => value?.context === context ? { context, targets: context.index.targets() } : value);
+  }, [context, bookmarkedMarks]);
 
   useLayoutEffect(() => {
     const wanted=pendingWantedRef.current;
@@ -201,7 +275,7 @@ export function MessageNavigationRail({
       if(pendingOpenRef.current!==pending||!pending.range||!current()||!context.index.proven(pending.range))return;
       const best=nearestNavigationTarget(context.index.targets(),pending.range);
       pendingOpenRef.current=null;pendingWantedRef.current=false;
-      if(best)setViewportTarget({context,epoch,offset:best.offset});
+      if(best){viewportFromJumpRef.current=false;setViewportTarget({context,epoch,offset:best.offset});}
     };
     const acceptRange=(range:NavigationRange)=>{
       if(!current()||pendingOpenRef.current!==pending||pending.range!==null)return;
@@ -219,6 +293,10 @@ export function MessageNavigationRail({
       }else rows.push(...canonicalRowsWithOffsets(state.currentMessages).filter(row=>Math.abs(row.offset-center)<=1000));
       context.index.addRows(rows);publish();locate();
     };
+    // A fresh open re-locates from the current viewport; a previous highlight
+    // (including one a completed jump set) is superseded there.  An append
+    // continuation (retrying) keeps it.
+    if(!retrying)viewportFromJumpRef.current=false;
     setViewportTarget(value=>retrying&&value?.context===context?value:null);
     const range=retrying?locationRef.current!.range:chatRef.current?.getViewportHistoryRange?.();
     if(range)acceptRange(range);
@@ -285,6 +363,14 @@ export function MessageNavigationRail({
       // Reading cancels only the one-shot location. Complete indexing continues
       // and preserves the user's list anchor, with no scroll-driven requests.
       pendingWantedRef.current=false;cancelOpenLocation();
+      // A highlight a completed jump set stays active only until the reader
+      // takes over: real input releases it, and the next expansion locates
+      // the nearest again.  A nearest-located highlight keeps the existing
+      // semantics and is left untouched here.
+      if(viewportFromJumpRef.current){
+        viewportFromJumpRef.current=false;
+        setViewportTarget(value=>value&&value.context===context&&value.epoch===openEpochRef.current?null:value);
+      }
     };
     for(const type of ['pointerdown','wheel','keydown','touchmove'])window.addEventListener(type,input,true);
     return()=>{
@@ -338,6 +424,13 @@ export function MessageNavigationRail({
       }
       if (!didJump) { setJumpError('Message loaded, but its rendered row could not be located.'); return; }
       setActiveOffset(target.offset);
+      // The clicked tag becomes the active tag, reusing the exact nearest-tag
+      // highlight state and CSS (inverted color + enlarged) instead of a
+      // second style.  The rail's list-centering effect treats it like any
+      // located target.  Real user input releases it and the next expansion
+      // re-locates, so the clicked marker is never locked in place.
+      viewportFromJumpRef.current = true;
+      setViewportTarget({ context: contextAtClick, epoch: openEpochRef.current, offset: target.offset });
       const epochAtJump = openEpochRef.current;
       window.setTimeout(() => { if (current() && epochAtJump === openEpochRef.current) setActiveOffset(null); }, 1200);
     } finally { if (current()) setJumpingOffset(null); }
@@ -465,8 +558,30 @@ export function MessageNavigationRail({
   }, [clearScrub, isMobile, mobileExpanded, updateScrubPreview]);
 
   const virtualStart=Math.max(0,Math.floor(Math.max(0,listScroll-8)/rowHeight)-12);
-  const virtualEnd=Math.min(targets.length,virtualStart+Math.max(60,Math.ceil((listRef.current?.clientHeight??700)/rowHeight)+24));
-  const displayTargets=targets.slice(virtualStart,virtualEnd);
+  const virtualEnd=Math.min(visibleTargets.length,virtualStart+Math.max(60,Math.ceil((listRef.current?.clientHeight??700)/rowHeight)+24));
+  const displayTargets=visibleTargets.slice(virtualStart,virtualEnd);
+  const toggleKindFilter = (kind: NavigationKind) => setKindFilter((previous) => {
+    const next = new Set(previous);
+    if (next.has(kind)) next.delete(kind);
+    else next.add(kind);
+    return next;
+  });
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setFilterOpen(false); };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element
+          && (target.closest('[data-navigation-filter-menu]') || target.closest('[data-navigation-filter-toggle]'))) return;
+      setFilterOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [filterOpen]);
   return (
     <aside
       className="message-navigation-rail"
@@ -474,6 +589,7 @@ export function MessageNavigationRail({
       data-index-status={indexStatus}
       data-location-status={viewportTarget?.context === context ? 'located' : pendingOpenRef.current ? 'pending' : 'inactive'}
       data-indexed-targets={targets.length}
+      data-visible-targets={visibleTargets.length}
       data-rendered-targets={displayTargets.length}
       data-history-total={indexTotal || loadedCanonicalTotal}
       data-index-requests={indexMetrics.requests}
@@ -492,11 +608,77 @@ export function MessageNavigationRail({
             left: hovered.left,
           }}
         >
-          <strong>{KIND_META[hovered.target.kind].label}</strong>
+          <strong>{markerLabel(hovered.target.kind, Boolean(hovered.target.bookmarked))}</strong>
           <span>{hovered.target.preview || PREVIEW_FALLBACK}</span>
         </div>,
         document.body,
       )}
+
+      {filterOpen && filterPos && createPortal(
+        <div
+          className="message-navigation-filter-menu"
+          data-navigation-filter-menu
+          role="menu"
+          aria-label="Filter navigation tags by type"
+          style={{ top: filterPos.top, left: filterPos.left }}
+        >
+          {(Object.keys(KIND_META) as NavigationKind[]).map((kind) => {
+            const selected = kindFilter.has(kind);
+            return (
+              <button
+                key={kind}
+                type="button"
+                role="menuitemcheckbox"
+                data-navigation-filter-kind={kind}
+                aria-checked={selected}
+                onClick={() => toggleKindFilter(kind)}
+              >
+                <span className={`message-navigation-filter-box${selected ? ' is-on' : ''}`} aria-hidden="true">
+                  {selected ? <Check size={11} /> : null}
+                </span>
+                <span className={`message-navigation-filter-glyph message-navigation-filter-glyph-${KIND_META[kind].slug}`}>
+                  <MarkerGlyph kind={kind} />
+                </span>
+                <span>{KIND_META[kind].label}</span>
+              </button>
+            );
+          })}
+          <div className="message-navigation-filter-divider" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            data-navigation-filter-clear
+            disabled={kindFilter.size === 0}
+            onClick={() => setKindFilter(new Set())}
+          >
+            清除筛选
+          </button>
+          <p className="message-navigation-filter-hint">
+            勾选即显示该类型（多选 OR）；全部取消 = 不筛选
+          </p>
+        </div>,
+        document.body,
+      )}
+
+      <button
+        type="button"
+        className={`message-navigation-filter-toggle${kindFilter.size > 0 ? ' is-active' : ''}`}
+        data-navigation-filter-toggle
+        aria-expanded={filterOpen}
+        aria-label="Filter navigation tags by type"
+        title="按 tag 类型筛选（多选为 OR）"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setFilterPos({
+            top: Math.min(rect.bottom + 4, Math.max(8, window.innerHeight - 268)),
+            left: Math.max(8, Math.min(rect.left - 4, window.innerWidth - 190)),
+          });
+          setFilterOpen((open) => !open);
+        }}
+      >
+        <SlidersHorizontal size={12} />
+        {kindFilter.size > 0 ? <span className="message-navigation-filter-count">{kindFilter.size}</span> : null}
+      </button>
 
       <div
         ref={listRef}
@@ -510,35 +692,38 @@ export function MessageNavigationRail({
         <div aria-hidden="true" style={{height:virtualStart*rowHeight,flex:'0 0 auto'}} />
         {displayTargets.map((target) => {
           const meta = KIND_META[target.kind];
+          const bookmarked = Boolean(target.bookmarked);
+          const label = markerLabel(target.kind, bookmarked);
           return (
             <div className="message-navigation-marker-wrap" style={{height:rowHeight,display:'flex',alignItems:'center'}} key={`${target.kind}-${target.offset}`}>
               <button
                 type="button"
-                className={`message-navigation-marker message-navigation-marker-${meta.slug}${activeOffset === target.offset ? ' is-jumped' : ''}${viewportTarget?.context === context && viewportTarget.offset === target.offset ? ' is-viewport-target' : ''}`}
+                className={`message-navigation-marker message-navigation-marker-${meta.slug}${bookmarked ? ' is-bookmarked' : ''}${activeOffset === target.offset ? ' is-jumped' : ''}${viewportTarget?.context === context && viewportTarget.offset === target.offset ? ' is-viewport-target' : ''}`}
                 onClick={(event) => handleMarkerClick(event, target)}
                 onPointerDown={(event) => beginScrub(event, target)}
                 onMouseEnter={(event) => showPreview(event, target)}
                 onMouseLeave={() => {
                   if (!scrubGestureRef.current?.active) setHovered(null);
                 }}
-                aria-label={`${meta.label}: ${target.preview || PREVIEW_FALLBACK}`}
-                title={target.preview || PREVIEW_FALLBACK}
+                aria-label={`${label}: ${target.preview || PREVIEW_FALLBACK}`}
+                title={`${label}: ${target.preview || PREVIEW_FALLBACK}`}
                 data-from-end={target.fromEnd}
                 data-canonical-offset={target.offset}
                 data-message-id={target.messageId}
                 aria-current={viewportTarget?.context === context && viewportTarget.offset === target.offset ? 'location' : undefined}
                 data-kind={target.kind}
+                data-bookmarked={bookmarked ? 'true' : 'false'}
                 disabled={jumpingOffset !== null}
               >
                 {jumpingOffset === target.offset
                   ? <Loader2 size={13} className="animate-spin" />
-                  : <MarkerGlyph kind={target.kind} />}
+                  : <MarkerIcon kind={target.kind} bookmarked={bookmarked} />}
               </button>
             </div>
           );
         })}
-        <div aria-hidden="true" style={{height:(targets.length-virtualEnd)*rowHeight,flex:'0 0 auto'}} />
-        {targets.length === 0 && <span className="message-navigation-empty">{'\u00b7'}</span>}
+        <div aria-hidden="true" style={{height:(visibleTargets.length-virtualEnd)*rowHeight,flex:'0 0 auto'}} />
+        {visibleTargets.length === 0 && <span className="message-navigation-empty">{'\u00b7'}</span>}
       </div>
 
       {(indexStatus === 'loading' || indexStatus === 'error') && (

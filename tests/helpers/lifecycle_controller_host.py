@@ -18,7 +18,9 @@ if len(sys.argv)>5 and sys.argv[5]=='post-spawn':
  def spawn(command,**kwargs):
   result=original(command,**kwargs)
   job_id=command[command.index('--job-id')+1]
-  (Path(destination)/'spawn.json').write_text(json.dumps(dict(jobId=job_id,pid=result.pid,creationFiletime=read_creation_filetime(int(result._handle)))))
+  temporary=Path(destination)/'spawn.tmp'
+  temporary.write_text(json.dumps(dict(jobId=job_id,pid=result.pid,creationFiletime=read_creation_filetime(int(result._handle)))))
+  os.replace(temporary,Path(destination)/'spawn.json')
   time.sleep(30)
   return result
  subprocess.Popen=spawn

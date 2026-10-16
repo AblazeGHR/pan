@@ -62,6 +62,48 @@ class CbcAdapter:
     # cbc 同时支持 stream 长驻（原生 stdin/stdout）与 oneshot 逐任务短进程
     # （prompt 作末参，配合 --mcp-config）。故声明两种。
     execution_modes = ["stream", "oneshot"]
+    # CBC >= 2.140: dedicated control_request, not another user/next turn.
+    supports_native_steer = True
+    supports_steer_receipt = True
+    steer_requires_run_id = True
+
+    def encode_control_message(self, control: dict) -> bytes:
+        if control.get("type") != "steer":
+            raise ValueError("CBC stream only supports Steer controls")
+        text = control.get("text")
+        run = control.get("expectedRequestId")
+        sid = control.get("sessionId")
+        request = control.get("requestId")
+        if not all(isinstance(value, str) and value.strip() for value in (text, run, sid, request)):
+            raise ValueError("CBC Steer requires confirmed session/run and request identity")
+        return json.dumps({"type": "control_request", "request_id": request, "request": {
+            "subtype": "steer", "session_id": sid, "expected_request_id": run,
+            "content_blocks": [{"type": "text", "text": text}],
+        }}, ensure_ascii=False).encode("utf-8")
+
+    def normalize_steer_receipt(self, event: dict) -> dict | None:
+        if event.get("type") != "control_response":
+            return None
+        response = event.get("response")
+        if not isinstance(response, dict) or not isinstance(response.get("request_id"), str):
+            return None
+        payload = response.get("response")
+        outcome = "unknown"
+        error = "CBC Steer response unrecognized; requires CBC >= 2.140 and stream-json controls"
+        sid = None
+        if response.get("subtype") == "success" and isinstance(payload, dict):
+            sid = payload.get("session_id")
+            if payload.get("steered") is True and isinstance(sid, str) and sid:
+                outcome, error = "accepted", None
+            elif payload.get("steered") is False:
+                outcome = "rejected"
+                error = "CBC rejected Steer: " + ("stale run" if payload.get("reason") == "stale" else
+                        "no injectable active run" if payload.get("reason") == "idle" else "non-injectable input")
+        # A generic error could follow a partial handoff. Do not infer rejection
+        # from arbitrary prose or expose raw CLI diagnostics/credentials.
+        return {"type": "pan.steer_receipt", "requestId": response["request_id"],
+                "ok": outcome == "accepted", "outcome": outcome, "error": error,
+                "cliSessionId": sid, "consumption": "unconfirmed"}
 
     # cbc CLI 原生支持 --system-prompt（stream spawn 与 oneshot 路径均用）。
     supports_spawn_system_prompt = True

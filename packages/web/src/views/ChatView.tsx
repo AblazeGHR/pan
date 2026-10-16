@@ -3,6 +3,7 @@ import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMes
 import { MessageNavigationDock, MESSAGE_NAVIGATION_PANEL_ID } from '@/components/chat/MessageNavigationDock';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useBookmarkStore } from '@/stores/bookmarkStore';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { InputRow } from '@/components/chat/InputRow';
 import { RewindStatusBar } from '@/components/chat/RewindStatusBar';
@@ -57,6 +58,13 @@ export default function ChatView() {
     // Enabling the master switch and changing viewport modes both start folded.
     setMobileExpanded(false);
   }, [showChatTools, isMobile]);
+
+  useEffect(() => {
+    // Bookmarks load lazily per selected Session (like the composer draft):
+    // one bounded envelope, never scanned across Sessions, never folded into
+    // the session list.  A repeat selection reuses the loaded envelope.
+    if (sessionId) void useBookmarkStore.getState().loadBookmarks(sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!showHistorySearch) {

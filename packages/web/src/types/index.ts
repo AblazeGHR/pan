@@ -18,6 +18,8 @@ export interface Message {
   blockId?: string;
   /** Stable provider turn identity when the adapter exposes one. */
   turnId?: string;
+  /** True when this row is bookmarked (backend history/navigation projection). */
+  bookmarked?: boolean;
   /** Server-canonical parts; content remains the adapter/legacy fallback. */
   parts?: MessagePart[];
   /** 本地 ISO-8601 发送/回复时间（后端写入历史时刻打点）；旧数据缺失则不显示时间。 */
@@ -585,6 +587,8 @@ export interface ApiCodexRefreshOfficialModelsResponse {
 
 export interface ApiGenericResponse {
   error?: string;
+  outcome?: 'accepted' | 'rejected' | 'unknown';
+  consumption?: 'unconfirmed';
   workerId?: string;
   sessionId?: string;
   status?: string;

@@ -1,0 +1,28 @@
+{
+  "cliVersion": "2.164.0",
+  "identity": {
+    "pid": 42028,
+    "creationFiletime": 134365557766226696
+  },
+  "sessionId": "003d73e6-7f98-42ea-a5c9-09aedb4b1917",
+  "conversationRequestId": "01a1406bf4637b05b352df3bf4321291",
+  "accepted": true,
+  "sameRunConsumed": true,
+  "persistentSteerMessageId": "01a1406c-0ae3-744c-95b0-5c50dd91c0be",
+  "persistentAssistantMessageId": "01a1406c-370e-7bfe-ae34-e4149f88c4d3",
+  "startsNewUserRequest": false,
+  "finalResult": "STEER_CONSUMED_73",
+  "ownedJobEmpty": true,
+  "nativeHistoryPath": "D:\\project\\pan-worktrees\\cbc-steer-20261016\\research\\cbc_steer\\isolated-39aacbf881\\profile\\projects\\d-project-pan-worktrees-cbc-steer-20261016-research-cbc_steer-isolated-39aacbf881-cwd\\003d73e6-7f98-42ea-a5c9-09aedb4b1917.jsonl",
+  "streamConsumptionReceipt": false,
+  "modelRequestsObserved": 2,
+  "usage": {
+    "input_tokens": 51493,
+    "output_tokens": 52,
+    "cache_creation_input_tokens": 25381,
+    "cache_read_input_tokens": 26112,
+    "cache_creation": null,
+    "server_tool_use": null,
+    "service_tier": null
+  }
+}

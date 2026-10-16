@@ -179,7 +179,13 @@ interface SessionStore {
    */
   reportTaskManually: (
     sessionId: string,
-    target: { taskId: string | null; taskSeq: number | null; messageId: string },
+    target: {
+      taskId: string | null;
+      taskSeq: number | null;
+      messageId: string;
+      /** Durable terminal cursor; binds a plain run whose terminal has no taskSeq. */
+      resultCursor?: number;
+    },
   ) => Promise<void>;
   /** Apply a session.rewind.progress WS event to the matching in-flight job. */
   applyRewindProgress: (event: StreamEvent) => void;
@@ -513,9 +519,15 @@ export interface ManualTaskReportEntry {
  */
 export function manualTaskReportKey(
   sessionId: string,
-  target: { taskId: string | null; taskSeq: number | null },
+  target: { taskId: string | null; taskSeq: number | null; resultCursor?: number },
 ): string {
-  return `${sessionId}:${target.taskId ?? '-'}:${target.taskSeq ?? '-'}`;
+  // Mirrors the server's run-identity key (`manual:{session}:{taskId|-}:{taskSeq
+  // 或 rc:resultCursor}`): a plain run whose terminal has no taskSeq is keyed
+  // by its durable result cursor, so two cursor-only runs can never share one
+  // local entry.  Runs with a taskSeq keep the historical key shape.
+  const runKey = target.taskSeq
+    ?? (typeof target.resultCursor === 'number' ? `rc:${target.resultCursor}` : null);
+  return `${sessionId}:${target.taskId ?? '-'}:${runKey ?? '-'}`;
 }
 
 /** Mirror bound for the client's per-task terminal index (server summary bound). */
@@ -2541,7 +2553,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     };
     try {
       const data = await reportTaskManuallyApi(
-        sessionId, target.taskId, target.taskSeq, target.messageId);
+        sessionId, target.taskId, target.taskSeq, target.messageId, target.resultCursor);
       set((s) => ({
         manualTaskReports: {
           ...s.manualTaskReports,

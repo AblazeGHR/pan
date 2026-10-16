@@ -64,11 +64,38 @@ export function filterVisibleMessages(
  */
 export type QuickJumpKind = 'user' | 'worker' | 'system' | 'maAssign' | 'maMsg';
 
+/**
+ * Rail marker kinds.  `bookmark` is not a provenance kind: it marks a
+ * bookmarked body block that carries no quick-jump kind of its own (a plain
+ * assistant text block, or any user/assistant row whose kind is `null`).
+ * A bookmarked row that already has a quick-jump kind keeps that kind and is
+ * decorated instead — the rail never shows a second tag for one block.
+ */
+export type NavigationKind = QuickJumpKind | 'bookmark';
+
+/** Roles the backend accepts as bookmark targets (user text + assistant text). */
+function isBookmarkableRole(message: Message): boolean {
+  return message.role === 'user' || message.role === 'assistant';
+}
+
+/**
+ * The rail kind for one row: its quick-jump kind when it has one, otherwise
+ * `bookmark` when the row is bookmarked bookmarkable content, otherwise null.
+ * The `bookmarked` flag is the server projection (history/navigation rows)
+ * or a client overlay applied by the rail before classification.
+ */
+export function getNavigationKind(message: Message): NavigationKind | null {
+  const quick = getQuickJumpKind(message);
+  if (quick) return quick;
+  if (message.bookmarked && isBookmarkableRole(message)) return 'bookmark';
+  return null;
+}
+
 export interface QuickJumpMessage {
   message: Message;
   /** Index in the filtered message list used by ChatMessages. */
   index: number;
-  kind: QuickJumpKind;
+  kind: NavigationKind;
   preview: string;
 }
 
@@ -76,8 +103,10 @@ export interface QuickJumpMessage {
  * stable while older pages are prepended to the chat window. */
 export interface QuickJumpIndexItem {
   fromEnd: number;
-  kind: QuickJumpKind;
+  kind: NavigationKind;
   preview: string;
+  /** True when this row is bookmarked; drives the marker decoration. */
+  bookmarked?: boolean;
 }
 
 /**
@@ -197,12 +226,13 @@ export function getQuickJumpIndexItems(
 ): QuickJumpIndexItem[] {
   return messages.flatMap((message, index) => {
     if (filterVisibleMessages([message], settings).length === 0) return [];
-    const kind = getQuickJumpKind(message);
+    const kind = getNavigationKind(message);
     return kind
       ? [{
           fromEnd: total - 1 - (start + index),
           kind,
           preview: getQuickJumpPreview(message.content),
+          ...(message.bookmarked ? { bookmarked: true } : {}),
         }]
       : [];
   });
@@ -232,12 +262,13 @@ export function getQuickJumpIndexItemsByOffset(
 ): QuickJumpIndexItem[] {
   return rows.flatMap(({ offset, message }) => {
     if (filterVisibleMessages([message], settings).length === 0) return [];
-    const kind = getQuickJumpKind(message);
+    const kind = getNavigationKind(message);
     return kind
       ? [{
           fromEnd: total - 1 - offset,
           kind,
           preview: getQuickJumpPreview(message.content),
+          ...(message.bookmarked ? { bookmarked: true } : {}),
         }]
       : [];
   });
@@ -249,7 +280,7 @@ export function getQuickJumpMessages(
   settings: MessageVisibilitySettings,
 ): QuickJumpMessage[] {
   return filterVisibleMessages(messages, settings).flatMap((message, index) => {
-    const kind = getQuickJumpKind(message);
+    const kind = getNavigationKind(message);
     return kind
       ? [{
           message,

@@ -148,6 +148,7 @@ const mockManualReportAttempts: Array<{
   sessionId: string;
   taskId: string | null;
   taskSeq: number | null;
+  resultCursor: number | null;
   messageId: string;
   outcome: 'delivered' | 'replayed' | 'rejected' | 'dropped' | 'dropped_after_delivery';
 }> = [];
@@ -616,10 +617,14 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     if (!session) {
       return { ok: false, error: { code: 'session_not_found', message: 'Session not found' } };
     }
+    if (!session.managedBy) {
+      return { ok: false, error: { code: 'no_report_target', message: '该 Session 没有 manager，无法汇报' } };
+    }
     const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     const messageId = values.messageId;
     const taskId = values.taskId;
     const taskSeq = values.taskSeq;
+    const resultCursor = values.resultCursor ?? null;
     if (typeof messageId !== 'string' || !messageId) {
       return { ok: false, error: { code: 'invalid_message_id', message: 'messageId is required' } };
     }
@@ -629,12 +634,17 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     if (taskSeq !== null && (!Number.isInteger(taskSeq) || (taskSeq as number) < 0)) {
       return { ok: false, error: { code: 'invalid_task_seq', message: 'taskSeq must be a non-negative integer or null' } };
     }
+    if (resultCursor !== null && (!Number.isInteger(resultCursor) || (resultCursor as number) < 0)) {
+      return { ok: false, error: { code: 'invalid_result_cursor', message: 'resultCursor must be a non-negative integer or null' } };
+    }
     const deliveredTaskId = taskId as string | null;
     const deliveredTaskSeq = taskSeq === null ? null : taskSeq as number;
+    const deliveredResultCursor = resultCursor === null ? null : resultCursor as number;
     const attempt = {
       sessionId,
       taskId: deliveredTaskId,
       taskSeq: deliveredTaskSeq,
+      resultCursor: deliveredResultCursor,
       messageId,
       outcome: 'dropped' as typeof mockManualReportAttempts[number]['outcome'],
     };
@@ -650,16 +660,66 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       attempt.outcome = 'dropped';
       throw new TypeError('Failed to fetch');
     }
-    // Resolve the task's durable terminal from the Session's bounded index, the
-    // same way the server does — an older completed task stays reportable.
-    const runs = (session.terminalResults ?? []).filter((terminal) =>
-      terminal?.taskId === deliveredTaskId
-      && (deliveredTaskSeq === null || terminal.taskSeq === deliveredTaskSeq));
-    if (runs.length === 0) {
+    // Resolve the run's durable terminal the way the merged server does,
+    // never by "newest": only a POSITIVE resultCursor is a durable identity
+    // (production allocates max+1); a non-positive cursor is dropped as "not
+    // provided" so a legal taskSeq/taskId still decides.  The compat path
+    // requires a STORED taskSeq - an identity-less row can never be matched.
+    const candidates = (session.terminalResults ?? []).filter(
+      (terminal): terminal is NonNullable<typeof terminal> => !!terminal,
+    );
+    const effectiveCursor = deliveredResultCursor !== null && deliveredResultCursor > 0
+      ? deliveredResultCursor : null;
+    attempt.resultCursor = effectiveCursor;
+    let run: (typeof candidates)[number] | undefined;
+    if (effectiveCursor !== null) {
+      const exact = candidates.filter((terminal) => terminal.resultCursor === effectiveCursor);
+      const compat = exact.length === 0
+        ? candidates.filter((terminal) => terminal.resultCursor === undefined
+          && typeof terminal.taskSeq === 'number'
+          && terminal.taskSeq === effectiveCursor)
+        : [];
+      const match = exact.length === 1 ? exact[0] : compat.length === 1 ? compat[0] : undefined;
+      if (!match) {
+        attempt.outcome = 'rejected';
+        return { ok: false, error: { code: 'no_task_result', message: '该运行的终态结果不可用，无法汇报' } };
+      }
+      const matchTaskId = typeof match.taskId === 'string' && match.taskId ? match.taskId : null;
+      const matchTaskSeq = typeof match.taskSeq === 'number' ? match.taskSeq : null;
+      // Mirror the merged server exactly: a NON-null submitted identity must
+      // describe the same run as the cursor (a mismatch — including a terminal
+      // that lacks the field — is run_mismatch), while taskId null keeps its
+      // "plain run / not provided" meaning and is not compared.
+      const conflict = (deliveredTaskId !== null && deliveredTaskId !== matchTaskId)
+        || (deliveredTaskSeq !== null && matchTaskSeq !== deliveredTaskSeq);
+      if (conflict) {
+        attempt.outcome = 'rejected';
+        return { ok: false, error: { code: 'run_mismatch', message: '运行身份与 resultCursor 不一致，无法汇报' } };
+      }
+      run = match;
+    } else if (deliveredTaskSeq !== null || deliveredTaskId !== null) {
+      const runs = candidates.filter((terminal) =>
+        (typeof terminal.taskId === 'string' && terminal.taskId ? terminal.taskId : null) === deliveredTaskId
+        && (deliveredTaskSeq === null || terminal.taskSeq === deliveredTaskSeq));
+      run = runs[runs.length - 1];
+    } else {
       attempt.outcome = 'rejected';
-      return { ok: false, error: { code: 'no_task_result', message: '该任务的终态结果不可用，无法汇报' } };
+      return { ok: false, error: { code: 'no_run_identity', message: '缺少运行身份（taskSeq/resultCursor），无法汇报' } };
     }
-    const run = runs[runs.length - 1]!;
+    if (!run) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'no_task_result', message: '该运行的终态结果不可用，无法汇报' } };
+    }
+    // Delivery precondition: the resolved terminal must carry a provable
+    // durable identity (taskId, stored taskSeq, or a positive raw cursor).
+    const runTaskId = typeof run.taskId === 'string' && run.taskId ? run.taskId : null;
+    const runTaskSeq = typeof run.taskSeq === 'number' ? run.taskSeq : null;
+    const runCursor = typeof run.resultCursor === 'number' && run.resultCursor > 0
+      ? run.resultCursor : null;
+    if (!runTaskId && runTaskSeq === null && runCursor === null) {
+      attempt.outcome = 'rejected';
+      return { ok: false, error: { code: 'no_run_identity', message: '该终态没有可证明的持久运行身份，无法汇报' } };
+    }
     // Mirror the server's durable tail-block proof: within an unchanged history
     // epoch the run's final row offset is total - (revision - boundary).
     const history = session.history ?? [];
@@ -685,12 +745,15 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       attempt.outcome = 'rejected';
       return { ok: false, error: { code: 'block_mismatch', message: '提交的消息不是该任务的末块，无法汇报' } };
     }
-    // Dedup is keyed on the task run identity only: a client message id can
-    // never turn one run into several deliveries.
-    const key = `manual:${sessionId}:${deliveredTaskId ?? '-'}:${run.taskSeq ?? '-'}`;
+    // Dedup is keyed on the resolved run identity only: a client message id
+    // can never turn one run into several deliveries, and a cursor-only plain
+    // run keys by its durable cursor exactly like the server does.
+    const resolvedTaskId = runTaskId;
+    const runKey = runTaskSeq ?? (runCursor !== null ? `rc:${runCursor}` : '-');
+    const key = `manual:${sessionId}:${resolvedTaskId ?? '-'}:${runKey}`;
     const alreadyReported = mockManualReports.some((report) => report.key === key);
     if (!alreadyReported) {
-      mockManualReports.push({ key, sessionId, taskId: deliveredTaskId, messageId, at: Date.now() });
+      mockManualReports.push({ key, sessionId, taskId: resolvedTaskId, messageId, at: Date.now() });
     }
     attempt.outcome = alreadyReported ? 'replayed' : 'delivered';
     if (hook?.mode === 'lose_receipt') {

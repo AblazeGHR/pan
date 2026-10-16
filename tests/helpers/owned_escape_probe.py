@@ -127,6 +127,7 @@ def main(argv=None):
     parser.add_argument("--y", type=int, default=60)
     parser.add_argument("--force", action="store_true",
                         help="create the probe window on the current desktop without escaping")
+    parser.add_argument("--desktop", help="test-owned target desktop instead of the input desktop")
     args = parser.parse_args(argv)
     kernel32.GetProcessTimes.argtypes = [w.HANDLE] + [ctypes.POINTER(w.FILETIME)] * 4
     kernel32.GetCurrentProcess.restype = w.HANDLE
@@ -143,10 +144,12 @@ def main(argv=None):
     input_handle = user32.OpenInputDesktop(0, False, 0x41)
     if not input_handle:
         raise ctypes.WinError(ctypes.get_last_error())
-    input_name = desktop_name(input_handle)
+    actual_input_name = desktop_name(input_handle)
+    input_name = args.desktop or actual_input_name
     user32.CloseDesktop(input_handle)
     facts = {"pid": os.getpid(), "creationFiletime": creation_filetime, "depth": args.depth, "originalDesktop": original_name,
-             "station": station_name, "inputDesktop": input_name, "escaped": False, "showMode": args.show_mode}
+             "station": station_name, "inputDesktop": actual_input_name, "targetDesktop": input_name,
+             "escaped": False, "showMode": args.show_mode}
     out = Path(args.out)
     out.write_text(json.dumps(facts), encoding="utf-8")  # Identity before any window is created.
     if args.force:

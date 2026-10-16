@@ -43,9 +43,7 @@ jobs:
           pip install pytest-timeout
 
       - name: Run tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
+        run: python scripts/run_tests_isolated.py -- python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
 
       - name: Upload test results
         if: always()
