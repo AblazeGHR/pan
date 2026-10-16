@@ -308,7 +308,7 @@ describe('ChatView: message navigation rail switch', () => {
     expect(mockedGlobalSearch).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: 'across sessions' } });
     await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalledWith('across sessions', 50, undefined, expect.any(AbortSignal),
-      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' }));
+      { roles: ['user', 'assistant'], countMode: 'content' }));
 
     fireEvent.click(getByRole('button', { name: 'Search Session history' }));
     expect(queryByTestId('global-history-search-input')).toBeNull();

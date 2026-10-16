@@ -181,7 +181,7 @@ describe('GlobalHistorySearch', () => {
     await enterQuery(getByTestId('global-history-search-input'), 'needle');
     await waitFor(() => expect(fetchSearch).toHaveBeenCalledTimes(1));
     expect(fetchSearch).toHaveBeenCalledWith('needle', 50, undefined, expect.any(AbortSignal),
-      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
+      { roles: ['user', 'assistant'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle in this Session/ })).not.toBeNull();
     expect(getByRole('search', { name: 'Global history search' }).textContent).toContain('1 messages shown');
     expect(queryByText(/total matches/i)).toBeNull();
@@ -189,9 +189,24 @@ describe('GlobalHistorySearch', () => {
     fireEvent.click(getByTestId('global-history-search-load-more'));
     await waitFor(() => expect(fetchSearch).toHaveBeenCalledTimes(2));
     expect(fetchSearch).toHaveBeenLastCalledWith('needle', 50, 'cursor-next', expect.any(AbortSignal),
-      { roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content' });
+      { roles: ['user', 'assistant'], countMode: 'content' });
     expect(getByRole('button', { name: /Target Session, assistant, needle second/ })).not.toBeNull();
     expect(getByRole('search', { name: 'Global history search' }).textContent).toContain('2 messages shown');
+  });
+
+  it('starts with only user and assistant types selected, keeping tool opt-in', async () => {
+    const { getByRole, getByTestId } = renderSearch();
+    const checked = (role: string) =>
+      (getByRole('checkbox', { name: `Search ${role} messages` }) as HTMLInputElement).checked;
+    expect(checked('user')).toBe(true);
+    expect(checked('assistant')).toBe(true);
+    expect(checked('tool')).toBe(false);
+    expect(checked('thinking')).toBe(false);
+
+    fireEvent.click(getByRole('checkbox', { name: 'Search tool messages' }));
+    await enterQuery(getByTestId('global-history-search-input'), 'needle');
+    await waitFor(() => expect(fetchSearch).toHaveBeenCalledWith('needle', 50, undefined, expect.any(AbortSignal),
+      { roles: ['user', 'assistant', 'tool'], countMode: 'content' }));
   });
 
   it('aborts old pages when the query changes and ignores their late response', async () => {
@@ -318,7 +333,7 @@ describe('GlobalHistorySearch', () => {
     expect(ensureMessageLoaded).toHaveBeenNthCalledWith(1, 2, 5, expect.any(AbortSignal));
     expect(ensureMessageLoaded).toHaveBeenNthCalledWith(2, 1, 5, expect.any(AbortSignal));
     expect(fetchSearch).toHaveBeenLastCalledWith('needle', 1, undefined, expect.any(AbortSignal),
-      { sessionId: 's2', roles: ['user', 'assistant', 'tool', 'thinking'], countMode: 'content', messageId: 'target' });
+      { sessionId: 's2', roles: ['user', 'assistant'], countMode: 'content', messageId: 'target' });
     expect(fetchHistory).not.toHaveBeenCalled();
     expect(onHighlightMessage).toHaveBeenLastCalledWith('s2', 'target', 'needle');
   });

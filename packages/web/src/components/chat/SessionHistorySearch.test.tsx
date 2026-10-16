@@ -109,6 +109,8 @@ describe('SessionHistorySearch', () => {
     const highlight = vi.fn();
     const view = render(<SessionHistorySearch chatRef={chat.ref} isMobile={false} onHighlightMessage={highlight} />);
     fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    // Tool is opt-in: enable it before the query so the tool block is searchable.
+    fireEvent.click(view.getByRole('checkbox', { name: 'Search tool messages' }));
     fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
     await waitFor(() => expect(countText(view.getByTestId('session-history-search-count'))).toBe('3 / 3'));
     await waitFor(() => expect(chat.scrollToMessage).toHaveBeenCalledWith(body, 0));
@@ -117,20 +119,32 @@ describe('SessionHistorySearch', () => {
     fireEvent.click(view.getByRole('checkbox', { name: 'Search tool messages' }));
     await waitFor(() => expect(view.getByRole('status').textContent).toBe('No results in searchable history'));
     expect(fetchHistory).toHaveBeenLastCalledWith('needle', 100, undefined, expect.any(AbortSignal),
-      { sessionId: 's1', roles: ['user', 'assistant', 'thinking'], countMode: 'content' });
+      { sessionId: 's1', roles: ['user', 'assistant'], countMode: 'content' });
     expect(highlight).toHaveBeenLastCalledWith(null);
   });
 
   it('does not issue requests when all content types are unmounted from search', async () => {
     const view = render(<SessionHistorySearch chatRef={makeChatRef().ref} isMobile={false} onHighlightMessage={vi.fn()} />);
     fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
-    for (const role of ['user', 'assistant', 'tool', 'thinking']) {
+    // Only the default-selected types are mounted; unmount them all.
+    for (const role of ['user', 'assistant']) {
       fireEvent.click(view.getByRole('checkbox', { name: `Search ${role} messages` }));
     }
     fireEvent.change(view.getByTestId('session-history-search-input'), { target: { value: 'needle' } });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 150)); });
     expect(fetchHistory).not.toHaveBeenCalled();
     expect(view.getByRole('status').textContent).toBe('Select content types to search.');
+  });
+
+  it('defaults to user and assistant only, keeping tool and thinking opt-in', async () => {
+    const view = render(<SessionHistorySearch chatRef={makeChatRef().ref} isMobile={false} onHighlightMessage={vi.fn()} />);
+    fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    const checked = (role: string) =>
+      (view.getByRole('checkbox', { name: `Search ${role} messages` }) as HTMLInputElement).checked;
+    expect(checked('user')).toBe(true);
+    expect(checked('assistant')).toBe(true);
+    expect(checked('tool')).toBe(false);
+    expect(checked('thinking')).toBe(false);
   });
   it('shows per-message N/M and cycles with Enter, Shift+Enter, and the buttons', async () => {
     const chat = makeChatRef();

@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, ApiHistorySearchResponse, HistorySearchRole } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
 import { HistorySearchRoles } from './HistorySearchRoles';
-import { ALL_SEARCH_ROLES } from './searchRoleOptions';
+import { DEFAULT_SEARCH_ROLES } from './searchRoleOptions';
 import { HistorySearchPopup } from './HistorySearchPopup';
 import { HistorySearchOverview } from './HistorySearchOverview';
 import { HistorySearchOrdinal } from './HistorySearchOrdinal';
@@ -41,7 +41,7 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
   const [localOpen, setLocalOpen] = useState(false);
   const open = isOpen ?? localOpen;
   const [localQuery, setQuery] = useState('');
-  const [localRoles, setRoles] = useState<HistorySearchRole[]>(ALL_SEARCH_ROLES);
+  const [localRoles, setRoles] = useState<HistorySearchRole[]>(DEFAULT_SEARCH_ROLES);
   const query = externalQuery ?? localQuery;
   const roles = externalRoles ?? localRoles;
   const [overviewPage, setOverviewPage] = useState<ApiHistorySearchResponse | null>(null);

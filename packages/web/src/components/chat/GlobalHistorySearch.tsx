@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, HistorySearchRole } from '@/types';
 import type { ChatMessagesHandle } from './ChatMessages';
 import { HistorySearchRoles } from './HistorySearchRoles';
-import { ALL_SEARCH_ROLES } from './searchRoleOptions';
+import { DEFAULT_SEARCH_ROLES } from './searchRoleOptions';
 import { HistorySearchPopup } from './HistorySearchPopup';
 import { HistorySearchOverview } from './HistorySearchOverview';
 import { SessionHistorySearch } from './SessionHistorySearch';
@@ -76,7 +76,7 @@ export function GlobalHistorySearch({
     const sessionId = useSessionStore.getState().currentSessionId;
     onHighlightMessage(messageId ? sessionId : null, messageId, word, occurrence);
   }, [onHighlightMessage]);
-  const [roles, setRoles] = useState<HistorySearchRole[]>(ALL_SEARCH_ROLES);
+  const [roles, setRoles] = useState<HistorySearchRole[]>(DEFAULT_SEARCH_ROLES);
   const [totalMatches, setTotalMatches] = useState<number | null>(null);
   const [hits, setHits] = useState<ApiHistorySearchHit[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
