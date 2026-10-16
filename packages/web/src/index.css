@@ -1378,6 +1378,18 @@ body {
   padding: 1px;
 }
 
+/* The highlight state inverts the marker: the glyph takes the surface color
+   on a saturated plate.  A badge that kept its light plate there collapsed
+   into one low-contrast blob (near-black glyph on the dark plate in the dark
+   theme, washed-out glyph on the light plate in the light theme).  In the
+   inverted state the badge becomes a solid surface chip whose glyph carries
+   the kind's semantic color, so the composite keeps its layering in both
+   themes without a second highlight style. */
+.message-navigation-marker.is-viewport-target .message-navigation-marker-bookmark-badge {
+  color: var(--navigation-marker-highlight);
+  background: var(--color-bg-primary);
+}
+
 /* Rail tag-type filter: a small toggle at the top of the rail opens a
    multi-select menu (checked kinds shown, OR; empty = no filter). */
 .message-navigation-filter-toggle {

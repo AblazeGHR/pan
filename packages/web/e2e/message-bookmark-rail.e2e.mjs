@@ -175,6 +175,110 @@ try {
     scale !== 'none' && Number(scale.slice(7).split(',')[0]) > 1.1, scale);
 
   await page.screenshot({ path: path.join(shotsDir, 'rail-overlay-updated.png') });
+
+  // 5. Highlight state (clicked-selected reuses the nearest-tag inversion):
+  //    the composite bookmark icon must keep its layering in BOTH themes.
+  //    Real computed-style contrast evidence + screenshots — the badge used
+  //    to collapse into one low-contrast blob (near-black glyph on the dark
+  //    plate in dark, washed-out on the light plate in light).
+  const highlightEvidence = (id) => page.evaluate((messageId) => {
+    const element = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!element) return null;
+    const badge = element.querySelector('.message-navigation-marker-bookmark-badge');
+    const parse = (value) => {
+      if (!value) return null;
+      let match = /rgba?\(([^)]+)\)/.exec(value);
+      if (match) {
+        const parts = match[1].split(',').map((part) => parseFloat(part));
+        return { r: parts[0], g: parts[1], b: parts[2], a: parts[3] === undefined ? 1 : parts[3] };
+      }
+      // Chromium serialises resolved color-mix() values as color(srgb ...).
+      match = /color\(srgb\s+([^)]+)\)/.exec(value);
+      if (match) {
+        const parts = match[1].split(/[\s/]+/).filter(Boolean).map((part) => parseFloat(part));
+        return { r: parts[0] * 255, g: parts[1] * 255, b: parts[2] * 255, a: parts[3] === undefined ? 1 : parts[3] };
+      }
+      return null;
+    };
+    const luminance = ({ r, g, b }) => {
+      const channel = (value) => {
+        const scaled = value / 255;
+        return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    };
+    const contrast = (a, b) => {
+      if (!a || !b) return null;
+      const la = luminance(a);
+      const lb = luminance(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    };
+    const markerStyle = getComputedStyle(element);
+    const badgeStyle = badge ? getComputedStyle(badge) : null;
+    const markerBg = parse(markerStyle.backgroundColor);
+    const markerFg = parse(markerStyle.color);
+    const plate = badgeStyle ? parse(badgeStyle.backgroundColor) : null;
+    const glyph = badgeStyle ? parse(badgeStyle.color) : null;
+    return {
+      highlighted: element.classList.contains('is-viewport-target'),
+      kind: element.getAttribute('data-kind'),
+      markerGlyphContrast: contrast(markerFg, markerBg),
+      badgeGlyphContrast: contrast(glyph, plate),
+      badgePlateContrast: contrast(plate, markerBg),
+      colors: {
+        markerFg: markerStyle.color, markerBg: markerStyle.backgroundColor,
+        badgeGlyph: badgeStyle?.color ?? null, badgePlate: badgeStyle?.backgroundColor ?? null,
+      },
+    };
+  }, id);
+
+  const markerShot = async (id, name) => {
+    const box = await marker(id).boundingBox();
+    assert.ok(box, `marker ${id} has no box`);
+    await page.screenshot({
+      path: path.join(shotsDir, name),
+      clip: { x: box.x - 10, y: box.y - 10, width: box.width + 20, height: box.height + 20 },
+    });
+  };
+
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate((next) => { document.documentElement.dataset.theme = next; }, theme);
+    // Clicked selection and nearest location share the same inverted state,
+    // so one click per marker evidences both paths.  (Section 3 released
+    // ID(1); re-mark it through the same real store overlay.)
+    await page.evaluate((id) => window.__markBookmark(id, true), ID(1));
+    await page.waitForFunction((id) =>
+      document.querySelector(`[data-message-id="${id}"]`)?.getAttribute('data-bookmarked') === 'true',
+    ID(1));
+    await marker(ID(1)).click();
+    await page.waitForFunction((id) =>
+      document.querySelector(`[data-message-id="${id}"]`)?.classList.contains('is-viewport-target'),
+    ID(1));
+    await delay(250);
+    const composite = await highlightEvidence(ID(1));
+    check(`${theme}: highlighted composite icon body stays readable`,
+      composite?.highlighted === true && composite.markerGlyphContrast >= 3,
+      JSON.stringify(composite));
+    check(`${theme}: highlighted bookmark badge keeps its layering (glyph on plate, plate on marker)`,
+      composite?.badgeGlyphContrast >= 3 && composite.badgePlateContrast >= 1.5,
+      JSON.stringify(composite));
+    await page.screenshot({ path: path.join(shotsDir, `rail-highlight-composite-${theme}.png`) });
+    await markerShot(ID(1), `rail-highlight-composite-marker-${theme}.png`);
+
+    await marker(ID(3)).click();
+    await page.waitForFunction((id) =>
+      document.querySelector(`[data-message-id="${id}"]`)?.classList.contains('is-viewport-target'),
+    ID(3));
+    await delay(250);
+    const bookmarkTag = await highlightEvidence(ID(3));
+    check(`${theme}: highlighted standalone bookmark tag glyph stays readable`,
+      bookmarkTag?.highlighted === true && bookmarkTag.markerGlyphContrast >= 3,
+      JSON.stringify(bookmarkTag));
+    await page.screenshot({ path: path.join(shotsDir, `rail-highlight-bookmark-tag-${theme}.png`) });
+    await markerShot(ID(3), `rail-highlight-bookmark-tag-marker-${theme}.png`);
+  }
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+
   check('no page errors', pageErrors.length === 0, pageErrors.join('; '));
   check('no 8767/8768 traffic', panRequests.length === 0, panRequests.join('; '));
 } finally {

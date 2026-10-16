@@ -181,6 +181,15 @@ export function MessageNavigationRail({
   // navigation fetch.
   const bookmarkedMarks = useBookmarkStore((state) =>
     (currentSessionId ? state.sessions[currentSessionId]?.marks : undefined));
+  // Navigation pages carry NO bookmark projection, so every index ingestion
+  // must classify from the freshest overlay: a page that predates a local
+  // mutation would otherwise delete the overlay's entry (and a page that
+  // predates a removal would resurrect it).  The ref keeps the long-lived
+  // indexing loop on the latest marks without resubscribing or refetching.
+  const bookmarkedMarksRef = useRef(bookmarkedMarks);
+  bookmarkedMarksRef.current = bookmarkedMarks;
+  const withBookmarkOverlay = useCallback((rows: readonly CanonicalRow[]): CanonicalRow[] =>
+    rows.map((row) => ({ ...row, message: withBookmark(row.message, bookmarkedMarksRef.current) })), []);
   // Rail tag-type filter: checked kinds are shown; multi-select is OR; an
   // empty selection means no filter.  View preference only — never persisted,
   // never sent anywhere, and the referenced offsets stay canonical.
@@ -228,7 +237,7 @@ export function MessageNavigationRail({
     const previous=appendRef.current;
     appendRef.current={context,total:loadedCanonicalTotal};
     if(previous.context===context&&loadedCanonicalTotal>previous.total) {
-      setIndexView(value=>value?.context===context?{context,targets:context.index.targets()}:value);
+      setIndexView(value=>(value===null||value.context===context)?{context,targets:context.index.targets()}:value);
       // Continue compact coverage for an append, preserving the open snapshot.
       continuingRef.current=true;setRetryEpoch(value=>value+1);
     }
@@ -245,12 +254,16 @@ export function MessageNavigationRail({
     const state = useSessionStore.getState();
     const transcript = state.sessionTranscripts[context.sessionId];
     const rows: CanonicalRow[] = transcript
-      ? [...transcript.window.rows.entries()].map(([offset, message]) => ({ offset, message: withBookmark(message, bookmarkedMarks) }))
-      : canonicalRowsWithOffsets(state.currentMessages).map((row) => ({ ...row, message: withBookmark(row.message, bookmarkedMarks) }));
+      ? [...transcript.window.rows.entries()].map(([offset, message]) => ({ offset, message }))
+      : canonicalRowsWithOffsets(state.currentMessages).map((row) => ({ ...row }));
     if (!rows.length) return;
-    context.index.addRows(rows);
-    setIndexView((value) => value?.context === context ? { context, targets: context.index.targets() } : value);
-  }, [context, bookmarkedMarks]);
+    context.index.addRows(withBookmarkOverlay(rows));
+    // Publish when nothing has been published yet as well: an overlay change
+    // that lands before the first navigation page must initialise the view,
+    // not be dropped (only another context's view outranks this one).
+    setIndexView((value) => (value === null || value.context === context)
+      ? { context, targets: context.index.targets() } : value);
+  }, [context, bookmarkedMarks, withBookmarkOverlay]);
 
   useLayoutEffect(() => {
     const wanted=pendingWantedRef.current;
@@ -291,7 +304,7 @@ export function MessageNavigationRail({
           const message=transcript.window.rows.get(offset);if(message)rows.push({offset,message});
         }
       }else rows.push(...canonicalRowsWithOffsets(state.currentMessages).filter(row=>Math.abs(row.offset-center)<=1000));
-      context.index.addRows(rows);publish();locate();
+      context.index.addRows(withBookmarkOverlay(rows));publish();locate();
     };
     // A fresh open re-locates from the current viewport; a previous highlight
     // (including one a completed jump set) is superseded there.  An append
@@ -340,7 +353,10 @@ export function MessageNavigationRail({
           context.index.total=page.total;context.knownTotal=true;
           const end=before===0?page.total:before;
           if(page.start!==Math.max(0,end-pageSize)||page.history.length!==end-page.start)throw new Error('Navigation canonical coverage is incomplete.');
-          context.index.addPage(page.history,page.start);publish();locate();
+          // Classify the page through the overlay: the page itself carries no
+          // bookmark projection, and a page that predates a local mutation must
+          // neither drop the overlay's tag nor resurrect a removed one.
+          context.index.addRows(withBookmarkOverlay(page.history.map((message,index)=>({message,offset:page.start+index}))));publish();locate();
           setIndexMetrics({requests,durationMs:performance.now()-startedAt});
           // Yield between compact batches; no fixed startup delay or polling.
           if(!context.index.complete())await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
@@ -378,7 +394,7 @@ export function MessageNavigationRail({
       if(operationRef.current===operation)operationRef.current=null;
       for(const type of ['pointerdown','wheel','keydown','touchmove'])window.removeEventListener(type,input,true);
     };
-  },[expanded,context,chatRef,retryEpoch,cancelOpenLocation]);
+  },[expanded,context,chatRef,retryEpoch,cancelOpenLocation,withBookmarkOverlay]);
 
   useLayoutEffect(()=>{
     const list=listRef.current;

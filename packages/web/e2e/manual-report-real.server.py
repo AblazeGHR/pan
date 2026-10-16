@@ -54,7 +54,14 @@ from packages.core import config as fixture_config
 
 fixture_config.CONFIG_FILE = RUNTIME / "config.json"
 fixture_config.CONFIG_FILE.write_text(
-    json.dumps({"plugin_manifests": [], "scheduler": {"enabled": False}}),
+    json.dumps({
+        "plugin_manifests": [],
+        "scheduler": {"enabled": False},
+        # A real user's setup has the quick-location rail enabled, so the
+        # live-overlay checks run against the production dock + rail.  The
+        # dock starts folded (inert); only the checks that hover it mount it.
+        "ui": {"showMessageNavigationRail": True},
+    }),
     encoding="utf-8",
 )
 

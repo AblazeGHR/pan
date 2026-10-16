@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { RefObject } from 'react';
 import { MessageNavigationRail } from './MessageNavigationRail';
 import { MessageNavigationDock } from './MessageNavigationDock';
@@ -49,6 +51,8 @@ function seedSession(sessionId: string) {
 
 const markers = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLButtonElement>('button.message-navigation-marker')];
+
+const railStylesSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\r\n/g, '\n');
 
 function moveTouchPointer(element: HTMLElement, pointerId: number, clientX: number, clientY: number) {
   const event = new Event('pointermove', { bubbles: true });
@@ -886,5 +890,24 @@ describe('bookmark rail decoration and tag filter', () => {
     expect(document.querySelector('[data-navigation-filter-clear]')?.hasAttribute('disabled')).toBe(true);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(document.querySelector('[data-navigation-filter-menu]')).toBeNull();
+  });
+
+  it('the highlight state keeps the bookmark badge layered with semantic colors', () => {
+    // jsdom cannot resolve color-mix(), so this is the deterministic source
+    // contract for the inverted highlight state; the measured contrast and
+    // screenshots (both themes) come from the real-browser rail e2e.
+    // Inverted marker: glyph takes the surface color on a saturated plate.
+    expect(railStylesSource).toMatch(
+      /\.message-navigation-marker\.is-viewport-target\s*\{[^}]*color:\s*var\(--color-bg-primary\)/);
+    // The badge must NOT keep the flat plate there (near-black glyph on the
+    // dark plate = one blob; washed-out on the light one): it inverts into a
+    // solid surface chip whose glyph carries the kind's semantic color.
+    expect(railStylesSource).toMatch(
+      /\.message-navigation-marker\.is-viewport-target \.message-navigation-marker-bookmark-badge\s*\{[^}]*color:\s*var\(--navigation-marker-highlight\)/);
+    expect(railStylesSource).toMatch(
+      /\.message-navigation-marker\.is-viewport-target \.message-navigation-marker-bookmark-badge\s*\{[^}]*background:\s*var\(--color-bg-primary\)/);
+    // The normal (non-highlight) badge keeps the unified inherited color.
+    expect(railStylesSource).toMatch(
+      /\.message-navigation-marker-bookmark-badge\s*\{[^}]*color:\s*inherit/);
   });
 });

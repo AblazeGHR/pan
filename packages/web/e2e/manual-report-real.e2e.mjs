@@ -470,10 +470,109 @@ try {
     } finally {
       await freshBrowser.close();
     }
-    // Restore a clean sidecar so the remaining checks start deterministic.
-    await fs.writeFile(sidecar, JSON.stringify({
-      version: 1, revision: 0, bookmarks: {}, updatedAt: null,
-    }), 'utf8');
+    // Restore the natural clean state: an absent sidecar reads as the empty
+    // set.  A written file must carry revision >= 1, so writing revision 0
+    // here would make every later read refuse the store as damaged.
+    await fs.rm(sidecar, { force: true });
+  });
+
+  await check('live rail: the current Session updates without any Session switch', async () => {
+    // The production dock + rail against the real app: a bookmark added in
+    // the CURRENT Session must re-derive the rail immediately (no Session
+    // switch, no reload, no index refetch); removal converges the same way;
+    // a refused save rolls the optimistic tag back on the spot.
+    const seqChild = child('MR Plain Seq');
+    const sidecar = path.join(runtime, 'session-bookmarks', `${seqChild}.json`);
+    // The natural clean state is an absent sidecar (reads as the empty set);
+    // a written file must carry revision >= 1 or every read refuses it.
+    await fs.rm(sidecar, { force: true });
+    // Earlier checks mutated this Session's sidecar over HTTP while this page
+    // was live, so its bookmark-store watermark can sit above the file.  A
+    // reload re-bootstraps the client from disk (the same state a user's
+    // fresh tab would have) before the no-switch measurement starts.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await selectSession('MR Plain Seq', 'plain message 1');
+
+    // Hovering the dock handle expands it and mounts the real rail; the
+    // compact index loads once and then stays warm (folded = inert, mounted).
+    await page.hover('.message-navigation-dock__handle');
+    await page.waitForSelector('.message-navigation-rail[data-index-status="ready"]', { timeout: 20000 });
+    const railRequests = async () => Number(
+      (await page.locator('.message-navigation-rail').getAttribute('data-index-requests')) ?? '0');
+    const requestsBefore = await railRequests();
+    // The rail reflects a bookmark either way: a row with its own nav tag
+    // keeps that kind and flips data-bookmarked (composite badge), a plain
+    // block gains a bookmark-kind marker.  Both are "the row is marked in
+    // the rail"; the assertion stays shape-agnostic.
+    const railMarkedFor = (id, marked) => page.waitForFunction(
+      ([messageId, value]) => {
+        const marker = document.querySelector(`.message-navigation-marker[data-message-id="${messageId}"]`);
+        if (!marker) return value === false;
+        return marker.getAttribute('data-bookmarked') === (value ? 'true' : 'false');
+      },
+      [id, marked], { timeout: 5000 });
+
+    // Pick the row whose menu offers ONLY the bookmark action.
+    let bookmarkedId = null;
+    for (const gutter of await page.locator(GUTTER).all()) {
+      const messageId = await gutter.getAttribute('data-message-bookmark-gutter');
+      if (!(await clickGutterOn(page, gutter))) continue;
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      const bookmarkItem = page.locator(`${MENU} [data-bookmark-action="add"]`);
+      const reportItem = page.locator(REPORT_ITEM);
+      if (await bookmarkItem.count() && !(await reportItem.count())) {
+        await bookmarkItem.click();
+        bookmarkedId = messageId;
+        break;
+      }
+      await page.keyboard.press('Escape');
+    }
+    assert.ok(bookmarkedId, 'no bookmark-only row was offered');
+
+    // No Session switch, no reload: the rail itself must show the mark now.
+    await railMarkedFor(bookmarkedId, true);
+    assert.equal(await railRequests(), requestsBefore,
+      'the live update must reuse the warm index, not refetch it');
+
+    // Removing it in the same Session converges the rail back the same way.
+    let removeItem = null;
+    for (const gutter of await page.locator(GUTTER).all()) {
+      if ((await gutter.getAttribute('data-message-bookmark-gutter')) !== bookmarkedId) continue;
+      if (!(await clickGutterOn(page, gutter))) continue;
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      removeItem = page.locator(`${MENU} [data-bookmark-action="remove"]`);
+      break;
+    }
+    assert.ok(removeItem && await removeItem.count(), 'the live bookmark must offer removal');
+    await removeItem.click();
+    await railMarkedFor(bookmarkedId, false);
+    assert.equal(await railRequests(), requestsBefore,
+      'the live removal must reuse the warm index, not refetch it');
+
+    // A refused save (real damaged sidecar) must not leave a phantom tag:
+    // the optimistic marker converges away as soon as the failure lands.
+    const damaged = '{"version": 1, "revision": 9, "bookmarks": {"pan:';
+    await fs.writeFile(sidecar, damaged, 'utf8');
+    let attempted = false;
+    for (const gutter of await page.locator(GUTTER).all()) {
+      if ((await gutter.getAttribute('data-message-bookmark-gutter')) !== bookmarkedId) continue;
+      if (!(await clickGutterOn(page, gutter))) continue;
+      await page.waitForSelector(MENU, { state: 'visible', timeout: 3000 }).catch(() => {});
+      const addItem = page.locator(`${MENU} [data-bookmark-action="add"]`);
+      if (await addItem.count()) { await addItem.click(); attempted = true; break; }
+      await page.keyboard.press('Escape');
+    }
+    assert.ok(attempted, 'the rolled-back row must offer the add again');
+    const toastNode = page.locator('[role="alert"], [data-toast]').first();
+    await toastNode.waitFor({ state: 'visible', timeout: 8000 });
+    assert.match((await toastNode.textContent()) ?? '', /could not be read|unreadable|不可读/i,
+      'a refused save must surface the real store error');
+    await railMarkedFor(bookmarkedId, false);
+    assert.equal(await fs.readFile(sidecar, 'utf8'), damaged,
+      'a refused save must not destroy the damaged sidecar');
+
+    // Leave the natural clean state (absent = empty) for the remaining checks.
+    await fs.rm(sidecar, { force: true });
   });
 
   await check('failing target: a missing manager surfaces as a real retry state', async () => {
