@@ -86,7 +86,8 @@ python packages/web/e2e/composerUrlNodeHttp.e2e.py
 ```
 
 Real FastAPI routes + uvicorn + the existing deterministic fake CLI
-(`tests/support/frontend_stream_cli.py`, no model/network). Port `60474`,
+(`tests/support/frontend_stream_cli.py`, no model/network). Port `54887` after
+the final main merge (previous run: `60474`),
 runtime under the copy's `test-results/composer-url-node-http/runtime`.
 
 Results in `http-evidence.json`:
