@@ -1,0 +1,13 @@
+{
+  "root": "D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018",
+  "branch": "review/legal-offline-illegal-lock-20261018",
+  "implementation_head": "b650676c3762aca51b1a4204c022a49d8313df72",
+  "main": "5d20e72bf44f8cdb46bf8629f4772fb3b393863a",
+  "practical": "5d20e72bf44f8cdb46bf8629f4772fb3b393863a",
+  "protected_service_read_only_observation": {
+    "pid": 31556,
+    "startedAtLocal": "2026-10-18 02:28:57"
+  },
+  "integration_performed": false,
+  "push_release_restart_performed": false
+}

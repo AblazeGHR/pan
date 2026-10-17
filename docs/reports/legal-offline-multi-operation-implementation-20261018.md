@@ -53,8 +53,8 @@ TakeoverJob 新增 terminate_and_verify/close_retired 分离：真实 Job Active
 
 最终冻结集：**608 passed，0 failed，0 errors，0 skipped，退出码 0，61.645 秒**；Python 3.14.5，Windows。JUnit：`audit/legal-offline-multi-operation-20261018/final-frozen-regression.xml`，完整日志为同名 `.log`，文件清单和分阶段结果见 `validation-results.json`。共 36 个相关测试文件；最终源码/测试 13 文件 SHA256 核验无漂移。此前的 565/116/602/123 等均为中间或重叠验证，不累计。三条现存第三方 warning（Pydantic incomplete annotation、httpx/Starlette、anyio deprecation）未屏蔽、未安装依赖处理。
 
-阶段一 `0c9dcc8300b2ada4431edbdff7c19e7f60142722`；阶段二 `0e1e3e9d638cff9f85085bdc7b9abcf566232b3a`；阶段三与本段记录同提交。最终全相关集包含 5 个真实 Codex 用例（既有 3 个真实 wrapper/native TUI 生命周期用例、新增 legacy/paginated 两个原生 peer 用例），以及 Windows Job 真实进程清理/保存故障测试。所有真实本地 helper、peer、provider、owned kernel、Job 的 finally 清理断言通过，无遗留测试服务的报告证据。
+阶段一 `0c9dcc8300b2ada4431edbdff7c19e7f60142722`；阶段二 `0e1e3e9d638cff9f85085bdc7b9abcf566232b3a`；阶段三 `b650676c3762aca51b1a4204c022a49d8313df72`；最终证据补录单独提交，不改冻结源码。最终全相关集包含 5 个真实 Codex 用例（既有 3 个真实 wrapper/native TUI 生命周期用例、新增 legacy/paginated 两个原生 peer 用例），以及 Windows Job 真实进程清理/保存故障测试。所有真实本地 helper、peer、provider、owned kernel、Job 的 finally 清理断言通过，无遗留测试服务的报告证据。
 
-源码定位：`legal_offline.py:46/60/79/98/201/237/279`（聚合、迁移、准入、终态、cohort、条件恢复、诊断）；`worker.py:604/755/2143/2175/7340`（原子 writer、scope Stop、辅助准入/事件、Job 退休）；`session.py:1366/1573/1937`（v2 schema/迁移/序列化）；`resident_tui.py:149/173/337`（子资源关联、deferred final、active compact/opaque）；`takeover_job.py:66/86`（verify/close 分离）。行号随本提交实际文件为准，历史报告行号只对应其各自冻结基线。
+源码定位：`legal_offline.py:46/60/79/98/201/237/279`（聚合、迁移、准入、终态、cohort、条件恢复、诊断）；`worker.py:604/755/2143/2175/7340`（原子 writer、scope Stop、辅助准入/事件、Job 退休）；`session.py:1366/1573/1937`（v2 schema/迁移/序列化）；`resident_tui.py:149/173/337`（子资源关联、deferred final、active compact/opaque）；`takeover_job.py:66/84`（verify/close 分离）。行号随本提交实际文件为准，历史报告行号只对应其各自冻结基线。
 
 最终复核 main/practical 仍均为 `5d20e72bf44f8cdb46bf8629f4772fb3b393863a`；既有 Pan PID 31556 的启动时间仍为 2026-10-18 02:28:57，仅做进程身份只读核对，没有服务操作。分支保留供 MA 独立验收和后续集成。
