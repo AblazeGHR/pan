@@ -1,0 +1,19 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/plan-plugin-manager-20261017/packages/web/src
+
+ ✓ utils/sessionFilters.test.ts (9 tests) 7ms
+ ✓ stores/sessionStore.terminalTransient.test.ts (30 tests) 186ms
+ ✓ stores/composerDraftCodec.test.ts (3 tests) 7ms
+ ✓ utils/composerUrl.test.ts (27 tests) 115ms
+ ✓ components/session/PluginSelection.test.tsx (3 tests) 307ms
+ ✓ components/session/ManageModal.test.tsx (28 tests) 2930ms
+   ✓ ManageModal > cancels cross-workspace management from ManageModal before calling claim 331ms
+ ✓ components/session/NewSessionModal.test.tsx (28 tests) 4948ms
+   ✓ New Session directory input > shows the complete shared form on Basic and Advanced, with advanced controls only on Advanced 856ms
+   ✓ New Session directory input > does not submit advanced edits from Basic, but Advanced submits explicit overrides and false/empty values 635ms
+
+ Test Files  7 passed (7)
+      Tests  128 passed (128)
+   Start at  00:50:30
+   Duration  17.67s (transform 3.94s, setup 134ms, collect 10.25s, tests 8.50s, environment 24.11s, prepare 6.25s)
+

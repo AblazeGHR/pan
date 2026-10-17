@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pan capability v1",
+  "type": "object",
+  "required": ["protocol", "plugin_id", "provider", "capabilities"],
+  "properties": {
+    "protocol": {"const": "pan-capability/v1"},
+    "plugin_id": {"type": "string"},
+    "provider": {
+      "type": "object",
+      "required": ["transport"],
+      "properties": {
+        "kind": {"const": "pan_api"},
+        "transport": {"enum": ["stdio_jsonrpc", "http"]},
+        "command_ref": {"type": "string"},
+        "endpoint": {"type": "string"},
+        "headers_env": {"type": "object", "additionalProperties": {"type": "string"}}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"transport": {"const": "stdio_jsonrpc"}}}, "then": {"required": ["command_ref"]}},
+        {"if": {"properties": {"transport": {"const": "http"}}}, "then": {"required": ["endpoint"]}}
+      ]
+    },
+    "capabilities": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "export_key", "description", "contract_version", "input_schema", "execution"],
+        "properties": {
+          "id": {"type": "string", "minLength": 3},
+          "export_key": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+          "description": {"type": "string", "minLength": 1},
+          "contract_version": {"type": "string", "minLength": 1},
+          "input_schema": {"type": "object"},
+          "output_schema": {"type": ["object", "null"]},
+          "action": {"type": "string"},
+          "execution": {
+            "type": "object",
+            "properties": {
+              "method": {"enum": ["capability.invoke", "GET", "POST", "PUT", "PATCH", "DELETE"]},
+              "operation": {"type": "string", "minLength": 1},
+              "path": {"type": "string", "minLength": 1},
+              "result_format": {"enum": ["json", "mcp"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

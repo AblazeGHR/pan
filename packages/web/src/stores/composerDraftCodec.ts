@@ -49,7 +49,19 @@ export interface CodecAttachmentPart {
   occurrenceId?: string;
 }
 
-export type CodecPart = CodecComposerPart | CodecAttachmentPart;
+/**
+ * An inline URL node.  It has no server-side resource to resolve: the address
+ * and its local occurrence id are the complete value, so it survives a reload
+ * without any attachment metadata.
+ */
+export interface CodecUrlPart {
+  type: 'url';
+  id: string;
+  url: string;
+  label?: string;
+}
+
+export type CodecPart = CodecComposerPart | CodecAttachmentPart | CodecUrlPart;
 
 export interface CodecComposerValue {
   parts: CodecPart[];
@@ -84,7 +96,10 @@ function recoverableParts(
   const occurrences = new Set(attachments.map((item) => item.occurrenceId));
   return parts
     .filter(
-      (part) => part.type === 'text' || occurrences.has(part.occurrenceId || part.attachmentId),
+      (part) =>
+        part.type === 'text' ||
+        part.type === 'url' ||
+        occurrences.has(part.occurrenceId || part.attachmentId),
     )
     .map((part) => ({ ...part }));
 }

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pan plugin v1",
+  "type": "object",
+  "required": ["protocol", "id", "source"],
+  "properties": {
+    "protocol": {"const": "pan-plugin/v1"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,47}$"},
+    "display_name": {"type": "string"},
+    "version": {"type": "string", "minLength": 1},
+    "aliases": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "source": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["mcp", "pan_api"]},
+        "server_ref": {"type": "string", "minLength": 1},
+        "capabilities_file": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "mcp"}}}, "then": {"required": ["server_ref"]}},
+        {"if": {"properties": {"kind": {"const": "pan_api"}}}, "then": {"required": ["capabilities_file"]}}
+      ]
+    },
+    "exposure": {
+      "type": "object",
+      "properties": {
+        "supported_modes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["standalone", "pan_native", "gateway"]}},
+        "default_mode": {"enum": ["standalone", "pan_native", "gateway"]}
+      },
+      "additionalProperties": false
+    },
+    "tool_exports": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"}}
+  },
+  "additionalProperties": false
+}

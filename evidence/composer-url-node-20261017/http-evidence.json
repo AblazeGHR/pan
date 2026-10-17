@@ -1,0 +1,190 @@
+{
+  "port": 54887,
+  "runtime": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify3\\packages\\web\\test-results\\composer-url-node-http\\runtime",
+  "provider": "tests/support/frontend_stream_cli.py (deterministic, no model/network)",
+  "checks": {
+    "draft": {
+      "a": {
+        "revision": 1,
+        "draft": {
+          "text": "see ",
+          "parts": [
+            {
+              "type": "text",
+              "value": "see "
+            },
+            {
+              "type": "url",
+              "url": "https://example.test/draft-a?q=1&x=2#h",
+              "id": "url_http_a",
+              "label": "Docs"
+            }
+          ],
+          "attachments": []
+        },
+        "updatedAt": "2026-10-18T00:18:23.979134",
+        "state": "present"
+      },
+      "b": {
+        "revision": 1,
+        "draft": {
+          "text": "",
+          "parts": [
+            {
+              "type": "url",
+              "url": "https://example.test/draft-b?q=3#other",
+              "id": "url_http_b"
+            }
+          ],
+          "attachments": []
+        },
+        "updatedAt": "2026-10-18T00:18:24.008696",
+        "state": "present"
+      },
+      "sidecar": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify3\\packages\\web\\test-results\\composer-url-node-http\\runtime\\session-drafts\\ses_405b3473f967646e.json",
+      "sidecarParts": [
+        {
+          "type": "text",
+          "value": "see "
+        },
+        {
+          "type": "url",
+          "url": "https://example.test/draft-a?q=1&x=2#h",
+          "id": "url_http_a",
+          "label": "Docs"
+        }
+      ]
+    },
+    "queue": {
+      "enqueue": {
+        "ok": true,
+        "item": {
+          "id": "q_3e1bb2e913254d84bc604fdd7fda4848",
+          "queueItemId": "q_3e1bb2e913254d84bc604fdd7fda4848",
+          "kind": "task",
+          "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
+          "parts": [
+            {
+              "type": "text",
+              "text": "See "
+            },
+            {
+              "type": "text",
+              "text": "[Docs](https://example.test/send?q=1&x=2#h)"
+            }
+          ],
+          "createdAt": 1792253904.021218,
+          "source": "user",
+          "meta": {
+            "seq": 1,
+            "taskId": null,
+            "revision": 1,
+            "dispatchState": "queued",
+            "locked": false,
+            "lockManual": false,
+            "lockAutoReport": false,
+            "steerPending": false,
+            "steerError": null
+          }
+        },
+        "items": [
+          {
+            "id": "q_3e1bb2e913254d84bc604fdd7fda4848",
+            "queueItemId": "q_3e1bb2e913254d84bc604fdd7fda4848",
+            "kind": "task",
+            "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
+            "parts": [
+              {
+                "type": "text",
+                "text": "See "
+              },
+              {
+                "type": "text",
+                "text": "[Docs](https://example.test/send?q=1&x=2#h)"
+              }
+            ],
+            "createdAt": 1792253904.021218,
+            "source": "user",
+            "meta": {
+              "seq": 1,
+              "taskId": null,
+              "revision": 1,
+              "dispatchState": "queued",
+              "locked": false,
+              "lockManual": false,
+              "lockAutoReport": false,
+              "steerPending": false,
+              "steerError": null
+            }
+          }
+        ],
+        "queueRevision": 1,
+        "agentReportsPaused": false,
+        "queuePaused": false,
+        "duplicate": false
+      },
+      "readBack": {
+        "id": "q_3e1bb2e913254d84bc604fdd7fda4848",
+        "queueItemId": "q_3e1bb2e913254d84bc604fdd7fda4848",
+        "kind": "task",
+        "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
+        "parts": [
+          {
+            "type": "text",
+            "text": "See "
+          },
+          {
+            "type": "text",
+            "text": "[Docs](https://example.test/send?q=1&x=2#h)"
+          }
+        ],
+        "createdAt": 1792253904.021218,
+        "source": "user",
+        "meta": {
+          "seq": 1,
+          "taskId": null,
+          "revision": 1,
+          "dispatchState": "queued",
+          "locked": false,
+          "lockManual": false,
+          "lockAutoReport": false,
+          "steerPending": false,
+          "steerError": null
+        }
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "See "
+        },
+        {
+          "type": "text",
+          "text": "[Docs](https://example.test/send?q=1&x=2#h)"
+        }
+      ]
+    },
+    "queueDelivery": {
+      "user": [
+        "See [Docs](https://example.test/send?q=1&x=2#h)"
+      ],
+      "assistant": [
+        "answer:See [Docs](https://example.test/send?q=1&x=2#h)"
+      ]
+    },
+    "apiSend": {
+      "result": {
+        "status": "queued",
+        "workerId": "worker-1",
+        "sessionId": "ses_36e546a28f48e72e"
+      },
+      "user": [
+        "See [Docs](https://example.test/send?q=1&x=2#h)",
+        "Legacy [Docs](https://example.test/legacy?q=1#h)"
+      ],
+      "assistant": [
+        "answer:See [Docs](https://example.test/send?q=1&x=2#h)",
+        "answer:Legacy [Docs](https://example.test/legacy?q=1#h)"
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesSessionSearch } from './sessionFilters';
+import { isMetaAgent, matchesSessionSearch } from './sessionFilters';
 import type { Session } from '@/types';
 
 function session(overrides: Partial<Session> = {}): Session {
@@ -15,6 +15,10 @@ function session(overrides: Partial<Session> = {}): Session {
 }
 
 describe('matchesSessionSearch', () => {
+  it('does not classify a QQ-only native connection as Pan core management', () => {
+    expect(isMetaAgent(session({ mcpServers: ['pan'], pluginBindings: [{ plugin_id: 'qq', mode: 'pan_native', enabled: true }] }))).toBe(false);
+    expect(isMetaAgent(session({ mcpServers: ['pan'], pluginBindings: [{ plugin_id: 'pan', mode: 'standalone', enabled: true }] }))).toBe(true);
+  });
   it.each([
     ['session name', 'release'],
     ['Pan Session ID', 'session-123'],

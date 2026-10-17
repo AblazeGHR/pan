@@ -27,6 +27,7 @@ import type {
   SessionTemplateManifestTarget,
   SessionTemplateSaveInput,
   PanAccess,
+  PluginBinding,
   CbcProject,
   CbcSessionItem,
   KimiWorkspace,
@@ -599,6 +600,7 @@ export interface CreateSessionSettings {
   modelAutoCompactTokenLimit?: number;
   systemPrompt?: string;
   mcpServers?: string[];
+  pluginBindings?: PluginBinding[];
   panAccess?: PanAccess;
   workspaceIds?: string[];
 }
@@ -629,6 +631,7 @@ export async function createSession(
     body.modelAutoCompactTokenLimit = settings.modelAutoCompactTokenLimit;
   if (settings?.systemPrompt !== undefined) body.systemPrompt = settings.systemPrompt;
   if (settings?.mcpServers !== undefined) body.mcpServers = settings.mcpServers;
+  if (settings?.pluginBindings !== undefined) body.pluginBindings = settings.pluginBindings;
   if (settings?.panAccess !== undefined) body.panAccess = settings.panAccess;
   if (settings?.workspaceIds !== undefined)
     body.workspaceIds = settings.workspaceIds;
@@ -667,6 +670,7 @@ export interface NewSessionDefaults {
   outputMode: string;
   sessionTemplate: string;
   workdir: string;
+  pluginBindings?: PluginBinding[];
 }
 
 export async function fetchNewSessionDefaults(): Promise<NewSessionDefaults | null> {
@@ -1059,10 +1063,12 @@ export interface ApiSessionDraftAttachment {
 }
 
 /** One ordered ComposerValue part.  Attachment occurrences keep their identity
- *  so the restored inline structure and its order are exact. */
+ *  so the restored inline structure and its order are exact; a URL node is
+ *  self-contained (address + local occurrence id + optional visible title). */
 export type ApiSessionDraftPart =
   | { type: 'text'; value: string }
-  | { type: 'attachment'; attachmentId: string; occurrenceId?: string };
+  | { type: 'attachment'; attachmentId: string; occurrenceId?: string }
+  | { type: 'url'; id: string; url: string; label?: string };
 
 export interface ApiSessionDraft {
   text: string;

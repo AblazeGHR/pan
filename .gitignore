@@ -117,3 +117,17 @@ packages/web/test-results/
 /evidence/mcp-send-latency-red.xml
 /evidence/queue-latency-prewrite-rejection-red.xml
 /evidence/queue-latency-ma-runtime-red.xml
+
+# Isolated plugin-platform validation dependencies and mutable runtime data.
+/audit/plugin-platform-20261018/tmp-*/
+/audit/plugin-platform-20261018/pytest-cache/
+/audit/plugin-platform-20261018/venv/
+/audit/plugin-platform-20261018/pip-cache/
+/audit/plugin-platform-20261018/pnpm-store/
+/audit/plugin-platform-20261018/pnpm-home/
+/audit/plugin-platform-20261018/corepack/
+/audit/plugin-platform-20261018/*/private/
+/audit/plugin-platform-20261018/browser/vite-cache/
+/audit/plugin-platform-20261018/browser/tmp/
+/audit/plugin-platform-20261018/live-qq-*/sessions/
+/audit/plugin-platform-20261018/live-qq-*/characters/

@@ -213,7 +213,9 @@ HTTP JSON body 用 **camelCase**，MCP 工具参数用 **snake_case**——同�
 | 思考开关 | `alwaysThinkingEnabled` | `alwaysThinkingEnabled` | `always_thinking_enabled` |
 | 最大思考 tokens | `maxThinkingTokens` | `maxThinkingTokens` | `max_thinking_tokens` |
 | MCP 开关 | `mcpEnabled` | `mcpEnabled` | `mcp_enabled` |
-| MCP servers | — | `mcpServers` | `mcp_servers` |
+| MCP servers (legacy) | — | `mcpServers` | `mcp_servers` (v2 derived physical connections) |
+| Plugin selection | `plugin_bindings` | `pluginBindings` | `plugin_bindings` |
+| Plugin revision guard | `expected_plugin_revision` | `expectedPluginRevision` | `plugin_selection_revision` |
 | 工作目录 | `workdir` | `workdir` | `workdir`（两边一致） |
 
 **要点**：`POST /api/sessions` 返回的 `id` 与后续所有请求体的 `sessionId` 是**同一个值**（`ses_...`）。响应字段叫 `id`，但 spawn/assign/task 的 body 一律用 `sessionId`（MCP 里是 `session_id`）——不要照抄响应字段名传请求。

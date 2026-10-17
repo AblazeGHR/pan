@@ -261,12 +261,14 @@ def test_build_session_params_propagates_capabilities(monkeypatch):
     assert params["pan_access"]["auto_claim_created"] is True
 
 
-def test_build_session_params_capabilities_default(monkeypatch):
+def test_build_session_params_capabilities_default(monkeypatch, tmp_path):
     import packages.web.server as srv
-    monkeypatch.setattr(srv, "_character_manager", None)
+    from packages.core.character import CharacterManager
+    manager = CharacterManager(str(tmp_path / "manager"))
+    manager.load_manifest(["packages/mcp/manifest.json"])
+    monkeypatch.setattr(srv, "_character_manager", manager)
     # Keep this test focused on the default capability bits; MCP catalog
     # failure has its own explicit regression below.
-    monkeypatch.setattr(srv, "_resolve_mcp_server_configs", lambda _names: [])
     params = srv._build_session_params({"name": "plain"})
     assert params["pan_access"]["restrict_to_managed"] is False
     assert params["pan_access"]["can_claim_unmanaged"] is False

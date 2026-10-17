@@ -1,0 +1,2 @@
+[BABEL] Note: The code generator has deoptimised the styling of D:\project\pan-worktrees\plan-plugin-manager-20261017\audit\plugin-platform-20261018\browser\vite-cache\deps\react-dom_client.js?v=e00b4c0c as it exceeds the max of 500KB.
+{"passed":true,"writes":4,"port":5173,"evidence":"D:\\project\\pan-worktrees\\plan-plugin-manager-20261017\\audit\\plugin-platform-20261018\\browser"}

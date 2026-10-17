@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
   claimSession,
@@ -12,7 +13,8 @@ import {
   fetchMcpServers,
   patchSession,
 } from '@/services/api';
-import type { McpServerInfo, PanAccess, Session } from '@/types';
+import type { McpServerInfo, PanAccess, PluginBinding, Session } from '@/types';
+import { PluginSelection } from './PluginSelection';
 import { Search, Star, Check, Bell, Unlink, Lock, Unlock, Folder, Layers } from 'lucide-react';
 import { FreshnessSkeleton, FreshnessStatus, type FreshnessState } from './FreshnessStatus';
 import { effectiveWorkspaceIds } from '@/utils/sessionFilters';
@@ -325,6 +327,7 @@ function ManageWorkspacesSection({
  * ManageView so both stay visually identical.
  */
 export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: ManageSessionsPanelProps) {
+  const livePluginRestart = useWorkerStore((state) => sessionId ? state.delayedRestarts[sessionId] : undefined);
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const showToast = useUIStore((s) => s.showToast);
@@ -439,6 +442,9 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
   }, [open, sessionId, detailRetrySeq, mcpRetrySeq]);
 
   const managerId = detailSession?.id ?? session?.id ?? null;
+  const snapshotRestart = detailSession?.pluginRestart;
+  const pluginRestart = livePluginRestart && (!snapshotRestart || livePluginRestart.revision >= snapshotRestart.revision)
+    ? livePluginRestart : snapshotRestart;
 
   // The detail snapshot is the live source once fetched (we patch it locally
   // after each mutation); before that fall back to the summary list entry.
@@ -634,7 +640,7 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
     try {
       const updated = await patchSession(managerId, { panAccess: patch });
       setDetailSession((d) => {
-        if (!d) return d;
+        if (!d || d.id !== managerId) return d;
         const merged: PanAccess = { ...(d.panAccess ?? {}), ...patch };
         return { ...d, panAccess: updated.panAccess ?? merged };
       });
@@ -670,7 +676,8 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
 
   // Toggle one MCP server in/out of the session's enabled set and persist the
   // full name list. Empty list clears them (backend supports [] / null).
-  const toggleMcpServer = async (name: string, checked: boolean) => {
+  const updatePlugin = async (binding: PluginBinding) => {
+    const { plugin_id: name, enabled: checked } = binding;
     if (!managerId || !detailSession || savingMcp || !mcpEditable) return;
     // Keep the backend's always-on invariant intact even during a render
     // transition or if an event is triggered programmatically.
@@ -679,17 +686,26 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
     if (checked) next.add(name);
     else next.delete(name);
     const names = [...next];
+    const bindings = [...(detailSession.pluginBindings ?? [...enabledMcp].map((plugin_id): PluginBinding =>
+      ({ plugin_id, enabled: true, mode: 'standalone' }))).filter((item) => item.plugin_id !== name), binding];
+    const useBindings = mcpServers.some((server) => server.supportedModes);
     setSavingMcp(true);
     try {
       const updated = await patchSession(
         managerId,
-        mcpLocked ? { mcpServers: names, forceMcp: true } : { mcpServers: names },
+        { ...(useBindings ? { pluginBindings: bindings, expectedPluginRevision: detailSession.pluginSelectionRevision ?? 0 }
+          : { mcpServers: names }), ...(mcpLocked ? { forceMcp: true } : {}) },
       );
       setDetailSession((d) => {
         if (!d) return d;
-        return { ...d, mcpServers: updated.mcpServers ?? names };
+        return d.id === managerId ? { ...d, ...updated, mcpServers: updated.mcpServers ?? names } : d;
       });
-      showToast(checked ? `Enabled MCP server "${name}"` : `Disabled MCP server "${name}"`);
+      useSessionStore.getState().updateSession(managerId, updated);
+      if (updated.pluginRestart) useWorkerStore.getState().applyDelayedRestart(updated.pluginRestart);
+      showToast(useBindings ? (updated.pluginApplyStatus === 'pending' ? '已保存 · 等待空闲后重启'
+        : updated.pluginApplyStatus === 'failed' ? `已保存 · 重启失败：${updated.restartError ?? '请重试'}`
+        : updated.pluginApplyStatus === 'next_start' ? '已保存 · 下次启动生效' : '已生效')
+        : checked ? `Enabled MCP server "${name}"` : `Disabled MCP server "${name}"`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Update failed', 'error');
     } finally {
@@ -1208,8 +1224,15 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
           <section className="flex flex-col gap-2">
             <SectionHeader
               title="MCP Server / MCP 服务"
-              subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
+              subtitle="选择插件及启用方式。原生 / 独立 MCP 等待空闲重启；已接入的聚合能力即时更新。"
             />
+            {pluginRestart && ['pending', 'restarting', 'failed'].includes(pluginRestart.status) && (
+              <p role="status" className="mt-2 text-xs text-text-secondary">
+                {pluginRestart.status === 'failed'
+                  ? `重启失败：${pluginRestart.error ?? '请重试'}`
+                  : pluginRestart.status === 'restarting' ? '正在重启并加载 MCP 配置…' : '已保存 · 等待空闲后重启'}
+              </p>
+            )}
             {mcpSelectionLocked ? (
               <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary flex items-center justify-between gap-2">
                 <span>
@@ -1259,43 +1282,11 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                       No MCP servers available (manifest not loaded)
                     </div>
                   )}
-                  {mcpServers.map((srv) => {
-                    const checked = enabledMcp.has(srv.name);
-                    return (
-                      <label
-                        key={srv.name}
-                        className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
-                          savingMcp ? 'pointer-events-none opacity-70' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 shrink-0 accent-accent"
-                          checked={checked}
-                          disabled={
-                            savingMcp ||
-                            detailSession === null ||
-                            (mcpLockReason === 'always' && checked && enabledMcp.size <= 1)
-                          }
-                          title={
-                            mcpLockReason === 'always' && checked && enabledMcp.size <= 1
-                              ? 'At least one MCP server must remain enabled'
-                              : undefined
-                          }
-                          onChange={(e) => toggleMcpServer(srv.name, e.target.checked)}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm text-text-primary">{srv.name}</span>
-                          {srv.command && (
-                            <span className="block text-[11px] text-text-tertiary font-mono truncate">
-                              {srv.command}
-                              {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    );
-                  })}
+                  <PluginSelection servers={mcpServers}
+                    bindings={detailSession?.pluginBindings ?? [...enabledMcp].map((plugin_id) =>
+                      ({ plugin_id, enabled: true, mode: 'standalone' }))}
+                    disabled={savingMcp || detailSession === null || !mcpEditable}
+                    keepOne={mcpLockReason === 'always'} onChange={updatePlugin} />
                 </div>
               </>
             )}

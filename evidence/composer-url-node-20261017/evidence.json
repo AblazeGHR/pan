@@ -1,0 +1,236 @@
+{
+  "port": 57285,
+  "mockBoundary": "All /api/** responses are Playwright route mocks. Chromium, Vite, React, the composer, real mouse drag/clicks, session switching, and the Markdown renderer are real. No Pan server/provider/agent or real user data is involved.",
+  "checks": {
+    "messageLink": {
+      "href": "https://example.test/history?q=1#h",
+      "text": "Docs"
+    },
+    "paste": {
+      "urls": [
+        {
+          "id": "url_c0dbd9b4-1b21-4ea8-994a-64e67ad4fa68",
+          "url": "https://example.test/a?q=1#h",
+          "text": "https://example.test/a?q=1#h"
+        }
+      ],
+      "order": [
+        "text",
+        "url",
+        "text"
+      ],
+      "text": "before https://example.test/a?q=1#hafter"
+    },
+    "mouseDrag": {
+      "urls": [
+        {
+          "id": "url_c0dbd9b4-1b21-4ea8-994a-64e67ad4fa68",
+          "url": "https://example.test/a?q=1#h",
+          "text": "https://example.test/a?q=1#h"
+        }
+      ],
+      "order": [
+        "text",
+        "url"
+      ],
+      "text": "before afterhttps://example.test/a?q=1#h"
+    },
+    "delete": {
+      "urls": [],
+      "order": [
+        "text"
+      ],
+      "text": "before after"
+    },
+    "undo": {
+      "urlBeforeUndo": 1,
+      "urlAfterUndo": 1,
+      "attachmentBeforeUndo": 1,
+      "attachmentAfterUndo": 1
+    },
+    "duplicates": {
+      "urls": [
+        {
+          "id": "url_6b4d8157-212f-46ee-94c4-d6ffc4ba9116",
+          "url": "https://dup.test/a",
+          "text": "https://dup.test/a"
+        },
+        {
+          "id": "url_553865eb-a99f-46c1-ad3f-7a01d39e4911",
+          "url": "https://dup.test/a",
+          "text": "https://dup.test/a"
+        }
+      ],
+      "order": [
+        "url",
+        "url"
+      ],
+      "text": "https://dup.test/ahttps://dup.test/a"
+    },
+    "send": {
+      "text": "[https://dup.test/a](https://dup.test/a)[https://dup.test/a](https://dup.test/a)",
+      "clientMessageId": "538d2dba-2f5b-4d65-aa5c-8cf2759cbeb8",
+      "parts": [
+        {
+          "type": "text",
+          "text": "[https://dup.test/a](https://dup.test/a)"
+        },
+        {
+          "type": "text",
+          "text": "[https://dup.test/a](https://dup.test/a)"
+        }
+      ]
+    },
+    "copyPaste": {
+      "clipboard": "[Clip Docs](https://clip.test/a?q=1#h)",
+      "urls": [
+        {
+          "id": "url_8c2a3ebb-b2ef-4eca-ac62-d144c431634e",
+          "url": "https://clip.test/a?q=1#h",
+          "text": "Clip Docs"
+        }
+      ],
+      "order": [
+        "url"
+      ],
+      "text": "Clip Docs"
+    },
+    "mobileLayout": {
+      "viewport": {
+        "width": 390,
+        "height": 780
+      },
+      "nodeBox": {
+        "x": 27,
+        "y": 703,
+        "width": 341,
+        "height": 22
+      },
+      "editorBox": {
+        "x": 12,
+        "y": 694,
+        "width": 371,
+        "height": 70
+      },
+      "deleteBox": {
+        "x": 345,
+        "y": 706,
+        "width": 16,
+        "height": 16
+      }
+    },
+    "sessionSwitch": {
+      "s2": {
+        "urls": [],
+        "order": [
+          "text"
+        ],
+        "text": ""
+      },
+      "s1": {
+        "urls": [
+          {
+            "id": "url_ef4b27e3-81ae-4caf-bbe8-3a107489060f",
+            "url": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "text": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ],
+        "order": [
+          "url"
+        ],
+        "text": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "s2Draft": {
+        "urls": [],
+        "order": [
+          "text"
+        ],
+        "text": "s2 draft"
+      }
+    },
+    "draftReload": {
+      "draft": {
+        "text": "",
+        "parts": [
+          {
+            "type": "url",
+            "id": "url_ef4b27e3-81ae-4caf-bbe8-3a107489060f",
+            "url": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ],
+        "attachments": []
+      },
+      "restored": {
+        "id": "url_ef4b27e3-81ae-4caf-bbe8-3a107489060f",
+        "url": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "text": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    "mobileSend": {
+      "text": "[https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx](https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+      "clientMessageId": "d92bbff5-1741-4187-b982-0662f6568afa",
+      "parts": [
+        {
+          "type": "text",
+          "text": "[https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx](https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)"
+        }
+      ]
+    }
+  },
+  "drafts": [
+    {
+      "draft": {
+        "text": "",
+        "parts": [
+          {
+            "type": "url",
+            "id": "url_ef4b27e3-81ae-4caf-bbe8-3a107489060f",
+            "url": "https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ],
+        "attachments": []
+      },
+      "baseRevision": 0
+    },
+    {
+      "draft": {
+        "text": "s2 draft",
+        "parts": [
+          {
+            "type": "text",
+            "value": "s2 draft"
+          }
+        ],
+        "attachments": []
+      },
+      "baseRevision": 0
+    }
+  ],
+  "queue": [
+    {
+      "text": "[https://dup.test/a](https://dup.test/a)[https://dup.test/a](https://dup.test/a)",
+      "clientMessageId": "538d2dba-2f5b-4d65-aa5c-8cf2759cbeb8",
+      "parts": [
+        {
+          "type": "text",
+          "text": "[https://dup.test/a](https://dup.test/a)"
+        },
+        {
+          "type": "text",
+          "text": "[https://dup.test/a](https://dup.test/a)"
+        }
+      ]
+    },
+    {
+      "text": "[https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx](https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)",
+      "clientMessageId": "d92bbff5-1741-4187-b982-0662f6568afa",
+      "parts": [
+        {
+          "type": "text",
+          "text": "[https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx](https://example.test/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/very-long-path-segment/report?q=query-value&query-value&query-value&query-value&query-value&query-value&last=1#section-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

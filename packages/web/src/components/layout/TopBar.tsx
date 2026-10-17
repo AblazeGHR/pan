@@ -150,6 +150,13 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const delayedRestartState = useWorkerStore((s) =>
     currentSession?.id ? s.delayedRestarts[currentSession.id] : undefined,
   );
+  useEffect(() => {
+    if (!currentSession?.id) return;
+    // Reconnect refreshes the selected Session only. A different Session may
+    // have completed its restart while disconnected; do not keep its cached
+    // pending intent disabling this entry when the user returns to it.
+    void useWorkerStore.getState().refreshDelayedRestart(currentSession.id).catch(() => {});
+  }, [currentSession?.id]);
 
   useEffect(() => {
     const sessionId = currentSession?.id;

@@ -440,6 +440,7 @@ def session_create(
     pan_access: dict | None = None,
     model_context_window: int | None = None,
     model_auto_compact_token_limit: int | None = None,
+    plugin_bindings: list[dict] | None = None,
 ) -> dict:
     """Create a new session (persistent conversation container).
 
@@ -459,6 +460,8 @@ def session_create(
         game_id: RuleWhisper game binding.
         pan_access: Capability flags dict, keys: restrictToManaged /
             canClaimUnmanaged / autoClaimCreated (all default False).
+        plugin_bindings: Optional plugin selections with plugin_id, enabled and
+            mode (standalone, pan_native or gateway). [] explicitly disables tools.
         model_context_window / model_auto_compact_token_limit: Optional
             positive Codex config overrides. Omitted values are not sent and
             are not persisted; non-Codex adapters reject explicit values.
@@ -493,6 +496,8 @@ def session_create(
         body["modelContextWindow"] = model_context_window
     if model_auto_compact_token_limit is not None:
         body["modelAutoCompactTokenLimit"] = model_auto_compact_token_limit
+    if plugin_bindings is not None:
+        body["pluginBindings"] = plugin_bindings
     result = _strip_usage(_api("POST", "/api/sessions", body))
     # meta-agent 创建的 session 自动归其管理（立项 4.2）
     if isinstance(result, dict) and result.get("id"):
@@ -1108,6 +1113,8 @@ def session_update(
     clear_model_context_window: bool = False,
     clear_model_auto_compact_token_limit: bool = False,
     workspace_ids: list[str] | None = None,
+    plugin_bindings: list[dict] | None = None,
+    expected_plugin_revision: int | None = None,
 ) -> dict:
     """Update session-level settings without spawning a worker.
 
@@ -1151,6 +1158,11 @@ def session_update(
             因此若目标 session 已被管理（managedBy 非空），本工具会拒绝并
             要求先 ``session_unclaim`` 分离（与 Dashboard 拖拽「先分离再移动」
             的既有行为一致）；对根 session 设置则会随管理树向下传播给全体后代。
+        plugin_bindings: Logical plugin selections; mutually exclusive with
+            mcp_servers. Native/standalone connection changes restart when idle;
+            changes within an existing gateway connection apply immediately.
+        expected_plugin_revision: Optional revision from session_get, rejects a
+            stale plugin selection rather than overwriting another editor.
 
     权限边界：_check_access 管理隔离——受限 caller（restrictToManaged）只能
     更新自己管理的 session；workspace 变更复用 Dashboard 使用的同一后端端点
@@ -1174,6 +1186,10 @@ def session_update(
         body["maxThinkingTokens"] = max_thinking_tokens
     if mcp_servers is not None:
         body["mcpServers"] = mcp_servers
+    if plugin_bindings is not None:
+        body["pluginBindings"] = plugin_bindings
+    if expected_plugin_revision is not None:
+        body["expectedPluginRevision"] = expected_plugin_revision
     if game_id is not None:
         body["gameId"] = game_id or None
     if model_context_window is not None:

@@ -428,4 +428,15 @@ describe('MarkdownRenderer', () => {
     await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toContain('文件不存在'));
     expect(useUIStore.getState().toastQueue.at(-1)?.type).toBe('error');
   });
+
+  it('renders a composer URL-node Markdown link with escaped parentheses', () => {
+    const view = render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content={'[Docs](https://example.test/a\\(b\\)?q=1&x=2#h)'} />
+      </MemoryRouter>,
+    );
+    const anchor = view.container.querySelector('a');
+    expect(anchor?.textContent).toBe('Docs');
+    expect(anchor?.getAttribute('href')).toBe('https://example.test/a(b)?q=1&x=2#h');
+  });
 });

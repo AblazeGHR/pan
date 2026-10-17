@@ -883,10 +883,8 @@ describe('RichTextComposer attachment demo', () => {
     expect(changes.at(-1)?.text).toBe('ab安全一\n安全二ef');
   });
 
-  it.each([
-    ['a non-file directory path', 'D:\\project\\src\\folder'],
-    ['a URL', 'https://example.test/docs/report.txt'],
-  ])('pastes %s as plain text without creating an attachment or link', (_label, pasted) => {
+  it('pastes a non-file directory path as plain text without creating a node', () => {
+    const pasted = 'D:\\project\\src\\folder';
     const changes: ComposerValue[] = [];
     render(
       <RichTextComposer
@@ -949,5 +947,257 @@ describe('RichTextComposer attachment demo', () => {
     // The InputRow callback is responsible for removing the pending chip;
     // the standalone composer still exposes the atomic node id.
     expect(editor.textContent).toBe('');
+  });
+});
+
+describe('RichTextComposer URL nodes', () => {
+  function renderUrlComposer(changes: ComposerValue[] = []) {
+    render(
+      <RichTextComposer
+        initialText="before after"
+        attachments={[]}
+        onChange={(value) => changes.push(value)}
+        onAttachmentDrop={vi.fn(() => null)}
+        onNativeFiles={vi.fn(() => [])}
+        onRemoveAttachment={vi.fn()}
+      />,
+    );
+    return screen.getByTestId('rich-text-composer');
+  }
+
+  function placeCaret(editor: HTMLElement, offset: number) {
+    const text = editor.firstElementChild?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, offset);
+    range.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+  }
+
+  function clipboardData(values: Record<string, string> = {}): DataTransfer {
+    const entries = new Map(Object.entries(values));
+    return {
+      files: [],
+      items: [],
+      types: Object.keys(values),
+      getData: (type: string) => entries.get(type) || '',
+      setData: (type: string, value: string) => {
+        entries.set(type, value);
+      },
+    } as unknown as DataTransfer;
+  }
+
+  function paste(
+    editor: HTMLElement,
+    data: { text?: string; html?: string },
+  ) {
+    const dataTransfer = clipboardData({
+      ...(data.text !== undefined ? { 'text/plain': data.text } : {}),
+      ...(data.html !== undefined ? { 'text/html': data.html } : {}),
+    });
+    fireEvent.paste(editor, { clipboardData: dataTransfer });
+    return dataTransfer;
+  }
+
+  it('pastes a plain URL as one atomic node and keeps mixed text order', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+
+    paste(editor, { text: 'https://example.test/docs/a?q=1#h' });
+
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]');
+    expect(node).toBeTruthy();
+    expect(node?.getAttribute('data-composer-url')).toBe('https://example.test/docs/a?q=1#h');
+    expect(editor.textContent).toBe('before https://example.test/docs/a?q=1#hafter');
+    expect(changes.at(-1)?.text).toBe('before after');
+    expect(changes.at(-1)?.occurrenceIds).toEqual([]);
+    expect(changes.at(-1)?.parts).toMatchObject([
+      { type: 'text', value: 'before ' },
+      { type: 'url', url: 'https://example.test/docs/a?q=1#h' },
+      { type: 'text', value: 'after' },
+    ]);
+  });
+
+  it('keeps multiple pasted URLs and their labels in document order', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+
+    paste(editor, { text: 'one https://one.test/a two https://two.test/b' });
+
+    const urls = Array.from(editor.querySelectorAll('[data-composer-url]')).map((node) =>
+      node.getAttribute('data-composer-url'),
+    );
+    expect(urls).toEqual(['https://one.test/a', 'https://two.test/b']);
+    expect(
+      changes.at(-1)?.parts.filter((part) => part.type === 'text').map((part) => part.value),
+    ).toEqual(['before one ', ' two ', 'after']);
+  });
+
+  it('preserves href and visible title from HTML clipboard data', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+
+    paste(editor, {
+      text: 'fallback',
+      html: '<p>See <a href="https://example.test/a?q=1&amp;x=2#part">Example Docs</a> now</p>',
+    });
+
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]');
+    expect(node?.textContent).toContain('Example Docs');
+    expect(node?.getAttribute('data-composer-url')).toBe(
+      'https://example.test/a?q=1&x=2#part',
+    );
+    expect(changes.at(-1)?.parts).toMatchObject([
+      { type: 'text', value: 'before See ' },
+      { type: 'url', url: 'https://example.test/a?q=1&x=2#part', label: 'Example Docs' },
+      { type: 'text', value: ' nowafter' },
+    ]);
+  });
+
+  it('does not create a node for a dangerous protocol or a relative link', () => {
+    const editor = renderUrlComposer();
+    placeCaret(editor, 7);
+
+    paste(editor, { html: '<a href="javascript:alert(1)">Bad</a>' });
+    paste(editor, { html: '<a href="/relative">Relative</a>' });
+
+    expect(editor.querySelector('[data-composer-url]')).toBeNull();
+    expect(editor.querySelector('a')).toBeNull();
+    expect(editor.textContent).toContain('Bad');
+    expect(editor.textContent).toContain('Relative');
+  });
+
+  it('moves a URL node by dragging it to a new caret position', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://example.test/a' });
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]')!;
+    const originalId = node.getAttribute('data-composer-url-id');
+
+    const end = document.createRange();
+    end.selectNodeContents(editor);
+    end.collapse(false);
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, { caretRangeFromPoint: vi.fn(() => end) }),
+    );
+    const dataTransfer = clipboardData();
+    fireEvent.dragStart(node, { dataTransfer });
+    expect(dataTransfer.getData('application/x-pan-composer-url')).toContain(
+      'https://example.test/a',
+    );
+    fireEvent.dragOver(editor, { dataTransfer, clientX: 30, clientY: 12 });
+    fireEvent.drop(editor, { dataTransfer, clientX: 30, clientY: 12 });
+
+    expect(editor.querySelectorAll('[data-composer-url]')).toHaveLength(1);
+    expect(editor.querySelector('[data-composer-url]')?.getAttribute('data-composer-url-id')).toBe(
+      originalId,
+    );
+    expect(changes.at(-1)?.parts.at(-1)).toMatchObject({
+      type: 'url',
+      url: 'https://example.test/a',
+      id: originalId,
+    });
+    expect(changes.at(-1)?.parts.filter((part) => part.type === 'url')).toHaveLength(1);
+  });
+
+  it('keeps intentionally repeated URLs as distinct nodes (no URL dedupe)', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://dup.test/a' });
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://dup.test/a' });
+
+    const nodes = Array.from(editor.querySelectorAll<HTMLElement>('[data-composer-url]'));
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.getAttribute('data-composer-url-id')).not.toBe(
+      nodes[1]?.getAttribute('data-composer-url-id'),
+    );
+    expect(changes.at(-1)?.parts.filter((part) => part.type === 'url')).toHaveLength(2);
+  });
+
+  it('deletes a URL node with its button and with Backspace', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://example.test/a' });
+
+    fireEvent.click(screen.getByRole('button', { name: '删除链接 https://example.test/a' }));
+    expect(editor.querySelector('[data-composer-url]')).toBeNull();
+    expect(editor.textContent).toBe('before after');
+
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://example.test/b' });
+    fireEvent.keyDown(editor, { key: 'Backspace' });
+    expect(editor.querySelector('[data-composer-url]')).toBeNull();
+    expect(changes.at(-1)?.parts.filter((part) => part.type === 'url')).toHaveLength(0);
+  });
+
+  it('keeps a URL node during IME composition', () => {
+    const editor = renderUrlComposer();
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://example.test/a' });
+
+    fireEvent.keyDown(editor, { key: 'Backspace', isComposing: true });
+
+    expect(editor.querySelector('[data-composer-url]')).toBeTruthy();
+  });
+
+  it('pastes copied plain-text Markdown back as a labeled node', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+
+    paste(editor, { text: '[Docs](https://example.test/a?q=1#h)' });
+
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]');
+    expect(node?.textContent).toContain('Docs');
+    expect(node?.getAttribute('data-composer-url')).toBe('https://example.test/a?q=1#h');
+    expect(changes.at(-1)?.parts).toMatchObject([
+      { type: 'text', value: 'before ' },
+      { type: 'url', url: 'https://example.test/a?q=1#h', label: 'Docs' },
+      { type: 'text', value: 'after' },
+    ]);
+  });
+
+  it('copies a node as Markdown + Pan transfer and pastes it back as a fresh node', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+    paste(editor, {
+      text: 'fallback',
+      html: '<a href="https://example.test/a?q=1#h">Docs</a>',
+    });
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]')!;
+    const selection = document.createRange();
+    selection.setStartBefore(node);
+    selection.setEndAfter(node);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(selection);
+
+    const dataTransfer = clipboardData();
+    fireEvent.copy(editor, { clipboardData: dataTransfer });
+    expect(dataTransfer.getData('text/plain')).toBe(
+      '[Docs](https://example.test/a?q=1#h)',
+    );
+
+    const end = document.createRange();
+    end.selectNodeContents(editor);
+    end.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(end);
+    fireEvent.paste(editor, { clipboardData: dataTransfer });
+
+    const nodes = Array.from(editor.querySelectorAll<HTMLElement>('[data-composer-url]'));
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.getAttribute('data-composer-url-id')).not.toBe(
+      nodes[1]?.getAttribute('data-composer-url-id'),
+    );
+    expect(nodes[1]?.textContent).toContain('Docs');
   });
 });

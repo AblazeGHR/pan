@@ -51,10 +51,33 @@
       "cwd": "${PLUGIN_DIR}/../.."
     },
     {
-      "name": "pan-qq",
+      "name": "qq",
       "command": "${PAN_PYTHON}",
       "args": ["-m", "packages.qq.mcp"],
       "cwd": "${PLUGIN_DIR}/../.."
+    }
+  ],
+  "plugins": [
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "qq",
+      "display_name": "QQ",
+      "aliases": ["pan-qq"],
+      "version": "1.0.0",
+      "source": {"kind": "mcp", "server_ref": "qq"},
+      "exposure": {
+        "supported_modes": ["standalone", "pan_native", "gateway"],
+        "default_mode": "standalone"
+      },
+      "tool_exports": {
+        "qq_send_message": "send_message",
+        "qq_send_file": "send_file",
+        "qq_read_conversation": "read_conversation",
+        "qq_list_contacts": "list_contacts",
+        "qq_read_inbox": "read_inbox",
+        "qq_bind": "bind",
+        "qq_unbind": "unbind"
+      }
     }
   ],
   "command_routes": []

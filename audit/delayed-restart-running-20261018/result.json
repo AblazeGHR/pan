@@ -1,0 +1,294 @@
+{
+  "head": "da7d164940b11337772b2447ab788c961c152275",
+  "results": [
+    {
+      "name": "merged-backend",
+      "exitCode": 0
+    },
+    {
+      "name": "merged-chromium",
+      "exitCode": 0
+    }
+  ],
+  "mainIncluded": "1887aef2650466b86dd80bbe2485a439899420be",
+  "mergeCommit": "4a7ad8d6654ab3f5d2e08d9b6e7c9210bceb8464",
+  "jobId": "job_885219e9669915d84c7d93d9",
+  "suites": {
+    "merged-backend": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "183",
+        "time": "174.831",
+        "timestamp": "2026-10-18T01:01:47.182012+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "merged-chromium": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "7",
+        "time": "29.210",
+        "timestamp": "2026-10-18T01:04:42.810882+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "latest-main-targeted-backend": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "94",
+        "time": "1.963",
+        "timestamp": "2026-10-18T01:03:23.891453+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  },
+  "targetedFrontend": {
+    "files": 4,
+    "passed": 43
+  },
+  "build": {
+    "passed": true,
+    "compressedAssets": 68
+  },
+  "realProcesses": [
+    {
+      "entry": "settings",
+      "base": "http://127.0.0.1:49751",
+      "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2776\\test_locked_queue_delayed_rest0\\runtime",
+      "oldPid": 47612,
+      "oldCreatedAt": 1792256684.4230328,
+      "newPid": 49200,
+      "accepted": {
+        "sessionId": "ses_99b20b6a1052ee12",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "pending",
+        "error": null,
+        "revision": 1
+      },
+      "completed": {
+        "sessionId": "ses_99b20b6a1052ee12",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      }
+    },
+    {
+      "entry": "topbar",
+      "base": "http://127.0.0.1:62917",
+      "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2776\\test_locked_queue_delayed_rest1\\runtime",
+      "oldPid": 14004,
+      "oldCreatedAt": 1792256689.607082,
+      "newPid": 43564,
+      "accepted": {
+        "sessionId": "ses_42940842c3fc0284",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "pending",
+        "error": null,
+        "revision": 1
+      },
+      "completed": {
+        "sessionId": "ses_42940842c3fc0284",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      }
+    },
+    {
+      "entry": "reconnect",
+      "base": "http://127.0.0.1:58637",
+      "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2776\\test_locked_queue_delayed_rest2\\runtime",
+      "oldPid": 41480,
+      "oldCreatedAt": 1792256694.3257167,
+      "newPid": 37132,
+      "accepted": {
+        "sessionId": "ses_3f0c34aa6997890e",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      },
+      "completed": {
+        "sessionId": "ses_3f0c34aa6997890e",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      }
+    }
+  ],
+  "combinations": [
+    {
+      "order": "plugin-first",
+      "base": "http://127.0.0.1:64375",
+      "accepted": {
+        "sessionId": "ses_84fd24563988ea20",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "pending",
+        "error": null,
+        "revision": 1
+      },
+      "completed": {
+        "sessionId": "ses_84fd24563988ea20",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      },
+      "bindings": [
+        {
+          "plugin_id": "qq",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ]
+    },
+    {
+      "order": "manual-first",
+      "base": "http://127.0.0.1:53594",
+      "accepted": {
+        "sessionId": "ses_46a5847d37153723",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "pending",
+        "error": null,
+        "revision": 1
+      },
+      "completed": {
+        "sessionId": "ses_46a5847d37153723",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      },
+      "bindings": [
+        {
+          "plugin_id": "qq",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ]
+    },
+    {
+      "order": "idle",
+      "base": "http://127.0.0.1:49933",
+      "accepted": {
+        "sessionId": "ses_1e3d44839efe24d2",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "restarting",
+        "error": null,
+        "revision": 2
+      },
+      "completed": {
+        "sessionId": "ses_1e3d44839efe24d2",
+        "workerId": "worker-1",
+        "generation": 0,
+        "action": "restart",
+        "status": "completed",
+        "error": null,
+        "revision": 3,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 1
+      },
+      "bindings": [
+        {
+          "plugin_id": "qq",
+          "enabled": true,
+          "mode": "pan_native"
+        }
+      ]
+    },
+    {
+      "order": "offline",
+      "base": "http://127.0.0.1:49960",
+      "accepted": {
+        "sessionId": "ses_5ec6eec7bc1fcfad",
+        "workerId": null,
+        "generation": null,
+        "action": "start",
+        "status": "restarting",
+        "error": null,
+        "revision": 1
+      },
+      "completed": {
+        "sessionId": "ses_5ec6eec7bc1fcfad",
+        "workerId": null,
+        "generation": null,
+        "action": "start",
+        "status": "completed",
+        "error": null,
+        "revision": 2,
+        "replacementWorkerId": "worker-1",
+        "replacementGeneration": 0
+      },
+      "bindings": [
+        {
+          "plugin_id": "qq",
+          "enabled": true,
+          "mode": "pan_native"
+        }
+      ]
+    }
+  ],
+  "cleanup": [
+    "CLEANUP http://127.0.0.1:49751 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:62917 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:58637 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:64375 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:53594 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:49933 owned server stopped; port released",
+    "CLEANUP http://127.0.0.1:49960 owned server stopped; port released"
+  ],
+  "boundaries": {
+    "backend": "real isolated FastAPI HTTP/WS and deterministic local provider processes",
+    "frontend": "Chromium driving production bundle without HTTP route interception",
+    "unverified": [
+      "original incident history",
+      "real Codex native TUI/provider failures",
+      "human acceptance"
+    ]
+  }
+}

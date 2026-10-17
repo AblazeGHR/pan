@@ -137,7 +137,7 @@ def test_save_appends_only_to_selected_manifest_and_keeps_legacy_profiles(tmp_pa
     untouched_before = untouched.read_bytes()
     manager = _manager(tmp_path, root, plugin, untouched)
     targets = manager.list_session_template_manifest_targets()
-    selected = next(item for item in targets if item["label"] == "target/manifest.json")
+    selected = next(item for item in targets if item["label"].endswith("target/manifest.json"))
     monkeypatch.setattr(srv, "_character_manager", manager)
 
     response = asyncio.run(srv.api_save_session_template({
