@@ -94,7 +94,12 @@ async function createJob(page, payload) {
 }
 
 async function createSession(page, name, adapter) {
-  const response = await page.request.post(`${baseURL}/api/sessions`, { data: { name, adapter } });
+  // mcpServers: [] is the documented one-time override that disables MCP for
+  // this creation — the isolated fixture config defines no MCP servers, so the
+  // default template's "pan" requirement would otherwise reject it.
+  const response = await page.request.post(`${baseURL}/api/sessions`, {
+    data: { name, adapter, mcpServers: [] },
+  });
   assert.equal(response.ok(), true, `POST /api/sessions failed: ${response.status()} ${await response.text()}`);
   const session = await response.json();
   assert.ok(session?.id, `session creation response missing id: ${JSON.stringify(session)}`);
@@ -164,6 +169,21 @@ async function boxOf(locator) {
   return box;
 }
 
+/**
+ * The info-area row is right-anchored (right: 1px): its right edge is the
+ * invariant that never moves — regardless of J visibility or adapter
+ * clipping. Individual item rects may extend past it when clipped, so the
+ * row edge (not an item edge) is what "right-aligned, edge unmoved" means.
+ */
+async function assertRowRightAnchored(row, railBox) {
+  const rowBox = await boxOf(row);
+  assert.ok(
+    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width - 1)) < 1.5,
+    `the row right edge must stay anchored 1px inside the rail, got ${rowBox.x + rowBox.width} vs ${railBox.x + railBox.width - 1}`,
+  );
+  return rowBox;
+}
+
 const runningJob = (sessionId) => ({
   kind: 'background-process',
   name: 'e2e-session-job-running',
@@ -177,7 +197,7 @@ const runningJob = (sessionId) => ({
 // ── Case 1: width ladder — J appears, disappears ENTIRELY, returns ──────────
 
 await runCase('desktop width ladder hides J entirely and keeps numbers right-aligned', DESKTOP, async (page) => {
-  const sessionId = await createSession(page, 'Delta Width', 'cbc');
+  const sessionId = await createSession(page, 'Delta-Width', 'cbc');
   await createJob(page, runningJob(sessionId));
   await seedUnread(page, sessionId, 3); // "3" next to the (running) J
 
@@ -232,25 +252,28 @@ await runCase('desktop width ladder hides J entirely and keeps numbers right-ali
   await badge.waitFor({ state: 'detached', timeout: 10000 });
   assert.equal(await jobBadge(page, sessionId).count(), 0, 'J must disappear entirely (no leftover pill)');
   const rowBoxB = await boxOf(row);
-  // No reserved gap: the row shrinks by exactly the J width plus its gap.
-  const shrink = rowBoxA.width - rowBoxB.width;
+  // No reserved gap: the row is exactly its visible children plus their gaps —
+  // nothing is held for the removed J.
+  const composition = await row.evaluate((el) => {
+    const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 3;
+    const children = Array.from(el.children).map((c) => c.getBoundingClientRect().width);
+    return { gap, children };
+  });
+  const expectedRowB = composition.children.reduce((sum, w) => sum + w, 0)
+    + composition.gap * (composition.children.length - 1);
   assert.ok(
-    Math.abs(shrink - (jBoxA.width + 3)) < 0.75,
-    `row must shrink by exactly jWidth+gap, got ${shrink} vs ${jBoxA.width + 3}`,
+    Math.abs(rowBoxB.width - expectedRowB) < 0.75,
+    `row must equal its visible children + gaps (no reserved space), got ${rowBoxB.width} vs ${expectedRowB}`,
   );
   // Right edge unmoved; numbers complete inside the rail.
   const railBoxB = await boxOf(rail);
-  const adapterBoxB = await boxOf(adapter);
   const queueBox = await boxOf(queue);
   const doneBoxB = await boxOf(done);
   assert.ok(
     Math.abs((rowBoxB.x + rowBoxB.width) - (rowBoxA.x + rowBoxA.width)) < 0.75,
     'the row right edge must not move when J hides',
   );
-  assert.ok(
-    Math.abs((adapterBoxB.x + adapterBoxB.width) - (railBoxB.x + railBoxB.width)) < 4,
-    'the right-most identifier must stay right-aligned to the rail',
-  );
+  await assertRowRightAnchored(row, railBoxB);
   for (const [name, box] of [['queue', queueBox], ['done', doneBoxB]]) {
     assert.ok(
       box.x >= railBoxB.x - 0.5 && box.x + box.width <= railBoxB.x + railBoxB.width + 0.5,
@@ -266,13 +289,9 @@ await runCase('desktop width ladder hides J entirely and keeps numbers right-ali
   await expect(done).toHaveText('99+', { timeout: 10000 });
   assert.equal(await jobBadge(page, sessionId).count(), 0, 'multi-digit crowding must keep J hidden');
   const railBoxC = await boxOf(rail);
-  const adapterBoxC = await boxOf(adapter);
   const queueBoxC = await boxOf(queue);
   const doneBoxC = await boxOf(done);
-  assert.ok(
-    Math.abs((adapterBoxC.x + adapterBoxC.width) - (railBoxC.x + railBoxC.width)) < 4,
-    'the right-most identifier must stay right-aligned while crowded',
-  );
+  await assertRowRightAnchored(row, railBoxC);
   for (const [name, box] of [['queue', queueBoxC], ['done', doneBoxC]]) {
     assert.ok(
       box.x >= railBoxC.x - 0.5 && box.x + box.width <= railBoxC.x + railBoxC.width + 0.5,
@@ -294,8 +313,8 @@ await runCase('desktop width ladder hides J entirely and keeps numbers right-ali
 // ── Case 2: the adapter length decides with the same numbers ────────────────
 
 await runCase('desktop long adapter hides J where a short adapter shows it', DESKTOP, async (page) => {
-  const longId = await createSession(page, 'Delta Long Adapter', 'opencode');
-  const shortId = await createSession(page, 'Delta Short Adapter', 'cbc');
+  const longId = await createSession(page, 'Delta-Long-Adapter', 'opencode');
+  const shortId = await createSession(page, 'Delta-Short-Adapter', 'cbc');
   await createJob(page, runningJob(longId));
   await createJob(page, runningJob(shortId));
   await seedUnread(page, longId, 120);  // "99+"
@@ -314,9 +333,11 @@ await runCase('desktop long adapter hides J where a short adapter shows it', DES
   );
   assert.equal(await jobBadge(page, longId).count(), 0, 'long adapter must hide J');
 
-  // The long-adapter card keeps its numbers complete and right-aligned.
-  const rail = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-quick-action-rail"]`);
+  // The long-adapter card keeps its numbers complete and the row anchored.
   const done = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-unread-done-badge"]`);
+  await expect(done).toHaveText('99+', { timeout: 10000 });
+  const rail = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-quick-action-rail"]`);
+  const row = page.locator(`[data-session-card-id="${longId}"] .session-quick-action-adapter-row`);
   const adapter = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-adapter-badge"]`);
   const railBox = await boxOf(rail);
   const doneBox = await boxOf(done);
@@ -326,9 +347,13 @@ await runCase('desktop long adapter hides J where a short adapter shows it', DES
     doneBox.x >= railBox.x - 0.5 && doneBox.x + doneBox.width <= railBox.x + railBox.width + 0.5,
     'numeric badge must stay complete next to a long adapter',
   );
-  assert.ok(
-    Math.abs(adapterBox.x + adapterBox.width - (railBox.x + railBox.width)) < 4,
-    'the adapter chip must stay right-aligned next to a long adapter',
+  await assertRowRightAnchored(row, railBox);
+  // The adapter is the designated yield: it may clip, but only inside the row.
+  assert.ok(adapterBox.x >= railBox.x - 0.5, 'the adapter must start inside the rail');
+  assert.equal(
+    await row.evaluate((el) => getComputedStyle(el).overflow),
+    'hidden',
+    'the row must clip its content inside the rail',
   );
   const card = cardLocator(page, longId);
   await card.scrollIntoViewIfNeeded();
@@ -338,7 +363,7 @@ await runCase('desktop long adapter hides J where a short adapter shows it', DES
 // ── Case 3: mobile is width-driven too — a roomy mobile info area shows J ───
 
 await runCase('mobile roomy info area shows J and crowded mobile hides it', MOBILE, async (page) => {
-  const sessionId = await sessionIdOf(page, 'Delta Width');
+  const sessionId = await sessionIdOf(page, 'Delta-Width');
   const badge = jobBadge(page, sessionId);
   const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
   const queue = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-queue-badge"]`);
@@ -360,11 +385,7 @@ await runCase('mobile roomy info area shows J and crowded mobile hides it', MOBI
   await badge.waitFor({ state: 'detached', timeout: 10000 });
   assert.equal(await jobBadge(page, sessionId).count(), 0, 'crowded mobile must hide J entirely');
   const doneBox = await boxOf(done);
-  const rowBox = await boxOf(row);
-  assert.ok(
-    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
-    'the row must stay right-aligned to the rail on mobile',
-  );
+  await assertRowRightAnchored(row, railBox);
   assert.ok(
     doneBox.x >= railBox.x - 0.5 && doneBox.x + doneBox.width <= railBox.x + railBox.width + 0.5,
     'mobile numeric badge must stay complete',

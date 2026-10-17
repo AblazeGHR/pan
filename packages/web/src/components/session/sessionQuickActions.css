@@ -124,9 +124,11 @@
 /* 底行右侧（adapter 标签行）：未读 done 徽标在 adapter 标签左侧，二者同一
    flex 行整体锚定右下角；徽标 0 时组件不渲染，该行退回只有 adapter 的原布局。
    overflow:hidden 保证极端拥挤（多位数字 + 长 adapter + J 同时存在）时内容只在
-   72px rail 内裁剪，绝不溢出卡片遮挡正文或其他按钮；所有项 flex 0 0 auto 均不
-   压缩——数字徽标永远完整，J 的显隐由 sessionInfoAreaFit.ts 按实际宽度整枚决定，
-   裁剪至多落在最右的 adapter 上。 */
+   rail 内裁剪，绝不溢出卡片遮挡正文或其他按钮；max-width 与 right:1px 内缩配对
+   （calc(100% - 1px)），满载行的左缘也不越出 rail，与 sessionInfoAreaFit 的
+   available = rail 宽 - 1 精确一致；所有项 flex 0 0 auto 均不压缩——数字徽标
+   永远完整，J 的显隐由 sessionInfoAreaFit.ts 按实际宽度整枚决定，裁剪至多落在
+   最右的 adapter 上。 */
 .session-quick-action-adapter-row {
   position: absolute;
   z-index: 4;
@@ -135,7 +137,7 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  max-width: 100%;
+  max-width: calc(100% - 1px);
   overflow: hidden;
 }
 
