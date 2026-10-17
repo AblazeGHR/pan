@@ -22,6 +22,12 @@ function clipboard(data: Record<string, string> = {}): DataTransfer {
 }
 
 describe('composer URL detection', () => {
+  it('rejects every embedded ASCII control, space and DEL while preserving Unicode paths', () => {
+    for (const code of [...Array.from({ length: 33 }, (_, index) => index), 127]) {
+      expect(normalizeComposerUrl(`https://example.test/a${String.fromCharCode(code)}b`)).toBeNull();
+    }
+    expect(normalizeComposerUrl('https://example.test/中文/😀?x=é')).toBe('https://example.test/中文/😀?x=é');
+  });
   it('keeps the pasted address bytes, including query and hash', () => {
     const url = 'https://Example.test/a%20b?q=1&next=%2Fx#L42-L48';
     expect(normalizeComposerUrl(url)).toBe(url);

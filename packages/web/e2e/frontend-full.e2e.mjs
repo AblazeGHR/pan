@@ -269,6 +269,10 @@ async function assertLiveVisualOrder(label, snapshots) {
 }
 const ids = {};
 const faults = {
+  missedResult: false,
+  missedResultInjected: false,
+  dropNextRunning: false,
+  droppedRunning: false,
   transientBeforeResult: false,
   duplicate: false,
   reorder: false,
@@ -298,6 +302,34 @@ try {
     upstream.onMessage(message => {
       if (faults.backgroundDeadSocket === ws) return;
       const e = JSON.parse(String(message));
+      const omitApplicationEvent = () => ws.send(JSON.stringify({
+        // Consume transport cursors without dispatching a lifecycle handler.
+        // Raw packet loss exercises resync instead (covered separately below).
+        type: '__e2e.omitted_application_event',
+        serverEpoch: e.serverEpoch, eventEpoch: e.eventEpoch, eventSeq: e.eventSeq,
+        sourceCursorStart: e.sourceCursorStart, sourceCursorEnd: e.sourceCursorEnd,
+        deliveryEpoch: e.deliveryEpoch, deliverySeq: e.deliverySeq,
+      }));
+      if (faults.missedResult && e.type === 'worker.result'
+          && String(e.result || '').includes('answer:missed-result-first')) {
+        faults.missedResult = false;
+        faults.missedResultInjected = true;
+        ws.send(JSON.stringify({ type: 'worker.stream', sessionId: e.sessionId,
+          workerId: e.workerId, generation: e.generation, executionSeq: e.executionSeq,
+          taskSeq: e.taskSeq, serverEpoch: e.serverEpoch, event: {
+            type: 'content.part', role: 'assistant', delta: true, item_id: 'missed-result-orphan',
+            part: { type: 'text', text: 'orphan-progress-missed-result' },
+          } }));
+        omitApplicationEvent();
+        return; // Transport receives the cursor, application misses the result.
+      }
+      if (faults.dropNextRunning && e.type === 'worker.status' && e.status === 'running'
+          && e.sessionId === ids['E2E-A']) {
+        faults.dropNextRunning = false;
+        faults.droppedRunning = true;
+        omitApplicationEvent();
+        return;
+      }
       if (faults.transientBeforeResult && e.type === 'worker.result'
           && String(e.result || '').includes('answer:terminal-transient')) {
         faults.transientBeforeResult = false;
@@ -432,6 +464,18 @@ try {
   assert.equal(faults.transientBeforeResult, false, 'ephemeral transport frames actually injected');
   assert.equal(await page.evaluate(() => window.__ephemeralSeen), true, 'ephemeral rows were displayed before canonical convergence');
   assert.ok(!(await state()).rows.some(m => m.content.includes('ephemeral-fixture')), 'no non-durable tail blocks remain');
+  faults.missedResult = true;
+  await send('missed-result-first');
+  await poll(() => Promise.resolve(faults.missedResultInjected), value => value, 'terminal application event deliberately omitted');
+  assert.equal(await page.evaluate(id => !!window.__panSessionStore.getState().liveStreamBuffers[id], ids['E2E-A']), true,
+    'missing terminal really leaves the previous live buffer alive');
+  faults.dropNextRunning = true;
+  await send('missed-result-second');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:missed-result-second'),
+    'next execution reaches durable completion after missed result/running');
+  assert.equal(faults.droppedRunning, true, 'the next running event was actually dropped');
+  await equalCanonical('missed terminal and next running: new stream retires old provisional rows without reload');
+  assert.ok(!(await state()).rows.some(row => row.nativeItemId === 'missed-result-orphan'), 'no old runtime item behind DONE');
   // Real durable notice queue + provider stdin + WS, staying in the selected
   // Session throughout. Assert a delta is rendered before terminal persistence.
   for (const [noticeKind, label] of [

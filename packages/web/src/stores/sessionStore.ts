@@ -244,7 +244,7 @@ interface SessionStore {
   appendMessages: (msgs: Message[]) => void;
   /** Append a user-side control/message to its target Session projection. */
   appendLocalMessage: (sessionId: string, msg: Message) => void;
-  getLiveStreamMessages: (sessionId: string) => Message[];
+  getLiveStreamMessages: (sessionId: string, meta?: LiveStreamMeta) => Message[];
   /** Read the current task watermark before building a stream projection. */
   canApplyLiveStream: (sessionId: string, meta: LiveStreamMeta) => boolean;
   applyLiveStream: (sessionId: string, messages: Message[], meta: LiveStreamMeta) => boolean;
@@ -607,6 +607,8 @@ export interface SessionTranscript {
   /** Absolute offset where the runtime region starts. */
   anchorOffset: number;
   serverEpoch: string | null;
+  /** Executions superseded without a result, awaiting newer canonical coverage. */
+  retiredRuns?: Array<{ taskKey: string; start: number; epoch: string | null; revision: number }>;
   /** Completed task scopes awaiting their versioned canonical history page. */
   completedRuns?: Array<{
     taskKey: string;
@@ -624,6 +626,40 @@ const runtimeKeys = new WeakMap<Message, string>();
 const completedLiveRows = new WeakSet<Message>();
 export function markCompletedLiveRows(rows: Message[]): void {
   rows.forEach(row => completedLiveRows.add(row));
+}
+
+/** Retire only provisional slots of an execution whose ownership has ended. */
+function retireLiveProjection(base: SessionTranscript, buffer: Pick<LiveStreamBuffer, 'taskKey'>): SessionTranscript {
+  if (!buffer.taskKey) return base;
+  const prefix = `slot:${buffer.taskKey}:`;
+  return { ...base, runtime: base.runtime.filter(row =>
+    !runtimeKeyOf(row)?.startsWith(prefix) || completedLiveRows.has(row)) };
+}
+
+function deferRetiredProjection(base: SessionTranscript, buffer: LiveStreamBuffer): SessionTranscript {
+  if (!buffer.messages.length || !buffer.taskKey) return base;
+  return { ...base, retiredRuns: [...(base.retiredRuns ?? []), {
+    taskKey: buffer.taskKey, start: buffer.historyStartOffset ?? base.anchorOffset,
+    epoch: base.window.epoch, revision: base.window.revision,
+  }] };
+}
+
+function convergeRetiredRuns(base: SessionTranscript): SessionTranscript {
+  if (!base.retiredRuns?.length) return base;
+  let next = base;
+  const pending = base.retiredRuns.filter(run => {
+    const window = base.window;
+    if (window.epoch !== run.epoch || window.revision <= run.revision
+        || window.start === null || window.start > run.start || window.total <= run.start) return true;
+    for (let offset = run.start; offset < window.total; offset += 1) {
+      if (!window.rows.has(offset)) return true;
+    }
+    // A newer execution proves the old one ended, but only this newer complete
+    // canonical region proves what survived. Keep confirmed complete items.
+    next = retireLiveProjection(next, { taskKey: run.taskKey });
+    return false;
+  });
+  return next === base ? base : { ...next, retiredRuns: pending };
 }
 /** Canonical end offset proven to precede a local worker.result marker. */
 const terminalMarkerCoverage = Symbol('terminalMarkerCoverage');
@@ -1833,7 +1869,7 @@ function applyHistoryPageToState(
   // the window we already have must not reconstruct the display: rows that
   // exist only in the rendered projection (an optimistic user row, an
   // agent-injected message) would be dropped by a rebuild.
-  next = convergeCompletedRuns(next);
+  next = convergeRetiredRuns(convergeCompletedRuns(next));
   const projected = projectTranscript(next, s.liveStreamBuffers[sessionId]);
   // Keep the previous array reference when the projection is unchanged: callers
   // (and the agent-injection retry) compare array identity to decide whether a
@@ -3280,8 +3316,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  getLiveStreamMessages: (sessionId) =>
-    (get().liveStreamBuffers[sessionId]?.messages || []).slice(),
+  getLiveStreamMessages: (sessionId, meta) => {
+    const buffer = get().liveStreamBuffers[sessionId];
+    // A missed result/running pair must not seed the new execution with the
+    // previous execution's cumulative items or transient native aliases.
+    if (!buffer || (meta && taskScopeKey(sessionId, meta, buffer) !== buffer.taskKey)) return [];
+    return buffer.messages.slice();
+  },
 
   canApplyLiveStream: (sessionId, meta) => {
     const state = get();
@@ -3313,13 +3354,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       ) + 1;
       const taskKey = taskScopeKey(sessionId, meta, previous);
       const session = sessionOf(s, sessionId);
-      const base = session
+      let base = session
         ? ensureTranscript(s.sessionTranscripts, session)
         : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const replacing = previous && taskKey !== previous.taskKey;
+      if (replacing) {
+        base = deferRetiredProjection(base, previous);
+        if (previous.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
+      }
       const buffer: LiveStreamBuffer = {
         ...meta,
         taskKey,
-        historyStartOffset: previous?.historyStartOffset ?? base.anchorOffset,
+        historyStartOffset: replacing ? Math.max(base.window.total, base.anchorOffset)
+          : previous?.historyStartOffset ?? base.anchorOffset,
         revision,
         messages: messages.slice(),
       };
@@ -3335,7 +3382,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // stream blocks that had already appeared. Use the target Session's
       // current projection, then retain that exact interleaving in runtime.
       const selected = s.currentSessionId === sessionId;
-      const targetDisplay = selected
+      const targetDisplay = replacing ? projectTranscript(base) : selected
         ? s.currentMessages
         : previous?.projectionDisplay
           && previous.projectionWindow === base.window
@@ -3771,8 +3818,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           messages: [],
         };
         accepted = true;
+        const base = s.sessionTranscripts[sessionId];
+        const transcript = base ? deferRetiredProjection(base, previous) : undefined;
+        if (previous.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
         return {
           liveStreamBuffers: nextBuffers,
+          ...(transcript ? {
+            ...withTranscript(s, sessionId, transcript),
+            ...(s.currentSessionId === sessionId ? { currentMessages: projectTranscript(transcript) } : {}),
+          } : {}),
           sessions: s.sessions.map((session) => session.id === sessionId
             ? { ...session, workerId: meta.workerId ?? session.workerId, workerStatus: status,
                 ...workerStatusMetadata(meta) }
@@ -3826,11 +3880,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const nextBuffers = { ...s.liveStreamBuffers };
         delete nextBuffers[sessionId];
         const base = s.sessionTranscripts[sessionId];
-        const prefix = previous?.taskKey ? `slot:${previous.taskKey}:` : null;
-        const transcript = base && prefix ? {
-          ...base,
-          runtime: base.runtime.filter(row => !runtimeKeyOf(row)?.startsWith(prefix) || completedLiveRows.has(row)),
-        } : base;
+        const transcript = base && previous ? retireLiveProjection(base, previous) : base;
         if (previous?.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
         return {
           ...next,
@@ -3861,10 +3911,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // the interrupted buffer's task slots cease to be authoritative.
       const base = s.sessionTranscripts[sessionId];
       if (!base) return { liveStreamBuffers };
-      const prefix = `slot:${buffer.taskKey}:`;
-      const transcript = { ...base,
-        runtime: base.runtime.filter(row => !runtimeKeyOf(row)?.startsWith(prefix) || completedLiveRows.has(row)),
-      };
+      const transcript = retireLiveProjection(base, buffer);
       if (buffer.messages.length) queueMicrotask(() => { void get().recoverSessionHistory(sessionId); });
       return { liveStreamBuffers, ...withTranscript(s, sessionId, transcript),
         ...(s.currentSessionId === sessionId ? { currentMessages: projectTranscript(transcript) } : {}),

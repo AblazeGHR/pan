@@ -35,7 +35,7 @@ export interface ComposerTextPart {
 export type ParsedComposerPart = ComposerTextPart | Omit<ComposerUrlPart, 'id'>;
 
 const SAFE_PROTOCOL = /^https?:\/\//i;
-const UNSAFE_URL_CHARACTERS = /[\u0000-\u0020\u007f<>"'`]/;
+const UNSAFE_URL_CHARACTERS = /[<>"'`]/;
 // Do not treat sentence punctuation as part of the address.  `?` and `#` are
 // deliberately absent: a query/hash is part of the URL and must never be
 // rewritten or truncated.
@@ -73,6 +73,12 @@ export function normalizeComposerUrl(raw: string): string | null {
   const value = raw.trim();
   if (!value || !SAFE_PROTOCOL.test(value)) return null;
   if (UNSAFE_URL_CHARACTERS.test(value)) return null;
+  // URL() can silently strip ASCII whitespace/control bytes. Reject them
+  // before parsing so the stored destination stays identical to the input.
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x20 || code === 0x7f) return null;
+  }
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
