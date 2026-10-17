@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-17T15:57:35.965Z",
+  "url": "http://127.0.0.1:52389/react",
+  "executablePath": "C:\\Users\\14709\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "sessionNameVisibleInMain": true,
+  "historyMarkerVisibleInMain": true,
+  "pageErrors": [],
+  "nativeClick": false,
+  "source": "owned headless Playwright preflight",
+  "screenshot": "runtime-session-page.png"
+}

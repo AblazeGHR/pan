@@ -285,8 +285,26 @@ def test_long_observation_toast_retains_full_click_target_and_payload_budget():
     root = ET.fromstring(xml)
     assert root.attrib['duration'] == 'long'
     assert root.attrib['launch'] == url
+    assert root.attrib['activationType'] == 'protocol'
     assert root.find('actions/action').attrib['arguments'] == url
     assert root.find('actions/action').attrib['activationType'] == 'protocol'
     assert len(xml.encode('utf-8')) <= 4096
     with pytest.raises(ValueError):
         windows_toast.build_toast_xml('title', 'body', duration='arbitrary')
+
+
+def test_persistent_center_body_and_button_share_protocol_target_after_sender_exit():
+    import xml.etree.ElementTree as ET
+    url = 'http://127.0.0.1:52389/react/?session=ses_054cea78b612e558'
+    xml = windows_toast.build_toast_xml('Pan: completion', 'body', launch_url=url)
+    root = ET.fromstring(xml)
+    action = root.find('actions/action')
+    assert root.attrib['activationType'] == action.attrib['activationType'] == 'protocol'
+    assert root.attrib['launch'] == action.attrib['arguments'] == url
+    script = windows_toast.build_show_script(windows_toast.TOAST_APP_ID, xml, 'owned', 'owned')
+    assert 'Register-ObjectEvent' not in script
+    assert 'add_Activated' not in script and 'Start-Sleep' not in script
+    assert 'ExpirationTime' not in script
+    assert '$notifier.Show($toast)' in script
+    plain = ET.fromstring(windows_toast.build_toast_xml('Reminder', 'body'))
+    assert 'activationType' not in plain.attrib and 'launch' not in plain.attrib

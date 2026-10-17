@@ -13,12 +13,13 @@ verified separately (docs/reports/windows-toast-delivery-20261017.md).
   Shell visibility: a current human check saw neither banner nor center item
   with an unregistered AUMID. We register the app's HKCU display identity before
   sending; actual visibility still requires human/desktop verification.
-- The click target is an action button whose ``arguments`` is the full
+- The click targets are the toast body and action button. Both carry the full
   loopback deep link (``http://127.0.0.1:<port>/react/?session=<id>``) with
   ``activationType="protocol"``: http(s) activation is dispatched by the
   system to the installed default browser and does not run through this
-  process, so a click keeps working after the sender process exited (verified
-  by a real click; see the audit report). Cold-starting a fully closed browser
+  process. Current human evidence confirms the banner button, while the
+  center's body/button paths still require revalidation after adding root
+  protocol activation (see the audit report). Cold-starting a fully closed browser
   goes through the same system http-handler path, but that variant is NOT yet
   verified on this machine - treat it as expected behavior, not as proven.
   The URL is always built by
@@ -135,7 +136,12 @@ def build_toast_xml(title: object, body: object, *,
     ]
     launch_attr = ""
     if launch_url:
-        launch_attr = f' launch="{_xml_escape(launch_url)}"'
+        # The center commonly presents a collapsed item: clicking its body
+        # must use the same Shell-owned protocol activation as the button.
+        # A launch URL alone defaults to foreground app activation, for which
+        # this unpackaged sender has no COM activator. Do not rely on a sender
+        # callback/process surviving until the user visits the center.
+        launch_attr = f' activationType="protocol" launch="{_xml_escape(launch_url)}"'
     duration_attr = f' duration="{duration}"' if duration else ''
     parts.append(f"<toast{launch_attr}{duration_attr}>")
     parts.append('<visual><binding template="ToastGeneric">')

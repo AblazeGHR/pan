@@ -2,7 +2,10 @@
 
 ## Delivery status
 
-**Latest acceptance: banner now seen; center and native click pending.** The
+**Latest acceptance: banner click passed, notification-center click failed.**
+The user on Oct 18 confirmed banner navigation and reported center navigation
+failure. The latest root-protocol fix below awaits a fresh center test.
+The
 user confirmed seeing the post-registration 23:48:02 probe, but the banner
 timed out before clicking. That probe had no click target. The earlier
 2026-10-17 23:42:55 owned small-toast
@@ -413,3 +416,135 @@ Directed regression after adding the optional duration and probe arguments:
 `click-ready-unit.xml`. The new case locks long-duration XML budget and the
 complete button target. `visible_check.py --help` also passes. These checks
 do not prove OS duration, center UI or native clicking.
+
+## Real owned click runtime, build and Oct 18 center-click correction
+
+Runtime is intentionally **left running for MA's human acceptance**, not
+waiting for terminal Job notification before delivering readiness:
+
+- Origin: `http://127.0.0.1:52389`.
+- Real Session: `ses_054cea78b612e558`, name
+  `OWNED Toast click acceptance 20261017`.
+- Deep link: `http://127.0.0.1:52389/react/?session=ses_054cea78b612e558`.
+- PID **43372**, created UTC **2026-10-17T15:54:38.372550+00:00**,
+  raw creation FILETIME **134367260783725499**.
+- Hidden owned Job **job_fae467053d20b479dfda26f8**, targeting this TA Session
+  `ses_3f87f64dbb736845`.
+- Command: existing Pan venv Python + absolute
+  `audit/windows-toast-delivery/owned_runtime.py --serve --runtime`
+  `D:/project/pan-worktrees/windows-toast-delivery-20261017/audit/windows-toast-delivery/runtime-click-20261017-native1`.
+- Config: that runtime directory's `config.json`; data: its `data/` subtree.
+  Session/config/Job/scheduler/terminal/workspace/reminder paths are explicitly
+  isolated. No Session queue or external provider was started. QQ, WeChat,
+  scheduler and network-exposure autostart are off in the owned config.
+- Actual startup executes **main.py as __main__**, with real Uvicorn and
+  production lifespan. No HTTP stub/test injection endpoint serves the page.
+  Paths are substituted before startup following the existing isolated server
+  pattern. Hidden Job launch is real; external thread-desktop inspection was
+  denied with WinError 5, preserved in `runtime-context.json`, so do not claim
+  a measured desktop name for this particular server.
+
+The first attempt to reuse canonical dist showed a stale bundle: sidebar text
+matched, but screenshot review found the main area unselected. That false
+preflight is explicitly invalidated in `runtime-browser-prebuild.json` and
+`runtime-session-prebuild.png`. Canonical dependencies then failed a build
+because @xterm modules were absent. The task's dependency junction was safely
+repointed to existing complete dependencies in
+`D:/project/pan-worktrees/cbc-worker-tui-settings-verify-20261017/packages/web/node_modules`
+after verifying the lockfile hash matched. **No installation or canonical
+mutation** occurred. Task-tree `pnpm build` then passed TypeScript, Vite and
+**66 compressed asset** verification; ordinary chunk warnings remain.
+
+Current task-built dist is a real local directory. The running static server
+serves that path without a restart. Health/Session/deep-link HTTP checks passed.
+Owned headless Chromium preflight then checked **main**, not sidebar/body,
+for the selected Session name and unique historical message. Screenshot review
+confirms the actual conversation; zero page errors. See `runtime-browser.json`,
+`runtime-ready.json`, `runtime-session-page.png`. This is browser/deep-link
+preflight, not native clicking. Chrome MCP was unavailable at its configured
+9222 debugger endpoint, so existing Playwright Chromium was used in an owned
+headless context without controlling user tabs.
+
+### Center failure evidence and source diagnosis
+
+MA relayed the current user statement: "屏幕中直接弹出的可以跳转，但是通知中心的不行，补这一部分。"
+This establishes **banner navigation passed / center navigation failed**.
+It does not distinguish center body from an expanded action button.
+`center-before-fix.json` preserves the owned access log and last sender receipt.
+The real Edge request at **15:58:07.855 UTC** reached the exact Session link.
+The retained last send receipt is **15:58:37.993 UTC**, later than that request;
+we therefore do not fabricate click/send pairing. No matching notification
+remained at snapshot, so the item's exact lifetime cannot be reconstructed
+from current storage. No new notification was sent by this TA.
+
+Source confirms **there is no short-lived Activated handler**: the helper calls
+Show and exits; it neither registers an event handler nor runs a message loop.
+Instead a concrete activation mismatch remained in serialized XML:
+
+```
+Before: <toast launch="http://127.0.0.1:52389/react/?session=...">
+         <action activationType="protocol" arguments="the same full URL" .../>
+After:  <toast activationType="protocol" launch="the same full URL">
+         <action activationType="protocol" arguments="the same full URL" .../>
+```
+
+Without the root activation type, body clicks use app activation, for which
+this sender has no COM activator. A collapsed center item commonly exposes the
+body as the click surface. The button had protocol activation already; no
+evidence proves that a distinct expanded-button failure has the same cause.
+The fix makes **both body and button** Shell-owned protocol targets using the
+identical validated, send-time full URL, requiring neither a running helper nor
+a custom protocol/browser choice override. Root protocol activation is the
+same construction as Microsoft's toolkit SetProtocolActivation:
+[toolkit source](https://github.com/CommunityToolkit/WindowsCommunityToolkit/blob/main/Microsoft.Toolkit.Uwp.Notifications/Toasts/Builder/ToastContentBuilder.cs),
+[content schema](https://learn.microsoft.com/windows/apps/design/shell/tiles-and-notifications/toast-schema).
+
+No extra registration is added in this iteration. Current display registration
+remains HKCU DisplayName only. Standard stub CLSID/shortcut or COM activation
+remains a possible follow-up if the explicit center protocol paths still fail;
+this patch does not claim that a body fix establishes every persistent Shell
+activation prerequisite. It does not add a 60-second helper or alter expiry.
+
+Directed regressions: **97 passed**, zero failed/skipped, one existing warning
+(`center-unit.xml`). Added checks parse root and action activation semantics,
+require exact same Session URL, reject dependence on callbacks/waits/expiry,
+and preserve plain reminder behavior and the complete XML payload budget.
+Those are source/contract checks, not actual post-exit OS-click proof.
+
+### MA's next center acceptance and owned shutdown
+
+Before sending, verify PID/FILETIME/command/listener and Session readiness:
+
+```powershell
+$py = 'D:/project/Pan-main/.venv/Scripts/python.exe'
+$rt = 'D:/project/pan-worktrees/windows-toast-delivery-20261017/audit/windows-toast-delivery/runtime-click-20261017-native1'
+& $py audit/windows-toast-delivery/owned_runtime.py --check --runtime $rt
+```
+
+When the user is ready, MA sends one new notification with the current source:
+
+```powershell
+& $py scripts/run_tests_isolated.py -- $py audit/windows-toast-delivery/visible_check.py --send --long --origin http://127.0.0.1:52389 --session ses_054cea78b612e558
+```
+
+After helper exit and banner expiry, user opens Win+N, clicks the notification
+**body**, and verifies the owned conversation. Send a separate marked owned
+notification only with user readiness to test the **expanded button** as well.
+For durable behavior, test after a meaningful delay beyond 60 seconds; record
+each send/click time and preserve each receipt before reusing the probe file.
+Only actual UI outcome plus correlated access/session evidence closes this.
+
+After acceptance, remove only the diagnostic item and gracefully stop the
+identity-verified runtime:
+
+```powershell
+& $py scripts/run_tests_isolated.py -- $py audit/windows-toast-delivery/visible_check.py --cleanup
+& $py audit/windows-toast-delivery/owned_runtime.py --stop --runtime $rt
+```
+
+`--stop` verifies PID creation FILETIME, command markers and listener, then
+calls the production `/api/internal/main/shutdown` on **52389 only**. Check the
+owned Job terminal notice and closed port afterward; cancellation by owned Job
+ID is the fallback only if graceful shutdown fails. Do not close this runtime
+before the scheduled human test. Native center clicking remains **pending**.
+main/practical/push/release/restart boundaries remain unchanged.
