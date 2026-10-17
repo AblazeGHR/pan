@@ -1,0 +1,27 @@
+{
+  "fixture_only": true,
+  "exit_code": 0,
+  "before_version": 2,
+  "after_version": 1,
+  "accounts": 3,
+  "removed_fields_per_account": {
+    "fixture-a": [
+      "chatgpt_account_id",
+      "id_token",
+      "token_updated_at_ms"
+    ],
+    "fixture-c": [
+      "chatgpt_account_id",
+      "id_token",
+      "token_updated_at_ms"
+    ],
+    "fixture-b": [
+      "chatgpt_account_id",
+      "id_token",
+      "token_updated_at_ms"
+    ]
+  },
+  "selected_default": "fixture-b",
+  "original_source_modified": false,
+  "production_store_modified": false
+}

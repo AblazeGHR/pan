@@ -27,6 +27,16 @@ beforeEach(() => { vi.mocked(invokePluginPanel).mockReset().mockResolvedValue(st
 afterEach(() => { cleanup(); usePluginPanelStore.setState({ panels: [], loaded: false, loading: false, error: null }); });
 
 describe('plugin account panel', () => {
+  it('shows reauthentication requirements and prevents selecting an incomplete account', async () => {
+    const incomplete = structuredClone(state);
+    incomplete.accounts = incomplete.accounts.map((account) => ({ ...account, reauthRequired: !account.isDefault }));
+    vi.mocked(invokePluginPanel).mockResolvedValueOnce(incomplete);
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('需要重新登录');
+    expect(screen.getByRole('button', { name: '设为默认账号' }).hasAttribute('disabled')).toBe(true);
+    expect(invokePluginPanel).toHaveBeenCalledTimes(1);
+  });
+
   it('shows accounts and defers quota queries until the explicit refresh button', async () => {
     render(<AccountSwitcher panel={panel} />);
     await screen.findByText('alice@example.test');

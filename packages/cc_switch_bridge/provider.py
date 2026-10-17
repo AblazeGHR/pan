@@ -24,7 +24,15 @@ class Bridge:
         configured = json.loads(settings.read_text(encoding='utf-8')) if settings.exists() else {}
         executable = configured.get('executable') or os.environ.get('PAN_CC_SWITCH_CLI') or shutil.which('cc-switch')
         if not executable:
-            raise ValueError('未找到 cc-switch CLI；请安装或在插件 settings.json 配置 executable')
+            raise ValueError('未找到 GUI Fork 的 cc-switch 入口；请安装或在插件 settings.json 配置 executable')
+        if getattr(self, '_verified_executable', None) != executable:
+            version = self._call_cli(executable, ['--version'])
+            if not isinstance(version, dict) or version.get('contract') != 'pan-cc-switch-gui/v1':
+                raise ValueError('此入口不是兼容的 cc-switch GUI Fork；旧 CLI 已停用，请配置新入口')
+            self._verified_executable = executable
+        return self._call_cli(executable, args, json_output)
+
+    def _call_cli(self, executable, args, json_output=True):
         remaining = getattr(self, '_deadline', time.monotonic() + 10) - time.monotonic()
         if remaining <= 0:
             raise ValueError('本次查询预算已用完；请刷新状态，勿自动重试切换')
@@ -44,7 +52,7 @@ class Bridge:
         try:
             return json.loads(result.stdout)
         except ValueError as exc:
-            raise ValueError('CLI 未返回兼容的 JSON；需要支持 provider list --json 的版本') from exc
+            raise ValueError('CLI 未返回兼容的 JSON；请使用 cc-switch GUI Fork 的控制台入口') from exc
 
     def listing(self, app):
         raw = self.runner(['--app', app, 'provider', 'list', '--json'])
@@ -66,12 +74,14 @@ class Bridge:
                 pass
             providers.append({'id': str(row['id']), 'name': str(row.get('name') or row['id']),
                 'origin': origin, 'isCurrent': row['id'] == raw.get('currentProviderId'),
+                'notes': str(row.get('notes') or ''), 'category': str(row.get('category') or ''),
                 'quota': cache.get(str(row['id']))})
         accounts, account_error = [], None
         if app == 'codex':
             try:
                 status = self.runner(['auth', 'status', '--json'])
                 accounts = [{'id': str(a['id']), 'login': str(a.get('login') or a['id']),
+                    'reauthRequired': bool(a.get('reauth_required', False)),
                     'isDefault': a['id'] == status.get('default_account_id')}
                     for a in status.get('accounts', [])]
             except ValueError as exc:

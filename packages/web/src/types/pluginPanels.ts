@@ -20,7 +20,7 @@ export interface AccountSnapshot {
   app: string;
   currentProviderId: string | null;
   observedAt: number;
-  providers: { id: string; name: string; origin: string | null; isCurrent: boolean; quota: AccountQuota | null }[];
-  accounts: { id: string; login: string; isDefault: boolean }[];
+  providers: { id: string; name: string; origin: string | null; isCurrent: boolean; quota: AccountQuota | null; notes?: string; category?: string }[];
+  accounts: { id: string; login: string; isDefault: boolean; reauthRequired?: boolean }[];
   accountError: string | null;
 }

@@ -153,13 +153,16 @@ def test_cancelled_panel_caller_does_not_replay_admitted_mutation(manifest, tmp_
 
 def test_cli_errors_and_quota_normalization_do_not_expose_credentials(tmp_path, monkeypatch):
     from packages.cc_switch_bridge import provider
-    runner = Mock(return_value=SimpleNamespace(returncode=1, stdout='secret-token', stderr='secret-token'))
+    runner = Mock(side_effect=[
+        SimpleNamespace(returncode=0, stdout=json.dumps({'contract': 'pan-cc-switch-gui/v1'}), stderr=''),
+        SimpleNamespace(returncode=1, stdout='secret-token', stderr='secret-token')])
     monkeypatch.setenv('PAN_CC_SWITCH_CLI', 'fixture-only.exe')
     monkeypatch.setattr(provider.subprocess, 'run', runner)
     with pytest.raises(ValueError, match='退出码') as failure:
         Bridge(tmp_path)._run(['--app', 'codex', 'provider', 'list', '--json'])
     assert 'secret' not in str(failure.value)
     assert runner.call_args.args[0] == ['fixture-only.exe', '--app', 'codex', 'provider', 'list', '--json']
+    assert runner.call_args_list[0].args[0] == ['fixture-only.exe', '--version']
     result = normalize_quota({'status': 'query_failed', 'error': 'secret-token', 'result': None})
     assert 'secret' not in json.dumps(result)
     assert result['tiers'] == [] and not result['available']
@@ -170,6 +173,29 @@ def test_cli_errors_and_quota_normalization_do_not_expose_credentials(tmp_path, 
     with pytest.raises(ValueError, match='预算'):
         bridge._run(['auth', 'status', '--json'])
     runner.assert_not_called()
+
+
+@pytest.mark.parametrize('version', ['cc-switch 5.10.5', '{"contract":"legacy"}'])
+def test_legacy_cli_never_reaches_account_or_provider_operations(tmp_path, monkeypatch, version):
+    from packages.cc_switch_bridge import provider
+    monkeypatch.setenv('PAN_CC_SWITCH_CLI', 'retired-fixture.exe')
+    runner = Mock(return_value=SimpleNamespace(returncode=0, stdout=version, stderr=''))
+    monkeypatch.setattr(provider.subprocess, 'run', runner)
+    with pytest.raises(ValueError, match='GUI Fork'):
+        Bridge(tmp_path)._run(['auth', 'default', 'fixture-account'], False)
+    runner.assert_called_once()
+    assert runner.call_args.args[0] == ['retired-fixture.exe', '--version']
+
+
+def test_account_reauthentication_status_reaches_the_panel_without_credentials(tmp_path):
+    def runner(args, json_output=True):
+        if args[:2] == ['auth', 'status']:
+            return {'accounts': [{'id': 'fixture-a', 'login': 'alice@example.test',
+                                  'reauth_required': True, 'refresh_token': 'never-expose'}]}
+        return {'providers': []}
+    result = Bridge(tmp_path, runner=runner).listing('codex')
+    assert result['accounts'][0]['reauthRequired'] is True
+    assert 'never-expose' not in json.dumps(result)
 
 
 def test_bridge_helpers_share_a_lock_without_invoking_the_cli(tmp_path):

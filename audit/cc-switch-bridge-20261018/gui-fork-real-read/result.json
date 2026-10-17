@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "backend": "installed GUI Fork through real Pan Bridge",
+  "readOnly": true,
+  "productionFilesUnchanged": true,
+  "realAccountSwitches": 0,
+  "realQuotaRefreshes": 0,
+  "apps": {
+    "codex": {
+      "providers": 5,
+      "accounts": 3,
+      "reauthRequired": 0,
+      "currentPresent": true
+    },
+    "claude": {
+      "providers": 1,
+      "accounts": 0,
+      "reauthRequired": 0,
+      "currentPresent": true
+    },
+    "gemini": {
+      "providers": 1,
+      "accounts": 0,
+      "reauthRequired": 0,
+      "currentPresent": false
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { RefreshCw, Check, Play, Plug } from 'lucide-react';
+import { RefreshCw, Check, Play, Plug, Search, UserRound, Layers3 } from 'lucide-react';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 import { invokePluginPanel } from '@/services/api';
 import type { AccountQuota, AccountSnapshot, PluginPanel } from '@/types/pluginPanels';
@@ -60,18 +60,21 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   };
 
   return <section className="h-full overflow-auto p-4 sm:p-6 text-text-primary" aria-label={panel.title}>
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-semibold flex items-center gap-2"><Plug size={22} />{panel.title}</h1>
-          <p className="mt-1 text-sm text-text-tertiary">通过已安装的 cc-switch CLI 管理配置，额度仅在点击刷新时查询。</p></div>
+          <p className="mt-1 text-sm text-text-tertiary">管理应用配置与 ChatGPT 账号，和 CC Switch 共享账号数据。</p></div>
         <button className={button} disabled={busy} onClick={() => void act('list')}><RefreshCw size={15} />刷新列表</button>
       </header>
-      <div className="flex gap-2" role="group" aria-label="应用">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-default bg-bg-secondary p-2" role="group" aria-label="应用">
         {['codex', 'claude', 'gemini'].map((value) => <button key={value} className={button + (app === value ? ' bg-accent/15 text-accent' : '')}
           aria-pressed={app === value} disabled={busy} onClick={() => { setApp(value); setConfirm(null); }}>{value === 'codex' ? 'Codex' : value === 'claude' ? 'Claude' : 'Gemini'}</button>)}
       </div>
-      <input aria-label="搜索配置或账号" placeholder="搜索配置名称、账号或地址…" value={query} onChange={(event) => setQuery(event.target.value)}
-        className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-sm outline-none focus:border-accent" />
+      <label className="flex items-center gap-2 rounded-xl border border-border-default bg-bg-secondary px-3 focus-within:border-accent">
+        <Search size={16} className="shrink-0 text-text-tertiary" />
+        <input aria-label="搜索配置或账号" placeholder="搜索配置名称、备注、账号或地址…" value={query} onChange={(event) => setQuery(event.target.value)}
+          className="min-w-0 w-full bg-transparent py-3 text-sm outline-none" />
+      </label>
       {error && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">{error}</div>}
       {uncertain && <p role="status" className="text-sm text-amber-500">切换结果尚未确认。请先刷新列表并核对实际状态，再发起新的切换。</p>}
       {confirm && <div className="rounded-xl border border-accent p-4 flex flex-wrap items-center gap-3" role="alertdialog" aria-label="确认切换">
@@ -81,12 +84,20 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
       </div>}
       {!snapshot && <p role="status" className="text-text-tertiary">{busy ? '正在读取账号信息…' : '尚未读取到数据'}</p>}
       {snapshot && <>
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
+          <span className="inline-flex items-center gap-2"><Layers3 size={16} />{snapshot.providers.length} 个配置</span>
+          {app === 'codex' && <span className="inline-flex items-center gap-2"><UserRound size={16} />{snapshot.accounts.length} 个账号</span>}
+          <span>当前：{snapshot.providers.find((provider) => provider.isCurrent)?.name || '未启用配置'}</span>
+        </div>
         <div className="space-y-3" aria-label="配置列表">
           {snapshot.providers.length === 0 && <p className="p-5 text-text-tertiary">此应用还没有配置，请在 cc-switch 中添加。</p>}
-          {snapshot.providers.filter((provider) => `${provider.name} ${provider.id} ${provider.origin || ''}`.toLowerCase().includes(query.toLowerCase())).map((provider) => <article key={provider.id} className={'rounded-2xl border p-4 sm:p-5 bg-bg-secondary ' + (provider.isCurrent ? 'border-accent' : 'border-border-default')}>
+          {snapshot.providers.filter((provider) => `${provider.name} ${provider.id} ${provider.origin || ''} ${provider.notes || ''} ${provider.category || ''}`.toLowerCase().includes(query.toLowerCase())).map((provider) => <article key={provider.id} className={'rounded-xl border p-4 sm:p-5 bg-bg-secondary ' + (provider.isCurrent ? 'border-accent shadow-sm' : 'border-border-default')}>
             <div className="flex flex-wrap items-center gap-3">
+              <div aria-hidden="true" className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-lg font-semibold text-accent">{provider.name.slice(0, 1).toUpperCase()}</div>
               <div className="min-w-0 basis-full sm:basis-0 sm:flex-1"><h2 className="font-semibold break-words">{provider.name}</h2>
-                <p className="mt-1 text-xs text-text-tertiary break-all">{provider.origin || provider.id}</p></div>
+                <p className="mt-1 text-xs text-text-tertiary break-all">{provider.origin || provider.id}</p>
+                {provider.notes && <p className="mt-1 text-sm text-text-secondary break-words">{provider.notes}</p>}
+                {provider.category && <span className="mt-2 inline-block rounded bg-bg-primary px-2 py-0.5 text-xs text-text-tertiary">{provider.category}</span>}</div>
               {provider.isCurrent ? <span className="flex items-center gap-1 text-accent text-sm"><Check size={16} />当前配置</span> :
                 <button className={button + ' text-accent'} disabled={busy || uncertain} onClick={() => setConfirm({ action: 'switch', id: provider.id, name: provider.name })}><Play size={14} />启用配置</button>}
               <button className={button} aria-label={`刷新 ${provider.name} 额度`} disabled={busy} onClick={() => void act('quota', provider.id)}><RefreshCw size={14} />额度</button>
@@ -98,10 +109,12 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
           <h2 className="font-semibold">ChatGPT 默认账号</h2>
           <p className="text-xs text-text-tertiary">仅影响使用默认账号的配置；绑定了特定账号的配置保持其绑定。额度在上方关联配置中查询。</p>
           {snapshot.accountError && <p role="status" className="text-sm text-text-tertiary">{snapshot.accountError}</p>}
+          {snapshot.accounts.some((account) => account.reauthRequired) && <p role="status" className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-500">部分账号需要重新登录。请在 CC Switch GUI 中恢复有效备份或重新授权，之后刷新列表。</p>}
           {!snapshot.accountError && snapshot.accounts.length === 0 && <p className="text-sm text-text-tertiary">没有已登录账号，请在 cc-switch 中登录。</p>}
           {snapshot.accounts.filter((account) => `${account.login} ${account.id}`.toLowerCase().includes(query.toLowerCase())).map((account) => <div key={account.id} className="flex flex-wrap items-center gap-3 border-t border-border-default pt-3">
             <span className="min-w-0 flex-1 break-all text-sm">{account.login}</span>
-            {account.isDefault ? <span className="text-accent text-sm">默认账号</span> : <button className={button} disabled={busy || uncertain}
+            {account.reauthRequired && <span className="text-sm text-amber-500">需要重新登录</span>}
+            {account.isDefault ? <span className="text-accent text-sm">默认账号</span> : <button className={button} disabled={busy || uncertain || account.reauthRequired}
               onClick={() => setConfirm({ action: 'default_account', id: account.id, name: account.login })}>设为默认账号</button>}
           </div>)}
         </section>}

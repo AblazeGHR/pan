@@ -1,0 +1,15 @@
+{
+  "officialGuiVersion": "4.0.15",
+  "officialGuiCommit": "79e754ab1b6ed50da57dae1d0faecab4b3b52f1c",
+  "localForkCommit": "ecb2c4c7",
+  "rustEntryAndPipeTestsPassed": 7,
+  "officialRustRegressionTestsPassed": 9,
+  "officialGuiFrontendTestsPassed": 44,
+  "panPluginTestsPassed": 54,
+  "panPanelAndNavigationTestsPassed": 17,
+  "panCompressedAssets": 70,
+  "realAccountSwitches": 0,
+  "productionGuiStarted": false,
+  "productionServicesRestarted": false,
+  "runtimeProfile": "GNU dev; custom-protocol embeds official renderer; installed debug symbols stripped"
+}

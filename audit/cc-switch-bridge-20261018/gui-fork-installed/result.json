@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "backend": "production Pan ASGI API -> Panel -> stdio -> actual GUI Fork executable",
+  "fixtureOnly": true,
+  "productionDataUnchanged": true,
+  "realAccountSwitches": 0,
+  "fixtureProviderSwitches": 1,
+  "fixtureDefaultSwitches": 1,
+  "allAccountFieldsPreserved": true,
+  "databaseVersionAfter": 20,
+  "mcpPublicTools": {
+    "standalone": 2,
+    "pan_native": 2,
+    "gateway": 2
+  }
+}

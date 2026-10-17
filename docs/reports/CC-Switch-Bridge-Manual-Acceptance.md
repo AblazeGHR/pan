@@ -1,5 +1,23 @@
 # CC Switch Bridge：用户真机验收清单
 
+> GUI Fork 接入更新：现在只接受返回 `pan-cc-switch-gui/v1` 协议的 GUI Fork 控制台入口。旧 5.10.5 CLI 已弃用，不应再运行其中的 auth/default/quota/switch 命令。以下旧版实施背景仅作历史记录；实际后端、安装路径、最新验证和数据兼容边界见 [GUI Fork 接入报告](CC-Switch-GUI-Fork-Integration-20261018.md)。
+
+当前验收前请先关闭原 GUI，使用 `D:\openTools\cc-switch-pan\cc-switch-app.cmd` 打开新版 Fork。GUI 和 CLI 共用原来的 `~/.cc-switch` 数据；GUI 打开时 CLI 经 Windows 命名管道调用同一 AppState，不使用 HTTP。切勿同时打开旧 GUI 进行账号操作。新版 GUI 会按官方逻辑升级数据库到 schema 20，升级前请保留备份；旧 GUI 3.20.4 不能直接打开已升级的数据库。
+
+新版专项清单（真实切换只由用户执行）：
+
+| 操作 | 预期 |
+| --- | --- |
+| 新终端运行 `cc-switch --version` | JSON 中 contract 为 `pan-cc-switch-gui/v1`，guiVersion 为 `4.0.15` |
+| 打开 Pan CC Switch 面板 | 和新版 GUI 的配置名称、当前标记、账号状态一致，支持备注与分类展示 |
+| 账号显示需要重新登录 | 在 GUI 中恢复可靠备份或重新授权；不把缺失的 token 字段当作可自动修复 |
+| GUI 开着，在 Pan 确认切换一个测试配置 | 两边同步，原生客户端文件由 GUI 的 ProviderService 更新；没有第二套 OAuth 实现 |
+| GUI 关闭，在 Pan 确认切换一个测试配置 | 控制台直接复用相同 GUI 业务服务；重开 GUI 后仍一致 |
+| 切换默认账号后核查全部账号 | 默认 ID 变化，其余账号的 workspace/id_token/token_updated_at_ms 保留；不要把 token 内容贴到报告 |
+| 重新查询关联账号额度 | 使用 GUI 的凭据采纳/刷新逻辑；查询失败显示不可用，不显示伪造的 0% |
+
+以下为首轮 Bridge 验收记录和通用操作步骤；其中“原 CLI”的旧安装位置不再适用。
+
 插件是 `cc-switch-bridge`，不是 cc-switch 本体。实现只通过已安装 CLI 桥接，未改动、重编译、导入或打包原始 cc-switch。接口核对使用本机 `D:\openTools\cc-switch-cli-src` 的源码（核查时 HEAD `a82dac16`）；Pan UI 为自行实现，未复制其 GUI 代码。
 
 本轮切换测试全部使用假 CLI。没有执行任何真实账号/配置切换，也未启动或操作原始 GUI。用户允许查询，但不把查询授权扩展为切换。下面所有真实切换均由用户本人执行；本轮没有合并 main/practical、构建 practical 或重启生产服务。

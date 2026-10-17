@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "privateDatabaseCopyOnly": true,
+  "schemaBefore": 19,
+  "schemaAfter": 20,
+  "originalProviderRows": 9,
+  "preservedTables": [
+    "providers",
+    "provider_endpoints",
+    "mcp_servers",
+    "skills"
+  ],
+  "allOriginalRowsPreserved": true,
+  "oauthCopyUnchanged": true,
+  "productionOAuthUnchanged": true,
+  "realProviderQueries": 0,
+  "realAccountSwitches": 0
+}
