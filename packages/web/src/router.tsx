@@ -9,6 +9,7 @@ const EditorView = deferredView(() => import('./views/EditorView'));
 const ManageView = lazy(() => import('./views/ManageView'));
 const JobsView = lazy(() => import('./views/JobsView'));
 const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
+const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
 
 function deferredRoute(view: React.ReactNode) {
   return <Suspense fallback={<div className="p-4 text-sm text-text-tertiary">Loading...</div>}>{view}</Suspense>;
@@ -42,6 +43,10 @@ export const router = createBrowserRouter(
         {
           path: 'terminals',
           element: deferredRoute(<TerminalPanel />),
+        },
+        {
+          path: 'plugins/:pluginId/:panelId',
+          element: deferredRoute(<PluginPanelView />),
         },
         {
           path: 'schedules',

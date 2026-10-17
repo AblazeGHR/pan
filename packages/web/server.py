@@ -280,7 +280,8 @@ async def lifespan(app: FastAPI):
     # WS 桥是**内层**：退出时先停 WS 准入并关闭全部连接（共享 2s 预算），
     # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
     from packages.plugins.ipc import plugin_lifespan
-    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed), terminal_api.terminal_lifespan(app):
+    from packages.plugins.panels import panel_lifespan
+    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed), panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
         async with terminal_tools_api.terminal_tools_lifespan(app):
             async with terminal_ws.websocket_lifespan(app):
                 tailscale = _tailscale_controller()
@@ -3138,6 +3139,26 @@ def _plugin_manifest():
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("Plugin manifest not loaded")
     return _character_manager._manifest_config
+
+
+@app.get("/api/plugins/panels")
+async def api_plugin_panels():
+    from packages.plugins.panels import PanelHost
+    host = getattr(app.state, "plugin_panels", None)
+    return {"panels": (host or PanelHost(_plugin_manifest, DATA_DIR)).panels()}
+
+
+@app.post("/api/plugins/{plugin_id}/panels/{panel_id}/actions/{action}")
+async def api_plugin_panel_action(plugin_id: str, panel_id: str, action: str, data: dict):
+    host = getattr(app.state, "plugin_panels", None)
+    if host is None:
+        raise HTTPException(503, "Plugin panel host is not running")
+    if set(data) - {"arguments", "requestId"}:
+        raise HTTPException(400, "Unknown panel request fields")
+    try:
+        return await host.invoke(plugin_id, panel_id, action, data.get("arguments", {}), data.get("requestId"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 def _plugin_catalog():

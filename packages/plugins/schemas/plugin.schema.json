@@ -31,7 +31,22 @@
       },
       "additionalProperties": false
     },
-    "tool_exports": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"}}
+    "tool_exports": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"}},
+    "data": {"type": "object", "properties": {"version": {"type": "integer", "minimum": 1}}, "required": ["version"], "additionalProperties": false},
+    "agent_capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 3}},
+    "panels": {"type": "array", "items": {
+      "type": "object", "required": ["id", "title", "renderer", "actions"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,47}$"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 80},
+        "renderer": {"enum": ["account-switcher/v1"]},
+        "actions": {"type": "object", "minProperties": 1, "additionalProperties": {
+          "type": "object", "required": ["capability", "effect"],
+          "properties": {"capability": {"type": "string"}, "effect": {"enum": ["read", "write_external"]}},
+          "additionalProperties": false
+        }}
+      }, "additionalProperties": false
+    }}
   },
   "additionalProperties": false
 }

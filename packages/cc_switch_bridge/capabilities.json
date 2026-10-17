@@ -1,0 +1,157 @@
+{
+  "protocol": "pan-capability/v1",
+  "plugin_id": "cc-switch-bridge",
+  "provider": {
+    "transport": "stdio_jsonrpc",
+    "command_ref": "cc-switch-bridge-helper"
+  },
+  "capabilities": [
+    {
+      "id": "cc-switch-bridge.list",
+      "export_key": "list",
+      "description": "List cc-switch providers and managed ChatGPT accounts; does not query remote quota.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "list",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.quota",
+      "export_key": "quota",
+      "description": "Explicitly query quota through the installed cc-switch CLI. Omit id to list available IDs, current selection and cached quota without remote queries.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "quota",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.switch",
+      "export_key": "switch",
+      "description": "Change the global cc-switch provider for an app; never replay an uncertain outcome.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedCurrentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "default_account"
+            ],
+            "default": "provider"
+          }
+        },
+        "required": [
+          "app",
+          "id",
+          "expectedCurrentId"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "switch",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.default_account",
+      "export_key": "default_account",
+      "description": "Set the managed ChatGPT default account; does not override provider-specific account bindings.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedCurrentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "app",
+          "id",
+          "expectedCurrentId"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "default_account",
+        "result_format": "mcp"
+      }
+    }
+  ]
+}

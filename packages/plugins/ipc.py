@@ -104,7 +104,7 @@ class Bridge:
 
 @asynccontextmanager
 async def plugin_lifespan(get_manifest, get_session, directory, on_native_change=None):
-    runtime = Runtime(get_manifest, get_session, on_native_change)
+    runtime = Runtime(get_manifest, get_session, on_native_change, data_root=directory)
     bridge = Bridge(runtime, directory)
     previous = os.environ.get(ENV)
     os.environ[ENV] = bridge.address

@@ -106,6 +106,15 @@
         "packages.wechat.mcp"
       ],
       "cwd": "${PLUGIN_DIR}"
+    },
+    {
+      "name": "cc-switch-bridge-helper",
+      "command": "${PAN_PYTHON}",
+      "args": [
+        "-m",
+        "packages.cc_switch_bridge.provider"
+      ],
+      "cwd": "${PLUGIN_DIR}"
     }
   ],
   "plugins": [
@@ -113,11 +122,20 @@
       "protocol": "pan-plugin/v1",
       "id": "qq",
       "display_name": "QQ",
-      "aliases": ["pan-qq"],
+      "aliases": [
+        "pan-qq"
+      ],
       "version": "1.0.0",
-      "source": {"kind": "mcp", "server_ref": "qq"},
+      "source": {
+        "kind": "mcp",
+        "server_ref": "qq"
+      },
       "exposure": {
-        "supported_modes": ["standalone", "pan_native", "gateway"],
+        "supported_modes": [
+          "standalone",
+          "pan_native",
+          "gateway"
+        ],
         "default_mode": "standalone"
       },
       "tool_exports": {
@@ -129,6 +147,48 @@
         "qq_bind": "bind",
         "qq_unbind": "unbind"
       }
+    },
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "cc-switch-bridge",
+      "display_name": "CC Switch Bridge",
+      "version": "1.0.0",
+      "source": {
+        "kind": "pan_api",
+        "capabilities_file": "packages/cc_switch_bridge/capabilities.json"
+      },
+      "data": {
+        "version": 1
+      },
+      "panels": [
+        {
+          "id": "accounts",
+          "title": "CC Switch",
+          "renderer": "account-switcher/v1",
+          "actions": {
+            "list": {
+              "capability": "cc-switch-bridge.list",
+              "effect": "read"
+            },
+            "quota": {
+              "capability": "cc-switch-bridge.quota",
+              "effect": "read"
+            },
+            "switch": {
+              "capability": "cc-switch-bridge.switch",
+              "effect": "write_external"
+            },
+            "default_account": {
+              "capability": "cc-switch-bridge.default_account",
+              "effect": "write_external"
+            }
+          }
+        }
+      ],
+      "agent_capabilities": [
+        "cc-switch-bridge.switch",
+        "cc-switch-bridge.quota"
+      ]
     }
   ],
   "command_routes": []

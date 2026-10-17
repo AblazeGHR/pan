@@ -65,7 +65,7 @@ def read_api_document(plugin):
 
 
 class Runtime:
-    def __init__(self, get_manifest, get_session, on_native_change=None):
+    def __init__(self, get_manifest, get_session, on_native_change=None, data_root=None, audience="agent"):
         self.get_manifest = get_manifest
         self.get_session = get_session
         self.on_native_change = on_native_change
@@ -77,6 +77,8 @@ class Runtime:
         self.requests = set()
         self.closing = False
         self.watcher = None
+        self.data_root = data_root
+        self.audience = audience
 
     def context(self, sid):
         session = self.get_session(sid)
@@ -98,12 +100,14 @@ class Runtime:
         key = (sid, plugin.id)
         document = read_api_document(plugin) if plugin.source["kind"] == "pan_api" else None
         config = document if document else catalog.servers[plugin.source["server_ref"]]
-        revision = digest([plugin.source, config])
+        revision = digest([plugin.source, config, plugin.agent_capabilities, plugin.data_version])
         owner = self.providers.get(key)
         if owner is None or owner[0] != revision or owner[1].closed:
             if owner:
                 await owner[1].close()
-            provider = ApiProvider(document, catalog, session) if document else McpProvider(config, session)
+            from .data import plugin_data_dir
+            data_dir = plugin_data_dir(self.data_root, plugin.id, plugin.data_version) if self.data_root else None
+            provider = ApiProvider(document, catalog, session, data_dir) if document else McpProvider(config, session, data_dir)
             self.providers[key] = (revision, provider)
         provider = self.providers[key][1]
         tools = await provider.request("list")
@@ -127,6 +131,8 @@ class Runtime:
             descriptors.append({"name": canonical, "plugin": plugin.id, "source_name": original,
                                 "native_name": native, "tool": copy.deepcopy(tool),
                                 "contract_version": version, "contract_digest": digest([tool, version])})
+        if self.audience != "panel" and plugin.agent_capabilities is not None:
+            descriptors = [d for d in descriptors if d['name'] in plugin.agent_capabilities]
         previous = self.snapshots.get(key)
         if previous != descriptors:
             self.snapshots[key] = descriptors
@@ -136,7 +142,7 @@ class Runtime:
         return descriptors
 
     async def directory(self, sid, view, plugin_id=None):
-        _, _, bindings = self.context(sid)
+        _, catalog, bindings = self.context(sid)
         mode = {"native": "pan_native", "gateway": "gateway", "standalone": "standalone"}.get(view)
         if mode is None:
             raise ValueError("Unknown projection view")
@@ -144,7 +150,9 @@ class Runtime:
         for binding in bindings:
             if (binding["enabled"] and binding["mode"] == mode and binding["plugin_id"] != "pan"
                     and (plugin_id is None or binding["plugin_id"] == plugin_id)):
-                result.extend(await self.snapshot(sid, binding["plugin_id"]))
+                descriptors = await self.snapshot(sid, binding["plugin_id"])
+                allowed = catalog.get(binding["plugin_id"]).agent_capabilities
+                result.extend(d for d in descriptors if self.audience == "panel" or allowed is None or d['name'] in allowed)
         native = [d["native_name"] for d in result]
         if len(set(native)) != len(native):
             raise ValueError("Projected tool name collision between plugins")

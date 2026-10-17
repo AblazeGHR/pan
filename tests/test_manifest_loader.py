@@ -20,8 +20,8 @@ def test_default_root_manifest_loads_pan_and_pan_qq_without_config_file(monkeypa
     config = load_manifests(["manifest.json"])
     servers = {server.name: server for server in config.mcp_servers}
 
-    assert {entry["name"] for entry in data["mcp_servers"]} == {"pan", "qq", "pan-wechat"}
-    assert set(servers) == {"pan", "qq", "pan-wechat"}
+    assert {entry["name"] for entry in data["mcp_servers"]} == {"pan", "qq", "pan-wechat", "cc-switch-bridge-helper"}
+    assert set(servers) == {"pan", "qq", "pan-wechat", "cc-switch-bridge-helper"}
     assert servers["pan"].command == sys.executable
     assert servers["pan"].args == ["-m", "packages.mcp.server"]
     assert servers["pan"].cwd == str(REPO_ROOT)

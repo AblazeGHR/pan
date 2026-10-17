@@ -1,0 +1,54 @@
+{
+  "passed": true,
+  "actions": [
+    {
+      "action": "list",
+      "request": {
+        "arguments": {
+          "app": "codex"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "quota",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-a"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "switch",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-b",
+          "expectedCurrentId": "p-a"
+        },
+        "requestId": "3c8758b0-8b84-4003-af16-0ff0a2657e90"
+      },
+      "fake": true
+    },
+    {
+      "action": "default_account",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "acc-b",
+          "expectedCurrentId": "acc-a"
+        },
+        "requestId": "5b744b3d-ae4d-40d2-baec-6fba1346a090"
+      },
+      "fake": true
+    }
+  ],
+  "errors": [],
+  "desktop": true,
+  "mobile": true,
+  "realCliExecuted": false,
+  "backend": "stateful intercepted API fixture",
+  "port": 5173
+}

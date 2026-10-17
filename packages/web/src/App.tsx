@@ -15,6 +15,7 @@ import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useDetailStore } from './stores/detailStore';
 import { useWebSocket } from './hooks/useWebSocket';
+import { usePluginPanelStore } from './stores/pluginPanelStore';
 import { Outlet, useNavigate } from 'react-router-dom';
 
 // The normally closed detail pane imports Markdown; keep it outside the
@@ -24,6 +25,7 @@ const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
 ));
 
 export function Layout() {
+  useEffect(() => { void usePluginPanelStore.getState().load(); }, []);
   const detailOpen = useDetailStore((s) => s.detailTarget !== null);
   // The dashboard connection is route-independent. Keeping this singleton
   // consumer above <Outlet> lets editor/manage continue receiving Session,

@@ -1,4 +1,5 @@
-import { Code, ListChecks, MessageSquare, TerminalSquare } from 'lucide-react';
+import { Code, ListChecks, MessageSquare, TerminalSquare, PanelsTopLeft } from 'lucide-react';
+import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 
 export type ViewEntry = {
   to: string;
@@ -18,3 +19,8 @@ export const entries: ViewEntry[] = [
   { to: '/jobs', label: 'Jobs', icon: ListChecks },
   { to: '/terminals', label: 'Terminal', icon: TerminalSquare },
 ];
+
+export function useViewEntries(): ViewEntry[] {
+  const panels = usePluginPanelStore((state) => state.panels);
+  return [...entries, ...panels.map((panel) => ({ to: panel.path, label: panel.title, icon: PanelsTopLeft }))];
+}

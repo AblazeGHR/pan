@@ -238,3 +238,7 @@ Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail"
 - **结束条件**：`lastResult.status` 变为 `done`（读 `result`）或 `error`（读 `result` 排查）→ 停止轮询。
 - **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`agent_spawn` 后重新 assign。
 - **放弃条件二（超时预算）**：为每轮任务设总预算。stream running 卡死判定基于**任务运行时长**（`worker.task_timeout_sec` 默认 1800s，见 SKILL.md §7.3），queued 静默超时 300s（`config.example.json`）、运行环境 config.json 实测 1200s——**轮询超过任务时长上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.task_timeout_sec` + 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因再决定重发。
+
+## 插件面板（pan-plugin/v1 扩展）
+
+`GET /api/plugins/panels` 返回注册的全局 View Entry；`POST /api/plugins/{plugin}/panels/{panel}/actions/{action}` 调用该面板声明的 capability，body 为 `arguments` 与可选 `requestId`。`write_external` 必须使用稳定 requestId，结果未知时先核对状态，不能自动重放。面板与 Session 的 MCP 勾选互相独立，不为面板启动 Worker。数据目录、版本与 Agent 能力白名单见 [面板协议](../../../design/Pan-Plugin-Panels-v1.md)。

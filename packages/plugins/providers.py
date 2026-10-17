@@ -16,13 +16,15 @@ from mcp.client.sse import sse_client
 
 
 class McpProvider:
-    def __init__(self, descriptor: dict, session):
+    def __init__(self, descriptor: dict, session, data_dir=None):
         from packages.core.adapters.mcp import build_mcp_servers
         owner = SimpleNamespace(id=session.id, name=session.name,
                                 adapter_config={"mcp_servers": [descriptor]})
         self.entry = next(iter(build_mcp_servers(owner).values()))
         self.entry["env"] = {**self.entry.get("env", {}), "PAN_AGENT_SESSION_ID": session.id,
                              "PAN_AGENT_SESSION_TITLE": session.name}
+        if data_dir:
+            self.entry["env"]["PAN_PLUGIN_DATA_DIR"] = str(data_dir)
         self.queue = asyncio.Queue(maxsize=32)
         self.task = asyncio.create_task(self._run(), name=f"plugin-{session.id}-{descriptor['name']}")
         self.error = None
@@ -102,7 +104,7 @@ class McpProvider:
 
 
 class ApiProvider:
-    def __init__(self, document: dict, catalog, session):
+    def __init__(self, document: dict, catalog, session, data_dir=None):
         self.document = document
         self.spec = document["provider"]
         self.catalog = catalog
@@ -112,6 +114,7 @@ class ApiProvider:
         self.sequence = 0
         self.closed = False
         self.failure = None
+        self.data_dir = data_dir
 
     async def _rpc(self, method, params):
         if not self.process:
@@ -125,7 +128,8 @@ class ApiProvider:
             entry = next(iter(build_mcp_servers(owner).values()))
             self.process = await asyncio.create_subprocess_exec(
                 entry["command"], *entry.get("args", []), cwd=entry.get("cwd"),
-                env={**os.environ, **entry.get("env", {}), "PAN_AGENT_SESSION_ID": self.session.id},
+                env={**os.environ, **entry.get("env", {}), "PAN_AGENT_SESSION_ID": self.session.id,
+                     **({"PAN_PLUGIN_DATA_DIR": str(self.data_dir)} if self.data_dir else {})},
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 limit=2 * 1024 * 1024)
             initialized = await self._rpc("provider.initialize", {"protocol_version": "pan-capability/v1"})

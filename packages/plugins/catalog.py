@@ -31,6 +31,9 @@ class Plugin:
     tool_exports: dict[str, str] = field(default_factory=dict)
     version: str = "1.0.0"
     legacy: bool = False
+    panels: tuple[dict, ...] = ()
+    data_version: int = 1
+    agent_capabilities: tuple[str, ...] | None = None
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.id, "displayName": self.display_name,
@@ -92,8 +95,25 @@ class Catalog:
             aliases = raw.get("aliases", [])
             if not isinstance(aliases, list) or any(not isinstance(a, str) or not a for a in aliases):
                 raise ValueError(f"Plugin {pid}: aliases must be non-empty strings")
+            panels = raw.get("panels", [])
+            agent_capabilities = raw.get("agent_capabilities")
+            if agent_capabilities is not None:
+                if source['kind'] != 'pan_api' or any(cap not in {c['id'] for c in document['capabilities']} for cap in agent_capabilities):
+                    raise ValueError("agent_capabilities requires declared API capabilities")
+            if len({p["id"] for p in panels}) != len(panels):
+                raise ValueError(f"Plugin {pid}: duplicate panel ID")
+            for panel in panels:
+                expected_effects = {'list': 'read', 'quota': 'read', 'switch': 'write_external', 'default_account': 'write_external'}
+                if any(panel['actions'].get(name, {}).get('effect') != effect for name, effect in expected_effects.items()):
+                    raise ValueError('account-switcher/v1 requires list/quota reads and switch/default_account external writes')
+                if any(not action["capability"].startswith(pid + ".") for action in panel["actions"].values()):
+                    raise ValueError("Panel actions must belong to their plugin")
+                if source['kind'] == 'pan_api' and any(action['capability'] not in {c['id'] for c in document['capabilities']} for action in panel['actions'].values()):
+                    raise ValueError('Panel action capability is not declared')
             self._add(Plugin(pid, raw.get("display_name") or pid, source, tuple(aliases),
-                             modes, default, dict(exports), raw.get("version", "1.0.0")))
+                             modes, default, dict(exports), raw.get("version", "1.0.0"),
+                             panels=tuple(copy.deepcopy(panels)), data_version=raw.get("data", {}).get("version", 1),
+                             agent_capabilities=tuple(agent_capabilities) if agent_capabilities is not None else None))
         for name in self.servers:
             if name in declared_refs or name in self.plugins or name in self.aliases:
                 continue

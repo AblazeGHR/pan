@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { entries } from './viewEntries';
+import { useViewEntries } from './viewEntries';
 import { ViewEntryBadge } from './ViewEntryBadge';
 
 /**
@@ -10,6 +10,7 @@ import { ViewEntryBadge } from './ViewEntryBadge';
  * unaffected: the rail renders only when `!isMobile`.
  */
 export function ViewEntryRail() {
+  const entries = useViewEntries();
   return (
     <>
       {entries.map((entry) => (

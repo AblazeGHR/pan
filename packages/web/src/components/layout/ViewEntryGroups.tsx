@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { entries } from './viewEntries';
+import { useViewEntries } from './viewEntries';
 import { ViewEntryBadge } from './ViewEntryBadge';
 
-const groups = Array.from({ length: Math.ceil(entries.length / 3) }, (_, group) =>
-  Array.from({ length: 3 }, (_, slot) => entries[group * 3 + slot]));
-
 export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
+  const entries = useViewEntries();
+  const groups = Array.from({ length: Math.ceil(entries.length / 3) }, (_, group) =>
+    Array.from({ length: 3 }, (_, slot) => entries[group * 3 + slot]));
   const { pathname } = useLocation();
   const routeGroup = Math.max(0, Math.floor(entries.findIndex((entry) =>
     entry.end ? pathname === entry.to : pathname === entry.to || pathname.startsWith(`${entry.to}/`)) / 3));
-  const [selection, setSelection] = useState({ pathname, group: routeGroup });
+  const [selection, setSelection] = useState({ pathname, routeGroup, group: routeGroup });
   // Reveal a changed route once; browsing pages never navigates or reasserts the route.
-  if (selection.pathname !== pathname) setSelection({ pathname, group: routeGroup });
-  const group = selection.pathname === pathname ? selection.group : routeGroup;
+  if (selection.pathname !== pathname || selection.routeGroup !== routeGroup) setSelection({ pathname, routeGroup, group: routeGroup });
+  const group = Math.min(groups.length - 1, selection.pathname === pathname ? selection.group : routeGroup);
   const gesture = useRef<{ id: number; x: number; y: number; axis: 'pending' | 'horizontal' | 'vertical' } | null>(null);
   const suppressClickUntil = useRef(0);
   const navRef = useRef<HTMLElement>(null);
   const step = useCallback((direction: number) => setSelection((previous) => ({
-    pathname, group: Math.max(0, Math.min(groups.length - 1, previous.group + direction)),
-  })), [pathname]);
+    pathname, routeGroup, group: Math.max(0, Math.min(groups.length - 1, Math.min(groups.length - 1, previous.group) + direction)),
+  })), [pathname, routeGroup, groups.length]);
 
   useEffect(() => {
     const nav = navRef.current;

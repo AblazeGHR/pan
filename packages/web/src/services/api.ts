@@ -177,6 +177,22 @@ async function request<T>(url: string, options?: RequestInit, background = false
   finally { finish(); }
 }
 
+export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels').PluginPanel[]> {
+  const data = await request<{ panels: import('@/types/pluginPanels').PluginPanel[] }>('/api/plugins/panels');
+  return data.panels;
+}
+
+export async function invokePluginPanel<T>(plugin: string, panel: string, action: string,
+  args: Record<string, unknown>, requestId?: string): Promise<T> {
+  const result = await request<{ isError?: boolean; structuredContent?: T; content?: { type: string; text?: string }[] }>(
+    `/api/plugins/${encodeURIComponent(plugin)}/panels/${encodeURIComponent(panel)}/actions/${encodeURIComponent(action)}`,
+    { method: 'POST', body: JSON.stringify({ arguments: args, ...(requestId ? { requestId } : {}) }) });
+  if (result.isError || result.structuredContent === undefined) {
+    throw new Error(result.content?.find((item) => item.type === 'text')?.text || '插件未返回有效结果');
+  }
+  return result.structuredContent;
+}
+
 async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },

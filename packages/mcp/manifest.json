@@ -11,7 +11,9 @@
         "使用 agent_spawn / agent_task / agent_kill 管理 Agent 的 worker 进程（worker_* 为兼容别名）。",
         "在执行前先列出当前会话和 Agent 状态。"
       ],
-      "mcp_servers": ["pan"],
+      "mcp_servers": [
+        "pan"
+      ],
       "permission_mode": "bypassPermissions"
     },
     {
@@ -38,7 +40,9 @@
         "生命周期：worker 进程会被 watchdog 自动回收，用完即走；agent_assign 重试需带同一 task_id 防双跑。",
         "执行前先 agent_list + worker_list 了解当前状态，再规划串行/并行编排。"
       ],
-      "mcp_servers": ["pan"],
+      "mcp_servers": [
+        "pan"
+      ],
       "permission_mode": "bypassPermissions"
     }
   ],
@@ -47,13 +51,28 @@
     {
       "name": "pan",
       "command": "${PAN_PYTHON}",
-      "args": ["-m", "packages.mcp.server"],
+      "args": [
+        "-m",
+        "packages.mcp.server"
+      ],
       "cwd": "${PLUGIN_DIR}/../.."
     },
     {
       "name": "qq",
       "command": "${PAN_PYTHON}",
-      "args": ["-m", "packages.qq.mcp"],
+      "args": [
+        "-m",
+        "packages.qq.mcp"
+      ],
+      "cwd": "${PLUGIN_DIR}/../.."
+    },
+    {
+      "name": "cc-switch-bridge-helper",
+      "command": "${PAN_PYTHON}",
+      "args": [
+        "-m",
+        "packages.cc_switch_bridge.provider"
+      ],
       "cwd": "${PLUGIN_DIR}/../.."
     }
   ],
@@ -62,11 +81,20 @@
       "protocol": "pan-plugin/v1",
       "id": "qq",
       "display_name": "QQ",
-      "aliases": ["pan-qq"],
+      "aliases": [
+        "pan-qq"
+      ],
       "version": "1.0.0",
-      "source": {"kind": "mcp", "server_ref": "qq"},
+      "source": {
+        "kind": "mcp",
+        "server_ref": "qq"
+      },
       "exposure": {
-        "supported_modes": ["standalone", "pan_native", "gateway"],
+        "supported_modes": [
+          "standalone",
+          "pan_native",
+          "gateway"
+        ],
         "default_mode": "standalone"
       },
       "tool_exports": {
@@ -78,6 +106,48 @@
         "qq_bind": "bind",
         "qq_unbind": "unbind"
       }
+    },
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "cc-switch-bridge",
+      "display_name": "CC Switch Bridge",
+      "version": "1.0.0",
+      "source": {
+        "kind": "pan_api",
+        "capabilities_file": "../cc_switch_bridge/capabilities.json"
+      },
+      "data": {
+        "version": 1
+      },
+      "panels": [
+        {
+          "id": "accounts",
+          "title": "CC Switch",
+          "renderer": "account-switcher/v1",
+          "actions": {
+            "list": {
+              "capability": "cc-switch-bridge.list",
+              "effect": "read"
+            },
+            "quota": {
+              "capability": "cc-switch-bridge.quota",
+              "effect": "read"
+            },
+            "switch": {
+              "capability": "cc-switch-bridge.switch",
+              "effect": "write_external"
+            },
+            "default_account": {
+              "capability": "cc-switch-bridge.default_account",
+              "effect": "write_external"
+            }
+          }
+        }
+      ],
+      "agent_capabilities": [
+        "cc-switch-bridge.switch",
+        "cc-switch-bridge.quota"
+      ]
     }
   ],
   "command_routes": []
