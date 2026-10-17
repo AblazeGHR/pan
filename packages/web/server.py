@@ -3453,6 +3453,7 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
     async with lock:
         if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
             raise OSError("Takeover superseded by another lifecycle operation")
+        await worker.reserve_takeover_owner(w)
         if sys.platform == "win32" and w.adapter.name == "codex":
             from packages.core.takeover_job import TakeoverJob
             job = TakeoverJob()

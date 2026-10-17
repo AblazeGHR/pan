@@ -139,3 +139,44 @@ def test_hard_service_crash_identifies_unfinished_run_once_before_dispatch(runti
     assert not _received(runtime, cwd=s["workdir"], text="B")  # Pause still owns handoff.
     print("LEGAL_CRASH_HTTP", json.dumps({"port": real.PORT, "run": key,
           "member": b, "oldPid": active["pid"], "dataRoot": str(runtime.data_root)}))
+
+
+@pytest.mark.parametrize("failed_ready", [False, True])
+def test_all_locked_restart_stays_dormant_and_constructed_idle_does_not_recover(runtime, monkeypatch, tmp_path, failed_ready):
+    s = _create(runtime, "real-fifo-delayed-init")
+    sid = s["id"]
+    _enqueue(runtime, sid, "hold-A", "active")
+    active = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))[0]
+    b = _enqueue(runtime, sid, "B", "queued")["item"]["queueItemId"]
+    kill_owned_provider(runtime, active["pid"], s["workdir"])
+    failed = _wait_for(lambda: (value if (value := durable(runtime, sid))["illegal_batches"] else None))
+    batch = next(iter(failed["illegal_batches"]))
+    assert failed["illegal_batches"][batch]["messages"] == [b]
+    # Unpaused, all locked. Restarting the isolated service cannot spawn merely
+    # to recover Illegal locks. A user Start is the explicit next trigger.
+    runtime.stop()
+    gate = tmp_path / "adapter-ready"
+    monkeypatch.setenv("PAN_E2E_INIT_GATE", str(gate))
+    if failed_ready:
+        monkeypatch.setenv("PAN_E2E_INIT_FAIL", "1")
+    before = runtime.log_path.read_text(encoding="utf-8").count('"kind": "init"')
+    runtime.start()
+    assert runtime.log_path.read_text(encoding="utf-8").count('"kind": "init"') == before
+    assert not durable(runtime, sid)["illegal_batches"][batch]["recovered"]
+    _spawn(runtime, sid)
+    _wait_for(lambda: runtime.log_path.read_text(encoding="utf-8").count('"kind": "init"') == before + 1)
+    constructed = durable(runtime, sid)
+    assert constructed["offline_owner"]["processes"]
+    assert not constructed["illegal_batches"][batch]["recovered"]
+    assert constructed["legal_offline"] is False
+    assert not _received(runtime, cwd=s["workdir"], text="B")
+    gate.touch()
+    if failed_ready:
+        _wait_for(lambda: not psutil.pid_exists(durable(runtime, sid)["offline_owner"]["processes"][0]["pid"]))
+        assert not durable(runtime, sid)["illegal_batches"][batch]["recovered"]
+        assert not _received(runtime, cwd=s["workdir"], text="B")
+    else:
+        _wait_for(lambda: durable(runtime, sid)["illegal_batches"][batch]["recovered"])
+        _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="B"))
+    print("LEGAL_DELAYED_READY", json.dumps({"port": real.PORT, "failedReady": failed_ready,
+          "batch": batch, "dataRoot": str(runtime.data_root)}))

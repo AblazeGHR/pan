@@ -44,7 +44,7 @@ def reload(s):
 
 
 async def begin(s, w):
-    await worker._activate_offline_worker(w)
+    await worker._activate_offline_worker(w, ready_proof=True)
     w._execution_seq += 1
     identity = await worker._begin_offline_run(w)
     w.status = "running"
@@ -97,7 +97,7 @@ def test_same_failed_run_never_expands_or_relocks_and_successor_restores_only_il
         w.offline_token = "successor"; w.generation += 1
         w.process.returncode = None
         worker.workers[w.worker_id] = w; worker._register_worker(w)
-        await worker._activate_offline_worker(w)
+        await worker._activate_offline_worker(w, ready_proof=True)
         rows = {item["id"]: item for item in loaded.queue_pending}
         assert queue_locks.source(rows["A"]) == queue_locks.source(rows["C"]) == "manual"
         assert queue_locks.source(rows["B"]) is None
@@ -138,7 +138,7 @@ def test_multiple_batches_keep_old_membership_and_one_successor_recovers_predece
         assert s.queue_pending[0]["queueLockIllegalBatch"] == first
         assert s.illegal_batches["run-2"]["messages"] == ["C"]
         w.offline_token = "third"; w.generation += 1; w.process.returncode = None
-        await worker._activate_offline_worker(w)
+        await worker._activate_offline_worker(w, ready_proof=True)
         assert all(queue_locks.source(row) is None for row in s.queue_pending)
         assert all(batch["recovered"] for batch in s.illegal_batches.values())
     asyncio.run(run())
@@ -155,7 +155,7 @@ def test_late_owner_cannot_finish_detect_or_recover_after_generation_replacement
         assert await worker._persist_terminal_state(w, s, "done", "late", expected_owner=old) is None
         await worker._detect_offline_exit(w, old, "late")
         assert offline.is_illegal(s) and len(s.illegal_batches) == 1
-        await worker._activate_offline_worker(w)
+        await worker._activate_offline_worker(w, ready_proof=True)
         new = await worker._begin_offline_run(w)
         assert not offline.finish(s, old, reason="late", state="idle")
         assert not s.legal_offline
@@ -186,7 +186,7 @@ def test_failed_atomic_replace_rolls_back_and_reload_never_sees_partial_facts(mo
             elif point == "detect":
                 await die(s, w, identity)
             elif point == "activate":
-                await worker._activate_offline_worker(w)
+                await worker._activate_offline_worker(w, ready_proof=True)
             else:
                 await worker._persist_terminal_state(w, s, "error", "429")
         assert offline.snapshot(s) == before
@@ -261,12 +261,15 @@ def test_unknown_or_surviving_owner_refuses_replacement(monkeypatch):
     asyncio.run(run())
 
 
-def test_stop_reports_uses_one_manual_source_and_user_lock_claims_policy():
+def test_stop_reports_remains_independent_of_manual_and_illegal():
     item = {"type": "report"}
     queue_locks.set_lock(item, "illegal", batch="old")
     queue_locks.manual_change(item, None, True)
-    assert queue_locks.source(item) == "manual" and item["queueLockAutoReport"]
-    assert "queueLockIllegalBatch" not in item
+    assert queue_locks.source(item) == "illegal" and item["queueLockAutoReport"]
+    assert item["queueLockIllegalBatch"] == "old"
+    queue_locks.manual_change(item, None, False)
+    assert queue_locks.source(item) == "illegal"
+    queue_locks.manual_change(item, None, True)
     queue_locks.manual_change(item, True, None)
     queue_locks.manual_change(item, None, False)
     assert queue_locks.source(item) == "manual" and not item.get("queueLockAutoReport")
@@ -284,11 +287,13 @@ def test_migration_missing_legality_never_copies_old_state_or_rewrites_new_locks
         data["queue_pending"] = [{"id": "M", "locked": True}, {"id": "U", "locked": False}]
         migrated = sess.Session._from_data(copy.deepcopy(data))
         assert migrated.legal_offline and migrated.offline_run is None
+        assert migrated.offline_migration_uncertainty == "legacy-missing-legality"
         assert queue_locks.source(migrated.queue_pending[0]) == "manual"
         assert queue_locks.source(migrated.queue_pending[1]) is None
         queue_locks.set_lock(migrated.queue_pending[0], "illegal", batch="new")
         again = sess.Session._from_data(migrated.to_dict())
         assert again.queue_pending[0]["queueLockIllegalBatch"] == "new"
+        assert again.offline_migration_uncertainty == migrated.offline_migration_uncertainty
 
 
 def test_edit_lease_remains_independent_after_recovery_and_save_keeps_lock():
@@ -298,7 +303,7 @@ def test_edit_lease_remains_independent_after_recovery_and_save_keeps_lock():
         assert result["ok"]
         await die(s, w, await begin(s, w))
         worker._bump_worker_generation(w); w.process.returncode = None
-        await worker._activate_offline_worker(w)
+        await worker._activate_offline_worker(w, ready_proof=True)
         assert worker.queue_item_edit_locked(s, "B")
         assert worker._select_queue_unit(s) is None
         assert queue_locks.source(s.queue_pending[0]) is None
@@ -380,7 +385,7 @@ def test_http_projection_never_observes_uncommitted_legality_or_batch(monkeypatc
             w.process.returncode = 1
             task = asyncio.create_task(worker._detect_offline_exit(w, identity, "EOF"))
         elif transition == "activate":
-            task = asyncio.create_task(worker._activate_offline_worker(w))
+            task = asyncio.create_task(worker._activate_offline_worker(w, ready_proof=True))
         else:
             task = asyncio.create_task(worker._persist_terminal_state(w, s, "error", "429"))
         assert await asyncio.to_thread(entered.wait, 5)
@@ -460,7 +465,7 @@ def test_concurrent_enqueue_unlock_and_manual_claim_serialize_after_exact_snapsh
 def test_surviving_idle_owner_is_legal_but_not_permission_for_second_writer(same_pid_identity):
     async def run():
         s, w = setup()
-        await worker._activate_offline_worker(w)
+        await worker._activate_offline_worker(w, ready_proof=True)
         s.offline_run.update(serviceId="previous-pan-process", processes=[{
             "pid": os.getpid(),
             "createdAt": psutil.Process().create_time() + (0 if same_pid_identity else 1),
@@ -473,3 +478,215 @@ def test_surviving_idle_owner_is_legal_but_not_permission_for_second_writer(same
             await worker._prepare_offline_recovery(s)  # PID reuse is not the old owner.
         assert s.legal_offline and not s.illegal_batches
     asyncio.run(run())
+
+
+def test_constructed_idle_needs_proof_and_ready_preserves_current_run_and_boundary():
+    async def run():
+        s, w = setup(["B"])
+        first = await die(s, w, await begin(s, w))
+        worker._bump_worker_generation(w)
+        w.process.returncode = None
+        w._offline_predecessors = {first}
+        await worker._activate_offline_worker(w)
+        assert offline.is_illegal(s) and not s.illegal_batches[first]["recovered"]
+        # A new unlocked item may begin before a lazy adapter emits init.
+        w._execution_seq += 1
+        identity = await worker._begin_offline_run(w)
+        run_id = s.offline_run["id"]
+        s.illegal_batches["after-boundary"] = {
+            "id": "after-boundary", "run": {"token": "later-owner"},
+            "messages": [], "recovered": False}
+        s.queue_pending[0]["queueLockAutoReport"] = True
+        await worker._activate_offline_worker(w, ready_proof=True)
+        assert s.illegal_batches[first]["recovered"]
+        assert not s.illegal_batches["after-boundary"]["recovered"]
+        assert s.offline_run["id"] == run_id and not s.legal_offline
+        assert offline.same_owner(s.offline_run, identity)
+        assert queue_locks.source(s.queue_pending[0]) is None
+        assert worker._queue_item_locked(s.queue_pending[0])  # Report policy retained.
+        loaded = reload(s)
+        assert loaded.queue_delivery_ledger["B"]["queueLockAutoReport"]
+        assert loaded.queue_revision == s.queue_revision
+    asyncio.run(run())
+
+
+def test_all_illegal_locked_initialization_and_watchdog_do_not_spawn(monkeypatch):
+    async def run():
+        s, w = setup(["B"])
+        await die(s, w, await begin(s, w))
+        worker.workers.clear(); worker._workers_by_session.clear()
+        create = AsyncMock()
+        monkeypatch.setattr(worker, "create_worker", create)
+        monkeypatch.setattr(worker, "_list_sessions_shallow", lambda: [s])
+        await worker.initialize_legal_offline([s])
+        await worker._global_watchdog_tick()
+        assert worker._queue_recovery_blocked(s)
+        assert s.id not in worker._recovery_required
+        create.assert_not_awaited()
+        assert not next(iter(s.illegal_batches.values()))["recovered"]
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("status", ["alive", "unknown", "dead"])
+def test_unready_owner_registration_is_durable_and_blocks_second_writer(monkeypatch, status):
+    async def run():
+        s, w = setup(["B"])
+        key = await die(s, w, await begin(s, w))
+        worker._bump_worker_generation(w); w.process.returncode = None
+        await worker._claim_offline_owner(w)
+        assert s.offline_owner["token"] == w.offline_token
+        assert not s.illegal_batches[key]["recovered"] and offline.is_illegal(s)
+        loaded = reload(s)
+        worker.workers.clear(); worker._workers_by_session.clear()
+        monkeypatch.setattr(offline, "previous_owner_status", lambda _: status)
+        if status == "dead":
+            await worker._prepare_offline_recovery(loaded)
+        else:
+            with pytest.raises(RuntimeError, match="second writer"):
+                await worker._prepare_offline_recovery(loaded)
+        assert loaded.offline_owner == s.offline_owner
+    asyncio.run(run())
+
+
+def test_failed_session_recovery_does_not_abort_watchdog_for_other_sessions(monkeypatch):
+    async def run():
+        bad, w = setup()
+        bad.offline_owner = {"token": "unknown", "generation": 1,
+                             "ownershipUnknown": True, "processes": []}
+        good = sess.create("good")
+        good.queue_pending = [{"id": "good", "type": "task", "text": "good"}]
+        worker.workers.clear(); worker._workers_by_session.clear()
+        monkeypatch.setattr(worker, "_list_sessions_shallow", lambda: [bad, good])
+        create = AsyncMock(return_value=None)
+        monkeypatch.setattr(worker, "create_worker", create)
+        await worker._global_watchdog_tick()
+        create.assert_awaited_once_with(good.id)
+        assert not bad.illegal_batches
+    asyncio.run(run())
+
+
+def test_native_admission_persists_false_rejects_stale_and_deduplicates():
+    async def run():
+        s, w = setup()
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        await worker._admit_native_turn(w, runtime, request_id="request-1")
+        value = json.loads(sess._path(s.id).read_text(encoding="utf-8"))
+        assert value["legal_offline"] is False
+        run_id = value["offline_run"]["id"]
+        await worker._admit_native_turn(w, runtime, request_id="request-1")
+        assert s.offline_run["id"] == run_id and w._execution_seq == 1
+        worker._bump_worker_generation(w)
+        with pytest.raises(RuntimeError, match="retired"):
+            await worker._admit_native_turn(w, runtime, request_id="stale")
+        assert s.offline_run["id"] == run_id
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_cbc_hook_waits_for_atomic_pan_admission_before_returning(monkeypatch, failure):
+    from packages.core.adapters.cbc.native_bridge import NativeBridge
+    from packages.core.adapters.codex.control_owner import ControlRejected
+    async def run():
+        s, w = setup()
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        loop = asyncio.get_running_loop()
+        requests = []
+        async def admit(event):
+            ok = False
+            try:
+                await worker._admit_native_turn(w, runtime, request_id=event["requestId"])
+                assert not json.loads(sess._path(s.id).read_text(encoding="utf-8"))["legal_offline"]
+                ok = True
+            except OSError:
+                pass
+            bridge.control({"type": "native_admission", "requestId": event["requestId"], "ok": ok})
+        def emit(event):
+            if event["type"] == "pan.native_turn_admission":
+                requests.append(asyncio.run_coroutine_threadsafe(admit(event), loop))
+        bridge = NativeBridge(Mock(), emit, "cli")
+        bridge.hook({"hook_event_name": "SessionStart", "session_id": "cli"})
+        bridge.control({"type": "control_mode", "mode": "native", "generation": 0})
+        entered, release = threading.Event(), threading.Event()
+        replace = sess.os.replace
+        def blocked(source, destination):
+            if str(destination) == str(sess._path(s.id)):
+                entered.set()
+                assert release.wait(5)
+                if failure:
+                    raise OSError("admission durable write failure")
+            return replace(source, destination)
+        monkeypatch.setattr(sess.os, "replace", blocked)
+        hook = asyncio.create_task(asyncio.to_thread(bridge.hook, {
+            "hook_event_name": "UserPromptSubmit", "session_id": "cli", "generation_id": "native-1"}))
+        assert await asyncio.to_thread(entered.wait, 5)
+        assert not hook.done() and bridge.turn is None
+        assert json.loads(sess._path(s.id).read_text(encoding="utf-8"))["legal_offline"]
+        release.set()
+        if failure:
+            with pytest.raises(ControlRejected, match="admission rejected"):
+                await hook
+            assert s.legal_offline and bridge.turn is None
+        else:
+            await hook
+            assert not s.legal_offline and bridge.turn == "native-1"
+            await asyncio.to_thread(bridge.hook, {
+                "hook_event_name": "UserPromptSubmit", "session_id": "cli", "generation_id": "native-1"})
+            assert len(requests) == 1
+    asyncio.run(run())
+
+
+def test_unknown_identity_and_external_takeover_reservation_fail_closed():
+    assert offline.previous_owner_status({"runtimeExpected": True, "processes": []}) == "unknown"
+    async def run():
+        s, w = setup()
+        w.status = "held"
+        await worker.reserve_takeover_owner(w)
+        assert reload(s).offline_owner["ownershipUnknown"]
+        with pytest.raises(RuntimeError, match="second writer"):
+            await worker._kill_takeover_terminal(w)  # Reserved launch has no proven owner PID.
+        worker.workers.clear(); worker._workers_by_session.clear()
+        with pytest.raises(RuntimeError, match="second writer"):
+            await worker._prepare_offline_recovery(s)
+        assert s.legal_offline and not s.illegal_batches
+    asyncio.run(run())
+
+
+def test_late_ready_proof_cannot_recover_new_generation():
+    async def run():
+        s, w = setup(["B"])
+        old = await begin(s, w)
+        key = await die(s, w, old)
+        worker._bump_worker_generation(w); w.process.returncode = None
+        await worker._activate_offline_worker(w, ready_proof=True, expected_owner=old)
+        assert not s.illegal_batches[key]["recovered"] and offline.is_illegal(s)
+        assert w._offline_ready_token != w.offline_token
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("missing_root", [False, True])
+def test_legacy_takeover_kill_return_is_not_retirement_proof(monkeypatch, missing_root):
+    async def run():
+        s, w = setup()
+        w.status = "held"
+        await worker.reserve_takeover_owner(w)
+        w.takeover_pid = 2**30 if missing_root else os.getpid()
+        original_pid = w.takeover_pid
+        # Deliberately no-op: a swallowed kill failure cannot release ownership.
+        monkeypatch.setattr(worker, "_kill_pid_tree", lambda _: None)
+        with pytest.raises(RuntimeError, match="second writer"):
+            await worker._kill_takeover_terminal(w)
+        assert w.takeover_pid == original_pid
+        assert s.offline_owner["ownershipUnknown"]
+    asyncio.run(run())
+
+
+def test_lock_migration_preserves_explicit_source_and_independent_report_policy():
+    rows = [{"queueLockSource": "manual", "queueLockAutoReport": True},
+            {"queueLockSource": "illegal", "queueLockIllegalBatch": "new", "queueLockAutoReport": True},
+            {"queueLockAutoReport": True}]
+    for row in rows:
+        before = copy.deepcopy(row)
+        queue_locks.migrate(row)
+        queue_locks.migrate(row)
+        assert row == before
+    assert queue_locks.source(rows[2]) is None and worker._queue_item_locked(rows[2])

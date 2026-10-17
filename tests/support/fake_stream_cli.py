@@ -37,6 +37,12 @@ def _gate_for(text: str) -> str | None:
 def main() -> None:
     pid = os.getpid()
     _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time()})
+    init_gate = os.environ.get("PAN_E2E_INIT_GATE")
+    while init_gate and not Path(init_gate).exists():
+        time.sleep(.01)
+    if os.environ.get("PAN_E2E_INIT_FAIL") == "1":
+        print("isolated fake invalid resume", flush=True)
+        raise SystemExit(9)
     print(json.dumps({
         "type": "system", "subtype": "init", "session_id": f"fake-{pid}",
     }), flush=True)

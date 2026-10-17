@@ -1,0 +1,31 @@
+{
+  "backend": {
+    "tests": 524,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": 47.639,
+    "exitCode": 0,
+    "command": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest <30 files in backend-files.txt> -q --tb=short --junitxml=audit/legal-offline-20261018-final/backend.xml"
+  },
+  "real-lifecycle": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": 38.092,
+    "exitCode": 0,
+    "command": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_legal_offline_browser.py tests/test_legal_offline_http.py tests/test_delayed_restart_locked_queue_http.py -q -s --tb=short --junitxml=audit/legal-offline-20261018-final/real-lifecycle.xml"
+  },
+  "currentTotalTests": 536,
+  "previousFrontendEvidence": {
+    "tests": 65,
+    "exitCode": 0,
+    "skips": 0,
+    "buildExitCode": 0,
+    "compressedAssets": 70,
+    "rerunThisRevision": false,
+    "sourceUnchangedSince": "236534e55a4df340e34e0d4bb266f201f4e1090e"
+  },
+  "owner-retirement.xml": "Intermediate targeted 75-case run, superseded by final backend suite; overlaps, not added to totals."
+}

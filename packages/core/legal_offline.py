@@ -16,7 +16,7 @@ import psutil
 from . import queue_locks
 
 SERVICE_ID = uuid.uuid4().hex
-FIELDS = ("legal_offline", "offline_run", "illegal_batches", "queue_pending",
+FIELDS = ("legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
           "queue_delivery_ledger", "queue_idempotency_index", "queue_revision")
 
 
@@ -67,7 +67,11 @@ def owner(w) -> dict:
             continue
         except psutil.AccessDenied:
             processes.append({"pid": pid, "createdAt": None})
-    return {"token": w.offline_token, "generation": w.generation,
+    expected = any(isinstance(getattr(handle, "pid", None), int)
+                   and getattr(handle, "pid", 0) > 0
+                   and getattr(handle, "returncode", None) is None
+                   for handle in (w.process, w._mcp_proc))
+    return {"runtimeExpected": expected, "token": w.offline_token, "generation": w.generation,
             "workerId": w.worker_id, "serviceId": SERVICE_ID,
             "executionSeq": w._execution_seq, "processes": processes}
 
@@ -79,7 +83,8 @@ def same_owner(run: dict | None, identity: dict) -> bool:
 
 def previous_owner_status(run: dict) -> str:
     """An untracked surviving provider is not permission to create another writer."""
-    unknown = False
+    unknown = bool(run.get("ownershipUnknown")
+                   or (run.get("runtimeExpected") and not run.get("processes")))
     for identity in run.get("processes", []):
         try:
             process = psutil.Process(identity["pid"])
@@ -103,6 +108,7 @@ def begin(s, identity: dict) -> None:
         return
     if s.legal_offline is False and run and run.get("state") == "running":
         raise RuntimeError("Previous execution has not been safely finalized")
+    s.offline_owner = dict(identity)
     s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "running",
                      "startedAt": time.time()}
     s.legal_offline = False
@@ -148,11 +154,12 @@ def detect(s, reason: str, *, eligible, remember) -> bool:
     return True
 
 
-def activate(s, identity: dict, *, remember) -> bool:
-    """A successful successor Idle is sufficient; no queued prompt is needed."""
+def activate(s, identity: dict, *, remember, predecessors: set[str] | None = None) -> bool:
+    """Called only with adapter readiness proof; preserve any admitted execution."""
     changed = False
+    s.offline_owner = dict(identity)
     for batch in s.illegal_batches.values():
-        if batch.get("recovered"):
+        if batch.get("recovered") or (predecessors is not None and batch["id"] not in predecessors):
             continue
         # All pending predecessors in this Session precede this activation.
         if batch["run"].get("token") == identity["token"]:
@@ -167,8 +174,9 @@ def activate(s, identity: dict, *, remember) -> bool:
                 remember(item)
         batch.update(recovered=True, recoveredAt=time.time(), recoveredBy=dict(identity))
         changed = True
-    s.legal_offline = True
-    s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "idle"}
+    if not (same_owner(s.offline_run, identity) and s.legal_offline is False):
+        s.legal_offline = True
+        s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "idle"}
     if changed:
         s.queue_revision += 1
     return changed

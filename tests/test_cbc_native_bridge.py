@@ -12,6 +12,15 @@ from packages.core.adapters.cbc.native_bridge import NativeBridge
 from packages.core.adapters.codex.control_owner import ControlRejected
 
 
+def admitted_bridge(backend, events, session_id):
+    def emit(event):
+        events.append(event)
+        if event["type"] == "pan.native_turn_admission":
+            bridge.control({"type": "native_admission", "requestId": event["requestId"], "ok": True})
+    bridge = NativeBridge(backend, emit, session_id)
+    return bridge
+
+
 def test_large_hook_output_preserves_exit_metadata_before_http_limit(monkeypatch):
     from packages.core.adapters.cbc import native_hook
     observed = []
@@ -76,7 +85,7 @@ def test_native_process_death_retires_bridge_with_stdin_still_open(monkeypatch, 
 
 def test_bootstrap_confirmation_is_not_a_native_agent_prompt():
     out = []
-    b = NativeBridge(Backend(), out.append, "dedicated")
+    b = admitted_bridge(Backend(), out, "dedicated")
     b.control({"type": "control_mode", "mode": "native", "generation": 0})
     b.control({"type": "native_input", "text": "\r", "generation": 1})
     assert out[-1]["ok"] is True
@@ -108,7 +117,7 @@ class Backend:
 @pytest.fixture
 def bridge():
     emitted = []
-    instance = NativeBridge(Backend(), emitted.append, "dedicated")
+    instance = admitted_bridge(Backend(), emitted, "dedicated")
     instance.hook({"hook_event_name": "SessionStart", "session_id": "dedicated", "model": "hy3"})
     return instance, emitted
 
@@ -732,3 +741,17 @@ def test_input_gate_clears_only_after_confirmed_retirement(monkeypatch, operatio
         assert "not confirmed" in result
         assert w.native_input_uncertain and w.process is old and w.status == "error"
         create.assert_not_awaited()
+
+
+def test_native_submit_without_durable_admission_times_out_closed():
+    events = []
+    b = NativeBridge(Backend(), events.append, "dedicated")
+    b.admission_timeout = .01
+    b.hook(event("SessionStart"))
+    b.control({"type": "control_mode", "mode": "native", "generation": 0})
+    with pytest.raises(ControlRejected, match="admission rejected"):
+        b.hook(event("UserPromptSubmit"))
+    request = next(e for e in events if e["type"] == "pan.native_turn_admission")
+    b.control({"type": "native_admission", "requestId": request["requestId"], "ok": True})
+    assert b.turn is None and not b.admissions
+    assert not any(e["type"] == "pan.native_turn_started" for e in events)

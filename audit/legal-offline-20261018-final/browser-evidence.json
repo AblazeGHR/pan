@@ -1,0 +1,11 @@
+{
+  "url": "http://127.0.0.1:56202",
+  "sessionId": "ses_2a7b17561b871046",
+  "temporaryEvidencePath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-2814\\test_browser_illegal_dot_recov0",
+  "chromium": "153.0.8010.12",
+  "observations": [
+    "Illegal dot from live WebSocket, no reload",
+    "successor adapter ready recovery",
+    "Pause still prevents queued B handoff"
+  ]
+}

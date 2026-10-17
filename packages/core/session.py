@@ -1359,6 +1359,8 @@ class Session:
     # Independent execution safety ledger; missing legacy data is unverified,
     # never evidence of an unfinished run. Explicit run tokens start the policy.
     legal_offline: bool = True
+    offline_migration_uncertainty: str | None = None
+    offline_owner: dict | None = None
     offline_run: dict | None = None
     illegal_batches: dict = field(default_factory=dict)
     created_at: str = ""
@@ -1461,6 +1463,8 @@ class Session:
                  terminal_results: list[dict] | None = None,
                  last_legal_worker_state: str | None = None,
                  legal_offline: bool = True,
+                 offline_migration_uncertainty: str | None = None,
+                 offline_owner: dict | None = None,
                  offline_run: dict | None = None,
                  illegal_batches: dict | None = None,
                  created_at: str = "",
@@ -1553,7 +1557,9 @@ class Session:
             last_legal_worker_state if isinstance(last_legal_worker_state, str)
             else None
         )
+        self.offline_migration_uncertainty = offline_migration_uncertainty
         self.legal_offline = legal_offline if type(legal_offline) is bool else True
+        self.offline_owner = copy.deepcopy(offline_owner) if isinstance(offline_owner, dict) else None
         self.offline_run = copy.deepcopy(offline_run) if isinstance(offline_run, dict) else None
         self.illegal_batches = copy.deepcopy(illegal_batches) if isinstance(illegal_batches, dict) else {}
         # False without a durable execution identity is legacy/unverified data,
@@ -1564,6 +1570,9 @@ class Session:
                 or not self.offline_run.get("token")
                 or type(self.offline_run.get("generation")) is not int
                 or self.offline_run["generation"] < 0):
+            if offline_run is not None or legal_offline is not True:
+                self.offline_migration_uncertainty = (self.offline_migration_uncertainty
+                    or "invalid-or-missing-execution-identity")
             self.legal_offline = True
             self.offline_run = None
         self.created_at = created_at
@@ -1835,6 +1844,8 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
+        if "legal_offline" not in data and not data.get("offline_migration_uncertainty"):
+            data["offline_migration_uncertainty"] = "legacy-missing-legality"
         _canonicalize_summary_projection_data(data)
         # Accept the API spelling as a defensive compatibility bridge for
         # hand-authored/older metadata, while the canonical session JSON keeps
@@ -1905,6 +1916,8 @@ class Session:
             "terminal_results": self.terminal_results,
             "last_legal_worker_state": self.last_legal_worker_state,
             "legal_offline": self.legal_offline,
+            "offline_migration_uncertainty": self.offline_migration_uncertainty,
+            "offline_owner": self.offline_owner,
             "offline_run": self.offline_run,
             "illegal_batches": self.illegal_batches,
             "created_at": self.created_at,

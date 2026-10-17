@@ -178,3 +178,10 @@ mark_batch_recovered(batch.id)
 本轮按用户 A–G 修正首轮实现；首轮报告和证据保留为历史记录。批次恢复边界取实例注册时已存在的失败 run ID 集合；之后发生的失败不能由该实例迟到的 ready 解锁。恢复只修改条件匹配的 illegal，不覆盖当前执行 run、独立报告策略、pending/ledger/revision。所有异常检测失败只阻止对应 Session 新交接。
 
 新增验收：Stop/Resume reports 与 manual/illegal 的交叉操作；全 Illegal 锁启动初始化/watchdog 不唤醒；延迟 init 的构造 Idle 不解锁，真实 init 才解锁；init 到达时当前执行 False 不被覆盖；边界后批次不解锁；旧/损坏历史不确定性持久且幂等；CBC 准入未确认/失败不放行，成功前 False 已提交；旧 runtime 迟到准入不能影响继任；owner alive/dead/unknown 分别拒绝/允许/拒绝。Codex 原生通知前窗口和不可识别外部 owner 必须分层报告，不以 mock 或后置 started 充当事前证明。
+
+### A–G 实现核验后的具体能力边界
+
+- 新增独立持久 offline_owner，记录当前进程 PID/create-time；登记 owner 不修改执行合法性、不恢复批次。init/result 就绪提交更新 owner 并恢复注册时捕获的前序集合。CBC 桥接的 pan.native_ready 仅证明 PTY 创建，不能代替 SessionStart/init；真正 adapter init 或已完成的结构化 result 才是就绪证据。普通合成终态（如启动失败）不提供恢复资格。
+- 外部 takeover 在打开终端之前保存 ownershipUnknown 预留，Windows Codex 继续复用已有 Job Object 约束；活或未知 owner 不允许第二 writer。Job 成功停止后才释放预留；旧非 Job 终端须核验观察到的 PID/create-time 全部死亡，kill helper 返回不作证明。服务重启丢失 Job/终端所有权而只剩 unknown 预留时阻断自动恢复，需操作者独立确认所有执行实例退休并修复 owner 元数据，不能自动以根 PID 消失推断后代死亡。
+- 已登记的 PID/后代快照可以核验 alive/dead/unknown，但并不构成 OS 全进程树永不脱离的证明。普通 spawn 到首次 owner 保存之间、晚于快照才派生且脱离的进程，以及历史从未登记的外部 writer，当前能力无法完整证明。此边界必须在交付报告列明。
+- CBC hook 准入在本地协议/故障注入层验证；未运行真实供应商 CLI 或调用模型。持久准入成功但确认丢失的执行保留 False/所有权，不自动重发；须等待权威终态或用户 Stop 确认退休。Codex 原生 TUI 仍存在 turn/started 通知前崩溃窗口，本轮未声称闭合。
