@@ -249,3 +249,13 @@
   background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 44%, transparent);
 }
+
+/* 窄宽度隐藏必须在本文件显式声明：组件 CSS 未经 Tailwind layer，上面的
+   display:inline-flex 会盖掉 utilities 层 max-md:hidden 的 display:none
+   （跨层竞争中无层样式恒胜）。断点与 Tailwind md（768px）一致；JSX 上的
+   max-md:hidden class 保留以与工作区/adapter 徽标保持同一 Idiom。 */
+@media (max-width: 767px) {
+  .session-job-badge {
+    display: none;
+  }
+}

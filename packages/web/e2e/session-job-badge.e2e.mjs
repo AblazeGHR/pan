@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 
 const baseURL = process.env.PAN_E2E_BASE_URL || 'http://127.0.0.1:8765';
 const runtime = process.env.PAN_E2E_RUNTIME || path.resolve('test-results/pan-e2e-session-job-badge');
@@ -163,10 +163,16 @@ await runCase('desktop running process job shows one blue J', DESKTOP, async (pa
   assert.equal(jStyle.color, probe, `running J must be accent blue, got ${jStyle.color} vs ${probe}`);
 
   // Right-aligned inside the info-area rail on the card's right side.
-  const box = (await badge.boundingBox())!;
-  const card = (await page.locator(`[data-session-card-id="${sessionId}"]`).boundingBox())!;
+  const box = (await badge.boundingBox());
+  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
+  const card = (await cardLocator.boundingBox());
   assert.ok(box.x + box.width <= card.x + card.width, 'J must stay inside the card');
   assert.ok(box.x > card.x + card.width / 2, 'J must sit in the right-half info area');
+
+  // Element-level visual evidence (the sidebar scrolls internally, so the
+  // full-page shot above may not include the card).
+  await cardLocator.scrollIntoViewIfNeeded();
+  await cardLocator.screenshot({ path: path.join(artifacts, 'element-desktop-running-j.png') });
 });
 
 // ── Case 2: scheduled session-message Job -> yellow J ────────────────────────
@@ -205,6 +211,10 @@ await runCase('desktop scheduled message job shows one yellow J', DESKTOP, async
     return color;
   });
   assert.equal(jStyle.color, probe, `scheduled J must be warning yellow, got ${jStyle.color} vs ${probe}`);
+
+  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
+  await cardLocator.scrollIntoViewIfNeeded();
+  await cardLocator.screenshot({ path: path.join(artifacts, 'element-desktop-scheduled-j.png') });
 });
 
 // ── Case 3: aggregation + running priority over a live WS transition ─────────
@@ -251,9 +261,10 @@ await runCase('desktop aggregates many jobs with running priority', DESKTOP, asy
 await runCase('desktop keeps numeric badges intact and right aligned', DESKTOP, async (page) => {
   const sessionId = await sessionIdOf(page, 'Alpha Session');
   // Seed a durable unread-done count through the real test-only route so the
-  // numeric badge is present next to the (already running) J.
+  // numeric badge is present next to the (already running) J. Absolute
+  // generation keeps the badge text deterministic across repeated runs.
   const seed = await page.request.post(`${baseURL}/__e2e/unread`, {
-    data: { sessionId, advance: 7 },
+    data: { sessionId, generation: 7, readGeneration: 0 },
   });
   assert.equal(seed.ok(), true, `seed unread failed: ${seed.status()}`);
   const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
@@ -276,42 +287,82 @@ await runCase('desktop keeps numeric badges intact and right aligned', DESKTOP, 
   assert.equal(order[0], 'session-job-badge', 'J must be the first (left-most) info-area item');
   assert.ok(order.includes('session-unread-done-badge'), 'numeric badge must remain in the row');
 
-  const jBox = (await badge.boundingBox())!;
-  const doneBox = (await done.boundingBox())!;
+  const jBox = await badge.boundingBox();
+  const doneBox = await done.boundingBox();
   assert.ok(jBox.x < doneBox.x, 'J must sit left of the numeric badge');
-  const card = (await page.locator(`[data-session-card-id="${sessionId}"]`).boundingBox())!;
+  const card = await page.locator(`[data-session-card-id="${sessionId}"]`).boundingBox();
+  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
+  const railBox = await rail.boundingBox();
+  const rowBox = await row.boundingBox();
   assert.ok(
-    Math.abs(doneBox.x + doneBox.width - (card.x + card.width)) < 24,
-    'numeric badge must stay right-aligned inside the card',
+    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
+    'the info-area row must hug the rail right edge (right-aligned group)',
   );
+  assert.ok(
+    railBox.x > card.x + card.width / 2 && railBox.x + railBox.width <= card.x + card.width,
+    'the info-area rail must sit at the card right side',
+  );
+
+  // Yield-first contract (computed styles): J is the only shrinkable item, so
+  // rail crowding hides J before any numeric badge or the adapter chip.
+  const shrink = await badge.evaluate((el) => {
+    const self = getComputedStyle(el);
+    const siblings = Array.from(el.parentElement.children)
+      .filter((c) => c !== el)
+      .map((c) => ({
+        testid: c.getAttribute('data-testid'),
+        shrink: getComputedStyle(c).flexShrink,
+      }));
+    return { selfShrink: self.flexShrink, selfMinWidth: self.minWidth, siblings };
+  });
+  assert.equal(shrink.selfShrink, '1', 'J must be the shrinkable item');
+  assert.equal(shrink.selfMinWidth, '0px', 'J must be allowed to collapse to zero');
+  for (const sib of shrink.siblings) {
+    assert.equal(sib.shrink, '0', `${sib.testid} must never shrink before J`);
+  }
 });
 
 // ── Case 5: mobile width hides J first, numbers stay right-aligned ───────────
 
 await runCase('mobile hides J while numeric badges stay right aligned', MOBILE, async (page) => {
   const sessionId = await sessionIdOf(page, 'Alpha Session');
+  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
+  await done.waitFor({ state: 'visible', timeout: 10000 });
+  // Delta seeding: unread generations are monotonic, so a lower absolute seed
+  // would be treated as a stale rollback. Read the current badge, advance by a
+  // known step, and assert the new value — robust across repeated runs.
+  const before = Number(await done.textContent());
+  assert.ok(Number.isFinite(before), `numeric badge text must be a count, got ${await done.textContent()}`);
   const seed = await page.request.post(`${baseURL}/__e2e/unread`, {
     data: { sessionId, advance: 4 },
   });
   assert.equal(seed.ok(), true, `seed unread failed: ${seed.status()}`);
-  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
-  await done.waitFor({ state: 'visible', timeout: 10000 });
+  const expected = String(before + 4);
   const badge = jobBadge(page, sessionId);
   await badge.waitFor({ state: 'attached', timeout: 20000 });
 
   const jStyle = await styleOf(badge);
   assert.equal(jStyle.display, 'none', 'J must be hidden at mobile width (max-md)');
 
-  // The numeric badge survives and stays right-aligned.
+  // The numeric badge survives and the whole info-area row stays right-aligned.
   const doneStyle = await styleOf(done);
   assert.notEqual(doneStyle.display, 'none', 'numeric badge must stay visible at mobile width');
-  const doneBox = (await done.boundingBox())!;
-  const card = (await page.locator(`[data-session-card-id="${sessionId}"]`).boundingBox())!;
+  const doneBox = await done.boundingBox();
+  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
+  const railBox = await rail.boundingBox();
+  const row = page.locator(`[data-session-card-id="${sessionId}"] .session-quick-action-adapter-row`);
+  const rowBox = await row.boundingBox();
   assert.ok(
-    Math.abs(doneBox.x + doneBox.width - (card.x + card.width)) < 24,
-    'numeric badge must stay right-aligned at mobile width',
+    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
+    'the info-area row must hug the rail right edge at mobile width',
   );
-  assert.equal(await done.textContent(), '4');
+  assert.ok(doneBox.x + doneBox.width <= rowBox.x + rowBox.width + 1, 'numeric badge must stay inside the right-anchored row');
+  // Retrying assertion: the seed broadcast refreshes the summary asynchronously.
+  await expect(done).toHaveText(expected, { timeout: 10000 });
+
+  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
+  await cardLocator.scrollIntoViewIfNeeded();
+  await cardLocator.screenshot({ path: path.join(artifacts, 'element-mobile-j-hidden.png') });
 });
 
 // ── Case 6: terminal/cancelled job removes J through the WS path ─────────────
