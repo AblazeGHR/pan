@@ -165,3 +165,107 @@ The subsequent read-only exact-identity/tag check found zero remaining probe
 notifications and zero remaining production diagnostic tags (`ownedRemaining=[0,0]`).
 No protected-port test/request or service operation, QQ/WeChat/external
 message, registry write or global setting change was performed.
+
+## MA follow-up: desktop capability and current system gates
+
+MA requested renewed investigation of the visible layers after source commit
+`10dae21848172ac51deac669ae3213d4f7f2dcb1`. This section records fresh checks;
+it does not mark that commit accepted.
+
+Computer Use SKILL.md, guidance.md and confirmations.md were read again.
+The current `ALL_TOOLS` inventory has **173** entries and **zero** node_repl,
+Computer Use/Windows desktop or lazy tool-search entries. The only screenshot
+tool is `mcp__chrome_devtools__take_screenshot`, documented as capturing a page
+or element. It cannot observe the Windows toast or notification-center panel.
+Exact inventory: `audit/windows-toast-delivery/tool-inventory.json`.
+
+The skill's Initialize section requires: "The bundled `cua_node` `@oai/sky`
+package is the core entry point for Computer Use. Import it directly by
+package name from the JavaScript session. Do not spawn
+`codex-computer-use.exe`, search for the helper executable, or build a custom
+helper protocol client." There is no callable JS session tool for this entry
+point in this run. No helper executable was searched for/launched, no custom
+protocol was constructed, and no unrelated user's window was controlled.
+
+Read-only check at **2026-10-17 23:40:52 +08:00**:
+
+| Check | Actual result | Interpretation limit |
+| --- | --- | --- |
+| SHQueryUserNotificationState | HRESULT 0, state 5, QUNS_ACCEPTS_NOTIFICATIONS | Does not independently establish the Windows 11 DND switch |
+| Pan ToastNotifier.Setting | Enabled | App API setting, not actual display |
+| HKCU PushNotifications/ToastEnabled | Value/key absent | No explicit value found; do not infer a user-facing toggle position |
+| HKCU and HKLM PushNotifications policy NoToastApplicationNotification | Both absent | No explicit disable found in these exact locations |
+| HKCU and HKLM Explorer policy DisableNotificationCenter | Both absent | No explicit center-disable found in these exact locations |
+| Pan app Enabled / ShowBanner / ShowInActionCenter | All absent | No explicit per-app override found in these exact locations |
+
+Reproduce this non-mutating check:
+
+```powershell
+$py = 'D:/project/Pan-main/.venv/Scripts/python.exe'
+& $py scripts/run_tests_isolated.py -- $py audit/windows-toast-delivery/visibility_state.py
+```
+
+Evidence: `visibility-state.json`. No notifications were sent by this follow-up
+check, no notification payloads were read, and no registry/settings were
+written. We have **not** demonstrated that a system policy or DND is blocking
+display. The minimum missing observation is a human/working desktop tool
+reading Settings > System > Notifications, including the DND toggle and its
+automatic rules. Do not ask the user to change them based on these results.
+
+Microsoft's documented meaning of SHQueryUserNotificationState concerns
+notification availability, including busy, presentation, fullscreen and quiet
+time; it is not evidence of a rendered toast:
+[QUERY_USER_NOTIFICATION_STATE](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ne-shellapi-query_user_notification_state).
+The checked toast-disable policy mapping is documented in
+[ADMX_WPN](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-wpn).
+
+### Minimal manual acceptance handoff for MA
+
+1. Read Settings > System > Notifications: record the Notifications toggle,
+   DND toggle and enabled automatic rules. Read the Pan app entry if present,
+   including banner/center toggles. If the app is absent, record that fact.
+   Do not toggle anything. If a setting is off, report its precise label and
+   value; any requested change must be explicit and user-performed/authorized.
+2. In this tree, send **one** small clearly marked production-AUMID diagnostic
+   while the user watches. This command creates no listener and has no click
+   target, so it tests banner/panel visibility alone:
+
+   ```powershell
+   $py = 'D:/project/Pan-main/.venv/Scripts/python.exe'
+   & $py scripts/run_tests_isolated.py -- $py audit/windows-toast-delivery/visible_check.py --send
+   ```
+
+3. Record whether that exact title visibly pops up. After the banner times out,
+   the user opens the notification center and checks only that exact diagnostic
+   item. Capture/crop only this item's relevant evidence; do not inspect other
+   notifications. A helper `ok:true` is recorded separately from both answers.
+4. Clean **only** the diagnostic item after observation, even on failure:
+
+   ```powershell
+   & $py scripts/run_tests_isolated.py -- $py audit/windows-toast-delivery/visible_check.py --cleanup
+   ```
+
+   The helper uses exact History.Remove with the task's Tag/Group and records
+   sender/cleanup results separately from visibility; never substitute
+   History.Clear on the production identity.
+5. Native click is a separate test: MA first owns an isolated Pan runtime on a
+   dynamic non-8767/8768 port and a real owned Session, then sends a completion
+   for that Session. User clicks its native "打开会话" button after the sender
+   exits. Verify the access URL and selected Session in that owned runtime.
+   Do not use the already-closed 52334 listener, a typed/pasted URL, or a browser
+   onclick injection as native-click proof. Shut down only that owned runtime
+   and remove only its diagnostic Tag after verification.
+
+These steps are prepared instructions; they have **not** occurred in this
+follow-up. No new banner/panel/click success is claimed.
+
+### Latest main composition check
+
+Canonical root `D:/project/Pan-main`, branch `main`, still points to
+`e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c`. `git diff e51b4ba5 main` is empty
+and main is an ancestor of the task HEAD. Canonical untracked files were
+observed and left untouched. There are no new main source changes to integrate
+or risk-specific combination tests to add. The 92-test result above applies to
+the unchanged implementation. This follow-up changes diagnostic artifacts and
+this report only; no mechanical full-suite rerun, frontend build, main/practical
+mutation, push or restart is warranted or performed.
