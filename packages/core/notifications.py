@@ -16,10 +16,13 @@ import platform
 import asyncio
 import re
 import hashlib
+import logging
 from urllib.parse import urlsplit
 from typing import Callable
 
 PAN_PREFIX = "Pan:"
+_log = logging.getLogger(__name__)
+_notification_tasks: set[asyncio.Task] = set()
 
 
 def normalize_title(title: object) -> str:
@@ -146,13 +149,20 @@ def dispatch_completion_nonblocking(session, status: str, result: str) -> dict |
         session_id = session.id
         async def send_in_background() -> None:
             try:
-                await asyncio.to_thread(_send_completion_system, title, body, session_id)
+                result = await asyncio.to_thread(_send_completion_system, title, body, session_id)
             except Exception:
-                # Desktop delivery is best effort and must never affect the
-                # already-persisted terminal result or its broadcasts.
-                return
-        asyncio.create_task(send_in_background())
-        payload["system"] = {"ok": True, "method": "background"}
+                result = {"ok": False, "code": "system_notification_failed"}
+            # Keep the actual helper result observable without logging task
+            # text, deep links, exception messages or other private payloads.
+            log = _log.info if result.get("ok") else _log.warning
+            log("System notification session=%s ok=%s code=%s setting=%s hresult=%s winerror=%s exitcode=%s delivery=%s",
+                session_id, result.get("ok"), result.get("code"), result.get("setting"),
+                result.get("hresult"), result.get("winerror"), result.get("exitcode"),
+                result.get("delivery", "unknown"))
+        task = asyncio.create_task(send_in_background())
+        _notification_tasks.add(task)
+        task.add_done_callback(_notification_tasks.discard)
+        payload["system"] = {"ok": None, "method": "background", "delivery": "unknown"}
     return payload
 
 

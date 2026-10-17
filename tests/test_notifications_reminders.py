@@ -90,7 +90,7 @@ def test_nonblocking_completion_does_not_wait_for_slow_system_sender():
         payload, elapsed = asyncio.run(scenario())
         assert elapsed < 0.1
         assert payload["browser"] is True
-        assert payload["system"] == {"ok": True, "method": "background"}
+        assert payload["system"] == {"ok": None, "method": "background", "delivery": "unknown"}
         assert len(calls) == 1
     finally:
         notifications.set_system_sender(notifications.default_system_sender)
@@ -103,7 +103,7 @@ def test_windows_sender_success_passes_normalized_args_without_real_notification
     calls = []
     monkeypatch.setattr(windows_toast.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)) or completed)
     result = notifications.default_system_sender("user title", "body")
-    assert result == {"ok": True, "method": "windows.toast"}
+    assert result == {"ok": True, "method": "windows.toast", "delivery": "unknown"}
     # The mock above proves no real child process was launched; inspect a second
     # call to verify user data is carried only inside the encoded command.
     notifications.default_system_sender("Pan: user title", "$(bad); \"quoted\"")
@@ -111,6 +111,27 @@ def test_windows_sender_success_passes_normalized_args_without_real_notification
     assert argv[-1] != "$(bad); \"quoted\""
     assert "$(bad)" not in argv[-1]
     assert "-ExecutionPolicy" not in argv
+
+
+@pytest.mark.parametrize('raises', [False, True])
+def test_nonblocking_failure_is_logged_with_owner_without_private_payload(monkeypatch, caplog, raises):
+    s = session.Session('ses_owned_fail', 'private-title',
+                        notification_settings={'system': True})
+    def sender(*args):
+        if raises:
+            raise RuntimeError('private-exception')
+        return {'ok': False, 'code': 'windows_toast_failed', 'hresult': '0x803E0115',
+                'setting': 'Enabled', 'message': 'private-error'}
+    monkeypatch.setattr(notifications, '_system_sender', sender)
+    async def scenario():
+        payload = notifications.dispatch_completion_nonblocking(s, 'done', 'private-body')
+        assert payload['system']['ok'] is None
+        await asyncio.gather(*notifications._notification_tasks)
+        assert not notifications._notification_tasks
+    asyncio.run(scenario())
+    assert 'ses_owned_fail' in caplog.text
+    assert ('system_notification_failed' if raises else '0x803E0115') in caplog.text
+    assert 'private-' not in caplog.text
 
 
 def test_windows_toast_encoded_script_has_valid_preamble_and_payload_order():

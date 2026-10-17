@@ -132,7 +132,8 @@ def test_show_toast_success_shape_and_delivery_marker(monkeypatch):
     assert result == {"ok": True, "method": "windows.toast", "setting": "Enabled",
                       "delivery": "unknown"}
     plain = windows_toast.show_toast("Pan: t", "b")
-    assert plain == {"ok": True, "method": "windows.toast", "setting": "Enabled"}
+    assert plain == {"ok": True, "method": "windows.toast", "setting": "Enabled",
+                     "delivery": "unknown"}
     assert len(calls) == 2
     # The launch URL reaches the XML only; the script keeps it base64-wrapped.
     xml_b64 = _script_literals(calls[0])[0]
@@ -206,3 +207,39 @@ def test_completion_tags_replace_per_session_and_reminder_tags_per_content():
     assert notifications.reminder_dedup_tag("Pan: a", "b") == notifications.reminder_dedup_tag("Pan: a", "b")
     assert notifications.reminder_dedup_tag("Pan: a", "b") != notifications.reminder_dedup_tag("Pan: a", "c")
     assert notifications.reminder_dedup_tag("Pan: a", "b").startswith("reminder-")
+
+
+@pytest.mark.parametrize('text', ['X' * 20000, '<&\"\'😀中文' * 5000], ids=['ascii', 'escaped-unicode'])
+def test_large_result_fits_real_transport_and_xml_byte_limits(text):
+    import xml.etree.ElementTree as ET
+    url = 'http://127.0.0.1:49152/react/?session=ses_owned'
+    xml = windows_toast.build_toast_xml(text, text, launch_url=url)
+    assert len(xml.encode('utf-8')) <= 4096
+    root = ET.fromstring(xml)
+    assert root.attrib['launch'] == url
+    assert root.find('actions/action').attrib['arguments'] == url
+    assert root.find('visual/binding/text').text.endswith('…')
+    assert root.findall('visual/binding/text')[1].text.endswith('…')
+    script = windows_toast.build_show_script(windows_toast.TOAST_APP_ID, xml,
+                                             'completion-ses_owned', 'Pan-completions')
+    # Windows CreateProcess's 32767 UTF-16 code-unit limit includes argv.
+    assert len(windows_toast.encode_command(script)) + 256 < 32767
+
+
+def test_oversized_activation_metadata_fails_without_launch_or_truncating_target(monkeypatch):
+    def unexpected(script):
+        pytest.fail('Invalid activation metadata must not launch a helper')
+    monkeypatch.setattr(windows_toast, '_run_powershell', unexpected)
+    result = windows_toast.show_toast('title', 'body', launch_url='http://127.0.0.1/' + 'x' * 5000)
+    assert result['code'] == 'windows_toast_payload_invalid'
+
+
+def test_helper_preserves_winrt_hresult_and_setting(monkeypatch):
+    monkeypatch.setattr(windows_toast, '_powershell_executable', lambda: 'powershell.exe')
+    monkeypatch.setattr(windows_toast.subprocess, 'run', lambda *a, **kw: SimpleNamespace(
+        returncode=1, stdout='{"ok":false,"code":"windows_toast_failed",'
+        '"hresult":"0x803E0115","setting":"Enabled","message":"too large"}', stderr=''))
+    result = windows_toast._run_powershell('x')
+    assert result['hresult'] == '0x803E0115'
+    assert result['setting'] == 'Enabled'
+    assert result['code'] == 'windows_toast_failed'

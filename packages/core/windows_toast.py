@@ -3,6 +3,10 @@
 Replaces the legacy NotifyIcon balloon, which never reaches the Windows
 notification center. Verified on Windows 11 26100 (audit/notification-center/):
 
+These are historical observations, not evidence of current OS display. Current
+helper acceptance, center storage, banner visibility and native clicks must be
+verified separately (docs/reports/windows-toast-delivery-20261017.md).
+
 - An unpackaged app can post a WinRT toast with an AUMID and the platform
   records it in the notification center database (handler type "app:desktop",
   WNS id "NonImmersivePackage") - no Start Menu shortcut, no AppUserModelId
@@ -59,6 +63,11 @@ COMPLETION_GROUP = "Pan-completions"
 REMINDER_GROUP = "Pan-reminders"
 
 _TIMEOUT_SECONDS = 20
+# Keep the complete escaped UTF-8 XML conservative for the Windows payload
+# limit, and the nested base64 -EncodedCommand below CreateProcess's limit.
+# Full task results remain in Session history; a toast is only a preview.
+_MAX_XML_BYTES = 4096
+_MAX_TITLE_BYTES = 512
 
 # XML 1.0 disallows most C0 control characters; they would make LoadXml throw.
 _INVALID_XML_CHARS = re.compile(
@@ -96,6 +105,21 @@ def bounded_tag(value: str | None) -> str | None:
     return f"{value[:40]}-{digest}"
 
 
+def _preview(text: str, budget: int) -> str:
+    """Fit escaped XML text in a byte budget without splitting Unicode."""
+    if len(_xml_escape(text).encode("utf-8")) <= budget:
+        return text
+    remaining = max(0, budget - len("…".encode("utf-8")))
+    parts = []
+    for char in text:
+        cost = len(_xml_escape(char).encode("utf-8"))
+        if cost > remaining:
+            break
+        parts.append(char)
+        remaining -= cost
+    return "".join(parts) + ("…" if budget >= 3 else "")
+
+
 def build_toast_xml(title: object, body: object, *,
                     launch_url: str | None = None,
                     button_text: str = BUTTON_OPEN_SESSION) -> str:
@@ -109,8 +133,10 @@ def build_toast_xml(title: object, body: object, *,
         launch_attr = f' launch="{_xml_escape(launch_url)}"'
     parts.append(f"<toast{launch_attr}>")
     parts.append('<visual><binding template="ToastGeneric">')
-    parts.append(f"<text>{_xml_escape(_sanitize_text(title))}</text>")
-    parts.append(f"<text>{_xml_escape(_sanitize_text(body))}</text>")
+    title_text = _xml_escape(_preview(_sanitize_text(title), _MAX_TITLE_BYTES))
+    parts.append(f"<text>{title_text}</text>")
+    body_index = len(parts)
+    parts.append("<text></text>")
     parts.append("</binding></visual>")
     if launch_url:
         parts.append("<actions>")
@@ -120,6 +146,11 @@ def build_toast_xml(title: object, body: object, *,
         )
         parts.append("</actions>")
     parts.append("</toast>")
+    budget = _MAX_XML_BYTES - len("".join(parts).encode("utf-8"))
+    if budget < 3:
+        # Never truncate or rewrite the click target to make a payload fit.
+        raise ValueError("Toast activation metadata exceeds the payload budget")
+    parts[body_index] = f"<text>{_xml_escape(_preview(_sanitize_text(body), budget))}</text>"
     return "".join(parts)
 
 
@@ -164,6 +195,9 @@ def build_show_script(app_id: str, xml_text: str, tag: str | None,
         "  $result.ok = $false\n"
         "  $result.code = 'windows_toast_failed'\n"
         "  $result.message = $_.Exception.Message\n"
+        "  $cause = $_.Exception\n"
+        "  while ($cause.InnerException) { $cause = $cause.InnerException }\n"
+        "  $result.hresult = ('0x{0:X8}' -f $cause.HResult)\n"
         "}\n"
         "[Console]::Out.WriteLine(($result | ConvertTo-Json -Compress))\n"
         "if (-not $result.ok) { exit 1 }\n"
@@ -213,12 +247,15 @@ def _run_powershell(script: str) -> dict:
             "ok": False,
             "code": "windows_system_notification_launch_failed",
             "message": str(exc),
+            "winerror": getattr(exc, "winerror", None),
         }
     result = _parse_result(completed.stdout)
     if completed.returncode != 0 or not (result or {}).get("ok"):
         detail = (result or {}).get("message") or (completed.stderr or completed.stdout or "").strip()
         return {
+            **{key: result[key] for key in ('setting', 'hresult') if result and key in result},
             "ok": False,
+            "exitcode": completed.returncode,
             "code": (result or {}).get("code") or "windows_system_notification_failed",
             "message": f"PowerShell toast exited with code {completed.returncode}: {detail}"
             if completed.returncode != 0 else str(detail),
@@ -250,19 +287,21 @@ def show_toast(title: object, body: object, *,
 
     Returns ``{"ok": True, "method": "windows.toast", ...}`` after the OS
     accepted the toast, or a diagnostic error dict. ``delivery`` is reported as
-    ``"unknown"`` for clickable toasts: process completion is not proof of
+    ``"unknown"`` for every toast: process completion is not proof of
     display, and the notification center entry is what makes a later click
     work.
     """
-    xml_text = build_toast_xml(title, body, launch_url=launch_url)
+    try:
+        xml_text = build_toast_xml(title, body, launch_url=launch_url)
+    except ValueError as exc:
+        return {"ok": False, "code": "windows_toast_payload_invalid", "message": str(exc)}
     script = build_show_script(app_id, xml_text, bounded_tag(tag), bounded_tag(group))
     result = _run_powershell(script)
     if result.get("ok"):
         response = {"ok": True, "method": "windows.toast"}
         if result.get("setting"):
             response["setting"] = result["setting"]
-        if launch_url:
-            response["delivery"] = "unknown"
+        response["delivery"] = "unknown"
         return response
     return result
 
