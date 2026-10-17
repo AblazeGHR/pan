@@ -115,6 +115,7 @@ it('history remains accessible without admitting input while ownership is unconf
 
 describe('ChatView: message navigation rail switch', () => {
   it('mounts the shared sidebar for either feature and stacks search above navigation', async () => {
+    useAppSettingsStore.setState({ showMessageNavigationRail: false, showHistorySearch: false });
     const { container, findByTestId } = render(<ChatView />);
     expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
     act(() => useAppSettingsStore.setState({ showHistorySearch: true }));
@@ -147,7 +148,7 @@ describe('ChatView: message navigation rail switch', () => {
     expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
   });
   it('folds both search buttons inside the only desktop panel, including search-only mode', async () => {
-    useAppSettingsStore.setState({ showHistorySearch: true });
+    useAppSettingsStore.setState({ showMessageNavigationRail: false, showHistorySearch: true });
     const { container, findByTestId, getByRole } = render(<ChatView />);
     await findByTestId('global-history-search');
     const panel = container.querySelector('#message-navigation-panel')!;
@@ -190,7 +191,8 @@ describe('ChatView: message navigation rail switch', () => {
     expect(container.querySelector('[data-testid="chat-tools-sidebar"]')).toBeNull();
     expect(container.querySelector('[data-testid="mobile-message-navigation-toggle"]')).toBeNull();
   });
-  it('does not mount the dock by default or request history', async () => {
+  it('does not mount the dock or request history while disabled', async () => {
+    useAppSettingsStore.setState({ showMessageNavigationRail: false, showHistorySearch: false });
     const { container } = render(<ChatView />);
     await act(async () => { await Promise.resolve(); });
 
@@ -202,6 +204,7 @@ describe('ChatView: message navigation rail switch', () => {
   });
 
   it('leaves Session search UI and its keyboard listener unmounted while disabled', () => {
+    useAppSettingsStore.setState({ showHistorySearch: false });
     const addListener = vi.spyOn(window, 'addEventListener');
     const { container } = render(<ChatView />);
     const keydownListeners = addListener.mock.calls.filter(([type]) => type === 'keydown');
@@ -339,6 +342,7 @@ describe('ChatView: message navigation rail switch', () => {
   });
 
   it('unmounts the dock and releases its indexed content when the master switch turns off', async () => {
+    useAppSettingsStore.setState({ showMessageNavigationRail: false, showHistorySearch: false });
     const { container } = render(<ChatView />);
     await act(async () => { await Promise.resolve(); });
     expect(container.querySelector('.message-navigation-dock')).toBeNull();
@@ -368,7 +372,7 @@ describe('ChatView: message navigation rail switch', () => {
 
   it('uses the topbar button on mobile and keeps one index across repeated toggles', async () => {
     viewport.isMobile = true;
-    useAppSettingsStore.setState({ showMessageNavigationRail: true });
+    useAppSettingsStore.setState({ showMessageNavigationRail: true, showHistorySearch: false });
     const { container, getByRole } = render(<ChatView />);
 
     const toggle = getByRole('button', { name: 'Open message navigation rail' });
@@ -402,7 +406,7 @@ describe('ChatView: message navigation rail switch', () => {
 
   it('hides the bottom button only while the enabled mobile navigation rail is expanded', async () => {
     viewport.isMobile = true;
-    useAppSettingsStore.setState({ showMessageNavigationRail: true });
+    useAppSettingsStore.setState({ showMessageNavigationRail: true, showHistorySearch: false });
     const { container, getByRole, rerender } = render(<ChatView />);
     const chatMessages = container.querySelector('[data-testid="chat-messages"]')!;
     const toggle = getByRole('button', { name: 'Open message navigation rail' });

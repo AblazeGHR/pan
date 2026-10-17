@@ -134,8 +134,8 @@ export interface AppSettings {
    */
   keepScrollOnSessionSwitch: boolean;
   /**
-   * Mount the quick-location strip on the chat's right edge. Off by default.
-   * Leaving it unmounted also skips its full-history index pass, so sessions
+   * Mount the quick-location strip on the chat's right edge. On by default.
+   * Turning it off also skips its full-history index pass, so sessions
    * open without that cost (one request per 200 messages of the session).
    */
   showMessageNavigationRail: boolean;
@@ -170,8 +170,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
-  showMessageNavigationRail: false,
-  showHistorySearch: false,
+  showMessageNavigationRail: true,
+  showHistorySearch: true,
   notifications: {
     codexWarningToast: true,
     completionBridge: DEFAULT_COMPLETION_BRIDGE,
