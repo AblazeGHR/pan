@@ -103,6 +103,14 @@ def main() -> None:
             return [sys.executable, fake_cli]
 
         CbcAdapter._resolve_cbc_argv = resolve_fake_cli
+        # fake_stream_cli implements ordinary stream stdin only: it emits no
+        # confirmed run or native admission receipts. Exercise the capability-
+        # absent restart path explicitly, rather than inheriting real CBC's
+        # native Steer contract and weakening its unconfirmed-run safety gate.
+        # Native run/owner/generation/receipt coverage lives in test_cbc_steer;
+        # the latency probe below opts in to its own control-wire protocol.
+        CbcAdapter.supports_native_steer = False
+        CbcAdapter.supports_steer_receipt = False
 
     if os.environ.get("PAN_E2E_LATENCY_CONTROLS") == "1" and fake_cli:
         # This capability belongs only to the deterministic probe CLI. It
