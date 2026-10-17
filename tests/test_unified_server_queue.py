@@ -208,6 +208,7 @@ def test_report_and_qq_same_content_get_distinct_native_ids(monkeypatch):
 
 def test_queue_api_requires_own_edit_lease_and_reorders_all_sources(monkeypatch):
     _cleanup()
+
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
     user, _ = asyncio.run(worker._persist_task_item(value, "user", "user", None, None, "u"))
@@ -656,4 +657,42 @@ def test_claim_and_delete_are_serialized_without_double_dispatch(monkeypatch):
         assert value.queue_pending == []
     if claimed is not None:
         assert value.queue_delivery_ledger[item["id"]]["deliveryState"] == "reserved"
+    _cleanup()
+
+
+def test_composer_edit_reorders_occurrences_preserves_metadata_and_checks_revision(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item, _ = asyncio.run(worker._persist_task_item(value, "body", "user", None, None, "composer"))
+    item_id = item["queueItemId"]
+    item["parts"] = [
+        {"type": "attachment", "attachmentId": "resource", "occurrenceId": "first", "location": {"line": 2}, "custom": "retain"},
+        {"type": "text", "text": "between"},
+        {"type": "attachment", "attachmentId": "resource", "occurrenceId": "second"},
+    ]
+    # Registry/normalization is stubbed here; the HTTP/Chromium suite uses real
+    # uploaded bytes and registry. This unit isolates lease/CAS/occurrence rules.
+    def normalize(_sid, parts):
+        return [({"type": "attachment", "attachmentId": p["attachmentId"], "displayName": "real.txt", "size": 9,
+                  "__serverPath": "owned-file"} if p["type"] == "attachment" else {"type": "text", "text": p["text"]})
+                for p in parts], "canonical", None
+    monkeypatch.setattr(server, "_normalize_message_parts", normalize)
+    asyncio.run(server.api_session_queue_edit_lock(value.id, item_id, {"editToken": "lease", "expectedRevision": 1}))
+    parts = [{"type": "attachment", "attachmentId": "resource", "occurrenceId": "second"},
+             {"type": "text", "text": "edited"},
+             {"type": "attachment", "attachmentId": "resource", "occurrenceId": "first", "displayName": "spoof"}]
+    denied = asyncio.run(server.api_session_queue_update(value.id, item_id, {
+        "text": "unused", "composerParts": parts, "editToken": "lease", "expectedRevision": 99}))
+    assert denied["error"]["code"] == "queue_revision_conflict"
+    assert item["parts"][0]["occurrenceId"] == "first"
+    result = asyncio.run(server.api_session_queue_update(value.id, item_id, {
+        "text": "unused", "composerParts": parts, "editToken": "lease", "expectedRevision": 1}))
+    assert result["ok"]
+    assert [p.get("occurrenceId") for p in item["parts"]] == ["second", None, "first"]
+    assert item["parts"][2]["location"] == {"line": 2}
+    assert item["parts"][2]["custom"] == "retain"
+    assert item["parts"][2]["displayName"] == "real.txt"
+    assert item["queueItemId"] == item_id and item["revision"] == 2
+    assert value.queue_edit_locks == {}
     _cleanup()

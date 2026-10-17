@@ -14,11 +14,14 @@
 
 import type { AttachmentLocation } from '@/types/attachment';
 import type { ApiSessionDraft, ApiSessionDraftAttachment } from '@/services/api';
+import { draftFile, rememberDraftFile } from './draftFiles';
 
 /** The composer-side attachment shape this codec needs.  Structurally a subset
  *  of InputRow's `PendingAttachment`; declared here so the codec does not
  *  depend on the component. */
 export interface CodecAttachment {
+  localFileId?: string;
+  error?: string;
   occurrenceId: string;
   id: string;
   displayName: string;
@@ -30,11 +33,7 @@ export interface CodecAttachment {
   mimeType?: string;
   source?: 'upload' | 'server_file';
   location?: AttachmentLocation;
-  /** Present only for a local, not-yet-uploaded File.  Deliberately dropped:
-   *  see `toDraft`.  Typed as `File | undefined` so this shape stays
-   *  assignable to the composer's own attachment type; the codec only ever
-   *  *reads* it (by never copying it), so no `File` handling is introduced
-   *  here. */
+  /** Local bytes are kept by structured clone in IndexedDB until upload succeeds. */
   file?: File;
 }
 
@@ -74,18 +73,10 @@ export function occurrenceIdOf(attachment: CodecAttachment): string {
   return attachment.occurrenceId || attachment.id;
 }
 
-/**
- * Keep only attachments the server can actually resolve after a restart.
- *
- * A local `File` that was never uploaded has no server identity, so it cannot
- * come back: the bytes are gone and re-uploading would silently duplicate a
- * payload the user never asked to send twice.  Such an attachment is dropped
- * rather than persisted as a chip that would fail to resolve on reload, and it
- * is never re-uploaded.
- */
+/** Keep server references and explicit browser-persisted pending file identities. */
 export function restorableAttachments(draft: ApiSessionDraft | null): ApiSessionDraftAttachment[] {
   if (!draft) return [];
-  return draft.attachments.filter((attachment) => !!attachment.attachmentId || !!attachment.path);
+  return draft.attachments.filter((attachment) => !!attachment.attachmentId || !!attachment.path || !!attachment.localFileId);
 }
 
 /** Filter references with the same occurrence identity as the metadata. */
@@ -108,6 +99,7 @@ function recoverableParts(
 export function toDraft(
   value: CodecComposerValue,
   attachments: CodecAttachment[],
+  sessionId?: string,
 ): ApiSessionDraft {
   // parts order IS the composer's document order; keeping it verbatim is what
   // makes an interrupted draft restore with identical structure.
@@ -126,6 +118,11 @@ export function toDraft(
       if (attachment.fileKey) entry.fileKey = attachment.fileKey;
       if (attachment.source) entry.source = attachment.source;
       if (attachment.location) entry.location = { ...attachment.location };
+      if (!attachment.attachmentId && attachment.localFileId) entry.localFileId = attachment.localFileId;
+      if (!attachment.attachmentId && attachment.file && sessionId) {
+        entry.localFileId = `${sessionId}:${entry.occurrenceId}`;
+        rememberDraftFile(entry.localFileId, attachment.file);
+      }
       return entry;
     }),
   });
@@ -160,6 +157,9 @@ export function fromDraft(draft: ApiSessionDraft, fallbackText: string): Restore
     // chip retryable via the existing explicit registration action, and block
     // send until it has both a registered identity and a usable link.
     status: item.attachmentId && item.href ? 'ready' : 'error',
+    ...(item.localFileId ? { localFileId: item.localFileId,
+      error: draftFile(item.localFileId) ? '上传尚未完成，请重试' : '此浏览器没有待上传文件，请移除后重新选择' } : {}),
+    ...(item.localFileId && draftFile(item.localFileId) ? { file: draftFile(item.localFileId) } : {}),
     ...(item.attachmentId ? { attachmentId: item.attachmentId } : {}),
     ...(item.path ? { path: item.path } : {}),
     ...(item.href ? { href: item.href } : {}),

@@ -900,6 +900,7 @@ export async function updateSessionQueueItem(
   /** New attachment references only; the server resolves every other field
    *  from the Session attachment registry. */
   parts?: Array<{ type: 'attachment'; attachmentId: string }>,
+  composerParts?: Array<{ type: 'text'; text: string } | { type: 'attachment'; attachmentId: string; occurrenceId: string }>,
 ): Promise<Omit<ApiSessionQueueResponse, 'error'> & {
   item?: AgentQueueItem;
   error?: { code?: string; message?: string } | string;
@@ -909,7 +910,7 @@ export async function updateSessionQueueItem(
     error?: { code?: string; message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue/${itemId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ text, expectedRevision, editToken, ...(parts?.length ? { parts } : {}) }),
+    body: JSON.stringify({ text, expectedRevision, editToken, ...(composerParts ? { composerParts } : parts?.length ? { parts } : {}) }),
   });
   if (data.ok === false || data.error) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
@@ -1067,6 +1068,7 @@ export async function reorderSessions(
  * server-owned identities (`attachmentId` for an uploaded file, `path` for a
  * server file) plus display metadata round-trip. */
 export interface ApiSessionDraftAttachment {
+  localFileId?: string;
   occurrenceId: string;
   displayName: string;
   attachmentId?: string;

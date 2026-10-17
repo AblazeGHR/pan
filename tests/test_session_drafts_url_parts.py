@@ -16,6 +16,18 @@ def draft_with_parts(parts):
     return {"text": text, "parts": parts, "attachments": []}
 
 
+def test_pending_local_file_is_an_explicit_reference_with_ordered_occurrence():
+    payload = {"text": "", "parts": [{"type": "attachment", "attachmentId": "occ", "occurrenceId": "occ"}],
+               "attachments": [{"occurrenceId": "occ", "displayName": "local.txt", "localFileId": "session:occ"}]}
+    assert normalize_draft(payload) == payload
+
+
+def test_pending_file_without_bytes_or_reference_is_rejected():
+    with pytest.raises(ValueError):
+        normalize_draft({"text": "", "parts": [], "attachments": [
+            {"occurrenceId": "occ", "displayName": "local.txt", "file": {}}]})
+
+
 def test_url_part_round_trips_query_and_hash_verbatim():
     url = "https://example.test/a%20b?q=1&next=%2Fx#L42-L48"
     normalized = normalize_draft(

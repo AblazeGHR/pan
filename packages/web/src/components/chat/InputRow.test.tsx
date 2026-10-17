@@ -1143,6 +1143,28 @@ describe('InputRow send queue wiring', () => {
     );
   });
 
+  it('restores an interrupted upload as retryable after switching away and ignores its late response', async () => {
+    setBusySession();
+    const first = useSessionStore.getState().sessions[0]!;
+    useSessionStore.setState({ sessions: [first, { ...first, id: 's2', name: 'Other' }] });
+    const upload = deferred<Awaited<ReturnType<typeof uploadSessionAttachment>>>();
+    vi.mocked(uploadSessionAttachment).mockReturnValueOnce(upload.promise);
+    render(<InputRow />);
+    fireEvent.change(screen.getByTestId('client-attachment-input'), {
+      target: { files: [new File(['original bytes'], 'interrupted.txt', { type: 'text/plain' })] },
+    });
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+    upload.resolve({ ok: true, filename: 'interrupted.txt', path: 'ignored-late', size: 14 });
+    await Promise.resolve();
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [] });
+    await waitFor(() => expect(screen.getByRole('button', { name: '重试上传 interrupted.txt' })).toBeTruthy());
+    expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('失败');
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('keeps failed uploads visible with a retry action', async () => {
     setBusySession();
     vi.mocked(uploadSessionAttachment)
@@ -1272,7 +1294,7 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
     expect(fetchSessionQueue).toHaveBeenCalledWith('s1');
     expect(updateSessionQueueItem).toHaveBeenCalledWith(
-      's1', 'q-count-edit', 'after', 1, expect.any(String), undefined,
+      's1', 'q-count-edit', 'after', 1, expect.any(String), undefined, [{ type: 'text', text: 'after' }],
     );
   });
 

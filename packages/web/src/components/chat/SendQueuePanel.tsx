@@ -158,7 +158,10 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
     const copy = items.slice();
     const index = copy.findIndex((item) => item.id === edit.id);
     if (index >= 0) {
-      copy[index] = { ...copy[index]!, text: edit.text };
+      copy[index] = { ...copy[index]!, text: edit.composerValue
+        ? edit.composerValue.parts.map(part => part.type === 'text' ? part.value : part.type === 'url' ? part.label || part.url
+          : edit.attachments?.find(attachment => attachment.occurrenceId === (part.occurrenceId || part.attachmentId))?.displayName || '').join('')
+        : edit.text };
     }
     return copy;
   }, [edit, items]);

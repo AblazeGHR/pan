@@ -36,6 +36,7 @@ import {
   type ApiSessionDraftAttachment,
 } from '@/services/api';
 import { restorableAttachments } from '@/stores/composerDraftCodec';
+import { ensureDraftFiles, loadDraftFile, pruneDraftFiles } from './draftFiles';
 
 export type { ApiSessionDraft, ApiSessionDraftAttachment };
 export { restorableAttachments };
@@ -231,6 +232,7 @@ function sameDraft(a: ApiSessionDraft | null, b: ApiSessionDraft | null): boolea
       left.mimeType !== right.mimeType ||
       left.fileKey !== right.fileKey ||
       left.source !== right.source
+      || left.localFileId !== right.localFileId
     ) {
       return false;
     }
@@ -374,10 +376,19 @@ async function flush(sessionId: string): Promise<void> {
     const payload = current.draft;
     const localRevision = current.localRevision;
     const baseRevision = current.serverRevision;
+    const localFileIds = payload?.attachments.flatMap((item) => item.localFileId ? [item.localFileId] : []) ?? [];
+    await ensureDraftFiles(localFileIds);
     current.dirty = false;
     current.windowStartedAt = 0;
     current.lastWriteAt = Date.now();
     const result = await putSessionDraft(sessionId, payload, baseRevision);
+    // Reclaim browser bytes only after an acknowledged clear. Upload progress,
+    // ready metadata and session switching must never be file-deletion triggers.
+    // Keep newer local edits which arrived while the tombstone was in flight.
+    if (payload === null && typeof indexedDB !== 'undefined') void pruneDraftFiles(sessionId, () => [
+      ...localFileIds,
+      ...(current.draft?.attachments.flatMap((item) => item.localFileId ? [item.localFileId] : []) ?? []),
+    ]).catch(() => {});
     // Through the same monotonic guard as the read path: a write response is
     // authoritative, but adopting it unconditionally would let a slow response
     // to an OLD write clobber a revision already learned from a newer one.
@@ -490,6 +501,7 @@ export async function loadDraft(sessionId: string): Promise<ApiSessionDraft | nu
   const promise = (async () => {
     try {
       const result = await getSessionDraft(sessionId);
+      await Promise.all((result.draft?.attachments ?? []).map((item) => item.localFileId?.startsWith(`${sessionId}:`) ? loadDraftFile(item.localFileId) : undefined));
       // Monotonic: a stale read cannot roll the CAS base backwards, and a
       // rejected adoption means a write already moved past this revision.
       const adopted = adoptRevision(current, result.revision);
