@@ -49,7 +49,7 @@ class ResidentTui:
         self._resume_request = None
         self._resume_fallback = False
         self._delivery_generation = None
-        self._native_starts = set()
+        self._native_starts = {}
 
     def observe(self, message):
         # The primary client owns the loaded thread subscription. Native TUI
@@ -142,10 +142,13 @@ class ResidentTui:
                         "threadId": self.app.thread_id, "includeTurns": False}})
                     continue
                 if message.get("id") in self._native_starts and "method" not in message:
-                    self._native_starts.discard(message["id"])
+                    admission = self._native_starts.pop(message["id"])
                     if "error" in message:
-                        self.app._native_turn_pending.clear()
-                        self.emit({"type": "pan.native_busy", "busy": False})
+                        if admission.rejected():
+                            self.app.retire_native_reservation(admission)
+                            self.emit({"type": "pan.native_busy", "busy": False})
+                        else:
+                            self.emit({"type": "pan.native_error", "error": "native-start-rejection-conflict"})
                 if message.get("id") == self._resume_request and "result" in message:
                     message = {**message, "result": {**self.app._thread_resume_info, **message["result"]}}
                     self.ready.set()
@@ -237,28 +240,57 @@ class ResidentTui:
                         params = message.get("params") or {}
                         if params.get("threadId", self.app.thread_id) != self.app.thread_id:
                             raise ControlRejected("Foreign thread")
+                        generation = self.app.control_owner.snapshot()["generation"]
+                        admission = None
+                        # Idle manual compaction creates a new protected turn.
+                        # Active-turn compaction retains its existing forwarding
+                        # semantics; queued/future operation completion is a
+                        # separate multi-operation lifecycle, not a second run.
+                        if method == "turn/start" or (method == "thread/compact/start"
+                                                       and not self.app._turn_active.is_set()):
+                            def reserve():
+                                if params.get("threadId") != self.app.thread_id:
+                                    raise ControlRejected("Foreign thread")
+                                try:
+                                    value = self.app.reserve_native_admission(self.app.thread_id, generation, self.emit, method)
+                                except RuntimeError:
+                                    raise ControlRejected("Turn already executing") from None
+                                self.emit({"type": "pan.native_busy", "busy": True})
+                                return value
+                            admission = self.app.control_owner.write("native", reserve, generation=generation)
+                            admission.request()
+                            if not admission.wait(self.app.native_admission_timeout):
+                                self.app.retire_native_reservation(admission)
+                                self.emit({"type": "pan.native_busy", "busy": False})
+                                raise ControlRejected("Native admission was not confirmed")
                         def mutate():
-                            # Disable acknowledgement fences all later sends.
                             with self.app._native_policy_lock:
                                 if method not in THREAD_WRITES and not self.app.native_passthrough:
                                     raise ControlRejected("Unsupported native mutation")
-                                if method == "turn/start":
-                                    if self.app._turn_active.is_set() or self.app._native_turn_pending.is_set():
-                                        raise ControlRejected("Turn already executing")
-                                    self.app._native_turn_pending.set()
-                                    self._native_starts.add(message.get("id"))
-                                    self.emit({"type": "pan.native_busy", "busy": True})
+                                if params.get("threadId", self.app.thread_id) != self.app.thread_id:
+                                    raise ControlRejected("Foreign thread")
+                                if admission is not None and (
+                                        self.app._native_admission is not admission
+                                        or self.app.thread_id != admission.thread_id):
+                                    raise ControlRejected("Native admission owner changed")
                                 if method not in THREAD_WRITES or SETTING_OVERRIDES.intersection(params):
-                                    # Before send, even if delivery becomes ambiguous.
-                                    # Never persist method names/params/secrets here.
                                     self.emit({"type": "pan.native_settings_uncertain"})
-                                try:
+                                if admission is None:
                                     self.peer.send(message)
-                                except Exception:
-                                    if method == "turn/start":
+                                else:
+                                    self._native_starts[message.get("id")] = admission
+                                    try:
+                                        admission.send(lambda: self.peer.send(message))
+                                    except Exception:
                                         self.emit({"type": "pan.native_error", "error": "native-turn-unconfirmed"})
-                                    raise
-                        self.app.control_owner.write("native", mutate)
+                                        raise
+                        try:
+                            self.app.control_owner.write("native", mutate, generation=generation)
+                        except ControlRejected:
+                            if admission is not None and admission.cancel():
+                                self.app.retire_native_reservation(admission)
+                                self.emit({"type": "pan.native_busy", "busy": False})
+                            raise
                 except ControlRejected:
                     if "id" in message and method is not None:
                         self._down_send({"id": message["id"], "error": {"code": -32000, "message": "Native control is not available"}})

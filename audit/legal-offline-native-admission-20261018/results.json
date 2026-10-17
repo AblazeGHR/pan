@@ -1,0 +1,26 @@
+{
+  "targeted": {
+    "tests": 334,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "seconds": 11.585
+  },
+  "real-native": {
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "seconds": 7.82
+  },
+  "totalDistinctTests": 337,
+  "newAdmissionCases": 32,
+  "base": "e681cb5a4c574ac552afc106576186408d1d2289",
+  "build": "Not rerun: no frontend changes; MA validated frozen frontend/build separately.",
+  "testCommands": {
+    "targeted": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_codex_native_admission.py tests/test_codex_native_passthrough.py tests/test_codex_native_completion.py tests/test_legal_offline.py tests/test_cbc_native_bridge.py tests/test_native_control_api.py tests/test_codex_control_owner.py tests/test_codex_adapter.py tests/test_codex_worker_integration.py tests/test_worker_output_mode.py tests/test_force_steer.py tests/test_codex_takeover.py tests/test_worker_global_watchdog.py -q --tb=short --junitxml=audit/legal-offline-native-admission-20261018/targeted.xml",
+    "real-native": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_codex_native_kernel_real.py -q -s --tb=short --junitxml=audit/legal-offline-native-admission-20261018/real-native.xml"
+  }
+}

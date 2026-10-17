@@ -185,3 +185,11 @@ mark_batch_recovered(batch.id)
 - 外部 takeover 在打开终端之前保存 ownershipUnknown 预留，Windows Codex 继续复用已有 Job Object 约束；活或未知 owner 不允许第二 writer。Job 成功停止后才释放预留；旧非 Job 终端须核验观察到的 PID/create-time 全部死亡，kill helper 返回不作证明。服务重启丢失 Job/终端所有权而只剩 unknown 预留时阻断自动恢复，需操作者独立确认所有执行实例退休并修复 owner 元数据，不能自动以根 PID 消失推断后代死亡。
 - 已登记的 PID/后代快照可以核验 alive/dead/unknown，但并不构成 OS 全进程树永不脱离的证明。普通 spawn 到首次 owner 保存之间、晚于快照才派生且脱离的进程，以及历史从未登记的外部 writer，当前能力无法完整证明。此边界必须在交付报告列明。
 - CBC hook 准入在本地协议/故障注入层验证；未运行真实供应商 CLI 或调用模型。持久准入成功但确认丢失的执行保留 False/所有权，不自动重发；须等待权威终态或用户 Stop 确认退休。Codex 原生 TUI 仍存在 turn/started 通知前崩溃窗口，本轮未声称闭合。
+
+## 12. MA 批准后的 Codex 受控原生准入补充
+
+本轮基于冻结 e681cb5a 重新实现，不应用归档 WIP。ResidentTui 私有代理的 turn/start，以及空闲时手动 thread/compact/start，必须在 peer.send 前收到 Pan 对相同 admission UUID 的持久 ACK。False、不可复用 run UUID、nativeAdmissionId、owner、task_seq、executionSeq 在真实有序 writer 内同次保存，再发布 Worker 投影；ACK 只回原 runtime stdin。started 绑定原 admission/turn，不分配第二 run。
+
+reservation busy 与 admitted execution 分开；两者均遵守原交接 gate。ACK 由 stdin parser 直接分发，普通控制/任务/EOF 保持原有先后顺序但不阻塞 ACK 读取。代理等待时不持 owner/policy 锁，ACK 后再次核验 thread/control generation/owner 才发送。取消/迟到 ACK/发送尝试由一次性状态转换决定；发送后未知保留 False/owner，不重投。明确未发送或 provider 明确拒绝且未观察 started 冲突时按 admission/run 条件安全退休；旧取消、旧 started/completed 不得结束后继。正常 provider Error/429 仍按既有安全终态合法化，wrapper 自身异常不是 provider 安全结果，不能用合成 result 将发送未知的执行写 True。
+
+保持现有功能：活动 turn 中的 compaction、未知 passthrough、Steer/审批续写和独立 takeover 不一律禁用。仅观察到才开始记录的原生 turn 显式记 nativeAdmissionTiming=after-start；不得宣称事前覆盖。空闲受控请求记 before-forward。独立 command/exec（没有 thread/turn）、detached review、活动 compaction 的后续排队操作和外部 takeover，需要独立完成/owner 映射或更大生命周期扩展，本轮仍未验收，详见交付报告。

@@ -1,0 +1,27 @@
+{
+  "frozenHead": "e681cb5a4c574ac552afc106576186408d1d2289",
+  "applied": false,
+  "status": "Uncommitted work from prior implementation authorization; archived on investigation-only steering. Not accepted or integrated.",
+  "patchSha256": "d5d1a2b4621a20f5506487adb2e56db914bb550df842f0188bc60240322c251e",
+  "paths": [
+    "packages/core/adapters/base.py",
+    "packages/core/adapters/cbc/adapter.py",
+    "packages/core/adapters/cbc/native_bridge.py",
+    "packages/core/adapters/claude/adapter.py",
+    "packages/core/adapters/codex/adapter.py",
+    "packages/core/adapters/codex/app_server_wrapper.py",
+    "packages/core/adapters/codex/resident_tui.py",
+    "packages/core/adapters/kimi/adapter.py",
+    "packages/core/adapters/opencode/adapter.py",
+    "packages/core/worker.py",
+    "tests/support/fake_stream_cli.py",
+    "tests/support/isolated_http_server.py",
+    "tests/test_codex_native_completion.py",
+    "tests/test_codex_native_passthrough.py",
+    "tests/test_legal_offline.py",
+    "tests/test_legal_offline_http.py"
+  ],
+  "validationNote": "Earlier focused subprocess runs returned 1 then 0 after fixture fixes; no final acceptance suite for this WIP. The in-flight HTTP exec handle was unavailable after steering; no matching pytest/server remained. No successful terminal result is claimed.",
+  "archiveFile": "wip-before-freeze.zip",
+  "archiveEntry": "wip-before-freeze.patch"
+}

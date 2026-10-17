@@ -1,0 +1,62 @@
+{
+  "head": "e681cb5a4c574ac552afc106576186408d1d2289",
+  "mode": "investigation-only; product/tests restored to frozen HEAD; no implementation committed",
+  "test": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "9",
+    "time": "0.126",
+    "timestamp": "2026-10-18T05:50:13.756741+08:00",
+    "hostname": "ablaze"
+  },
+  "exitCode": 0,
+  "command": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_codex_native_passthrough.py -q --tb=short -k \"known_reads_and_plain_turn or passthrough_explicitly_forwards or passthrough_does_not_bypass or policy_toggle_is_a_control_message or ambiguous_send\" --junitxml=audit/legal-offline-native-admission-investigation-20261018/frozen-proxy.xml",
+  "sources": [
+    {
+      "path": "packages/core/adapters/codex/resident_tui.py",
+      "sha256": "03ee6a6ea3feddf55a512bd9648175cea160a02c0a67513ab88ced2fc44371a2"
+    },
+    {
+      "path": "packages/core/adapters/codex/app_server_wrapper.py",
+      "sha256": "84a7d781000e11a43aa8ac295efe60585a02eb2bd1ac1bf3afe8e9c038c45257"
+    },
+    {
+      "path": "packages/core/adapters/codex/native_transport.py",
+      "sha256": "e6496fa26cd0cbfb40d40a72113b01fc9af8a4286f48cbb2a0ee5a7b04322d71"
+    },
+    {
+      "path": "packages/core/adapters/codex/control_owner.py",
+      "sha256": "b7566a17e1b40dfbee6880eb434c11be6fc05a327420d2440b30207738c781e0"
+    },
+    {
+      "path": "packages/core/worker.py",
+      "sha256": "17b713f98f2a262273b48351b09c3a9a77d22ad398ca71bc59ddf430fa0349cd"
+    },
+    {
+      "path": "packages/core/legal_offline.py",
+      "sha256": "3102605731096c6df8e6299bdc211db5c559d5431b4518269ca9d94479a8656c"
+    },
+    {
+      "path": "packages/core/adapters/cbc/native_bridge.py",
+      "sha256": "f615abe05555a0a51f30a1199b7202f4587031f4674301359c4e12812ab65c6a"
+    },
+    {
+      "path": "packages/web/server.py",
+      "sha256": "413df563a87ed1c2eab677fa8462828bbc4905b54882f3a981fcf858fa8b2846"
+    },
+    {
+      "path": "tests/test_codex_native_passthrough.py",
+      "sha256": "764d9057f463f2796ceb295893d9fe59a8376802648a4e5f993e52bfcc38a28c"
+    },
+    {
+      "path": "tests/test_codex_native_kernel_real.py",
+      "sha256": "0355c8b955486e1ab52fba0595b76133829225a61aa2a4fc1e32da5802643cd3"
+    },
+    {
+      "path": "tests/test_legal_offline.py",
+      "sha256": "f927955bcec0a52772844ed946b3f24431adf265457c3f9c93c07d297c7a9f26"
+    }
+  ]
+}

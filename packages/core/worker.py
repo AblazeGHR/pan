@@ -232,6 +232,7 @@ class Worker:
     native_control_error: str | None = None
     _offline_ready_token: str | None = None
     _offline_predecessors: set[str] | None = None
+    _native_reservation_busy: bool = False
     _native_admission_id: str | None = None
     _native_admission_ids: set[str] = field(default_factory=set)
     native_kernel_ready: bool = False
@@ -1888,6 +1889,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_kernel_ready = False
     w.native_passthrough_enabled = None
     w._native_external_turn_active = False
+    w._native_reservation_busy = False
     if _runtime_stopped(w):
         w.native_input_uncertain = False
     w.native_output.clear()
@@ -2136,26 +2138,58 @@ async def _flush_history_now(
     await _sess.save_async(s)
 
 
-async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None) -> None:
-    if request_id is not None and (not isinstance(request_id, str) or not request_id):
+async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None,
+                             thread_id: str | None = None,
+                             control_generation: int | None = None,
+                             operation: str = "turn/start") -> dict:
+    if not isinstance(request_id, str) or not request_id:
         raise RuntimeError("Invalid native admission identity")
+    codex = w.adapter.name == "codex"
+    if codex and operation not in {"turn/start", "thread/compact/start", "observed-turn"}:
+        raise RuntimeError("Unsupported admission operation")
+    identity = _offline.owner(w)
     async with queue_lock(w.session_id):
-        if not _control_runtime_matches(w.worker_id, runtime):
-            raise RuntimeError("Native runtime retired before admission")
-        if request_id is not None and request_id in w._native_admission_ids:
-            if request_id == w._native_admission_id and w._native_external_turn_active:
-                return
-            raise RuntimeError("Native admission has already retired")
         s = _session(w)
-        if (s is None or w._queue_unit_active or w._native_external_turn_active
+        def valid():
+            if not _control_runtime_matches(w.worker_id, runtime):
+                return False
+            if codex:
+                return (s is not None and thread_id == s.cli_session_id
+                        and (w.native_control_mode == "native" or (operation == "observed-turn"
+                             and w.native_control_mode == "pan"))
+                        and type(control_generation) is int
+                        and control_generation == w.native_control_generation)
+            return True
+        if s is None or not valid():
+            raise RuntimeError("Native runtime retired before admission")
+        current = s.offline_run or {}
+        if request_id in w._native_admission_ids:
+            if (current.get("nativeAdmissionId") == request_id and current.get("state") == "running"
+                    and _offline.same_owner(current, identity)):
+                return {"requestId": request_id, "runId": current["id"]}
+            raise RuntimeError("Native admission has already retired")
+        if (w._queue_unit_active or w._native_external_turn_active
                 or w.status in {"held", "restarting"}):
             raise RuntimeError("Native execution conflicts with current owner")
-        s.task_seq += 1
+        next_execution = w._execution_seq + 1
+        admitted = {**identity, "executionSeq": next_execution}
+        def commit(candidate):
+            if not valid() or w.offline_token != identity["token"]:
+                raise RuntimeError("Native owner changed before durable admission")
+            candidate.task_seq += 1
+            _offline.begin(candidate, admitted)
+            candidate.offline_run.update(nativeAdmissionId=request_id,
+                nativeThreadId=thread_id, nativeControlGeneration=control_generation, nativeOperation=operation,
+                nativeAdmissionTiming="after-start" if operation == "observed-turn" else "before-forward")
+        await _commit_offline(s, commit)
+        if not valid():
+            raise RuntimeError("Native runtime retired during admission")
+        # Only publish execution identity after the ordered writer committed it.
         w._current_seq = s.task_seq
+        w._execution_seq = next_execution
         w._current_task_id = None
         w._current_task_idempotent = False
         w._current_source_session_id = None
-        w._execution_seq += 1
         w._terminal_handled = False
         w._task_started_at = time.monotonic()
         w._current_queue_item = None
@@ -2165,15 +2199,41 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
         w._current_task_assistant_ids.clear()
         w._current_task_last_assistant_text = ""
         w._current_task_last_assistant_seq = None
-        await _begin_offline_run(w, locked=True)
-        if not _control_runtime_matches(w.worker_id, runtime):
-            raise RuntimeError("Native runtime retired during admission")
         w._native_external_turn_active = True
+        w._native_reservation_busy = False
         w._native_admission_id = request_id
-        if request_id is not None:
-            w._native_admission_ids.add(request_id)
+        w._native_admission_ids.add(request_id)
         w.status = "running"
         await _record_legal_worker_state(w, "running", "native/turn-admitted")
+        return {"requestId": request_id, "runId": s.offline_run["id"]}
+
+
+async def _retire_native_admission(w, runtime, event) -> bool:
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        run = (s.offline_run or {}) if s else {}
+        if (s is None or not _control_runtime_matches(w.worker_id, runtime)
+                or not event.get("requestId") or run.get("nativeAdmissionId") != event["requestId"]
+                or run.get("state") != "running" or s.legal_offline is not False
+                or not _offline.same_owner(run, _offline.owner(w))
+                or (event.get("runId") is not None and event["runId"] != run.get("id"))
+                or run.get("nativeTurnId")):
+            return False
+        identity = _offline.owner(w)
+        def finish(candidate):
+            if (not _control_runtime_matches(w.worker_id, runtime)
+                    or candidate.offline_run.get("nativeAdmissionId") != event["requestId"]):
+                raise RuntimeError("Native owner changed before cancellation")
+            if not _offline.finish(candidate, identity, reason="native/not-forwarded"):
+                raise RuntimeError("Native execution changed before cancellation")
+        await _commit_offline(s, finish)
+        w._native_external_turn_active = False
+        w._native_reservation_busy = False
+        w._native_admission_id = None
+        w._terminal_handled = True
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "native/not-forwarded")
+        return True
 
 
 async def _read_stdout(w: Worker):
@@ -2245,32 +2305,58 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.native_settings_uncertain":
             await _record_native_settings_state(w, uncertain=True)
             continue
-        if event.get("type") == "pan.native_turn_admission" and adapter.name == "cbc":
+        if event.get("type") == "pan.native_turn_admission" and adapter.name in {"cbc", "codex"}:
             request_id = event.get("requestId")
+            receipt = {}
             ok = False
             try:
-                await _admit_native_turn(w, receipt_runtime, request_id=request_id)
+                receipt = await _admit_native_turn(w, receipt_runtime, request_id=request_id,
+                    thread_id=event.get("threadId"), control_generation=event.get("controlGeneration"),
+                    operation=event.get("operation", "turn/start"))
                 ok = True
             except Exception:
                 _log.exception("Native admission rejected for Session %s", w.session_id)
             # A response belongs to this captured pipe only; never the successor.
             if _control_runtime_matches(w.worker_id, receipt_runtime):
                 receipt_runtime[3].write((json.dumps({"type": "native_admission",
-                    "requestId": request_id, "ok": ok}) + "\n").encode())
+                    "requestId": request_id, "ok": ok, **receipt}) + "\n").encode())
                 await receipt_runtime[3].drain()
             continue
+        if event.get("type") == "pan.native_turn_not_forwarded" and adapter.name == "codex":
+            await _retire_native_admission(w, receipt_runtime, event)
+            continue
         if event.get("type") == "pan.native_turn_started":
-            # CBC already obtained durable admission from its blocking hook.
-            # Codex exposes only a post-start notification: explicit limitation.
-            if adapter.name != "cbc":
-                await _admit_native_turn(w, receipt_runtime)
+            if adapter.name == "codex":
+                if event.get("observedAfterStart") is True:
+                    await _admit_native_turn(w, receipt_runtime, request_id=event.get("requestId"),
+                        thread_id=event.get("threadId"), control_generation=event.get("controlGeneration"),
+                        operation="observed-turn")
+                async with queue_lock(w.session_id):
+                    s = _session(w)
+                    def bind(candidate):
+                        run = candidate.offline_run or {}
+                        if (not _control_runtime_matches(w.worker_id, receipt_runtime)
+                                or not _offline.same_owner(run, _offline.owner(w))
+                                or run.get("nativeAdmissionId") != event.get("requestId")
+                                or (run.get("id") != event.get("runId") and not (
+                                    event.get("observedAfterStart") is True
+                                    and run.get("nativeAdmissionTiming") == "after-start"))
+                                or run.get("state") != "running"
+                                or not event.get("turn_id")):
+                            raise RuntimeError("Native started without matching durable admission")
+                        previous = run.get("nativeTurnId")
+                        if previous is not None and previous != event["turn_id"]:
+                            raise RuntimeError("Conflicting native turn identity")
+                        run["nativeTurnId"] = event["turn_id"]
+                    if s is not None:
+                        await _commit_offline(s, bind)
             continue
         if event.get("type") == "pan.native_busy":
-            w._native_external_turn_active = event.get("busy") is True
-            if not w._native_external_turn_active:
+            w._native_reservation_busy = event.get("busy") is True
+            if not w._native_reservation_busy and not w._native_external_turn_active:
                 _maybe_restart_pending(w)
-            if not w._native_external_turn_active and w.native_control_mode == "pan" and w.pending_signal is not None:
-                w.pending_signal.put_nowait({"type": "queue_signal"})
+                if w.native_control_mode == "pan" and w.pending_signal is not None:
+                    w.pending_signal.put_nowait({"type": "queue_signal"})
             continue
         if event.get("type") == "pan.native_user":
             s = _session(w)
@@ -2285,6 +2371,16 @@ async def _read_stdout(w: Worker):
             if receipt is not None and not receipt.done():
                 receipt.set_result(event)
             continue
+        if adapter.name == "codex" and event.get("external_turn") is True:
+            s = _session(w)
+            run = (s.offline_run or {}) if s else {}
+            if (not event.get("requestId") or run.get("nativeAdmissionId") != event.get("requestId")
+                    or (run.get("id") != event.get("runId") and not (
+                        event.get("runId") is None and run.get("nativeAdmissionTiming") == "after-start"))
+                    or not _offline.same_owner(run, _offline.owner(w))
+                    or (event.get("turn_id") is not None and run.get("nativeTurnId") != event["turn_id"])):
+                _log.warning("Discarded unowned native external result for %s", w.session_id)
+                continue
         if w._terminal_handled and not adapter.is_result_event(event):
             # `worker.result` closes this serialized provider turn. A provider
             # frame buffered behind its terminal result must not be appended
@@ -2393,6 +2489,7 @@ async def _read_stdout(w: Worker):
                                       w, terminal["status"], terminal.get("taskSeq")))
             was_native = w._native_external_turn_active
             w._native_external_turn_active = False
+            w._native_reservation_busy = False
             _finish_terminal_bookkeeping(w, terminal)
             if was_native and w.native_control_mode == "pan" and w.pending_signal is not None:
                 w.pending_signal.put_nowait({"type": "queue_signal"})
@@ -3582,7 +3679,7 @@ def _native_handoff_blocked(s) -> bool:
     if type(s.adapter_config.get("native_control_next")) is bool:
         return True
     w = find_worker_by_session(s.id)
-    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active
+    return w is not None and (w.native_control_mode != "pan" or w._native_reservation_busy or w._native_external_turn_active
                              or getattr(w, "native_input_uncertain", False))
 
 
@@ -5849,7 +5946,7 @@ async def _watchdog(w: Worker):
             continue
 
         # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
-        if (w.native_control_mode != "pan" or w._native_external_turn_active
+        if (w.native_control_mode != "pan" or w._native_reservation_busy or w._native_external_turn_active
                 or w.native_input_uncertain):
             # User-owned native turns and their resident kernel are not abandoned
             # Pan tasks. Browser detach/control handoff never reclaims them.
@@ -7551,7 +7648,7 @@ def _maybe_restart_pending(w: Worker) -> None:
     No lock or await is needed for this event-loop-local decision.
     """
     if (not w.pending_restart or w.status not in {"idle", "queued"}
-            or w._native_external_turn_active
+            or w._native_reservation_busy or w._native_external_turn_active
             or (w._queue_unit_active and w._current_handoff_acked)
             or w._terminal_finishing or workers.get(w.worker_id) is not w):
         return
@@ -8127,7 +8224,7 @@ def _apply_native_mode_receipt(w: Worker, receipt: dict) -> bool:
     w._native_mode_request_id = None
     w.native_control_error = None if receipt.get("ok") is True else "Native control request rejected"
     if receipt.get("native_busy") is True:
-        w._native_external_turn_active = True
+        w._native_reservation_busy = True
     if w.native_control_mode == "pan" and w.pending_signal is not None:
         w.pending_signal.put_nowait({"type": "queue_signal"})
     return True

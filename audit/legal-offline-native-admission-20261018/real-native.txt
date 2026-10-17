@@ -1,0 +1,3 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-illegal-lock-review-20261018
+..NATIVE_DURABLE_ACK_REAL {"runId": "fdfa269ab7d846438d2fbca090543750", "provider": "http://127.0.0.1:49369/v1", "sessionId": "ses_03bf90f231402c0b", "safeIdleExternalKill": true}
+.

@@ -16,7 +16,7 @@ import psutil
 from . import queue_locks
 
 SERVICE_ID = uuid.uuid4().hex
-FIELDS = ("legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
+FIELDS = ("task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
           "queue_delivery_ledger", "queue_idempotency_index", "queue_revision")
 
 

@@ -1,5 +1,6 @@
 """Optional live CLI check with private home and a synthetic local provider."""
 import importlib.util
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -17,12 +18,21 @@ class SyntheticResponses:
     """Local finite Responses SSE fixture: no external model/account traffic."""
     def __init__(self):
         self.release = threading.Event()
+        self.received = threading.Event()
+        self.on_request = None
+        self.failures = []
         fixture = self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
                 pass
             def do_POST(self):
                 self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                fixture.received.set()
+                if fixture.on_request is not None:
+                    try:
+                        fixture.on_request()
+                    except BaseException as error:
+                        fixture.failures.append(str(error))
                 if not fixture.release.wait(20):
                     return
                 item = {"id": "msg_native", "type": "message", "role": "assistant", "status": "completed",
@@ -85,7 +95,7 @@ def test_wrapper_startup_failure_exits_cleanly_with_stdin_open(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows ConPTY proof")
 @pytest.mark.parametrize("native_start", [False, True])
-def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_start):
+def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_start, monkeypatch):
     from packages.core.terminal.guard import JobObjectGuard
     from packages.core.adapters.codex.adapter import _resolve_codex_node, _resolve_codex_js
     root = Path(__file__).resolve().parents[1]
@@ -99,6 +109,8 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
     helper.seed_placeholder_credentials(str(home), [])
     provider = SyntheticResponses()
     backend = None
+    runner = asyncio.Runner()
+    pan_worker = pan_session = None
     guard = JobObjectGuard()
     try:
         options = ["-c", 'model_provider="probe_bh"', "-c", 'model="probe-model"', "-c",
@@ -173,7 +185,33 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
             write((json.dumps({"type": "native_input", "generation": 1, "text": "NATIVE 中文"}) + "\r").encode())
             time.sleep(1.0)  # Real TUI paste coalescing ends before Enter.
             write((json.dumps({"type": "native_input", "generation": 1, "text": "\r"}) + "\r").encode())
-            wait_for(lambda e: e.get("type") == "pan.native_turn_started")
+            request = wait_for(lambda e: e.get("type") == "pan.native_turn_admission")
+            from packages.core import worker as pan, session as store
+            from packages.core.adapters.codex import CodexAdapter
+            pan_session = store.create("local-native-admission", adapter="codex")
+            pan_session.cli_session_id = init["thread_id"]
+            pan_worker = pan.Worker("local-native-admission", pan_session.id, CodexAdapter(),
+                process=backend, native_control_mode="native", native_control_generation=1)
+            monkeypatch.setitem(pan.workers, pan_worker.worker_id, pan_worker)
+            monkeypatch.setitem(pan._workers_by_session, pan_session.id, pan_worker)
+            runtime = (pan_worker, pan_worker.generation, backend, backend.stdin)
+            assert not provider.received.is_set()
+            admission_receipt = runner.run(pan._admit_native_turn(pan_worker, runtime,
+                request_id=request["requestId"], thread_id=request["threadId"],
+                control_generation=request["controlGeneration"]))
+            disk = json.loads(store._path(pan_session.id).read_text(encoding="utf-8"))
+            assert disk["legal_offline"] is False
+            assert disk["offline_run"]["nativeAdmissionId"] == request["requestId"]
+            assert not provider.received.is_set(), "Provider received before ACK"
+            def assert_durable_before_provider():
+                value = json.loads(store._path(pan_session.id).read_text(encoding="utf-8"))
+                assert value["legal_offline"] is False
+                assert value["offline_run"]["id"] == admission_receipt["runId"]
+            provider.on_request = assert_durable_before_provider
+            write((json.dumps({"type": "native_admission", "ok": True, **admission_receipt}) + "\n").encode())
+            started = wait_for(lambda e: e.get("type") == "pan.native_turn_started")
+            assert started["requestId"] == admission_receipt["requestId"]
+            assert started["runId"] == admission_receipt["runId"]
             switches = [("p1", "pan", 1), ("n2", "native", 2), ("p2", "pan", 3)]
         else:
             write(b'{"text":"LOCAL SYNTHETIC PENDING TURN"}\r')
@@ -198,6 +236,42 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
         assert result.get("is_error") is False and "synthetic native answer" in result["result"]
         if native_start:
             assert result["external_turn"] is True
+            assert result["runId"] == admission_receipt["runId"]
+            assert provider.received.is_set() and not provider.failures
+            runner.run(pan._persist_terminal_state(pan_worker, pan_session, "done", result["result"],
+                                                  expected_owner=pan._offline.owner(pan_worker)))
+            assert pan_session.legal_offline
+            pan_worker._native_external_turn_active = False
+            # Manual /compact also creates a protected provider turn. Exercise
+            # the real TUI command through the same before-forward handshake.
+            write(b'{"type":"control_mode","requestId":"compact-mode","mode":"native","generation":4}\n')
+            compact_mode = wait_for(lambda e: e.get("type") == "pan.control_mode" and e.get("requestId") == "compact-mode")
+            assert compact_mode["ok"] is True
+            pan_worker.native_control_generation = compact_mode["generation"]
+            provider.received.clear()
+            old_request = admission_receipt["requestId"]
+            write((json.dumps({"type": "native_input", "generation": 5, "text": "/compact"}) + "\n").encode())
+            time.sleep(1.0)  # Native input paste coalescing, not readiness inference.
+            write(b'{"type":"native_input","generation":5,"text":"\\r"}\n')
+            compact = wait_for(lambda e: e.get("type") == "pan.native_turn_admission" and e.get("requestId") != old_request)
+            assert compact["operation"] == "thread/compact/start"
+            assert not provider.received.is_set()
+            admission_receipt = runner.run(pan._admit_native_turn(pan_worker, runtime,
+                request_id=compact["requestId"], thread_id=compact["threadId"],
+                control_generation=compact["controlGeneration"], operation=compact["operation"]))
+            write((json.dumps({"type": "native_admission", "ok": True, **admission_receipt}) + "\n").encode())
+            compact_result = wait_for(lambda e: e.get("type") == "result" and e.get("requestId") == compact["requestId"])
+            assert compact_result["is_error"] is False and not provider.failures
+            runner.run(pan._persist_terminal_state(pan_worker, pan_session, "done", compact_result["result"],
+                                                  expected_owner=pan._offline.owner(pan_worker)))
+            assert pan_session.legal_offline
+            # Physical exit after safe Idle must not create an Illegal batch.
+            backend.kill()
+            backend.wait(timeout=5)
+            runner.run(pan._detect_offline_exit(pan_worker, pan._offline.owner(pan_worker), "idle-external-kill"))
+            assert pan_session.legal_offline and not pan_session.illegal_batches
+            print("NATIVE_DURABLE_ACK_REAL", json.dumps({"runId": admission_receipt["runId"],
+                "provider": provider.base_url, "sessionId": pan_session.id, "safeIdleExternalKill": True}))
             assert any(e.get("type") == "pan.native_user" and "中文" in e.get("text", "") for e in events)
     finally:
         if backend is not None:
@@ -208,4 +282,5 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
             for stream in (backend.stdin, backend.stdout, backend.stderr):
                 stream.close()
         assert guard.close()
+        runner.close()
         provider.close()
