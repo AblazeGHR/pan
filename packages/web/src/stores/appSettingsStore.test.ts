@@ -42,8 +42,8 @@ describe('appSettingsStore', () => {
     expect(s.showCodexTerminalInput).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
     expect(s.keepScrollOnSessionSwitch).toBe(false);
-    expect(s.showMessageNavigationRail).toBe(false);
-    expect(s.showHistorySearch).toBe(false);
+    expect(s.showMessageNavigationRail).toBe(true);
+    expect(s.showHistorySearch).toBe(true);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
   });
 
@@ -182,6 +182,15 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowHistorySearch(true);
     expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ showHistorySearch: true });
+
+    // Turning either feature off persists the explicit false (user choice wins).
+    useAppSettingsStore.getState().setShowMessageNavigationRail(false);
+    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showMessageNavigationRail: false });
+
+    useAppSettingsStore.getState().setShowHistorySearch(false);
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showHistorySearch: false });
   });
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
@@ -295,12 +304,21 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ keepScrollOnSessionSwitch: true }).keepScrollOnSessionSwitch)
       .toBe(true);
     expect(sanitizeSettings({}).keepScrollOnSessionSwitch).toBe(false);
-    // Missing / malformed rail visibility falls back to the (off) default.
+    // Missing / malformed rail visibility falls back to the (on) default,
+    // while an explicit false stays authoritative.
     expect(sanitizeSettings({ showMessageNavigationRail: 'no' }).showMessageNavigationRail)
+      .toBe(true);
+    expect(sanitizeSettings({ showMessageNavigationRail: false }).showMessageNavigationRail)
       .toBe(false);
     expect(sanitizeSettings({ showMessageNavigationRail: true }).showMessageNavigationRail)
       .toBe(true);
-    expect(sanitizeSettings({}).showMessageNavigationRail).toBe(false);
+    expect(sanitizeSettings({}).showMessageNavigationRail).toBe(true);
+    // Same contract for history search: default on, explicit false preserved.
+    expect(sanitizeSettings({ showHistorySearch: 'yes' }).showHistorySearch)
+      .toBe(true);
+    expect(sanitizeSettings({ showHistorySearch: false }).showHistorySearch)
+      .toBe(false);
+    expect(sanitizeSettings({}).showHistorySearch).toBe(true);
     expect(sanitizeSettings({ showGroupBy: 'yes' }).showGroupBy).toBe(false);
     expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
     expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');

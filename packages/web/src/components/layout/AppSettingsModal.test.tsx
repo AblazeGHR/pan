@@ -1006,13 +1006,7 @@ describe('AppSettingsModal', () => {
       document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
     ).find((element) => element.textContent?.includes('Show message navigation rail'))!;
     expect(railSwitch).toBeDefined();
-    // Off by default: the rail is an opt-in strip.
-    expect(railSwitch.getAttribute('aria-checked')).toBe('false');
-
-    fireEvent.click(railSwitch);
-
-    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
-    expect(updateUiSettingsMock).toHaveBeenCalledWith({ showMessageNavigationRail: true });
+    // On by default: the rail ships enabled; turning it off is opt-out.
     expect(railSwitch.getAttribute('aria-checked')).toBe('true');
 
     // It remains the master enable: turning it off persists false so ChatView
@@ -1021,6 +1015,11 @@ describe('AppSettingsModal', () => {
     expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(false);
     expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showMessageNavigationRail: false });
     expect(railSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(railSwitch);
+    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showMessageNavigationRail: true });
+    expect(railSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
   it('shows the Codex warning Toast option on the Notification tab', () => {
@@ -1143,18 +1142,18 @@ describe('AppSettingsModal', () => {
       .find((element) => element.textContent?.includes('Enable Session and global history search'))!;
     const searchSwitch = findSearchSwitch();
 
-    expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
-    expect(searchSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
+    expect(searchSwitch.getAttribute('aria-checked')).toBe('true');
 
     fireEvent.click(searchSwitch);
-    expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
-    expect(findSearchSwitch().getAttribute('aria-checked')).toBe('true');
-    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: true });
-
-    fireEvent.click(findSearchSwitch());
     expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
     expect(findSearchSwitch().getAttribute('aria-checked')).toBe('false');
     expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: false });
+
+    fireEvent.click(findSearchSwitch());
+    expect(useAppSettingsStore.getState().showHistorySearch).toBe(true);
+    expect(findSearchSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showHistorySearch: true });
   });
 
   it('exposes the group-by settings only on the Appearance tab without duplicates', () => {

@@ -1612,9 +1612,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   />
                 </div>
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default. Turning this on adds the strip, including a background scan of the
-                  session history (one request per 200 messages), so enabling it costs more on long
-                  sessions.
+                  On by default. The strip includes a background scan of the session history (one
+                  request per 200 messages), so turning it off saves that cost on long sessions.
                 </p>
               </section>
               <section>
@@ -1630,7 +1629,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   />
                 </div>
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default. Search starts only after you enter a query. Results use stable
+                  On by default. Search starts only after you enter a query. Results use stable
                   message IDs for navigation; older history without IDs may not appear.
                 </p>
               </section>

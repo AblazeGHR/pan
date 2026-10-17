@@ -1,24 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Code, ListChecks, MessageSquare, TerminalSquare } from 'lucide-react';
-import { useJobStore, selectRunningJobCount } from '@/stores/jobStore';
-import '@/components/session/sessionQuickActions.css';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { entries } from './viewEntries';
+import { ViewEntryBadge } from './ViewEntryBadge';
 
-// All view entries belong here; every three entries form one page.
-const entries = [
-  { to: '/', label: 'Chat', icon: MessageSquare, end: true },
-  { to: '/editor', label: 'Editor', icon: Code },
-  { to: '/jobs', label: 'Jobs', icon: ListChecks },
-  { to: '/terminals', label: 'Terminal', icon: TerminalSquare },
-];
 const groups = Array.from({ length: Math.ceil(entries.length / 3) }, (_, group) =>
   Array.from({ length: 3 }, (_, slot) => entries[group * 3 + slot]));
 
 export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   const { pathname } = useLocation();
-  // Running jobs across ALL jobs (never a page filter), from the unified store
-  // that the global WS pipeline keeps fresh on every route.
-  const runningJobCount = useJobStore(selectRunningJobCount);
   const routeGroup = Math.max(0, Math.floor(entries.findIndex((entry) =>
     entry.end ? pathname === entry.to : pathname === entry.to || pathname.startsWith(`${entry.to}/`)) / 3));
   const [selection, setSelection] = useState({ pathname, group: routeGroup });
@@ -118,16 +108,7 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
                 之上，不占布局空间、不改变入口尺寸与宽度（0 时不渲染同样零
                 位移）。复用 Session 队列数徽标样式（accent 蓝、99+ 封顶），
                 无自身指针处理，点击穿透到入口，分组滑动不受影响。 */}
-            {entry.to === '/jobs' && runningJobCount > 0 && (
-              <span
-                className="session-queue-badge absolute bottom-0 right-0"
-                data-testid="jobs-running-badge"
-                aria-hidden="true"
-                title={`${runningJobCount} job(s) running`}
-              >
-                {runningJobCount > 99 ? '99+' : runningJobCount}
-              </span>
-            )}
+            {entry.to === '/jobs' && <ViewEntryBadge />}
           </NavLink> : <div key={slot} aria-hidden="true" />)}
         </div>)}
       </div>
