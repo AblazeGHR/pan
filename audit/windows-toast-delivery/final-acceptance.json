@@ -1,0 +1,70 @@
+{
+  "recordedAt": "2026-10-17T16:06:55.869754+00:00",
+  "sendReceipt": {
+    "at": "2026-10-17T16:04:43.161983+00:00",
+    "action": "send",
+    "title": "Pan: OWNED VISIBLE CHECK 20261017",
+    "appId": "Pan.Desktop.Notifications",
+    "tag": "owned-visible-20261017",
+    "group": "Pan-owned-visible",
+    "launchUrl": "http://127.0.0.1:52389/react/?session=ses_054cea78b612e558",
+    "duration": "long",
+    "helper": {
+      "ok": true,
+      "method": "windows.toast",
+      "setting": "Enabled",
+      "identityRegistered": true,
+      "delivery": "unknown"
+    },
+    "banner": "unverified",
+    "panel": "unverified",
+    "nativeClick": "unverified"
+  },
+  "humanAcceptance": {
+    "source": "MA ses_8110c6ece332c2b7 current user relay on 2026-10-18",
+    "userQuote": "成功了",
+    "instructionContext": "Wait 60s, then Win+N and click notification body",
+    "centerDelayedBodyNavigation": "passed",
+    "bannerButtonNavigation": "previously_passed",
+    "centerExpandedButtonNavigation": "not_separately_retested",
+    "browserFullyClosedColdStart": "not_verified"
+  },
+  "nonPreflightAccessesAfterSend": [
+    {
+      "at": "2026-10-17T16:06:13.059021+00:00",
+      "path": "/react/",
+      "query": "session=ses_054cea78b612e558",
+      "preflight": false,
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"
+    }
+  ],
+  "sendReceiptToAccessSeconds": 89.897038,
+  "timingLimit": "Measured interval is sender receipt timestamp to HTTP arrival, not a direct measurement of mouse-click time or user waiting behavior.",
+  "noHelperLifetimeDependency": "Sender returns after PowerShell process exits; no callback/message loop",
+  "ownedRuntimeIdentity": {
+    "pid": 43372,
+    "creationFiletime": 134367260783725499,
+    "createdUtc": "2026-10-17T15:54:38.372550+00:00",
+    "command": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "D:/project/pan-worktrees/windows-toast-delivery-20261017/audit/windows-toast-delivery/owned_runtime.py",
+      "--serve",
+      "--runtime",
+      "D:/project/pan-worktrees/windows-toast-delivery-20261017/audit/windows-toast-delivery/runtime-click-20261017-native1"
+    ],
+    "checkout": "D:\\project\\pan-worktrees\\windows-toast-delivery-20261017",
+    "runtime": "D:\\project\\pan-worktrees\\windows-toast-delivery-20261017\\audit\\windows-toast-delivery\\runtime-click-20261017-native1",
+    "dataDir": "D:\\project\\pan-worktrees\\windows-toast-delivery-20261017\\audit\\windows-toast-delivery\\runtime-click-20261017-native1\\data",
+    "configFile": "D:\\project\\pan-worktrees\\windows-toast-delivery-20261017\\audit\\windows-toast-delivery\\runtime-click-20261017-native1\\config.json",
+    "port": 52389,
+    "origin": "http://127.0.0.1:52389",
+    "sessionId": "ses_054cea78b612e558",
+    "sessionName": "OWNED Toast click acceptance 20261017",
+    "deepLink": "http://127.0.0.1:52389/react/?session=ses_054cea78b612e558",
+    "historyMarker": "OWNED-TOAST-CLICK-SESSION-HISTORY-20261017",
+    "distSource": "D:\\project\\Pan-main\\packages\\web\\dist",
+    "indexSha256": "839fe73193ee3743f518658ac7b6c411991bdff893e9cbe1f8a097e03a78783e",
+    "startup": "runpy main.py __main__; real Uvicorn and production lifespan",
+    "notificationsSentByLauncher": false
+  }
+}

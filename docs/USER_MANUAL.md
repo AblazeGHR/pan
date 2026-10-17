@@ -214,6 +214,8 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 Pan 页面存活时，浏览器完成通知点击会定位对应 Session；浏览器完全关闭后页面通知不可用。Windows System 完成通知使用真实 Windows toast（WinRT）：通知会被录入 Windows 通知中心（Action Center）持久保留，点击通知上的「打开会话」按钮由系统 http 处理器（默认浏览器）打开对应 Session 深链——发送进程退出后按钮仍有效（冷启动已完全退出的浏览器尚未实测）。通知正文与结果文本不会进入 URL，只用本机 loopback 深链。同一 Session 的完成通知在通知中心内按目标替换，重复的提醒按内容去重；安装/卸载不注册自定义协议或快捷方式。Browser 与 System 是独立通道，没有“Browser 失败才发 System”选项；已派发通知或亮 Bell 不代表已送达。
 
+Windows 发送器会在当前用户的 `HKCU\Software\Classes\AppUserModelId\Pan.Desktop.Notifications` 注册应用显示名 `Pan`，供系统 Shell 展示应用身份；不修改通知权限、勿扰或全局策略。完成通知的主体与「打开会话」按钮均携带相同的协议深链，由系统默认浏览器处理，不依赖发送 helper 常驻。通知中心延迟点击主体已通过本机人工验证；展开后的按钮与完全退出的浏览器冷启动尚未分别复验。超长标题/结果只在系统通知中显示限长预览，完整结果保留在 Session。通知显示与保留仍受 Windows 和用户设置控制，API 接受不代表已经展示。
+
 ### Tailscale 备用访问
 
 在 **App Settings → General → Tailscale 备用访问** 使用已安装、已登录且属于同一 tailnet 的 Tailscale。选择协议/端口，**保存配置**后点**开启当前访问**（或**应用已保存入口**）；只保存不会开启。Pan 保持回环监听，使用 Serve，不开放公网 Funnel；下次启动默认关闭。HTTPS 可能需先在 Tailscale 管理界面启用。正常退出关闭自有映射，强制退出可能保留至下次协调恢复；不会接管外部映射。界面“已开启”不证明另一设备可达。高级限制见[备用访问说明](tailscale-fallback-access.md)。

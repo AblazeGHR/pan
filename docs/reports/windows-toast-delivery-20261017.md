@@ -2,9 +2,11 @@
 
 ## Delivery status
 
-**Latest acceptance: banner click passed, notification-center click failed.**
-The user on Oct 18 confirmed banner navigation and reported center navigation
-failure. The latest root-protocol fix below awaits a fresh center test.
+**Final TA acceptance evidence: banner button passed; delayed notification-
+center body navigation passed.** On Oct 18 MA relayed the user's "成功了"
+after the root-protocol fix and the instructed delayed Win+N body test.
+The center's expanded button was not separately retested. The earlier failure
+and investigation below are retained as historical evidence, not final status.
 The
 user confirmed seeing the post-registration 23:48:02 probe, but the banner
 timed out before clicking. That probe had no click target. The earlier
@@ -548,3 +550,54 @@ owned Job terminal notice and closed port afterward; cancellation by owned Job
 ID is the fallback only if graceful shutdown fails. Do not close this runtime
 before the scheduled human test. Native center clicking remains **pending**.
 main/practical/push/release/restart boundaries remain unchanged.
+
+## Final acceptance and cleanup, 2026-10-18
+
+MA's current feedback: user said **"成功了"**, specifically for the last resend
+and the instruction to wait 60 seconds, open Win+N and click the notification
+body. This closes the delayed center-body navigation case. Banner-button
+navigation passed earlier. **Center expanded-button navigation and a fully
+closed browser cold start remain unverified independently.** No screenshot of
+the native center or mouse-click timestamp was collected.
+
+Evidence is preserved in `final-acceptance.json`, `final-owned-access.jsonl`,
+the current `visible-send.json` and `visible-cleanup.json`:
+
+| Fact | Timestamp UTC / value |
+| --- | --- |
+| Last send receipt, identity registered | 2026-10-17T16:04:43.161983+00:00 |
+| Non-preflight default Edge browser request to exact owned Session | 2026-10-17T16:06:13.059021+00:00 |
+| Receipt-to-HTTP-arrival interval | **89.897038 seconds** |
+| Target | http://127.0.0.1:52389/react/?session=ses_054cea78b612e558 |
+| User result via MA | Delayed center-body navigation succeeded |
+
+The measured interval is **not** a direct measurement of click time, a claim
+that the user waited exactly 60 seconds, or proof of indefinite multi-day
+retention. It does show this request occurred well after the one-shot helper
+returned. Source has no activation callback or event loop, and body/button
+carry native protocol URLs. No long-lived sender was introduced.
+
+After preserving the evidence, exact History.Remove deleted only
+`Pan.Desktop.Notifications / Pan-owned-visible / owned-visible-20261017`.
+Read-only exact-tag verification found **0** remaining owned diagnostic items.
+The product's HKCU AppUserModelId DisplayName registration is **retained as Pan**;
+no registry cleanup removes this prerequisite.
+
+Before shutdown, `owned_runtime.py --check` again verified PID 43372, creation
+FILETIME 134367260783725499, command markers and the owned 52389 listener.
+`--stop` used that verified identity and called the real production graceful
+shutdown endpoint, which returned HTTP 200 / stopping. The server wrote its
+terminal record at **16:06:56.785132 UTC**. Subsequent checks confirmed port
+52389 closed and PID 43372 absent. Owned Job
+`job_fae467053d20b479dfda26f8` is **completed, exitCode=0**, not cancelled.
+See `final-cleanup.json` and `final-job.json`. Runtime is no longer available;
+the former click link is retained for evidence, not a live acceptance target.
+
+Latest main remains `e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c`, an ancestor
+of the task branch. There is no new main combination to merge or retest. No
+implementation source changed during this cleanup, so the **97 passed**
+directed suite and successful task-tree frontend build remain applicable;
+neither was mechanically rerun. Final changes preserve acceptance, cleanup
+and current user-facing documentation only. MA independently reviews and
+performs the authorized FF/practical build; TA has not modified either tree,
+pushed, released or restarted a protected service.
