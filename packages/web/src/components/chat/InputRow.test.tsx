@@ -512,6 +512,35 @@ describe('InputRow send queue wiring', () => {
     );
   });
 
+  it('restores a URL-only submission after an explicit enqueue rejection', async () => {
+    setBusySession();
+    vi.mocked(enqueueSessionMessage).mockRejectedValueOnce(new ApiRequestError(409, 'rejected'));
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const caret = document.createRange();
+    caret.setStart(editor, 0);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/plain'],
+        getData: (type: string) =>
+          type === 'text/plain' ? 'https://fail.test/a?q=1#h' : '',
+      } as unknown as DataTransfer,
+    });
+    expect(editor.querySelector('[data-composer-url]')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(editor.querySelector('[data-composer-url]')).toBeTruthy(),
+    );
+    expect(editor.textContent).toContain('https://fail.test/a?q=1#h');
+  });
+
   it('drops a message attachment into the editor and queues it at the text caret', async () => {
     setBusySession();
     render(<InputRow />);
