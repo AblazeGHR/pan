@@ -5325,10 +5325,17 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
     # config.json for each Session made list shaping perform one filesystem
     # read per row while the event loop was also serving dashboard heartbeats.
     app_config = load_config()
-    return await _history_network_response({"sessions": [_session_list_api(
-                s, page=pages.get(s.id), app_config=app_config,
-                pin_projection=pin_projection_for(s.id))
-            for s in sessions]}, request)
+    items = []
+    for s in sessions:
+        items.append(_session_list_api(
+            s, page=pages.get(s.id), app_config=app_config,
+            pin_projection=pin_projection_for(s.id)))
+        # Shaping must stay on the event loop because it can register editor
+        # references. Bound each uninterrupted slice to one Session's tail:
+        # a list storm must not monopolize dashboard heartbeat/worker traffic
+        # while formatting every Session's history in one comprehension.
+        await asyncio.sleep(0)
+    return await _history_network_response({"sessions": items}, request)
 
 
 def _startup_recovery_candidates(sessions) -> list[dict]:
