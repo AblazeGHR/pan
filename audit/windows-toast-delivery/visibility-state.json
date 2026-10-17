@@ -1,0 +1,58 @@
+{
+  "at": "2026-10-17T15:40:52.660031+00:00",
+  "shellNotificationState": {
+    "hresult": "0x00000000",
+    "state": 5,
+    "name": "QUNS_ACCEPTS_NOTIFICATIONS"
+  },
+  "registry": {
+    "userToastEnabled": {
+      "path": "Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications",
+      "name": "ToastEnabled",
+      "present": false
+    },
+    "userNoToastPolicy": {
+      "path": "Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\PushNotifications",
+      "name": "NoToastApplicationNotification",
+      "present": false
+    },
+    "machineNoToastPolicy": {
+      "path": "Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\PushNotifications",
+      "name": "NoToastApplicationNotification",
+      "present": false
+    },
+    "userDisableNotificationCenter": {
+      "path": "Software\\Policies\\Microsoft\\Windows\\Explorer",
+      "name": "DisableNotificationCenter",
+      "present": false
+    },
+    "machineDisableNotificationCenter": {
+      "path": "Software\\Policies\\Microsoft\\Windows\\Explorer",
+      "name": "DisableNotificationCenter",
+      "present": false
+    },
+    "appEnabled": {
+      "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Pan.Desktop.Notifications",
+      "name": "Enabled",
+      "present": false
+    },
+    "appShowBanner": {
+      "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Pan.Desktop.Notifications",
+      "name": "ShowBanner",
+      "present": false
+    },
+    "appShowInActionCenter": {
+      "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\Pan.Desktop.Notifications",
+      "name": "ShowInActionCenter",
+      "present": false
+    }
+  },
+  "doNotDisturb": {
+    "verified": false,
+    "reason": "No callable Windows desktop UI tool; SHQueryUserNotificationState is not a definitive Windows 11 DND switch query."
+  },
+  "appWinRTSetting": {
+    "setting": "Enabled",
+    "ok": true
+  }
+}

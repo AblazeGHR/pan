@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-17T16:04:43.161983+00:00",
+  "action": "send",
+  "title": "Pan: OWNED VISIBLE CHECK 20261017",
+  "appId": "Pan.Desktop.Notifications",
+  "tag": "owned-visible-20261017",
+  "group": "Pan-owned-visible",
+  "launchUrl": "http://127.0.0.1:52389/react/?session=ses_054cea78b612e558",
+  "duration": "long",
+  "helper": {
+    "ok": true,
+    "method": "windows.toast",
+    "setting": "Enabled",
+    "identityRegistered": true,
+    "delivery": "unknown"
+  },
+  "banner": "unverified",
+  "panel": "unverified",
+  "nativeClick": "unverified"
+}

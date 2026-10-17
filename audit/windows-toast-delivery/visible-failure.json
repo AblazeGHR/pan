@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-10-17T15:44:24.434645+00:00",
+  "helperEvidence": {
+    "at": "2026-10-17T15:42:55.494220+00:00",
+    "action": "send",
+    "title": "Pan: OWNED VISIBLE CHECK 20261017",
+    "appId": "Pan.Desktop.Notifications",
+    "tag": "owned-visible-20261017",
+    "group": "Pan-owned-visible",
+    "helper": {
+      "ok": true,
+      "method": "windows.toast",
+      "setting": "Enabled",
+      "delivery": "unknown"
+    },
+    "banner": "unverified",
+    "panel": "unverified",
+    "nativeClick": "not_tested_no_target"
+  },
+  "humanObservation": {
+    "banner": false,
+    "notificationCenterPanel": false,
+    "reportedBy": "MA ses_8110c6ece332c2b7 relaying current user observation",
+    "userQuote": "没有，什么也没有",
+    "sendLocalTime": "2026-10-17T23:42:55+08:00"
+  },
+  "exactOwnedRows": [
+    {
+      "Tag": "owned-visible-20261017",
+      "Group": "Pan-owned-visible",
+      "ArrivalTime": 134367253754483382,
+      "Payload": "<?xml version=\"1.0\"?><toast><visual><binding template=\"ToastGeneric\"><text>Pan: OWNED VISIBLE CHECK 20261017</text><text>Local diagnostic: record banner and notification-center visibility.</text></binding></visual></toast>",
+      "PrimaryId": "Pan.Desktop.Notifications",
+      "HandlerType": "app:desktop",
+      "WNSId": "NonImmersivePackage"
+    }
+  ],
+  "observerProcess": {
+    "pid": 30632,
+    "sessionId": 1,
+    "activeConsoleSessionId": 1,
+    "desktop": "Default",
+    "windowStation": "WinSta0"
+  }
+}

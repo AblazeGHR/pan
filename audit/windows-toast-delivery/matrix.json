@@ -1,0 +1,44 @@
+[
+  {
+    "mode": "hidden",
+    "exitcode": 0,
+    "output": "{\"mode\": \"hidden\", \"pid\": 34780, \"desktop\": \"Default\", \"result\": {\"ok\": true, \"method\": \"windows.toast\", \"setting\": \"Enabled\"}}\n",
+    "ownedTags": [
+      "owned-20261017-baseline",
+      "owned-hidden"
+    ]
+  },
+  {
+    "mode": "private",
+    "exitcode": 0,
+    "output": "{\"mode\": \"private\", \"pid\": 43620, \"desktop\": \"Default\", \"result\": {\"ok\": true, \"method\": \"windows.toast\", \"setting\": \"Enabled\"}}\n",
+    "ownedTags": [
+      "owned-20261017-baseline",
+      "owned-hidden",
+      "owned-private"
+    ]
+  },
+  {
+    "mode": "token-default",
+    "exitcode": 0,
+    "output": "{\"mode\": \"token-default\", \"pid\": 41788, \"desktop\": \"Default\", \"result\": {\"ok\": true, \"method\": \"windows.toast\", \"setting\": \"Enabled\"}}\n",
+    "ownedTags": [
+      "owned-20261017-baseline",
+      "owned-hidden",
+      "owned-private",
+      "owned-token-default"
+    ]
+  },
+  {
+    "mode": "combined",
+    "exitcode": 0,
+    "output": "{\"mode\": \"combined\", \"pid\": 34732, \"desktop\": \"PanJob_97775d24353cca375ab1f589cdff55d5\", \"result\": {\"ok\": true, \"method\": \"windows.toast\", \"setting\": \"Enabled\"}}\n",
+    "ownedTags": [
+      "owned-20261017-baseline",
+      "owned-hidden",
+      "owned-private",
+      "owned-token-default",
+      "owned-combined"
+    ]
+  }
+]

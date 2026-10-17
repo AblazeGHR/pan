@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-17T16:06:56.392812+00:00",
+  "action": "cleanup",
+  "title": "Pan: OWNED VISIBLE CHECK 20261017",
+  "appId": "Pan.Desktop.Notifications",
+  "tag": "owned-visible-20261017",
+  "group": "Pan-owned-visible",
+  "launchUrl": null,
+  "duration": "default",
+  "helper": {
+    "ok": true
+  },
+  "banner": "unverified",
+  "panel": "unverified",
+  "nativeClick": "not_tested_no_target"
+}

@@ -1,0 +1,67 @@
+{
+  "baseline": "e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c",
+  "baselineLaunch": {
+    "ok": false,
+    "code": "windows_system_notification_launch_failed",
+    "message": "[WinError 206] 文件名或扩展名太长。"
+  },
+  "baselineWinRT": {
+    "exitcode": 1,
+    "result": {
+      "message": "使用“1”个参数调用“Show”时发生异常:“通知内容的大小过大。\r\n\r\n通知内容的大小过大。\r\n”",
+      "method": "windows.toast",
+      "hresult": "0x803E0115",
+      "setting": "Enabled",
+      "ok": false,
+      "code": "windows_toast_failed"
+    }
+  },
+  "fixedDispatch": {
+    "ok": true,
+    "method": "windows.toast",
+    "setting": "Enabled",
+    "delivery": "unknown"
+  },
+  "fixedBackgroundReceipt": {
+    "ok": null,
+    "method": "background",
+    "delivery": "unknown"
+  },
+  "fixedRows": [
+    [
+      "completion-ses_owned_toast_20261017",
+      "Pan-completions",
+      "<?xml version=\"1.0\"?><toast launch=\"http://127.0.0.1:52334/react/?session=ses_owned_toast_20261017\"><visual><binding template=\"ToastGeneric\"><text>Pan: OWNED DIAGNOSTIC fixed large completion completed</text><text>OWNED DIAGNOSTIC 20261017 &lt;&amp;&gt; 中文😀 &lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;…</text></binding></visual><actions><action activationType=\"protocol\" arguments=\"http://127.0.0.1:52334/react/?session=ses_owned_toast_20261017\" content=\"打开会话\"/></actions></toast>"
+    ]
+  ],
+  "runtime": {
+    "pid": 35060,
+    "port": 52334,
+    "expectedLink": "http://127.0.0.1:52334/react/?session=ses_owned_toast_20261017",
+    "nativeClickAccesses": [],
+    "portClosed": true
+  },
+  "combinedExitcode": 0,
+  "combinedPid": 41964,
+  "combinedDesktop": "PanJob_a18057970ed741bb99798da260ede894",
+  "combinedResult": {
+    "ok": true,
+    "method": "windows.toast",
+    "setting": "Enabled",
+    "delivery": "unknown"
+  },
+  "combinedRows": [
+    [
+      "owned-combined",
+      "Pan-owned-diag",
+      "<?xml version=\"1.0\"?><toast><visual><binding template=\"ToastGeneric\"><text>Pan: OWNED DIAGNOSTIC fixed private Job</text><text>OWNED DIAGNOSTIC 20261017 &lt;&amp;&gt; 中文😀 &lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀&lt;&amp;&gt;中文😀…</text></binding></visual></toast>"
+    ]
+  ],
+  "unverified": [
+    "banner pixels",
+    "notification center panel",
+    "native click",
+    "browser cold start",
+    "exact original failing notification"
+  ]
+}
