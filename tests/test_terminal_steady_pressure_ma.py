@@ -212,6 +212,7 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                 assert response.status_code == 200 and response.json()['result']['status'] == 'exited', response.text
                 tid = None
         finally:
+            active_failure = sys.exc_info()[1]
             sampling_done.set()
             if slow_observer is not None:
                 if not slow_observer.done():
@@ -221,7 +222,17 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                               'samples': samples}))
             try:
                 if sampler is not None:
-                    await sampler
+                    if active_failure is None:
+                        await sampler
+                    else:
+                        # Shutdown can remove the heartbeat while the sampler
+                        # is waking. Preserve the scenario's first failure;
+                        # the normal path above still checks every sample.
+                        if not sampler.done():
+                            sampler.cancel()
+                        sampler_result = await asyncio.gather(sampler, return_exceptions=True)
+                        print({'sampler_at_failure': repr(sampler_result),
+                               'scenario_failure': repr(active_failure)})
             finally:
                 host.should_exit = True
                 try:

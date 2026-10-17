@@ -14,7 +14,9 @@ This module builds such a token per job and launches the child with
   same user, cwd, environment and stdio;
 - the only change is the DefaultDacl deny ACE, and ``0x200`` is a process-only
   access right. DefaultDacl also seeds other object types: compatibility must
-  be tested, and process SET_INFORMATION access is deliberately unavailable;
+  be tested, and ordinary process SET_INFORMATION access is deliberately
+  unavailable. An opener with enabled SeDebugPrivilege can bypass this DACL;
+  this is console routing policy, not a boundary against elevated debuggers;
 - the token is closed by the caller (``close()``) and is never written to any
   user or machine configuration;
 - if the token cannot be built or the process cannot be created, the error is

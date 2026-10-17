@@ -974,7 +974,12 @@ def _summary_projection_from_jsonl(
     # read is not an empty history and must never be persisted as a complete
     # zero projection.
     with open(path, "rb") as handle:
-        for raw_line in handle:
+        for line_number, raw_line in enumerate(handle):
+            # A repair can parse hundreds of thousands of Python objects.
+            # Offloading alone does not guarantee loop fairness: release the
+            # GIL between bounded batches, including malformed/blank rows.
+            if line_number and line_number % 128 == 0:
+                time.sleep(0)
             line = raw_line.strip()
             if not line:
                 continue

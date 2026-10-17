@@ -315,6 +315,7 @@ sys.exit(code)
 GRANDCHILD_SOURCE = r'''
 import ctypes, json, os, sys, time
 from ctypes import wintypes
+from pathlib import Path
 
 class FILETIME(ctypes.Structure):
     _fields_ = [("low", wintypes.DWORD), ("high", wintypes.DWORD)]
@@ -326,8 +327,11 @@ k32.GetProcessTimes(
     ctypes.byref(kernel), ctypes.byref(user),
 )
 filetime = (int(creation.high) << 32) | int(creation.low)
-with open(sys.argv[1], "w", encoding="utf-8") as fh:
+destination = Path(sys.argv[1])
+staging = destination.with_suffix('.tmp')
+with staging.open("w", encoding="utf-8") as fh:
     json.dump({"pid": os.getpid(), "filetime": str(filetime)}, fh)
+staging.replace(destination)
 time.sleep(float(sys.argv[2]) if len(sys.argv) > 2 else 300.0)
 '''
 

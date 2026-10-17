@@ -742,5 +742,38 @@ def test_offloaded_store_reads_stay_serialized(monkeypatch):
             assert len(item["history"]) == 50
 
 
+def test_cold_read_projection_keeps_config_and_bookmark_io_off_loop(monkeypatch):
+    """Even a warm history page must not perform its sidecar stat on the loop."""
+    _seed('ses-projection-io', _rows(60))
+    loop_thread = threading.get_ident()
+    config_reads = []
+    bookmark_reads = []
+    real_config = server.load_config
+    real_bookmarks = server.session_bookmarks.bookmarked_message_ids
+
+    def config():
+        assert threading.get_ident() != loop_thread, 'config read blocked the event loop'
+        config_reads.append(True)
+        return real_config()
+
+    def bookmarks(sid):
+        assert threading.get_ident() != loop_thread, 'bookmark stat/lock blocked the event loop'
+        bookmark_reads.append(sid)
+        return real_bookmarks(sid)
+
+    monkeypatch.setattr(server, 'load_config', config)
+    monkeypatch.setattr(server.session_bookmarks, 'bookmarked_message_ids', bookmarks)
+
+    async def scenario():
+        listing = await server.api_list_sessions(summary=0)
+        page = await server.api_session_history('ses-projection-io', limit=50)
+        assert len(listing['sessions'][0]['history']) == len(page['history']) == 50
+        assert '_bookmarkedMessageIds' not in page
+
+    asyncio.run(scenario())
+    assert config_reads
+    assert bookmark_reads == ['ses-projection-io', 'ses-projection-io']
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

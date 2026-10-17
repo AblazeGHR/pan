@@ -2227,7 +2227,13 @@ async def _history_network_response(payload: dict, request: Request | None):
 
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:
     """Read one bounded history page per Session in a single blocking call."""
-    return {sid: sess.history_page(sid, limit=limit) for sid in session_ids}
+    pages = {}
+    for sid in session_ids:
+        page = sess.history_page(sid, limit=limit)
+        if page is not None:
+            page['_bookmarkedMessageIds'] = session_bookmarks.bookmarked_message_ids(sid)
+        pages[sid] = page
+    return pages
 
 
 def _history_page_lookup(session_id: str, before: int, limit: int,
@@ -2242,6 +2248,8 @@ def _history_page_lookup(session_id: str, before: int, limit: int,
         return _NOT_FOUND
     page = sess.history_page(
         session_id, before=before, limit=limit, search_jump=search_jump)
+    if page is not None:
+        page['_bookmarkedMessageIds'] = session_bookmarks.bookmarked_message_ids(session_id)
     return _NOT_FOUND if page is None else page
 
 
@@ -2281,6 +2289,7 @@ def _session_list_api(
         history,
         start=page.get("start", 0) if page else 0,
         history_epoch=page.get("historyEpoch") if page else getattr(s, "history_epoch", None),
+        bookmarked_ids=page.get('_bookmarkedMessageIds') if page else frozenset(),
     )
     api["historyTruncated"] = has_more
     api["historyTotal"] = total
@@ -4471,13 +4480,15 @@ def _api_history(
     start: int = 0,
     history_epoch: str | None = None,
     include_identity: bool = True,
+    bookmarked_ids: frozenset[str] | None = None,
 ) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
     # One stamped sidecar read per projection (cached, lock-free fast path
     # when the Session has no bookmark file).  Additive: only durable Pan
     # identities can carry the flag, so legacy positional rows and old
     # clients are unaffected.
-    bookmarks = session_bookmarks.bookmarked_message_ids(session_id)
+    bookmarks = (session_bookmarks.bookmarked_message_ids(session_id)
+                 if bookmarked_ids is None else bookmarked_ids)
     normalized: list[dict] = []
     for offset, message in enumerate(history):
         absolute_index = max(0, int(start or 0)) + offset
@@ -5324,7 +5335,7 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
     # Resolve dynamic configuration once per response. Reading and deep-merging
     # config.json for each Session made list shaping perform one filesystem
     # read per row while the event loop was also serving dashboard heartbeats.
-    app_config = load_config()
+    app_config = await _store_read(load_config)
     items = []
     for s in sessions:
         items.append(_session_list_api(
@@ -5334,7 +5345,10 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
         # references. Bound each uninterrupted slice to one Session's tail:
         # a list storm must not monopolize dashboard heartbeat/worker traffic
         # while formatting every Session's history in one comprehension.
-        await asyncio.sleep(0)
+        # A zero-delay yield keeps every concurrent list formatter in the
+        # ready queue. A timer yield also lets socket completions and due
+        # heartbeat timers progress before another formatting slice.
+        await asyncio.sleep(0.001)
     return await _history_network_response({"sessions": items}, request)
 
 
@@ -6868,6 +6882,7 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
             page["history"],
             start=page.get("start", 0),
             history_epoch=page.get("historyEpoch"),
+            bookmarked_ids=page.get('_bookmarkedMessageIds'),
         ),
         "total": page["total"],
         "hasMore": page["hasMore"],
