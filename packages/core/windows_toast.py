@@ -124,16 +124,20 @@ def _preview(text: str, budget: int) -> str:
 
 def build_toast_xml(title: object, body: object, *,
                     launch_url: str | None = None,
-                    button_text: str = BUTTON_OPEN_SESSION) -> str:
+                    button_text: str = BUTTON_OPEN_SESSION,
+                    duration: str | None = None) -> str:
     """Toast XML with escaped text. ``launch_url`` is only ever the validated
     loopback deep link produced by ``notifications.completion_deep_link``."""
+    if duration not in (None, 'short', 'long'):
+        raise ValueError('Invalid toast duration')
     parts = [
         '<?xml version="1.0" encoding="utf-8"?>',
     ]
     launch_attr = ""
     if launch_url:
         launch_attr = f' launch="{_xml_escape(launch_url)}"'
-    parts.append(f"<toast{launch_attr}>")
+    duration_attr = f' duration="{duration}"' if duration else ''
+    parts.append(f"<toast{launch_attr}{duration_attr}>")
     parts.append('<visual><binding template="ToastGeneric">')
     title_text = _xml_escape(_preview(_sanitize_text(title), _MAX_TITLE_BYTES))
     parts.append(f"<text>{title_text}</text>")
@@ -309,7 +313,8 @@ def show_toast(title: object, body: object, *,
                launch_url: str | None = None,
                tag: str | None = None,
                group: str | None = None,
-               app_id: str = TOAST_APP_ID) -> dict:
+               app_id: str = TOAST_APP_ID,
+               duration: str | None = None) -> dict:
     """Show one Windows toast; safe to call from a worker thread.
 
     Returns ``{"ok": True, "method": "windows.toast", ...}`` after the OS
@@ -319,7 +324,7 @@ def show_toast(title: object, body: object, *,
     work.
     """
     try:
-        xml_text = build_toast_xml(title, body, launch_url=launch_url)
+        xml_text = build_toast_xml(title, body, launch_url=launch_url, duration=duration)
     except ValueError as exc:
         return {"ok": False, "code": "windows_toast_payload_invalid", "message": str(exc)}
     script = build_show_script(app_id, xml_text, bounded_tag(tag), bounded_tag(group))

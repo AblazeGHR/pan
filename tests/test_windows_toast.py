@@ -275,3 +275,18 @@ def test_registered_identity_is_not_display_proof(monkeypatch):
     result = windows_toast.show_toast('title', 'body')
     assert result['identityRegistered'] is True
     assert result['delivery'] == 'unknown'
+
+
+def test_long_observation_toast_retains_full_click_target_and_payload_budget():
+    import xml.etree.ElementTree as ET
+    url = 'http://127.0.0.1:49152/react/?session=ses_owned_click'
+    xml = windows_toast.build_toast_xml('Pan: click check', '<&😀' * 10000,
+                                       launch_url=url, duration='long')
+    root = ET.fromstring(xml)
+    assert root.attrib['duration'] == 'long'
+    assert root.attrib['launch'] == url
+    assert root.find('actions/action').attrib['arguments'] == url
+    assert root.find('actions/action').attrib['activationType'] == 'protocol'
+    assert len(xml.encode('utf-8')) <= 4096
+    with pytest.raises(ValueError):
+        windows_toast.build_toast_xml('title', 'body', duration='arbitrary')

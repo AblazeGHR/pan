@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "2707fe34339768d7ccc8f2e6895543dac8edc4a8",
+  "sendAt": "2026-10-17T15:48:02.092225+00:00",
+  "title": "Pan: OWNED VISIBLE CHECK 20261017",
+  "appId": "Pan.Desktop.Notifications",
+  "tag": "owned-visible-20261017",
+  "group": "Pan-owned-visible",
+  "helper": {
+    "ok": true,
+    "setting": "Enabled",
+    "identityRegistered": true,
+    "delivery": "unknown"
+  },
+  "humanObservation": {
+    "source": "Current direct user reply",
+    "banner": "seen",
+    "notificationCenterPanel": "not_confirmed",
+    "nativeClick": "not_attempted_banner_timed_out",
+    "probeHadLaunchTarget": false
+  }
+}

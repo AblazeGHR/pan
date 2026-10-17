@@ -2,12 +2,15 @@
 
 ## Delivery status
 
-**Latest acceptance: failed.** The user's 2026-10-17 23:42:55 owned small-toast
+**Latest acceptance: banner now seen; center and native click pending.** The
+user confirmed seeing the post-registration 23:48:02 probe, but the banner
+timed out before clicking. That probe had no click target. The earlier
+2026-10-17 23:42:55 owned small-toast
 check had neither a visible banner nor a notification-center item, despite
 `ok:true`/`Enabled` and an exact stored database row. The payload fix is
 insufficient to solve the original incident. The latest app-display-identity
-candidate below awaits a new human-controlled comparison; no visible success
-is claimed.
+candidate below has current human banner evidence (`visible-seen.json`), but
+no center-panel or native-click success is claimed.
 
 Source fix and owned OS sender regression are complete in
 `D:/project/pan-worktrees/windows-toast-delivery-20261017`, branch
@@ -373,3 +376,40 @@ requirement. Shortcut/stub/COM expansion is not silently assumed or installed.
 
 Do not accept this candidate or move main/practical until the new human
 banner/center comparison succeeds and MA reviews its scope.
+
+## User observed the registration candidate's banner
+
+The next current user reply confirms that the 23:48:02 probe appeared, but was
+too brief to click. `visible-seen.json` records banner=seen, center=not
+confirmed and click=not attempted. The original 23:42:55 failure is retained
+separately. These results support the missing app display identity as a real
+visibility cause; the full user acceptance requirement is not yet complete.
+
+The source's completion XML has an `activationType=protocol` action labelled
+"打开会话", with the full send-time validated loopback Session URL. That same
+button is carried by the toast for both banner and center presentation. The
+current implementation does **not** set root `activationType=protocol`, so
+clicking the notification body should not be advertised as a supported target.
+The visible-only probe had neither a launch URL nor this button.
+
+For the next human-controlled test, the probe now accepts `--long`,
+`--origin <owned-loopback-origin>` and `--session <real-owned-session-id>`.
+The latter two must be paired; origin validation reuses completion_deep_link
+and rejects absent/8767/8768 ports. MA must own and verify that isolated runtime
+and Session before use. `--long` requests the XML long duration solely for that
+test; actual timing remains Windows-controlled and production defaults are
+unchanged. Duration metadata is included in the existing XML byte budget.
+
+1. MA arranges the user observation, then sends with all three options. User
+   clicks **打开会话** on the banner and MA verifies the exact owned Session.
+2. MA resends the same owned diagnostic after user readiness. User lets the
+   banner expire, finds only this item in the notification center, then clicks
+   its **打开会话** button. MA independently verifies the same Session again.
+3. MA uses the probe's `--cleanup` after both observations and closes only its
+   owned runtime. No click probe was sent by this TA in this follow-up.
+
+Directed regression after adding the optional duration and probe arguments:
+**96 passed**, zero failures/skips, one existing warning, recorded in
+`click-ready-unit.xml`. The new case locks long-duration XML budget and the
+complete button target. `visible_check.py --help` also passes. These checks
+do not prove OS duration, center UI or native clicking.
