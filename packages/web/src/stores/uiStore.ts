@@ -6,7 +6,7 @@ import type {
   ToastMessage,
   UserInputRequest,
 } from '@/types';
-import type { SpecialFilterId } from '@/utils/sessionFilters';
+import type { AdapterFilterId, SpecialFilterId } from '@/utils/sessionFilters';
 import { updateUiSettings } from '@/services/api';
 
 // ── localStorage helpers ──
@@ -353,6 +353,10 @@ interface UIStore {
   /** Active special filters (see utils/sessionFilters); composable with the
    *  text search and cleared individually. Not persisted (like searchQuery). */
   specialFilters: Set<SpecialFilterId>;
+  /** Active Adapter-group filters (see utils/sessionFilters): the Session
+   *  adapter names selected in the filter menu, OR-ed inside the group and
+   *  AND-ed with specialFilters. Not persisted (like specialFilters). */
+  adapterFilters: Set<AdapterFilterId>;
   /** Sessions hidden via Select mode's eye button, keyed by session id.
    *  Persisted to localStorage so hiding survives refreshes/reloads. */
   hiddenSessionIds: Set<string>;
@@ -407,7 +411,11 @@ interface UIStore {
   /** Replace the manual custom order (persisted). */
   setCustomOrder: (order: string[]) => void;
   toggleSpecialFilter: (id: SpecialFilterId) => void;
-  clearSpecialFilters: () => void;
+  /** Toggle one adapter in the Adapter filter group (OR within the group). */
+  toggleAdapterFilter: (adapter: AdapterFilterId) => void;
+  clearAdapterFilters: () => void;
+  /** Clear BOTH filter groups (State + Adapter) — the filter menu's action. */
+  clearAllFilters: () => void;
   /** Mark a session hidden (Select mode eye button) or shown again. */
   setSessionHidden: (id: string, hidden: boolean) => void;  /** Drop hidden ids that no longer correspond to a live session. */
   pruneHiddenSessions: (validIds: Set<string>) => void;
@@ -457,6 +465,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   dragEnabled: loadDragEnabled(),
   customOrder: loadCustomOrder(),
   specialFilters: new Set<SpecialFilterId>(),
+  adapterFilters: new Set<AdapterFilterId>(),
   hiddenSessionIds: loadHiddenSessions(),
   collapsedGroups: loadCollapsedGroups(),
   theme: loadTheme(),
@@ -649,8 +658,24 @@ export const useUIStore = create<UIStore>((set, get) => ({
     });
   },
 
-  clearSpecialFilters: () => {
-    set({ specialFilters: new Set() });
+  toggleAdapterFilter: (adapter) => {
+    set((s) => {
+      const next = new Set(s.adapterFilters);
+      if (next.has(adapter)) {
+        next.delete(adapter);
+      } else {
+        next.add(adapter);
+      }
+      return { adapterFilters: next };
+    });
+  },
+
+  clearAdapterFilters: () => {
+    set({ adapterFilters: new Set() });
+  },
+
+  clearAllFilters: () => {
+    set({ specialFilters: new Set(), adapterFilters: new Set() });
   },
 
   setSessionHidden: (id, hidden) => {

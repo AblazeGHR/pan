@@ -124,14 +124,25 @@ describe('Sidebar Session search controls', () => {
     expect(cwdHeader.querySelector('svg.lucide-chevron-right')).not.toBeNull();
   });
 
-  it('opens the special filters menu to the right of its trigger', () => {
+  it('opens the special filters menu constrained to the viewport', () => {
     renderSidebar();
 
     fireEvent.click(screen.getByTitle('Special filters'));
 
+    // Viewport-constrained placement (fixed + measured trigger): the panel
+    // stays inside the window instead of relying on the old absolute left-0
+    // anchoring, which could overflow narrow screens.
     const menu = screen.getByRole('menu');
-    expect(menu.className).toContain('left-0');
-    expect(menu.className).not.toContain('right-0');
+    expect(menu.className).toContain('fixed');
+    const style = menu.getAttribute('style') ?? '';
+    const left = Number(/left:\s*([\d.]+)px/.exec(style)?.[1]);
+    const top = Number(/top:\s*([\d.]+)px/.exec(style)?.[1]);
+    const maxHeight = Number(/max-height:\s*([\d.]+)px/.exec(style)?.[1]);
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(left + 256).toBeLessThanOrEqual(window.innerWidth);
+    expect(top).toBeGreaterThan(0);
+    expect(maxHeight).toBeGreaterThan(0);
+    expect(maxHeight).toBeLessThanOrEqual(window.innerHeight);
   });
 
   it('clears the query and restores the unfiltered state', () => {
