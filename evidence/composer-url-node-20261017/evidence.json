@@ -1,5 +1,5 @@
 {
-  "port": 64368,
+  "port": 65229,
   "mockBoundary": "All /api/** responses are Playwright route mocks. Chromium, Vite, React, the composer, drag/selection, and the Markdown renderer are real. No Pan server/provider/agent or real user data is involved.",
   "checks": {
     "paste": {
@@ -12,7 +12,7 @@
       ]
     },
     "drag": {
-      "mime": "{\"items\":[{\"url\":\"https://example.test/a?q=1#h\"}],\"sourceId\":\"url_c0981862-0918-4b53-8b6c-6ace27b842d3\"}",
+      "mime": "{\"items\":[{\"url\":\"https://example.test/a?q=1#h\"}],\"sourceId\":\"url_9e26fe14-b484-4bf1-aac3-1433cd333bf0\"}",
       "count": 1,
       "lastIsUrl": true,
       "text": "before afterhttps://example.test/a?q=1#h"
@@ -23,7 +23,7 @@
     },
     "send": {
       "text": "before after[https://example.test/out?q=1#h](https://example.test/out?q=1#h)",
-      "clientMessageId": "2f072adc-a472-49c4-8b15-fefd3e2a2ca8",
+      "clientMessageId": "7f02bac2-2254-4edf-8bc0-ae68a58b35bd",
       "parts": [
         {
           "type": "text",
@@ -45,7 +45,7 @@
           },
           {
             "type": "url",
-            "id": "url_c81cdce0-42a2-4b53-9dab-74e089b706d4",
+            "id": "url_61c041e7-0582-49f6-9564-a91f78930141",
             "url": "https://example.test/out?q=1#h"
           }
         ],
@@ -69,7 +69,7 @@
           },
           {
             "type": "url",
-            "id": "url_c81cdce0-42a2-4b53-9dab-74e089b706d4",
+            "id": "url_61c041e7-0582-49f6-9564-a91f78930141",
             "url": "https://example.test/out?q=1#h"
           }
         ],
@@ -81,7 +81,7 @@
   "queue": [
     {
       "text": "before after[https://example.test/out?q=1#h](https://example.test/out?q=1#h)",
-      "clientMessageId": "2f072adc-a472-49c4-8b15-fefd3e2a2ca8",
+      "clientMessageId": "7f02bac2-2254-4edf-8bc0-ae68a58b35bd",
       "parts": [
         {
           "type": "text",
