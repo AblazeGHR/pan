@@ -3,12 +3,15 @@
 Run date: 2026-10-18
 Branch: `feature/composer-url-node-20261017`
 Base / current `main`: `e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c`
-Parent of this evidence refresh: `650a0afaffcd8d91df1cf02d53b826596c4a7e55`
+A–D implementation: `650a0afaffcd8d91df1cf02d53b826596c4a7e55`
+Evidence refreshes: `ac22e136`, `7d834fe1`, and this documentation commit.
 No reset / no cherry-pick; `main` is an ancestor (`git merge-base --is-ancestor main HEAD` = 0).
+`19ec5f73` is an ancestor, not the tip.
 
-`19ec5f73` is an earlier evidence commit. The `main` merge and the A–D work are in
-`f5d1c447` (merge), `650a0afa` (identity + HTTP + mobile + copy/undo), and this
-evidence commit.
+`19ec5f73` is an earlier evidence commit. The `main` merge and the A–D work are
+in `f5d1c447` (merge), `650a0afa` (identity + HTTP + mobile + copy/undo), and
+the later evidence commits. The tip is the commit reported in the final chat
+message; `19ec5f73` is not the tip.
 
 ## A. Real mouse URL reorder (not dispatchEvent)
 
