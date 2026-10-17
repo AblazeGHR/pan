@@ -16,7 +16,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { createServer } from 'vite';
 
 const cwd = fileURLToPath(new URL('..', import.meta.url));
@@ -163,31 +163,23 @@ try {
     const accentColor = await computedColor(page, 'Chat');
     const idleColor = await computedColor(page, 'Editor');
     assert.notEqual(accentColor, idleColor, 'active entry must be visually distinct');
-    assert.match(
-      (await page.getByRole('link', { name: 'Chat' }).getAttribute('class')) ?? '',
-      /text-accent/,
-      'Chat active class',
-    );
+    await expect(page.getByRole('link', { name: 'Chat' })).toHaveClass(/text-accent/);
 
     // Click every entry: navigation + active state follows the route, and the
-    // sidebar stays collapsed across navigation.
+    // sidebar stays collapsed across navigation. The URL changes before the
+    // router state re-render lands, so class checks use retrying web-first
+    // assertions instead of one-shot reads.
     for (const entry of entries) {
       await page.getByRole('link', { name: entry.name }).click();
       await page.waitForURL(`**${entry.path}`, { timeout: 5000 });
       assert.equal(new URL(page.url()).pathname, entry.path, `${entry.name} navigation`);
       await nav.waitFor({ state: 'visible' });
-      assert.match(
-        (await page.getByRole('link', { name: entry.name }).getAttribute('class')) ?? '',
-        /text-accent/,
-        `${entry.name} must be active on its own route`,
-      );
+      const link = page.getByRole('link', { name: entry.name });
+      await expect(link).toHaveClass(/text-accent/, { timeout: 5000 });
+      await expect(link).toHaveClass(/bg-accent\/10/);
       for (const other of entries) {
         if (other.name === entry.name) continue;
-        assert.doesNotMatch(
-          (await page.getByRole('link', { name: other.name }).getAttribute('class')) ?? '',
-          /text-accent/,
-          `${other.name} must not be active on ${entry.path}`,
-        );
+        await expect(page.getByRole('link', { name: other.name })).not.toHaveClass(/text-accent/);
       }
     }
 
