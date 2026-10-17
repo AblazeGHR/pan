@@ -23,7 +23,8 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
-   - 无本地 `config.json` 时默认加载根 `manifest.json` 与 `packages/mcp/manifest.json`；后者注册 `pan` 与 `pan-qq`。stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。
+   - 无本地 `config.json` 时默认加载根 `manifest.json` 与 `packages/mcp/manifest.json`；后者注册 `pan` 与 `qq`（旧名 `pan-qq` 兼容）。stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。
+   - Session 插件通过 `pluginBindings` 选择 `standalone` / `pan_native` / `gateway`；`session_create` / `session_update` 的 MCP 参数名为 `plugin_bindings`。旧 `mcpServers` 仍可用，但不能与新字段同时提交。`qq` 并入 `pan` 时工具名为 `pan_qq_*`，不会自动启用 Pan 核心管理工具；gateway 生成单个 stdio `pan-tools`，固定提供 `api_discover` / `api_call`。新增内部链路走本地 IPC，不增加 Pan 鉴权。原生/独立接入变化等待空闲 restart；已有 gateway 内的目录变化即时生效。关闭 QQ 工具不停止既有 Job、订阅或通知。协议见 `docs/design/Pan-Plugin-Capability-v1.md`。
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
    - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§5「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3 / §10.2 G9）。

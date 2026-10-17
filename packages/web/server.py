@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import copy
+from weakref import WeakValueDictionary
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
@@ -278,7 +279,8 @@ async def lifespan(app: FastAPI):
     # 其它插件的起停顺序与语义保持不变。
     # WS 桥是**内层**：退出时先停 WS 准入并关闭全部连接（共享 2s 预算），
     # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
-    async with terminal_api.terminal_lifespan(app):
+    from packages.plugins.ipc import plugin_lifespan
+    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed), terminal_api.terminal_lifespan(app):
         async with terminal_tools_api.terminal_tools_lifespan(app):
             async with terminal_ws.websocket_lifespan(app):
                 tailscale = _tailscale_controller()
@@ -2148,11 +2150,7 @@ def _session_to_api(
         "mcpLockReason": mcp_lock_reason,
         # Currently-enabled MCP server names (extracted from the adapter_config
         # mcp_servers list of config dicts, each carrying a "name" key).
-        "mcpServers": [
-            c.get("name")
-            for c in (ac.get("mcp_servers") or [])
-            if isinstance(c, dict) and c.get("name")
-        ],
+        **_session_plugin_fields(s),
         "outputMode": ac.get("output_mode"),
         "executionModes": list(a.execution_modes),
         "gameId": s.game_id,
@@ -2446,11 +2444,7 @@ def _session_summary(
         "historyRevision": getattr(s, "history_revision", 0),
         "totalUsage": s.total_usage,
         "managed": s.managed,
-        "mcpServers": [
-            c.get("name")
-            for c in (ac.get("mcp_servers") or [])
-            if isinstance(c, dict) and c.get("name")
-        ],
+        **_session_plugin_fields(s),
         "mcpLockReason": _get_mcp_locked_state(s),
         # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
         # Do not resolve defaults here.  A list summary is a projection of
@@ -2987,7 +2981,20 @@ def _build_session_params(
     # An explicit mcpServers array is a one-time override for this creation:
     # [] deliberately disables MCP, while omission keeps the current template
     # and default behavior. A named always/never template locks that choice.
-    if "mcpServers" in data:
+    if "pluginBindings" in data and "mcpServers" in data:
+        raise ValueError("Specify pluginBindings or mcpServers, not both")
+    if "pluginBindings" in data:
+        catalog = _plugin_catalog()
+        bindings = catalog.bindings(data["pluginBindings"])
+        if template_name and template.mcp_locked:
+            locked = (catalog.bindings(template.plugin_bindings) if template.plugin_bindings is not None
+                      else catalog.legacy_bindings(template.mcp_servers)) if template.mcp_mode == "always" else []
+            selected = sorted((b["plugin_id"], b["mode"]) for b in bindings if b["enabled"])
+            required = sorted((b["plugin_id"], b["mode"]) for b in locked if b["enabled"])
+            if selected != required:
+                raise ValueError(f"Session template {template.name!r} locks plugin selection")
+        _set_plugin_config(params["adapter_config"], bindings)
+    elif "mcpServers" in data:
         requested_servers = data["mcpServers"]
         try:
             resolved_servers = _resolve_mcp_server_configs(requested_servers)
@@ -3004,16 +3011,22 @@ def _build_session_params(
                 f"{requested_servers!r}: {exc}"
             ) from exc
         if template_name and template.mcp_locked:
-            locked_servers = template.mcp_servers if template.mcp_mode == "always" else []
-            if set(requested_servers) != set(locked_servers):
+            catalog = _plugin_catalog()
+            locked_bindings = (catalog.bindings(template.plugin_bindings) if template.plugin_bindings is not None
+                               else catalog.legacy_bindings(template.mcp_servers)) if template.mcp_mode == "always" else []
+            requested_bindings = catalog.legacy_bindings(requested_servers)
+            locked_servers = [b["plugin_id"] for b in locked_bindings if b["enabled"]]
+            if sorted((b["plugin_id"], b["mode"]) for b in requested_bindings) != sorted((b["plugin_id"], b["mode"]) for b in locked_bindings if b["enabled"]):
                 locked_label = ", ".join(locked_servers) if locked_servers else "none"
                 raise ValueError(
                     f"Session template {template.name!r} locks MCP servers to {locked_label}"
                 )
-        params["adapter_config"]["mcp_servers"] = resolved_servers
+        _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
+    elif template.mcp_mode == "always" and template.plugin_bindings is not None:
+        _set_plugin_config(params["adapter_config"], _plugin_catalog().bindings(template.plugin_bindings))
     elif template.mcp_mode == "always" and template.mcp_servers:
         try:
-            params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
+            _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(template.mcp_servers))
         except ValueError as exc:
             if not strict_mcp:
                 _log(
@@ -3058,6 +3071,14 @@ def _resolve_mcp_server_configs(server_names) -> list[dict]:
     _ensure_manifest_fresh()
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("MCP manifest not loaded")
+    catalog = _plugin_catalog()
+    resolved_names = []
+    for name in server_names:
+        try:
+            resolved_names.append(catalog.get(name).source.get("server_ref", name))
+        except ValueError as exc:
+            raise ValueError(f"Unknown MCP server: {name!r}") from exc
+    server_names = resolved_names
     seen: set[str] = set()
     configs: list[dict] = []
     for name in server_names:
@@ -3110,6 +3131,77 @@ def _resolve_mcp_server_configs(server_names) -> list[dict]:
         else:
             raise ValueError(f"Unknown MCP server: {name!r}")
     return configs
+
+
+def _plugin_manifest():
+    _ensure_manifest_fresh()
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("Plugin manifest not loaded")
+    return _character_manager._manifest_config
+
+
+def _plugin_catalog():
+    from packages.plugins.catalog import Catalog
+    return Catalog(_plugin_manifest())
+
+
+def _session_plugin_fields(s):
+    """Persisted logical selection; never replace it with generated connections."""
+    ac = s.adapter_config
+    bindings = ac.get("plugin_bindings")
+    if bindings is None:
+        aliases = {"pan-qq": "qq"}
+        manifest = getattr(_character_manager, "_manifest_config", None)
+        for plugin in getattr(manifest, "plugins", []):
+            aliases.update({alias: plugin["id"] for alias in plugin.get("aliases", [])})
+        bindings = [{"plugin_id": aliases.get(c["name"], c["name"]), "enabled": True, "mode": "standalone"}
+                    for c in ac.get("mcp_servers", []) if isinstance(c, dict) and c.get("name")]
+    return {"mcpServers": [b["plugin_id"] for b in bindings if b["enabled"]],
+            "pluginBindings": bindings, "pluginSelectionRevision": ac.get("plugin_selection_revision", 0),
+            "pluginRestart": worker.delayed_restart_state(s.id),
+            "pluginConfigVersion": 2}
+
+
+def _set_plugin_config(ac, bindings):
+    catalog = _plugin_catalog()
+    from packages.plugins.runtime import read_api_document
+    bindings = catalog.bindings(bindings)
+    for binding in bindings:
+        if not binding["enabled"]:
+            continue
+        plugin = catalog.get(binding["plugin_id"])
+        if plugin.source["kind"] == "pan_api":
+            read_api_document(plugin)
+        else:
+            _resolve_mcp_server_configs([plugin.id])
+    physical = catalog.compile(bindings)
+    ac.update(plugin_config_version=2, plugin_bindings=bindings, mcp_servers=physical,
+              plugin_selection_revision=ac.get("plugin_selection_revision", 0) + 1)
+
+
+def _validate_plugin_update(s, data):
+    if "pluginBindings" in data and "mcpServers" in data:
+        raise ValueError("Specify pluginBindings or mcpServers, not both")
+    if "pluginBindings" not in data:
+        return None
+    expected = data.get("expectedPluginRevision")
+    if expected is not None and (type(expected) is not int or expected != s.adapter_config.get("plugin_selection_revision", 0)):
+        raise ValueError("Plugin selection changed; reload before saving")
+    bindings = _plugin_catalog().bindings(data["pluginBindings"])
+    if not data.get("forceMcp") and s.session_template and _character_manager:
+        template = _character_manager.get_session_template(s.session_template)
+        enabling = any(b["enabled"] for b in bindings)
+        if template and ((template.mcp_mode == "always" and not enabling)
+                         or (template.mcp_mode == "never" and enabling)):
+            raise ValueError(f"MCP is locked to {template.mcp_mode!r} for session template {template.name!r}")
+    ac = copy.deepcopy(s.adapter_config)
+    _set_plugin_config(ac, bindings)
+    return ac
+
+
+async def _plugin_native_changed(session_id):
+    if worker.find_alive_worker_by_session(session_id):
+        worker.request_delayed_restart(session_id)
 
 
 def _mcp_command_available(command: str) -> bool:
@@ -3170,6 +3262,7 @@ def _apply_session_updates(s: sess.Session, data: dict):
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
     _normalize_context_setting_keys(data)
+    plugin_config = _validate_plugin_update(s, data)
     # systemPrompt was not a supported settings field. Reject effective-prompt
     # writes explicitly so a detail response cannot become a recursive baseline.
     if "systemPrompt" in data:
@@ -3210,6 +3303,9 @@ def _apply_session_updates(s: sess.Session, data: dict):
     if "mcpServers" in data:
         # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
         _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
+    if plugin_config is not None:
+        for key in ("plugin_config_version", "plugin_bindings", "mcp_servers", "plugin_selection_revision"):
+            s.set_adapter_field(key, plugin_config[key])
     if "panAccess" in data:
         _apply_pan_access(s, data["panAccess"])
     if "outputMode" in data:
@@ -3275,10 +3371,22 @@ def _apply_mcp_servers(s: sess.Session, server_names, force: bool = False) -> No
 
     if not enabling:
         s.set_adapter_field("mcp_servers", [])
+        s.set_adapter_field("plugin_bindings", [])
+        s.set_adapter_field("plugin_config_version", 2)
+        s.set_adapter_field("plugin_selection_revision", s.adapter_config.get("plugin_selection_revision", 0) + 1)
         return
     if not isinstance(server_names, list):
         raise ValueError("mcpServers must be a list of server names")
-    s.set_adapter_field("mcp_servers", _resolve_mcp_server_configs(server_names))
+    catalog = _plugin_catalog()
+    # Keep duplicate legacy names an error; an explicit old/new alias pair is
+    # normalized by the v2 binding reader without starting two providers.
+    if len(set(server_names)) != len(server_names):
+        raise ValueError("Duplicate MCP server")
+    _resolve_mcp_server_configs(server_names)
+    ac = copy.deepcopy(s.adapter_config)
+    _set_plugin_config(ac, catalog.legacy_bindings(server_names))
+    for key in ("mcp_servers", "plugin_bindings", "plugin_config_version", "plugin_selection_revision"):
+        s.set_adapter_field(key, ac[key])
 
 
 _VALID_OUTPUT_MODES = ("stream", "oneshot")
@@ -7662,7 +7770,10 @@ def _rewind_adapter_config(parent) -> dict:
         if native_key in parent.adapter_config:
             adapter_config[native_key] = parent.adapter_config[native_key]
     if parent.adapter_config.get('mcp_servers'):
-        adapter_config['mcp_servers'] = parent.adapter_config['mcp_servers']
+        adapter_config['mcp_servers'] = copy.deepcopy(parent.adapter_config['mcp_servers'])
+    for key in ('plugin_config_version', 'plugin_bindings', 'plugin_selection_revision'):
+        if key in parent.adapter_config:
+            adapter_config[key] = copy.deepcopy(parent.adapter_config[key])
     return adapter_config
 
 
@@ -8810,25 +8921,49 @@ async def api_session_queue_order(session_id: str, data: dict):
     return snapshot
 
 
+_SESSION_SETTINGS_LOCKS: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+
+
 @app.patch("/api/sessions/{session_id}")
 async def api_update_session(session_id: str, data: dict):
+    async with _SESSION_SETTINGS_LOCKS.setdefault(session_id, asyncio.Lock()):
+        return await _update_session_settings(session_id, data)
+
+
+async def _update_session_settings(session_id: str, data: dict):
     """Update session-level settings without spawning a worker."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
     require_restart = False
+    changing_plugins = "pluginBindings" in data or "mcpServers" in data
+    previous_config = copy.deepcopy(s.adapter_config) if changing_plugins else None
     old_mcp_servers = s.adapter_config.get("mcp_servers")
     old_output_mode = s.adapter_config.get("output_mode")
     try:
         _apply_session_updates(s, data)
     except ValueError as e:
+        if previous_config is not None:
+            s.adapter_config = previous_config
         return {"error": str(e)}
     new_mcp_servers = s.adapter_config.get("mcp_servers")
     new_output_mode = s.adapter_config.get("output_mode")
     # MCP servers 增删或执行模式切换都需要重启 worker 才生效
     require_restart = (old_mcp_servers != new_mcp_servers
                        or old_output_mode != new_output_mode)
-    await sess.save_async(s)
+    if previous_config is not None:
+        staged_config = s.adapter_config
+        s.adapter_config = previous_config
+        outcome = sess.DurableOutcome()
+        try:
+            await sess.commit_adapter_config_async(s, staged_config, previous_config=previous_config, outcome=outcome)
+        except asyncio.CancelledError:
+            if (outcome.succeeded and (require_restart or any(k in data for k in _PROCESS_AFFECTING_FIELDS))
+                    and worker.find_alive_worker_by_session(session_id)):
+                worker.request_delayed_restart(session_id)
+            raise
+    else:
+        await sess.save_async(s)
     await broadcast({
         "type": "session.updated",
         "sessionId": s.id,
@@ -8840,7 +8975,7 @@ async def api_update_session(session_id: str, data: dict):
     # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
     # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
     # 自动 respawn（worker._maybe_restart_pending）。
-    if any(k in data for k in _PROCESS_AFFECTING_FIELDS):
+    if any(k in data for k in _PROCESS_AFFECTING_FIELDS) or ("pluginBindings" in data and require_restart):
         w = worker.find_alive_worker_by_session(session_id)
         if w:
             restart_intent = worker.request_delayed_restart(session_id)
@@ -8848,9 +8983,12 @@ async def api_update_session(session_id: str, data: dict):
                 result["restartError"] = restart_intent
             else:
                 result["delayedRestart"] = restart_intent
+                result["pluginRestart"] = restart_intent
             require_restart = True
     if require_restart:
         result["requireRestart"] = True
+    if "pluginBindings" in data:
+        result["pluginApplyStatus"] = "failed" if result.get("restartError") else "pending" if result.get("delayedRestart") else "next_start" if require_restart else "applied"
     return result
 
 
@@ -8991,7 +9129,10 @@ async def api_branch_session(session_id: str, data: dict):
         if _native_key in s.adapter_config:
             new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
-        new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
+        new_adapter_config["mcp_servers"] = copy.deepcopy(s.adapter_config["mcp_servers"])
+    for key in ("plugin_config_version", "plugin_bindings", "plugin_selection_revision"):
+        if key in s.adapter_config:
+            new_adapter_config[key] = copy.deepcopy(s.adapter_config[key])
 
     new_adapter_config.update(sess.native_usage_cursor_config(s.adapter, raw_usage_entries))
 
@@ -10039,7 +10180,7 @@ async def api_get_new_session_defaults():
 @app.put("/api/new-session-defaults")
 async def api_put_new_session_defaults(data: dict):
     """Strictly validate and atomically persist New Session form defaults."""
-    unknown = set(data) - _NEW_SESSION_DEFAULT_KEYS
+    unknown = set(data) - _NEW_SESSION_DEFAULT_KEYS - {"pluginBindings"}
     missing = _NEW_SESSION_DEFAULT_KEYS - set(data)
     if unknown or missing:
         raise HTTPException(
@@ -10093,6 +10234,12 @@ async def api_put_new_session_defaults(data: dict):
         "sessionTemplate": template_name,
         "workdir": workdir.strip(),
     }
+    if "pluginBindings" in data:
+        try:
+            defaults["pluginBindings"] = _plugin_catalog().bindings(data["pluginBindings"])
+            _set_plugin_config({}, defaults["pluginBindings"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     raw = read_config_file()
     raw["new_session_defaults"] = defaults
     save_config(raw)
@@ -13175,7 +13322,7 @@ def _ensure_manifest_fresh() -> None:
 
 _SESSION_TEMPLATE_SAVE_FIELDS = {
     "adapter", "model", "permission_mode", "system_prompt", "mcp_mode",
-    "mcp_servers", "pan_access",
+    "mcp_servers", "pan_access", "plugin_bindings",
 }
 _SESSION_TEMPLATE_PAN_ACCESS_FIELDS = {
     "restrict_to_managed", "can_claim_unmanaged", "auto_claim_created",
@@ -13236,6 +13383,11 @@ def _validate_session_template_save_payload(data: dict) -> dict:
             raise ValueError("mcp_mode must be one of: always, optional, never")
         result["mcp_mode"] = mcp_mode
 
+    if "mcp_servers" in data and "plugin_bindings" in data:
+        raise ValueError("Specify plugin_bindings or mcp_servers, not both")
+    if "plugin_bindings" in data:
+        result["plugin_bindings"] = _plugin_catalog().bindings(data["plugin_bindings"])
+        _set_plugin_config({}, result["plugin_bindings"])
     if "mcp_servers" in data:
         mcp_servers = data["mcp_servers"]
         if not isinstance(mcp_servers, list) or not all(
@@ -13309,6 +13461,7 @@ async def api_session_templates():
                 "model": t.model,
                 "mcpMode": t.mcp_mode,
                 "mcpServers": list(t.mcp_servers or []),
+                "pluginBindings": t.plugin_bindings,
                 "sourceManifest": t.source_manifest,
                 "sourceManifestLabel": t.source_manifest_label,
                 "system_prompt_preview": t.system_prompt[:100] + "..." if len(t.system_prompt) > 100 else t.system_prompt,
@@ -13338,17 +13491,15 @@ async def api_mcp_servers():
     if _character_manager is None or _character_manager._manifest_config is None:
         return {"servers": [], "loaded": False}
     _ensure_manifest_fresh()
-    servers = [
-        {
-            "name": srv.name,
-            "command": srv.command,
-            "cwd": srv.cwd,
-            "url": srv.url,
-            "transport": srv.transport,
-            "type": srv.type,
-        }
-        for srv in _character_manager._manifest_config.mcp_servers
-    ]
+    try:
+        catalog = _plugin_catalog()
+        servers = []
+        for plugin in catalog.plugins.values():
+            source = catalog.servers.get(plugin.source.get("server_ref"), {})
+            servers.append({**{k: source.get(k) for k in ("command", "cwd", "url", "transport", "type")},
+                            **plugin.public()})
+    except ValueError as exc:
+        return {"servers": [], "loaded": False, "error": str(exc)}
     return {"servers": servers, "loaded": True}
 
 

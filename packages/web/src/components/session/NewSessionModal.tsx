@@ -21,7 +21,8 @@ import {
   saveSessionTemplate,
 } from '@/services/api';
 import { isMissingDirectoryError, parseDirectoryInput } from '@/utils/directoryInput';
-import type { McpServerInfo, SessionTemplate, SessionTemplateManifestTarget, SessionTemplateSaveInput } from '@/types';
+import type { McpServerInfo, PluginBinding, PluginMode, SessionTemplate, SessionTemplateManifestTarget, SessionTemplateSaveInput } from '@/types';
+import { PluginSelection } from './PluginSelection';
 import { ArrowLeft } from 'lucide-react';
 
 interface NewSessionModalProps {
@@ -53,6 +54,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [systemPromptOverride, setSystemPromptOverride] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [mcpServerOverride, setMcpServerOverride] = useState<string[] | null>(null);
+  const [pluginModes, setPluginModes] = useState<Record<string, PluginMode>>({});
+  const explicitPluginBindings = (): PluginBinding[] => mcpServers.map((server) => ({
+    plugin_id: server.name, enabled: mcpServerOverride?.includes(server.name) ?? false,
+    mode: pluginModes[server.name] ?? server.defaultMode ?? 'standalone',
+  }));
+  const usePluginBindings = mcpServers.some((server) => server.supportedModes);
   const [mcpMode, setMcpMode] = useState<'' | 'always' | 'optional' | 'never'>('optional');
   const [panAccess, setPanAccess] = useState<{
     restrictToManaged?: boolean;
@@ -122,6 +129,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setSystemPromptOverride(false);
       setSystemPrompt('');
       setMcpServerOverride(null);
+      setPluginModes({});
       setMcpMode('optional');
       setPanAccess({});
       setSaveTemplateOpen(false);
@@ -166,6 +174,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         setAdapter(defaults?.adapter ?? '');
         setOutputMode(defaults?.outputMode ?? '');
         setWorkdir(defaults?.workdir ?? '');
+        if (defaults?.pluginBindings) {
+          setMcpServerOverride(defaults.pluginBindings.filter((b) => b.enabled).map((b) => b.plugin_id));
+          setPluginModes(Object.fromEntries(defaults.pluginBindings.map((b) => [b.plugin_id, b.mode])));
+        }
         setDefaultsReady(true);
       });
       // Focus name input after render
@@ -251,6 +263,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     setSystemPromptOverride(false);
     setSystemPrompt('');
     setMcpServerOverride(null);
+    setPluginModes({});
     setPanAccess({});
     const tpl = templates.find((t) => t.name === value);
     if (tpl?.adapter) {
@@ -290,7 +303,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         modelAutoCompactTokenLimit: modelAutoCompactTokenLimit ? Number(modelAutoCompactTokenLimit) : undefined,
         alwaysThinkingEnabled: thinking,
         systemPrompt: systemPromptOverride ? systemPrompt : undefined,
-        mcpServers: mcpServerOverride === null ? undefined : mcpServerOverride,
+        mcpServers: mcpServerOverride === null || usePluginBindings ? undefined : mcpServerOverride,
+        pluginBindings: mcpServerOverride !== null && usePluginBindings ? explicitPluginBindings() : undefined,
         panAccess: Object.keys(panAccess).length ? panAccess : undefined,
       } : {}),
     };
@@ -308,6 +322,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           outputMode,
           sessionTemplate: sessionTemplate || '',
           workdir: requestedWorkdir || '',
+          ...(mcpServerOverride !== null && usePluginBindings ? { pluginBindings: explicitPluginBindings() } : {}),
         });
         showToast('Session created and defaults saved.', 'info');
       } catch (error: unknown) {
@@ -435,7 +450,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     if (model) payload.model = model;
     if (permissionMode) payload.permission_mode = permissionMode;
     if (systemPromptOverride) payload.system_prompt = systemPrompt;
-    if (mcpServerOverride !== null) payload.mcp_servers = mcpServerOverride;
+    if (mcpServerOverride !== null) {
+      if (usePluginBindings) payload.plugin_bindings = explicitPluginBindings();
+      else payload.mcp_servers = mcpServerOverride;
+    }
     const definedPanAccess: NonNullable<SessionTemplateSaveInput['pan_access']> = {};
     if (panAccess.restrictToManaged !== undefined) definedPanAccess.restrict_to_managed = panAccess.restrictToManaged;
     if (panAccess.canClaimUnmanaged !== undefined) definedPanAccess.can_claim_unmanaged = panAccess.canClaimUnmanaged;
@@ -723,12 +741,15 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             </select>
           </label>
           {mcpServerOverride !== null && <div className="flex flex-col gap-2 rounded border border-border-muted p-3">
-            {mcpServers.length === 0 ? <p className="text-xs text-text-tertiary">No MCP servers are loaded. Submitting an empty list will explicitly disable MCP.</p> : mcpServers.map((server) => <label key={server.name} className="flex items-center gap-2 text-sm text-text-secondary">
-              <input type="checkbox" checked={mcpServerOverride.includes(server.name)} onChange={(event) => setMcpServerOverride((current) => {
-                const list = current ?? [];
-                return event.target.checked ? [...list, server.name] : list.filter((item) => item !== server.name);
-              })} className="accent-accent" />{server.name}
-            </label>)}
+            {mcpServers.length === 0 ? <p className="text-xs text-text-tertiary">No MCP servers are loaded. Submitting an empty list will explicitly disable MCP.</p> :
+              <PluginSelection servers={mcpServers} bindings={explicitPluginBindings()} disabled={submitting}
+                onChange={(binding) => {
+                  setPluginModes((current) => ({ ...current, [binding.plugin_id]: binding.mode }));
+                  setMcpServerOverride((current) => {
+                    const next = (current ?? []).filter((name) => name !== binding.plugin_id);
+                    return binding.enabled ? [...next, binding.plugin_id] : next;
+                  });
+                }} />}
           </div>}
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Saved template MCP policy</span>

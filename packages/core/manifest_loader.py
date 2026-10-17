@@ -70,6 +70,7 @@ class SessionTemplate:
     # Self-explanatory capability flags (replaces the opaque `role` enum),
     # nested under ``pan_access``; readable via the flat properties below.
     pan_access: dict = field(default_factory=dict)
+    plugin_bindings: list[dict] | None = None
 
     @property
     def mcp_locked(self) -> bool:
@@ -157,6 +158,7 @@ class ManifestConfig:
     character_templates: list[CharacterTemplate] = field(default_factory=list)
     mcp_servers: list[McpServer] = field(default_factory=list)
     command_routes: list[CommandRoute] = field(default_factory=list)
+    plugins: list[dict] = field(default_factory=list)
 
     def get_session_template(self, name: str) -> SessionTemplate | None:
         for t in self.session_templates:
@@ -260,6 +262,23 @@ def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None
         srv = _parse_mcp_server(raw, plugin_dir)
         _dedup_append(config.mcp_servers, srv, key=lambda s: s.name)
 
+    for raw in data.get("plugins", []):
+        def resolve(value):
+            if isinstance(value, str):
+                return _resolve_plugin_var(value, plugin_dir)
+            if isinstance(value, list):
+                return [resolve(v) for v in value]
+            if isinstance(value, dict):
+                return {k: resolve(v) for k, v in value.items()}
+            return value
+        plugin = resolve(raw)
+        source = plugin.get("source", {})
+        if source.get("server_ref") == "pan-qq":
+            source["server_ref"] = "qq"
+        if source.get("capabilities_file"):
+            source["capabilities_file"] = str(Path(plugin_dir, source["capabilities_file"]).resolve())
+        _dedup_append(config.plugins, plugin, key=lambda p: p.get("id"))
+
     # Command routes — append all (no dedup needed; prefixes may overlap intentionally)
     for raw in data.get("command_routes", []):
         route = CommandRoute(
@@ -298,6 +317,7 @@ def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
         mcp_servers=list(raw.get("mcp_servers", [])),
         source_manifest=plugin_dir,
         pan_access=pa,
+        plugin_bindings=raw.get("plugin_bindings"),
     )
 
 
@@ -369,7 +389,10 @@ def _resolve_pan_python_argv() -> list[str]:
 
 def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
     """Parse an MCP server entry, resolving ${PLUGIN_DIR}."""
-    srv = McpServer(name=raw.get("name", ""))
+    name = raw.get("name", "")
+    # Normalize before dedup, so a later old-name QQ override still wins over
+    # the new built-in declaration (including its custom env/URL/command).
+    srv = McpServer(name="qq" if name == "pan-qq" else name)
     raw_args = raw.get("args", [])
     args = [
         _resolve_plugin_var(arg, plugin_dir) if isinstance(arg, str) else str(arg)

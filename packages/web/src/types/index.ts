@@ -202,6 +202,11 @@ export interface Session {
   mcpLockReason?: 'always' | 'never' | null;
   /** Names of MCP servers currently enabled for this session. */
   mcpServers?: string[];
+  pluginBindings?: PluginBinding[];
+  pluginSelectionRevision?: number;
+  pluginApplyStatus?: 'pending' | 'next_start' | 'applied' | 'failed';
+  restartError?: string;
+  pluginRestart?: DelayedRestartState | null;
   history: Message[];
   /** Latest formal assign task context used by subsequent agent_send messages. */
   activeTaskId?: string | null;
@@ -808,6 +813,7 @@ export interface SessionTemplate {
   model?: string | null;
   mcpMode?: 'always' | 'optional' | 'never';
   mcpServers?: string[];
+  pluginBindings?: PluginBinding[] | null;
   panAccess?: PanAccess;
   /** Absolute path of the plugin dir whose manifest.json defined this template. */
   sourceManifest?: string;
@@ -840,6 +846,7 @@ export interface SessionTemplateSaveInput {
   system_prompt?: string | string[];
   mcp_mode?: 'always' | 'optional' | 'never';
   mcp_servers?: string[];
+  plugin_bindings?: PluginBinding[];
   pan_access?: {
     restrict_to_managed?: boolean;
     can_claim_unmanaged?: boolean;
@@ -1435,6 +1442,8 @@ export interface SettingsBody {
   panAccess?: PanAccess;
   /** Names of MCP servers to enable (empty array clears them). */
   mcpServers?: string[];
+  pluginBindings?: PluginBinding[];
+  expectedPluginRevision?: number;
   /** Force past the session template's always/never MCP lock (user confirmed). */
   forceMcp?: boolean;
   /** Worker execution mode; empty string clears (→ adapter default). */
@@ -1451,6 +1460,19 @@ export interface McpServerInfo {
   name: string;
   command?: string | null;
   cwd?: string | null;
+  displayName?: string;
+  aliases?: string[];
+  supportedModes?: PluginMode[];
+  defaultMode?: PluginMode;
+  sourceKind?: 'mcp' | 'pan_api';
+}
+
+export type PluginMode = 'standalone' | 'pan_native' | 'gateway';
+
+export interface PluginBinding {
+  plugin_id: string;
+  enabled: boolean;
+  mode: PluginMode;
 }
 
 // ── File-system types ──
