@@ -26,6 +26,15 @@ try {
   await page.goto(base + '/react/');
   await page.locator(`[data-session-card-id="${sid}"]`).click();
   const settings = page.getByRole('button', {name: 'Session settings', exact: true});
+  if (entry === 'plugin-pending') {
+    await settings.click();
+    const pending = page.getByRole('button', {name: '◷ Delayed restart pending', exact: true});
+    await expect(pending).toBeDisabled();
+    assert.match(await pending.getAttribute('title'), /pending/);
+    await page.getByRole('status').filter({hasText: 'Restart pending: waiting for task completion'}).waitFor();
+    assert.equal(requests.length, 0, 'plugin-triggered pending must not submit a duplicate restart');
+    console.log('PLUGIN_PENDING_UI', {entry, pending: true, requests: requests.length});
+  } else {
   if (entry === 'settings') await settings.click();
   const button = entry === 'settings'
     ? page.getByRole('button', {name: '◷ Delayed restart', exact: true})
@@ -87,6 +96,7 @@ try {
     await expect(clock).toBeEnabled({timeout: 5000});
     console.log('AFTER_RECONNECT', {workerStatus, completed, button: await clock.evaluate(b => ({disabled: b.disabled, title: b.title}))});
     assert.equal(await clock.isEnabled(), true, 'returning to A must refresh its missed terminal restart state');
+  }
   }
 } finally {
   await browser.close();

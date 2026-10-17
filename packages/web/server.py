@@ -3074,6 +3074,8 @@ def _resolve_mcp_server_configs(server_names) -> list[dict]:
     catalog = _plugin_catalog()
     resolved_names = []
     for name in server_names:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Invalid MCP server name: {name!r}")
         try:
             resolved_names.append(catalog.get(name).source.get("server_ref", name))
         except ValueError as exc:
@@ -3377,12 +3379,12 @@ def _apply_mcp_servers(s: sess.Session, server_names, force: bool = False) -> No
         return
     if not isinstance(server_names, list):
         raise ValueError("mcpServers must be a list of server names")
+    _resolve_mcp_server_configs(server_names)
     catalog = _plugin_catalog()
     # Keep duplicate legacy names an error; an explicit old/new alias pair is
     # normalized by the v2 binding reader without starting two providers.
     if len(set(server_names)) != len(server_names):
         raise ValueError("Duplicate MCP server")
-    _resolve_mcp_server_configs(server_names)
     ac = copy.deepcopy(s.adapter_config)
     _set_plugin_config(ac, catalog.legacy_bindings(server_names))
     for key in ("mcp_servers", "plugin_bindings", "plugin_config_version", "plugin_selection_revision"):

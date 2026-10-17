@@ -42,6 +42,19 @@ Chromium 验证先构建当前源码，然后设置 `PAN_TEST_DELAYED_BROWSER_SC
 
 ## 边界与交付
 
-未重现原截图发生时的完整操作历史；未验证真实 Codex native TUI/provider、真实 provider 取消/崩溃、OS/文件系统故障、人工点击验收。完成报告与 native 安全边界有既有/定向单元覆盖，不能等同于所有生产环境故障已做真服务注入。产品后端未改。
+未重现原截图发生时的完整操作历史；未验证真实 Codex native TUI/provider、真实 provider 取消/崩溃、OS/文件系统故障、人工点击验收。完成报告与 native 安全边界有既有/定向单元覆盖，不能等同于所有生产环境故障已做真服务注入。初始修复未改产品后端；后续整合的 MCP 输入校验修复见下节，Worker 生命周期仍未修改。
 
 交付在独立任务分支提交，在 owned verifytree 核对相同提交；不快进 main/practical，不 push/release，不重启或探针访问 8767/8768，不修改 constraints 文件。
+
+## 与插件管理器整合后的组合验收
+
+收到 MA 要求后，确认 main/practical 均为 `1887aef2650466b86dd80bbe2485a439899420be`。通过真实 merge 将最新 main 合入任务分支，merge commit 为 `4a7ad8d6654ab3f5d2e08d9b6e7c9210bceb8464`，双亲为原任务提交 `a72e0e15` 与 main `1887aef2`；无冲突，不使用 reset/cherry-pick，不移动 main/practical。
+
+新增真实 HTTP/WS 组合场景：running 时插件配置先请求 restart、手动 Delayed restart 先请求、idle 且队列锁定时改插件、无 Worker 时保存插件配置后显式 start。检查插件配置持久化后复用同一 pending intent，重复物理工具列表更新不重复 restart，旧任务进程保持存活；终态及订阅完成报告落盘后恰好一次 replacement，锁定项保持，解锁后交给新进程。相同插件配置再次保存为 applied，不产生多余重启。Chromium 另检查插件配置触发的 pending 在 Settings 中可见、按钮保持幂等禁用且不发送重复 POST。
+
+合并后前端全量 **157 files / 1863 passed**；build 验证 **68 个压缩资源**。首轮后端扩大回归为 176 passed / 2 failed，保留 `_e2e_tmp/delayed-restart/merged-backend-before-fixes.log` 与 XML：
+
+- Codex 可选 context 设置测试只 mock 旧 MCP 描述符解析，未提供新插件目录所需 manifest。改用现有真实 manifest manager；保留原测试名及所有可选值/默认值断言。
+- alias 解析先于原始 MCP 名称类型校验，使非字符串输入的原有 Invalid 错误变成 Unknown；旧调用方还会先对未哈希输入执行 set。恢复 alias 解析前的类型/空白校验，并让 `_apply_mcp_servers` 先解析验证再去重，避免 TypeError 和配置变更。保留原断言，新增 5 个整数/dict/list/空字符串/空白输入不改配置的用例。此修复不改变 plugin restart 或 Worker lifecycle。
+
+修正后 Session/idle/Delayed restart/native 定向 **83 passed**，其中 adapter validation **42 passed**。最终扩大后端与完整真实 Chromium 组合复跑交给冻结提交的后台 Job；以终态日志、XML 和 owned 进程/端口清理验收，结果更新于后续交付记录。
