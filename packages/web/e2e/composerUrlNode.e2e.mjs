@@ -161,6 +161,9 @@ function installRoutes(page, state) {
 
 async function openPage(viewport) {
   const context = await browser.newContext({ viewport });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+    origin: `http://127.0.0.1:${port}`,
+  });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
   const state = { draftsBySession: {}, revisions: {}, draftWrites: [] };
@@ -344,6 +347,43 @@ try {
     await context.close();
   }
 
+  // ── A3. Real clipboard: copy writes Markdown; paste recreates the node ──
+  {
+    const { context, page, editor } = await openPage({ width: 1440, height: 900 });
+    await setCaret(page, 'end');
+    await paste(page, undefined, '<a href="https://clip.test/a?q=1#h">Clip Docs</a>');
+    await expect(editor.locator('[data-composer-url]')).toHaveCount(1);
+
+    await page.evaluate(() => {
+      const node = document.querySelector('[data-composer-url]');
+      const range = document.createRange();
+      range.setStartBefore(node);
+      range.setEndAfter(node);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.querySelector('[data-testid="rich-text-composer"]').focus();
+    });
+    await page.keyboard.press('Control+C');
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    assert.equal(clipboardText, '[Clip Docs](https://clip.test/a?q=1#h)');
+
+    await editor.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Delete');
+    await expect(editor.locator('[data-composer-url]')).toHaveCount(0);
+    await page.keyboard.press('Control+V');
+    await expect(editor.locator('[data-composer-url]')).toHaveCount(1);
+    const copied = await editorState(page);
+    assert.equal(copied.urls[0].url, 'https://clip.test/a?q=1#h');
+    assert.match(copied.urls[0].text, /Clip Docs/);
+    evidence.checks.copyPaste = { clipboard: clipboardText, ...copied };
+    await page.screenshot({ path: path.join(output, '07-clipboard-roundtrip.png') });
+
+    await context.tracing.stop({ path: path.join(output, 'trace-clipboard.zip') });
+    await context.close();
+  }
+
   // ── B. Mobile 390px: long node, delete, draft/session switch, send ──
   {
     const { context, page, editor, state } = await openPage({ width: 390, height: 780 });
@@ -394,12 +434,28 @@ try {
     assert.equal(s2State.urls.length, 0);
     assert.equal(s2State.text, '');
 
+    // Give s2 its own draft, then verify both directions keep their content.
+    await editor.fill('s2 draft');
+    await expect.poll(() => state.draftsBySession.s2?.text).toBe('s2 draft');
+
     await page.evaluate(() => window.__panSelectSession?.('s1'));
     await expect(editor.locator('[data-composer-url]')).toHaveCount(1);
     const backState = await editorState(page);
     assert.equal(backState.urls[0].id, longId);
     assert.equal(backState.urls[0].url, LONG_URL);
-    evidence.checks.sessionSwitch = { s2: s2State, s1: backState };
+
+    await page.evaluate(() => window.__panSelectSession?.('s2'));
+    await expect.poll(async () => (await editorState(page)).text).toBe('s2 draft');
+    const s2BackState = await editorState(page);
+    assert.equal(s2BackState.urls.length, 0);
+
+    await page.evaluate(() => window.__panSelectSession?.('s1'));
+    await expect(editor.locator('[data-composer-url]')).toHaveCount(1);
+    evidence.checks.sessionSwitch = {
+      s2: s2State,
+      s1: backState,
+      s2Draft: s2BackState,
+    };
 
     await page.reload();
     await editor.waitFor({ state: 'visible' });

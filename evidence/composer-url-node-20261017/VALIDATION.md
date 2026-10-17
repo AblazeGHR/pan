@@ -21,12 +21,12 @@ node e2e/composerUrlNode.e2e.mjs
 Method: Playwright `locator.dragTo()` — real mouse press/move/release, not a
 constructed `DragEvent`/`DataTransfer`.
 
-Result from `evidence.json` (port `56417`):
+Result from `evidence.json` (port `57285`):
 
 ```json
 {
-  "pasteId": "url_8efb66cf-ca73-4600-825e-ae9523f8fb3f",
-  "dragId": "url_8efb66cf-ca73-4600-825e-ae9523f8fb3f",
+  "pasteId": "url_c0dbd9b4-1b21-4ea8-994a-64e67ad4fa68",
+  "dragId": "url_c0dbd9b4-1b21-4ea8-994a-64e67ad4fa68",
   "dragOrder": ["text", "url"],
   "dragCount": 1,
   "errors": []
@@ -52,9 +52,15 @@ Same Chromium run, viewport `390x780`:
   inside the editor and was clicked successfully.
 - The long URL was sent; queue text is
   `[<long-url>](<long-url>)`.
-- Session switch: `s2` composer has 0 URL nodes; back on `s1` the same node id
-  (`url_43edf6d5-7f89-40c5-bd2d-388380e08ad7`) is restored.
+- Session switch: `s2` composer has 0 URL nodes; `s2` was given its own
+  `"s2 draft"` text (PUT persisted) and restores that text when revisited;
+  back on `s1` the same node id
+  (`url_ef4b27e3-81ae-4caf-bbe8-3a107489060f`) is restored.
 - A real page reload restores the same id and URL from the draft PUT/GET path.
+- Real system clipboard round-trip (A3): `Control+C` on the node wrote
+  `[Clip Docs](https://clip.test/a?q=1#h)` to `navigator.clipboard`; after
+  clearing the composer, `Control+V` recreated a `Clip Docs` node at
+  `https://clip.test/a?q=1#h`.
 
 Boundary: the App-level mobile drawer is not mounted in the ChatView-only
 fixture. The switch calls `useSessionStore.getState().selectSession`, the single
@@ -63,7 +69,8 @@ restore are real Chromium.
 
 Screenshots: `01-paste-node.png`, `02-mouse-drag-node.png`,
 `03-delete-node.png`, `04-mobile-long-node.png`,
-`05-mobile-draft-restored.png`, `06-mobile-sent.png`.
+`05-mobile-draft-restored.png`, `06-mobile-sent.png`,
+`07-clipboard-roundtrip.png`.
 
 ## C. Real Pan HTTP: draft URL part + Markdown message/parts
 
@@ -117,7 +124,7 @@ Backend draft URL-part schema: `9 passed`.
 ```text
 pnpm build   -> tsc -b + vite build; Verified 66 compressed production assets
 session-card-height e2e -> EXIT 0, ok: true (desktop/mobile), port 59937
-composer URL e2e        -> EXIT 0, errors: [], port 56417
+composer URL e2e        -> EXIT 0, errors: [], port 57285
 ```
 
 ## Environment / ownership
