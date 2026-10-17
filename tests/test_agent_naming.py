@@ -135,6 +135,7 @@ def test_agent_send_equals_worker_send(monkeypatch):
 # ── agent_send_force ──
 
 def test_agent_send_force_no_worker_starts_then_sends_by_session(monkeypatch):
+    """No worker: the backend owns durable enqueue/start through /api/send."""
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
         "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
@@ -143,14 +144,11 @@ def test_agent_send_force_no_worker_starts_then_sends_by_session(monkeypatch):
     _env(monkeypatch)
     r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls)
-    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
-               and c[2]["source"] == "agent"
-               and c[2]["sourceSessionId"] == "ses_ma"
-               for c in fake.calls)
+    _assert_force_capability_route(fake)
 
 
 def test_agent_send_force_with_worker_restarts(monkeypatch):
+    """Legacy test identity: MCP delegates restart/Steer choice to the backend."""
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
         "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
@@ -159,11 +157,20 @@ def test_agent_send_force_with_worker_restarts(monkeypatch):
     _env(monkeypatch)
     r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls)
-    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
-               and c[2]["source"] == "agent"
-               and c[2]["sourceSessionId"] == "ses_ma"
-               for c in fake.calls)
+    _assert_force_capability_route(fake)
+
+
+def _assert_force_capability_route(fake):
+    # Assert the complete mutation sequence: no MCP-side restart, task send,
+    # or second delivery can bypass the backend's capability/receipt gates.
+    writes = [call for call in fake.calls if call[0] != "GET"]
+    assert writes == [("POST", "/api/send", {
+        "sessionId": "ses_child",
+        "text": "////by agent : ses_ma | meta\nurgent",
+        "source": "agent",
+        "sourceSessionId": "ses_ma",
+        "force": True,
+    })]
 
 
 def test_agent_send_force_equals_worker_send_force(monkeypatch):

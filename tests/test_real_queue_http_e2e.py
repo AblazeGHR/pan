@@ -602,7 +602,11 @@ def test_real_http_queue_fifo_races_sources_and_restart(isolated_runtime):
 
 
 def test_real_self_queue_original_item_restart_and_receipt(isolated_runtime, monkeypatch):
-    """Real HTTP, bound MCP, process restart, stdin and durable original receipt."""
+    """No-Steer fake: real HTTP/MCP restart, stdin and original-ID receipt.
+
+    The launcher explicitly declares this provider's absent native capability.
+    Confirmed CBC admission/rejection/unknown are tested in test_cbc_steer.
+    """
     from packages.mcp import server as mcp_server
     runtime, recorder = isolated_runtime
     session = _create(runtime, "real-fifo")
