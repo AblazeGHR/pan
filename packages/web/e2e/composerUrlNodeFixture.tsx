@@ -30,9 +30,23 @@ useSessionStore.setState({
       history: [historyMessage],
       workdir: '/fixture',
     },
+    {
+      id: 's2',
+      name: 'Other draft',
+      adapter: 'codex',
+      workerId: 'w-s2',
+      workerStatus: 'running',
+      nativeControl: true,
+      alwaysThinkingEnabled: false,
+      effort: '',
+      history: [],
+      workdir: '/fixture',
+    },
   ],
   currentMessages: [historyMessage],
 });
+(window as unknown as { __panSelectSession?: (id: string) => Promise<void> }).__panSelectSession =
+  (id: string) => useSessionStore.getState().selectSession(id);
 useWorkerStore.setState({
   workers: { s1: { id: 'w-s1', sessionId: 's1', status: 'running' } },
   currentWorkerId: 'w-s1',

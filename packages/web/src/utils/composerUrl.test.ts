@@ -60,6 +60,38 @@ describe('composer URL detection', () => {
     ]);
   });
 
+  it('recognizes a copied Markdown link as a labeled node (plain-text round trip)', () => {
+    expect(parseComposerText('[Docs](https://example.test/a?q=1#h)')).toEqual([
+      { type: 'url', url: 'https://example.test/a?q=1#h', label: 'Docs' },
+    ]);
+  });
+
+  it('round-trips escaped label and destination through composerUrlMarkdown', () => {
+    const url = 'https://example.test/a(b)?q=1#h';
+    const markdown = composerUrlMarkdown(url, 'a [label] (x)');
+    expect(parseComposerText(markdown)).toEqual([
+      { type: 'url', url, label: 'a [label] (x)' },
+    ]);
+  });
+
+  it('keeps an unsafe Markdown link as text and parses the surrounding text', () => {
+    expect(parseComposerText('see [bad](javascript:alert(1)) now')).toEqual([
+      { type: 'text', value: 'see [bad](javascript:alert(1)) now' },
+    ]);
+  });
+
+  it('keeps multiple copied Markdown links in order with mixed text', () => {
+    expect(
+      parseComposerText('a [One](https://one.test/a) b [Two](https://two.test/b) c'),
+    ).toEqual([
+      { type: 'text', value: 'a ' },
+      { type: 'url', url: 'https://one.test/a', label: 'One' },
+      { type: 'text', value: ' b ' },
+      { type: 'url', url: 'https://two.test/b', label: 'Two' },
+      { type: 'text', value: ' c' },
+    ]);
+  });
+
   it('keeps balanced parentheses but drops a prose closing paren', () => {
     expect(parseComposerText('(https://example.test/a)')).toEqual([
       { type: 'text', value: '(' },

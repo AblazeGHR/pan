@@ -136,10 +136,13 @@ function attachmentPart(occurrenceId: string): Extract<ComposerPart, { type: 'at
   return { type: 'attachment', occurrenceId, attachmentId: occurrenceId };
 }
 
-function urlPart(parsed: Extract<ParsedComposerPart, { type: 'url' }>): ComposerUrlPart {
+function urlPart(
+  parsed: Extract<ParsedComposerPart, { type: 'url' }>,
+  reuseId?: string,
+): ComposerUrlPart {
   return {
     type: 'url',
-    id: newComposerUrlId(),
+    id: reuseId || newComposerUrlId(),
     url: parsed.url,
     ...(parsed.label ? { label: parsed.label } : {}),
   };
@@ -229,7 +232,7 @@ function createUrlNode(part: ComposerUrlPart): HTMLSpanElement {
 
   const labelNode = document.createElement('span');
   labelNode.dataset.composerUrlLabelText = '';
-  labelNode.className = 'max-w-[18rem] truncate';
+  labelNode.className = 'min-w-0 max-w-[18rem] truncate';
   labelNode.textContent = label;
 
   const removeButton = document.createElement('button');
@@ -864,6 +867,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     );
 
     const commitReplacement = (start: number, end: number, insertedParts: ComposerPart[]) => {
+      // Atomic node edits are model transactions (the subtree is re-rendered),
+      // so the browser's native undo stack does not track them.  This is the
+      // existing attachment behavior as well: Ctrl+Z is a no-op for both and
+      // can never leave a half-rolled-back DOM that disagrees with partsRef.
       const replacement = replaceRange(partsRef.current, start, end, insertedParts);
       for (const occurrenceId of replacement.removedOccurrenceIds) onRemoveAttachment(occurrenceId);
       partsRef.current = replacement.parts;
@@ -1239,12 +1246,24 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         // A composer drag whose source node disappeared is stale; dropping it
         // would duplicate a node the model no longer owns.
         if (urlPayload.sourceId && sourceOffset === null) return;
+        const sourceId = urlPayload.sourceId;
+        const sourcePart = sourceId
+          ? currentParts.find(
+              (part): part is ComposerUrlPart =>
+                part.type === 'url' && part.id === sourceId,
+            )
+          : undefined;
         const withoutSource = urlPayload.sourceId
           ? removeNode(currentParts, urlPayload.sourceId)
           : currentParts;
         const adjustedOffset = sourceOffset !== null && offset > sourceOffset ? offset - 1 : offset;
-        const inserted = urlPayload.items.map((item) =>
-          urlPart({ type: 'url', url: item.url, ...(item.label ? { label: item.label } : {}) }),
+        // A move keeps the occurrence identity (like an attachment moved inside
+        // the composer); a copy/paste or an external drop gets a fresh one.
+        const inserted = urlPayload.items.map((item, index) =>
+          urlPart(
+            { type: 'url', url: item.url, ...(item.label ? { label: item.label } : {}) },
+            index === 0 && sourcePart ? sourcePart.id : undefined,
+          ),
         );
         const nextParts = insertParts(withoutSource, adjustedOffset, inserted);
         partsRef.current = nextParts;
@@ -1451,6 +1470,9 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       const items = urlTransferItems(selected);
       if (items.length === 0) return;
       event.preventDefault();
+      // Two flavors: the Pan MIME preserves node identity for an in-app paste;
+      // text/plain is standard Markdown for other apps and is recognized again
+      // by parseComposerText when it comes back without the custom MIME.
       writeComposerUrlTransfer(event.clipboardData, { items });
       event.clipboardData?.setData(
         'text/plain',

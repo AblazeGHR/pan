@@ -1076,6 +1076,7 @@ describe('RichTextComposer URL nodes', () => {
     placeCaret(editor, 7);
     paste(editor, { text: 'https://example.test/a' });
     const node = editor.querySelector<HTMLElement>('[data-composer-url]')!;
+    const originalId = node.getAttribute('data-composer-url-id');
 
     const end = document.createRange();
     end.selectNodeContents(editor);
@@ -1093,11 +1094,31 @@ describe('RichTextComposer URL nodes', () => {
     fireEvent.drop(editor, { dataTransfer, clientX: 30, clientY: 12 });
 
     expect(editor.querySelectorAll('[data-composer-url]')).toHaveLength(1);
+    expect(editor.querySelector('[data-composer-url]')?.getAttribute('data-composer-url-id')).toBe(
+      originalId,
+    );
     expect(changes.at(-1)?.parts.at(-1)).toMatchObject({
       type: 'url',
       url: 'https://example.test/a',
+      id: originalId,
     });
     expect(changes.at(-1)?.parts.filter((part) => part.type === 'url')).toHaveLength(1);
+  });
+
+  it('keeps intentionally repeated URLs as distinct nodes (no URL dedupe)', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://dup.test/a' });
+    placeCaret(editor, 7);
+    paste(editor, { text: 'https://dup.test/a' });
+
+    const nodes = Array.from(editor.querySelectorAll<HTMLElement>('[data-composer-url]'));
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.getAttribute('data-composer-url-id')).not.toBe(
+      nodes[1]?.getAttribute('data-composer-url-id'),
+    );
+    expect(changes.at(-1)?.parts.filter((part) => part.type === 'url')).toHaveLength(2);
   });
 
   it('deletes a URL node with its button and with Backspace', () => {
@@ -1125,6 +1146,23 @@ describe('RichTextComposer URL nodes', () => {
     fireEvent.keyDown(editor, { key: 'Backspace', isComposing: true });
 
     expect(editor.querySelector('[data-composer-url]')).toBeTruthy();
+  });
+
+  it('pastes copied plain-text Markdown back as a labeled node', () => {
+    const changes: ComposerValue[] = [];
+    const editor = renderUrlComposer(changes);
+    placeCaret(editor, 7);
+
+    paste(editor, { text: '[Docs](https://example.test/a?q=1#h)' });
+
+    const node = editor.querySelector<HTMLElement>('[data-composer-url]');
+    expect(node?.textContent).toContain('Docs');
+    expect(node?.getAttribute('data-composer-url')).toBe('https://example.test/a?q=1#h');
+    expect(changes.at(-1)?.parts).toMatchObject([
+      { type: 'text', value: 'before ' },
+      { type: 'url', url: 'https://example.test/a?q=1#h', label: 'Docs' },
+      { type: 'text', value: 'after' },
+    ]);
   });
 
   it('copies a node as Markdown + Pan transfer and pastes it back as a fresh node', () => {

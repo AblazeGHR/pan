@@ -41,6 +41,11 @@ const UNSAFE_URL_CHARACTERS = /[\u0000-\u0020\u007f<>"'`]/;
 // rewritten or truncated.
 const TRAILING_PUNCTUATION = /[.,;:!，。；：！？、）】》]+$/u;
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
+// A standard Markdown link whose destination is http(s).  This is the exact
+// shape `composerUrlMarkdown` writes, so a copied node can be pasted back from
+// the plain-text clipboard path with its label intact.
+const MARKDOWN_LINK_PATTERN =
+  /\[((?:\\.|[^\]\\])*)\]\(((?:https?:\/\/)(?:\\.|[^\s()])+)\)/giu;
 
 export const COMPOSER_URL_MIME = 'application/x-pan-composer-url';
 
@@ -108,13 +113,16 @@ function trimUrlCandidate(raw: string): string {
   return value;
 }
 
-/**
- * Split pasted plain text into ordered text/url parts.
- *
- * Every accepted URL keeps its original bytes.  A non-URL result is returned
- * as a single text part so the caller can keep the ordinary paste path.
- */
-export function parseComposerText(text: string): ParsedComposerPart[] {
+function unescapeMarkdownLabel(value: string): string {
+  return value.replace(/\\([\\[\]()])/g, '$1');
+}
+
+function unescapeMarkdownDestination(value: string): string {
+  return value.replace(/\\([\\()])/g, '$1');
+}
+
+/** Parse raw http(s) URLs inside a text run with no Markdown links in it. */
+function parseRawUrlRun(text: string): ParsedComposerPart[] {
   const parts: ParsedComposerPart[] = [];
   let cursor = 0;
   for (const match of text.matchAll(URL_PATTERN)) {
@@ -128,6 +136,35 @@ export function parseComposerText(text: string): ParsedComposerPart[] {
   }
   if (parts.length === 0) return [{ type: 'text', value: text }];
   if (cursor < text.length) parts.push({ type: 'text', value: text.slice(cursor) });
+  return parts;
+}
+
+/**
+ * Split pasted plain text into ordered text/url parts.
+ *
+ * Standard Markdown links are recognized first: they are what a copied URL
+ * node puts on the plain-text clipboard, so pasting that text (in Pan or after
+ * an external round trip that drops the custom MIME) recreates the node with
+ * its visible title.  Remaining spans are scanned for raw http(s) URLs.
+ * Every accepted URL keeps its original bytes.
+ */
+export function parseComposerText(text: string): ParsedComposerPart[] {
+  const parts: ParsedComposerPart[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(MARKDOWN_LINK_PATTERN)) {
+    const start = match.index ?? 0;
+    const url = normalizeComposerUrl(unescapeMarkdownDestination(match[2] ?? ''));
+    if (!url) continue;
+    if (start > cursor) parts.push(...parseRawUrlRun(text.slice(cursor, start)));
+    parts.push({
+      type: 'url',
+      url,
+      label: urlLabel(url, unescapeMarkdownLabel(match[1] ?? '')),
+    });
+    cursor = start + (match[0] ?? '').length;
+  }
+  if (cursor < text.length) parts.push(...parseRawUrlRun(text.slice(cursor)));
+  if (parts.length === 0) return [{ type: 'text', value: text }];
   return mergeAdjacentText(parts);
 }
 

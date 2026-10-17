@@ -429,6 +429,44 @@ describe('InputRow send queue wiring', () => {
     );
   });
 
+  it('sends intentionally repeated URLs twice instead of deduplicating by URL', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const caret = document.createRange();
+    caret.setStart(editor, 0);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+    const pasteOnce = () =>
+      fireEvent.paste(editor, {
+        clipboardData: {
+          files: [],
+          items: [],
+          types: ['text/plain'],
+          getData: (type: string) => (type === 'text/plain' ? 'https://dup.test/a' : ''),
+        } as unknown as DataTransfer,
+      });
+    pasteOnce();
+    pasteOnce();
+
+    expect(editor.querySelectorAll('[data-composer-url]')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '[https://dup.test/a](https://dup.test/a)[https://dup.test/a](https://dup.test/a)',
+        expect.any(String),
+        [
+          { type: 'text', text: '[https://dup.test/a](https://dup.test/a)' },
+          { type: 'text', text: '[https://dup.test/a](https://dup.test/a)' },
+        ],
+        false,
+      ),
+    );
+  });
+
   it('preserves an HTML link title in the outbound Markdown payload', async () => {
     setBusySession();
     render(<InputRow />);
