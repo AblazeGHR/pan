@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "endpoint": "http://127.0.0.1:8768",
+  "newConsoleExplicitlyConfigured": true,
+  "providerCount": 5,
+  "accountCount": 3,
+  "productionCredentialFilesUnchanged": true,
+  "realSwitches": 0,
+  "realQuotaRefreshes": 0,
+  "productionServicesRestarted": false
+}

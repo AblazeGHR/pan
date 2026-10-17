@@ -48,6 +48,8 @@ Pan 校验 `--version` 中的 `contract: pan-cc-switch-gui/v1` 后才允许实�
 | 三种 MCP 模式 → 真实新可执行文件 | 各两工具，列表调用通过 |
 | 真实 GUI/CLI 数据库的私有副本升级 | 19→20 通过，原有业务行和 OAuth 数据保留 |
 | 已安装新程序通过 Pan Bridge 查询真实数据 | Codex/Claude/Gemini 列表读取通过；真实数据库、OAuth 与原生配置文件字节不变；未刷新远程额度 |
+| 现有 practical Pan 服务 → 新控制台 | 已固定新 executable，实际 API 读取 5 个配置、3 个账号；没有重启服务 |
+| 浏览器打开实际 practical 页面 | 新 bundle 显示 5 个配置、3 个账号；390px 无溢出、无 page error，仅发起一次 list 查询 |
 | practical 的真实数据副本兼容性 | 111 Session、57 Job、333 模式往返、12 模板通过，源目录只读 |
 
 GUI 构建为本机 GNU dev profile 可执行文件，安装副本已剥离调试符号；没有制作或发布官方签名安装包。未在真实数据上启动新 GUI，未把 GUI 的真实交互或真实切换称为已验收。真实切换留给用户按 [真机步骤](CC-Switch-Bridge-Manual-Acceptance.md) 执行；旧记录若缺少认证字段，应由用户恢复可靠备份或在 GUI 重新授权。
@@ -57,7 +59,9 @@ GUI 构建为本机 GNU dev profile 可执行文件，安装副本已剥离调�
 - [已安装程序的真实链路](../../audit/cc-switch-bridge-20261018/gui-fork-installed/result.json)
 - [真实数据库副本升级](../../audit/cc-switch-bridge-20261018/gui-fork-data-compat/result.json)
 - [真实数据只读查询](../../audit/cc-switch-bridge-20261018/gui-fork-real-read/result.json)
+- [现有 Pan 服务只读查询](../../audit/cc-switch-bridge-20261018/gui-fork-live-pan-read.json)
+- [实际页面浏览器验证](../../audit/cc-switch-bridge-20261018/gui-fork-live-browser.json)
 - [practical 数据兼容](../../audit/cc-switch-bridge-20261018/practical-compat-gui-fork/result.json)
 - [Pan JUnit](../../audit/cc-switch-bridge-20261018/new-platform.xml)
 
-先将最新 main 合入自己的 Pan 工作树，验证后将本分支合入 main，再将 practical 快进到 main 并构建。最终整合结果记录在 [本轮整合结果](../../audit/cc-switch-bridge-20261018/gui-fork-integration-result.json)。没有推送远程，也不自动重启生产服务。
+已先将最新 main 合入自己的 Pan 工作树，验证后将本分支合入 main，再将 practical 快进到 main 并构建成功。最终整合结果记录在 [本轮整合结果](../../audit/cc-switch-bridge-20261018/gui-fork-integration-result.json)。没有推送远程，也没有重启生产服务。

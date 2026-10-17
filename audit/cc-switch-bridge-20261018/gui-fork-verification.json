@@ -1,7 +1,7 @@
 {
   "officialGuiVersion": "4.0.15",
   "officialGuiCommit": "79e754ab1b6ed50da57dae1d0faecab4b3b52f1c",
-  "localForkCommit": "ecb2c4c7",
+  "localForkCommit": "a412789a8899db7a89615c2f39ea8477d164395b",
   "rustEntryAndPipeTestsPassed": 7,
   "officialRustRegressionTestsPassed": 9,
   "officialGuiFrontendTestsPassed": 44,

@@ -1,0 +1,23 @@
+{
+  "completedAt": "2026-10-18T02:24:37.021871+08:00",
+  "integratedSourceCommit": "e3ad69526f3e293b95c8f6b127b5691bc801972d",
+  "officialGuiVersion": "4.0.15",
+  "officialGuiCommit": "79e754ab1b6ed50da57dae1d0faecab4b3b52f1c",
+  "localForkCommit": "a412789a8899db7a89615c2f39ea8477d164395b",
+  "mainFastForward": true,
+  "practicalFastForward": true,
+  "practicalBuild": "passed",
+  "compressedAssets": 70,
+  "livePracticalPanelRead": "passed",
+  "livePracticalBrowserRead": "passed",
+  "configuredConsole": "D:/openTools/cc-switch-pan/cc-switch.exe",
+  "legacyRemovedFromUserPath": true,
+  "legacyCliProcessExited": true,
+  "realAccountSwitches": 0,
+  "realQuotaRefreshes": 0,
+  "productionGuiStarted": false,
+  "productionDatabaseUpgraded": false,
+  "productionCredentialFilesUnchangedDuringRead": true,
+  "productionServicesRestarted": false,
+  "pushed": false
+}

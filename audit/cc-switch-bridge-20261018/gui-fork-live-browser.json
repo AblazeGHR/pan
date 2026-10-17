@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "livePractical": true,
+  "realPanelListRequests": 1,
+  "newPanelBundle": true,
+  "mobileWidth": 390,
+  "mobileOverflow": false,
+  "pageErrors": [],
+  "blockedNonReadRequests": [],
+  "realSwitches": 0,
+  "realQuotaRefreshes": 0
+}
