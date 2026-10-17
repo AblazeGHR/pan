@@ -238,17 +238,12 @@ def _validate_attachments(value: object) -> list[dict]:
         }
         if not isinstance(item.get("displayName"), str):
             raise ValueError("draft attachment requires displayName")
-        # A File/Blob never reaches this function: the client refuses to send
-        # bytes it cannot re-acquire, and the server has no field to put them
-        # in.  ``attachmentId`` (already uploaded, server-owned) and ``path``
-        # (a server file) are the only recoverable identities, so an attachment
-        # carrying neither is dropped by the client rather than persisted as a
-        # chip that would fail to resolve on reload.
-        for key in ("attachmentId", "path", "href", "mimeType", "fileKey"):
+        # Pending browser files name an IndexedDB key, never serialized File bytes.
+        for key in ("attachmentId", "path", "href", "mimeType", "fileKey", "localFileId"):
             field = _validate_field(item.get(key), key)
             if field is not None:
                 entry[key] = field
-        if not entry.get("attachmentId") and not entry.get("path"):
+        if not entry.get("attachmentId") and not entry.get("path") and not entry.get("localFileId"):
             raise ValueError("draft attachment requires a server identity or path")
         location = item.get("location")
         if location is not None:
@@ -455,6 +450,9 @@ def write_draft(session_id: str, base_revision: int | None, draft: dict | None) 
     # Validate before taking the lock: normalization is pure and can be slow on
     # a large payload, and there is no reason to hold a global lock for it.
     normalized = None if draft is None else normalize_draft(draft)
+    if normalized and any(item.get("localFileId") and not item["localFileId"].startswith(f"{session_id}:")
+                          for item in normalized["attachments"]):
+        raise ValueError("pending file belongs to another Session")
     with _exclusive():
         _require_session(session_id)
         current = _read_locked(session_id)   # raises DraftUnreadable, never overwrites

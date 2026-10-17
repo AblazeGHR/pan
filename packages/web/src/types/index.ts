@@ -1311,6 +1311,7 @@ export interface QueuedMessage {
 
 /** Edit overlay for one queued item; the server lease keeps Worker hand-off paused. */
 export interface QueuedEdit {
+  composerValue?: import('@/components/chat/RichTextComposer').ComposerValue;
   id: string;
   /** Draft shown in the main composer while its server lease is held. */
   text: string;
@@ -1339,7 +1340,7 @@ export interface QueuedEdit {
   /** Attachment parts already on the item (server-authoritative order/metadata;
    *  shown read-only, they are preserved server-side on save). */
   originalAttachments?: Array<{ attachmentId: string; displayName: string }>;
-  /** New attachments added during this edit transaction; appended on save. */
+  /** Isolated attachment occurrences for this edit, including restored nodes. */
   attachments?: QueuedEditAttachment[];
 }
 

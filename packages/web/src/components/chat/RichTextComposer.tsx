@@ -51,6 +51,7 @@ export interface RichTextComposerHandle {
 }
 
 interface RichTextComposerProps {
+  initialValue?: ComposerValue;
   initialText?: string;
   sessionId?: string;
   attachments: ComposerAttachment[];
@@ -811,6 +812,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   function RichTextComposer(
     {
       initialText = '',
+      initialValue,
       sessionId,
       attachments,
       onChange,
@@ -827,7 +829,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   ) {
     const editorRef = useRef<HTMLDivElement>(null);
     const [parts, setParts] = useState<ComposerPart[]>(() =>
-      initialText ? [{ type: 'text', value: initialText }] : EMPTY_PARTS,
+      initialValue ? initialValue.parts.map((part) => ({ ...part })) : initialText ? [{ type: 'text', value: initialText }] : EMPTY_PARTS,
     );
     const partsRef = useRef(parts);
     const attachmentsRef = useRef(attachments);

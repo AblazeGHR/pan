@@ -15,6 +15,8 @@ import {
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { queueComposerFromBody, queueComposerToParts } from './queueComposerCodec';
+import type { ComposerValue } from '@/components/chat/RichTextComposer';
 
 /** The business queue is the server snapshot; localStorage is not a queue. */
 export interface EnqueueOptions {
@@ -74,7 +76,8 @@ interface QueueStore {
   remove: (id: string) => void;
   startEdit: (id: string) => void;
   updateEditDraft: (text: string) => void;
-  /** Replace the queued-edit attachment list (new attachments only). The
+  updateEditComposer: (value: ComposerValue) => void;
+  /** Replace the isolated queued-edit attachment occurrence list. The
    *  session id is explicit: late upload/register responses must land on the
    *  transaction they were started in, never on whatever Session is current. */
   updateEditAttachments: (
@@ -734,6 +737,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           void releaseSessionQueueItemEdit(sid, item.id, serverToken).catch(() => {});
           return;
         }
+        const decoded = current.kind === 'task' && bodyFormat !== 'json'
+          ? queueComposerFromBody(text, bodyFormat, sid) : null;
+        const composerState = decoded ? { composerValue: decoded.value, attachments: decoded.attachments, originalAttachments: [] } : {};
         if (current.cancelRequested) {
           set((state) => ({
             edits: { ...state.edits, [sid]: { ...current, acquiring: false, releasing: true } },
@@ -757,6 +763,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
                   [sid]: {
                     ...latest, acquiring: false, releasing: false, cancelRequested: false,
                     text, originalText: text, bodyFormat, revision, leaseExpiresAt: expiresAt,
+                    ...composerState,
                   },
                 },
               }));
@@ -782,6 +789,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           originalAttachments: bodyFormat === 'parts'
             ? parseTemplateAttachments(text)
             : [],
+          ...composerState,
         };
         set((state) => ({ edits: { ...state.edits, [sid]: acquired } }));
         startLeaseRenewal(sid, editToken);
@@ -805,7 +813,16 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     const sid = useSessionStore.getState().currentSessionId;
     const edit = sid ? get().edits[sid] : null;
     if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing) return;
-    set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, text } } }));
+    set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, text,
+      ...(edit.composerValue && !edit.attachments?.length ? { composerValue: queueComposerFromBody(text, 'text').value } : {}),
+    } } }));
+  },
+
+  updateEditComposer: (composerValue) => {
+    const sid = useSessionStore.getState().currentSessionId;
+    const edit = sid ? get().edits[sid] : null;
+    if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing) return;
+    set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, composerValue } } }));
   },
 
   updateEditAttachments: (sessionId, update) => {
@@ -866,6 +883,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           edit.revision,
           edit.serverToken,
           requestedParts,
+          edit.composerValue ? queueComposerToParts(edit.composerValue, edit.attachments ?? []) : undefined,
         );
         const active = get().edits[sid];
         if (!active || active.editToken !== editToken) return;
