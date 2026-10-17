@@ -1,0 +1,56 @@
+{
+  "pid": 43372,
+  "jobId": "job_fae467053d20b479dfda26f8",
+  "hideWindow": true,
+  "threadDesktops": [
+    {
+      "thread": 43436,
+      "error": 5
+    },
+    {
+      "thread": 46776,
+      "error": 5
+    },
+    {
+      "thread": 6268,
+      "error": 5
+    },
+    {
+      "thread": 30056,
+      "error": 5
+    },
+    {
+      "thread": 47000,
+      "error": 5
+    },
+    {
+      "thread": 10996,
+      "error": 5
+    },
+    {
+      "thread": 46188,
+      "error": 5
+    },
+    {
+      "thread": 41212,
+      "error": 5
+    },
+    {
+      "thread": 44832,
+      "error": 5
+    },
+    {
+      "thread": 15112,
+      "error": 5
+    },
+    {
+      "thread": 3676,
+      "error": 5
+    },
+    {
+      "thread": 4220,
+      "error": 5
+    }
+  ],
+  "scope": "owned runtime PID after command/FILETIME/listener verification"
+}

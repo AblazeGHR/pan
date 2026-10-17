@@ -321,3 +321,65 @@ it('converges consecutive completed tasks even when the first history response w
   expect(contents).not.toContain('second transient');
   expect(contents.filter((content) => content === 'second answer')).toHaveLength(1);
 });
+
+it.each(['thinking', 'tool', 'assistant'].flatMap(role => [false, true].flatMap(statusFirst =>
+  [false, true].map(historyFirst => ({ role, statusFirst, historyFirst })))))(
+  'converges missed-result leftovers ($role, running=$statusFirst, history=$historyFirst)', ({ role, statusFirst, historyFirst }) => {
+    const store = useSessionStore.getState;
+    const old = { ...meta, executionSeq: 1 };
+    store().applyLiveStream('A', [
+      row('assistant', 'final answer', 'body'), row(role, 'orphan-progress', 'orphan'),
+    ], old);
+    if (historyFirst) store().applyHistoryPage('A', page(final));
+    const next = { ...meta, taskSeq: 2, executionSeq: 2 };
+    if (statusFirst) store().applyWorkerStatus('A', 'running', next);
+    store().applyLiveStream('A', [row('assistant', 'next answer', 'next-body')], next);
+    const history = [...final, row('user', 'next prompt'), row('assistant', 'next answer', 'next-body')];
+    store().reconcileWorkerResult('A', { result: 'next answer', terminalCoverage: {
+      historyEpoch: 'epoch', historyRevision: 5,
+    } }, next);
+    store().appendWorkerResultMarker('A', row('system', 'DONE', 'worker.result:next'), next, {
+      historyEpoch: 'epoch', historyRevision: 5,
+    });
+    store().applyHistoryPage('A', page(history, 5));
+    expect(store().currentMessages.filter(message => message.role !== 'system').map(message => message.content))
+      .toEqual(history.map(message => message.content));
+  },
+);
+
+it('keeps missed-result provisional rows until newer history covers their whole region', () => {
+  const store = useSessionStore.getState;
+  const old = { ...meta, executionSeq: 1 };
+  store().applyLiveStream('A', [row('assistant', 'pending', 'old-pending')], old);
+  store().applyWorkerStatus('A', 'running', { ...meta, taskSeq: 2, executionSeq: 2 });
+  store().applyHistoryPage('A', page(initial, 1));
+  expect(store().currentMessages.some(row => row.nativeItemId === 'old-pending')).toBe(true);
+  store().applyHistoryPage('A', { ...page([final[2]!], 3), start: 2, total: 3, hasMore: true });
+  expect(store().currentMessages.some(row => row.nativeItemId === 'old-pending')).toBe(true);
+  store().applyHistoryPage('A', page(final, 3));
+  expect(store().currentMessages.some(row => row.nativeItemId === 'old-pending')).toBe(false);
+});
+
+it('does not retire same-execution Steer when taskSeq changes', () => {
+  const store = useSessionStore.getState;
+  const execution = { ...meta, executionSeq: 7 };
+  const body = row('assistant', 'still running', 'same-execution');
+  store().applyLiveStream('A', [body], execution);
+  expect(store().getLiveStreamMessages('A', { ...execution, taskSeq: 2 })).toEqual([body]);
+  store().applyLiveStream('A', [{ ...body, content: 'still running after steer' }], { ...execution, taskSeq: 2 });
+  expect(store().sessionTranscripts.A!.retiredRuns).toBeUndefined();
+});
+
+it('converges a background superseded task without touching the selected Session', () => {
+  const store = useSessionStore.getState;
+  store().applyLiveStream('A', [row('assistant', 'old prefix', 'background-orphan')], { ...meta, executionSeq: 1 });
+  const selected: Message[] = [row('user', 'B visible')];
+  useSessionStore.setState(state => ({ currentSessionId: 'B', currentMessages: selected,
+    sessions: [...state.sessions, { ...state.sessions[0]!, id: 'B', history: selected }] }));
+  const next = { ...meta, taskSeq: 2, executionSeq: 2 };
+  store().applyLiveStream('A', [row('assistant', 'next', 'new')], next);
+  store().applyHistoryPage('A', page(final, 3));
+  expect(store().currentMessages).toBe(selected);
+  expect(store().sessionTranscripts.A!.runtime.some(row => row.nativeItemId === 'background-orphan')).toBe(false);
+  expect(store().sessionTranscripts.A!.runtime.some(row => row.nativeItemId === 'new')).toBe(true);
+});

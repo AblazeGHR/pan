@@ -1575,7 +1575,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   // not mutate the transient alias table and then make a later native item
   // look like a current task, even when applyLiveStream would reject it.
   if (!store.canApplyLiveStream(sessionId, scope)) return false;
-  const before = store.getLiveStreamMessages(sessionId);
+  const before = store.getLiveStreamMessages(sessionId, scope);
   // The native alias table is only a transient accelerator. If the durable
   // live buffer is gone (result/restart or a fresh client state), an alias
   // from an earlier turn must not attach a new event to that old turn.

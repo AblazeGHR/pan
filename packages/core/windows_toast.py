@@ -3,17 +3,23 @@
 Replaces the legacy NotifyIcon balloon, which never reaches the Windows
 notification center. Verified on Windows 11 26100 (audit/notification-center/):
 
+These are historical observations, not evidence of current OS display. Current
+helper acceptance, center storage, banner visibility and native clicks must be
+verified separately (docs/reports/windows-toast-delivery-20261017.md).
+
 - An unpackaged app can post a WinRT toast with an AUMID and the platform
   records it in the notification center database (handler type "app:desktop",
-  WNS id "NonImmersivePackage") - no Start Menu shortcut, no AppUserModelId
-  registration and no custom protocol are required, and the stored payload is
-  the exact toast XML we sent.
-- The click target is an action button whose ``arguments`` is the full
+  WNS id "NonImmersivePackage"). Database storage alone does not establish
+  Shell visibility: a current human check saw neither banner nor center item
+  with an unregistered AUMID. We register the app's HKCU display identity before
+  sending; actual visibility still requires human/desktop verification.
+- The click targets are the toast body and action button. Both carry the full
   loopback deep link (``http://127.0.0.1:<port>/react/?session=<id>``) with
   ``activationType="protocol"``: http(s) activation is dispatched by the
   system to the installed default browser and does not run through this
-  process, so a click keeps working after the sender process exited (verified
-  by a real click; see the audit report). Cold-starting a fully closed browser
+  process. Current human evidence confirms the banner button, while the
+  center's body/button paths still require revalidation after adding root
+  protocol activation (see the audit report). Cold-starting a fully closed browser
   goes through the same system http-handler path, but that variant is NOT yet
   verified on this machine - treat it as expected behavior, not as proven.
   The URL is always built by
@@ -50,6 +56,7 @@ import subprocess
 # One identity for every Pan instance on the machine; the notification center
 # groups entries under it. Changing it starts a new notification-history entry.
 TOAST_APP_ID = "Pan.Desktop.Notifications"
+TOAST_DISPLAY_NAME = "Pan"
 
 # Button label for the click target (built here, carried as base64, so no
 # PowerShell script-encoding pitfalls with non-ASCII literals).
@@ -59,6 +66,11 @@ COMPLETION_GROUP = "Pan-completions"
 REMINDER_GROUP = "Pan-reminders"
 
 _TIMEOUT_SECONDS = 20
+# Keep the complete escaped UTF-8 XML conservative for the Windows payload
+# limit, and the nested base64 -EncodedCommand below CreateProcess's limit.
+# Full task results remain in Session history; a toast is only a preview.
+_MAX_XML_BYTES = 4096
+_MAX_TITLE_BYTES = 512
 
 # XML 1.0 disallows most C0 control characters; they would make LoadXml throw.
 _INVALID_XML_CHARS = re.compile(
@@ -96,21 +108,47 @@ def bounded_tag(value: str | None) -> str | None:
     return f"{value[:40]}-{digest}"
 
 
+def _preview(text: str, budget: int) -> str:
+    """Fit escaped XML text in a byte budget without splitting Unicode."""
+    if len(_xml_escape(text).encode("utf-8")) <= budget:
+        return text
+    remaining = max(0, budget - len("…".encode("utf-8")))
+    parts = []
+    for char in text:
+        cost = len(_xml_escape(char).encode("utf-8"))
+        if cost > remaining:
+            break
+        parts.append(char)
+        remaining -= cost
+    return "".join(parts) + ("…" if budget >= 3 else "")
+
+
 def build_toast_xml(title: object, body: object, *,
                     launch_url: str | None = None,
-                    button_text: str = BUTTON_OPEN_SESSION) -> str:
+                    button_text: str = BUTTON_OPEN_SESSION,
+                    duration: str | None = None) -> str:
     """Toast XML with escaped text. ``launch_url`` is only ever the validated
     loopback deep link produced by ``notifications.completion_deep_link``."""
+    if duration not in (None, 'short', 'long'):
+        raise ValueError('Invalid toast duration')
     parts = [
         '<?xml version="1.0" encoding="utf-8"?>',
     ]
     launch_attr = ""
     if launch_url:
-        launch_attr = f' launch="{_xml_escape(launch_url)}"'
-    parts.append(f"<toast{launch_attr}>")
+        # The center commonly presents a collapsed item: clicking its body
+        # must use the same Shell-owned protocol activation as the button.
+        # A launch URL alone defaults to foreground app activation, for which
+        # this unpackaged sender has no COM activator. Do not rely on a sender
+        # callback/process surviving until the user visits the center.
+        launch_attr = f' activationType="protocol" launch="{_xml_escape(launch_url)}"'
+    duration_attr = f' duration="{duration}"' if duration else ''
+    parts.append(f"<toast{launch_attr}{duration_attr}>")
     parts.append('<visual><binding template="ToastGeneric">')
-    parts.append(f"<text>{_xml_escape(_sanitize_text(title))}</text>")
-    parts.append(f"<text>{_xml_escape(_sanitize_text(body))}</text>")
+    title_text = _xml_escape(_preview(_sanitize_text(title), _MAX_TITLE_BYTES))
+    parts.append(f"<text>{title_text}</text>")
+    body_index = len(parts)
+    parts.append("<text></text>")
     parts.append("</binding></visual>")
     if launch_url:
         parts.append("<actions>")
@@ -120,11 +158,37 @@ def build_toast_xml(title: object, body: object, *,
         )
         parts.append("</actions>")
     parts.append("</toast>")
+    budget = _MAX_XML_BYTES - len("".join(parts).encode("utf-8"))
+    if budget < 3:
+        # Never truncate or rewrite the click target to make a payload fit.
+        raise ValueError("Toast activation metadata exceeds the payload budget")
+    parts[body_index] = f"<text>{_xml_escape(_preview(_sanitize_text(body), budget))}</text>"
     return "".join(parts)
 
 
 def _b64(value: str) -> str:
     return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+
+def build_identity_script(app_id: str) -> str:
+    """App-scoped Shell display metadata; no notification permission writes.
+
+    Keep the identity independent of checkout/interpreter and never use a
+    task's title, content or URL as a registry key/value. The prior visible
+    research probe had this registration; the shipped sender omitted it.
+    """
+    if not _APP_ID_PATTERN.fullmatch(app_id):
+        raise ValueError("Invalid toast app id")
+    return (
+        f"  $identityKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\\Classes\\AppUserModelId\\{app_id}')\n"
+        "  try {\n"
+        f"    if ($identityKey.GetValue('DisplayName') -ne '{TOAST_DISPLAY_NAME}') {{\n"
+        f"      $identityKey.SetValue('DisplayName', '{TOAST_DISPLAY_NAME}', [Microsoft.Win32.RegistryValueKind]::String)\n"
+        "    }\n"
+        "    $result.identityRegistered = ($identityKey.GetValue('DisplayName') -eq 'Pan')\n"
+        "    if (-not $result.identityRegistered) { throw 'App identity readback failed' }\n"
+        "  } finally { $identityKey.Close() }\n"
+    )
 
 
 def build_show_script(app_id: str, xml_text: str, tag: str | None,
@@ -137,6 +201,9 @@ def build_show_script(app_id: str, xml_text: str, tag: str | None,
         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)\n"
         "$result = @{ ok = $false; method = 'windows.toast' }\n"
         "try {\n"
+        "  $result.stage = 'identity'\n"
+        + build_identity_script(app_id) +
+        "  $result.stage = 'toast'\n"
         "  [void][Windows.UI.Notifications.ToastNotificationManager, "
         "Windows.UI.Notifications, ContentType=WindowsRuntime]\n"
         "  [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, "
@@ -163,7 +230,11 @@ def build_show_script(app_id: str, xml_text: str, tag: str | None,
         "} catch {\n"
         "  $result.ok = $false\n"
         "  $result.code = 'windows_toast_failed'\n"
+        "  if ($result.stage -eq 'identity') { $result.code = 'windows_toast_identity_registration_failed' }\n"
         "  $result.message = $_.Exception.Message\n"
+        "  $cause = $_.Exception\n"
+        "  while ($cause.InnerException) { $cause = $cause.InnerException }\n"
+        "  $result.hresult = ('0x{0:X8}' -f $cause.HResult)\n"
         "}\n"
         "[Console]::Out.WriteLine(($result | ConvertTo-Json -Compress))\n"
         "if (-not $result.ok) { exit 1 }\n"
@@ -213,12 +284,15 @@ def _run_powershell(script: str) -> dict:
             "ok": False,
             "code": "windows_system_notification_launch_failed",
             "message": str(exc),
+            "winerror": getattr(exc, "winerror", None),
         }
     result = _parse_result(completed.stdout)
     if completed.returncode != 0 or not (result or {}).get("ok"):
         detail = (result or {}).get("message") or (completed.stderr or completed.stdout or "").strip()
         return {
+            **{key: result[key] for key in ('setting', 'hresult', 'stage', 'identityRegistered') if result and key in result},
             "ok": False,
+            "exitcode": completed.returncode,
             "code": (result or {}).get("code") or "windows_system_notification_failed",
             "message": f"PowerShell toast exited with code {completed.returncode}: {detail}"
             if completed.returncode != 0 else str(detail),
@@ -245,24 +319,29 @@ def show_toast(title: object, body: object, *,
                launch_url: str | None = None,
                tag: str | None = None,
                group: str | None = None,
-               app_id: str = TOAST_APP_ID) -> dict:
+               app_id: str = TOAST_APP_ID,
+               duration: str | None = None) -> dict:
     """Show one Windows toast; safe to call from a worker thread.
 
     Returns ``{"ok": True, "method": "windows.toast", ...}`` after the OS
     accepted the toast, or a diagnostic error dict. ``delivery`` is reported as
-    ``"unknown"`` for clickable toasts: process completion is not proof of
+    ``"unknown"`` for every toast: process completion is not proof of
     display, and the notification center entry is what makes a later click
     work.
     """
-    xml_text = build_toast_xml(title, body, launch_url=launch_url)
+    try:
+        xml_text = build_toast_xml(title, body, launch_url=launch_url, duration=duration)
+    except ValueError as exc:
+        return {"ok": False, "code": "windows_toast_payload_invalid", "message": str(exc)}
     script = build_show_script(app_id, xml_text, bounded_tag(tag), bounded_tag(group))
     result = _run_powershell(script)
     if result.get("ok"):
         response = {"ok": True, "method": "windows.toast"}
         if result.get("setting"):
             response["setting"] = result["setting"]
-        if launch_url:
-            response["delivery"] = "unknown"
+        if "identityRegistered" in result:
+            response["identityRegistered"] = result["identityRegistered"]
+        response["delivery"] = "unknown"
         return response
     return result
 

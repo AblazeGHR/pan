@@ -3073,6 +3073,39 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       .toEqual(['new reply']);
   });
 
+  it.each([false, true])('does not carry missed-result items or aliases into the next execution (running=%s)', statusFirst => {
+    renderHook(() => useWebSocket());
+    const store = useSessionStore.getState;
+    const first = { workerId: 'w1', generation: 1, taskSeq: 1, executionSeq: 1 };
+    const next = { ...first, taskSeq: 2, executionSeq: 2 };
+    act(() => {
+      store().applyHistoryPage('A', { history: [{ role: 'user', content: 'question' }],
+        total: 1, start: 0, hasMore: false, historyEpoch: 'missed-result', historyRevision: 1 });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', ...first,
+        event: { type: 'content.part', role: 'assistant', delta: true, item_id: 'old-prefix', turn_id: 'reused-turn',
+          part: { type: 'text', text: 'unfinished old prefix' } } });
+      if (statusFirst) wsMock.trigger('worker.status', { type: 'worker.status', sessionId: 'A', ...next, status: 'running' });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', ...next,
+        event: { type: 'assistant', final: true, item_id: 'new-final', turn_id: 'reused-turn',
+          message: { content: [{ type: 'text', text: 'new final' }] } } });
+      expect(store().getLiveStreamMessages('A').map(message => message.content)).toEqual(['new final']);
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', ...first,
+        event: { type: 'content.part', role: 'assistant', delta: true, item_id: 'old-prefix',
+          part: { type: 'text', text: 'late old echo' } } });
+      wsMock.trigger('worker.result', { type: 'worker.result', sessionId: 'A', ...next,
+        result: 'new final', status: 'done', terminalCoverage: { historyEpoch: 'missed-result', historyRevision: 4 } });
+      store().applyHistoryPage('A', { history: [
+        { role: 'user', content: 'question' },
+        { role: 'assistant', content: 'old persisted final', nativeItemId: 'old-final' },
+        { role: 'user', content: 'next question' },
+        { role: 'assistant', content: 'new final', nativeItemId: 'new-final' },
+      ], total: 4, start: 0, hasMore: false, historyEpoch: 'missed-result', historyRevision: 4 });
+    });
+    expect(store().currentMessages.filter(message => message.role !== 'system').map(message => message.content))
+      .toEqual(['question', 'old persisted final', 'next question', 'new final']);
+    expect(store().currentMessages.at(-1)?.role).toBe('system');
+  });
+
   it('keeps separate completed assistant items with distinct native ids in one turn', () => {
     renderHook(() => useWebSocket());
 

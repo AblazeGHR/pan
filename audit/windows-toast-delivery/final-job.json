@@ -1,0 +1,11 @@
+{
+  "jobId": "job_fae467053d20b479dfda26f8",
+  "targetSessionId": "ses_3f87f64dbb736845",
+  "status": "completed",
+  "exitCode": 0,
+  "notificationState": "delivered",
+  "verifiedVia": "agent_background_get after verified graceful shutdown",
+  "serverPid": 43372,
+  "serverCreationFiletime": "134367260783725499",
+  "port": 52389
+}

@@ -144,6 +144,21 @@ def _validate_text(value: object) -> str:
     return value
 
 
+def _validate_url_field(value: object) -> str:
+    url = _validate_field(value, "url")
+    if not url:
+        raise ValueError("url part requires url")
+    lowered = url.lower()
+    if not (lowered.startswith("http://") or lowered.startswith("https://")):
+        raise ValueError("url part must be an http(s) URL")
+    if any(
+        character.isspace() or ord(character) < 0x20 or ord(character) == 0x7F
+        for character in url
+    ):
+        raise ValueError("url part contains unsafe characters")
+    return url
+
+
 def _validate_parts(value: object) -> list[dict]:
     if not isinstance(value, list):
         raise ValueError("draft parts must be an array")
@@ -154,11 +169,22 @@ def _validate_parts(value: object) -> list[dict]:
         if not isinstance(part, dict):
             raise ValueError("draft part must be an object")
         kind = part.get("type")
-        # ComposerPart is a closed union: a text run, or an attachment
-        # occurrence.  Rebuilding it field by field (instead of trusting the
-        # payload) keeps unexpected keys out of the persisted draft.
+        # ComposerPart is a closed union: a text run, an attachment occurrence,
+        # or a self-contained URL node.  Rebuilding it field by field (instead
+        # of trusting the payload) keeps unexpected keys out of the persisted
+        # draft.
         if kind == "text":
             parts.append({"type": "text", "value": _validate_text(part.get("value"))})
+        elif kind == "url":
+            entry: dict = {"type": "url", "url": _validate_url_field(part.get("url"))}
+            identifier = _validate_field(part.get("id"), "id")
+            if identifier is None:
+                raise ValueError("url part requires id")
+            entry["id"] = identifier
+            label = _validate_field(part.get("label"), "label")
+            if label is not None:
+                entry["label"] = label
+            parts.append(entry)
         elif kind == "attachment":
             attachment_id = part.get("attachmentId")
             if not isinstance(attachment_id, str) or not attachment_id:

@@ -382,6 +382,203 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
   });
 
+  it('enqueues pasted URLs as standard Markdown links in order', async () => {
+    setBusySession();
+    render(<InputRow />);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: '请阅读 ' },
+    });
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.querySelector('span')?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, text!.textContent!.length);
+    range.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/plain'],
+        getData: (type: string) =>
+          type === 'text/plain'
+            ? '见 https://one.test/a?q=1#h 和 https://two.test/b 结束'
+            : '',
+      } as unknown as DataTransfer,
+    });
+
+    expect(editor.querySelectorAll('[data-composer-url]')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '请阅读 见 [https://one.test/a?q=1#h](https://one.test/a?q=1#h) 和 '
+          + '[https://two.test/b](https://two.test/b) 结束',
+        expect.any(String),
+        [
+          { type: 'text', text: '请阅读 见 ' },
+          { type: 'text', text: '[https://one.test/a?q=1#h](https://one.test/a?q=1#h)' },
+          { type: 'text', text: ' 和 ' },
+          { type: 'text', text: '[https://two.test/b](https://two.test/b)' },
+          { type: 'text', text: ' 结束' },
+        ],
+        false,
+      ),
+    );
+  });
+
+  it('sends intentionally repeated URLs twice instead of deduplicating by URL', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const caret = document.createRange();
+    caret.setStart(editor, 0);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+    const pasteOnce = () =>
+      fireEvent.paste(editor, {
+        clipboardData: {
+          files: [],
+          items: [],
+          types: ['text/plain'],
+          getData: (type: string) => (type === 'text/plain' ? 'https://dup.test/a' : ''),
+        } as unknown as DataTransfer,
+      });
+    pasteOnce();
+    pasteOnce();
+
+    expect(editor.querySelectorAll('[data-composer-url]')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '[https://dup.test/a](https://dup.test/a)[https://dup.test/a](https://dup.test/a)',
+        expect.any(String),
+        [
+          { type: 'text', text: '[https://dup.test/a](https://dup.test/a)' },
+          { type: 'text', text: '[https://dup.test/a](https://dup.test/a)' },
+        ],
+        false,
+      ),
+    );
+  });
+
+  it('preserves an HTML link title in the outbound Markdown payload', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const caret = document.createRange();
+    caret.setStart(editor, 0);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/html', 'text/plain'],
+        getData: (type: string) =>
+          type === 'text/html'
+            ? '<p>见 <a href="https://example.test/docs?q=1&amp;x=2#h">文档</a></p>'
+            : '见 https://example.test/docs?q=1&x=2#h',
+      } as unknown as DataTransfer,
+    });
+
+    expect(
+      screen.getByRole('group', { name: /链接 文档/ }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '见 [文档](https://example.test/docs?q=1&x=2#h)',
+        expect.any(String),
+        [
+          { type: 'text', text: '见 ' },
+          { type: 'text', text: '[文档](https://example.test/docs?q=1&x=2#h)' },
+        ],
+        false,
+      ),
+    );
+  });
+
+  it('serializes URL nodes to Markdown in the queue editor body', async () => {
+    setBusySession();
+    useQueueStore.setState({
+      edits: {
+        s1: {
+          id: 'q-url-edit',
+          text: 'before',
+          originalText: 'before',
+          index: 0,
+          createdAt: 1,
+          editToken: 7,
+          acquiring: false,
+          kind: 'task',
+          bodyFormat: 'text',
+          revision: 1,
+        },
+      },
+    });
+    render(<InputRow />);
+    const editor = await screen.findByTestId('queue-rich-text-composer');
+    const text = editor.querySelector('span')?.firstChild;
+    const caret = document.createRange();
+    caret.setStart(text!, 6);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/plain'],
+        getData: (type: string) =>
+          type === 'text/plain' ? ' https://queue.test/a?x=1#h' : '',
+      } as unknown as DataTransfer,
+    });
+
+    expect(useQueueStore.getState().edits.s1?.text).toBe(
+      'before [https://queue.test/a?x=1#h](https://queue.test/a?x=1#h)',
+    );
+  });
+
+  it('restores a URL-only submission after an explicit enqueue rejection', async () => {
+    setBusySession();
+    vi.mocked(enqueueSessionMessage).mockRejectedValueOnce(new ApiRequestError(409, 'rejected'));
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const caret = document.createRange();
+    caret.setStart(editor, 0);
+    caret.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(caret);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/plain'],
+        getData: (type: string) =>
+          type === 'text/plain' ? 'https://fail.test/a?q=1#h' : '',
+      } as unknown as DataTransfer,
+    });
+    expect(editor.querySelector('[data-composer-url]')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(editor.querySelector('[data-composer-url]')).toBeTruthy(),
+    );
+    expect(editor.textContent).toContain('https://fail.test/a?q=1#h');
+  });
+
   it('drops a message attachment into the editor and queues it at the text caret', async () => {
     setBusySession();
     render(<InputRow />);

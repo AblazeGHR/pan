@@ -183,6 +183,51 @@ describe('SessionItem streaming preview', () => {
   });
 });
 
+describe('SessionItem preview row reservation', () => {
+  afterEach(() => cleanup());
+
+  const previewLine = (container: HTMLElement) =>
+    container.querySelector('[data-testid="session-preview-line"]');
+
+  it('reserves one preview row for missing, null, empty, and whitespace sources', () => {
+    const variants: Array<{ label: string; extra: Partial<Session> }> = [
+      { label: 'missing', extra: { lastMessage: undefined } },
+      { label: 'null', extra: { lastMessage: null as unknown as string } },
+      { label: 'empty', extra: { lastMessage: '' } },
+      { label: 'whitespace', extra: { lastMessage: '  \n\t  ' } },
+    ];
+
+    for (const { label, extra } of variants) {
+      const { container, unmount } = render(
+        <SessionItem
+          session={session('', 'idle', { historyTotal: 1, history: [], ...extra })}
+          isActive={false}
+        />,
+      );
+
+      const line = previewLine(container);
+      expect(line, label).toBeTruthy();
+      expect(line!.textContent, label).toBe('');
+      expect(line!.className, label).toContain('min-h-[1.25em]');
+      expect(line!.className, label).toContain('truncate');
+      unmount();
+    }
+  });
+
+  it('keeps the long-preview truncation on the same reserved row', () => {
+    const long = 'x'.repeat(80);
+    const { container } = render(
+      <SessionItem session={session(long)} isActive={false} />,
+    );
+
+    const line = previewLine(container);
+    expect(line).toBeTruthy();
+    expect(line!.textContent).toBe(`${'x'.repeat(50)}...`);
+    expect(line!.className).toContain('min-h-[1.25em]');
+    expect(line!.className).toContain('truncate');
+  });
+});
+
 describe('SessionItem Job indicator (J)', () => {
   afterEach(() => {
     cleanup();

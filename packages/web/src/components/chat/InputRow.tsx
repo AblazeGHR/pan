@@ -38,6 +38,7 @@ import {
   uploadSessionAttachment,
 } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
+import { composerUrlMarkdown } from '@/utils/composerUrl';
 import { openComposerAttachmentInEditor } from '@/utils/attachmentEditorOpen';
 import {
   isAttachmentPayloadForSession,
@@ -167,6 +168,39 @@ function composerPartOccurrenceId(part: ComposerValue['parts'][number]): string 
   return part.type === 'attachment' ? part.occurrenceId || part.attachmentId : null;
 }
 
+/** URL nodes are content even though they contribute no `text` and no
+ *  attachment occurrence id.  Every emptiness/recovery decision must ask this,
+ *  not `value.text` alone. */
+function composerValueHasContent(value: ComposerValue): boolean {
+  return (
+    !!value.text ||
+    value.occurrenceIds.length > 0 ||
+    value.parts.some((part) => part.type === 'url')
+  );
+}
+
+/** Order-sensitive identity of inline URL nodes for recovery comparisons. */
+function composerUrlStructureKey(value: ComposerValue): string {
+  return value.parts
+    .filter((part) => part.type === 'url')
+    .map((part) =>
+      part.type === 'url' ? `${part.id}\u0000${part.url}\u0000${part.label || ''}` : '',
+    )
+    .join('\u0001');
+}
+
+/** Text projection used by the queue editor, which has no attachment parts.
+ *  URL nodes are serialized as the same Markdown link the message would send. */
+function composerTextWithUrls(value: ComposerValue): string {
+  return value.parts
+    .map((part) => {
+      if (part.type === 'text') return part.value;
+      if (part.type === 'url') return composerUrlMarkdown(part.url, part.label);
+      return '';
+    })
+    .join('');
+}
+
 function emptyComposerValue(): ComposerValue {
   return {
     parts: [{ type: 'text', value: '' }],
@@ -187,8 +221,8 @@ function cloneComposerValue(value: ComposerValue): ComposerValue {
 }
 
 function appendComposerValues(current: ComposerValue, restored: ComposerValue): ComposerValue {
-  if (!current.text && current.occurrenceIds.length === 0) return cloneComposerValue(restored);
-  if (!restored.text && restored.occurrenceIds.length === 0) return cloneComposerValue(current);
+  if (!composerValueHasContent(current)) return cloneComposerValue(restored);
+  if (!composerValueHasContent(restored)) return cloneComposerValue(current);
   const separator: ComposerValue['parts'] = [{ type: 'text', value: '\n' }];
   const parts = [...current.parts, ...separator, ...restored.parts].map((part) => ({ ...part }));
   const occurrenceIds = parts.map(composerPartOccurrenceId).filter((id): id is string => !!id);
@@ -425,11 +459,7 @@ export function InputRow() {
     (sessionId: string, value: ComposerValue, nextAttachments: PendingAttachment[]) => {
       const clonedValue = cloneComposerValue(value);
       const clonedAttachments = nextAttachments.map((attachment) => ({ ...attachment }));
-      if (
-        !clonedValue.text &&
-        clonedValue.occurrenceIds.length === 0 &&
-        clonedAttachments.length === 0
-      ) {
+      if (!composerValueHasContent(clonedValue) && clonedAttachments.length === 0) {
         draftsBySessionRef.current.delete(sessionId);
         // An empty composer is still persisted state: recording it writes a
         // versioned tombstone so a reload cannot resurrect text the user
@@ -494,7 +524,9 @@ export function InputRow() {
     queueComposerRef.current?.focus();
   }, [queueEdit]);
   const handleQueueComposerChange = useCallback(
-    (value: ComposerValue) => updateQueueEdit(value.text),
+    // The queue editor owns one plain-text body, so URL nodes are projected to
+    // the exact Markdown link that will be sent (no attachment parts exist here).
+    (value: ComposerValue) => updateQueueEdit(composerTextWithUrls(value)),
     [updateQueueEdit],
   );
   // ── Queued-edit attachments（仅 task 来源；report/notice/channel 派发不消费
@@ -1262,7 +1294,8 @@ export function InputRow() {
         if (
           recovery &&
           (recovery.value.text !== value.text ||
-            recovery.value.occurrenceIds.join('\u0000') !== value.occurrenceIds.join('\u0000'))
+            recovery.value.occurrenceIds.join('\u0000') !== value.occurrenceIds.join('\u0000') ||
+            composerUrlStructureKey(recovery.value) !== composerUrlStructureKey(value))
         ) {
           recoveryBySessionRef.current.delete(currentSessionId);
         }
@@ -1480,7 +1513,7 @@ export function InputRow() {
 
       const currentAttachments = attachmentsRef.current;
       const current = composerValueRef.current;
-      const hasCurrentInput = !!current.text || current.occurrenceIds.length > 0;
+      const hasCurrentInput = composerValueHasContent(current);
       const value = hasCurrentInput
         ? appendComposerValues(current, snapshot.value)
         : cloneComposerValue(snapshot.value);
@@ -1590,6 +1623,7 @@ export function InputRow() {
       const composedText = value.parts
         .map((part) => {
           if (part.type === 'text') return part.value;
+          if (part.type === 'url') return composerUrlMarkdown(part.url, part.label);
           return linksById.get(composerPartOccurrenceId(part) || '') || '';
         })
         .join('');
@@ -1616,6 +1650,15 @@ export function InputRow() {
       for (const part of value.parts) {
         if (part.type === 'text') {
           structuredParts.push({ type: 'text', text: part.value });
+          continue;
+        }
+        if (part.type === 'url') {
+          // The agent reads the same Markdown link a plain-text client would
+          // see; there is no URL part in the provider protocol.
+          structuredParts.push({
+            type: 'text',
+            text: composerUrlMarkdown(part.url, part.label),
+          });
           continue;
         }
         const attachment = snapshotAttachments.find(
@@ -1652,6 +1695,7 @@ export function InputRow() {
         !!recovery &&
         recovery.value.text === value.text &&
         recovery.value.occurrenceIds.join('\u0000') === value.occurrenceIds.join('\u0000') &&
+        composerUrlStructureKey(recovery.value) === composerUrlStructureKey(value) &&
         recovery.attachments.map(attachmentOccurrenceId).join('\u0000') ===
           snapshotAttachments.map(attachmentOccurrenceId).join('\u0000');
       const snapshot: SendSnapshot = {

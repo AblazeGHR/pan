@@ -1,0 +1,13 @@
+{
+  "toolCount": 173,
+  "nodeReplTools": [],
+  "desktopTools": [],
+  "lazySearchTools": [],
+  "screenshots": [
+    {
+      "name": "mcp__chrome_devtools__take_screenshot",
+      "description": "Take a screenshot of the page or element.\n\nexec tool declaration:\n```ts\ndeclare const tools: { mcp__chrome_devtools__take_screenshot(args: {\n  // The "
+    }
+  ],
+  "skill": "C:/Users/14709/.codex/plugins/cache/openai-bundled/computer-use/26.1013.40934/skills/computer-use/SKILL.md"
+}

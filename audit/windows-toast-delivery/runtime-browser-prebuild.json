@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-17T15:55:28.495Z",
+  "url": "http://127.0.0.1:52389/react/?session=ses_054cea78b612e558",
+  "executablePath": "C:\\Users\\14709\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "originalBodyTextMatches": true,
+  "sessionActuallyOpened": false,
+  "invalidatedByScreenshotReview": true,
+  "reason": "Body matching included sidebar summaries; main still displayed Select a session to start. Not a passing deep-link check.",
+  "pageErrors": [],
+  "nativeClick": false,
+  "source": "owned headless Playwright preflight",
+  "screenshot": "runtime-session-prebuild.png"
+}

@@ -106,7 +106,7 @@ def test_no_session_link_preserves_existing_sender(monkeypatch):
     )
     result = notifications.default_system_sender("title", "body")
     assert result["ok"] is True
-    assert "delivery" not in result
+    assert result["delivery"] == "unknown"
     assert len(calls) == 1
     script, xml, tag, group = _decoded_parts(calls[0])
     # No click target at all: plain 2-arg injectable-style send stays possible.
