@@ -14,8 +14,9 @@ import { SessionMenu } from '@/components/session/SessionMenu';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
-import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
+import { UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
 import { SidebarResizer } from './SidebarResizer';
+import { SessionFilterMenu } from './SessionFilterMenu';
 import { ViewEntryGroups } from './ViewEntryGroups';
 import { ViewEntryRail } from './ViewEntryRail';
 import { Button } from '@/components/ui/Button';
@@ -38,7 +39,6 @@ import {
   Import,
   ArrowUpDown,
   Layers,
-  ListFilter,
   ChevronUp,
   ChevronDown,
   Sun,
@@ -85,9 +85,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     sortBy,
     cycleSortBy,
     specialFilters,
+    adapterFilters,
     hiddenSessionIds,
-    toggleSpecialFilter,
-    clearSpecialFilters,
     collapsedGroups,
     collapseAllGroups,
     expandAllGroups,
@@ -109,9 +108,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     sortBy: s.sortBy,
     cycleSortBy: s.cycleSortBy,
     specialFilters: s.specialFilters,
+    adapterFilters: s.adapterFilters,
     hiddenSessionIds: s.hiddenSessionIds,
-    toggleSpecialFilter: s.toggleSpecialFilter,
-    clearSpecialFilters: s.clearSpecialFilters,
     collapsedGroups: s.collapsedGroups,
     collapseAllGroups: s.collapseAllGroups,
     expandAllGroups: s.expandAllGroups,
@@ -136,7 +134,6 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
   const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showDragMenu, setShowDragMenu] = useState(false);
   const [workspaceMoveConfirmation, setWorkspaceMoveConfirmation] = useState<(
     WorkspaceMoveConfirmationRequest & { resolve: (confirmed: boolean) => void }
@@ -229,6 +226,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       hiddenSessionIds,
       searchQuery,
       specialFilters,
+      adapterFilters,
       activeWorkspaceId,
       matchingSessionIds,
     });
@@ -240,7 +238,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       return [...keys];
     }
     return scoped.map((s) => s.id);
-  }, [sessions, effectiveGroupBy, multiSelectMode, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId, matchingSessionIds]);
+  }, [sessions, effectiveGroupBy, multiSelectMode, hiddenSessionIds, searchQuery, specialFilters, adapterFilters, activeWorkspaceId, matchingSessionIds]);
 
   // Binary toggle judged against the operation scope only: collapsed state of
   // out-of-scope keys must not flip the button (e.g. a group collapsed in
@@ -253,10 +251,11 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
       hiddenSessionIds,
       searchQuery,
       specialFilters,
+      adapterFilters,
       activeWorkspaceId,
       matchingSessionIds,
     }),
-    [sessions, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId, matchingSessionIds],
+    [sessions, hiddenSessionIds, searchQuery, specialFilters, adapterFilters, activeWorkspaceId, matchingSessionIds],
   );
   const selectableIds = useMemo(
     () => selectableSessions.map((session) => session.id),
@@ -476,69 +475,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           {/* Search + tools bar */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border-muted bg-bg-secondary">
             <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter..." label="session" />
-            <div className="relative">
-              <button
-                onClick={() => setShowFilterMenu((v) => !v)}
-                className={`flex items-center gap-1 p-1 rounded transition-colors ${
-                  specialFilters.size > 0
-                    ? 'text-accent bg-accent/10'
-                    : 'text-text-tertiary hover:text-text-primary'
-                }`}
-                title="Special filters"
-                aria-haspopup="menu"
-                aria-expanded={showFilterMenu}
-              >
-                <ListFilter size={14} />
-                {specialFilters.size > 0 && (
-                  <span className="text-[10px] leading-none font-medium">{specialFilters.size}</span>
-                )}
-              </button>
-              {showFilterMenu && (
-                <>
-                  {/* Click-away backdrop */}
-                  <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
-                  {/* z-40：本层必须压在 WorkspaceRail 之上。rail 外壳是 `relative z-30`
-                      的兄弟堆叠上下文，而 <aside> 是 `relative` + z-auto（不成堆叠上下文），
-                      于是两者同落在 App 的 `relative z-30` 外壳里；同为 30 时按 DOM 顺序
-                      决胜，后出现的 rail 面板（bg-bg-secondary，不透明）会盖住本层伸入
-                      rail 的右半部分（w-64 从筛选按钮左沿起算，宽于侧栏）。提到 40 即可
-                      在该上下文内胜出，且仍受该上下文约束，不会盖住挂在 <body> 的
-                      z-40/z-50 portal Modal。 */}
-                  <div
-                    role="menu"
-                    className="absolute left-0 top-full mt-1 z-40 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
-                  >
-                    {SPECIAL_FILTERS.map((f) => (
-                      <label
-                        key={f.id}
-                        role="menuitemcheckbox"
-                        aria-checked={specialFilters.has(f.id)}
-                        className="flex items-start gap-2 px-3 py-1.5 cursor-pointer hover:bg-bg-hover/40 select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={specialFilters.has(f.id)}
-                          onChange={() => toggleSpecialFilter(f.id)}
-                          className="mt-0.5 accent-accent shrink-0"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs text-text-primary">{f.label}</span>
-                          <span className="block text-[10px] text-text-tertiary leading-tight">{f.description}</span>
-                        </span>
-                      </label>
-                    ))}
-                    {specialFilters.size > 0 && (
-                      <button
-                        onClick={clearSpecialFilters}
-                        className="w-full text-left px-3 py-1.5 mt-1 text-xs text-text-tertiary hover:text-text-primary border-t border-border-muted"
-                      >
-                        Clear filters
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+            <SessionFilterMenu />
             <div ref={sortMenuRef} className="relative">
               <button
                 onClick={handleSortClick}

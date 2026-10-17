@@ -115,6 +115,46 @@ export function matchesSpecialFilters(
   return true;
 }
 
+/**
+ * Adapter-group filter ids are the Sessions' own adapter names, collected from
+ * the live session list — never a hardcoded registry that can go stale.
+ */
+export type AdapterFilterId = string;
+
+/**
+ * Distinct adapter names present on the given sessions, in stable order.
+ *
+ * Derived from the real list being filtered, so an option always has at least
+ * one session behind it and a newly appearing adapter shows up on its own.
+ * Blank/missing adapters are skipped: they cannot be expressed as a selection.
+ */
+export function collectAdapterOptions(sessions: Session[]): AdapterFilterId[] {
+  const names = new Set<string>();
+  for (const session of sessions) {
+    const adapter = session.adapter?.trim();
+    if (adapter) names.add(adapter);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * True when the session passes the Adapter group.
+ *
+ * Selections inside the group are OR-ed (any selected adapter matches). An
+ * empty — or absent, for legacy callers — selection filters nothing. A session
+ * with no adapter can never match an active selection; a stale selection id
+ * (an adapter that no longer exists) simply matches nothing.
+ */
+export function matchesAdapterFilter(
+  session: Session,
+  selectedAdapters?: Set<AdapterFilterId> | null,
+): boolean {
+  if (!selectedAdapters || selectedAdapters.size === 0) return true;
+  const adapter = session.adapter?.trim();
+  if (!adapter) return false;
+  return selectedAdapters.has(adapter);
+}
+
 /** Workspace scope key: 'all' / 'ungrouped' / a workspace id. */
 export const ALL_WORKSPACES = 'all';
 export const UNGROUPED_WORKSPACES = 'ungrouped';
@@ -272,6 +312,21 @@ export function workspaceMatchesSpecialFilters(
   return true;
 }
 
+/**
+ * Workspace-level Adapter aggregation, mirroring
+ * {@link workspaceMatchesSpecialFilters}: the group is ONE condition with
+ * OR semantics inside it, so the Workspace matches when ANY selected adapter
+ * is carried by at least one effective member. An empty selection imposes no
+ * constraint (the historical, unfiltered rail).
+ */
+export function workspaceMatchesAdapterFilter(
+  members: Session[],
+  selectedAdapters?: Set<AdapterFilterId> | null,
+): boolean {
+  if (!selectedAdapters || selectedAdapters.size === 0) return true;
+  return members.some((session) => matchesAdapterFilter(session, selectedAdapters));
+}
+
 /** Which workspace-rail rows stay visible under its name query and shared filters. */
 export interface WorkspaceRowVisibility {
   /** Real workspace rows to render, in store order. */
@@ -288,12 +343,14 @@ export interface WorkspaceRowVisibility {
  * - A real workspace row shows when its NAME matches the keyword AND the
  *   workspace satisfies every active status filter ({@link
  *   workspaceMatchesSpecialFilters}: per-filter any() over the ACTUAL effective
- *   members, then AND — never derived from the keyword-filtered Session list).
+ *   members, then AND — never derived from the keyword-filtered Session list)
+ *   AND the Adapter group ({@link workspaceMatchesAdapterFilter}: any selected
+ *   adapter carried by some member; cross-group AND with the status filters).
  * - Virtual scopes ignore the workspace keyword (they have no workspace name).
  *   Their existing per-Session status matching stays unchanged: 'all' covers
  *   every session, 'ungrouped' only sessions without membership.
- * - Collapsed, or with no keyword and no status filter active, every row
- *   keeps its original visibility.
+ * - Collapsed, or with no keyword and no status/adapter filter active, every
+ *   row keeps its original visibility.
  *
  * `membersByWorkspace` / `ungroupedMembers` are the caller's already-resolved
  * effective memberships (see {@link effectiveWorkspaceIds}); passing them in
@@ -307,6 +364,8 @@ export function computeWorkspaceRowVisibility(
     expanded: boolean;
     searchQuery: string;
     specialFilters: Set<SpecialFilterId>;
+    /** Adapter-group selections (OR within the group, AND across groups). */
+    adapterFilters?: Set<AdapterFilterId> | null;
     /** Effective member sessions per workspace id (inheritance applied). */
     membersByWorkspace: Map<string, Session[]>;
     /** Sessions with no effective workspace membership. */
@@ -315,7 +374,9 @@ export function computeWorkspaceRowVisibility(
 ): WorkspaceRowVisibility {
   const everything: WorkspaceRowVisibility = { workspaces, showAll: true, showUngrouped: true };
   if (!options.expanded) return everything;
-  if (!options.searchQuery.trim() && options.specialFilters.size === 0) return everything;
+  if (!options.searchQuery.trim() && options.specialFilters.size === 0 && !options.adapterFilters?.size) {
+    return everything;
+  }
 
   const visibleWorkspaces = workspaces.filter(
     (workspace) =>
@@ -324,10 +385,15 @@ export function computeWorkspaceRowVisibility(
         options.membersByWorkspace.get(workspace.id) ?? [],
         sessions,
         options.specialFilters,
+      ) &&
+      workspaceMatchesAdapterFilter(
+        options.membersByWorkspace.get(workspace.id) ?? [],
+        options.adapterFilters,
       ),
   );
   const sessionMatches = (session: Session) =>
-    matchesSpecialFilters(session, sessions, options.specialFilters);
+    matchesSpecialFilters(session, sessions, options.specialFilters) &&
+    matchesAdapterFilter(session, options.adapterFilters);
   return {
     workspaces: visibleWorkspaces,
     showAll: sessions.some(sessionMatches),
@@ -341,6 +407,13 @@ export function computeWorkspaceRowVisibility(
  * while search and special filters keep their usual meaning. Grouping and
  * collapsed groups are intentionally not inputs: selection covers the full
  * filtered result, not only cards currently present in the DOM.
+ *
+ * Filter combination semantics (shared by every caller):
+ *   - Adapter group: OR inside the group (any selected adapter);
+ *   - State group (special filters): the existing AND semantics, unchanged;
+ *   - Across groups (and with the keyword/workspace scope): AND.
+ * `adapterFilters` is optional so legacy callers without the option keep
+ * their exact previous behavior (no adapter filtering).
  */
 export function getSessionListCandidates(
   sessions: Session[],
@@ -349,6 +422,8 @@ export function getSessionListCandidates(
     hiddenSessionIds: Set<string>;
     searchQuery: string;
     specialFilters: Set<SpecialFilterId>;
+    /** Adapter-group selections; omitted/empty filters nothing. */
+    adapterFilters?: Set<AdapterFilterId> | null;
     /** Active workspace scope ('all' keeps the historical full list). */
     activeWorkspaceId?: string | null;
     matchingSessionIds?: Set<string> | null;
@@ -360,7 +435,8 @@ export function getSessionListCandidates(
     : inScope.filter((session) => !options.hiddenSessionIds.has(session.id));
 
   let candidates = base.filter((session) =>
-    matchesSpecialFilters(session, sessions, options.specialFilters),
+    matchesSpecialFilters(session, sessions, options.specialFilters) &&
+    matchesAdapterFilter(session, options.adapterFilters),
   );
   if (options.searchQuery.trim()) {
     candidates = candidates.filter((session) =>

@@ -129,7 +129,7 @@ def test_create_max_thinking_tokens_rejected(monkeypatch):
 def test_codex_context_settings_are_optional_and_not_synthesized(monkeypatch):
     _cleanup()
     _patch_caps(monkeypatch)
-    monkeypatch.setattr(srv, "_resolve_mcp_server_configs", lambda _: [])
+    monkeypatch.setattr(srv, "_character_manager", _manifest_manager())
     suffix = uuid.uuid4().hex[:8]
     with patch.object(srv, "broadcast", new=AsyncMock()):
         default = asyncio.run(srv.api_create_session(
@@ -542,6 +542,17 @@ def test_mcp_non_string_name_rejected(monkeypatch):
     monkeypatch.setattr(srv, "_character_manager", _manifest_manager())
     with pytest.raises(ValueError, match="Invalid MCP server name"):
         srv._resolve_mcp_server_configs([123])
+    _cleanup()
+
+
+@pytest.mark.parametrize("name", [123, {}, [], "", " "])
+def test_mcp_invalid_names_rejected_before_hashing_without_config_mutation(monkeypatch, name):
+    monkeypatch.setattr(srv, "_character_manager", _manifest_manager())
+    s = _make("ses-invalid-mcp-name", "invalid-name")
+    before = dict(s.adapter_config)
+    with pytest.raises(ValueError, match="Invalid MCP server name"):
+        srv._apply_mcp_servers(s, [name])
+    assert s.adapter_config == before
     _cleanup()
 
 

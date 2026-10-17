@@ -7,7 +7,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { fetchSession } from '@/services/api';
-import type { AdapterConfig, Session } from '@/types';
+import type { AdapterConfig, Session, DelayedRestartState } from '@/types';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
 
 vi.mock('@/services/api', async () => {
@@ -80,8 +80,25 @@ function setup(session = makeSession(), config = codexConfig) {
 describe('Codex context settings in SettingsPopover', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(useWorkerStore.getState(), 'refreshDelayedRestart').mockResolvedValue();
+    useWorkerStore.setState({ delayedRestarts: {} });
     useNativeControlStore.setState({ sessions: {}, switching: {} });
   });
+
+  it.each(['pending', 'restarting', 'completed', 'failed', 'cancelled'] as const)(
+    'explains %s and preserves the duplicate guard without blocking terminal retries', async (status) => {
+      const intent: DelayedRestartState = { sessionId: 'session-1', workerId: 'worker-1',
+        generation: 1, revision: 1, action: 'restart', status, error: status === 'failed' ? 'spawn failed' : null };
+      useWorkerStore.setState({ delayedRestarts: { 'session-1': intent } });
+      setup();
+      const name = status === 'pending' ? '◷ Delayed restart pending'
+        : status === 'restarting' ? '◷ Restarting worker…' : '◷ Delayed restart';
+      const button = await screen.findByRole('button', { name });
+      expect(button.hasAttribute('disabled')).toBe(status === 'pending' || status === 'restarting');
+      if (status === 'pending') expect(button.title).toContain('pending');
+      if (status === 'restarting') expect(button.title).toContain('Restarting');
+    },
+  );
 
   it('offers Session downgrade in Worker Settings and uses delayed configuration, not immediate restart', async () => {
     const session = { ...makeSession(), nativeControl: true };

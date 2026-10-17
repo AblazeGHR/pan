@@ -218,6 +218,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     searchQuery,
     sortBy,
     specialFilters,
+    adapterFilters,
     hiddenSessionIds,
     collapsedGroups,
     customOrder,
@@ -232,6 +233,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     searchQuery: s.searchQuery,
     sortBy: s.sortBy,
     specialFilters: s.specialFilters,
+    adapterFilters: s.adapterFilters,
     hiddenSessionIds: s.hiddenSessionIds,
     collapsedGroups: s.collapsedGroups,
     customOrder: s.customOrder,
@@ -321,6 +323,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       hiddenSessionIds,
       searchQuery,
       specialFilters,
+      adapterFilters,
       activeWorkspaceId,
       matchingSessionIds,
     })];
@@ -402,7 +405,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       scopedSessions.every((session) => hiddenSessionIds.has(session.id));
 
     return { filtered: pinnedOrdered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, customOrder, effectiveGroupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId, matchingSessionIds]);
+  }, [sessions, searchQuery, sortBy, customOrder, effectiveGroupBy, specialFilters, adapterFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId, matchingSessionIds]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
@@ -1218,7 +1221,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
   }
 
-  if (filtered.length === 0 && (searchQuery.trim() || specialFilters.size > 0)) {
+  if (filtered.length === 0 && (searchQuery.trim() || specialFilters.size > 0 || adapterFilters.size > 0)) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <p className="text-sm text-text-tertiary">No matching sessions</p>

@@ -25,6 +25,7 @@ function mockMatchMedia(matches = false) {
 
 beforeEach(() => {
   mockMatchMedia();
+  vi.spyOn(api, 'requestDelayedRestart').mockResolvedValue(null);
   useSessionStore.setState({
     currentSessionId: 'session-123456789',
     sessions: [{
@@ -36,6 +37,7 @@ beforeEach(() => {
   useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
   useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useWorkerStore.setState({
+    delayedRestarts: {},
     currentWorker: {
       id: 'worker-123', sessionId: 'session-123456789', status: 'running',
       nativeStatus: { type: 'active', activeFlags: ['waitingOnApproval'] },
@@ -54,6 +56,21 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('recovers a missed restart completion when returning to a running Session', async () => {
+    const sid = 'session-123456789';
+    const pending = { sessionId: sid, workerId: 'worker-123', generation: 1,
+      revision: 1, action: 'restart' as const, status: 'pending' as const, error: null };
+    vi.mocked(api.requestDelayedRestart).mockResolvedValue(pending);
+    render(<TopBar />);
+    await waitFor(() => expect(screen.getByTitle('Delayed restart pending: waiting for task completion').hasAttribute('disabled')).toBe(true));
+    act(() => useSessionStore.setState((state) => ({
+      sessions: [...state.sessions, { id: 'other', name: 'Other', history: [], alwaysThinkingEnabled: false, effort: '' }], currentSessionId: 'other',
+    })));
+    vi.mocked(api.requestDelayedRestart).mockResolvedValue({ ...pending, revision: 3, status: 'completed' });
+    act(() => useSessionStore.setState({ currentSessionId: sid }));
+    await waitFor(() => expect(screen.getByTitle('Delayed restart: after task completion, before queued work').hasAttribute('disabled')).toBe(false));
+    expect(api.requestDelayedRestart).toHaveBeenLastCalledWith(sid, 'GET');
+  });
   it('offers Terminal TUI for every Codex Session and cancellation never upgrades it', async () => {
     useSessionStore.setState((state) => ({ sessions: state.sessions.map((s) => ({ ...s, adapter: 'codex', nativeControl: false })) }));
     vi.spyOn(useNativeControlStore.getState(), 'refresh').mockResolvedValue();
