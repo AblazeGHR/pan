@@ -1,0 +1,62 @@
+{
+  "port": 5173,
+  "writes": [
+    {
+      "id": "ses_a",
+      "patch": {
+        "pluginBindings": [
+          {
+            "plugin_id": "qq",
+            "enabled": true,
+            "mode": "pan_native"
+          }
+        ],
+        "expectedPluginRevision": 0
+      }
+    },
+    {
+      "id": "ses_a",
+      "patch": {
+        "pluginBindings": [
+          {
+            "plugin_id": "qq",
+            "enabled": false,
+            "mode": "pan_native"
+          }
+        ],
+        "expectedPluginRevision": 1
+      }
+    },
+    {
+      "id": "ses_a",
+      "patch": {
+        "pluginBindings": [
+          {
+            "plugin_id": "qq",
+            "enabled": true,
+            "mode": "pan_native"
+          }
+        ],
+        "expectedPluginRevision": 2
+      }
+    },
+    {
+      "id": "ses_b",
+      "patch": {
+        "pluginBindings": [
+          {
+            "plugin_id": "qq",
+            "enabled": true,
+            "mode": "gateway"
+          }
+        ],
+        "expectedPluginRevision": 0
+      }
+    }
+  ],
+  "errors": [],
+  "desktop": true,
+  "mobile": true,
+  "productionComponent": "ManageSessionsPanel",
+  "backend": "isolated stateful API fixture"
+}

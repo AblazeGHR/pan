@@ -20,13 +20,15 @@ def test_default_root_manifest_loads_pan_and_pan_qq_without_config_file(monkeypa
     config = load_manifests(["manifest.json"])
     servers = {server.name: server for server in config.mcp_servers}
 
-    assert {entry["name"] for entry in data["mcp_servers"]} == {"pan", "pan-qq", "pan-wechat"}
-    assert set(servers) == {"pan", "pan-qq", "pan-wechat"}
+    assert {entry["name"] for entry in data["mcp_servers"]} == {"pan", "qq", "pan-wechat"}
+    assert set(servers) == {"pan", "qq", "pan-wechat"}
     assert servers["pan"].command == sys.executable
     assert servers["pan"].args == ["-m", "packages.mcp.server"]
     assert servers["pan"].cwd == str(REPO_ROOT)
-    assert servers["pan-qq"].args == ["-m", "packages.qq.mcp"]
-    assert servers["pan-qq"].cwd == str(REPO_ROOT)
+    assert servers["qq"].args == ["-m", "packages.qq.mcp"]
+    assert servers["qq"].cwd == str(REPO_ROOT)
+    from packages.plugins.catalog import Catalog
+    assert Catalog(config).get("pan-qq").id == "qq"
 
 
 def test_root_manifest_pan_respects_pan_python_override(monkeypatch):
@@ -43,7 +45,7 @@ def test_root_and_package_manifests_deduplicate_builtin_mcp_servers(monkeypatch)
     config = load_manifests(["manifest.json", "packages/mcp/manifest.json"])
 
     assert [server.name for server in config.mcp_servers].count("pan") == 1
-    assert [server.name for server in config.mcp_servers].count("pan-qq") == 1
+    assert [server.name for server in config.mcp_servers].count("qq") == 1
     # The later package manifest wins by the documented loader rule, while
     # still resolving to the same shared interpreter and repo-root cwd as the
     # root declaration — so the combined catalog matches the root-only config.

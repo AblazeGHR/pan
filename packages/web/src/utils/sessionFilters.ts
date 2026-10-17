@@ -73,7 +73,10 @@ export function hasSubagents(session: Session, allSessions: Session[]): boolean 
  * stale server entry must not count as an active MetaAgent mount.
  */
 export function isMetaAgent(session: Session): boolean {
-  if (!session.mcpServers?.includes('pan')) return false;
+  const coreEnabled = session.pluginBindings
+    ? session.pluginBindings.some((binding) => binding.plugin_id === 'pan' && binding.enabled)
+    : session.mcpServers?.includes('pan');
+  if (!coreEnabled) return false;
   if (session.mcpLockReason === 'never') return false;
   return true;
 }

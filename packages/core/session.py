@@ -2392,7 +2392,9 @@ def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
 def _save_body(s: Session, force_full: bool = False, *,
                unread_done_read_generation: int | None = None,
                unread_done_generation: int | None = None,
-               unread_recording_override: object = _UNREAD_OVERRIDE_UNSET):
+               unread_recording_override: object = _UNREAD_OVERRIDE_UNSET,
+               adapter_config_override: dict | None = None,
+               adapter_config_publish_keys: frozenset[str] | None = None):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2415,11 +2417,14 @@ def _save_body(s: Session, force_full: bool = False, *,
     metadata = s
     if (unread_done_read_generation is not None
             or unread_done_generation is not None
-            or unread_recording_override is not _UNREAD_OVERRIDE_UNSET):
+            or unread_recording_override is not _UNREAD_OVERRIDE_UNSET
+            or adapter_config_override is not None):
         # Stage unread-policy state in the metadata projection, not the shared
         # Session.  Readers and unrelated writes cannot observe or persist a
         # cursor/override that has not committed successfully.
         metadata = copy.copy(s)
+        if adapter_config_override is not None:
+            metadata.adapter_config = copy.deepcopy(adapter_config_override)
         generation = max(0, int(s.unread_done_generation or 0))
         read_generation = max(0, int(s.unread_done_read_generation or 0))
         if unread_done_generation is not None:
@@ -2476,9 +2481,24 @@ def _save_body(s: Session, force_full: bool = False, *,
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot
         # overwrite the just-committed cursor with its previous value.
-        s.unread_done_generation = metadata.unread_done_generation
-        s.unread_done_read_generation = metadata.unread_done_read_generation
-        s.unread_done_count = metadata.unread_done_count
+        if (unread_done_read_generation is not None or unread_done_generation is not None
+                or unread_recording_override is not _UNREAD_OVERRIDE_UNSET):
+            s.unread_done_generation = metadata.unread_done_generation
+            s.unread_done_read_generation = metadata.unread_done_read_generation
+            s.unread_done_count = metadata.unread_done_count
+        if adapter_config_override is not None:
+            if adapter_config_publish_keys is None:
+                s.adapter_config = metadata.adapter_config
+            else:
+                # Worker native cursors may advance while the file write is
+                # blocked. Publish only the settings changed by this request.
+                published = dict(s.adapter_config)
+                for key in adapter_config_publish_keys:
+                    if key in metadata.adapter_config:
+                        published[key] = metadata.adapter_config[key]
+                    else:
+                        published.pop(key, None)
+                s.adapter_config = published
         if unread_recording_override is not _UNREAD_OVERRIDE_UNSET:
             s.unread_recording_override = metadata.unread_recording_override
         # Reconcile with the live projection instead of replacing it: history
@@ -2633,6 +2653,29 @@ async def save_async(s: Session, *, force_full: bool = False, outcome: DurableOu
     if outcome is not None:
         return await _persist_async_outcome(s.id, lambda: _save_body(s, force_full=force_full), outcome)
     return await _persist_async(s.id, lambda: _save_body(s, force_full=force_full))
+
+
+async def commit_adapter_config_async(s: Session, adapter_config: dict,
+                                      *, previous_config: dict | None = None,
+                                      outcome: DurableOutcome | None = None):
+    """Publish plugin/connection settings only after their atomic file commit.
+
+    The shared Session stays on its old config while this ticket waits or
+    writes. Other readers and writers cannot see an uncommitted selection.
+    """
+    staged = copy.deepcopy(adapter_config)
+    previous = previous_config if previous_config is not None else s.adapter_config
+    changed = frozenset(key for key in previous.keys() | staged.keys()
+                        if (key not in previous or key not in staged or previous[key] != staged[key]))
+    def commit():
+        merged = dict(s.adapter_config)
+        for key in changed:
+            if key in staged:
+                merged[key] = staged[key]
+            else:
+                merged.pop(key, None)
+        return _save_body(s, adapter_config_override=merged, adapter_config_publish_keys=changed)
+    return await _persist_async_outcome(s.id, commit, outcome)
 
 
 async def ack_unread_done_async(s: Session, read_generation: int):

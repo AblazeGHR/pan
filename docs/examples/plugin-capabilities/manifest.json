@@ -1,0 +1,19 @@
+{
+  "mcp_servers": [
+    {
+      "name": "example-provider",
+      "command": "${PAN_PYTHON}",
+      "args": ["${PLUGIN_DIR}/provider.py"],
+      "cwd": "${PLUGIN_DIR}"
+    }
+  ],
+  "plugins": [
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "example",
+      "display_name": "Example API Provider",
+      "source": {"kind": "pan_api", "capabilities_file": "capabilities.json"},
+      "exposure": {"supported_modes": ["standalone", "pan_native", "gateway"], "default_mode": "gateway"}
+    }
+  ]
+}

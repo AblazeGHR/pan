@@ -1,0 +1,21 @@
+{
+  "protocol": "pan-capability/v1",
+  "plugin_id": "example",
+  "provider": {"transport": "stdio_jsonrpc", "command_ref": "example-provider"},
+  "capabilities": [
+    {
+      "id": "example.lookup",
+      "export_key": "lookup",
+      "description": "Look up a demonstration item in an in-memory table.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"item_id": {"type": "string"}},
+        "required": ["item_id"],
+        "additionalProperties": false
+      },
+      "execution": {"operation": "lookup"}
+    }
+  ]
+}

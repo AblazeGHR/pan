@@ -1485,11 +1485,9 @@ def reopen_after_failed_shutdown() -> None:
 
 
 def _mcp_configured(s: _sess.Session | None) -> bool:
-    """Session 是否配置了 MCP 工具（mcp_servers 非空）。
-
-    mcp_servers 是唯一事实源：非空即启用（单一事实源收敛立项）。
-    MCP 是叠加属性：与 worker 的执行模式（output_mode）独立。
-    """
+    """Use v2 logical bindings, or legacy descriptors, independently of output mode."""
+    if s and "plugin_bindings" in s.adapter_config:
+        return any(binding.get("enabled") for binding in s.adapter_config["plugin_bindings"])
     return bool(s and s.adapter_config.get("mcp_servers"))
 
 

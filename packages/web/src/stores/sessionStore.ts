@@ -219,6 +219,7 @@ interface SessionStore {
       modelAutoCompactTokenLimit?: number;
       systemPrompt?: string;
       mcpServers?: string[];
+      pluginBindings?: import('@/types').PluginBinding[];
       panAccess?: import('@/types').PanAccess;
       workspaceIds?: string[];
     },

@@ -499,7 +499,7 @@ class CharacterManager:
 
                     for field in (
                         "adapter", "model", "permission_mode", "system_prompt",
-                        "mcp_mode", "mcp_servers",
+                        "mcp_mode", "mcp_servers", "plugin_bindings",
                     ):
                         if field in base_entry:
                             effective_payload[field] = copy.deepcopy(base_entry[field])
@@ -523,6 +523,12 @@ class CharacterManager:
                         effective_payload["pan_access"] = merged_access
 
                 request_payload = dict(payload)
+                # The v2 logical selection replaces the legacy list, including
+                # when an explicitly empty selection is saved over a base.
+                if "plugin_bindings" in request_payload:
+                    effective_payload.pop("mcp_servers", None)
+                elif "mcp_servers" in request_payload:
+                    effective_payload.pop("plugin_bindings", None)
                 request_access = request_payload.pop("pan_access", None)
                 has_request_access = "pan_access" in payload
                 effective_payload.update(request_payload)

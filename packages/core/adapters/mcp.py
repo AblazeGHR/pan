@@ -31,10 +31,11 @@ _TRANSPORT_KEYS = (
 _PAN_SERVER_MODULES = {
     "pan": "packages.mcp.server",
     "pan-qq": "packages.qq.mcp",
+    "qq": "packages.qq.mcp",
     "pan-wechat": "packages.wechat.mcp",
 }
 # 需要注入 MA session 身份的 pan 系 server（worker_send 打标 / qq 订阅，立项 4.8）
-_PAN_IDENTITY_SERVERS = ("pan", "pan-qq")
+_PAN_IDENTITY_SERVERS = ("pan", "pan-qq", "qq", "pan-tools")
 _PAN_API_SERVERS = tuple(_PAN_SERVER_MODULES)
 _PAN_SESSION_ID_ENV = "PAN_AGENT_SESSION_ID"
 _PAN_SESSION_TITLE_ENV = "PAN_AGENT_SESSION_TITLE"
@@ -48,6 +49,8 @@ def _pan_module_for_entry(name: str, entry: dict) -> str | None:
     """Return the known module only when this is its stdio descriptor."""
     module = _PAN_SERVER_MODULES.get(name)
     args = entry.get("args") or []
+    if isinstance(args, (list, tuple)) and "packages.plugins.mcp" in args:
+        module = "packages.plugins.mcp"
     if not module or not isinstance(args, (list, tuple)):
         return None
     try:
@@ -66,7 +69,7 @@ def _refresh_pan_python_entry(name: str, entry: dict) -> None:
     first-party module entries at generation time makes a config reload apply
     to a later worker respawn too, without changing unrelated user MCPs.
     """
-    if name not in _PAN_API_SERVERS or not entry.get("command"):
+    if not entry.get("command"):
         return
     module = _pan_module_for_entry(name, entry)
     if not module:
@@ -122,6 +125,14 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
     无 mcp_servers 配置时返回空 dict（调用方据此决定不写文件/不返回 flag）。
     """
     servers = s.adapter_config.get("mcp_servers")
+    if s.adapter_config.get("plugin_config_version") == 2:
+        # Recompile from the logical selection at startup: an idle restart
+        # must pick up a changed standalone URL/command in the manifest.
+        from ..config import DEFAULT_PLUGIN_MANIFESTS, load_config
+        from ..manifest_loader import load_manifests
+        from packages.plugins.catalog import Catalog
+        manifest = load_manifests(load_config().get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS))
+        servers = Catalog(manifest).compile(s.adapter_config.get("plugin_bindings", []))
     if not servers:
         return {}
     mcp_servers: dict[str, dict] = {}
@@ -137,14 +148,17 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
             raise ValueError(
                 f"MCP server {name!r} has no command or URL configured"
             )
-        if name in _PAN_API_SERVERS and _pan_module_for_entry(name, entry):
+        module = _pan_module_for_entry(name, entry)
+        if module:
             entry["cwd"] = str(_PROJECT_ROOT)
             env = _pan_runtime_env(entry)
         else:
             env = dict(entry.get("env") or {})
-        if name in _PAN_IDENTITY_SERVERS:
+        if name in _PAN_IDENTITY_SERVERS or module == "packages.plugins.mcp":
             env[_PAN_SESSION_ID_ENV] = s.id
             env[_PAN_SESSION_TITLE_ENV] = s.name
+            if module == "packages.plugins.mcp" and os.environ.get("PAN_PLUGIN_IPC"):
+                env["PAN_PLUGIN_IPC"] = os.environ["PAN_PLUGIN_IPC"]
             entry["env"] = env
         elif name in _PAN_API_SERVERS and env:
             entry["env"] = env
