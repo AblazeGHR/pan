@@ -2,7 +2,6 @@
   "baseline": "5d20e72bf44f8cdb46bf8629f4772fb3b393863a",
   "reviewCommit": "1e50493441202e7db0e17794eaca1b46c12a7753",
   "files": {
-    "docs/design/PAN_LEGAL_OFFLINE_ILLEGAL_LOCK_AGENT_TASK.md": "ea0ed261c0b678a57875fb2756b631b8e68e1dd502efe16d05e52977ef5e9724",
     "packages/core/legal_offline.py": "bc719b4767ef6c14243bac63aad4a1b218e228b99d76ea4d3cfdb00ad5dd222d",
     "packages/core/queue_locks.py": "99ac9517e301dfcbb0d8052df50ebec5048a62ae975e762ad02a9446f0dceacc",
     "packages/core/session.py": "05fddefa117e8b5b2b92c8fa3b63bfe241ff474970e8e2221d615f226031b388",
@@ -25,6 +24,7 @@
     "tests/test_legal_offline_browser.py": "bf58c45c45e7982967f58d0fbe450faddf46f784c6f578e962855497c1a1d5a3",
     "tests/test_legal_offline_http.py": "4e5815f57c8f8f3247b92380d8cf0b799099072344cb024e1acfe0b1b2aa117b",
     "tests/test_native_control_api.py": "d28c78e0d3ace24147b887e48e83398037051673eed453162ba1d1ceb84ca9ba",
-    "tests/test_session_queue_api.py": "d650e1636c3243708dbaaf93adbdf13340562ba82e13b3ab2137d20ec71c0f73"
+    "tests/test_session_queue_api.py": "d650e1636c3243708dbaaf93adbdf13340562ba82e13b3ab2137d20ec71c0f73",
+    "docs/design/PAN_LEGAL_OFFLINE_ILLEGAL_LOCK_AGENT_TASK_REVISED_20261018.md": "ea0ed261c0b678a57875fb2756b631b8e68e1dd502efe16d05e52977ef5e9724"
   }
 }
