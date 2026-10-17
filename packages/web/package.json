@@ -22,6 +22,7 @@
     "e2e:view-entry-groups-touch": "node e2e/view-entry-groups-touch.e2e.mjs",
     "e2e:jobs-running-badge": "node e2e/jobs-running-badge.e2e.mjs",
     "e2e:session-job-badge": "node e2e/session-job-badge.e2e.mjs",
+    "e2e:session-card-height": "node e2e/session-card-height.e2e.mjs",
     "e2e:jobs-badge-real": "node e2e/jobs-badge-real.e2e.mjs",
     "e2e:mobile-navigation-scrub": "node e2e/mobile-message-navigation-scrub.e2e.mjs",
     "e2e:navigation-jump-highlight": "node e2e/navigation-tag-jump-highlight.e2e.mjs",

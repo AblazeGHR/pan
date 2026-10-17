@@ -388,11 +388,16 @@ export const SessionItem = memo(function SessionItem({
           )}
         </div>
 
-        {preview && (
-          <div className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">
-            {preview}
-          </div>
-        )}
+        {/* Always mounted so every card reserves exactly one preview row:
+            the same 15px line box (text-xs × leading-tight) used by a real
+            preview, with no placeholder text. Long previews keep truncating
+            to this single row. */}
+        <div
+          data-testid="session-preview-line"
+          className="text-xs text-text-tertiary truncate mt-0.5 leading-tight min-h-[1.25em]"
+        >
+          {preview ?? ''}
+        </div>
 
         <div className="flex items-center gap-2 mt-1 text-xs text-text-secondary">
           <span className="flex items-center gap-0.5">
