@@ -17,6 +17,7 @@ import { collectDescendantIds, hasManagedChildren } from '@/components/session/s
 import { SPECIAL_FILTERS, UNGROUPED_WORKSPACES, getSessionListCandidates } from '@/utils/sessionFilters';
 import { SidebarResizer } from './SidebarResizer';
 import { ViewEntryGroups } from './ViewEntryGroups';
+import { ViewEntryRail } from './ViewEntryRail';
 import { Button } from '@/components/ui/Button';
 import { SelectedSessionActions } from '@/components/session/SelectedSessionActions';
 import { WorkspaceManagerChangeConfirmationModal } from './WorkspaceManagerChangeConfirmationModal';
@@ -348,7 +349,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
   if (sidebarCollapsed && !isMobile) {
     return (
-      <nav className="flex flex-col items-center h-full bg-bg-secondary border-r border-border-default py-3 gap-2" style={{ width: 48 }}>
+      <nav aria-label="页面入口" className="flex flex-col items-center h-full bg-bg-secondary border-r border-border-default py-3 gap-2" style={{ width: 48 }}>
         <button
           onClick={toggleSidebar}
           className="text-text-tertiary hover:text-text-primary p-1.5 rounded transition-colors"
@@ -356,6 +357,11 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
         >
           <PanelLeft size={18} />
         </button>
+
+        {/* Page entries — same shared list as the expanded strip
+            (ViewEntryGroups), so the collapsed rail always covers every
+            view route with active state, tooltip and click navigation. */}
+        <ViewEntryRail />
 
         <div className="flex-1" />
 
