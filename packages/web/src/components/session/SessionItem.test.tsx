@@ -222,12 +222,17 @@ describe('SessionItem Job indicator (J)', () => {
     expect(badge!.getAttribute('data-job-state')).toBe('scheduled');
   });
 
-  it('hides J at mobile widths via the shared max-md strategy while numbers stay', () => {
+  it('keeps J out of viewport-based hiding (width decides, see SessionJobBadge)', () => {
     useJobStore.setState({
       jobs: [job({ jobId: 'm1', kind: 'background-process', status: 'running' })],
     });
     const { container } = render(<SessionItem session={session('preview')} isActive={false} />);
-    expect(jobBadge(container)!.className).toContain('max-md:hidden');
+    const badge = jobBadge(container)!;
+    // No max-md class: hiding is decided by the info-area width, not the
+    // viewport breakpoint (SessionJobBadge.test.tsx covers the width ladder).
+    expect(badge.className).not.toContain('max-md:hidden');
+    expect(badge.className).toContain('session-job-badge');
+    expect(badge.closest('[data-testid="session-quick-action-rail"]')).toBeTruthy();
   });
 
   it('aggregates multiple jobs into one J with running priority', () => {

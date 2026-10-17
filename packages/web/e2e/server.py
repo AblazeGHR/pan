@@ -213,6 +213,41 @@ def main() -> None:
             "unreadDoneCount": generation - read_generation,
         }
 
+    @server_module.app.post("/__e2e/queue")
+    async def e2e_queue(payload: dict = Body(...)):
+        """Seed durable queue_pending rows for card-badge crowding cases.
+
+        Mirrors ``/__e2e/unread``: it writes the same durable envelope shape a
+        real enqueue produces (``type: "task"`` + ``deliveryState: "queued"``),
+        bumps the monotonic ``queue_revision`` so the frontend merge accepts
+        the projection, and broadcasts the same ``session.updated`` event the
+        product emits after a real queue change. Every projection path under
+        test (the card badge and the fit decision that consumes it) stays real.
+        """
+        session_id = str(payload["sessionId"])
+        target = session_store.get(session_id)
+        if target is None:
+            return {"ok": False, "error": "session not found"}
+        count = max(0, int(payload.get("count", 0)))
+        seeded = [item for item in (target.queue_pending or [])
+                  if not str(item.get("id", "")).startswith("e2e-queue-")]
+        seeded.extend(
+            {
+                "id": f"e2e-queue-{index}",
+                "type": "task",
+                "text": f"e2e queue seed {index}",
+                "deliveryState": "queued",
+            }
+            for index in range(count)
+        )
+        target.queue_pending = seeded
+        target.queue_revision = getattr(target, "queue_revision", 0) + 1
+        session_store.save(target)
+        await server_module.broadcast(
+            {"type": "session.updated", "sessionId": session_id}
+        )
+        return {"ok": True, "queuePendingCount": count}
+
     @server_module.app.post("/__e2e/worker-legal-state")
     async def e2e_worker_legal_state(payload: dict = Body(...)):
         """Write the durable legal Worker state for illegal-state filter cases.

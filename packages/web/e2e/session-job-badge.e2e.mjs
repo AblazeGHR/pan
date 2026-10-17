@@ -1,14 +1,15 @@
 /* global localStorage, console, process, setTimeout */
-// Real-browser E2E for the Session info-area Job indicator (J).
-// Runs against the isolated e2e/server.py instance: real FastAPI routes, the
-// real /api/jobs backend, the real /ws broadcast path and the real React
-// build. Creates real Jobs (background-process + session-message) targeting
-// seeded fixture Sessions, then verifies the aggregated J badge:
-//   - running  -> blue (accent), same geometry/font as the numeric badges;
-//   - scheduled -> yellow (warning);
-//   - many jobs per Session aggregate into a single J, running wins;
-//   - mobile widths hide J (max-md) while numeric badges stay right-aligned;
-//   - a terminal/cancelled job removes the badge via the WS path.
+// Real-browser E2E for the Session info-area Job indicator (J) width-driven
+// visibility. Runs against the isolated e2e/server.py instance: real FastAPI
+// routes, the real /api/jobs backend, the real /ws broadcast path and the real
+// React build. Creates real Jobs (background-process + session-message)
+// targeting real Sessions, seeds durable queue/unread counts through the real
+// test-only routes, then verifies the fit decision with bounding boxes:
+//   - roomy desktop AND roomy mobile both show J (never viewport-disabled);
+//   - as the info area runs out of width, J disappears ENTIRELY — no leftover
+//     pill, no reserved gap — while the numeric badges stay complete and the
+//     row's right edge never moves;
+//   - multi-digit numbers, a long adapter and two-number rows decide by width.
 // Artifacts (screenshots + traces) land in the runtime artifacts directory.
 
 import assert from 'node:assert/strict';
@@ -92,8 +93,51 @@ async function createJob(page, payload) {
   return job;
 }
 
+async function createSession(page, name, adapter) {
+  const response = await page.request.post(`${baseURL}/api/sessions`, { data: { name, adapter } });
+  assert.equal(response.ok(), true, `POST /api/sessions failed: ${response.status()} ${await response.text()}`);
+  const session = await response.json();
+  assert.ok(session?.id, `session creation response missing id: ${JSON.stringify(session)}`);
+  assert.equal(session.adapter, adapter, `created session adapter must be ${adapter}`);
+  return session.id;
+}
+
+/** Durable unread-done count through the real test-only route (monotonic). */
+async function seedUnread(page, sessionId, advance) {
+  const response = await page.request.post(`${baseURL}/__e2e/unread`, {
+    data: { sessionId, advance },
+  });
+  assert.equal(response.ok(), true, `seed unread failed: ${response.status()}`);
+  return response.json();
+}
+
+/** Clear the durable unread-done count (read cursor == generation). */
+async function clearUnread(page, sessionId) {
+  const response = await page.request.post(`${baseURL}/__e2e/unread`, {
+    data: { sessionId, generation: 999, readGeneration: 999 },
+  });
+  assert.equal(response.ok(), true, `clear unread failed: ${response.status()}`);
+  const body = await response.json();
+  assert.equal(body.unreadDoneCount, 0, 'clear unread must zero the count');
+  return body;
+}
+
+/** Durable queue_pending rows through the real test-only route (real envelopes). */
+async function seedQueue(page, sessionId, count) {
+  const response = await page.request.post(`${baseURL}/__e2e/queue`, {
+    data: { sessionId, count },
+  });
+  assert.equal(response.ok(), true, `seed queue failed: ${response.status()}`);
+  const body = await response.json();
+  assert.equal(body.queuePendingCount, count, 'queue seed must report the seeded count');
+  return body;
+}
+
 const jobBadge = (page, sessionId) =>
   page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-job-badge"]`);
+
+const cardLocator = (page, sessionId) =>
+  page.locator(`[data-session-card-id="${sessionId}"]`);
 
 /** Computed style of one element, as a plain object. */
 async function styleOf(locator) {
@@ -114,45 +158,57 @@ async function styleOf(locator) {
   });
 }
 
-// ── Case 1: running background-process Job -> single blue J, geometry shared ──
+async function boxOf(locator) {
+  const box = await locator.boundingBox();
+  assert.ok(box, 'element must have a box');
+  return box;
+}
 
-await runCase('desktop running process job shows one blue J', DESKTOP, async (page) => {
-  const sessionId = await sessionIdOf(page, 'Alpha Session');
-  await createJob(page, {
-    kind: 'background-process',
-    name: 'e2e-session-job-running',
-    description: 'e2e: session info-area J indicator (running)',
-    target: { sessionId },
-    argv: [PYTHON, '-c', 'import time; time.sleep(120)'],
-    cwd: path.resolve(runtime),
-    hideWindow: true,
-  });
+const runningJob = (sessionId) => ({
+  kind: 'background-process',
+  name: 'e2e-session-job-running',
+  description: 'e2e: session info-area J indicator (running)',
+  target: { sessionId },
+  argv: [PYTHON, '-c', 'import time; time.sleep(120)'],
+  cwd: path.resolve(runtime),
+  hideWindow: true,
+});
+
+// ── Case 1: width ladder — J appears, disappears ENTIRELY, returns ──────────
+
+await runCase('desktop width ladder hides J entirely and keeps numbers right-aligned', DESKTOP, async (page) => {
+  const sessionId = await createSession(page, 'Delta Width', 'cbc');
+  await createJob(page, runningJob(sessionId));
+  await seedUnread(page, sessionId, 3); // "3" next to the (running) J
 
   const badge = jobBadge(page, sessionId);
+  const card = cardLocator(page, sessionId);
+  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
+  const row = page.locator(`[data-session-card-id="${sessionId}"] .session-quick-action-adapter-row`);
+  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
+  const adapter = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-adapter-badge"]`);
+  const queue = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-queue-badge"]`);
+
+  // (a) Roomy: J + done(3) + adapter(cbc) = 14 + 38 + 6 = 58 <= 71 -> visible.
   await badge.waitFor({ state: 'visible', timeout: 20000 });
   await page.waitForFunction(
-    (sid) => {
-      const el = document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`);
-      return el?.getAttribute('data-job-state') === 'running';
-    },
+    (sid) => document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`)
+      ?.getAttribute('data-job-state') === 'running',
     sessionId,
     { timeout: 20000 },
   );
-
-  // Exactly one aggregated J for the session.
-  assert.equal(await jobBadge(page, sessionId).count(), 1, 'running job must aggregate to a single J');
-
+  const jBoxA = await boxOf(badge);
+  const rowBoxA = await boxOf(row);
+  const railBoxA = await boxOf(rail);
+  const adapterBoxA = await boxOf(adapter);
+  const cardBoxA = await boxOf(card);
+  // Blue accent, geometry shared with the numeric badge.
   const jStyle = await styleOf(badge);
-  // Same visual language as the numeric badges: accent blue like the queue
-  // badge family, identical 14px pill / 9px bold geometry.
-  assert.match(jStyle.color, /^(rgb|oklch|color)/);
-  assert.equal(jStyle.fontSize, '9px', 'J must share the numeric badge font size');
-  assert.equal(jStyle.fontWeight, '700', 'J must share the numeric badge font weight');
-  assert.equal(jStyle.height, '14px', 'J must share the numeric badge height');
-  assert.equal(jStyle.borderRadius, '999px', 'J must share the numeric badge pill shape');
-
-  // Blue == the accent color the queue badge uses (running semantics).
-  const probe = await page.evaluate(() => {
+  const doneStyle = await styleOf(done);
+  for (const key of ['fontSize', 'fontWeight', 'height', 'borderRadius', 'letterSpacing']) {
+    assert.equal(jStyle[key], doneStyle[key], `J and numeric badge must share ${key}`);
+  }
+  const accent = await page.evaluate(() => {
     const el = document.createElement('span');
     el.style.color = 'var(--color-accent)';
     document.body.appendChild(el);
@@ -160,64 +216,165 @@ await runCase('desktop running process job shows one blue J', DESKTOP, async (pa
     el.remove();
     return color;
   });
-  assert.equal(jStyle.color, probe, `running J must be accent blue, got ${jStyle.color} vs ${probe}`);
+  assert.equal(jStyle.color, accent, `running J must be accent blue, got ${jStyle.color} vs ${accent}`);
+  // J is the left-most item; the row hugs the rail's right edge.
+  assert.ok(jBoxA.x < (await boxOf(done)).x, 'J must sit left of the numeric badge');
+  assert.ok(
+    Math.abs(rowBoxA.x + rowBoxA.width - (railBoxA.x + railBoxA.width)) < 4,
+    'the info-area row must hug the rail right edge',
+  );
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: path.join(artifacts, 'element-width-ladder-roomy.png') });
 
-  // Right-aligned inside the info-area rail on the card's right side.
-  const box = (await badge.boundingBox());
-  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
-  const card = (await cardLocator.boundingBox());
-  assert.ok(box.x + box.width <= card.x + card.width, 'J must stay inside the card');
-  assert.ok(box.x > card.x + card.width / 2, 'J must sit in the right-half info area');
+  // (b) A queue badge appears: J + queue(9) + done(3) + adapter = 75 > 71.
+  await seedQueue(page, sessionId, 1);
+  await expect(queue).toHaveText('1', { timeout: 10000 });
+  await badge.waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await jobBadge(page, sessionId).count(), 0, 'J must disappear entirely (no leftover pill)');
+  const rowBoxB = await boxOf(row);
+  // No reserved gap: the row shrinks by exactly the J width plus its gap.
+  const shrink = rowBoxA.width - rowBoxB.width;
+  assert.ok(
+    Math.abs(shrink - (jBoxA.width + 3)) < 0.75,
+    `row must shrink by exactly jWidth+gap, got ${shrink} vs ${jBoxA.width + 3}`,
+  );
+  // Right edge unmoved; numbers complete inside the rail.
+  const railBoxB = await boxOf(rail);
+  const adapterBoxB = await boxOf(adapter);
+  const queueBox = await boxOf(queue);
+  const doneBoxB = await boxOf(done);
+  assert.ok(
+    Math.abs((rowBoxB.x + rowBoxB.width) - (rowBoxA.x + rowBoxA.width)) < 0.75,
+    'the row right edge must not move when J hides',
+  );
+  assert.ok(
+    Math.abs((adapterBoxB.x + adapterBoxB.width) - (railBoxB.x + railBoxB.width)) < 4,
+    'the right-most identifier must stay right-aligned to the rail',
+  );
+  for (const [name, box] of [['queue', queueBox], ['done', doneBoxB]]) {
+    assert.ok(
+      box.x >= railBoxB.x - 0.5 && box.x + box.width <= railBoxB.x + railBoxB.width + 0.5,
+      `${name} badge must stay complete inside the rail`,
+    );
+  }
 
-  // Element-level visual evidence (the sidebar scrolls internally, so the
-  // full-page shot above may not include the card).
-  await cardLocator.scrollIntoViewIfNeeded();
-  await cardLocator.screenshot({ path: path.join(artifacts, 'element-desktop-running-j.png') });
+  // (c) Multi-digit numbers: still hidden, numbers still complete, right edge
+  // still unmoved.
+  await seedQueue(page, sessionId, 120);
+  await expect(queue).toHaveText('99+', { timeout: 10000 });
+  await seedUnread(page, sessionId, 120);
+  await expect(done).toHaveText('99+', { timeout: 10000 });
+  assert.equal(await jobBadge(page, sessionId).count(), 0, 'multi-digit crowding must keep J hidden');
+  const railBoxC = await boxOf(rail);
+  const adapterBoxC = await boxOf(adapter);
+  const queueBoxC = await boxOf(queue);
+  const doneBoxC = await boxOf(done);
+  assert.ok(
+    Math.abs((adapterBoxC.x + adapterBoxC.width) - (railBoxC.x + railBoxC.width)) < 4,
+    'the right-most identifier must stay right-aligned while crowded',
+  );
+  for (const [name, box] of [['queue', queueBoxC], ['done', doneBoxC]]) {
+    assert.ok(
+      box.x >= railBoxC.x - 0.5 && box.x + box.width <= railBoxC.x + railBoxC.width + 0.5,
+      `${name} badge must stay complete while crowded`,
+    );
+  }
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: path.join(artifacts, 'element-width-ladder-crowded.png') });
+
+  // (d) The numbers go away: 14 + 0 + 0 fits again -> J returns.
+  await seedQueue(page, sessionId, 0);
+  await expect(queue).toHaveCount(0, { timeout: 10000 });
+  await clearUnread(page, sessionId);
+  await expect(done).toHaveCount(0, { timeout: 10000 });
+  await badge.waitFor({ state: 'visible', timeout: 10000 });
+  assert.ok(jBoxA.x + jBoxA.width <= cardBoxA.x + cardBoxA.width, 'J must stay inside the card');
 });
 
-// ── Case 2: scheduled session-message Job -> yellow J ────────────────────────
+// ── Case 2: the adapter length decides with the same numbers ────────────────
 
-await runCase('desktop scheduled message job shows one yellow J', DESKTOP, async (page) => {
-  const sessionId = await sessionIdOf(page, 'Bravo Session');
-  await createJob(page, {
-    kind: 'session-message',
-    name: 'e2e-session-job-scheduled',
-    description: 'e2e: session info-area J indicator (scheduled)',
-    target: { sessionId },
-    text: 'e2e scheduled indicator probe',
-    schedule: { type: 'once', delaySeconds: 7200 },
-  });
+await runCase('desktop long adapter hides J where a short adapter shows it', DESKTOP, async (page) => {
+  const longId = await createSession(page, 'Delta Long Adapter', 'opencode');
+  const shortId = await createSession(page, 'Delta Short Adapter', 'cbc');
+  await createJob(page, runningJob(longId));
+  await createJob(page, runningJob(shortId));
+  await seedUnread(page, longId, 120);  // "99+"
+  await seedUnread(page, shortId, 120); // "99+"
 
-  const badge = jobBadge(page, sessionId);
-  await badge.waitFor({ state: 'visible', timeout: 20000 });
+  const longBadge = jobBadge(page, longId);
+  const shortBadge = jobBadge(page, shortId);
+  // Same numbers, different adapter: 14 + 64 + 6 = 84 > 71 vs 14 + 48 + 6 = 68.
+  await longBadge.waitFor({ state: 'detached', timeout: 20000 });
+  await shortBadge.waitFor({ state: 'visible', timeout: 20000 });
   await page.waitForFunction(
-    (sid) => {
-      const el = document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`);
-      return el?.getAttribute('data-job-state') === 'scheduled';
-    },
-    sessionId,
+    (sid) => document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`)
+      ?.getAttribute('data-job-state') === 'running',
+    shortId,
     { timeout: 20000 },
   );
-  assert.equal(await jobBadge(page, sessionId).count(), 1, 'scheduled job must aggregate to a single J');
+  assert.equal(await jobBadge(page, longId).count(), 0, 'long adapter must hide J');
 
-  const jStyle = await styleOf(badge);
-  // Yellow == the warning color the unread-done badge uses (scheduled semantics).
-  const probe = await page.evaluate(() => {
-    const el = document.createElement('span');
-    el.style.color = 'var(--color-warning)';
-    document.body.appendChild(el);
-    const color = getComputedStyle(el).color;
-    el.remove();
-    return color;
-  });
-  assert.equal(jStyle.color, probe, `scheduled J must be warning yellow, got ${jStyle.color} vs ${probe}`);
-
-  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
-  await cardLocator.scrollIntoViewIfNeeded();
-  await cardLocator.screenshot({ path: path.join(artifacts, 'element-desktop-scheduled-j.png') });
+  // The long-adapter card keeps its numbers complete and right-aligned.
+  const rail = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-quick-action-rail"]`);
+  const done = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-unread-done-badge"]`);
+  const adapter = page.locator(`[data-session-card-id="${longId}"] [data-testid="session-adapter-badge"]`);
+  const railBox = await boxOf(rail);
+  const doneBox = await boxOf(done);
+  const adapterBox = await boxOf(adapter);
+  assert.equal(await done.textContent(), '99+');
+  assert.ok(
+    doneBox.x >= railBox.x - 0.5 && doneBox.x + doneBox.width <= railBox.x + railBox.width + 0.5,
+    'numeric badge must stay complete next to a long adapter',
+  );
+  assert.ok(
+    Math.abs(adapterBox.x + adapterBox.width - (railBox.x + railBox.width)) < 4,
+    'the adapter chip must stay right-aligned next to a long adapter',
+  );
+  const card = cardLocator(page, longId);
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: path.join(artifacts, 'element-long-adapter-j-hidden.png') });
 });
 
-// ── Case 3: aggregation + running priority over a live WS transition ─────────
+// ── Case 3: mobile is width-driven too — a roomy mobile info area shows J ───
+
+await runCase('mobile roomy info area shows J and crowded mobile hides it', MOBILE, async (page) => {
+  const sessionId = await sessionIdOf(page, 'Delta Width');
+  const badge = jobBadge(page, sessionId);
+  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
+  const queue = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-queue-badge"]`);
+  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
+  const row = page.locator(`[data-session-card-id="${sessionId}"] .session-quick-action-adapter-row`);
+
+  // Roomy mobile (only the adapter + a small done count): J must be VISIBLE —
+  // the decision is the info-area width, not the viewport breakpoint.
+  await badge.waitFor({ state: 'visible', timeout: 20000 });
+  const jBox = await boxOf(badge);
+  const railBox = await boxOf(rail);
+  assert.ok(jBox.x + jBox.width <= railBox.x + railBox.width, 'mobile J must stay inside the rail');
+
+  // Crowded mobile (two multi-digit numbers): J disappears entirely.
+  await seedQueue(page, sessionId, 120);
+  await expect(queue).toHaveText('99+', { timeout: 10000 });
+  await seedUnread(page, sessionId, 120);
+  await expect(done).toHaveText('99+', { timeout: 10000 });
+  await badge.waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await jobBadge(page, sessionId).count(), 0, 'crowded mobile must hide J entirely');
+  const doneBox = await boxOf(done);
+  const rowBox = await boxOf(row);
+  assert.ok(
+    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
+    'the row must stay right-aligned to the rail on mobile',
+  );
+  assert.ok(
+    doneBox.x >= railBox.x - 0.5 && doneBox.x + doneBox.width <= railBox.x + railBox.width + 0.5,
+    'mobile numeric badge must stay complete',
+  );
+  const card = cardLocator(page, sessionId);
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: path.join(artifacts, 'element-mobile-crowded-j-hidden.png') });
+});
+
+// ── Case 4: aggregation + running priority over a live WS transition ─────────
 
 await runCase('desktop aggregates many jobs with running priority', DESKTOP, async (page) => {
   const sessionId = await sessionIdOf(page, 'Charlie Session');
@@ -238,15 +395,7 @@ await runCase('desktop aggregates many jobs with running priority', DESKTOP, asy
   );
 
   // A second, running job targeting the same Session flips the aggregate.
-  await createJob(page, {
-    kind: 'background-process',
-    name: 'e2e-session-job-agg-running',
-    description: 'e2e: aggregation (running leg)',
-    target: { sessionId },
-    argv: [PYTHON, '-c', 'import time; time.sleep(120)'],
-    cwd: path.resolve(runtime),
-    hideWindow: true,
-  });
+  await createJob(page, runningJob(sessionId));
   await page.waitForFunction(
     (sid) => document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`)
       ?.getAttribute('data-job-state') === 'running',
@@ -256,113 +405,40 @@ await runCase('desktop aggregates many jobs with running priority', DESKTOP, asy
   assert.equal(await badge.count(), 1, 'two jobs must still aggregate to a single J');
 });
 
-// ── Case 4: numeric badges intact and right-aligned next to J ────────────────
+// ── Case 5: scheduled message job shows the yellow J ────────────────────────
 
-await runCase('desktop keeps numeric badges intact and right aligned', DESKTOP, async (page) => {
-  const sessionId = await sessionIdOf(page, 'Alpha Session');
-  // Seed a durable unread-done count through the real test-only route so the
-  // numeric badge is present next to the (already running) J. Absolute
-  // generation keeps the badge text deterministic across repeated runs.
-  const seed = await page.request.post(`${baseURL}/__e2e/unread`, {
-    data: { sessionId, generation: 7, readGeneration: 0 },
+await runCase('desktop scheduled message job shows one yellow J', DESKTOP, async (page) => {
+  const sessionId = await sessionIdOf(page, 'Bravo Session');
+  await createJob(page, {
+    kind: 'session-message',
+    name: 'e2e-session-job-scheduled',
+    description: 'e2e: session info-area J indicator (scheduled)',
+    target: { sessionId },
+    text: 'e2e scheduled indicator probe',
+    schedule: { type: 'once', delaySeconds: 7200 },
   });
-  assert.equal(seed.ok(), true, `seed unread failed: ${seed.status()}`);
-  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
-  await done.waitFor({ state: 'visible', timeout: 10000 });
 
   const badge = jobBadge(page, sessionId);
   await badge.waitFor({ state: 'visible', timeout: 20000 });
-
-  // J shares the numeric badge geometry (same font metrics and pill shape).
+  await page.waitForFunction(
+    (sid) => document.querySelector(`[data-session-card-id="${sid}"] [data-testid="session-job-badge"]`)
+      ?.getAttribute('data-job-state') === 'scheduled',
+    sessionId,
+    { timeout: 20000 },
+  );
   const jStyle = await styleOf(badge);
-  const doneStyle = await styleOf(done);
-  for (const key of ['fontSize', 'fontWeight', 'height', 'borderRadius', 'letterSpacing']) {
-    assert.equal(jStyle[key], doneStyle[key], `J and numeric badge must share ${key}`);
-  }
-
-  // J is the left-most item of the right-anchored info-area row; the numeric
-  // badge stays to its right and the row hugs the card's right edge.
-  const row = page.locator(`[data-session-card-id="${sessionId}"] .session-quick-action-adapter-row`);
-  const order = await row.evaluate((el) => Array.from(el.children).map((c) => c.getAttribute('data-testid')));
-  assert.equal(order[0], 'session-job-badge', 'J must be the first (left-most) info-area item');
-  assert.ok(order.includes('session-unread-done-badge'), 'numeric badge must remain in the row');
-
-  const jBox = await badge.boundingBox();
-  const doneBox = await done.boundingBox();
-  assert.ok(jBox.x < doneBox.x, 'J must sit left of the numeric badge');
-  const card = await page.locator(`[data-session-card-id="${sessionId}"]`).boundingBox();
-  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
-  const railBox = await rail.boundingBox();
-  const rowBox = await row.boundingBox();
-  assert.ok(
-    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
-    'the info-area row must hug the rail right edge (right-aligned group)',
-  );
-  assert.ok(
-    railBox.x > card.x + card.width / 2 && railBox.x + railBox.width <= card.x + card.width,
-    'the info-area rail must sit at the card right side',
-  );
-
-  // Yield-first contract (computed styles): J is the only shrinkable item, so
-  // rail crowding hides J before any numeric badge or the adapter chip.
-  const shrink = await badge.evaluate((el) => {
-    const self = getComputedStyle(el);
-    const siblings = Array.from(el.parentElement.children)
-      .filter((c) => c !== el)
-      .map((c) => ({
-        testid: c.getAttribute('data-testid'),
-        shrink: getComputedStyle(c).flexShrink,
-      }));
-    return { selfShrink: self.flexShrink, selfMinWidth: self.minWidth, siblings };
+  const warning = await page.evaluate(() => {
+    const el = document.createElement('span');
+    el.style.color = 'var(--color-warning)';
+    document.body.appendChild(el);
+    const color = getComputedStyle(el).color;
+    el.remove();
+    return color;
   });
-  assert.equal(shrink.selfShrink, '1', 'J must be the shrinkable item');
-  assert.equal(shrink.selfMinWidth, '0px', 'J must be allowed to collapse to zero');
-  for (const sib of shrink.siblings) {
-    assert.equal(sib.shrink, '0', `${sib.testid} must never shrink before J`);
-  }
-});
-
-// ── Case 5: mobile width hides J first, numbers stay right-aligned ───────────
-
-await runCase('mobile hides J while numeric badges stay right aligned', MOBILE, async (page) => {
-  const sessionId = await sessionIdOf(page, 'Alpha Session');
-  const done = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-unread-done-badge"]`);
-  await done.waitFor({ state: 'visible', timeout: 10000 });
-  // Delta seeding: unread generations are monotonic, so a lower absolute seed
-  // would be treated as a stale rollback. Read the current badge, advance by a
-  // known step, and assert the new value — robust across repeated runs.
-  const before = Number(await done.textContent());
-  assert.ok(Number.isFinite(before), `numeric badge text must be a count, got ${await done.textContent()}`);
-  const seed = await page.request.post(`${baseURL}/__e2e/unread`, {
-    data: { sessionId, advance: 4 },
-  });
-  assert.equal(seed.ok(), true, `seed unread failed: ${seed.status()}`);
-  const expected = String(before + 4);
-  const badge = jobBadge(page, sessionId);
-  await badge.waitFor({ state: 'attached', timeout: 20000 });
-
-  const jStyle = await styleOf(badge);
-  assert.equal(jStyle.display, 'none', 'J must be hidden at mobile width (max-md)');
-
-  // The numeric badge survives and the whole info-area row stays right-aligned.
-  const doneStyle = await styleOf(done);
-  assert.notEqual(doneStyle.display, 'none', 'numeric badge must stay visible at mobile width');
-  const doneBox = await done.boundingBox();
-  const rail = page.locator(`[data-session-card-id="${sessionId}"] [data-testid="session-quick-action-rail"]`);
-  const railBox = await rail.boundingBox();
-  const row = page.locator(`[data-session-card-id="${sessionId}"] .session-quick-action-adapter-row`);
-  const rowBox = await row.boundingBox();
-  assert.ok(
-    Math.abs(rowBox.x + rowBox.width - (railBox.x + railBox.width)) < 4,
-    'the info-area row must hug the rail right edge at mobile width',
-  );
-  assert.ok(doneBox.x + doneBox.width <= rowBox.x + rowBox.width + 1, 'numeric badge must stay inside the right-anchored row');
-  // Retrying assertion: the seed broadcast refreshes the summary asynchronously.
-  await expect(done).toHaveText(expected, { timeout: 10000 });
-
-  const cardLocator = page.locator(`[data-session-card-id="${sessionId}"]`);
-  await cardLocator.scrollIntoViewIfNeeded();
-  await cardLocator.screenshot({ path: path.join(artifacts, 'element-mobile-j-hidden.png') });
+  assert.equal(jStyle.color, warning, `scheduled J must be warning yellow, got ${jStyle.color} vs ${warning}`);
+  const card = cardLocator(page, sessionId);
+  await card.scrollIntoViewIfNeeded();
+  await card.screenshot({ path: path.join(artifacts, 'element-desktop-scheduled-j.png') });
 });
 
 // ── Case 6: terminal/cancelled job removes J through the WS path ─────────────
@@ -372,8 +448,8 @@ await runCase('terminal job removes J via the live WS path', DESKTOP, async (pag
   const badge = jobBadge(page, sessionId);
   await badge.waitFor({ state: 'visible', timeout: 20000 });
 
-  // Cancel every Job created for this session through the real API; the
-  // job.deleted / terminal job.updated broadcast must clear the badge.
+  // Cancel every Job created through the real API; the job.deleted /
+  // terminal job.updated broadcast must clear the badge.
   for (const jobId of createdJobIds) {
     const response = await page.request.delete(`${baseURL}/api/jobs/${encodeURIComponent(jobId)}`);
     assert.ok(response.ok() || response.status() === 404, `cancel failed: ${response.status()}`);
