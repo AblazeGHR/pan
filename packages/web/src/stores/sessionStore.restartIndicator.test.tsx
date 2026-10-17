@@ -1,15 +1,5 @@
 // @vitest-environment jsdom
-// Regression coverage for the Worker indicator across a Pan service restart.
-//
-// The dot's red has two distinct meanings that must both survive this suite:
-//   1. legal-running mismatch ("Illegal state"): legal ledger says running but
-//      the live Worker does not — a deliberate product state after a
-//      preserve-running restart, resolved only by an explicit recovery choice.
-//   2. a real runtime error status.
-// The bug class covered here: after the authoritative runtime settles (e.g.
-// legal synchronized to the idle runtime), a stale pre-restart HTTP snapshot,
-// a late WS event, or a missing convergence refresh must not keep the stale
-// mismatch red — nor may any guard mask a genuine error/illegal state.
+// Durable Illegal survives stale snapshots and converges after successful recovery.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, screen, cleanup } from '@testing-library/react';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -43,14 +33,15 @@ function mk(
     alwaysThinkingEnabled: false,
     effort: '',
     history: [],
+    illegalOffline: false,
+    legalOffline: true,
     ...extra,
   } as Session;
 }
 
-/** Post-restart truth while recovery is pending: preserved legal running,
- *  no live Worker. Renders the mismatch red by design. */
+/** Post-restart failed execution awaiting a valid successor. */
 function pendingRecoverySession(id = 's1'): Session {
-  return mk(id, { workerStatus: null, lastLegalWorkerState: 'running' });
+  return mk(id, { workerStatus: null, lastLegalWorkerState: 'running', illegalOffline: true, legalOffline: false });
 }
 
 function dotClass(): string {
@@ -61,7 +52,7 @@ function dotClass(): string {
 function renderDotFor(session: Session): void {
   cleanup();
   render(
-    <WorkerDot status={session.workerStatus} legalState={session.lastLegalWorkerState} />,
+    <WorkerDot status={session.workerStatus} illegalOffline={session.illegalOffline} />,
   );
 }
 
@@ -80,6 +71,7 @@ beforeEach(() => {
     serverEpoch: 'epoch-restart',
     liveStreamBuffers: {},
     terminalWatermarks: {},
+    _sessionWsTouchedSeq: {},
     _sessionEventPatches: {},
   });
   useUIStore.setState({ activeWorkspaceId: 'all' });
@@ -117,23 +109,22 @@ describe('restart worker indicator convergence', () => {
     expect(dotClass()).not.toContain('bg-danger');
   });
 
-  it('keeps the deliberate preserve-running mismatch red across refreshes', async () => {
+  it('keeps a genuine durable Illegal red across refreshes', async () => {
     harness.fetchImpl = () => Promise.resolve([pendingRecoverySession()]);
     await act(async () => {
       await useSessionStore.getState().loadSessions();
     });
-    // preserve-running recovery leaves legal=running with no live Worker:
-    // the red "Illegal state" indicator is the product semantics, not a bug.
+    // An unresolved durable Illegal stays red independently of the old ledger.
     renderDotFor(storeSession());
     expect(dotClass()).toContain('bg-danger');
-    expect(screen.queryByLabelText(/Legal Worker state is running/)).toBeTruthy();
+    expect(screen.queryByLabelText(/Illegal offline/)).toBeTruthy();
   });
 
   it('keeps a real runtime error red regardless of the legal ledger', () => {
     renderDotFor(mk('s1', { workerStatus: 'error', lastLegalWorkerState: null }));
     expect(dotClass()).toContain('bg-danger');
     // Pure runtime error has no mismatch aria label — distinct semantics.
-    expect(screen.queryByLabelText(/Legal Worker state is running/)).toBeNull();
+    expect(screen.queryByLabelText(/Illegal offline/)).toBeNull();
   });
 
   it('keeps a green running dot when legal running matches the live runtime', () => {
@@ -144,6 +135,24 @@ describe('restart worker indicator convergence', () => {
 });
 
 describe('stale cross-restart responses and events', () => {
+  it('accepts newer durable legality even when a crash patch has no execution cursor', () => {
+    useSessionStore.setState({ sessions: [mk('s1', {
+      workerId: 'w1', workerGeneration: 0, workerExecutionSeq: 1,
+      workerTaskSeq: 1, workerStatus: 'running', summaryRevision: 4,
+      legalOffline: false, illegalOffline: false,
+    })] });
+    act(() => useSessionStore.getState().updateSession('s1', {
+      workerId: 'w1', workerGeneration: 0, workerExecutionSeq: null,
+      summaryRevision: 5, legalOffline: false, illegalOffline: true,
+    }, true));
+    expect(storeSession().illegalOffline).toBe(true);
+    // A delayed pre-crash snapshot cannot erase the durable Illegal fact.
+    act(() => useSessionStore.getState().updateSession('s1', {
+      summaryRevision: 4, legalOffline: true, illegalOffline: false,
+    }));
+    expect(storeSession().illegalOffline).toBe(true);
+  });
+
   it('discards a mid-shutdown snapshot served before the server epoch change', async () => {
     // Request issued while the old process was still serving: its snapshot
     // still shows the pre-restart running Worker.
@@ -209,6 +218,8 @@ describe('stale cross-restart responses and events', () => {
         workerId: 'w1',
         generation: 3,
         taskSeq: 9,
+        legalOffline: true,
+        illegalOffline: false,
       });
     });
 
@@ -220,14 +231,14 @@ describe('stale cross-restart responses and events', () => {
       await pending!;
     });
 
-    // The WS write is newer than the snapshot: idle (green) must survive; a
-    // legal running ledger with a live idle worker still renders the
-    // transient mismatch red until the next authoritative snapshot.
+    // The WS write is newer than the snapshot. Old restore-intent metadata
+    // cannot turn a safely completed execution into an Illegal condition.
     expect(storeSession().workerStatus).toBe('idle');
     renderDotFor(storeSession());
-    expect(dotClass()).toContain('bg-danger');
+    expect(dotClass()).toContain('bg-success');
+    expect(storeSession().illegalOffline).toBe(false);
 
-    // The next snapshot carries the settled legal ledger → green.
+    // The next snapshot carries the settled legal ledger as well.
     harness.fetchImpl = () => Promise.resolve([
       mk('s1', { workerStatus: 'idle', lastLegalWorkerState: 'idle', summaryRevision: 9 }),
     ]);

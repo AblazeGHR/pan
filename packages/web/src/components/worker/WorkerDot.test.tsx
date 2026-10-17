@@ -42,50 +42,33 @@ describe('WorkerDot status colours', () => {
   });
 });
 
-// The red dot carries two distinct meanings that must stay distinguishable:
-// a genuine runtime error status, and the deliberate legal-running mismatch
-// ("Illegal state") that a preserve-running Pan restart leaves behind until
-// an explicit recovery choice resolves it.
-describe('WorkerDot legal-running mismatch semantics', () => {
-  function dotClassWith(status: string | null | undefined, legalState: string | null | undefined): string {
-    const { container } = render(<WorkerDot status={status} legalState={legalState} />);
-    return container.firstElementChild?.className ?? '';
-  }
-
-  it('renders the legal-running mismatch red and labels it as a mismatch', () => {
-    const { container } = render(
-      <WorkerDot status="idle" legalState="running" />,
-    );
+describe('WorkerDot durable Illegal semantics', () => {
+  it('renders a failed execution red using the authoritative flag', () => {
+    const { container } = render(<WorkerDot status="idle" illegalOffline={true} />);
     expect(container.firstElementChild?.className).toContain('bg-danger');
-    expect(screen.getByLabelText(/Legal Worker state is running, but actual status is idle/))
-      .toBeTruthy();
-    expect(screen.getByTitle('Legal state: running; actual Worker: idle')).toBeTruthy();
+    expect(screen.getByLabelText(/Illegal offline: previous execution/)).toBeTruthy();
+    expect(screen.getByTitle('Previous execution ended without safe finalization')).toBeTruthy();
   });
 
-  it.each([
-    ['offline', 'running'],
-    ['restarting', 'running'],
-    ['done', 'running'],
-  ] as const)('renders the mismatch red for legal running with %s runtime', (status, legalState) => {
-    expect(dotClassWith(status, legalState)).toContain('bg-danger');
+  it.each(['idle', 'offline', 'restarting', 'done'])('does not infer Illegal from old running ledger with %s', (status) => {
+    const { container } = render(<WorkerDot status={status} legalState="running" illegalOffline={false} />);
+    expect(container.firstElementChild?.className).not.toContain('bg-danger');
   });
 
-  it('does not mark a matched running pair', () => {
-    const cls = dotClassWith('running', 'running');
-    expect(cls).toContain('bg-accent');
-    expect(cls).not.toContain('bg-danger');
+  it('a running execution with False legality is not Illegal', () => {
+    expect(dotClass('running')).toContain('bg-accent');
   });
 
-  it('converges to settled green once legal and runtime agree on idle', () => {
-    const cls = dotClassWith('idle', 'idle');
-    expect(cls).toContain('bg-success');
-    expect(cls).not.toContain('bg-danger');
-    expect(screen.queryByLabelText(/Legal Worker state is running/)).toBeNull();
-  });
-
-  it('keeps the pure runtime error red distinct from the mismatch', () => {
-    const { container } = render(<WorkerDot status="error" legalState={null} />);
+  it('converges from failed execution to settled Idle on recovery', () => {
+    const { container, rerender } = render(<WorkerDot status="offline" illegalOffline={true} />);
     expect(container.firstElementChild?.className).toContain('bg-danger');
-    expect(screen.queryByLabelText(/Legal Worker state is running/)).toBeNull();
+    rerender(<WorkerDot status="idle" illegalOffline={false} />);
+    expect(container.firstElementChild?.className).toContain('bg-success');
+    expect(screen.queryByLabelText(/Illegal offline/)).toBeNull();
+  });
+
+  it('keeps a runtime error visible independently of legality', () => {
+    expect(dotClass('error')).toContain('bg-danger');
+    expect(screen.queryByLabelText(/Illegal offline/)).toBeNull();
   });
 });

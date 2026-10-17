@@ -102,7 +102,7 @@ export function matchesSpecialFilters(
   if (filters.has('running') && session.workerStatus !== 'running') return false;
   if (
     filters.has('illegal') &&
-    !(session.lastLegalWorkerState === 'running' && session.workerStatus !== 'running')
+    session.illegalOffline !== true
   ) return false;
   if (
     filters.has('unread') &&

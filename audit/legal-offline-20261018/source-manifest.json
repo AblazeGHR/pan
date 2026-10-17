@@ -1,0 +1,30 @@
+{
+  "baseline": "5d20e72bf44f8cdb46bf8629f4772fb3b393863a",
+  "reviewCommit": "1e50493441202e7db0e17794eaca1b46c12a7753",
+  "files": {
+    "docs/design/PAN_LEGAL_OFFLINE_ILLEGAL_LOCK_AGENT_TASK.md": "ea0ed261c0b678a57875fb2756b631b8e68e1dd502efe16d05e52977ef5e9724",
+    "packages/core/legal_offline.py": "bc719b4767ef6c14243bac63aad4a1b218e228b99d76ea4d3cfdb00ad5dd222d",
+    "packages/core/queue_locks.py": "99ac9517e301dfcbb0d8052df50ebec5048a62ae975e762ad02a9446f0dceacc",
+    "packages/core/session.py": "05fddefa117e8b5b2b92c8fa3b63bfe241ff474970e8e2221d615f226031b388",
+    "packages/core/worker.py": "bf14a2ee44b257ca111b1ec81d673ebbd808b6a3b62d7508ed77e95961e0f11c",
+    "packages/web/server.py": "b4e71ebd6f89dc12410200a60b729dc5b51be0cfe4abaf31f05f65532d695a31",
+    "packages/web/src/components/layout/WorkspaceRail.searchFilter.test.tsx": "45bce55c98df81c5fe4330d234d7185ba576b5bde4928f8107b9eaf5635084d8",
+    "packages/web/src/components/session/SessionItem.tsx": "b38aeaaaff41cb7fc1cb38f5f1a29651b52314b2594ea590a93345c09275489f",
+    "packages/web/src/components/session/SessionList.tsx": "a1a68a228f50b65bb7c55e65bfba3a2651c41c3d9f2825f5d8e04132afdc2723",
+    "packages/web/src/components/worker/WorkerDot.test.tsx": "ff189432e8cf538a7b90714534e850ee55e556143fff9a0eec34c094a2a32fcd",
+    "packages/web/src/components/worker/WorkerDot.tsx": "ac1f23604870c68ad402dc1115c7f7739156ea2ae628d705f4b2a10ca56b43d6",
+    "packages/web/src/hooks/useWebSocket.ts": "484b79dcc6b03b3e0cf03b249c130772a85bb3592e94158622e36c0a8d241a14",
+    "packages/web/src/stores/sessionStore.restartIndicator.test.tsx": "5918d81af45aca8a49f59300e8ee49a47dbc317c65ebf7dde860c7f6cb3a3a01",
+    "packages/web/src/stores/sessionStore.ts": "9e868a10fb3363a4c1604dc62485fbb979cbe47cd25668f6581367d3dd266586",
+    "packages/web/src/types/index.ts": "98d634b2ecaed0d3d86cbcb9b42ce992c21f894f3d6a19b5ac7dd4b9a832201a",
+    "packages/web/src/utils/sessionFilters.ts": "8dd4c437e2de3e8cd5e4348831bcc71c890232858c605b7deeb51f0b2a61a8a3",
+    "packages/web/src/utils/sessionFilters.workspaceSearch.test.ts": "cadb48f9c7c1e354ced3dcb5f7b1cb5168cc7436604af288e8c692230a1ae404",
+    "tests/support/fake_stream_cli.py": "ac1e4dd5b98f8f19e38c0bd7ba18f39d07da4d38f0e4482ce6ff22e1e2998254",
+    "tests/support/isolated_http_server.py": "f90c5c3578e91159d90c5d2e5f6c29df06b844c143bbdf8917218885c6a181aa",
+    "tests/test_legal_offline.py": "a043410705be3e510b2a25a890535cfb4f7fb5e7a4e47179100cd61d2921ba1c",
+    "tests/test_legal_offline_browser.py": "bf58c45c45e7982967f58d0fbe450faddf46f784c6f578e962855497c1a1d5a3",
+    "tests/test_legal_offline_http.py": "4e5815f57c8f8f3247b92380d8cf0b799099072344cb024e1acfe0b1b2aa117b",
+    "tests/test_native_control_api.py": "d28c78e0d3ace24147b887e48e83398037051673eed453162ba1d1ceb84ca9ba",
+    "tests/test_session_queue_api.py": "d650e1636c3243708dbaaf93adbdf13340562ba82e13b3ab2137d20ec71c0f73"
+  }
+}

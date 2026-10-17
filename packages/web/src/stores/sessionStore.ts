@@ -693,6 +693,8 @@ export interface TerminalCoverage {
 export interface LiveStreamMeta {
   serverEpoch?: string;
   lastLegalWorkerState?: string | null;
+  legalOffline?: boolean;
+  illegalOffline?: boolean;
   workerId?: string;
   generation?: number;
   taskSeq?: number;
@@ -844,6 +846,8 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
 
 function workerStatusMetadata(meta: LiveStreamMeta): Partial<Session> {
   return {
+    ...(meta.legalOffline !== undefined ? { legalOffline: meta.legalOffline } : {}),
+    ...(meta.illegalOffline !== undefined ? { illegalOffline: meta.illegalOffline } : {}),
     ...(meta.generation !== undefined ? { workerGeneration: meta.generation } : {}),
     ...(meta.taskSeq !== undefined ? { workerTaskSeq: meta.taskSeq } : {}),
     ...(meta.executionSeq !== undefined ? { workerExecutionSeq: meta.executionSeq } : {}),
@@ -927,6 +931,9 @@ function sameSessionSnapshot(previous: Session, next: Session, server: Session):
 const SUMMARY_PROJECTION_FIELDS = [
   'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
+  // Execution legality is a durable Session fact, independent of live Worker
+  // task cursors (a crash snapshot legitimately omits executionSeq).
+  'legalOffline', 'illegalOffline',
 ] as const;
 
 const WORKER_SNAPSHOT_FIELDS = ['workerId', 'workerStatus', 'workerGeneration',

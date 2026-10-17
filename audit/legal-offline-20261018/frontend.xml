@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="65" failures="0" errors="0" time="2.537">
+    <testsuite name="utils/sessionFilters.workspaceSearch.test.ts" timestamp="2026-10-17T20:00:13.599Z" hostname="ablaze" tests="24" failures="0" errors="0" skipped="0" time="0.0069065">
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="matchesWorkspaceSearch &gt; matches every workspace for an empty or whitespace query" time="0.0008565">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="matchesWorkspaceSearch &gt; matches the workspace name case-insensitively as a substring" time="0.0001644">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="matchesWorkspaceSearch &gt; does not match unrelated names" time="0.0001193">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="matchesWorkspaceSearch &gt; does not match workspace IDs" time="0.000064">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="matchesWorkspaceSearch &gt; never matches a missing name for a non-empty query" time="0.000081">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; passes with no active filters even without members" time="0.0001251">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; aggregates the running state over any member" time="0.0001239">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; aggregates unread over any member with a positive authoritative count" time="0.0001078">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; aggregates queued messages over any member" time="0.0000865">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; aggregates the illegal state over any member" time="0.0000948">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; requires a satisfying member for EVERY active filter (per-filter any, then AND)" time="0.0001364">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; lets a DIFFERENT member satisfy each filter (workspace-level AND)" time="0.0002331">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; preserves all 15 nonempty status combinations across inherited effective members" time="0.0021971">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="workspaceMatchesSpecialFilters &gt; aggregates ACTUAL member states — a session the keyword would hide still counts" time="0.0001404">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; keeps every row when the rail is collapsed, even with active filters" time="0.0004284">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; keeps every row with no keyword and no status filter" time="0.0001423">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; filters workspace rows by name using its independent keyword" time="0.0000981">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; filters workspace rows by the aggregated member status" time="0.0001029">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; combines keyword and status with the original AND semantics" time="0.0001665">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; aggregates status over actual members, not the keyword-filtered list" time="0.0000752">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; resolves members through the caller-provided inheritance map" time="0.0000855">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; does not match Session names with the workspace keyword" time="0.0000954">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; retains virtual scopes per-Session status AND rather than workspace aggregation" time="0.0001373">
+        </testcase>
+        <testcase classname="utils/sessionFilters.workspaceSearch.test.ts" name="computeWorkspaceRowVisibility &gt; handles an empty workspace list" time="0.0000812">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.restartIndicator.test.tsx" timestamp="2026-10-17T20:00:13.608Z" hostname="ablaze" tests="7" failures="0" errors="0" skipped="0" time="0.0239855">
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="restart worker indicator convergence &gt; converges the mismatch red to green when the authoritative snapshot reports idle/idle" time="0.0147097">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="restart worker indicator convergence &gt; keeps a genuine durable Illegal red across refreshes" time="0.002555">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="restart worker indicator convergence &gt; keeps a real runtime error red regardless of the legal ledger" time="0.0012442">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="restart worker indicator convergence &gt; keeps a green running dot when legal running matches the live runtime" time="0.001215">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="stale cross-restart responses and events &gt; accepts newer durable legality even when a crash patch has no execution cursor" time="0.0004887">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="stale cross-restart responses and events &gt; discards a mid-shutdown snapshot served before the server epoch change" time="0.0008224">
+        </testcase>
+        <testcase classname="stores/sessionStore.restartIndicator.test.tsx" name="stale cross-restart responses and events &gt; does not let a delayed snapshot revert a WS idle that arrived while it was in flight" time="0.0022103">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/WorkspaceRail.searchFilter.test.tsx" timestamp="2026-10-17T20:00:13.610Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="0.2079443">
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; matches Workspace names in the workspace search box while expanded" time="0.0305966">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; keeps every row unfiltered while collapsed (original Session-only search)" time="0.0052275">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; restores workspace rows when only the workspace query is cleared" time="0.0071249">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; applies the running filter to Workspaces via member aggregation" time="0.0062669">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; applies the unread filter with the authoritative unreadDoneCount" time="0.0059652">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; applies the queued-messages filter via queuePendingCount" time="0.0062481">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; applies the authoritative illegal filter" time="0.0064148">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; keeps the original keyword AND status combination semantics" time="0.0074444">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; lets different members satisfy different status filters (workspace-level AND)" time="0.0060365">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; aggregates actual member states — a keyword-hidden member still counts" time="0.0053673">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; aggregates status through management-tree inheritance" time="0.008233">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; reflects Session state changes immediately without remounting" time="0.0059197">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; keeps both queries and clear actions independent with a real SessionList" time="0.0691316">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; retains the query through collapse and remount, mobile=false" time="0.0166919">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; retains the query through collapse and remount, mobile=true" time="0.0136919">
+        </testcase>
+        <testcase classname="components/layout/WorkspaceRail.searchFilter.test.tsx" name="Workspace rail owns its query and shares status filters &gt; keeps input keys and focus from navigating or switching workspace" time="0.0068505">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/worker/WorkerDot.test.tsx" timestamp="2026-10-17T20:00:13.613Z" hostname="ablaze" tests="18" failures="0" errors="0" skipped="0" time="0.0293626">
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; renders a completed worker as settled success, not offline grey" time="0.0101745">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps idle to bg-success" time="0.0011172">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps running to bg-accent" time="0.001072">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps queued to bg-accent" time="0.0009986">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps restarting to bg-warning" time="0.0010288">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps held to bg-warning" time="0.0007069">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps error to bg-danger" time="0.0005915">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps cancelled to bg-warning" time="0.0006392">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; maps offline to bg-text-tertiary" time="0.0006837">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot status colours &gt; falls back to offline for a missing or unknown status" time="0.0015014">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; renders a failed execution red using the authoritative flag" time="0.0049265">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; does not infer Illegal from old running ledger with idle" time="0.0007528">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; does not infer Illegal from old running ledger with offline" time="0.0005296">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; does not infer Illegal from old running ledger with restarting" time="0.0004729">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; does not infer Illegal from old running ledger with done" time="0.0005207">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; a running execution with False legality is not Illegal" time="0.0004797">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; converges from failed execution to settled Idle on recovery" time="0.0015486">
+        </testcase>
+        <testcase classname="components/worker/WorkerDot.test.tsx" name="WorkerDot durable Illegal semantics &gt; keeps a runtime error visible independently of legality" time="0.0006851">
+        </testcase>
+    </testsuite>
+</testsuites>

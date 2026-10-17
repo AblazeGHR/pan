@@ -48,6 +48,7 @@ import httpx
 import psutil
 
 from packages.core import worker
+from packages.core import legal_offline, queue_locks
 from packages.core import session as sess
 from packages.core import session_bookmarks
 from packages.core import session_drafts
@@ -215,6 +216,7 @@ async def lifespan(app: FastAPI):
         )
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
+    await worker.initialize_legal_offline(sessions)
     try:
         await _initialize_startup_recovery(sessions)
     except Exception as exc:
@@ -2119,6 +2121,8 @@ def _session_to_api(
         **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
         **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
@@ -2146,6 +2150,8 @@ def _session_to_api(
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "lastLegalWorkerState": s.last_legal_worker_state,
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
         "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": mcp_lock_reason is not None,
         "mcpLockReason": mcp_lock_reason,
@@ -2418,6 +2424,8 @@ def _session_summary(
         "workerTaskSeq": worker_task_seq,
         "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
         "lastLegalWorkerState": s.last_legal_worker_state,
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
         "unreadDoneCount": unread_done_count,
         "unreadDoneGeneration": unread_done_generation,
         "unreadDoneReadGeneration": unread_done_read_generation,
@@ -7997,6 +8005,8 @@ def _queue_lock_meta(item: dict) -> dict:
     return {
         "locked": worker._queue_item_locked(item),
         "lockManual": bool(item.get("queueLockManual")),
+        "lockSource": queue_locks.source(item),
+        "illegalBatchId": item.get("queueLockIllegalBatch"),
         "lockAutoReport": bool(item.get("queueLockAutoReport")),
         "steerPending": bool(item.get("queueSteerPending")),
         "steerError": item.get("lastSteerError"),
@@ -8204,11 +8214,7 @@ async def _mutate_queue_locks_locked(s, changes: list[tuple[dict, bool | None, b
             ledger_record = s.queue_delivery_ledger.get(item_id)
             old_ledger = dict(ledger_record) if isinstance(ledger_record, dict) else ledger_record
             originals.append((item, old_item, item_id, had_ledger, old_ledger))
-            for key, value in (("queueLockManual", manual), ("queueLockAutoReport", automatic)):
-                if value is True:
-                    item[key] = True
-                elif value is False:
-                    item.pop(key, None)
+            queue_locks.manual_change(item, manual, automatic)
             if item != old_item:
                 worker._remember_queue_item(s, item, worker._DELIVERY_QUEUED)
                 changed = True

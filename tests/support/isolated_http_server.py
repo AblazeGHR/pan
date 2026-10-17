@@ -93,6 +93,8 @@ def main() -> None:
     server.DATA_DIR = data_root
     server.WORKDIRS_DIR = data_root / "workdirs"
     server.ATTACHMENTS_DIR = data_root / "attachments"
+    server._startup_recovery_record_path = lambda: (
+        data_root / "startup_recovery" / f"{server._STARTUP_RECOVERY_GENERATION}.json")
     server.app.add_middleware(_capture_delay_middleware)
 
     fake_cli = os.environ.get("PAN_E2E_FAKE_CLI")

@@ -57,7 +57,7 @@ def main() -> None:
             "type": "assistant",
             "message": {"content": [{"type": "text", "text": f"ack:{text}"}]},
         }, ensure_ascii=False), flush=True)
-        print(json.dumps({"type": "result", "result": text, "is_error": False},
+        print(json.dumps({"type": "result", "result": text, "is_error": "fail-429" in text},
                          ensure_ascii=False), flush=True)
 
 

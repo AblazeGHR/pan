@@ -74,6 +74,7 @@ def test_get_queue_mixed(monkeypatch):
     assert items[0]["meta"] == {"seq": 1, "taskId": "t-a", "revision": 1,
                                  "dispatchState": "queued", "locked": False,
                                  "lockManual": False, "lockAutoReport": False,
+                                 "lockSource": None, "illegalBatchId": None,
                                  "steerPending": False, "steerError": None}
     # report（无 type 字段）：result 即 text
     assert items[1]["kind"] == "report"
@@ -81,6 +82,7 @@ def test_get_queue_mixed(monkeypatch):
     assert items[1]["meta"] == {"status": "done", "taskId": "t-a", "workerId": "worker-1",
                                   "revision": 1, "dispatchState": "queued", "locked": False,
                                   "lockManual": False, "lockAutoReport": False,
+                                  "lockSource": None, "illegalBatchId": None,
                                   "steerPending": False, "steerError": None}
     # zombie report（type=zombie）也归为 report
     assert items[3]["kind"] == "report"
@@ -91,6 +93,7 @@ def test_get_queue_mixed(monkeypatch):
     assert items[4]["text"] == "hi from qq"
     # 通道提醒统一分支后额外带 channel/canReply/channelTarget（qqTarget 保留兼容）
     assert items[4]["meta"] == {"qqTarget": "user:12345", "time": "12:00",
+                                  "lockSource": None, "illegalBatchId": None,
                                   "revision": 1, "dispatchState": "queued",
                                   "channel": "qq", "canReply": True,
                                   "channelTarget": "user:12345", "locked": False,

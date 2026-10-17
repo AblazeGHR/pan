@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/packages/web/src
+
+ ✓ utils/sessionFilters.workspaceSearch.test.ts (24 tests) 7ms
+ ✓ components/worker/WorkerDot.test.tsx (18 tests) 29ms
+ ✓ stores/sessionStore.restartIndicator.test.tsx (7 tests) 24ms
+ ✓ components/layout/WorkspaceRail.searchFilter.test.tsx (16 tests) 208ms
+
+ Test Files  4 passed (4)
+      Tests  65 passed (65)
+   Start at  04:00:11
+   Duration  2.54s (transform 404ms, setup 21ms, collect 1.16s, tests 268ms, environment 1.66s, prepare 576ms)
+
+JUNIT report written to D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/audit/legal-offline-20261018/frontend.xml

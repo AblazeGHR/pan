@@ -162,6 +162,9 @@ export interface Session {
   queuePaused?: boolean;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
+  /** Durable execution safety; False alone is not an Illegal condition. */
+  legalOffline?: boolean;
+  illegalOffline?: boolean;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
   /** True when the managing session has blocked outbound operations to this session. */

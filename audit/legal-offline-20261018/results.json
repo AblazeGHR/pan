@@ -1,0 +1,30 @@
+{
+  "backend": {
+    "tests": 509,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": 47.818,
+    "exitCode": 0
+  },
+  "real-lifecycle": {
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": 31.257,
+    "exitCode": 0
+  },
+  "frontend": {
+    "tests": 65,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": 0.2681989,
+    "exitCode": 0
+  },
+  "build": {
+    "exitCode": 0,
+    "compressedAssets": 70
+  }
+}
