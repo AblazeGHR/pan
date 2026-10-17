@@ -1,0 +1,19 @@
+{
+  "source": "D:\\project\\Pan",
+  "source_head": "52614cd4a3184f3e7b3befb4c9f50f08383c25f3",
+  "sessions": 110,
+  "with_qq": 7,
+  "mode_roundtrips": 330,
+  "legacy_descriptors": {
+    "pan": 109,
+    "pan-qq": 7,
+    "lca": 1
+  },
+  "templates": 12,
+  "jobs": 56,
+  "qq_actions": 1,
+  "copied_files": 302,
+  "errors": [],
+  "source_used_read_only": true,
+  "passed": true
+}

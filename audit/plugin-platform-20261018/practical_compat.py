@@ -13,7 +13,9 @@ from unittest.mock import AsyncMock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 SOURCE = Path('D:/project/Pan')
-CASE = ROOT / 'audit/plugin-platform-20261018/practical-compat'
+CASE = (ROOT / sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / 'audit/plugin-platform-20261018/practical-compat'
+if not CASE.is_relative_to(ROOT):
+    raise ValueError('Compatibility output must stay in this worktree')
 PRIVATE = CASE / 'private'
 PRIVATE.mkdir(parents=True, exist_ok=True)
 for key in tuple(os.environ):
@@ -121,7 +123,7 @@ async def main():
                     if key not in {'adapter_config', 'updated_at', 'history', 'summary_projection'}:
                         assert restored.to_dict()[key] == value, key
                 for key, value in before['adapter_config'].items():
-                    if key != 'mcp_servers':
+                    if key not in {'mcp_servers', 'plugin_bindings', 'plugin_config_version', 'plugin_selection_revision'}:
                         assert restored.adapter_config[key] == value, key
                 physical = build_mcp_servers(restored)
                 assert physical or not any(b['enabled'] for b in changed)

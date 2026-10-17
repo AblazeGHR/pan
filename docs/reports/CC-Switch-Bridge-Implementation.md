@@ -1,5 +1,7 @@
 # CC Switch Bridge 与插件 Panel 基础设施交付
 
+> 此为首轮交付记录。后续 main 整合与 practical 数据兼容验收见 [整合报告](CC-Switch-Bridge-Integration-20261018.md)。
+
 2026-10-18。实现仅位于 `D:\project\pan-worktrees\plan-plugin-manager-20261017`，当前分支 `feature/plan-plugin-manager-20261017`。本轮未合并 main/practical，未构建 practical，未重启生产服务。main/practical 期间被其他任务推进，不将其内容自动引入本轮。
 
 ## 结果
