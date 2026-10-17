@@ -2,9 +2,9 @@
 
 Run date: 2026-10-18
 Branch: `feature/composer-url-node-20261017`
-Merge base `main` (at merge time): `e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c`
-`main` has since advanced to `c5118d85c8fb28d4261a83d9609c0078713b6e7e`
-(unrelated notification work; not touched by this branch).
+Merge base `main` (at first merge): `e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c`
+`main` later advanced to `c5118d85c8fb28d4261a83d9609c0078713b6e7e`
+(unrelated notification work); it was merged into this branch without conflicts.
 A–D implementation: `650a0afaffcd8d91df1cf02d53b826596c4a7e55`
 Evidence refreshes: `ac22e136`, `7d834fe1`, and this documentation commit.
 No reset / no cherry-pick; `main` is an ancestor (`git merge-base --is-ancestor main HEAD` = 0).
