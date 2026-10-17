@@ -322,6 +322,8 @@ describe('SettingsPopover mobile Terminal TUI entry (More)', () => {
 
     const entry = screen.getByRole('button', { name: 'Terminal TUI' });
     expect(entry.getAttribute('data-terminal-status')).toBe('upgrade');
+    expect(document.body.textContent).toContain(
+      'Upgrade this Codex Session to Terminal TUI control');
     fireEvent.click(entry);
 
     await waitFor(() => expect(configure).toHaveBeenCalledWith('s1', true));
@@ -337,6 +339,20 @@ describe('SettingsPopover mobile Terminal TUI entry (More)', () => {
     expect(screen.getByRole('button', { name: 'Terminal TUI' }).textContent)
       .toContain('Terminal TUI · pending idle');
     expect(screen.getByRole('button', { name: 'Terminal TUI' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('uses CBC wording in the mobile More hint instead of Codex', async () => {
+    const { resetTerminalTuiEntryForTests } = await import('@/hooks/useTerminalTuiEntry');
+    resetTerminalTuiEntryForTests();
+    useNativeControlStore.setState({ sessions: {}, switching: {}, terminalViews: {} });
+    setup();
+    await act(async () => {});
+    await expandMore();
+
+    expect(document.body.textContent).toContain(
+      'Upgrade this CBC Session to Terminal TUI control');
+    expect(document.body.textContent).not.toContain(
+      'Upgrade this Codex Session to Terminal TUI control');
   });
 
   it('does not host the Terminal TUI entry in More on desktop', async () => {

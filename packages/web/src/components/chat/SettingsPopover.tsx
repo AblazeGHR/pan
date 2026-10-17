@@ -350,6 +350,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // same contract (upgrade confirm, pending idle, enter TUI, error retry) is
   // reachable here inside the More disclosure. Desktop keeps its top-bar entry.
   const mobileTerminalEntry = isMobile && (s.adapter === 'codex' || s.adapter === 'cbc');
+  const terminalAdapterLabel = s.adapter === 'cbc' ? 'CBC' : 'Codex';
   const hasCodexOverrides = s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
@@ -456,7 +457,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                       : terminalEntry.pendingIdle
                         ? 'Upgrade scheduled: control switches at the next idle boundary.'
                         : terminalEntry.status === 'upgrade'
-                          ? 'Upgrade this Codex Session to Terminal TUI control; the switch happens at the next idle boundary.'
+                          ? `Upgrade this ${terminalAdapterLabel} Session to Terminal TUI control; the switch happens at the next idle boundary.`
                           : 'Opens the native Terminal TUI control view.'}
                   </p>
                 </div>
