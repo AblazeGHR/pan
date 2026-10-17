@@ -57,4 +57,10 @@ Chromium 验证先构建当前源码，然后设置 `PAN_TEST_DELAYED_BROWSER_SC
 - Codex 可选 context 设置测试只 mock 旧 MCP 描述符解析，未提供新插件目录所需 manifest。改用现有真实 manifest manager；保留原测试名及所有可选值/默认值断言。
 - alias 解析先于原始 MCP 名称类型校验，使非字符串输入的原有 Invalid 错误变成 Unknown；旧调用方还会先对未哈希输入执行 set。恢复 alias 解析前的类型/空白校验，并让 `_apply_mcp_servers` 先解析验证再去重，避免 TypeError 和配置变更。保留原断言，新增 5 个整数/dict/list/空字符串/空白输入不改配置的用例。此修复不改变 plugin restart 或 Worker lifecycle。
 
-修正后 Session/idle/Delayed restart/native 定向 **83 passed**，其中 adapter validation **42 passed**。最终扩大后端与完整真实 Chromium 组合复跑交给冻结提交的后台 Job；以终态日志、XML 和 owned 进程/端口清理验收，结果更新于后续交付记录。
+修正后 Session/idle/Delayed restart/native 定向 **83 passed**，其中 adapter validation **42 passed**。最终扩大后端与完整真实 Chromium 组合复跑冻结在 `da7d164940b11337772b2447ab788c961c152275`，后台 Job `job_885219e9669915d84c7d93d9` 已收到 completed / exitCode 0 终态通知，并核对两个子命令均 exitCode 0、测试前后 HEAD 一致。
+
+最终扩大后端 **183 passed / 0 failed / 0 skipped**，174.84 秒；真实 HTTP/WS + Chromium 组合 **7 passed / 0 failed / 0 skipped**，29.33 秒。七组 owned 服务端口为 49751、62917、58637、64375、53594、49933、49960，均有清理成功记录；测试在清理时核对 PID/创建时间归属、provider 身份消失、服务退出及端口释放。插件触发 pending 的 Chromium 记录为 `requests: 0`，证明显示等待状态时未下发重复 restart。
+
+按 MA 最新要求，不将旧基线全量结果充作组合证据：在该冻结提交上另跑受影响的 SettingsPopover、TopBar、workerStore、PluginSelection **4 files / 43 passed**，插件设置/idle 优先级/adapter/native 转换定向 **94 passed**，并重新构建通过 **68 个压缩资源**。记录分别为 `_e2e_tmp/delayed-restart/latest-main-targeted-frontend.log`、`latest-main-targeted-backend.log` / XML、`latest-main-build.log`；最终 Job 的日志/XML 为 `merged-backend.*`、`merged-chromium.*`，冻结证明为 `merged-validation.json`。
+
+最后只补充交付记录与证据摘要，不改产品及测试源码。再次确认 `git merge-base --is-ancestor main HEAD` 返回 0，main/practical 仍为 `1887aef2650466b86dd80bbe2485a439899420be`。可提交的结构化摘要见 [result.json](../../audit/delayed-restart-running-20261018/result.json)。警告仍为 pytest-timeout 缺失、第三方 Pydantic/WebSocket 弃用提示及既有构建/ESLint 提示；没有放宽断言或新增跳过。
