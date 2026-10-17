@@ -31,6 +31,9 @@ view = service.create(cwd=str(root))
 tid = view['terminal_id']
 # Let the parent retain this exact live identity before any refusal cleanup.
 publish({'view': view})
+# The destination name can be visible before Windows closes the rename's
+# DELETE-access handle. Publish readiness only after os.replace has returned.
+(root / 'report-ready').touch()
 deadline = time.monotonic() + 8
 while not (root / 'identity-retained').exists() and time.monotonic() < deadline:
     time.sleep(.05)
@@ -170,7 +173,7 @@ def test_detached_shell_survives_real_service_host_exit_and_reconnect(tmp_path):
     try:
         deadline = time.monotonic() + 35
         report_path = tmp_path / 'report.json'
-        while not report_path.exists():
+        while not (tmp_path / 'report-ready').exists():
             assert host.poll() is None, "host exited before publishing runner identity"
             assert time.monotonic() < deadline, "host identity publication timed out"
             time.sleep(.05)
@@ -239,6 +242,52 @@ def _verify_detached_reconnect(service, tmp_path, report, retained):
     assert service._store().exists(tid)
 
 
+def test_identity_report_ready_follows_rename_handle_release(tmp_path, monkeypatch):
+    """A visible, complete JSON name alone is not a readable publication."""
+    import ast
+    import win32con
+    import win32file
+    tree = ast.parse(CHILD)
+    # Execute the real producer through its first publication, without starting
+    # a terminal. Only replace the service creation and retain the rename handle.
+    boundary = next(index for index, node in enumerate(tree.body)
+                    if isinstance(node, ast.Assign) and any(
+                        isinstance(target, ast.Name) and target.id == 'deadline'
+                        for target in node.targets))
+    prefix = ast.Module(body=tree.body[:boundary], type_ignores=[])
+    real_replace = os.replace
+    events = []
+
+    def replace_with_rename_handle(source, destination):
+        # Windows rename operations hold DELETE access while the new name is
+        # already visible. Keep that state deterministic across the read probe.
+        handle = win32file.CreateFile(str(source), win32con.DELETE,
+            win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
+            None, win32con.OPEN_EXISTING, 0, None)
+        try:
+            real_replace(source, destination)
+            assert destination.exists()
+            assert not (tmp_path / 'report-ready').exists()
+            with pytest.raises(PermissionError):
+                destination.read_text(encoding='utf-8')
+            events.append('visible-but-not-readable')
+        finally:
+            handle.Close()
+        events.append('rename-handle-closed')
+
+    view = {'terminal_id': 'owned-report-probe', 'pid': 123,
+            'process_created_at_filetime': '456'}
+    monkeypatch.setattr(os, 'replace', replace_with_rename_handle)
+    monkeypatch.setattr(sys, 'argv', ['host.py', str(tmp_path)])
+    from packages.core.terminal import service as service_module
+    monkeypatch.setattr(service_module, 'TerminalService',
+                        lambda *a, **kw: SimpleNamespace(create=lambda **kw: view))
+    exec(compile(prefix, '<owned-host-publication>', 'exec'), {})
+    assert events == ['visible-but-not-readable', 'rename-handle-closed']
+    assert (tmp_path / 'report-ready').exists()
+    assert json.loads((tmp_path / 'report.json').read_text(encoding='utf-8')) == {'view': view}
+
+
 def _fake_cleanup_owner(monkeypatch, *, status=ProcessStatus.DEAD, proven=True):
     record = SimpleNamespace(terminal_id='term_cleanup', pid=42,
                              process_created_at_filetime=123,
@@ -285,6 +334,7 @@ def test_refused_host_skip_requires_verified_cleanup_and_releases_resources(tmp_
         stderr = io.BytesIO()
         def __init__(self, *args, **kwargs):
             (tmp_path / 'report.json').write_text(json.dumps({'view': view}))
+            (tmp_path / 'report-ready').touch()
         def communicate(self, timeout):
             facts['identity_retained_before_close'] = (tmp_path / 'identity-retained').exists()
             facts['status'] = ProcessStatus.DEAD
