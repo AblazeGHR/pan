@@ -385,6 +385,9 @@ try {
       .toBe(true);
     const stored = state.draftsBySession.s1;
 
+    // Switch Sessions through the production store entry point used by every
+    // session card.  The App-level mobile drawer is not mounted in this
+    // ChatView fixture; the action itself is the real `selectSession`.
     await page.evaluate(() => window.__panSelectSession?.('s2'));
     await expect(editor.locator('[data-composer-url]')).toHaveCount(0);
     const s2State = await editorState(page);

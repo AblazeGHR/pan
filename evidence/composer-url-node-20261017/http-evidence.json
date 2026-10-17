@@ -1,6 +1,6 @@
 {
-  "port": 56170,
-  "runtime": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify\\packages\\web\\test-results\\composer-url-node-http\\runtime",
+  "port": 60474,
+  "runtime": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify2\\packages\\web\\test-results\\composer-url-node-http\\runtime",
   "provider": "tests/support/frontend_stream_cli.py (deterministic, no model/network)",
   "checks": {
     "draft": {
@@ -22,7 +22,7 @@
           ],
           "attachments": []
         },
-        "updatedAt": "2026-10-18T00:01:13.370924",
+        "updatedAt": "2026-10-18T00:11:07.596380",
         "state": "present"
       },
       "b": {
@@ -38,10 +38,10 @@
           ],
           "attachments": []
         },
-        "updatedAt": "2026-10-18T00:01:13.375463",
+        "updatedAt": "2026-10-18T00:11:07.624736",
         "state": "present"
       },
-      "sidecar": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify\\packages\\web\\test-results\\composer-url-node-http\\runtime\\session-drafts\\ses_1327404dcfc594ba.json",
+      "sidecar": "D:\\project\\pan-worktrees\\composer-url-node-20261017-httpverify2\\packages\\web\\test-results\\composer-url-node-http\\runtime\\session-drafts\\ses_2193cf2fd1ed642c.json",
       "sidecarParts": [
         {
           "type": "text",
@@ -59,8 +59,8 @@
       "enqueue": {
         "ok": true,
         "item": {
-          "id": "q_cc3e7a9056564e14a39848ffb1a0449a",
-          "queueItemId": "q_cc3e7a9056564e14a39848ffb1a0449a",
+          "id": "q_15254b16ffd344ae8b1e472acb413f93",
+          "queueItemId": "q_15254b16ffd344ae8b1e472acb413f93",
           "kind": "task",
           "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
           "parts": [
@@ -73,7 +73,7 @@
               "text": "[Docs](https://example.test/send?q=1&x=2#h)"
             }
           ],
-          "createdAt": 1792252873.431723,
+          "createdAt": 1792253467.6716561,
           "source": "user",
           "meta": {
             "seq": 1,
@@ -89,8 +89,8 @@
         },
         "items": [
           {
-            "id": "q_cc3e7a9056564e14a39848ffb1a0449a",
-            "queueItemId": "q_cc3e7a9056564e14a39848ffb1a0449a",
+            "id": "q_15254b16ffd344ae8b1e472acb413f93",
+            "queueItemId": "q_15254b16ffd344ae8b1e472acb413f93",
             "kind": "task",
             "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
             "parts": [
@@ -103,7 +103,7 @@
                 "text": "[Docs](https://example.test/send?q=1&x=2#h)"
               }
             ],
-            "createdAt": 1792252873.431723,
+            "createdAt": 1792253467.6716561,
             "source": "user",
             "meta": {
               "seq": 1,
@@ -124,8 +124,8 @@
         "duplicate": false
       },
       "readBack": {
-        "id": "q_cc3e7a9056564e14a39848ffb1a0449a",
-        "queueItemId": "q_cc3e7a9056564e14a39848ffb1a0449a",
+        "id": "q_15254b16ffd344ae8b1e472acb413f93",
+        "queueItemId": "q_15254b16ffd344ae8b1e472acb413f93",
         "kind": "task",
         "text": "See [Docs](https://example.test/send?q=1&x=2#h)",
         "parts": [
@@ -138,7 +138,7 @@
             "text": "[Docs](https://example.test/send?q=1&x=2#h)"
           }
         ],
-        "createdAt": 1792252873.431723,
+        "createdAt": 1792253467.6716561,
         "source": "user",
         "meta": {
           "seq": 1,
@@ -175,7 +175,7 @@
       "result": {
         "status": "queued",
         "workerId": "worker-1",
-        "sessionId": "ses_547f52f2590b0f9a"
+        "sessionId": "ses_2b3bfd43f6368e7e"
       },
       "user": [
         "See [Docs](https://example.test/send?q=1&x=2#h)",
