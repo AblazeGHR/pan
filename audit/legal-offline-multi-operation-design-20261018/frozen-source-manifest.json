@@ -1,0 +1,44 @@
+{
+  "baseline": "f39f0561c824fa6aa122957dd28eb69e50c77129",
+  "sourceFrozen": true,
+  "testsRun": false,
+  "servicesOperated": false,
+  "files": [
+    {
+      "path": "packages/core/legal_offline.py",
+      "sha256": "f7c5be3b2cb36802ad216b87831a7d5f5f3338e9524869001fd65f100790f562"
+    },
+    {
+      "path": "packages/core/session.py",
+      "sha256": "34abbb55c33a57d348791fe9b3456766daa7682eb62d60fb06609835cbc75efc"
+    },
+    {
+      "path": "packages/core/worker.py",
+      "sha256": "47bea40214b03ebf39634519bf5a27a28ac633f68f69535a71f709336c28a791"
+    },
+    {
+      "path": "packages/core/adapters/codex/native_admission.py",
+      "sha256": "d0c030d6ef8cf23121c2fc4811e027804cddd4640b1941e1957e7f9dca6ddf83"
+    },
+    {
+      "path": "packages/core/adapters/codex/resident_tui.py",
+      "sha256": "661fe42c06ceeadb71d5a9ead8128969bc53db61794373c83c52f549a482ccba"
+    },
+    {
+      "path": "packages/core/adapters/codex/app_server_wrapper.py",
+      "sha256": "981964894ef3a9609f5aba14ffc9a78e254c7c8e648e38689f73395a6221b0ad"
+    },
+    {
+      "path": "packages/core/adapters/codex/native_transport.py",
+      "sha256": "e6496fa26cd0cbfb40d40a72113b01fc9af8a4286f48cbb2a0ee5a7b04322d71"
+    },
+    {
+      "path": "packages/core/takeover_job.py",
+      "sha256": "64a32e53412c897d30c24a7c8b641297d0874e68503a30a9e3990281b44f815f"
+    },
+    {
+      "path": "packages/web/server.py",
+      "sha256": "413df563a87ed1c2eab677fa8462828bbc4905b54882f3a981fcf858fa8b2846"
+    }
+  ]
+}
