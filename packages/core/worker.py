@@ -2140,13 +2140,88 @@ async def _flush_history_now(
     await _sess.save_async(s)
 
 
+async def _admit_native_operation(w, runtime, *, request_id, thread_id, control_generation, operation, context=None):
+    identity = _offline.owner(w)
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        def valid():
+            return (s is not None and _control_runtime_matches(w.worker_id, runtime)
+                    and w.offline_token == identity["token"] and w.native_control_mode == "native"
+                    and w.native_control_generation == control_generation
+                    and thread_id == s.cli_session_id and w.status not in {"held", "restarting"})
+        if not valid():
+            raise RuntimeError("Auxiliary native owner retired before admission")
+        def commit(candidate):
+            if not valid():
+                raise RuntimeError("Auxiliary native owner changed before persistence")
+            _offline.admit(candidate, identity, kind=operation, operation_id=request_id,
+                           nativeAdmissionId=request_id, nativeThreadId=thread_id,
+                           nativeControlGeneration=control_generation, connection=copy.deepcopy(context or {}))
+        await _commit_offline(s, commit)
+        record = s.execution_operations[request_id]
+        if record.get("safeTerminal") or record.get("retirement") or record.get("state") == "illegal":
+            raise RuntimeError("Auxiliary admission already retired")
+        if not valid():
+            raise RuntimeError("Auxiliary runtime retired during persistence")
+        return {"requestId": request_id, "runId": request_id}
+
+
+async def _native_operation_event(w, runtime, event) -> bool:
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        if s is None or not _control_runtime_matches(w.worker_id, runtime):
+            return False
+        key = event.get("runId") or event.get("requestId")
+        record = s.execution_operations.get(key)
+        identity = _offline.owner(w)
+        if (not record or record.get("kind") == "foreground"
+                or record.get("nativeAdmissionId") != event.get("requestId")
+                or not _offline.same_owner(record, identity)
+                or record.get("state") == "illegal" or record.get("safeTerminal")
+                or record.get("retirement")):
+            return False
+        def commit(candidate):
+            if not _control_runtime_matches(w.worker_id, runtime):
+                raise RuntimeError("Auxiliary runtime changed before persistence")
+            op = candidate.execution_operations[key]
+            action = event.get("type")
+            if action == "pan.native_operation_bind":
+                binding = event.get("binding") or {}
+                if op.get("binding") and op["binding"] != binding:
+                    op.update(state="uncertain", uncertainty="conflicting-resource-binding")
+                else:
+                    op["binding"] = copy.deepcopy(binding)
+            elif action == "pan.native_operation_terminal":
+                proof = event.get("proof")
+                binding = event.get("binding") or {}
+                allowed = ((op["kind"] == "command/exec" and proof == "command-deferred-final")
+                    or (op["kind"] == "review/detached" and proof == "review-turn-completed"
+                        and bool(op.get("binding")) and op["binding"] == binding))
+                if allowed and not op.get("uncertainty"):
+                    _offline.finish_operation(candidate, key, identity, reason=proof, proof=proof)
+            elif action == "pan.native_turn_not_forwarded":
+                if not op.get("binding"):
+                    _offline.finish_operation(candidate, key, identity, reason="native/not-forwarded",
+                                              proof="provider-rejected" if event.get("providerRejected") else "not-forwarded")
+            elif action == "pan.native_operation_uncertain":
+                op.update(state="uncertain", uncertainty=event.get("reason") or "unconfirmed-native-operation")
+            candidate.operation_revision += 1
+        changed = await _commit_offline(s, commit)
+    if changed:
+        await _offline_snapshot_event(s)
+    return changed
+
+
 async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None,
                              thread_id: str | None = None,
                              control_generation: int | None = None,
-                             operation: str = "turn/start") -> dict:
+                             operation: str = "turn/start", context: dict | None = None) -> dict:
     if not isinstance(request_id, str) or not request_id:
         raise RuntimeError("Invalid native admission identity")
     codex = w.adapter.name == "codex"
+    if codex and operation in {"command/exec", "review/detached"}:
+        return await _admit_native_operation(w, runtime, request_id=request_id, thread_id=thread_id,
+            control_generation=control_generation, operation=operation, context=context)
     if codex and operation not in {"turn/start", "thread/compact/start", "observed-turn"}:
         raise RuntimeError("Unsupported admission operation")
     identity = _offline.owner(w)
@@ -2211,6 +2286,10 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
 
 
 async def _retire_native_admission(w, runtime, event) -> bool:
+    s = _session(w)
+    op = s.execution_operations.get(event.get("runId") or event.get("requestId")) if s else None
+    if op and op.get("kind") != "foreground":
+        return await _native_operation_event(w, runtime, event)
     async with queue_lock(w.session_id):
         s = _session(w)
         run = (s.offline_run or {}) if s else {}
@@ -2301,6 +2380,10 @@ async def _read_stdout(w: Worker):
                 and adapter.name == "cbc" and w.native_control_enabled):
             w.native_kernel_ready = True
             continue
+        if (event.get("type") in {"pan.native_operation_bind", "pan.native_operation_terminal",
+                                  "pan.native_operation_uncertain"} and adapter.name == "codex"):
+            await _native_operation_event(w, receipt_runtime, event)
+            continue
         if event.get("type") == "pan.native_error":
             w.native_control_error = "Native terminal operation failed"
             continue
@@ -2314,7 +2397,7 @@ async def _read_stdout(w: Worker):
             try:
                 receipt = await _admit_native_turn(w, receipt_runtime, request_id=request_id,
                     thread_id=event.get("threadId"), control_generation=event.get("controlGeneration"),
-                    operation=event.get("operation", "turn/start"))
+                    operation=event.get("operation", "turn/start"), context=event.get("connection"))
                 ok = True
             except Exception:
                 _log.exception("Native admission rejected for Session %s", w.session_id)

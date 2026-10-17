@@ -250,15 +250,23 @@ class AppServer:
         self._native_turn_pending = threading.Event()
         self._native_admission_lock = threading.RLock()
         self._native_admission = None
+        self._aux_admissions = {}
         self.native_admission_timeout = 5.0
         self._steer_requests: dict[int, str] = {}
         self._steer_requests_lock = threading.Lock()
 
     def native_admission_receipt(self, message):
         with self._native_admission_lock:
-            admission = self._native_admission
+            admission = self._aux_admissions.get(message.get("requestId")) or self._native_admission
             if admission is not None and admission.id == message.get("requestId"):
                 admission.acknowledge(message)
+
+    def reserve_auxiliary_admission(self, thread_id, generation, emit, operation):
+        from packages.core.adapters.codex.native_admission import NativeAdmission
+        with self._native_admission_lock:
+            admission = NativeAdmission(thread_id, generation, emit, operation)
+            self._aux_admissions[admission.id] = admission
+            return admission
 
     def reserve_native_admission(self, thread_id, generation, emit, operation="turn/start"):
         from packages.core.adapters.codex.native_admission import NativeAdmission
@@ -272,6 +280,7 @@ class AppServer:
 
     def retire_native_reservation(self, admission):
         with self._native_admission_lock:
+            self._aux_admissions.pop(admission.id, None)
             if self._native_admission is admission:
                 self._native_turn_pending.clear()
                 self._native_admission = None
@@ -439,6 +448,10 @@ class AppServer:
                             admission.started(turn_id)
                 if self._resident_tui is not None and "method" in message and "id" not in message:
                     self._resident_tui.observe(message)
+                # Detached resources belong to auxiliary collectors, never the
+                # foreground accumulator or observational turn admission.
+                if ((message.get("params") or {}).get("threadId", self.thread_id) != self.thread_id):
+                    continue
                 if not self._emit_steer_receipt(message):
                     self.incoming.put(message)
         except Exception as exc:

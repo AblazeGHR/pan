@@ -10,6 +10,7 @@ class NativeAdmission:
         self.id = secrets.token_hex(16)
         self.thread_id, self.generation, self.emit = thread_id, generation, emit
         self.operation = operation
+        self.context = {}
         self.run_id = None
         self.turn_id = None
         self.state = "waiting"
@@ -19,7 +20,7 @@ class NativeAdmission:
     def request(self):
         self.emit({"type": "pan.native_turn_admission", "requestId": self.id,
                    "threadId": self.thread_id, "controlGeneration": self.generation,
-                   "operation": self.operation})
+                   "operation": self.operation, **self.context})
 
     def acknowledge(self, message):
         with self.lock:
