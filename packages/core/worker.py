@@ -2154,9 +2154,15 @@ async def _admit_native_operation(w, runtime, *, request_id, thread_id, control_
         def commit(candidate):
             if not valid():
                 raise RuntimeError("Auxiliary native owner changed before persistence")
-            _offline.admit(candidate, identity, kind=operation, operation_id=request_id,
+            existing = candidate.execution_operations.get(request_id)
+            if existing and (existing.get("safeTerminal") or existing.get("retirement")
+                    or existing.get("state") == "illegal"):
+                raise RuntimeError("Auxiliary admission already retired")
+            record = _offline.admit(candidate, identity, kind=operation, operation_id=request_id,
                            nativeAdmissionId=request_id, nativeThreadId=thread_id,
                            nativeControlGeneration=control_generation, connection=copy.deepcopy(context or {}))
+            if existing is None and operation in {"opaque", "compact/active"}:
+                record.update(state="uncertain", uncertainty="execution-resource-proof-unavailable")
         await _commit_offline(s, commit)
         record = s.execution_operations[request_id]
         if record.get("safeTerminal") or record.get("retirement") or record.get("state") == "illegal":
@@ -2219,7 +2225,7 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
     if not isinstance(request_id, str) or not request_id:
         raise RuntimeError("Invalid native admission identity")
     codex = w.adapter.name == "codex"
-    if codex and operation in {"command/exec", "review/detached"}:
+    if codex and operation in {"command/exec", "review/detached", "compact/active", "opaque"}:
         return await _admit_native_operation(w, runtime, request_id=request_id, thread_id=thread_id,
             control_generation=control_generation, operation=operation, context=context)
     if codex and operation not in {"turn/start", "thread/compact/start", "observed-turn"}:
@@ -7320,7 +7326,7 @@ async def reserve_takeover_owner(w: Worker) -> None:
     s = _session(w)
     if s is None:
         raise RuntimeError("Session disappeared before takeover")
-    identity = {**_offline.owner(w), "externalTakeover": True,
+    identity = {**_offline.owner(w), "externalTakeover": True, "ownerId": uuid.uuid4().hex,
                 "runtimeExpected": True, "ownershipUnknown": True, "processes": []}
     async with queue_lock(w.session_id):
         def reserve(candidate):
@@ -7334,11 +7340,35 @@ async def reserve_takeover_owner(w: Worker) -> None:
 async def _kill_takeover_terminal(w: Worker) -> bool:
     """杀掉 takeover 模式打开的终端及子进程树。异步版，不阻塞事件循环。"""
     if w.takeover_job is not None:
-        # Keep ownership on failure so Restart/Kill can retry safely.
-        await asyncio.to_thread(w.takeover_job.stop)
+        job = w.takeover_job
+        if not hasattr(job, "terminate_and_verify"):
+            await asyncio.to_thread(job.stop)
+            raise RuntimeError("Takeover Job has no verifiable retirement proof")
+        proof = await asyncio.to_thread(job.terminate_and_verify)
+        s = _session(w)
+        if s is not None:
+            captured = copy.deepcopy(s.offline_owner)
+            prior_key = (captured or {}).get("previousOwnerRetirement")
+            prior = s.owner_retirements.get(prior_key, {})
+            if prior.get("proof", {}).get("jobId") == proof["jobId"]:
+                pass  # Persistence succeeded earlier; retry only handle release.
+            elif not captured or not captured.get("externalTakeover"):
+                raise RuntimeError("Takeover owner scope is unconfirmed; retaining Job handle")
+            else:
+                async with queue_lock(s.id):
+                    def retire(candidate):
+                        if candidate.offline_owner != captured or w.takeover_job is not job:
+                            raise RuntimeError("Takeover owner changed during retirement")
+                        key = captured.get("ownerId") or f"{captured['token']}:{captured['generation']}"
+                        candidate.owner_retirements[key] = {"owner": captured, "proof": proof}
+                        _offline.retire_owner(candidate, captured, reason="takeover/stopped", proof=proof)
+                        candidate.offline_owner = {**_offline.owner(w), "previousOwnerRetirement": key}
+                    await _commit_offline(s, retire)
+        # Preserve both the Job and its verifiable empty state until the
+        # ordered metadata replace succeeds. A failed write is retryable.
+        await asyncio.to_thread(job.close_retired)
         w.takeover_job = None
         w.takeover_pid = None
-        await _claim_offline_owner(w)
         return True
     if not w.takeover_pid:
         s = _session(w)
@@ -7365,6 +7395,9 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     status = await asyncio.to_thread(_offline.previous_owner_status, {"processes": identities})
     if status != "dead":
         raise RuntimeError(f"Takeover owner is {status}; refusing a second writer")
+    s = _session(w)
+    if s is not None and (s.offline_owner or {}).get("externalTakeover"):
+        raise RuntimeError("Takeover descendant coverage is unknown without a Job retirement proof")
     w.takeover_pid = None
     await _claim_offline_owner(w)
     return True

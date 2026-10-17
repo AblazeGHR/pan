@@ -1,0 +1,186 @@
+{
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "final_exit_code": 0,
+  "final_source_hashes_verified_unchanged": true,
+  "results": {
+    "final-focused.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "123",
+        "time": "6.813",
+        "timestamp": "2026-10-18T06:29:12.352277+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "final-frozen-regression.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "608",
+        "time": "61.645",
+        "timestamp": "2026-10-18T06:29:35.831282+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "final-regression.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "602",
+        "time": "60.472",
+        "timestamp": "2026-10-18T06:25:48.475472+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage1-final-focused.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "51",
+        "time": "1.302",
+        "timestamp": "2026-10-18T06:17:59.987234+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage1-focused.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "4",
+        "skipped": "0",
+        "tests": "87",
+        "time": "2.130",
+        "timestamp": "2026-10-18T06:16:50.066577+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage1-regression.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "565",
+        "time": "48.823",
+        "timestamp": "2026-10-18T06:16:59.736939+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage2-auxiliary.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "11",
+        "time": "3.672",
+        "timestamp": "2026-10-18T06:21:36.267839+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage2-regression.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "116",
+        "time": "14.414",
+        "timestamp": "2026-10-18T06:21:06.007415+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage3-auxiliary.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "19",
+        "time": "3.909",
+        "timestamp": "2026-10-18T06:25:35.156413+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage3-focused.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "123",
+        "time": "7.066",
+        "timestamp": "2026-10-18T06:24:18.725695+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "stage3-initial.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "4",
+        "skipped": "0",
+        "tests": "117",
+        "time": "12.654",
+        "timestamp": "2026-10-18T06:23:07.831071+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  },
+  "test_files": [
+    "tests/test_legal_offline.py",
+    "tests/test_unified_server_queue.py",
+    "tests/test_self_queue.py",
+    "tests/test_session_legal_worker_state.py",
+    "tests/test_session_legal_worker_state_api.py",
+    "tests/test_startup_recovery.py",
+    "tests/test_main_lifecycle_jobs.py",
+    "tests/test_main_service_exit.py",
+    "tests/test_main_service_restart.py",
+    "tests/test_native_control_api.py",
+    "tests/test_force_steer.py",
+    "tests/test_cbc_native_bridge.py",
+    "tests/test_codex_takeover.py",
+    "tests/test_queue_send_latency.py",
+    "tests/test_report_error_context.py",
+    "tests/test_plugin_session_config.py",
+    "tests/test_worker_states.py",
+    "tests/test_worker_primitives.py",
+    "tests/test_worker_global_watchdog.py",
+    "tests/test_worker_watchdog.py",
+    "tests/test_queue_migration.py",
+    "tests/test_queue_restart_hardening.py",
+    "tests/test_worker_output_mode.py",
+    "tests/test_worker_oneshot_usage.py",
+    "tests/test_session_queue_api.py",
+    "tests/test_session_worker_controls.py",
+    "tests/test_long_run_persistence.py",
+    "tests/test_persistence_sharding.py",
+    "tests/test_claude_stream_worker.py",
+    "tests/test_codex_worker_integration.py",
+    "tests/test_execution_operations.py",
+    "tests/test_codex_native_admission.py",
+    "tests/test_codex_native_completion.py",
+    "tests/test_codex_native_passthrough.py",
+    "tests/test_codex_auxiliary_operations.py",
+    "tests/test_codex_native_kernel_real.py"
+  ],
+  "boundaries": [
+    "no main/practical/integration merge",
+    "no push or release",
+    "no existing service restart",
+    "no protected 8767/8768 test",
+    "no remote model",
+    "no dependency installation",
+    "no React changes/build"
+  ]
+}

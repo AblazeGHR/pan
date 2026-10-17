@@ -1,0 +1,19 @@
+{
+  "base_commit": "0e1e3e9d638cff9f85085bdc7b9abcf566232b3a",
+  "frozen_at": "2026-10-17T22:29:35.415462+00:00",
+  "files": {
+    "packages/core/adapters/codex/app_server_wrapper.py": "02e14cdd55f0bc2ee77460e0f1c2f0317d4431fd905d8ede6cf7b47d67a3f117",
+    "packages/core/adapters/codex/native_admission.py": "092b119fdaf484cca50a3dcc7d033dcdb85d745c72300fed52a1698d67fe278f",
+    "packages/core/adapters/codex/resident_tui.py": "aefa0bc7e58f39f67bbd9858f3448b82609dd66e6deb289f26776ef4e4723b18",
+    "packages/core/legal_offline.py": "6c21f3ccbef5b13df7f608032a787c604e73035d9864769199e7a818de15bec1",
+    "packages/core/session.py": "4b09ccad126428cd7770749ba9cac82992e31b102833ef30ac3a957f1d39aa13",
+    "packages/core/takeover_job.py": "816b75bd84acd1f15ec4b3b9f55fd3c8269edea15884a17fb56f38b23b5b0f19",
+    "packages/core/worker.py": "b9d7dd33ae4b66ee468413c65e9ff002985c60719705b6fa3f112a41c62d1439",
+    "packages/web/server.py": "ae40bd80c05ae11d829fa07f30b5568627d1f3f97f2c576354f944a376727d20",
+    "tests/test_codex_auxiliary_operations.py": "cdd838472f9bb47cec07c158396900e7c024447ed580c337de2c0632b1195235",
+    "tests/test_codex_native_admission.py": "1c65bf5be6626acd3e9dabea4c49902ab78af985b11e6ddc675c10bdb51c67da",
+    "tests/test_codex_native_passthrough.py": "babed9a3c614a33630042b147f1b4d753ed4169c675a544c035ae23fe3379df9",
+    "tests/test_execution_operations.py": "935ca14de0c26e54e76fe31d2b12d669bcd7877d1c23b143fb94503e2587c413",
+    "tests/test_legal_offline.py": "ceda93ca572c1dd6f6ff920f060c668c499889de7eef63fbf9c704a4a1b18458"
+  }
+}

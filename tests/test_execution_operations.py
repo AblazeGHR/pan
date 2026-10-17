@@ -78,3 +78,19 @@ def test_terminal_replace_failure_does_not_publish_ledger(monkeypatch):
             await worker._persist_terminal_state(w, s, "done", "ok")
         assert s.execution_operations == before and not s.legal_offline
     asyncio.run(run())
+
+
+def test_ready_successor_compacts_only_safe_fenced_history():
+    s = sess.Session(id="history", name="history")
+    old = dict(token="old", generation=1, executionSeq=1)
+    new = dict(token="new", generation=2, executionSeq=1)
+    offline.begin(s, old)
+    safe_id = s.offline_run["id"]
+    offline.finish(s, old, reason="safe")
+    pending = offline.admit(s, old, kind="opaque", operation_id="old-uncertain")
+    offline.admit(s, new, kind="command/exec", operation_id="new-command")
+    offline.activate(s, new, remember=lambda _: None, predecessors=set())
+    assert safe_id not in s.execution_operations
+    assert s.execution_operations["old-uncertain"] == pending
+    assert set(s.execution_operations) == {"old-uncertain", "new-command"}
+    assert not s.legal_offline

@@ -193,3 +193,18 @@ mark_batch_recovered(batch.id)
 reservation busy 与 admitted execution 分开；两者均遵守原交接 gate。ACK 由 stdin parser 直接分发，普通控制/任务/EOF 保持原有先后顺序但不阻塞 ACK 读取。代理等待时不持 owner/policy 锁，ACK 后再次核验 thread/control generation/owner 才发送。取消/迟到 ACK/发送尝试由一次性状态转换决定；发送后未知保留 False/owner，不重投。明确未发送或 provider 明确拒绝且未观察 started 冲突时按 admission/run 条件安全退休；旧取消、旧 started/completed 不得结束后继。正常 provider Error/429 仍按既有安全终态合法化，wrapper 自身异常不是 provider 安全结果，不能用合成 result 将发送未知的执行写 True。
 
 保持现有功能：活动 turn 中的 compaction、未知 passthrough、Steer/审批续写和独立 takeover 不一律禁用。仅观察到才开始记录的原生 turn 显式记 nativeAdmissionTiming=after-start；不得宣称事前覆盖。空闲受控请求记 before-forward。独立 command/exec（没有 thread/turn）、detached review、活动 compaction 的后续排队操作和外部 takeover，需要独立完成/owner 映射或更大生命周期扩展，本轮仍未验收，详见交付报告。
+
+
+## 13. MA 批准的多 operation 实施语义（覆盖第 11/12 节相应历史边界）
+
+依据 f3e051fc 多 operation 设计和本 Session 后续授权，按三阶段复用 Session JSON、queue_lock、ordered writer 实施，不引入数据库或事件总线。v2 execution_operations 是执行责任权威，offline_run 仅作前台兼容投影；legal_offline 仅在全部已准入责任都有安全终态/安全退休证明时 True。每条责任保留不可复用 UUID、owner/generation、准入 revision，辅助请求另存 connection epoch/RPC/process 或子 thread/turn 绑定，不覆盖前台 seq/result/report/队列交接。正常处理 Error/429 只安全结束自己的操作，不清辅助责任；未确认合法性与 Illegal 分开。
+
+同 owner 失效时，将全部未退休责任同次分类为一个事故 cohort；确定 carrier 保存本次已有未锁消息的精确快照，其余保存同 incident 的空墓碑。迟到 EOF/终态/准入不能扩展快照；失败 owner 不再接新请求，需有效继任。ready 仍只恢复捕获的前序批次，保留仍活/未知责任；安全旧终态历史只在继任 owner fence 后压缩，未退休项和事故墓碑不按数量删除。v1 稳定 run UUID 幂等迁入 v2；缺失旧身份仍记录不确定性且不臆造异常；已有 v2 辅助责任即使无 offline_run 也不能被初始化 True。
+
+command/exec 与 detached review 经同一事前持久 ACK，但属于独立 operation。command 仅原 exec deferred final exitCode 响应收尾；write/resize/terminate ACK、前台 turn 结果均不代替它的终态。detached review 保留 delivery 原参数，只有 provider 返回的准确 reviewThreadId/turn.id 取得受限绑定；响应前通知有界缓存，冲突/溢出 uncertain，不按 FIFO 猜。start response 本身不当完成，准确子资源 terminal 或已返回真实 terminal turn 才可安全收尾。服务/连接失败不自动重投业务请求。
+
+活动 compact 保持原转发时机，先持久独立责任；空 RPC reply、自动 compaction item、后到主 turn 完成不能证明本次请求已结束，无法唯一关联时保持 uncertain。未知 passthrough 继续 opt-in 原样转发，先保存 opaque 责任；普通成功 reply 不安全退休。已验证只读与纯 config/batchWrite、config/value/write 不臆造执行责任；MCP reload 不算纯设置，已绑定的 Steer/审批/command continuation 不重复建 run，无法关联的 command continuation 保守登记 opaque。此状态不伪造 Worker Running，也不持续锁未来消息；API legalityDiagnostics 给出 scope、UUID/kind/state/reason。确认受控 owner 停止的 Stop/Restart 可按 scope 退休这些责任，手动消息解锁不能替代执行退休。
+
+外部 takeover 保留 owner-only 覆盖边界：不追溯猜测外部每个 turn，合法 Idle 可以与活/未知 lease 共存，但拒第二 writer。Job 退休顺序为 TerminateJobObject → ActiveProcesses==0 → 持久 owner_retirements 与覆盖责任结算 → 关闭句柄/清 runtime 引用。replace/关闭失败都保留可重试证明，未保存 proof 前服务崩溃仍 unknown。非 Job 根 PID/已观察后代快照不足以证明完整覆盖时，不凭空清预留；没有新增绕过 unknown 的人工布尔重置 API。
+
+当前 Codex 0.162.1 的 paginated thread 不支持 detached review；保持 upstream 明确拒绝语义，不改写 inline、不强行改变默认 history mode。真实本地 legacy thread + 合成 provider 已验证子 thread 完成映射；活动 compact/opaque 的自然终态自动关联仍受协议能力限制，其可证明 Stop/Restart 退休路径已实现，不能宣称任意未知方法都可自动收尾。外部不可观测客户端的逐 turn 保证仍不属于 Pan 管理执行范围。

@@ -47,7 +47,13 @@ def test_passthrough_explicitly_forwards_without_rewriting_and_marks_unknown(mon
     assert sent == [] and replies[0]['error']['code'] == -32000 and not events
     _, sent, replies, events = proxy(monkeypatch, [message], enabled=True)
     assert sent == [message] and not replies
-    assert events == [{'type': 'pan.native_settings_uncertain'}]
+    if method == 'config/batchWrite':
+        assert events == [{'type': 'pan.native_settings_uncertain'}]
+    else:
+        assert [event['type'] for event in events] == ['pan.native_turn_admission', 'pan.native_settings_uncertain']
+        assert events[0]['operation'] == 'opaque'
+        assert events[0]['connection']['rpcId'] == 1
+        assert 'SECRET' not in json.dumps(events)
 
 
 @pytest.mark.parametrize('native,thread', [(False, 'current'), (True, 'other')])

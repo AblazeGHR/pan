@@ -18,7 +18,7 @@ from . import queue_locks
 SERVICE_ID = uuid.uuid4().hex
 FIELDS = ("task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
           "queue_delivery_ledger", "queue_idempotency_index", "queue_revision",
-          "legality_schema_version", "operation_revision", "execution_operations")
+          "legality_schema_version", "operation_revision", "execution_operations", "owner_retirements")
 
 
 def snapshot(s) -> dict:
@@ -83,6 +83,8 @@ def admit(s, identity: dict, *, kind: str, operation_id: str | None = None, **me
         if not same_owner(old, identity) or old.get("kind") != kind:
             raise RuntimeError("Operation identity conflict")
         return old
+    if any(same_owner(batch.get("run"), identity) for batch in s.illegal_batches.values()):
+        raise RuntimeError("Execution owner already failed; a successor is required")
     s.operation_revision += 1
     record = {**identity, **metadata, "id": key, "kind": kind,
               "admittedRevision": s.operation_revision, "state": "running",
@@ -258,9 +260,26 @@ def activate(s, identity: dict, *, remember, predecessors: set[str] | None = Non
         changed = True
     if not (same_owner(s.offline_run, identity) and s.legal_offline is False):
         s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "idle"}
+    # A ready successor fences callbacks from old runtime tokens. Retain all
+    # unfinished responsibility and incident tombstones, but no full safe
+    # foreground history for every earlier Worker generation.
+    removable = [key for key, op in s.execution_operations.items()
+                 if not same_owner(op, identity) and op.get("safeTerminal")
+                 and key not in s.illegal_batches]
+    for key in removable:
+        del s.execution_operations[key]
     aggregate(s)
-    if changed:
+    if changed or removable:
         s.operation_revision += 1
     if changed:
         s.queue_revision += 1
     return changed
+
+
+def diagnostics(s) -> dict:
+    """False is unresolved responsibility; it does not imply a diagnosed incident."""
+    return {"coverage": "external-owner-only" if (s.offline_owner or {}).get("externalTakeover") else "pan-managed",
+            "revision": s.operation_revision,
+            "outstanding": [{"operationId": op["id"], "kind": op.get("kind"),
+                "state": op.get("state"), "reason": op.get("uncertainty") or op.get("reason")}
+                for op in outstanding(s)]}

@@ -155,6 +155,166 @@ def test_review_reply_is_not_completion_and_conflicting_binding_stays_uncertain(
     asyncio.run(run())
 
 
+@pytest.mark.parametrize("method", ["thread/compact/start", "future/asyncOperation", "config/mcpServer/reload"])
+def test_unattributed_reply_preserves_responsibility_until_verified_stop(monkeypatch, method):
+    async def run():
+        message = dict(id=9, method=method, params=dict(threadId="thread"))
+        s, w, app, tui, sent, events, drain = await harness(monkeypatch, [message])
+        assert sent == [message]
+        tui._aux_response(dict(id=9, result={}))
+        # Compaction items/turn terminal have no request ID; no FIFO association.
+        tui._aux_notification(dict(method="turn/completed", params=dict(threadId="thread", turn=dict(id="automatic"))))
+        await drain()
+        await worker._persist_terminal_state(w, s, "error", "429")
+        assert not s.legal_offline and not offline.is_illegal(s)
+        assert offline.diagnostics(s)["outstanding"][0]["state"] == "uncertain"
+        identity = offline.owner(w)
+        with pytest.raises(RuntimeError, match="unconfirmed"):
+            await worker._finish_offline_stop(w, identity, "user-stop")
+        w.process.returncode = 0
+        await worker._finish_offline_stop(w, identity, "user-stop")
+        assert s.legal_offline
+    asyncio.run(run())
+
+
+def test_known_reads_settings_and_bound_command_continuations_create_no_extra_run(monkeypatch):
+    async def run():
+        messages = [command(1), dict(id=2, method="command/exec/terminate", params=dict(processId="same")),
+            dict(id=3, method="config/batchWrite", params=dict(edits=[])),
+            dict(id=4, method="config/read", params={})]
+        s, w, app, tui, sent, events, drain = await harness(monkeypatch, messages)
+        assert sent == messages and len(s.execution_operations) == 2
+        tui._aux_response(dict(id=2, result={}))
+        await drain()
+        assert not next(op for op in s.execution_operations.values() if op["kind"] == "command/exec")["safeTerminal"]
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("action", ["bind", "terminal"])
+def test_auxiliary_commit_failure_retains_false_and_never_reexecutes(monkeypatch, action):
+    async def run():
+        s, w, app, tui, sent, events, drain = await harness(monkeypatch, [command(1)])
+        await worker._persist_terminal_state(w, s, "done", "ok")
+        op = next(op for op in s.execution_operations.values() if op["kind"] == "command/exec")
+        before = copy.deepcopy(s.execution_operations)
+        original = session.os.replace
+        def fail(*_):
+            raise OSError("aux replace failed")
+        monkeypatch.setattr(session.os, "replace", fail)
+        event = dict(type="pan.native_operation_" + action, requestId=op["id"], runId=op["id"],
+                     proof="command-deferred-final", binding=dict(connectionEpoch=tui.connection_epoch))
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        with pytest.raises(OSError, match="aux replace"):
+            await worker._native_operation_event(w, runtime, event)
+        assert s.execution_operations == before and not s.legal_offline
+        monkeypatch.setattr(session.os, "replace", original)
+        disk = session.Session._from_data(json.loads(session._path(s.id).read_text(encoding="utf-8")))
+        assert not disk.legal_offline and len(sent) == 1
+        # A late event from the retired generation cannot finish this record.
+        w.generation += 1
+        assert not await worker._native_operation_event(w, runtime, event)
+        assert not s.legal_offline
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind", ["opaque", "compact/active"])
+@pytest.mark.parametrize("terminal", ["safe", "illegal"])
+def test_replayed_auxiliary_admission_cannot_reopen_terminal_or_hide_incident(monkeypatch, kind, terminal):
+    async def run():
+        message = dict(id=9, method="thread/compact/start" if kind == "compact/active" else "future/execute",
+                       params=dict(threadId="thread"))
+        s, w, app, tui, sent, events, drain = await harness(monkeypatch, [message])
+        op = next(op for op in s.execution_operations.values() if op["kind"] == kind)
+        identity = offline.owner(w)
+        if terminal == "safe":
+            async with worker.queue_lock(s.id):
+                await worker._commit_offline(s, lambda c: offline.retire_owner(c, identity,
+                    reason="scope-retired", proof={"kind": "test-runtime-retired"}))
+        else:
+            w.process.returncode = 1
+            await worker._detect_offline_exit(w, identity, "kill")
+            w.process.returncode = None
+        before = copy.deepcopy(s.execution_operations)
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        with pytest.raises(RuntimeError, match="retired"):
+            await worker._admit_native_turn(w, runtime, request_id=op["id"], thread_id="thread",
+                control_generation=1, operation=kind)
+        assert s.execution_operations == before
+        assert offline.is_illegal(s) == (terminal == "illegal")
+    asyncio.run(run())
+
+
+def test_failed_owner_cannot_admit_late_request_and_expand_cohort(monkeypatch):
+    async def run():
+        s, w, app, tui, sent, events, drain = await harness(monkeypatch, [command(1)])
+        identity = offline.owner(w)
+        # Watchdog classifies before asynchronously stopping the runtime.
+        w.status = "error"
+        await worker._detect_offline_exit(w, identity, "watchdog-aborted")
+        before = copy.deepcopy(s.illegal_batches)
+        s.queue_pending.append(dict(id="later", type="task", deliveryState="queued"))
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        with pytest.raises(RuntimeError, match="owner already failed"):
+            await worker._admit_native_turn(w, runtime, request_id="late-new-uuid", thread_id="thread",
+                control_generation=1, operation="command/exec")
+        await worker._detect_offline_exit(w, identity, "late-eof")
+        assert s.illegal_batches == before
+        assert "queueLockSource" not in s.queue_pending[-1]
+    asyncio.run(run())
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows Job retirement proof")
+@pytest.mark.parametrize("failure", ["replace", "close"])
+def test_takeover_job_retirement_persisted_before_release_and_retry(tmp_path, monkeypatch, failure):
+    from packages.core.takeover_job import TakeoverJob
+    async def run():
+        s, w = setup()
+        w.process = None
+        w.status = "held"
+        await worker.reserve_takeover_owner(w)
+        assert s.legal_offline and offline.diagnostics(s)["coverage"] == "external-owner-only"
+        job = TakeoverJob()
+        w.takeover_job = job
+        w.takeover_pid = job.launch([sys.executable, "-c", "import time; time.sleep(30)"], cwd=str(tmp_path))
+        owner_id = s.offline_owner["ownerId"]
+        original_replace = session.os.replace
+        original_close = job.close_retired
+        calls = []
+        def fail_replace(*args):
+            raise OSError("proof replace failed")
+        def fail_close():
+            # The receipt must already be on disk even when handle close fails.
+            disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+            assert disk["owner_retirements"][owner_id]["proof"]["activeProcesses"] == 0
+            calls.append("committed")
+            raise OSError("close failed")
+        if failure == "replace":
+            monkeypatch.setattr(session.os, "replace", fail_replace)
+        else:
+            monkeypatch.setattr(job, "close_retired", fail_close)
+        try:
+            with pytest.raises(OSError):
+                await worker._kill_takeover_terminal(w)
+            assert w.takeover_job is job and job.handle is not None
+            if failure == "replace":
+                assert not s.owner_retirements and s.offline_owner["ownershipUnknown"]
+                with pytest.raises(RuntimeError, match="unknown"):
+                    await worker._prepare_offline_recovery(s)
+            else:
+                assert calls == ["committed"]
+            monkeypatch.setattr(session.os, "replace", original_replace)
+            monkeypatch.setattr(job, "close_retired", original_close)
+            assert await worker._kill_takeover_terminal(w)
+            assert w.takeover_job is None and w.takeover_pid is None and job.handle is None
+            assert s.owner_retirements[owner_id]["proof"]["jobId"] == job.identity
+        finally:
+            monkeypatch.setattr(session.os, "replace", original_replace)
+            monkeypatch.setattr(job, "close_retired", original_close)
+            if job.handle is not None:
+                job.stop()
+    asyncio.run(run())
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows owned local Codex kernel")
 @pytest.mark.parametrize("history_mode", ["legacy", "paginated"])
 def test_real_local_codex_command_and_detached_review(tmp_path, monkeypatch, history_mode):
@@ -268,6 +428,42 @@ def test_real_local_codex_command_and_detached_review(tmp_path, monkeypatch, his
             assert review["binding"]["threadId"] == response["result"]["reviewThreadId"]
             assert review["binding"]["threadId"] != app.thread_id
             assert not provider.failures
+            # A real active main turn and manual compaction share the kernel,
+            # but an empty compact reply cannot establish its unique terminal.
+            provider.received.clear()
+            provider.release.clear()
+            provider.on_request = lambda: (
+                None if not json.loads(session._path(s.id).read_text(encoding="utf-8"))["legal_offline"]
+                else (_ for _ in ()).throw(AssertionError("provider before durable False")))
+            incoming.put(dict(id=4, method="turn/start", params=dict(threadId=app.thread_id,
+                input=[dict(type="text", text="Local synthetic active turn.", text_elements=[])])))
+            primary = await reply(4)
+            assert "result" in primary, primary
+            assert await asyncio.to_thread(provider.received.wait, 10)
+            app._turn_active.set()  # The production main loop sets this on turn/started.
+            incoming.put(dict(id=5, method="thread/compact/start", params=dict(threadId=app.thread_id)))
+            compact = await reply(5)
+            assert "result" in compact, compact
+            for future in list(pending):
+                await asyncio.wrap_future(future)
+            provider.release.set()
+            target = primary["result"]["turn"]["id"]
+            async def main_completed():
+                while True:
+                    event = await asyncio.to_thread(app.incoming.get, True, 15)
+                    if event and event.get("method") == "turn/completed":
+                        params = event.get("params") or {}
+                        if params.get("threadId") == app.thread_id and (params.get("turn") or {}).get("id") == target:
+                            return
+            await main_completed()
+            await worker._persist_terminal_state(w, s, "done", "synthetic")
+            assert not s.legal_offline and not offline.is_illegal(s)
+            uncertain = [op for op in offline.outstanding(s) if op["kind"] == "compact/active"]
+            assert len(uncertain) == 1 and uncertain[0]["state"] == "uncertain"
+            await asyncio.to_thread(app.process.terminate)
+            await asyncio.to_thread(app.process.wait, 2)
+            await worker._finish_offline_stop(w, offline.owner(w), "local-safe-stop")
+            assert s.legal_offline
         finally:
             tui.stopped.set()
             incoming.put(None)

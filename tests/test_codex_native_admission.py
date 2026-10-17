@@ -290,12 +290,19 @@ def test_active_turn_compaction_keeps_existing_forwarding_semantics(monkeypatch)
     app._turn_active.set()
     sent, events = [], []
     app._native_transport = SimpleNamespace(peer=lambda _: SimpleNamespace(send=sent.append))
-    tui = ResidentTui(app, events.append)
+    def acknowledge(event):
+        events.append(event)
+        if event["type"] == "pan.native_turn_admission":
+            assert sent == []
+            assert event["operation"] == "compact/active"
+            app.native_admission_receipt({"requestId": event["requestId"], "runId": "durable-compact", "ok": True})
+    tui = ResidentTui(app, acknowledge)
     monkeypatch.setattr(tui, "_from_server", lambda: None)
     message = {"id": 1, "method": "thread/compact/start", "params": {"threadId": "thread"}}
     tui._handle([json.dumps(message)])
     assert sent == [message]
-    assert not any(e["type"] == "pan.native_turn_admission" for e in events)
+    assert [event["type"] for event in events] == ["pan.native_turn_admission"]
+    assert app._native_admission is None  # Auxiliary does not replace active turn.
 
 
 @pytest.mark.parametrize("already_started", [False, True])

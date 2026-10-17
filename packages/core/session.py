@@ -1366,6 +1366,7 @@ class Session:
     legality_schema_version: int = 2
     operation_revision: int = 0
     execution_operations: dict = field(default_factory=dict)
+    owner_retirements: dict = field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
     order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
@@ -1473,6 +1474,7 @@ class Session:
                  legality_schema_version: int = 1,
                  operation_revision: int = 0,
                  execution_operations: dict | None = None,
+                 owner_retirements: dict | None = None,
                  created_at: str = "",
                  updated_at: str = "",
                  order: int | None = None,
@@ -1571,6 +1573,7 @@ class Session:
         self.legality_schema_version = legality_schema_version
         self.operation_revision = operation_revision
         self.execution_operations = copy.deepcopy(execution_operations or {})
+        self.owner_retirements = copy.deepcopy(owner_retirements or {})
         # False without a durable execution identity is legacy/unverified data,
         # not permission to invent an Illegal event or change consumability.
         if not self.execution_operations and (not self.offline_run or not isinstance(self.offline_run.get("id"), str)
@@ -1934,6 +1937,7 @@ class Session:
             "legality_schema_version": self.legality_schema_version,
             "operation_revision": self.operation_revision,
             "execution_operations": self.execution_operations,
+            "owner_retirements": self.owner_retirements,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "order": self.order,
@@ -2106,6 +2110,7 @@ def _summary_metadata_signature(s: Session) -> str:
         "last_legal_worker_state": s.last_legal_worker_state,
         "legal_offline": s.legal_offline,
         "operation_revision": s.operation_revision,
+        "offline_owner": s.offline_owner,
         "offline_run": s.offline_run,
         "total_usage": s.total_usage,
         "order": s.order,
