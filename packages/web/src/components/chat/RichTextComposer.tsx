@@ -17,12 +17,23 @@ import {
 } from '@/utils/attachmentPayload';
 import { type AttachmentDragPayload } from '@/utils/attachmentDrag';
 import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
+import {
+  composerUrlMarkdown,
+  newComposerUrlId,
+  parseComposerHtml,
+  parseComposerText,
+  readComposerUrlTransfer,
+  writeComposerUrlTransfer,
+  type ComposerUrlPart,
+  type ParsedComposerPart,
+} from '@/utils/composerUrl';
 import { hasPanAttachmentMime, inspectNativeAttachmentInput } from '@/utils/nativeAttachmentInput';
 import type { AttachmentLocation } from '@/types/attachment';
 
 export type ComposerPart =
   | { type: 'text'; value: string }
-  | { type: 'attachment'; attachmentId: string; occurrenceId?: string };
+  | { type: 'attachment'; attachmentId: string; occurrenceId?: string }
+  | ComposerUrlPart;
 
 export interface ComposerValue {
   parts: ComposerPart[];
@@ -84,6 +95,11 @@ interface DropIndicator {
 const EMPTY_PARTS: ComposerPart[] = [{ type: 'text', value: '' }];
 const BLOCK_TAGS = new Set(['DIV', 'LI', 'P']);
 
+/** A node the model counts as exactly one position, never as its label text. */
+function isAtomicNode(element: HTMLElement | null): boolean {
+  return !!element && (!!element.dataset.composerAttachment || !!element.dataset.composerUrlId);
+}
+
 function mergeTextParts(parts: ComposerPart[]): ComposerPart[] {
   const merged: ComposerPart[] = [];
   for (const part of parts) {
@@ -98,8 +114,16 @@ function mergeTextParts(parts: ComposerPart[]): ComposerPart[] {
   return merged.length > 0 ? merged : EMPTY_PARTS;
 }
 
+/** Attachment occurrence identity; URL nodes deliberately never contribute to
+ *  `ComposerValue.occurrenceIds`, which is the attachment resource projection. */
 function partOccurrenceId(part: ComposerPart): string | null {
   return part.type === 'attachment' ? part.occurrenceId || part.attachmentId : null;
+}
+
+/** Local identity of any atomic (non-text) node, used only for editing. */
+function partNodeId(part: ComposerPart): string | null {
+  if (part.type === 'attachment') return part.occurrenceId || part.attachmentId;
+  return part.type === 'url' ? part.id : null;
 }
 
 function attachmentOccurrenceId(attachment: ComposerAttachment): string {
@@ -110,6 +134,21 @@ function attachmentPart(occurrenceId: string): Extract<ComposerPart, { type: 'at
   // Keep attachmentId as a compatibility alias while making occurrenceId
   // explicit.  Neither field is the server-owned resource attachmentId.
   return { type: 'attachment', occurrenceId, attachmentId: occurrenceId };
+}
+
+function urlPart(parsed: Extract<ParsedComposerPart, { type: 'url' }>): ComposerUrlPart {
+  return {
+    type: 'url',
+    id: newComposerUrlId(),
+    url: parsed.url,
+    ...(parsed.label ? { label: parsed.label } : {}),
+  };
+}
+
+function urlTransferItems(parts: ComposerPart[]): Array<{ url: string; label?: string }> {
+  return parts
+    .filter((part): part is ComposerUrlPart => part.type === 'url')
+    .map((part) => (part.label ? { url: part.url, label: part.label } : { url: part.url }));
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -170,6 +209,48 @@ function createAttachmentNode(attachment: ComposerAttachment): HTMLSpanElement {
   return node;
 }
 
+function urlDisplayLabel(part: ComposerUrlPart): string {
+  return part.label || part.url;
+}
+
+function createUrlNode(part: ComposerUrlPart): HTMLSpanElement {
+  const label = urlDisplayLabel(part);
+  const node = document.createElement('span');
+  node.dataset.composerUrl = part.url;
+  node.dataset.composerUrlId = part.id;
+  if (part.label) node.dataset.composerUrlLabel = part.label;
+  node.contentEditable = 'false';
+  node.draggable = true;
+  node.setAttribute('role', 'group');
+  node.setAttribute('aria-label', `链接 ${label}`);
+  node.setAttribute('title', part.url);
+  node.className =
+    'composer-url-node mx-0.5 inline-flex max-w-full select-none items-center gap-1 rounded border border-accent/40 bg-accent/5 px-1.5 py-0.5 align-baseline text-xs text-accent underline decoration-accent/40';
+
+  const labelNode = document.createElement('span');
+  labelNode.dataset.composerUrlLabelText = '';
+  labelNode.className = 'max-w-[18rem] truncate';
+  labelNode.textContent = label;
+
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.dataset.composerUrlDelete = part.id;
+  removeButton.setAttribute('aria-label', `删除链接 ${label}`);
+  removeButton.className =
+    'ml-0.5 shrink-0 rounded p-0.5 text-accent/80 hover:bg-accent/20 hover:text-accent';
+  removeButton.append(createIcon(12, '', ['M18 6 6 18', 'm6 6 12 12']));
+
+  node.append(
+    createIcon(13, 'shrink-0', [
+      'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
+      'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    ]),
+    labelNode,
+    removeButton,
+  );
+  return node;
+}
+
 /**
  * React must not reconcile children inside a live contentEditable. Chromium
  * can move a typed text node outside the JSX wrapper that was rendered for
@@ -192,6 +273,10 @@ function renderParts(
       const text = document.createElement('span');
       text.textContent = part.value;
       fragment.append(text);
+      continue;
+    }
+    if (part.type === 'url') {
+      fragment.append(createUrlNode(part));
       continue;
     }
     const attachmentId = partOccurrenceId(part);
@@ -229,10 +314,10 @@ function partLength(part: ComposerPart): number {
   return part.type === 'text' ? part.value.length : 1;
 }
 
-function attachmentOffset(parts: ComposerPart[], attachmentId: string): number | null {
+function nodeOffset(parts: ComposerPart[], nodeId: string): number | null {
   let offset = 0;
   for (const part of parts) {
-    if (partOccurrenceId(part) === attachmentId) return offset;
+    if (partNodeId(part) === nodeId) return offset;
     offset += partLength(part);
   }
   return null;
@@ -294,6 +379,11 @@ function readParts(root: HTMLElement): ComposerPart[] {
         const value = node.textContent || '';
         parts.push({ type: 'text', value });
         result = { hasContent: value.length > 0, endsWithNewline: value.endsWith('\n') };
+      } else if (element?.dataset.composerUrlId) {
+        const url = element.dataset.composerUrl || '';
+        const label = element.dataset.composerUrlLabel;
+        parts.push({ type: 'url', id: element.dataset.composerUrlId, url, ...(label ? { label } : {}) });
+        result = { hasContent: true, endsWithNewline: false };
       } else if (element?.dataset.composerAttachment) {
         parts.push(attachmentPart(element.dataset.composerAttachment));
         result = { hasContent: true, endsWithNewline: false };
@@ -330,14 +420,14 @@ function readParts(root: HTMLElement): ComposerPart[] {
   return mergeTextParts(parts);
 }
 
-function removeAttachment(parts: ComposerPart[], attachmentId: string): ComposerPart[] {
-  return mergeTextParts(parts.filter((part) => partOccurrenceId(part) !== attachmentId));
+function removeNode(parts: ComposerPart[], nodeId: string): ComposerPart[] {
+  return mergeTextParts(parts.filter((part) => partNodeId(part) !== nodeId));
 }
 
-function insertAttachment(
+function insertNode(
   parts: ComposerPart[],
   offset: number,
-  attachmentId: string,
+  node: Extract<ComposerPart, { type: 'attachment' | 'url' }>,
 ): ComposerPart[] {
   const result: ComposerPart[] = [];
   let remaining = Math.max(0, offset);
@@ -348,12 +438,12 @@ function insertAttachment(
     if (!inserted && remaining <= length) {
       if (part.type === 'text') {
         result.push({ type: 'text', value: part.value.slice(0, remaining) });
-        result.push(attachmentPart(attachmentId));
+        result.push({ ...node });
         result.push({ type: 'text', value: part.value.slice(remaining) });
       } else if (remaining === 0) {
-        result.push(attachmentPart(attachmentId), part);
+        result.push({ ...node }, part);
       } else {
-        result.push(part, attachmentPart(attachmentId));
+        result.push(part, { ...node });
       }
       inserted = true;
       continue;
@@ -362,7 +452,7 @@ function insertAttachment(
     remaining -= length;
   }
 
-  if (!inserted) result.push(attachmentPart(attachmentId));
+  if (!inserted) result.push({ ...node });
   return mergeTextParts(result);
 }
 
@@ -375,8 +465,8 @@ function insertParts(
   let insertionOffset = Math.max(0, offset);
   for (const part of insertedParts) {
     if (part.type === 'text' && part.value === '') continue;
-    if (part.type === 'attachment') {
-      next = insertAttachment(next, insertionOffset, partOccurrenceId(part)!);
+    if (part.type !== 'text') {
+      next = insertNode(next, insertionOffset, part);
     } else {
       const result: ComposerPart[] = [];
       let remaining = insertionOffset;
@@ -451,7 +541,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
     if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').length > 0;
     if (node.nodeType !== Node.ELEMENT_NODE) return false;
     const element = node as HTMLElement;
-    if (element.dataset.composerAttachment) return true;
+    if (isAtomicNode(element)) return true;
     if (element.tagName === 'BR') {
       return !(
         container &&
@@ -475,7 +565,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
 
   const consume = (node: Node, container: HTMLElement | null): boolean => {
     const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
-    if (element?.dataset.composerAttachment) {
+    if (isAtomicNode(element)) {
       cursor.total += 1;
       cursor.hasContent = true;
       cursor.endsWithNewline = false;
@@ -522,7 +612,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
         found = cursor.total + Math.min(offset, node.textContent?.length || 0);
       } else {
         const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
-        if (element?.dataset.composerAttachment) {
+        if (isAtomicNode(element)) {
           found = cursor.total + Math.min(offset, 1);
         } else if (
           element?.tagName === 'BR' &&
@@ -653,7 +743,7 @@ function setCaretAtOffset(root: HTMLElement, offset: number): void {
   const visit = (node: Node) => {
     if (placed) return;
     const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
-    if (element?.dataset.composerAttachment) {
+    if (isAtomicNode(element)) {
       if (remaining <= 0) {
         const parent = node.parentNode || root;
         const siblings: Node[] = Array.from(parent.childNodes);
@@ -754,6 +844,12 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const dropOffsetRef = useRef<number | null>(null);
     const pendingCaretOffsetRef = useRef<number | null>(null);
     const activeDragPayloadRef = useRef<PanAttachmentPayload | null>(null);
+    // Chromium protects getData() during dragover, so the source composer keeps
+    // the URL transfer it wrote.  It never leaves this tab and is cleared by
+    // dragend/drop exactly like the attachment payload.
+    const activeUrlDragRef = useRef<{ items: Array<{ url: string; label?: string }>; sourceId?: string } | null>(
+      null,
+    );
     // Set once a native drag actually starts from an attachment node so the
     // click that may follow dragend never opens the Editor. Cleared on the
     // next task (setTimeout 0) after dragend, mirroring message file links.
@@ -849,16 +945,18 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       publish(nextParts);
     };
 
-    const removeAt = (attachmentId: string, requestedCaretOffset?: number) => {
+    const removeAt = (nodeId: string, requestedCaretOffset?: number) => {
       const currentParts = partsRef.current;
-      const sourceOffset = attachmentOffset(currentParts, attachmentId);
+      const targetPart = currentParts.find((part) => partNodeId(part) === nodeId);
+      if (!targetPart) return;
+      const sourceOffset = nodeOffset(currentParts, nodeId);
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       const currentOffset =
         editorRef.current && range?.collapsed
           ? selectionOffset(editorRef.current, range.startContainer, range.startOffset)
           : null;
-      const nextParts = removeAttachment(currentParts, attachmentId);
+      const nextParts = removeNode(currentParts, nodeId);
       if (sourceOffset !== null) {
         const caretOffset =
           requestedCaretOffset ??
@@ -872,11 +970,21 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       partsRef.current = nextParts;
       setParts(nextParts);
       publish(nextParts);
-      onRemoveAttachment(attachmentId);
+      // URL nodes own no external state; only an attachment occurrence has a
+      // pending chip/list entry to retire.
+      if (targetPart.type === 'attachment') {
+        onRemoveAttachment(targetPart.occurrenceId || targetPart.attachmentId);
+      }
     };
 
     const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
       if (disabled) return;
+      // An IME composition owns Backspace/Delete.  Deleting an atomic node
+      // mid-composition would desynchronise the IME buffer from the DOM.
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+        onKeyDown?.(event);
+        return;
+      }
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       if (
@@ -908,8 +1016,8 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         const target = partsRef.current.reduce<{ id: string | null; cursor: number }>(
           (result, part) => {
             if (result.id) return result;
-            const occurrenceId = partOccurrenceId(part);
-            if (occurrenceId && result.cursor === targetOffset) result.id = occurrenceId;
+            const nodeId = partNodeId(part);
+            if (nodeId && result.cursor === targetOffset) result.id = nodeId;
             result.cursor += partLength(part);
             return result;
           },
@@ -929,9 +1037,36 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const resolveDragPayload = (dataTransfer: DataTransfer | null): PanAttachmentPayload | null =>
       readPanAttachmentPayload(dataTransfer) || activeDragPayloadRef.current;
 
+    const resolveUrlDragPayload = (dataTransfer: DataTransfer | null) =>
+      readComposerUrlTransfer(dataTransfer) || activeUrlDragRef.current;
+
     const handleAttachmentDragStart = (event: React.DragEvent<HTMLDivElement>) => {
       if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
+      const urlNode = target?.closest<HTMLElement>('[data-composer-url]');
+      if (urlNode && editorRef.current?.contains(urlNode)) {
+        const sourceId = urlNode.dataset.composerUrlId;
+        const url = urlNode.dataset.composerUrl;
+        if (!sourceId || !url) {
+          event.preventDefault();
+          activeUrlDragRef.current = null;
+          return;
+        }
+        const label = urlNode.dataset.composerUrlLabel;
+        const transfer = {
+          items: [label ? { url, label } : { url }],
+          sourceId,
+        };
+        writeComposerUrlTransfer(event.dataTransfer, transfer);
+        activeUrlDragRef.current = transfer;
+        activeDragPayloadRef.current = null;
+        if (attachmentDraggedResetTimerRef.current !== null) {
+          clearTimeout(attachmentDraggedResetTimerRef.current);
+          attachmentDraggedResetTimerRef.current = null;
+        }
+        attachmentDraggedRef.current = true;
+        return;
+      }
       const node = target?.closest<HTMLElement>('[data-composer-attachment]');
       if (!node || !editorRef.current?.contains(node)) return;
       const occurrenceId = node.dataset.composerAttachment;
@@ -953,6 +1088,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         location: attachment.location,
       };
       writePanAttachmentPayload(event.dataTransfer, payload);
+      activeUrlDragRef.current = null;
       // Chromium exposes the custom MIME type through `types` during dragover
       // but intentionally returns an empty string from getData(). Keep the
       // source payload here so a node can still be dropped into the editor.
@@ -970,12 +1106,23 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const handleAttachmentMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
       if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('[data-composer-attachment-delete]')) event.preventDefault();
+      if (
+        target?.closest('[data-composer-attachment-delete]') ||
+        target?.closest('[data-composer-url-delete]')
+      ) {
+        event.preventDefault();
+      }
     };
 
     const handleAttachmentClick = (event: React.MouseEvent<HTMLDivElement>) => {
       if (disabled) return;
       const target = event.target instanceof Element ? event.target : null;
+      const urlButton = target?.closest<HTMLButtonElement>('[data-composer-url-delete]');
+      const urlId = urlButton?.dataset.composerUrlDelete;
+      if (urlId) {
+        if (!attachmentDraggedRef.current) removeAt(urlId);
+        return;
+      }
       const button = target?.closest<HTMLButtonElement>('[data-composer-attachment-delete]');
       const attachmentId = button?.dataset.composerAttachmentDelete;
       if (attachmentId) {
@@ -1039,6 +1186,13 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 
     const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
       if (disabled) return;
+      const urlPayload = resolveUrlDragPayload(event.dataTransfer);
+      if (urlPayload) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = urlPayload.sourceId ? 'move' : 'copy';
+        updateDropIndicator(event);
+        return;
+      }
       const payload = resolveDragPayload(event.dataTransfer);
       if (!payload) {
         if (
@@ -1065,6 +1219,40 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 
     const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
       if (disabled) return;
+      const urlPayload = resolveUrlDragPayload(event.dataTransfer);
+      if (urlPayload) {
+        event.preventDefault();
+        const root = editorRef.current;
+        const currentParts = partsRef.current;
+        let offset = dropOffsetRef.current;
+        if (offset === null && root) {
+          const range = pointToCaretRange(root, event.clientX, event.clientY);
+          offset = range ? selectionOffset(root, range.startContainer, range.startOffset) : null;
+        }
+        dropOffsetRef.current = null;
+        setDropIndicator(null);
+        activeUrlDragRef.current = null;
+        if (offset === null) return;
+        const sourceOffset = urlPayload.sourceId
+          ? nodeOffset(currentParts, urlPayload.sourceId)
+          : null;
+        // A composer drag whose source node disappeared is stale; dropping it
+        // would duplicate a node the model no longer owns.
+        if (urlPayload.sourceId && sourceOffset === null) return;
+        const withoutSource = urlPayload.sourceId
+          ? removeNode(currentParts, urlPayload.sourceId)
+          : currentParts;
+        const adjustedOffset = sourceOffset !== null && offset > sourceOffset ? offset - 1 : offset;
+        const inserted = urlPayload.items.map((item) =>
+          urlPart({ type: 'url', url: item.url, ...(item.label ? { label: item.label } : {}) }),
+        );
+        const nextParts = insertParts(withoutSource, adjustedOffset, inserted);
+        partsRef.current = nextParts;
+        setParts(nextParts);
+        publish(nextParts);
+        pendingCaretOffsetRef.current = adjustedOffset + inserted.length;
+        return;
+      }
       const payload = resolveDragPayload(event.dataTransfer);
       if (!payload) {
         if (hasPanAttachmentMime(event.dataTransfer)) {
@@ -1119,7 +1307,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       activeDragPayloadRef.current = null;
       if (offset === null) return;
       const sourceOffset = payload.attachmentId
-        ? attachmentOffset(currentParts, payload.attachmentId)
+        ? nodeOffset(currentParts, payload.attachmentId)
         : null;
       // A stale composer payload must never turn into a second copy of the
       // same node. Chip/message payloads are allowed to create a new inline
@@ -1128,10 +1316,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       const occurrenceId = onAttachmentDrop(payload as AttachmentDragPayload);
       if (!occurrenceId) return;
       const withoutSource = payload.attachmentId
-        ? removeAttachment(currentParts, payload.attachmentId)
+        ? removeNode(currentParts, payload.attachmentId)
         : currentParts;
       const adjustedOffset = sourceOffset !== null && offset > sourceOffset ? offset - 1 : offset;
-      const nextParts = insertAttachment(withoutSource, adjustedOffset, occurrenceId);
+      const nextParts = insertNode(withoutSource, adjustedOffset, attachmentPart(occurrenceId));
       partsRef.current = nextParts;
       setParts(nextParts);
       publish(nextParts);
@@ -1141,6 +1329,22 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
       if (disabled) return;
       const dataTransfer = event.clipboardData;
+      const urlTransfer = readComposerUrlTransfer(dataTransfer);
+      if (urlTransfer) {
+        event.preventDefault();
+        const root = editorRef.current;
+        const offsets = root ? selectedOffsets(root) : null;
+        if (!root || !offsets) return;
+        // Copying a node is a copy operation: the paste gets fresh local ids.
+        commitReplacement(
+          offsets.start,
+          offsets.end,
+          urlTransfer.items.map((item) =>
+            urlPart({ type: 'url', url: item.url, ...(item.label ? { label: item.label } : {}) }),
+          ),
+        );
+        return;
+      }
       const customMime = hasPanAttachmentMime(dataTransfer);
       const payload = customMime ? readPanAttachmentPayload(dataTransfer) : null;
       if (customMime) {
@@ -1171,16 +1375,20 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         treatTextOnlyAsPlainText: true,
       });
       const html = dataTransfer?.getData?.('text/html') || '';
-      const richText = html ? safePlainTextFromHtml(html) : '';
+      const parsedHtml = html ? parseComposerHtml(html) : null;
+      const richText = html && !parsedHtml ? safePlainTextFromHtml(html) : '';
       if (html && native.kind !== 'files') {
         event.preventDefault();
         const root = editorRef.current;
         const offsets = root ? selectedOffsets(root) : null;
         if (!root || !offsets) return;
         const fallbackText = dataTransfer?.getData?.('text/plain') || '';
-        commitReplacement(offsets.start, offsets.end, [
-          { type: 'text', value: richText || fallbackText },
-        ]);
+        const inserted: ComposerPart[] = parsedHtml
+          ? parsedHtml.map((part) =>
+              part.type === 'url' ? urlPart(part) : { type: 'text', value: part.value },
+            )
+          : [{ type: 'text', value: richText || fallbackText }];
+        commitReplacement(offsets.start, offsets.end, inserted);
         return;
       }
       if (native.kind === 'none') {
@@ -1190,7 +1398,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         const root = editorRef.current;
         const offsets = root ? selectedOffsets(root) : null;
         if (!root || !offsets) return;
-        commitReplacement(offsets.start, offsets.end, [{ type: 'text', value: plainText }]);
+        const inserted: ComposerPart[] = parseComposerText(plainText).map((part) =>
+          part.type === 'url' ? urlPart(part) : { type: 'text', value: part.value },
+        );
+        commitReplacement(offsets.start, offsets.end, inserted);
         return;
       }
       event.preventDefault();
@@ -1214,6 +1425,43 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       }
     };
 
+    const handleCopy = (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      const root = editorRef.current;
+      if (!root) return;
+      const offsets = selectedOffsets(root);
+      if (!offsets || offsets.start === offsets.end) return;
+      const parts = partsRef.current;
+      const selected: ComposerPart[] = [];
+      let cursor = 0;
+      let partial = false;
+      for (const part of parts) {
+        const end = cursor + partLength(part);
+        if (end > offsets.start && cursor < offsets.end) {
+          if (cursor >= offsets.start && end <= offsets.end) selected.push(part);
+          else partial = true;
+        }
+        cursor = end;
+      }
+      // Intercept only a complete selection of URL nodes.  Mixed text or an
+      // attachment keeps the browser's native copy so nothing is dropped.
+      if (partial || selected.length === 0 || selected.some((part) => part.type !== 'url')) {
+        return;
+      }
+      const items = urlTransferItems(selected);
+      if (items.length === 0) return;
+      event.preventDefault();
+      writeComposerUrlTransfer(event.clipboardData, { items });
+      event.clipboardData?.setData(
+        'text/plain',
+        selected
+          .map((part) =>
+            part.type === 'url' ? composerUrlMarkdown(part.url, part.label) : '',
+          )
+          .join(' '),
+      );
+    };
+
     const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
         clearDropIndicator();
@@ -1222,6 +1470,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 
     const handleDragEnd = () => {
       activeDragPayloadRef.current = null;
+      activeUrlDragRef.current = null;
       clearDropIndicator();
       clearAttachmentDragSuppression();
     };
@@ -1235,6 +1484,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       };
       const clearGlobalDropState = () => {
         activeDragPayloadRef.current = null;
+        activeUrlDragRef.current = null;
         dropOffsetRef.current = null;
         setDropIndicator(null);
         clearAttachmentDragSuppression();
@@ -1272,6 +1522,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
           className={`composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent ${disabled ? 'opacity-60' : ''}`}
           onInput={handleInput}
           onPaste={handlePaste}
+          onCopy={handleCopy}
           onKeyDown={handleKeyDown}
           onDragOver={handleDragOver}
           onDrop={handleDrop}

@@ -209,6 +209,14 @@ function sameDraft(a: ApiSessionDraft | null, b: ApiSessionDraft | null): boolea
       ) {
         return false;
       }
+    } else if (left.type === 'url' && right.type === 'url') {
+      // URL nodes are self-contained: id is the local occurrence identity and
+      // label is user-visible structure (a different title is a different draft).
+      if (left.id !== right.id || left.url !== right.url || left.label !== right.label) {
+        return false;
+      }
+    } else {
+      return false;
     }
   }
   for (let i = 0; i < a.attachments.length; i += 1) {

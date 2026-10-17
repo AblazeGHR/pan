@@ -1,0 +1,98 @@
+{
+  "port": 63551,
+  "mockBoundary": "All /api/** responses are Playwright route mocks. Chromium, Vite, React, the composer, drag/selection, and the Markdown renderer are real. No Pan server/provider/agent or real user data is involved.",
+  "checks": {
+    "paste": {
+      "url": "https://example.test/a?q=1#h",
+      "text": "https://example.test/a?q=1#h",
+      "order": [
+        "text",
+        "url",
+        "text"
+      ]
+    },
+    "drag": {
+      "mime": "{\"items\":[{\"url\":\"https://example.test/a?q=1#h\"}],\"sourceId\":\"url_2638110d-7c9a-40f2-9dd2-aa81956ffb78\"}",
+      "count": 1,
+      "lastIsUrl": true,
+      "text": "before afterhttps://example.test/a?q=1#h"
+    },
+    "delete": {
+      "count": 0,
+      "text": "before after"
+    },
+    "send": {
+      "text": "before after[https://example.test/out?q=1#h](https://example.test/out?q=1#h)",
+      "clientMessageId": "e2458d8d-7710-4bc1-980f-133efadb4ae7",
+      "parts": [
+        {
+          "type": "text",
+          "text": "before after"
+        },
+        {
+          "type": "text",
+          "text": "[https://example.test/out?q=1#h](https://example.test/out?q=1#h)"
+        }
+      ]
+    },
+    "draft": {
+      "draft": {
+        "text": "before after",
+        "parts": [
+          {
+            "type": "text",
+            "value": "before after"
+          },
+          {
+            "type": "url",
+            "id": "url_fb3a8ab8-2c38-4ba9-be8c-63590f6f3e5c",
+            "url": "https://example.test/out?q=1#h"
+          }
+        ],
+        "attachments": []
+      },
+      "baseRevision": 0
+    },
+    "messageLink": {
+      "href": "https://example.test/history?q=1#h",
+      "text": "Docs"
+    }
+  },
+  "drafts": [
+    {
+      "draft": {
+        "text": "before after",
+        "parts": [
+          {
+            "type": "text",
+            "value": "before after"
+          },
+          {
+            "type": "url",
+            "id": "url_fb3a8ab8-2c38-4ba9-be8c-63590f6f3e5c",
+            "url": "https://example.test/out?q=1#h"
+          }
+        ],
+        "attachments": []
+      },
+      "baseRevision": 0
+    }
+  ],
+  "queue": [
+    {
+      "text": "before after[https://example.test/out?q=1#h](https://example.test/out?q=1#h)",
+      "clientMessageId": "e2458d8d-7710-4bc1-980f-133efadb4ae7",
+      "parts": [
+        {
+          "type": "text",
+          "text": "before after"
+        },
+        {
+          "type": "text",
+          "text": "[https://example.test/out?q=1#h](https://example.test/out?q=1#h)"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

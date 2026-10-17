@@ -1059,10 +1059,12 @@ export interface ApiSessionDraftAttachment {
 }
 
 /** One ordered ComposerValue part.  Attachment occurrences keep their identity
- *  so the restored inline structure and its order are exact. */
+ *  so the restored inline structure and its order are exact; a URL node is
+ *  self-contained (address + local occurrence id + optional visible title). */
 export type ApiSessionDraftPart =
   | { type: 'text'; value: string }
-  | { type: 'attachment'; attachmentId: string; occurrenceId?: string };
+  | { type: 'attachment'; attachmentId: string; occurrenceId?: string }
+  | { type: 'url'; id: string; url: string; label?: string };
 
 export interface ApiSessionDraft {
   text: string;
