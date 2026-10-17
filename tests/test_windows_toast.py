@@ -243,3 +243,35 @@ def test_helper_preserves_winrt_hresult_and_setting(monkeypatch):
     assert result['hresult'] == '0x803E0115'
     assert result['setting'] == 'Enabled'
     assert result['code'] == 'windows_toast_failed'
+
+
+def test_identity_registration_is_app_scoped_and_precedes_toast_creation():
+    script = windows_toast.build_show_script(windows_toast.TOAST_APP_ID, '<toast/>', None, None)
+    assert "CurrentUser.CreateSubKey('Software\\Classes\\AppUserModelId\\Pan.Desktop.Notifications')" in script
+    assert "SetValue('DisplayName', 'Pan'" in script
+    assert script.index("SetValue('DisplayName'") < script.index('CreateToastNotifier(')
+    assert "GetValue('DisplayName')" in script and '$identityKey.Close()' in script
+    assert 'LocalMachine' not in script
+    assert 'NoToastApplicationNotification' not in script and 'ToastEnabled' not in script
+    assert 'CreateShortcut' not in script and 'LocalServer32' not in script
+    with pytest.raises(ValueError):
+        windows_toast.build_identity_script("bad-id\\other-app")
+
+
+def test_registration_failure_remains_distinct_and_diagnostic(monkeypatch):
+    monkeypatch.setattr(windows_toast, '_powershell_executable', lambda: 'powershell.exe')
+    monkeypatch.setattr(windows_toast.subprocess, 'run', lambda *a, **kw: SimpleNamespace(
+        returncode=1, stdout='{"ok":false,"stage":"identity",'
+        '"code":"windows_toast_identity_registration_failed","hresult":"0x80070005"}', stderr=''))
+    result = windows_toast.show_toast('title', 'body')
+    assert result['ok'] is False
+    assert result['code'] == 'windows_toast_identity_registration_failed'
+    assert result['stage'] == 'identity' and result['hresult'] == '0x80070005'
+
+
+def test_registered_identity_is_not_display_proof(monkeypatch):
+    monkeypatch.setattr(windows_toast, '_run_powershell', lambda script: {
+        'ok': True, 'setting': 'Enabled', 'identityRegistered': True})
+    result = windows_toast.show_toast('title', 'body')
+    assert result['identityRegistered'] is True
+    assert result['delivery'] == 'unknown'

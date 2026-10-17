@@ -9,9 +9,10 @@ verified separately (docs/reports/windows-toast-delivery-20261017.md).
 
 - An unpackaged app can post a WinRT toast with an AUMID and the platform
   records it in the notification center database (handler type "app:desktop",
-  WNS id "NonImmersivePackage") - no Start Menu shortcut, no AppUserModelId
-  registration and no custom protocol are required, and the stored payload is
-  the exact toast XML we sent.
+  WNS id "NonImmersivePackage"). Database storage alone does not establish
+  Shell visibility: a current human check saw neither banner nor center item
+  with an unregistered AUMID. We register the app's HKCU display identity before
+  sending; actual visibility still requires human/desktop verification.
 - The click target is an action button whose ``arguments`` is the full
   loopback deep link (``http://127.0.0.1:<port>/react/?session=<id>``) with
   ``activationType="protocol"``: http(s) activation is dispatched by the
@@ -54,6 +55,7 @@ import subprocess
 # One identity for every Pan instance on the machine; the notification center
 # groups entries under it. Changing it starts a new notification-history entry.
 TOAST_APP_ID = "Pan.Desktop.Notifications"
+TOAST_DISPLAY_NAME = "Pan"
 
 # Button label for the click target (built here, carried as base64, so no
 # PowerShell script-encoding pitfalls with non-ASCII literals).
@@ -158,6 +160,27 @@ def _b64(value: str) -> str:
     return base64.b64encode(value.encode("utf-8")).decode("ascii")
 
 
+def build_identity_script(app_id: str) -> str:
+    """App-scoped Shell display metadata; no notification permission writes.
+
+    Keep the identity independent of checkout/interpreter and never use a
+    task's title, content or URL as a registry key/value. The prior visible
+    research probe had this registration; the shipped sender omitted it.
+    """
+    if not _APP_ID_PATTERN.fullmatch(app_id):
+        raise ValueError("Invalid toast app id")
+    return (
+        f"  $identityKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\\Classes\\AppUserModelId\\{app_id}')\n"
+        "  try {\n"
+        f"    if ($identityKey.GetValue('DisplayName') -ne '{TOAST_DISPLAY_NAME}') {{\n"
+        f"      $identityKey.SetValue('DisplayName', '{TOAST_DISPLAY_NAME}', [Microsoft.Win32.RegistryValueKind]::String)\n"
+        "    }\n"
+        "    $result.identityRegistered = ($identityKey.GetValue('DisplayName') -eq 'Pan')\n"
+        "    if (-not $result.identityRegistered) { throw 'App identity readback failed' }\n"
+        "  } finally { $identityKey.Close() }\n"
+    )
+
+
 def build_show_script(app_id: str, xml_text: str, tag: str | None,
                       group: str | None) -> str:
     """Build the PowerShell script that shows exactly one toast and exits."""
@@ -168,6 +191,9 @@ def build_show_script(app_id: str, xml_text: str, tag: str | None,
         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)\n"
         "$result = @{ ok = $false; method = 'windows.toast' }\n"
         "try {\n"
+        "  $result.stage = 'identity'\n"
+        + build_identity_script(app_id) +
+        "  $result.stage = 'toast'\n"
         "  [void][Windows.UI.Notifications.ToastNotificationManager, "
         "Windows.UI.Notifications, ContentType=WindowsRuntime]\n"
         "  [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, "
@@ -194,6 +220,7 @@ def build_show_script(app_id: str, xml_text: str, tag: str | None,
         "} catch {\n"
         "  $result.ok = $false\n"
         "  $result.code = 'windows_toast_failed'\n"
+        "  if ($result.stage -eq 'identity') { $result.code = 'windows_toast_identity_registration_failed' }\n"
         "  $result.message = $_.Exception.Message\n"
         "  $cause = $_.Exception\n"
         "  while ($cause.InnerException) { $cause = $cause.InnerException }\n"
@@ -253,7 +280,7 @@ def _run_powershell(script: str) -> dict:
     if completed.returncode != 0 or not (result or {}).get("ok"):
         detail = (result or {}).get("message") or (completed.stderr or completed.stdout or "").strip()
         return {
-            **{key: result[key] for key in ('setting', 'hresult') if result and key in result},
+            **{key: result[key] for key in ('setting', 'hresult', 'stage', 'identityRegistered') if result and key in result},
             "ok": False,
             "exitcode": completed.returncode,
             "code": (result or {}).get("code") or "windows_system_notification_failed",
@@ -301,6 +328,8 @@ def show_toast(title: object, body: object, *,
         response = {"ok": True, "method": "windows.toast"}
         if result.get("setting"):
             response["setting"] = result["setting"]
+        if "identityRegistered" in result:
+            response["identityRegistered"] = result["identityRegistered"]
         response["delivery"] = "unknown"
         return response
     return result

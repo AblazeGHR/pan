@@ -2,6 +2,13 @@
 
 ## Delivery status
 
+**Latest acceptance: failed.** The user's 2026-10-17 23:42:55 owned small-toast
+check had neither a visible banner nor a notification-center item, despite
+`ok:true`/`Enabled` and an exact stored database row. The payload fix is
+insufficient to solve the original incident. The latest app-display-identity
+candidate below awaits a new human-controlled comparison; no visible success
+is claimed.
+
 Source fix and owned OS sender regression are complete in
 `D:/project/pan-worktrees/windows-toast-delivery-20261017`, branch
 `fix/windows-toast-delivery-20261017`, baseline
@@ -269,3 +276,100 @@ or risk-specific combination tests to add. The 92-test result above applies to
 the unchanged implementation. This follow-up changes diagnostic artifacts and
 this report only; no mechanical full-suite rerun, frontend build, main/practical
 mutation, push or restart is warranted or performed.
+
+## Reopened after current human visibility failure
+
+MA relayed the user's exact answer, "没有，什么也没有", after running
+`visible_check.py --send` at 23:42:55 +08. `visible-failure.json` preserves the
+original helper JSON, the observation attribution, and the **exact same
+AUMID/Tag/Group** database row before removal. This is a demonstrated counter-
+example to inferring visible center entries from database storage.
+`visible-cleanup.json` records exact History.Remove for this one diagnostic.
+No production History.Clear was called.
+
+The observer was PID 30632 in Session 1, active console Session 1,
+`WinSta0/Default`. A fresh registration-only inbox PowerShell helper also ran
+in Session 1, `Environment.UserInteractive=true`, with the **same user SID** as
+the invoking process (evidence stores only a hash). These are current process
+context facts, not a screenshot or proof of DND position. The queried WPN
+Operational log yielded no usable matching event evidence; no logging policy
+was enabled or changed.
+
+### Intermediate working probe vs shipped path
+
+The user's recollection of a visible intermediate version matches a concrete
+historical difference that warrants a current controlled test:
+
+- The earlier human-click probe used **Pan.NotificationsProbe**, per
+  `audit/notification-center/probe/user-check.json` (01:24:52 on Oct 16).
+- The old report records that at 01:19 its registry key was created with only
+  `DisplayName="Pan Probe"` under HKCU Classes/AppUserModelId; the app key was
+  removed at cleanup around 01:53. The old `reg-aumid.ps1` and
+  `cleanup-probes.ps1` explain those distinct operations.
+- The final production sender instead used **Pan.Desktop.Notifications** with
+  no equivalent display registration. Its old production E2E established
+  database storage, not a current human-visible result for that identity.
+- Therefore the old visible probe and final delivery were **not equivalent
+  application-identity conditions**. Historical click evidence does not prove
+  current visibility. This is a supported difference and a candidate cause,
+  still awaiting the current single-variable human comparison.
+
+### Minimal candidate and bounded side effects
+
+`windows_toast.build_identity_script()` now ensures before toast creation:
+
+```
+HKCU\Software\Classes\AppUserModelId\Pan.Desktop.Notifications
+  DisplayName (REG_SZ) = Pan
+```
+
+That is the entire production registration change. It uses a constant app
+display label, reads it back, closes the handle, and avoids an extra write
+when already correct. No HKLM, policy, notifications-permission key,
+custom URI scheme, Start Menu shortcut, COM server, process token or desktop
+policy is changed. This matches the minimal display metadata present during
+the earlier visible probe. It is a **candidate**, not yet demonstrated to be
+enough on the current Shell.
+
+If registration fails, the sender stops with
+`windows_toast_identity_registration_failed`, `stage=identity` and HRESULT;
+no silent unregistered send/fallback occurs. Successful API response adds
+`identityRegistered=true` while preserving `delivery=unknown`. Actual sender
+logs retain identity/stage diagnostics. Payload bounds and dedup/deep-link
+semantics are retained.
+
+Microsoft's toolkit implementation registers unpackaged app display metadata
+in HKCU AppUserModelId, separately from its COM activation setup:
+[ToastNotificationManagerCompat source](https://github.com/CommunityToolkit/WindowsCommunityToolkit/blob/main/Microsoft.Toolkit.Uwp.Notifications/Toasts/Compat/ToastNotificationManagerCompat.cs).
+The documented full protocol-only/stub-CLSID option also specifies identity
+and shortcut metadata:
+[Desktop toast activation options](https://learn.microsoft.com/pt-br/windows/apps/design/shell/tiles-and-notifications/toast-desktop-apps).
+Those references justify investigating missing identity; they do not prove
+that a DisplayName-only registration supplies every full protocol-activation
+requirement. Shortcut/stub/COM expansion is not silently assumed or installed.
+
+### Current tests and next human comparison
+
+- Directed regression after the candidate: **95 passed, 0 failed, 0 skipped**,
+  one existing pydantic-settings warning. See `identity-unit.xml`; same six
+  test files/isolated command as above, replacing the JUnit output filename.
+  Added checks cover app-scoped registration/order, explicit registration
+  failure and the fact that registration is not display proof. XML/command
+  budgets still pass with the added registration fragment.
+- `identity_roundtrip.py` executed the **actual source registration fragment**
+  twice in real inbox PowerShell under a random task-owned AUMID, without
+  sending any notification. Both runs returned identityRegistered=true;
+  readback was Pan; exact owned key was removed. Production identity was
+  absent both before and after. Evidence: `identity-roundtrip.json`.
+- No visible probe was sent autonomously after the user's failure. MA should
+  arrange the user observation and rerun the same `visible_check.py --send`
+  command. It now registers only the production app display metadata before
+  posting the same title/Tag/Group. Observe banner and center independently,
+  record the `identityRegistered` result, then use `--cleanup` for that exact
+  diagnostic item. The app registration is persistent app metadata, separate
+  from the diagnostic item; retain it until the comparison is resolved.
+- Native click remains separately unverified; this visibility-only test has
+  no launch target. Do not infer native-click success from a positive banner.
+
+Do not accept this candidate or move main/practical until the new human
+banner/center comparison succeeds and MA reviews its scope.

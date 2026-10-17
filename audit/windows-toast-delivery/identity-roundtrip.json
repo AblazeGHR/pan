@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-17T15:46:47.308683+00:00",
+  "productionBefore": {
+    "keyExists": false
+  },
+  "helperSameUser": true,
+  "helperOwnerHash": "bf2d5977700f6fe10753f56c96d60cf1ef169cc3e8e837cc28202fe3e7f0133e",
+  "first": {
+    "identityRegistered": true,
+    "ok": true,
+    "interactive": true,
+    "sessionId": 1
+  },
+  "second": {
+    "identityRegistered": true,
+    "ok": true,
+    "interactive": true,
+    "sessionId": 1
+  },
+  "readback": "Pan",
+  "ownedKeyRemoved": true,
+  "productionAfter": {
+    "keyExists": false
+  },
+  "noNotificationsSent": true
+}

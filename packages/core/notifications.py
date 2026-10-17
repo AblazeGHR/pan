@@ -155,9 +155,10 @@ def dispatch_completion_nonblocking(session, status: str, result: str) -> dict |
             # Keep the actual helper result observable without logging task
             # text, deep links, exception messages or other private payloads.
             log = _log.info if result.get("ok") else _log.warning
-            log("System notification session=%s ok=%s code=%s setting=%s hresult=%s winerror=%s exitcode=%s delivery=%s",
+            log("System notification session=%s ok=%s code=%s setting=%s hresult=%s winerror=%s exitcode=%s identity=%s stage=%s delivery=%s",
                 session_id, result.get("ok"), result.get("code"), result.get("setting"),
                 result.get("hresult"), result.get("winerror"), result.get("exitcode"),
+                result.get("identityRegistered"), result.get("stage"),
                 result.get("delivery", "unknown"))
         task = asyncio.create_task(send_in_background())
         _notification_tasks.add(task)
