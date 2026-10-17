@@ -9,14 +9,14 @@
 - `legal_offline` 保护一次执行，不要求正常 Idle 的 CLI 物理退出。开始执行前，将 False 与新的不可复用 run UUID 同次提交；安全终态在 history/result/恢复信息的同次提交中写 True。失败的提交不能放行 provider 写入。
 - Worker owner token + generation 只负责当前所有权；持久 run UUID 负责跨 Pan 重启事件幂等。回调捕获原身份，并在 queue exclusion 及实际 writer ticket 内再次验证。旧状态刷新、Details 的 set-running、restore intent 不代表新执行或恢复。
 - 所属 Session 完成失主交接对账后，在 queue exclusion 内以现有 Lock All 的 queued 选择范围形成快照。批次、精确新增锁成员、失败 run 的已判定状态、pending/可恢复 ledger 和 queue revision 同次保存到 Session JSON。物理死亡到检测之间没有持久记录的瞬间快照不作虚假保证。
-- manual/illegal 是一个可撤销消息锁的互斥来源。Stop reports 的当前自动锁映射为带报告策略归属的 Manual；用户 Lock 取得 Manual 归属，Resume reports 不再释放它。该策略元信息不是第二层有效锁。Unlock/Unlock All 清除可撤销锁的任一来源；Steer/self-consume unknown、force hold、edit lease、Pause、native ownership 仍遵守原安全条件。
+- manual/illegal 仅是一个可撤销消息锁的互斥来源。Stop reports 保留既有独立 queueLockAutoReport 策略锁，Resume reports 仅解除该策略，不清除 manual/illegal；用户 Unlock/Unlock All 按既有 API 同时解除报告策略锁。Steer/self-consume unknown、force hold、edit lease、Pause、native ownership 均为独立安全 gate，手动或自动解锁不清除它们。
 - 新消息不受历史 Illegal 影响。`queueAllLocked` 仍仅是非空公开 queued 投影中每项有效 locked 的摘要，不是 Illegal 消费开关。
-- 允许仅为建立有效继任实例进行恢复启动，即使积压目前全部为 Illegal 锁；Manual-only 队列保持既有不自动启动语义。成功建立的继任 Idle 在 consumer 开始前恢复本 Session 所有未恢复的前序异常批次，之后仍遵守 Pause 和原调度规则。
+- 任何来源全锁均不主动启动。用户 Start/Restart 或新未锁消息可建立继任实例。构造 Idle、spawn 返回、UI 刷新均不是恢复证明；stream adapter 的 init/native_ready 或真实执行完成提供就绪证明。尚未提供证明的 adapter 允许新未锁消息启动执行，但不先消费锁定积压；首次有效就绪在 queue 串行边界恢复确定先于本实例的批次，保持进行中执行的 False/run 身份。oneshot 没有常驻 Idle 就绪证明，需实际任务的 init 或安全终态。
 - 批次以失败 run UUID 为键，空批次也保存幂等墓碑；不能因用户解锁、再次重启或新入队重复快照。E2 不接管 E1 已锁消息；有效继任可以逐批条件恢复 E1/E2，新恢复边界之后的异常由其新 run 独立处理。
 - 正常 Stop/Restart 在物理停止及必要安全落盘后记录 True；watchdog 中止未安全完成执行不得因为复用 kill helper 而合法化。正常处理 Error/429 的安全终态合法，底层非零退出码不追溯改判。进程 EOF 后先确认 tracked runtime 退休，才能供应第二 writer。
-- 缺失或损坏的旧合法性、没有稳定 run 身份的 False 是未验证历史，不从旧 legal 字段猜 Illegal，不改变原队列可消费性。已有消息锁迁为 Manual，重跑不覆盖新来源或手动操作。旧恢复意图继续独立保留，新 Illegal 展示和判定不依赖它。
+- 缺失或损坏的旧合法性、没有稳定 run 身份的 False 是未验证历史，不从旧 legal 字段猜 Illegal，不改变原队列可消费性。已有消息锁迁为 Manual，重跑不覆盖新来源或手动操作。持久化 offline_migration_uncertainty 记录历史缺失/无有效 run 的不确定性，重复加载不覆盖已记录原因；新创建与历史迁移区分。旧恢复意图继续独立保留，新 Illegal 展示和判定不依赖它。
 - 对未注册但持久 owner PID/create-time 仍活或无法核验的执行，恢复拒绝创建第二 writer；即使前序执行已安全 Idle 也保留此所有权约束，但绝不因此把合法 Idle 标成 Illegal。浏览器 detach/control 切换不属于运行结束或恢复事件。
-- native 外部 turn 按 adapter 提供的权威 started 通知建立执行记录。通知到 Pan 持久提交之前的窄窗口，不能等同于 Pan 队列路径的事前持久准入；真实原生客户端在该窗口的原子 admission 需后续 adapter 握手，当前交付必须明确此边界，不因 native 空闲常驻而猜 Illegal。
+- CBC native UserPromptSubmit 在执行前发出唯一 admission 请求，只有 Pan 原子保存 False/run 并确认相同 runtime 后才放行 hook；失败或超时拒绝提交。重复请求不产生第二执行。Codex app-server 的 turn/started 是事后事实，不能宣称事前 admission；其原生 TUI 当前能力不能关闭通知前崩溃窗口，必须列为未覆盖边界，不将 typing/Idle 猜成 Running。持久 owner PID/create-time 存活或未知时拒绝第二 writer（包括跨服务重启的合法 Idle）；无可核验身份的既有外部 takeover 不允许借此自动启动第二实例。
 
 
 ## 1. 目标与不可改变的决定
@@ -29,7 +29,7 @@
 2. 正常运行时 `legal_offline=False` **不等于** Illegal；只有运行实例已结束、异常失联或恢复时发现上轮未合法结束才判 Illegal。
 3. 正常 Stop、安全 Restart、正常完成进入 Idle 均合法；**当前所有正常捕获处理并进入 Idle 的 Error 也合法**。未来允许配置某些 Error 虽进入 Idle 仍非法，本次仅预留集中策略入口。
 4. Illegal 仅锁发生时**已经存在而且尚未锁定**的消息，后续新入队消息不会自动锁定；不新增持续性全局消费门禁。
-5. **消息只有一个有效锁**，其来源是 `manual` 或 `illegal`。来源只区分自动解锁资格，**不是两层互相隔离、可叠加的锁**。
+5. **消息只有一个可撤销消息锁**，其来源是 `manual` 或 `illegal`（既有 reports 策略和协议安全 gate 独立保留）。来源只区分自动解锁资格，**不是两层互相隔离、可叠加的锁**。
 6. 手动 Lock 可以把 Illegal 锁转成 Manual 锁；用户手动 Unlock / Unlock All 可以解除**任一来源**的锁；普通手动 Lock All 将范围内的锁视为 Manual。对用户而言两类锁操作无差异。
 7. Worker 在本次 Illegal 之后有效进入 `running` 或 `idle` 时，自动解锁**仍为该次 Illegal 来源**的消息。来源已转 `manual`、已被手动解锁、已删除等均跳过。自动解锁不得影响 Manual。
 8. 同一次 Illegal 多次检测、Pan 再次重启不能重做 Lock All 而扩大锁定范围，也不能重新锁定已被用户解锁的消息。
@@ -131,7 +131,7 @@ mark_batch_recovered(batch.id)
 
 - Illegal Lock All 与批次归属原子提交；恢复解锁与批次恢复标记原子提交。
 - 手动 Lock/Unlock 与自动恢复并发时，必须遵循最新明确手动操作，不能被迟到的批次恢复覆盖。
-- 消费入口仍只需要判断**单一有效锁状态**。
+- 消费入口判断单一可撤销消息锁及既有独立策略/安全 gate，不清除未知投递、lease、Pause 或 native ownership。
 - 恢复启动先判 Illegal 并锁定已有消息，再允许历史消息正常调度。
 - `legal_offline=False` 的正常 Running 不自动 Illegal；安全结束后写 True 不提前。
 - 重复检测、进程重启、状态刷新不得扩大同一批次的消息集合。
@@ -158,7 +158,7 @@ mark_batch_recovered(batch.id)
 
 - Illegal 判定不再依赖旧状态瞬时比较，而由独立持久化 `legal_offline` 与运行实例有效性决定。
 - 当前正常 Error→Idle 合法，未来配置接口已预留。
-- 队列消息只有一份有效锁，来源为 Manual/Illegal；来源**只用于自动恢复**。
+- 队列消息只有一份可撤销消息锁，来源为 Manual/Illegal；来源**只用于自动恢复**。既有 reports 策略和安全 gate 独立保留。
 - 手动锁、解锁、Lock All、Unlock All 不区分来源；Manual 可以覆盖 Illegal 来源，Unlock 可以直接清除 Illegal。
 - Illegal 一次只锁当前尚未锁定的已有消息，准确记录批次和消息归属，不影响后来入队的消息。
 - Worker 有效进入 Running/Idle 自动清除仍归属对应批次的 Illegal 锁，不清除 Manual 或用户已变更的锁。
@@ -172,3 +172,9 @@ mark_batch_recovered(batch.id)
 完成后仅汇报：实现了哪些能力、关键验证结果、仍存在的缺口及原因。不需要逐文件说明，也不需额外汇报文件。
 
 **最终原则：只有一种锁，来源只是自动恢复标签。所有手动 Lock/Unlock 对所有来源一视同仁；只有自动恢复时检查是否仍为对应 Illegal 批次的锁。**
+
+## 11. 第二轮授权 A–G 与验收补充（优先于先前交付）
+
+本轮按用户 A–G 修正首轮实现；首轮报告和证据保留为历史记录。批次恢复边界取实例注册时已存在的失败 run ID 集合；之后发生的失败不能由该实例迟到的 ready 解锁。恢复只修改条件匹配的 illegal，不覆盖当前执行 run、独立报告策略、pending/ledger/revision。所有异常检测失败只阻止对应 Session 新交接。
+
+新增验收：Stop/Resume reports 与 manual/illegal 的交叉操作；全 Illegal 锁启动初始化/watchdog 不唤醒；延迟 init 的构造 Idle 不解锁，真实 init 才解锁；init 到达时当前执行 False 不被覆盖；边界后批次不解锁；旧/损坏历史不确定性持久且幂等；CBC 准入未确认/失败不放行，成功前 False 已提交；旧 runtime 迟到准入不能影响继任；owner alive/dead/unknown 分别拒绝/允许/拒绝。Codex 原生通知前窗口和不可识别外部 owner 必须分层报告，不以 mock 或后置 started 充当事前证明。
