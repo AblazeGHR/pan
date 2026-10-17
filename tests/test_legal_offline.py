@@ -129,7 +129,8 @@ def test_multiple_batches_keep_old_membership_and_one_successor_recovers_predece
         first = await die(s, w, await begin(s, w))
         # A later failed execution must never steal a previous batch's lock.
         old = copy.deepcopy(s.offline_run)
-        s.offline_run = {**old, "id": "run-2", "token": "second", "state": "running"}
+        s.offline_run = offline.admit(s, {**old, "token": "second"},
+                                     kind="foreground", operation_id="run-2")
         s.queue_pending.append(dict(id="C", type="task", text="C", deliveryState="queued"))
         async with worker.queue_lock(s.id):
             await worker._commit_offline(s, lambda candidate: offline.detect(candidate, "second", eligible=lambda row: (

@@ -17,7 +17,8 @@ from . import queue_locks
 
 SERVICE_ID = uuid.uuid4().hex
 FIELDS = ("task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
-          "queue_delivery_ledger", "queue_idempotency_index", "queue_revision")
+          "queue_delivery_ledger", "queue_idempotency_index", "queue_revision",
+          "legality_schema_version", "operation_revision", "execution_operations")
 
 
 def snapshot(s) -> dict:
@@ -37,11 +38,85 @@ def restore(s, values: dict) -> None:
                     original.update(row)
                     value[index] = original
         setattr(s, key, value)
+    attach_foreground(s)
+
+
+def attach_foreground(s) -> None:
+    run = s.offline_run
+    if run and run.get("id") in s.execution_operations:
+        s.offline_run = s.execution_operations[run["id"]]
+
+
+def outstanding(s, identity: dict | None = None) -> list[dict]:
+    return [op for op in s.execution_operations.values()
+            if not op.get("safeTerminal") and not op.get("retirement", {}).get("safe")
+            and (identity is None or same_owner(op, identity))]
+
+
+def aggregate(s) -> None:
+    s.legal_offline = not outstanding(s)
+
+
+def migrate(s) -> None:
+    """Import a stable v1 run once; v2 records always win over projections."""
+    run = s.offline_run
+    if s.legality_schema_version < 2 and run:
+        record = copy.deepcopy(run)
+        record.setdefault("kind", "foreground")
+        record.setdefault("admittedRevision", s.operation_revision + 1)
+        record["safeTerminal"] = bool(s.legal_offline and record.get("state") != "illegal")
+        s.execution_operations.setdefault(record["id"], record)
+        s.operation_revision = max(s.operation_revision, record["admittedRevision"])
+    s.legality_schema_version = 2
+    attach_foreground(s)
+    aggregate(s)
 
 
 def is_illegal(s) -> bool:
-    return (getattr(s, "legal_offline", True) is False
-            and (getattr(s, "offline_run", None) or {}).get("state") == "illegal")
+    return any(op.get("state") == "illegal" for op in outstanding(s))
+
+
+def admit(s, identity: dict, *, kind: str, operation_id: str | None = None, **metadata) -> dict:
+    key = operation_id or uuid.uuid4().hex
+    old = s.execution_operations.get(key)
+    if old:
+        if not same_owner(old, identity) or old.get("kind") != kind:
+            raise RuntimeError("Operation identity conflict")
+        return old
+    s.operation_revision += 1
+    record = {**identity, **metadata, "id": key, "kind": kind,
+              "admittedRevision": s.operation_revision, "state": "running",
+              "startedAt": time.time(), "safeTerminal": False}
+    s.execution_operations[key] = record
+    s.offline_owner = dict(identity)
+    aggregate(s)
+    return record
+
+
+def finish_operation(s, operation_id: str, identity: dict, *, reason: str,
+                     state: str = "idle", proof: str = "safe-terminal") -> bool:
+    record = s.execution_operations.get(operation_id)
+    if not same_owner(record, identity) or record.get("state") == "illegal":
+        return False
+    if record.get("safeTerminal"):
+        return True
+    record.update(state=state, endedAt=time.time(), reason=reason,
+                  safeTerminal=True, terminalProof=proof)
+    s.operation_revision += 1
+    attach_foreground(s)
+    aggregate(s)
+    return True
+
+
+def retire_owner(s, identity: dict, *, reason: str, proof: dict) -> None:
+    """Caller must establish proof for the whole captured runtime scope."""
+    for record in outstanding(s, identity):
+        if record.get("state") == "illegal":
+            continue  # Incident recovery remains conditional on successor readiness.
+        record.update(state="offline", retirement={"safe": True, "reason": reason,
+                      "proof": copy.deepcopy(proof), "committedAt": time.time()})
+        s.operation_revision += 1
+    aggregate(s)
 
 
 def has_batches(s) -> bool:
@@ -102,39 +177,36 @@ def previous_owner_status(run: dict) -> str:
 
 def begin(s, identity: dict) -> None:
     run = s.offline_run
-    if (s.legal_offline is False and same_owner(run, identity)
-            and run.get("state") == "running"
+    if any(not same_owner(op, identity) and op.get("state") != "illegal" for op in outstanding(s)):
+        raise RuntimeError("Another owner retains execution responsibility")
+    if (same_owner(run, identity) and run.get("state") == "running"
             and run.get("executionSeq") == identity["executionSeq"]):
         return
-    if s.legal_offline is False and run and run.get("state") == "running":
+    if run and run.get("kind") == "foreground" and run in outstanding(s) and run.get("state") == "running":
         raise RuntimeError("Previous execution has not been safely finalized")
-    s.offline_owner = dict(identity)
-    s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "running",
-                     "startedAt": time.time()}
-    s.legal_offline = False
+    s.offline_run = admit(s, identity, kind="foreground")
 
 
 def finish(s, identity: dict, *, reason: str, state: str = "idle") -> bool:
-    if not same_owner(s.offline_run, identity):
-        return False
-    if s.offline_run.get("executionSeq") != identity.get("executionSeq"):
+    run = s.offline_run
+    if not same_owner(run, identity) or run.get("executionSeq") != identity.get("executionSeq"):
         return False
     if not is_legal_offline(reason, state, {"safe": True}):
         return False
-    if s.offline_run.get("state") == "illegal":
-        return False
-    s.legal_offline = True
-    s.offline_run = {**s.offline_run, "state": state, "endedAt": time.time(), "reason": reason}
-    return True
+    return finish_operation(s, run["id"], identity, reason=reason, state=state)
 
 
-def detect(s, reason: str, *, eligible, remember) -> bool:
+def detect(s, reason: str, *, eligible, remember, identity: dict | None = None) -> bool:
     run = s.offline_run
-    if s.legal_offline is not False or not run:
+    identity = identity or run or s.offline_owner
+    cohort = sorted((op for op in outstanding(s, identity)
+                     if op["id"] not in s.illegal_batches),
+                    key=lambda op: (op["admittedRevision"], op["id"]))
+    if not cohort:
         return False
-    key = run["id"]
-    if key in s.illegal_batches:
-        return False  # Includes empty/recovered batches: never resnapshot a failed run.
+    # A durable carrier incident is shared by all responsibilities of this
+    # failed owner. Later EOFs cannot take another queue snapshot.
+    key = cohort[0]["id"]
     members = []
     seen = set()
     for item in s.queue_pending:
@@ -147,9 +219,15 @@ def detect(s, reason: str, *, eligible, remember) -> bool:
         queue_locks.set_lock(item, "illegal", batch=key)
         remember(item)
         members.append(item_id)
-    s.illegal_batches[key] = {"id": key, "run": copy.deepcopy(run), "messages": members,
-                              "reason": reason, "createdAt": time.time(), "recovered": False}
-    s.offline_run = {**run, "state": "illegal"}
+    for record in cohort:
+        op_id = record["id"]
+        s.illegal_batches[op_id] = {"id": op_id, "run": copy.deepcopy(record),
+            "messages": members if op_id == key else [], "incidentId": key,
+            "reason": reason, "createdAt": time.time(), "recovered": False}
+        record.update(state="illegal", incidentId=key)
+    s.operation_revision += 1
+    attach_foreground(s)
+    aggregate(s)
     s.queue_revision += 1
     return True
 
@@ -173,10 +251,16 @@ def activate(s, identity: dict, *, remember, predecessors: set[str] | None = Non
                 queue_locks.set_lock(item, None)
                 remember(item)
         batch.update(recovered=True, recoveredAt=time.time(), recoveredBy=dict(identity))
+        record = s.execution_operations.get(batch["id"])
+        if record is not None and record.get("state") == "illegal":
+            record["retirement"] = {"safe": True, "proof": "successor-ready-after-owner-reconciliation",
+                                    "committedAt": time.time()}
         changed = True
     if not (same_owner(s.offline_run, identity) and s.legal_offline is False):
-        s.legal_offline = True
         s.offline_run = {**identity, "id": uuid.uuid4().hex, "state": "idle"}
+    aggregate(s)
+    if changed:
+        s.operation_revision += 1
     if changed:
         s.queue_revision += 1
     return changed

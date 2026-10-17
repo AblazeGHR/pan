@@ -616,7 +616,11 @@ async def _commit_offline(s, mutate) -> bool:
         candidate = copy.copy(s)
         for key, value in copy.deepcopy(old).items():
             setattr(candidate, key, value)
+        _offline.attach_foreground(candidate)
         result = mutate(candidate)
+        if candidate.offline_run and candidate.offline_run.get("id") in candidate.execution_operations:
+            candidate.execution_operations[candidate.offline_run["id"]] = candidate.offline_run
+        _offline.aggregate(candidate)
         values = _offline.snapshot(candidate)
         changed = old != values
         if changed:
@@ -646,33 +650,29 @@ async def _prepare_offline_recovery(s) -> None:
             if status != "dead":
                 raise RuntimeError(f"Previous runtime owner is {status}; refusing a second writer")
         run = s.offline_run
-        if not run:
-            return
-        if s.legal_offline is not False:
-            # Safe Idle is legal even if its resident CLI survives Pan. It is
-            # still an owner, however: never create a second writer merely
-            # because a new service has an empty in-memory registry.
-            if run.get("serviceId") != _offline.SERVICE_ID and run.get("processes"):
-                status = await asyncio.to_thread(_offline.previous_owner_status, run)
-                if status != "dead":
-                    raise RuntimeError(f"Previous idle owner is {status}; refusing a second writer")
-            return
-        tracked = find_worker_by_session(s.id)
-        if tracked and _offline.same_owner(run, _offline.owner(tracked)) and not _runtime_stopped(tracked):
-            return
-        status = await asyncio.to_thread(_offline.previous_owner_status, run)
-        if status != "dead":
-            raise RuntimeError(f"Previous execution owner is {status}; refusing a second writer")
-        if run["id"] in s.illegal_batches:
-            return
+        if (s.legal_offline and run and run.get("serviceId") != _offline.SERVICE_ID
+                and run.get("processes")):
+            status = await asyncio.to_thread(_offline.previous_owner_status, run)
+            if status != "dead":
+                raise RuntimeError(f"Previous idle owner is {status}; refusing a second writer")
+        unresolved = _offline.outstanding(s)
+        identities = {(op["token"], op["generation"]): op for op in unresolved}
+        dead = []
+        for identity in identities.values():
+            if (tracked_owner and _offline.same_owner(identity, _offline.owner(tracked_owner))
+                    and not _runtime_stopped(tracked_owner)):
+                continue
+            status = await asyncio.to_thread(_offline.previous_owner_status, identity)
+            if status != "dead":
+                raise RuntimeError(f"Previous execution owner is {status}; refusing a second writer")
+            dead.append(identity)
         def classify(candidate):
-            if s.offline_run is not run:
-                raise RuntimeError("Execution changed during recovery preparation")
             _migrate_queue_delivery_state(candidate, restore_ledger=True)
-            _offline.detect(candidate, "unfinished-run", eligible=lambda item: (
-                _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item)),
-                remember=lambda item: _remember_offline_lock(candidate, item))
-        changed = await _commit_offline(s, classify)
+            for identity in dead:
+                _offline.detect(candidate, "unfinished-run", identity=identity, eligible=lambda item: (
+                    _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item)),
+                    remember=lambda item: _remember_offline_lock(candidate, item))
+        changed = await _commit_offline(s, classify) if dead else False
     if changed:
         await _offline_snapshot_event(s)
 
@@ -754,11 +754,12 @@ async def _begin_offline_run(w: Worker, *, locked: bool = False) -> dict:
 
 async def _finish_offline_stop(w: Worker, identity: dict, reason: str) -> None:
     s = _session(w)
-    if s is not None and s.offline_run is not None:
+    if s is not None and _offline.outstanding(s, identity):
         if not _runtime_stopped(w):
             raise RuntimeError("Runtime stop is unconfirmed; legality retained")
         async with queue_lock(s.id):
-            await _commit_offline(s, lambda candidate: _offline.finish(candidate, identity, reason=reason, state="offline"))
+            await _commit_offline(s, lambda candidate: _offline.retire_owner(candidate, identity, reason=reason,
+                proof={"kind": "runtime-stopped", "owner": identity}))
 
 
 async def _detect_offline_exit(w: Worker, identity: dict, reason: str) -> None:
@@ -768,15 +769,15 @@ async def _detect_offline_exit(w: Worker, identity: dict, reason: str) -> None:
     async with queue_lock(s.id):
         if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                 or w.generation != identity["generation"]
-                or not _offline.same_owner(s.offline_run, identity)):
+                or not _offline.outstanding(s, identity)):
             return
         def classify(candidate):
             if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                     or w.generation != identity["generation"]
-                    or not _offline.same_owner(s.offline_run, identity)):
+                    or not _offline.outstanding(s, identity)):
                 return
             _migrate_queue_delivery_state(candidate, restore_ledger=True)
-            _offline.detect(candidate, reason, eligible=lambda item: (
+            _offline.detect(candidate, reason, identity=identity, eligible=lambda item: (
                 _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item)),
                 remember=lambda item: _remember_offline_lock(candidate, item))
         changed = await _commit_offline(s, classify)
@@ -2107,10 +2108,11 @@ async def _flush_history_now(
                             or w.generation != offline_identity["generation"]):
                         raise RuntimeError("Stale terminal owner at durable commit")
                     candidate = copy.copy(s)
-                    candidate.offline_run = copy.deepcopy(s.offline_run)
+                    for key, value in _offline.snapshot(s).items():
+                        setattr(candidate, key, value)
+                    _offline.attach_foreground(candidate)
                     _offline.finish(candidate, offline_identity, reason="task/safe-terminal")
-                    offline_values = {"legal_offline": candidate.legal_offline,
-                                      "offline_run": candidate.offline_run}
+                    offline_values = _offline.snapshot(candidate)
                 _sess._save_body(s, offline_override=offline_values)
             except BaseException:
                 if rollback is not None:
