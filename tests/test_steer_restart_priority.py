@@ -125,3 +125,58 @@ def test_absent_delayed_start_and_automatic_start_share_spawn_lock(monkeypatch):
         assert worker.delayed_restart_state(s.id)['status'] == 'completed'
         assert intent['action'] == 'start'
     asyncio.run(run())
+
+
+def test_failed_replacement_keeps_locked_item_and_explicit_retry_starts_once(monkeypatch):
+    async def run():
+        s, item, w = target('running')
+        item['queueLockManual'] = True
+        replacement = SimpleNamespace(worker_id='replacement', generation=5)
+        create = AsyncMock(side_effect=['injected spawn failure', replacement])
+        async def kill(wid, **kwargs):
+            assert kwargs['preserve_restart_intent'] is True
+            assert w.status == 'restarting'
+            w.process.returncode = 0
+            worker.workers.pop(wid)
+        stop = AsyncMock(side_effect=kill)
+        monkeypatch.setattr(worker, '_kill_worker_unlocked', stop)
+        monkeypatch.setattr(worker, '_create_worker', create)
+        accepted = worker.request_delayed_restart(s.id)
+        assert worker.request_delayed_restart(s.id) == accepted
+        await asyncio.sleep(0)
+        stop.assert_not_called()
+        w.status = 'idle'
+        worker._maybe_restart_pending(w)
+        for _ in range(4): await asyncio.sleep(0)
+        assert worker.delayed_restart_state(s.id)['status'] == 'failed'
+        assert s.queue_pending == [item] and item['queueLockManual']
+        retry = worker.request_delayed_restart(s.id)
+        assert retry['action'] == 'start'
+        assert worker.request_delayed_restart(s.id) == retry
+        for _ in range(4): await asyncio.sleep(0)
+        assert worker.delayed_restart_state(s.id)['status'] == 'completed'
+        assert create.await_count == 2 and stop.await_count == 1
+        assert s.queue_pending == [item]
+    asyncio.run(run())
+
+
+def test_cancel_pending_does_not_retire_running_task_or_unlock_queue(monkeypatch):
+    async def run():
+        s, item, w = target('running')
+        item['queueLockManual'] = True
+        respawn = AsyncMock()
+        monkeypatch.setattr(worker, '_respawn_worker', respawn)
+        accepted = worker.request_delayed_restart(s.id)
+        worker._cancel_session_restart(s.id)
+        assert worker.delayed_restart_state(s.id)['status'] == 'cancelled'
+        assert w.status == 'running' and not w.pending_restart
+        w.status = 'idle'
+        worker._maybe_restart_pending(w)
+        await asyncio.sleep(0)
+        respawn.assert_not_called()
+        assert item['queueLockManual'] and s.queue_pending == [item]
+        retry = worker.request_delayed_restart(s.id)
+        assert retry['revision'] > accepted['revision']
+        await asyncio.sleep(0)
+        respawn.assert_awaited_once()
+    asyncio.run(run())

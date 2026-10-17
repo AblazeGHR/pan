@@ -638,7 +638,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
             size="sm"
             disabled={delayedRequesting || delayedRestart?.status === 'pending'
               || delayedRestart?.status === 'restarting'}
-            title="Finish the current task, then restart before queued work. Starts a worker if offline."
+            title={delayedRestart?.status === 'pending'
+              ? 'Delayed restart pending: waiting for task completion'
+              : delayedRestart?.status === 'restarting' ? 'Restarting worker'
+                : 'Finish the current task, then restart before queued work. Starts a worker if offline.'}
             onClick={() => {
               if (!session?.id) return;
               setDelayedRequesting(true);
@@ -650,7 +653,9 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                 .finally(() => setDelayedRequesting(false));
             }}
           >
-            ◷ Delayed restart
+            {delayedRestart?.status === 'pending' ? '◷ Delayed restart pending'
+              : delayedRestart?.status === 'restarting' ? '◷ Restarting worker…'
+                : '◷ Delayed restart'}
           </Button>
           {delayedRestart && (
             <p role="status" className={`text-xs ${delayedRestart.status === 'failed'
