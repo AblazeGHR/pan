@@ -1,4 +1,6 @@
-# Legal Offline / Illegal Lock：A–G 最终交付
+# Legal Offline / Illegal Lock：A–G 冻结交付
+
+> 本文对应 e681cb5a 冻结版。后续 MA 批准的受控 Codex 原生准入补丁、实测及剩余边界另见 [原生准入交付](legal-offline-codex-native-admission-delivery-20261018.md)；下述冻结版证据及限制保留为当时记录。
 
 2026-10-18；同一工作树、同一分支继续实施，待 MA 独立验收和集成。
 
