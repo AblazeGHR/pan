@@ -4,6 +4,7 @@ import { WorkerDot } from '@/components/worker/WorkerDot';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useJobStore, selectSessionJobIndicator } from '@/stores/jobStore';
 import { setReportsToManager, setSessionMsgBridge, setSessionReadonly } from '@/services/api';
 import type { DropZone } from './sessionDrag';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin, Bell, Lock, Unlock } from 'lucide-react';
@@ -205,6 +206,10 @@ export const SessionItem = memo(function SessionItem({
     workspaceId ? s.workspaces.find((w) => w.id === workspaceId)?.name ?? null : null,
   );
   const showWorkspaceBadge = useUIStore((s) => s.activeWorkspaceId === 'all') && !!workspaceName;
+  // 信息区 J 标识：target 为本 Session 的待调度/运行中 Job 聚合值（running 优先）。
+  // 复用全局 jobStore 的权威 WS/REST 数据，无自有订阅与轮询；返回原语，
+  // 仅本 Session 的指示值真实变化时才重渲染。
+  const jobIndicator = useJobStore((s) => selectSessionJobIndicator(s, session.id));
 
   const handleClick = () => {
     if (isPending) return;
@@ -468,8 +473,31 @@ export const SessionItem = memo(function SessionItem({
             })}
           </div>
 
-          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0) && (
+          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0 || jobIndicator) && (
             <span className="session-quick-action-adapter-row">
+              {jobIndicator && (
+                // J 标识（底行最左，DOM 首项）：target 为本 Session 的 Job 聚合。
+                // 只读：事件全部拦截，不清零、不导航、不触发卡片选中；颜色由
+                // data-job-state 驱动（scheduled 黄 / running 蓝），几何与队列/
+                // 未读徽标一致；窄宽度与行内拥挤时均先于数字徽标让位（CSS）。
+                <span
+                  className="session-job-badge max-md:hidden"
+                  data-testid="session-job-badge"
+                  data-job-state={jobIndicator}
+                  role="img"
+                  aria-label={jobIndicator === 'running'
+                    ? 'A background Job targeting this Session is running'
+                    : 'A scheduled Job targeting this Session is waiting for its next fire'}
+                  title={jobIndicator === 'running'
+                    ? '后台 Job 运行中（target = 本 Session）'
+                    : '定时 Job 待调度（target = 本 Session）'}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  J
+                </span>
+              )}
               {queuePendingCount > 0 && (
                 // 队列数徽标（done 徽标左侧，独立于 done 计数）。只读：单击 /
                 // 双击只拦截卡片事件，不清零、不删消息、不隐藏计数，数值只随

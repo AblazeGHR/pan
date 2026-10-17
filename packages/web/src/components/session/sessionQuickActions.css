@@ -122,7 +122,10 @@
 }
 
 /* 底行右侧（adapter 标签行）：未读 done 徽标在 adapter 标签左侧，二者同一
-   flex 行整体锚定右下角；徽标 0 时组件不渲染，该行退回只有 adapter 的原布局。 */
+   flex 行整体锚定右下角；徽标 0 时组件不渲染，该行退回只有 adapter 的原布局。
+   overflow:hidden 保证极端拥挤（多位数字 + adapter + J 同时存在）时内容只在
+   72px rail 内裁剪，绝不溢出卡片遮挡正文或其他按钮；J 是行内唯一可压缩项，
+   空间不足时 J 先让位（见 .session-job-badge），数字徽标与 adapter 保持完整。 */
 .session-quick-action-adapter-row {
   position: absolute;
   z-index: 4;
@@ -132,6 +135,7 @@
   align-items: center;
   gap: 3px;
   max-width: 100%;
+  overflow: hidden;
 }
 
 .session-quick-action-adapter {
@@ -142,6 +146,7 @@
   background: var(--color-bg-tertiary);
   font-size: 9px;
   line-height: 11px;
+  flex: 0 0 auto;
   pointer-events: auto;
 }
 
@@ -208,4 +213,39 @@
   color: var(--color-danger);
   background-color: color-mix(in srgb, var(--color-danger) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 44%, transparent);
+}
+
+/* 信息区 J 标识：target 为本 Session 的待调度/运行中 Job 聚合为单枚 J
+   （多 Job 时 running 优先）。几何与队列/未读徽标完全一致（14px 胶囊、
+   9px/700），仅语义色不同：scheduled 用 warning 黄，running 用 accent 蓝。
+   只读：指针/点击/双击全部拦截，不清零、不导航、不触发卡片选中。
+   位置为底行最左（DOM 首项）：窄宽度（max-md:hidden，与工作区/adapter 徽标
+   同一策略）下 J 先隐藏、数字徽标保留且仍随底行右对齐；行内空间不足时 J
+   是唯一可压缩项（flex: 0 1 auto + min-width: 0），先于数字徽标让位。 */
+.session-job-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 44%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  cursor: default;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.session-job-badge[data-job-state='running'] {
+  color: var(--color-accent);
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 44%, transparent);
 }

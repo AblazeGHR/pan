@@ -108,3 +108,57 @@ export function selectRunningJobCount(state: JobStoreState): number {
   }
   return count;
 }
+
+/**
+ * Aggregated Job indicator for one Session's info area (bottom-right rail):
+ * - `'running'`   — at least one targeted Job is actually running (blue J);
+ * - `'scheduled'` — targeted Jobs are armed and waiting for their next
+ *                   scheduled fire (yellow J);
+ * - `null`        — nothing to show: no targeted Job, or every targeted Job is
+ *                   starting / paused / disabled / terminal.
+ *
+ * Status semantics per kind (backend state machine is the source of truth):
+ * - `background-process`: `starting` (runner spawn claim) → `running` →
+ *   terminal. `starting` is neither a pending schedule nor yet running — the
+ *   same strict reading as `selectRunningJobCount` — so it shows nothing.
+ * - `session-message` / `session-broadcast`: `pending` (created, waiting for
+ *   the first fire) and `scheduled` (recurring, between fires) are both armed;
+ *   `running` is an in-flight delivery.
+ * - `scheduled-task`: `scheduled` means enabled with a next fire; `pending`
+ *   means no next fire (exhausted), which is not a pending schedule. A paused
+ *   task keeps `scheduled` but is skipped at dispatch, and a disabled task
+ *   closes as `completed` — both are filtered here instead of misreported.
+ *
+ * Targeting uses the authoritative `target` mapping only (single target
+ * `sessionId`; broadcast `sessionIds`). `creatorSessionId` / `source` are
+ * ownership metadata and never imply a Session indicator. The return value is
+ * a primitive, so memoized SessionItems re-render only on real changes and
+ * no per-Session polling or subscription is introduced.
+ */
+export function selectSessionJobIndicator(
+  state: JobStoreState,
+  sessionId: string,
+): 'running' | 'scheduled' | null {
+  let scheduled = false;
+  for (const job of state.jobs) {
+    const target = job.target;
+    if (!target) continue;
+    if (target.sessionId !== sessionId && !(target.sessionIds?.includes(sessionId))) {
+      continue;
+    }
+    if (job.status === 'running') return 'running';
+    // Paused / disabled Jobs keep a scheduled-looking status but never fire.
+    if (job.paused === true || job.enabled === false) continue;
+    if (job.status === 'scheduled') {
+      scheduled = true;
+    } else if (
+      job.status === 'pending'
+      && (job.kind === 'session-message' || job.kind === 'session-broadcast')
+    ) {
+      // Message Jobs wait in `pending` for their first fire; scheduler tasks
+      // use `pending` for "no next fire", which is not a pending schedule.
+      scheduled = true;
+    }
+  }
+  return scheduled ? 'scheduled' : null;
+}
