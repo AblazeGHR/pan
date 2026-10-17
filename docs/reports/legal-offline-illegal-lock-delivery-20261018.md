@@ -1,4 +1,6 @@
-# Legal Offline / Illegal Lock 实施交付（待 MA 独立验收）
+# Legal Offline / Illegal Lock 首轮实施交付（历史记录）
+
+> 本报告记录首轮实现。用户后续 A–G 决定已修正 reports 策略、全锁唤醒、adapter 就绪与 owner 边界；当前行为及最终验收见 [A–G 最终交付](legal-offline-illegal-lock-final-20261018.md)。下述首轮计数及选择不代表本轮最终契约。
 
 日期：2026-10-18。工作树 `D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018`，分支 `review/legal-offline-illegal-lock-20261018`。
 
