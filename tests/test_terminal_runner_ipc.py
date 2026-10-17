@@ -1609,6 +1609,10 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
             terminal_id, pid=own_identity.pid, filetime=own_identity.created_at_filetime
         )
         sends_before = sends.calls
+        # The background accept loop has retired. A transient disconnect may
+        # have exhausted its pending instances before stop was observed; the
+        # manual positive controls must prepare their own listener capacity.
+        impostor.create()
         anchor_client = win_pipe.PipeClient(terminal_id, connect_timeout=5.0)
         anchor_connection = anchor_client.connect()
         anchor_server = impostor.accept(timeout=5.0)
@@ -1647,6 +1651,7 @@ def test_impostor_pipe_server_identity_is_rejected_before_credentials(tmp_path, 
         anchor_connection.close(timeout=1.0)
 
         # 对照 2：身份精确匹配时进入凭据交换，冒充者不持有 token ⇒ 服务器侧 MAC 校验失败
+        impostor.create()
         client_session, client_connection, _ = _client_session(tmp_path, terminal_id, token=token)
         client_session.expected_peer_identity = own_identity
         server_connection = impostor.accept(timeout=5.0)

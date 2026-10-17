@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Job } from '@/types/jobs';
-import { selectRunningJobCount, useJobStore } from '@/stores/jobStore';
+import { selectRunningJobCount, selectSessionJobIndicator, useJobStore } from '@/stores/jobStore';
 import * as api from '@/services/api';
 
 vi.mock('@/services/api', async (importOriginal) => {
@@ -223,5 +223,194 @@ describe('jobStore', () => {
     expect(state.jobs.map((j) => j.jobId)).toEqual(['pre-existing']);
     expect(state.loaded).toBe(true);
     expect(state.loading).toBe(false);
+  });
+});
+
+describe('selectSessionJobIndicator', () => {
+  const SESSION = 'session-1';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetStore();
+  });
+
+  const indicator = () => selectSessionJobIndicator(useJobStore.getState(), SESSION);
+
+  it('is null with no jobs at all', () => {
+    expect(indicator()).toBeNull();
+  });
+
+  it('reports running for a targeted background-process job', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 'p1', kind: 'background-process', status: 'running', target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBe('running');
+  });
+
+  it('reports scheduled for an armed session-message job in pending (first fire)', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 'm1', kind: 'session-message', status: 'pending', target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBe('scheduled');
+  });
+
+  it('reports scheduled for a recurring session-message job between fires', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 'm2', kind: 'session-message', status: 'scheduled', target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBe('scheduled');
+  });
+
+  it('reports scheduled for an enabled scheduled-task job with a next fire', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 's1', kind: 'scheduled-task', status: 'scheduled', enabled: true, paused: false, target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBe('scheduled');
+  });
+
+  it('is null for a scheduled-task job in pending (no next fire)', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 's2', kind: 'scheduled-task', status: 'pending', target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it('is null while a background-process job is only starting (spawn claim)', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 'p2', kind: 'background-process', status: 'starting', target: { sessionId: SESSION } })],
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it('is null for every terminal status', () => {
+    for (const status of ['completed', 'failed', 'cancelled', 'timed_out'] as const) {
+      useJobStore.setState({
+        jobs: [job({ jobId: `t-${status}`, status, target: { sessionId: SESSION } })],
+      });
+      expect(indicator()).toBeNull();
+    }
+  });
+
+  it('aggregates many jobs for one session into a single value with running priority', () => {
+    useJobStore.setState({
+      jobs: [
+        job({ jobId: 'a', kind: 'session-message', status: 'scheduled', target: { sessionId: SESSION } }),
+        job({ jobId: 'b', kind: 'session-message', status: 'pending', target: { sessionId: SESSION } }),
+      ],
+    });
+    expect(indicator()).toBe('scheduled');
+
+    // A running job arriving later (any position) flips the aggregate to blue.
+    useJobStore.getState().upsertJob(
+      job({ jobId: 'c', kind: 'background-process', status: 'running', target: { sessionId: SESSION } }),
+    );
+    expect(indicator()).toBe('running');
+
+    // Running first in the list also wins.
+    useJobStore.setState({
+      jobs: [
+        job({ jobId: 'd', kind: 'background-process', status: 'running', target: { sessionId: SESSION } }),
+        job({ jobId: 'e', kind: 'session-message', status: 'scheduled', target: { sessionId: SESSION } }),
+      ],
+    });
+    expect(indicator()).toBe('running');
+  });
+
+  it('matches a broadcast job through target.sessionIds without dropping the first id', () => {
+    useJobStore.setState({
+      jobs: [job({
+        jobId: 'b1', kind: 'session-broadcast', status: 'running',
+        target: { sessionId: SESSION, sessionIds: [SESSION, 'session-2'] },
+      })],
+    });
+    expect(indicator()).toBe('running');
+    // The other broadcast member sees the same indicator.
+    expect(selectSessionJobIndicator(useJobStore.getState(), 'session-2')).toBe('running');
+  });
+
+  it('is null for a session that is not a job target', () => {
+    useJobStore.setState({
+      jobs: [job({ jobId: 'x1', status: 'running', target: { sessionId: 'other-session' } })],
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it('never infers a target from the creator/source session', () => {
+    useJobStore.setState({
+      jobs: [job({
+        jobId: 'c1', kind: 'background-process', status: 'running',
+        source: { type: 'agent', sessionId: SESSION },
+        target: { sessionId: 'other-session' },
+      })],
+    });
+    // The creator session shows nothing; only the real target does.
+    expect(indicator()).toBeNull();
+    expect(selectSessionJobIndicator(useJobStore.getState(), 'other-session')).toBe('running');
+  });
+
+  it('does not misreport paused or disabled scheduled tasks', () => {
+    useJobStore.setState({
+      jobs: [
+        job({ jobId: 'pa', kind: 'scheduled-task', status: 'scheduled', paused: true, target: { sessionId: SESSION } }),
+        job({ jobId: 'pb', kind: 'scheduled-task', status: 'scheduled', enabled: false, target: { sessionId: SESSION } }),
+      ],
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it('tolerates jobs without any target (main-lifecycle) and legacy shapes', () => {
+    useJobStore.setState({
+      jobs: [
+        job({ jobId: 'ml', kind: 'main-lifecycle', status: 'running', target: { sessionId: null } }),
+        job({ jobId: 'lg', kind: 'session-message', status: 'scheduled', target: undefined as unknown as Job['target'] }),
+      ],
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it('tracks the authoritative snapshot and WS mutations without polling', async () => {
+    // First snapshot (socket open REST hydration) arms the indicator.
+    vi.mocked(api.fetchJobs).mockResolvedValue([
+      job({ jobId: 'w1', kind: 'session-message', status: 'scheduled', target: { sessionId: SESSION } }),
+    ]);
+    await useJobStore.getState().loadJobs();
+    expect(indicator()).toBe('scheduled');
+
+    // job.updated: the message fires and runs.
+    useJobStore.getState().upsertJob(
+      job({ jobId: 'w1', kind: 'session-message', status: 'running', target: { sessionId: SESSION } }),
+    );
+    expect(indicator()).toBe('running');
+
+    // job.updated: terminal state removes the indicator.
+    useJobStore.getState().upsertJob(
+      job({ jobId: 'w1', kind: 'session-message', status: 'completed', target: { sessionId: SESSION } }),
+    );
+    expect(indicator()).toBeNull();
+
+    // job.created: a new process job targeting the session arms blue again.
+    useJobStore.getState().upsertJob(
+      job({ jobId: 'w2', kind: 'background-process', status: 'running', target: { sessionId: SESSION } }),
+    );
+    expect(indicator()).toBe('running');
+
+    // job.deleted: the registry row disappears and the indicator clears.
+    useJobStore.getState().removeJob('w2');
+    expect(indicator()).toBeNull();
+  });
+
+  it('returns a stable primitive so memoized cards skip unrelated re-renders', () => {
+    useJobStore.setState({
+      jobs: [
+        job({ jobId: 'k1', status: 'running', target: { sessionId: SESSION } }),
+        job({ jobId: 'k2', status: 'running', target: { sessionId: 'other' } }),
+      ],
+    });
+    const first = selectSessionJobIndicator(useJobStore.getState(), SESSION);
+    const second = selectSessionJobIndicator(useJobStore.getState(), SESSION);
+    expect(Object.is(first, second)).toBe(true);
+    // An unrelated job update keeps the selected value identical.
+    useJobStore.getState().upsertJob(job({ jobId: 'k3', status: 'running', target: { sessionId: 'third' } }));
+    expect(Object.is(selectSessionJobIndicator(useJobStore.getState(), SESSION), first)).toBe(true);
   });
 });

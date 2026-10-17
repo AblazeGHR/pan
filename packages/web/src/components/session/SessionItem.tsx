@@ -4,7 +4,9 @@ import { WorkerDot } from '@/components/worker/WorkerDot';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useJobStore, selectSessionJobIndicator } from '@/stores/jobStore';
 import { setReportsToManager, setSessionMsgBridge, setSessionReadonly } from '@/services/api';
+import { SessionInfoArea } from './SessionInfoArea';
 import type { DropZone } from './sessionDrag';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin, Bell, Lock, Unlock } from 'lucide-react';
 import './sessionQuickActions.css';
@@ -205,6 +207,10 @@ export const SessionItem = memo(function SessionItem({
     workspaceId ? s.workspaces.find((w) => w.id === workspaceId)?.name ?? null : null,
   );
   const showWorkspaceBadge = useUIStore((s) => s.activeWorkspaceId === 'all') && !!workspaceName;
+  // 信息区 J 标识：target 为本 Session 的待调度/运行中 Job 聚合值（running 优先）。
+  // 复用全局 jobStore 的权威 WS/REST 数据，无自有订阅与轮询；返回原语，
+  // 仅本 Session 的指示值真实变化时才重渲染。
+  const jobIndicator = useJobStore((s) => selectSessionJobIndicator(s, session.id));
 
   const handleClick = () => {
     if (isPending) return;
@@ -468,65 +474,16 @@ export const SessionItem = memo(function SessionItem({
             })}
           </div>
 
-          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0) && (
-            <span className="session-quick-action-adapter-row">
-              {queuePendingCount > 0 && (
-                // 队列数徽标（done 徽标左侧，独立于 done 计数）。只读：单击 /
-                // 双击只拦截卡片事件，不清零、不删消息、不隐藏计数，数值只随
-                // 真实队列变化减少。非空且所有待处理项都带真实锁（手动锁 /
-                // 自动 report 锁）时用 danger 色系，否则用 accent 色系；与可双击
-                // 清零的 done 徽标以色系、光标（default）与文案区分。
-                <span
-                  className={`session-queue-badge${queueAllLocked ? ' session-queue-badge-locked' : ''}`}
-                  data-testid="session-queue-badge"
-                  data-queue-all-locked={queueAllLocked ? 'true' : 'false'}
-                  role="img"
-                  aria-label={`${queuePendingCount} queued pending message(s)${queueAllLocked ? ', all locked' : ''}. Read-only; it changes only with the real queue.`}
-                  title={`Queue: ${queuePendingCount} pending${queueAllLocked ? ' · all locked' : ''}（只读，只随真实队列变化）`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                >
-                  {queuePendingCount > 99 ? '99+' : queuePendingCount}
-                </span>
-              )}
-              {unreadDoneCount > 0 && (
-                // 未读 done 徽标（adapter 标签左侧）。单击只拦截冒泡、不选中
-                // 卡片也不清零：否则第一次 click 会经“选择即读”把徽标清零并
-                // 卸载，第二次 click 失去目标，双击永远无法成立。清零只在
-                // 双击（或选择会话）时发生；事件拦截同时防止卡片选中。
-                <span
-                  className="session-unread-done-badge"
-                  data-testid="session-unread-done-badge"
-                  role="img"
-                  aria-label={`${unreadDoneCount} unread done. Double-click to mark as read.`}
-                  title={`${unreadDoneCount} unread done · 双击标记已读`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    if (isPending || unreadDoneGeneration <= 0) return;
-                    void useSessionStore.getState()
-                      .ackSessionUnread(session.id, unreadDoneGeneration);
-                  }}
-                >
-                  {unreadDoneCount > 99 ? '99+' : unreadDoneCount}
-                </span>
-              )}
-              {session.adapter && (
-                <span
-                  className="session-quick-action-adapter"
-                  data-testid="session-adapter-badge"
-                  role="img"
-                  aria-label={`Adapter ${session.adapter}`}
-                  title={`Adapter: ${session.adapter}`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {session.adapter}
-                </span>
-              )}
-            </span>
+          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0 || jobIndicator) && (
+            <SessionInfoArea
+              sessionId={session.id}
+              indicator={jobIndicator}
+              queuePendingCount={queuePendingCount}
+              queueAllLocked={queueAllLocked}
+              unreadDoneCount={unreadDoneCount}
+              unreadDoneGeneration={unreadDoneGeneration}
+              adapter={session.adapter}
+            />
           )}
 
           {expandable && (
