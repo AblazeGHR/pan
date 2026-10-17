@@ -47,7 +47,7 @@ function buildRow(siblings: Array<[string, number]>, jWidth = 14, withBadge = tr
 }
 
 describe('jobBadgeFits', () => {
-  const base = { available: 71, jWidth: 14, othersWidth: 0, othersCount: 0, gap: INFO_AREA_GAP };
+  const base = { available: 71, jWidth: 14, othersWidth: 0, othersCount: 0, gap: INFO_AREA_GAP, zoom: 1 };
 
   it('shows J when it is the only info-area item', () => {
     expect(jobBadgeFits(base)).toBe(true);
@@ -105,6 +105,21 @@ describe('measureInfoArea', () => {
     expect(m.othersCount).toBe(0);
     expect(m.othersWidth).toBe(0);
     expect(m.jWidth).toBe(14);
+  });
+
+  it('normalizes zoom-scaled rects back to CSS px via the rail factor', () => {
+    // CSS zoom 1.25: rects scale (90/16.83) while clientWidth stays CSS px (72).
+    const { row, badge } = buildRow([['session-quick-action-adapter', 29.25]], 16.83);
+    Object.defineProperty(row.parentElement!, 'clientWidth', { value: 72, configurable: true });
+    row.parentElement!.getBoundingClientRect = () => rect(90);
+    const m = measureInfoArea(row, badge, 14);
+    expect(m.zoom).toBeCloseTo(1.25, 5);
+    // 16.83 / 1.25 = 13.464 CSS px; 29.25 / 1.25 = 23.4 CSS px.
+    expect(m.jWidth).toBeCloseTo(13.464, 2);
+    expect(m.othersWidth).toBeCloseTo(23.4, 2);
+    expect(m.available).toBe(71);
+    // The whole inequality now shares one unit: 13.464 + 23.4 + 3 = 39.864.
+    expect(jobBadgeFits(m)).toBe(true);
   });
 
   it('uses the documented gap constant', () => {

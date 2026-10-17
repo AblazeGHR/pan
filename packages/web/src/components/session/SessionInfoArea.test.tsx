@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, waitFor } from '@testing-library/react';
 import { SessionInfoArea } from './SessionInfoArea';
 
 /** Natural info-area widths (px) read by the fit decision's layout stub. */
@@ -164,6 +164,33 @@ describe('SessionInfoArea Job badge width-driven visibility', () => {
   it('renders the scheduled (yellow) state when visible', () => {
     const { container } = renderArea({ indicator: 'scheduled', unreadDoneCount: 3 });
     expect(badge(container)!.getAttribute('data-job-state')).toBe('scheduled');
+  });
+
+  it('re-measures once after the webfont settles (display:swap flip window)', async () => {
+    // Fonts still loading: the first measurement uses fallback-era widths.
+    let resolveReady!: () => void;
+    const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
+    const originalFonts = document.fonts;
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { status: 'loading', ready },
+    });
+    try {
+      WIDTHS['session-unread-done-badge'] = 24; // "99+"
+      WIDTHS['session-quick-action-adapter'] = 40; // long adapter: 84 > 71
+      const { container } = renderArea({ unreadDoneCount: 120, adapter: 'opencode' });
+      expect(badge(container)).toBeNull();
+
+      // The webfont lands and the glyphs settle at Inter metrics.
+      WIDTHS['session-quick-action-adapter'] = 24; // 14 + 48 + 6 = 68 <= 71
+      resolveReady();
+      await waitFor(() => expect(badge(container)).toBeTruthy());
+    } finally {
+      Object.defineProperty(document, 'fonts', {
+        configurable: true,
+        value: originalFonts,
+      });
+    }
   });
 
   it('keeps the numeric badges and adapter rendered while J is hidden', () => {

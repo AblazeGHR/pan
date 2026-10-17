@@ -19,7 +19,7 @@ export const INFO_AREA_GAP = 3;
 export const INFO_AREA_RIGHT_INSET = 1;
 
 export interface InfoAreaMeasurement {
-  /** 行可占用的宽度（rail 宽度减去右内缩）。 */
+  /** 行可占用的宽度（rail 宽度减去右内缩，CSS px）。 */
   available: number;
   /** J 的自然宽度；J 当前隐藏时回落到缓存值（隐藏时 rect 为 0）。 */
   jWidth: number;
@@ -29,6 +29,8 @@ export interface InfoAreaMeasurement {
   othersCount: number;
   /** 行的 flex gap（CSS: column-gap），显隐账目按实测值计算。 */
   gap: number;
+  /** rail 的渲染缩放因子（rect 宽 / clientWidth）；1 表示无缩放。 */
+  zoom: number;
 }
 
 function parseCssPixels(value: string | null | undefined, fallback: number): number {
@@ -40,8 +42,13 @@ function parseCssPixels(value: string | null | undefined, fallback: number): num
 }
 
 /**
- * 读取信息区底行的实时几何（分数像素）。`badge` 为 null 表示 J 当前未渲染
- * （隐藏态），此时 jWidth 取调用方缓存的自然宽度。
+ * 读取信息区底行的实时几何（统一换算为 CSS px）。`badge` 为 null 表示 J 当前
+ * 未渲染（隐藏态），此时 jWidth 取调用方缓存的自然宽度。
+ *
+ * 单位归一化依据（实测）：`getBoundingClientRect()` 随 CSS zoom 缩放，而
+ * `clientWidth` 与 computed style 长度是 CSS px。zoom 1.25 时 rail rect=90 而
+ * clientWidth=72——若混用，拥挤判定会在缩放下失真。故以 rail 自身的
+ * rect/clientWidth 为缩放因子，把元素 rect 折算回 CSS px，整个不等式同单位。
  */
 export function measureInfoArea(
   row: HTMLElement,
@@ -52,19 +59,24 @@ export function measureInfoArea(
   const style = getComputedStyle(row);
   const rightInset = parseCssPixels(style.right, INFO_AREA_RIGHT_INSET);
   const gap = parseCssPixels(style.columnGap, INFO_AREA_GAP);
-  const available = rail ? rail.clientWidth - rightInset : 0;
+  const railClientWidth = rail ? rail.clientWidth : 0;
+  const railRectWidth = rail ? rail.getBoundingClientRect().width : 0;
+  const zoom = railClientWidth > 0 && railRectWidth > 0 ? railRectWidth / railClientWidth : 1;
+  const toCssPx = (value: number) => (zoom > 0 ? value / zoom : value);
+  const available = railClientWidth - rightInset;
   const others = Array.from(row.children).filter((child) => child !== badge);
   const othersWidth = others.reduce(
-    (sum, child) => sum + child.getBoundingClientRect().width,
+    (sum, child) => sum + toCssPx(child.getBoundingClientRect().width),
     0,
   );
-  const liveJWidth = badge ? badge.getBoundingClientRect().width : 0;
+  const liveJWidth = badge ? toCssPx(badge.getBoundingClientRect().width) : 0;
   return {
     available,
     jWidth: liveJWidth > 0 ? liveJWidth : cachedJWidth,
     othersWidth,
     othersCount: others.length,
     gap,
+    zoom,
   };
 }
 

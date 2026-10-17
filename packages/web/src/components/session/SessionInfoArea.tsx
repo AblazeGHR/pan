@@ -50,9 +50,24 @@ export const SessionInfoArea = memo(function SessionInfoArea({
     if (!indicator) return;
     const row = rowRef.current;
     if (!row) return;
-    const measurement = measureInfoArea(row, badgeRef.current, jWidthCache.current);
-    if (measurement.jWidth > 0) jWidthCache.current = measurement.jWidth;
-    setJobBadgeFitsRow(jobBadgeFits(measurement));
+    let cancelled = false;
+    const measure = () => {
+      const measurement = measureInfoArea(row, badgeRef.current, jWidthCache.current);
+      if (measurement.jWidth > 0) jWidthCache.current = measurement.jWidth;
+      setJobBadgeFitsRow(jobBadgeFits(measurement));
+    };
+    measure();
+    // Webfont swap (Inter, display:swap) measurably widens the badge glyphs
+    // after first paint (probe: J 12.22 -> 13.47px, adapter +2.2px), which can
+    // flip a boundary case decided on fallback metrics. One-shot re-measure
+    // once fonts settle — not a poll: document.fonts.ready resolves once.
+    const fonts = document.fonts;
+    if (fonts && fonts.status !== 'loaded') {
+      fonts.ready.then(() => {
+        if (!cancelled) measure();
+      }).catch(() => {});
+    }
+    return () => { cancelled = true; };
   }, [indicator, queuePendingCount, unreadDoneCount, adapter]);
 
   return (
