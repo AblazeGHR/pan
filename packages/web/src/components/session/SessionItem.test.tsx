@@ -203,11 +203,14 @@ describe('SessionItem Job indicator (J)', () => {
     expect(badge!.textContent).toBe('J');
     expect(badge!.getAttribute('data-job-state')).toBe('running');
     expect(badge!.className).toContain('session-job-badge');
-    // Same info-area row as the numeric badges; J is the leftmost item so it
-    // yields first under crowding, and the row stays right-anchored.
+    // Same info-area row as the numeric badges; J is the leftmost in-flow item
+    // so it yields first under crowding, and the row stays right-anchored.
+    // Only the always-mounted hidden measurement probe is out of flow.
     const row = badge!.closest('.session-quick-action-adapter-row');
     expect(row).toBeTruthy();
-    expect(row!.firstElementChild).toBe(badge);
+    const firstInFlow = Array.from(row!.children)
+      .find((child) => child.getAttribute('data-session-job-metric') !== 'probe');
+    expect(firstInFlow).toBe(badge);
     expect(row!.className).toContain('session-quick-action-adapter-row');
     expect(container.querySelectorAll('[data-testid="session-job-badge"]')).toHaveLength(1);
   });
@@ -322,7 +325,10 @@ describe('SessionItem Job indicator (J)', () => {
     );
 
     const row = container.querySelector('.session-quick-action-adapter-row')!;
-    const children = Array.from(row.children);
+    // In-flow items only: the hidden measurement probe (metric=probe) is out
+    // of flow; the badge (metric=badge) stays as the left-most visible item.
+    const children = Array.from(row.children)
+      .filter((child) => child.getAttribute('data-session-job-metric') !== 'probe');
     expect(children[0]!.getAttribute('data-testid')).toBe('session-job-badge');
     expect(children[1]!.getAttribute('data-testid')).toBe('session-queue-badge');
     expect(children[2]!.getAttribute('data-testid')).toBe('session-unread-done-badge');

@@ -3,15 +3,24 @@
  *
  * 用户要求：宽度不足时 J 整枚消失（不是按 viewport 一律禁用），所有标识右对齐、
  * 数字徽标永远完整。纯 CSS 无法表达"内容是否放得下"——对内容尺寸的行容器做
- * container query 会在隐藏 J 后失去触发条件形成振荡，fixed-width 容器又恒不变，
+ * container query 会在隐藏 J 后失去触发条件形成振荡，fixed-width 容器又恒定，
  * 因此这里用一次同步布局测量做全部显/整隐决策：
  *
  * - 测量在 useLayoutEffect 中、于绘制前完成，隐藏不产生闪烁；
- * - 唯一的重测触发是改变兄弟宽度的 React props（队列数 / 未读数 / adapter），
+ * - 唯一的重测触发是改变兄弟宽度的 React props（队列数 / 未读数 / adapter）
+ *   plus 一次性的 document.fonts.ready（webfont swap 会改变字形宽度）；
  *   rail 宽度是固定 72px，无 ResizeObserver / timer / 轮询的需要；
  * - J 显隐只改 J 自身的存在，兄弟布局不受影响：隐藏时行宽恰好减少
  *   jWidth + gap（无残胶囊、无预留 gap），行的右缘（right 锚定）始终不动。
+ *
+ * J 的自然宽度取自常驻探针（`data-session-job-metric="probe"`，与徽标同类、
+ * 绝对定位 + visibility:hidden，不占布局不绘制），而非可见徽标本身——徽标
+ * 隐藏时已卸载，只有探针能在任何字体状态下给出真实自然宽度，因此不存在
+ * 缓存陈旧：字体到达后无论 J 当时是显示还是隐藏，重测都读到新字形的宽度。
  */
+
+/** 标记信息区底行中参与 J 度量的元素（探针与可见徽标），others 求和时排除。 */
+export const JOB_METRIC_ATTR = 'data-session-job-metric';
 
 /** 信息区底行与队列/未读徽标之间的 flex gap（CSS: .session-quick-action-adapter-row）。 */
 export const INFO_AREA_GAP = 3;
@@ -21,7 +30,7 @@ export const INFO_AREA_RIGHT_INSET = 1;
 export interface InfoAreaMeasurement {
   /** 行可占用的宽度（rail 宽度减去右内缩，CSS px）。 */
   available: number;
-  /** J 的自然宽度；J 当前隐藏时回落到缓存值（隐藏时 rect 为 0）。 */
+  /** J 的自然宽度（探针实测；无探针时为 0）。 */
   jWidth: number;
   /** 其余信息区标识（队列/未读/adapter）的自然宽度之和。 */
   othersWidth: number;
@@ -42,8 +51,8 @@ function parseCssPixels(value: string | null | undefined, fallback: number): num
 }
 
 /**
- * 读取信息区底行的实时几何（统一换算为 CSS px）。`badge` 为 null 表示 J 当前
- * 未渲染（隐藏态），此时 jWidth 取调用方缓存的自然宽度。
+ * 读取信息区底行的实时几何（统一换算为 CSS px）。`jProbe` 为常驻探针元素
+ * （J 隐藏时唯一可用的 J 宽度来源）；为 null 时 jWidth 记 0。
  *
  * 单位归一化依据（实测）：`getBoundingClientRect()` 随 CSS zoom 缩放，而
  * `clientWidth` 与 computed style 长度是 CSS px。zoom 1.25 时 rail rect=90 而
@@ -52,8 +61,7 @@ function parseCssPixels(value: string | null | undefined, fallback: number): num
  */
 export function measureInfoArea(
   row: HTMLElement,
-  badge: HTMLElement | null,
-  cachedJWidth: number,
+  jProbe: HTMLElement | null,
 ): InfoAreaMeasurement {
   const rail = row.parentElement;
   const style = getComputedStyle(row);
@@ -64,15 +72,18 @@ export function measureInfoArea(
   const zoom = railClientWidth > 0 && railRectWidth > 0 ? railRectWidth / railClientWidth : 1;
   const toCssPx = (value: number) => (zoom > 0 ? value / zoom : value);
   const available = railClientWidth - rightInset;
-  const others = Array.from(row.children).filter((child) => child !== badge);
+  // 探针与可见徽标都带度量标记，不计入兄弟宽度。
+  const others = Array.from(row.children).filter(
+    (child) => !child.hasAttribute(JOB_METRIC_ATTR),
+  );
   const othersWidth = others.reduce(
     (sum, child) => sum + toCssPx(child.getBoundingClientRect().width),
     0,
   );
-  const liveJWidth = badge ? toCssPx(badge.getBoundingClientRect().width) : 0;
+  const jWidth = jProbe ? toCssPx(jProbe.getBoundingClientRect().width) : 0;
   return {
     available,
-    jWidth: liveJWidth > 0 ? liveJWidth : cachedJWidth,
+    jWidth,
     othersWidth,
     othersCount: others.length,
     gap,

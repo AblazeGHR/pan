@@ -1,6 +1,6 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
-import { jobBadgeFits, measureInfoArea } from './sessionInfoAreaFit';
+import { jobBadgeFits, measureInfoArea, JOB_METRIC_ATTR } from './sessionInfoAreaFit';
 
 export type SessionJobIndicator = 'running' | 'scheduled';
 
@@ -24,9 +24,13 @@ interface SessionInfoAreaProps {
  * J 的显隐按信息区实际可用宽度决定（sessionInfoAreaFit.ts）：与兄弟标识放不下
  * 时整枚卸载——无残胶囊、无预留 gap，数字徽标与 adapter 保持完整，底行右缘
  * （right 锚定）始终不动。不按 viewport 禁用：宽松桌面与宽松移动都会显示。
- * 重测依赖只有会改变兄弟宽度的输入（队列数/未读数/adapter）；rail 固定 72px，
- * 因此不需要 ResizeObserver / timer / 轮询。首次渲染默认可见，
- * useLayoutEffect 在绘制前完成测量并按需隐藏，不产生闪烁。
+ * 重测依赖只有会改变兄弟宽度的输入（队列数/未读数/adapter）加一次性
+ * document.fonts.ready；rail 固定 72px，不需要 ResizeObserver/timer/轮询。
+ * 首次渲染默认可见，useLayoutEffect 在绘制前完成测量并按需隐藏，不产生闪烁。
+ *
+ * J 的自然宽度由常驻探针（与徽标同类、绝对定位 + visibility:hidden）提供：
+ * 徽标隐藏（卸载）后探针仍在，fonts.ready 重测因此在隐藏态也能读到新字形的
+ * J 宽度——无缓存陈旧，两个方向（字体变窄应显示 / 变宽不得显示）都正确。
  *
  * 测量在本组件内进行：行元素是本组件的根节点，其 ref 在自身 layout effect
  * 之前附着（子组件 effect 里读父级 ref 会得到 null）。
@@ -41,9 +45,7 @@ export const SessionInfoArea = memo(function SessionInfoArea({
   adapter,
 }: SessionInfoAreaProps) {
   const rowRef = useRef<HTMLSpanElement>(null);
-  const badgeRef = useRef<HTMLSpanElement>(null);
-  // J 的自然宽度在其可见时测量并缓存；隐藏态无元素，用缓存值参与决策。
-  const jWidthCache = useRef(0);
+  const probeRef = useRef<HTMLSpanElement>(null);
   const [jobBadgeFitsRow, setJobBadgeFitsRow] = useState(true);
 
   useLayoutEffect(() => {
@@ -52,15 +54,14 @@ export const SessionInfoArea = memo(function SessionInfoArea({
     if (!row) return;
     let cancelled = false;
     const measure = () => {
-      const measurement = measureInfoArea(row, badgeRef.current, jWidthCache.current);
-      if (measurement.jWidth > 0) jWidthCache.current = measurement.jWidth;
-      setJobBadgeFitsRow(jobBadgeFits(measurement));
+      setJobBadgeFitsRow(jobBadgeFits(measureInfoArea(row, probeRef.current)));
     };
     measure();
-    // Webfont swap (Inter, display:swap) measurably widens the badge glyphs
-    // after first paint (probe: J 12.22 -> 13.47px, adapter +2.2px), which can
-    // flip a boundary case decided on fallback metrics. One-shot re-measure
-    // once fonts settle — not a poll: document.fonts.ready resolves once.
+    // Webfont swap (Inter, display:swap) measurably changes the badge glyph
+    // widths after first paint (probe: J 12.22 -> 13.47px, adapter +2.2px),
+    // which can flip a boundary case decided on fallback metrics. One-shot
+    // re-measure once fonts settle — not a poll: document.fonts.ready resolves
+    // once. The probe keeps the J width fresh even while the badge is hidden.
     const fonts = document.fonts;
     if (fonts && fonts.status !== 'loaded') {
       fonts.ready.then(() => {
@@ -72,14 +73,27 @@ export const SessionInfoArea = memo(function SessionInfoArea({
 
   return (
     <span className="session-quick-action-adapter-row" ref={rowRef}>
+      {indicator && (
+        // J 自然宽度探针：与徽标完全同类（同字体度量），绝对定位 +
+        // visibility:hidden（CSS）不占布局、不绘制、不进 a11y 树。徽标隐藏
+        // （卸载）时它仍在，是隐藏态字体重测的唯一 J 宽度来源。
+        <span
+          ref={probeRef}
+          className="session-job-badge"
+          {...{ [JOB_METRIC_ATTR]: 'probe' }}
+          aria-hidden="true"
+        >
+          J
+        </span>
+      )}
       {indicator && jobBadgeFitsRow && (
         // J 标识（底行最左，DOM 首项）：target 为本 Session 的 Job 聚合。
         // 只读：事件全部拦截，不清零、不导航、不触发卡片选中；颜色由
         // data-job-state 驱动（scheduled 黄 / running 蓝），几何与队列/
         // 未读徽标一致；放不下时整枚卸载（宽度驱动，非 viewport）。
         <span
-          ref={badgeRef}
           className="session-job-badge"
+          {...{ [JOB_METRIC_ATTR]: 'badge' }}
           data-testid="session-job-badge"
           data-job-state={indicator}
           role="img"

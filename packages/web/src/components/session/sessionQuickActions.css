@@ -250,3 +250,13 @@
   background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 44%, transparent);
 }
+
+/* J 自然宽度探针：与徽标完全同类（同字体度量），常驻 DOM；绝对定位脱离文档流
+   （不占布局、不产生 gap），visibility:hidden 不绘制且不进 a11y 树。徽标隐藏
+   （卸载）时它仍在——fonts.ready 重测在隐藏态也能读到新字形的 J 宽度，
+   避免缓存陈旧导致的两个方向误判（字体变窄应显示 / 变宽不得显示）。 */
+.session-job-badge[data-session-job-metric='probe'] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}

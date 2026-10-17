@@ -166,8 +166,8 @@ describe('SessionInfoArea Job badge width-driven visibility', () => {
     expect(badge(container)!.getAttribute('data-job-state')).toBe('scheduled');
   });
 
-  it('re-measures once after the webfont settles (display:swap flip window)', async () => {
-    // Fonts still loading: the first measurement uses fallback-era widths.
+  /** Install a controllable `document.fonts` (status loading until resolved). */
+  function stubPendingFonts(): { resolve: () => void; restore: () => void } {
     let resolveReady!: () => void;
     const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
     const originalFonts = document.fonts;
@@ -175,21 +175,75 @@ describe('SessionInfoArea Job badge width-driven visibility', () => {
       configurable: true,
       value: { status: 'loading', ready },
     });
+    return {
+      resolve: () => resolveReady(),
+      restore: () => {
+        Object.defineProperty(document, 'fonts', {
+          configurable: true,
+          value: originalFonts,
+        });
+      },
+    };
+  }
+
+  it('keeps the J probe mounted (hidden) while the badge itself is unmounted', () => {
+    const { container } = renderArea({ queuePendingCount: 120, unreadDoneCount: 120 });
+    // Badge gone entirely; the measurement probe stays so the hidden state can
+    // still re-measure the natural J width after a webfont swap.
+    expect(badge(container)).toBeNull();
+    const probe = container.querySelector('[data-session-job-metric="probe"]');
+    expect(probe).toBeTruthy();
+    expect(probe!.getAttribute('aria-hidden')).toBe('true');
+    expect(probe!.textContent).toBe('J');
+    // No probe without a targeted Job.
+    cleanup();
+    const { container: plain } = renderArea({ indicator: null, unreadDoneCount: 3 });
+    expect(plain.querySelector('[data-session-job-metric="probe"]')).toBeNull();
+  });
+
+  it('hidden at font arrival, the J narrows -> re-measures and shows', async () => {
+    const fonts = stubPendingFonts();
     try {
+      // Fallback-era J is WIDE: 20 + 64 + 6 = 90 > 71 -> hidden.
+      WIDTHS['session-job-badge'] = 20;
       WIDTHS['session-unread-done-badge'] = 24; // "99+"
-      WIDTHS['session-quick-action-adapter'] = 40; // long adapter: 84 > 71
+      WIDTHS['session-quick-action-adapter'] = 40; // long adapter
       const { container } = renderArea({ unreadDoneCount: 120, adapter: 'opencode' });
       expect(badge(container)).toBeNull();
 
-      // The webfont lands and the glyphs settle at Inter metrics.
-      WIDTHS['session-quick-action-adapter'] = 24; // 14 + 48 + 6 = 68 <= 71
-      resolveReady();
+      // Inter settles NARROWER: 12 + 48 + 6 = 66 <= 71 -> must show.
+      // A stale cached J width (20) would keep it hidden.
+      WIDTHS['session-job-badge'] = 12;
+      WIDTHS['session-quick-action-adapter'] = 24;
+      fonts.resolve();
       await waitFor(() => expect(badge(container)).toBeTruthy());
     } finally {
-      Object.defineProperty(document, 'fonts', {
-        configurable: true,
-        value: originalFonts,
-      });
+      fonts.restore();
+    }
+  });
+
+  it('hidden at font arrival, the J widens -> stays hidden (no false positive)', async () => {
+    const fonts = stubPendingFonts();
+    try {
+      // Fallback-era J: 14 + 64 + 6 = 84 > 71 -> hidden.
+      WIDTHS['session-job-badge'] = 14;
+      WIDTHS['session-unread-done-badge'] = 24; // "99+"
+      WIDTHS['session-quick-action-adapter'] = 40;
+      const { container } = renderArea({ unreadDoneCount: 120, adapter: 'opencode' });
+      expect(badge(container)).toBeNull();
+
+      // Inter settles WIDER: 18 + 48 + 6 = 72 > 71 -> must stay hidden.
+      // A stale cached J width (14) would wrongly show it.
+      WIDTHS['session-job-badge'] = 18;
+      WIDTHS['session-quick-action-adapter'] = 24;
+      fonts.resolve();
+      await waitFor(() =>
+        expect(container.querySelector('[data-session-job-metric="probe"]')).toBeTruthy());
+      // Let the fonts.ready microtask + re-render settle, then assert.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(badge(container)).toBeNull();
+    } finally {
+      fonts.restore();
     }
   });
 

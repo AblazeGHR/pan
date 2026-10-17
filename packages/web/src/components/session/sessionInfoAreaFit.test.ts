@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INFO_AREA_GAP,
   INFO_AREA_RIGHT_INSET,
+  JOB_METRIC_ATTR,
   jobBadgeFits,
   measureInfoArea,
 } from './sessionInfoAreaFit';
@@ -27,23 +28,33 @@ function stubWidth(el: HTMLElement, width: number): HTMLElement {
   return el;
 }
 
-/** row (72px rail, right inset 1) with a J badge plus the given siblings. */
+/**
+ * row (72px rail, right inset 1) with the always-mounted J probe, the given
+ * siblings, and optionally the visible badge.
+ */
 function buildRow(siblings: Array<[string, number]>, jWidth = 14, withBadge = true) {
   const rail = document.createElement('div');
   rail.className = 'session-quick-action-rail';
   Object.defineProperty(rail, 'clientWidth', { value: 72, configurable: true });
   const row = document.createElement('span');
   row.className = 'session-quick-action-adapter-row';
-  const badge = stubWidth(document.createElement('span'), jWidth);
-  badge.className = 'session-job-badge';
-  if (withBadge) row.appendChild(badge);
+  const probe = stubWidth(document.createElement('span'), jWidth);
+  probe.className = 'session-job-badge';
+  probe.setAttribute(JOB_METRIC_ATTR, 'probe');
+  row.appendChild(probe);
+  if (withBadge) {
+    const badge = stubWidth(document.createElement('span'), jWidth);
+    badge.className = 'session-job-badge';
+    badge.setAttribute(JOB_METRIC_ATTR, 'badge');
+    row.appendChild(badge);
+  }
   for (const [className, width] of siblings) {
     const child = stubWidth(document.createElement('span'), width);
     child.className = className;
     row.appendChild(child);
   }
   rail.appendChild(row);
-  return { rail, row, badge };
+  return { rail, row, probe };
 }
 
 describe('jobBadgeFits', () => {
@@ -77,42 +88,41 @@ describe('jobBadgeFits', () => {
 });
 
 describe('measureInfoArea', () => {
-  it('sums the other items and derives the available width from the rail', () => {
-    const { row, badge } = buildRow([
+  it('takes the J width from the probe and excludes probe+badge from the siblings', () => {
+    const { row, probe } = buildRow([
       ['session-queue-badge', 14],
       ['session-unread-done-badge', 14],
       ['session-quick-action-adapter', 24],
     ]);
-    const m = measureInfoArea(row, badge, 0);
+    const m = measureInfoArea(row, probe);
     expect(m.available).toBe(72 - INFO_AREA_RIGHT_INSET);
     expect(m.othersWidth).toBe(52);
     expect(m.othersCount).toBe(3);
     expect(m.jWidth).toBe(14);
   });
 
-  it('falls back to the cached J width while the badge is unmounted', () => {
-    // J unmounted: the row holds only the sibling (as after a full hide).
-    const { row } = buildRow([['session-queue-badge', 14]], 14, false);
-    const m = measureInfoArea(row, null, 14);
+  it('measures the J width from the probe while the badge is unmounted (hidden)', () => {
+    // Hidden state: no badge element in the row at all.
+    const { row, probe } = buildRow([['session-queue-badge', 14]], 14, false);
+    const m = measureInfoArea(row, probe);
     expect(m.jWidth).toBe(14);
     expect(m.othersCount).toBe(1);
     expect(m.othersWidth).toBe(14);
   });
 
-  it('measures only live siblings (no J in the sum) and tolerates an empty row', () => {
-    const { row, badge } = buildRow([]);
-    const m = measureInfoArea(row, badge, 14);
-    expect(m.othersCount).toBe(0);
-    expect(m.othersWidth).toBe(0);
-    expect(m.jWidth).toBe(14);
+  it('reports jWidth 0 without a probe (defensive)', () => {
+    const { row } = buildRow([['session-queue-badge', 14]], 14, false);
+    const m = measureInfoArea(row, null);
+    expect(m.jWidth).toBe(0);
+    expect(m.othersCount).toBe(1);
   });
 
   it('normalizes zoom-scaled rects back to CSS px via the rail factor', () => {
     // CSS zoom 1.25: rects scale (90/16.83) while clientWidth stays CSS px (72).
-    const { row, badge } = buildRow([['session-quick-action-adapter', 29.25]], 16.83);
+    const { row, probe } = buildRow([['session-quick-action-adapter', 29.25]], 16.83);
     Object.defineProperty(row.parentElement!, 'clientWidth', { value: 72, configurable: true });
     row.parentElement!.getBoundingClientRect = () => rect(90);
-    const m = measureInfoArea(row, badge, 14);
+    const m = measureInfoArea(row, probe);
     expect(m.zoom).toBeCloseTo(1.25, 5);
     // 16.83 / 1.25 = 13.464 CSS px; 29.25 / 1.25 = 23.4 CSS px.
     expect(m.jWidth).toBeCloseTo(13.464, 2);

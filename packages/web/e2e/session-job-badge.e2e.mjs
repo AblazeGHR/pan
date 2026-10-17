@@ -252,11 +252,15 @@ await runCase('desktop width ladder hides J entirely and keeps numbers right-ali
   await badge.waitFor({ state: 'detached', timeout: 10000 });
   assert.equal(await jobBadge(page, sessionId).count(), 0, 'J must disappear entirely (no leftover pill)');
   const rowBoxB = await boxOf(row);
-  // No reserved gap: the row is exactly its visible children plus their gaps —
-  // nothing is held for the removed J.
+  // No reserved gap: the row is exactly its in-flow children plus their gaps —
+  // nothing is held for the removed J. The measurement probe is absolutely
+  // positioned and invisible, so it must be excluded AND must keep zero
+  // layout footprint (asserted below).
   const composition = await row.evaluate((el) => {
     const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 3;
-    const children = Array.from(el.children).map((c) => c.getBoundingClientRect().width);
+    const children = Array.from(el.children)
+      .filter((c) => !c.hasAttribute('data-session-job-metric'))
+      .map((c) => c.getBoundingClientRect().width);
     return { gap, children };
   });
   const expectedRowB = composition.children.reduce((sum, w) => sum + w, 0)
@@ -265,6 +269,18 @@ await runCase('desktop width ladder hides J entirely and keeps numbers right-ali
     Math.abs(rowBoxB.width - expectedRowB) < 0.75,
     `row must equal its visible children + gaps (no reserved space), got ${rowBoxB.width} vs ${expectedRowB}`,
   );
+  // The hidden-state measurement probe stays mounted but fully invisible and
+  // out of flow: no leftover pill, no gap, nothing painted.
+  const probeState = await row.evaluate((el) => {
+    const probe = el.querySelector('[data-session-job-metric="probe"]');
+    if (!probe) return null;
+    const s = getComputedStyle(probe);
+    return { visibility: s.visibility, position: s.position, ariaHidden: probe.getAttribute('aria-hidden') };
+  });
+  assert.ok(probeState, 'the J measurement probe must stay mounted while J is hidden');
+  assert.equal(probeState.visibility, 'hidden', 'the probe must not be painted');
+  assert.equal(probeState.position, 'absolute', 'the probe must be out of flow (no reserved space)');
+  assert.equal(probeState.ariaHidden, 'true', 'the probe must stay out of the accessibility tree');
   // Right edge unmoved; numbers complete inside the rail.
   const railBoxB = await boxOf(rail);
   const queueBox = await boxOf(queue);
