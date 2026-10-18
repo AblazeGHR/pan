@@ -49,6 +49,27 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
 ];
 
 /**
+ * Per-snapshot relation index used by the list and workspace projections.
+ * Building the reverse managed-by relation once keeps the subagent filter
+ * linear in the number of Sessions instead of rescanning the full list for
+ * every candidate.
+ */
+export interface SessionFilterContext {
+  sessionsWithSubagents: ReadonlySet<string>;
+}
+
+export function createSessionFilterContext(sessions: Session[]): SessionFilterContext {
+  const sessionsWithSubagents = new Set<string>();
+  for (const session of sessions) {
+    if (session.managed?.length) sessionsWithSubagents.add(session.id);
+    if (session.managedBy && session.managedBy !== session.id) {
+      sessionsWithSubagents.add(session.managedBy);
+    }
+  }
+  return { sessionsWithSubagents };
+}
+
+/**
  * True when the session manages at least one other session ("has subagent").
  *
  * Primary signal is the `managed` id array. As a fallback for payloads that
@@ -56,8 +77,13 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
  * the same relation from `managedBy` back-references — the exact source the
  * manager-group tree uses — so the filter stays correct either way.
  */
-export function hasSubagents(session: Session, allSessions: Session[]): boolean {
+export function hasSubagents(
+  session: Session,
+  allSessions: Session[],
+  context?: SessionFilterContext,
+): boolean {
   if (session.managed && session.managed.length > 0) return true;
+  if (context) return context.sessionsWithSubagents.has(session.id);
   if (allSessions.some((s) => s.id !== session.id && s.managedBy === session.id)) {
     return true;
   }
@@ -95,9 +121,10 @@ export function matchesSpecialFilters(
   session: Session,
   allSessions: Session[],
   filters: Set<SpecialFilterId>,
+  context?: SessionFilterContext,
 ): boolean {
   if (filters.size === 0) return true;
-  if (filters.has('subagent') && !hasSubagents(session, allSessions)) return false;
+  if (filters.has('subagent') && !hasSubagents(session, allSessions, context)) return false;
   if (filters.has('metaagent') && !isMetaAgent(session)) return false;
   if (filters.has('running') && session.workerStatus !== 'running') return false;
   if (
@@ -303,11 +330,12 @@ export function workspaceMatchesSpecialFilters(
   members: Session[],
   allSessions: Session[],
   filters: Set<SpecialFilterId>,
+  context?: SessionFilterContext,
 ): boolean {
   if (filters.size === 0) return true;
   for (const filter of filters) {
     const single = new Set<SpecialFilterId>([filter]);
-    if (!members.some((session) => matchesSpecialFilters(session, allSessions, single))) return false;
+    if (!members.some((session) => matchesSpecialFilters(session, allSessions, single, context))) return false;
   }
   return true;
 }
@@ -378,6 +406,10 @@ export function computeWorkspaceRowVisibility(
     return everything;
   }
 
+  const filterContext = options.specialFilters.has('subagent')
+    ? createSessionFilterContext(sessions)
+    : undefined;
+
   const visibleWorkspaces = workspaces.filter(
     (workspace) =>
       matchesWorkspaceSearch(workspace, options.searchQuery) &&
@@ -385,6 +417,7 @@ export function computeWorkspaceRowVisibility(
         options.membersByWorkspace.get(workspace.id) ?? [],
         sessions,
         options.specialFilters,
+        filterContext,
       ) &&
       workspaceMatchesAdapterFilter(
         options.membersByWorkspace.get(workspace.id) ?? [],
@@ -392,7 +425,7 @@ export function computeWorkspaceRowVisibility(
       ),
   );
   const sessionMatches = (session: Session) =>
-    matchesSpecialFilters(session, sessions, options.specialFilters) &&
+    matchesSpecialFilters(session, sessions, options.specialFilters, filterContext) &&
     matchesAdapterFilter(session, options.adapterFilters);
   return {
     workspaces: visibleWorkspaces,
@@ -430,12 +463,15 @@ export function getSessionListCandidates(
   },
 ): Session[] {
   const inScope = scopeSessionsByWorkspace(sessions, options.activeWorkspaceId);
+  const filterContext = options.specialFilters.has('subagent')
+    ? createSessionFilterContext(sessions)
+    : undefined;
   const base = options.multiSelectMode
     ? inScope
     : inScope.filter((session) => !options.hiddenSessionIds.has(session.id));
 
   let candidates = base.filter((session) =>
-    matchesSpecialFilters(session, sessions, options.specialFilters) &&
+    matchesSpecialFilters(session, sessions, options.specialFilters, filterContext) &&
     matchesAdapterFilter(session, options.adapterFilters),
   );
   if (options.searchQuery.trim()) {

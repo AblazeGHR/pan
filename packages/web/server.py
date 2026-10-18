@@ -1559,6 +1559,10 @@ def _stamp_live_event(data: dict) -> dict:
     }
 
 
+_LINK_PROJECTION_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="pan-link-projection")
+
+
 def _project_worker_event(data: dict) -> dict:
     """Project local Markdown links before exposing a Worker event to UI.
 
@@ -1659,8 +1663,15 @@ async def broadcast(data: dict):
     # Keep the persisted provider/history representation untouched.  This is
     # the common outbound boundary for live browser events and is intentionally
     # before both dashboard and agent-client fan-out.
+    # Resolving local links can stat files and read/write the attachment
+    # registry. Never do that on the event loop driving HTTP and Worker IO.
+    # The producer awaits its own projection, preserving its event order.
+    if data.get("type") in {"worker.stream", "worker.result"}:
+        data = await asyncio.get_running_loop().run_in_executor(
+            _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
+    # Capture live summary authority after the await, not before another
+    # producer may have advanced this Session while filesystem work ran.
     data = _attach_session_summary_patch(data)
-    data = _project_worker_event(data)
     data = _stamp_live_event(data)
     _stamp_ws_event_ts(data)
     for ws in list(ws_clients):
@@ -4272,12 +4283,23 @@ def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | Non
 
 def _editor_reference_id(session_id: str, path: str, line: int | None, end_line: int | None) -> str:
     canonical_path = str(Path(path).resolve())
+    # Concurrent history/live projections must reuse one durable reference.
+    with _ATTACHMENT_REGISTRY_LOCK:
+        return _editor_reference_id_locked(session_id, canonical_path, line, end_line)
+
+
+def _editor_reference_id_locked(session_id: str, canonical_path: str,
+                                line: int | None, end_line: int | None) -> str:
+    # Registry paths are resolved at registration. Comparing these stored
+    # canonical strings must not resolve every unrelated file again: stale
+    # network drives in the registry can otherwise block each live delta.
+    canonical_key = os.path.normcase(os.path.normpath(canonical_path))
     registry = _read_attachment_registry(session_id)
     for attachment_id, record in registry.items():
         if (
             isinstance(record, dict)
             and record.get("source") == "server_file"
-            and str(Path(str(record.get("path", ""))).resolve()) == canonical_path
+            and os.path.normcase(os.path.normpath(str(record.get("path", "")))) == canonical_key
             and record.get("line") == line
             and record.get("endLine") == end_line
             and record.get("completed", True) is True
@@ -4303,7 +4325,14 @@ def _project_editor_links(session_id: str, content: str) -> str:
     be upgraded to a draggable opaque reference; missing or ambiguous legacy
     links remain ordinary editor links and retain click-only compatibility.
     """
+    destinations: dict[str, str | None] = {}
+
     def replace(match: re.Match[str]) -> str:
+        href = match.group("href")
+        if href in destinations:
+            projected = destinations[href]
+            return f"{match.group('label')}({projected})" if projected else match.group(0)
+        destinations[href] = None
         parsed = _parse_editor_destination(match.group("href"))
         if parsed is None:
             return match.group(0)
@@ -4315,7 +4344,9 @@ def _project_editor_links(session_id: str, content: str) -> str:
             if not target.is_file():
                 return match.group(0)
             attachment_id = _editor_reference_id(session_id, str(target), line, end_line)
-            return f"{match.group('label')}({_editor_attachment_href(session_id, attachment_id, line, end_line)})"
+            projected = _editor_attachment_href(session_id, attachment_id, line, end_line)
+            destinations[href] = projected
+            return f"{match.group('label')}({projected})"
         except (OSError, RuntimeError, ValueError):
             return match.group(0)
 

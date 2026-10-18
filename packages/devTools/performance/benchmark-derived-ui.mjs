@@ -33,6 +33,14 @@ const results = [];
 for (const n of [500, 2000, 5000]) {
   const sessions = Array.from({ length: n }, (_, i) => ({ id: `s${i}`, managedBy: i ? 's0' : undefined, workspaceIds: ['w'] }));
   results.push(measure(`workspace-members-${n}`, () => filters.workspaceMemberIds(sessions, 'w')));
+  const specialFilters = new Set(['subagent']);
+  results.push(measure(`session-candidates-subagent-${n}`, () => filters.getSessionListCandidates(sessions, {
+    multiSelectMode: true,
+    hiddenSessionIds: new Set(),
+    searchQuery: '',
+    specialFilters,
+    activeWorkspaceId: 'all',
+  })));
 }
 for (const n of [16, 64, 256, 1000]) {
   const messages = Array.from({ length: n }, (_, i) => [
